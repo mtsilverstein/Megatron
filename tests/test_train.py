@@ -95,3 +95,16 @@ def test_resume_matches_uninterrupted_run(tmp_path):
     mb = json.loads((art_b / "metrics.json").read_text())
     assert mb["val_pinball"] == pytest.approx(ma["val_pinball"])
     assert mb["best_epoch"] == ma["best_epoch"]
+
+
+def test_val_sequences_span_prior_seasons(tmp_path):
+    from ffmodel.model.train import _prepare_data
+
+    features = _synthetic_features()          # seasons 2020-2022
+    train_data, val_data, scaler = _prepare_data(_cfg(tmp_path), features)
+    assert (train_data.meta["season"] < 2022).all()
+    assert (val_data.meta["season"] == 2022).all()
+    # a week-1 val row must carry prior-season history, not all padding
+    wk1 = (val_data.meta["week"] == 1).to_numpy()
+    assert wk1.any()
+    assert not val_data.pad_mask[wk1].all()

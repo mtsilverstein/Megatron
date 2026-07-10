@@ -106,3 +106,9 @@ def apply_scaler(data: SequenceData, scaler: Scaler) -> SequenceData:
     x_ctx = np.nan_to_num((data.x_ctx - scaler.ctx_mean) / scaler.ctx_std, nan=0.0)
     return SequenceData(x_seq.astype(np.float32), x_ctx.astype(np.float32),
                         data.y, data.pad_mask, data.meta)
+
+
+def subset(data: SequenceData, mask: np.ndarray) -> SequenceData:
+    """Row-subset a SequenceData, keeping meta aligned."""
+    return SequenceData(data.x_seq[mask], data.x_ctx[mask], data.y[mask],
+                        data.pad_mask[mask], data.meta.loc[mask].reset_index(drop=True))

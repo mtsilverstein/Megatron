@@ -3,7 +3,7 @@ import pandas as pd
 
 from ffmodel.data.features import build_features
 from ffmodel.model.dataset import (
-    CTX_FEATURES, SEQ_FEATURES, Scaler, apply_scaler, build_sequences, fit_scaler,
+    CTX_FEATURES, SEQ_FEATURES, Scaler, apply_scaler, build_sequences, fit_scaler, subset,
 )
 from ffmodel.scoring import PREDICTED_STATS
 
@@ -75,3 +75,12 @@ def test_scaler_handles_all_nan_columns_without_warnings():
     assert scaler.seq_mean[ts] == 0.0
     assert scaler.seq_std[ts] == 1.0
     assert not np.isnan(scaled.x_seq).any()
+
+
+def test_subset_keeps_rows_aligned():
+    data = build_sequences(_features(), seq_len=4, min_history=0)
+    mask = (data.meta["week"] >= 4).to_numpy()
+    sub = subset(data, mask)
+    assert len(sub.meta) == mask.sum()
+    np.testing.assert_array_equal(sub.y, data.y[mask])
+    assert (sub.meta["week"] >= 4).all()

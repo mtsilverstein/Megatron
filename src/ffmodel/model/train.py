@@ -14,7 +14,7 @@ import yaml
 from torch.utils.data import DataLoader, TensorDataset
 
 from ffmodel.model.dataset import (
-    CTX_FEATURES, SEQ_FEATURES, apply_scaler, build_sequences, fit_scaler,
+    CTX_FEATURES, SEQ_FEATURES, apply_scaler, build_sequences, fit_scaler, subset,
 )
 from ffmodel.model.net import QuantileTransformer, pinball_loss
 from ffmodel.scoring import PREDICTED_STATS
@@ -63,19 +63,29 @@ def _epoch(model, loader, quantiles, device, optimizer=None, grad_clip=1.0,
     return total / count
 
 
+def _prepare_data(cfg: dict, features: pd.DataFrame):
+    """Build sequences over the whole window so val histories span prior
+    seasons (matching inference); split by target-row season afterwards.
+    Leak-free: a train row's history is strictly prior to its own week,
+    hence entirely earlier than val_season."""
+    val_season = cfg["val_season"]
+    window = features[(features["season"] >= cfg["first_season"])
+                      & (features["season"] <= val_season)]
+    raw = build_sequences(window, cfg["seq_len"])
+    train_mask = (raw.meta["season"] < val_season).to_numpy()
+    val_mask = (raw.meta["season"] == val_season).to_numpy()
+    raw_train, raw_val = subset(raw, train_mask), subset(raw, val_mask)
+    scaler = fit_scaler(raw_train)          # train rows only — leak-freedom
+    return apply_scaler(raw_train, scaler), apply_scaler(raw_val, scaler), scaler
+
+
 def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -> Path:
     _seed_everything(cfg["seed"])
     device = "cuda" if torch.cuda.is_available() else "cpu"
     quantiles = tuple(cfg["quantiles"])
     val_season = cfg["val_season"]
 
-    train_df = features[(features["season"] >= cfg["first_season"])
-                        & (features["season"] < val_season)]
-    val_df = features[features["season"] == val_season]
-    raw_train = build_sequences(train_df, cfg["seq_len"])
-    scaler = fit_scaler(raw_train)          # train rows only — leak-freedom
-    train_data = apply_scaler(raw_train, scaler)
-    val_data = apply_scaler(build_sequences(val_df, cfg["seq_len"]), scaler)
+    train_data, val_data, scaler = _prepare_data(cfg, features)
 
     model = QuantileTransformer(
         n_seq_features=len(SEQ_FEATURES), n_ctx_features=len(CTX_FEATURES),
@@ -101,7 +111,7 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
         optimizer.load_state_dict(state["optimizer_state"])
         start_epoch = state["epoch"] + 1
         best_val, bad = state["best_val"], state["bad_epochs"]
-        torch.set_rng_state(state["torch_rng"])
+        torch.set_rng_state(state["torch_rng"].cpu())  # set_rng_state needs CPU; map_location relocates it
         np.random.set_state(state["numpy_rng"])
 
     val_loader = _loader(val_data, cfg["train"]["batch_size"], False, cfg["seed"])
