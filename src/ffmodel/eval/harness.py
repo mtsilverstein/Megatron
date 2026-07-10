@@ -44,12 +44,20 @@ def run_backtest(
                 raise ValueError(
                     f"{predictor.name}: prediction index misaligned with test frame"
                 )
-            pred_points = fantasy_points(pred_stats, rules)
             scored = pd.DataFrame({
                 "position": test["position"].to_numpy(),
                 "actual": actual.to_numpy(),
-                "pred": pred_points.to_numpy(),
+                "pred": fantasy_points(pred_stats, rules).to_numpy(),
             })
+            if hasattr(predictor, "predict_quantiles"):
+                quantile_stats = predictor.predict_quantiles(test)
+                for key in ("p10", "p90"):
+                    frame = quantile_stats[key]
+                    if not frame.index.equals(test.index):
+                        raise ValueError(
+                            f"{predictor.name}: {key} index misaligned with test frame"
+                        )
+                    scored[key] = fantasy_points(frame, rules).to_numpy()
             tables.append(
                 score_table(scored).assign(model=predictor.name, test_season=season)
             )

@@ -26,13 +26,21 @@ def score_table(frame: pd.DataFrame) -> pd.DataFrame:
     """Per-position + OVERALL error table. Input columns: position, actual, pred."""
     if frame.empty:
         raise ValueError("score_table received an empty frame")
+    has_q = {"p10", "p90"} <= set(frame.columns)
+
     def _row(name: str, part: pd.DataFrame) -> dict:
-        return {
+        out = {
             "position": name,
             "mae": mae(part["actual"], part["pred"]),
             "rmse": rmse(part["actual"], part["pred"]),
             "n": len(part),
         }
+        if has_q:
+            out["pinball_p10"] = pinball_loss(part["actual"], part["p10"], 0.1)
+            out["pinball_p50"] = pinball_loss(part["actual"], part["pred"], 0.5)
+            out["pinball_p90"] = pinball_loss(part["actual"], part["p90"], 0.9)
+            out["coverage_p10_p90"] = coverage(part["actual"], part["p10"], part["p90"])
+        return out
 
     rows = [_row(pos, part) for pos, part in frame.groupby("position")]
     rows.append(_row("OVERALL", frame))

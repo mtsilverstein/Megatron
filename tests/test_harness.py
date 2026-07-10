@@ -74,3 +74,32 @@ def test_run_backtest_rejects_misaligned_predictions():
 
     with pytest.raises(ValueError, match="misaligned"):
         run_backtest(features, [Reorderer()], test_seasons=[2023])
+
+
+def test_run_backtest_quantile_predictor_adds_columns():
+    features = _toy_features()
+
+    class QuantileOracle:
+        name = "q_oracle"
+
+        def fit(self, train):
+            pass
+
+        def predict(self, test):
+            return test[PREDICTED_STATS].copy()
+
+        def predict_quantiles(self, test):
+            actual = test[PREDICTED_STATS]
+            return {"p10": actual * 0.5, "p50": actual.copy(), "p90": actual * 1.5}
+
+    results = run_backtest(features, [QuantileOracle()], test_seasons=[2023])
+    row = results[results["position"] == "OVERALL"].iloc[0]
+    assert row["mae"] == pytest.approx(0.0)          # p50 == truth
+    assert row["pinball_p50"] == pytest.approx(0.0)
+    assert row["coverage_p10_p90"] == pytest.approx(1.0)
+
+
+def test_point_only_predictors_unchanged():
+    features = _toy_features()
+    results = run_backtest(features, [NaiveLast4()], test_seasons=[2023])
+    assert "pinball_p50" not in results.columns or results["pinball_p50"].isna().all()
