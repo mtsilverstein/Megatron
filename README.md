@@ -35,5 +35,6 @@ Local CPU training works identically (slower): same commands, no notebook needed
 ## Status
 
 - [x] Plan 1: data pipeline, scoring, features, eval harness, baselines
-- [ ] Plan 2: quantile transformer trained on Studio Lab (T4)
+- [x] Plan 2: quantile transformer code complete (CPU smoke-tested end-to-end on real data)
+  - Transformer walk-forward artifacts: pending GPU training (see Training on SageMaker Studio Lab)
 - [ ] Plan 3: draft board + weekly site, GitHub Actions automation
