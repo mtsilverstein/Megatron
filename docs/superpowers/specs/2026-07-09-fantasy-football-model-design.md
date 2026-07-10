@@ -57,8 +57,28 @@ ff-model/
 - **Positions:** QB, RB, WR, TE. Kickers and DST are out of scope for the model (the site may omit them entirely in v1).
 - **Unit of prediction:** (player, week) → **raw stat line** for that week: pass yards, pass TD, INT, rush attempts, rush yards, rush TD, targets, receptions, receiving yards, receiving TD, fumbles lost. Fantasy points under any scoring rule are computed deterministically from the stat line; PPR is the display default.
 - **Model input per sample:**
-  - *Sequence:* the player's last 16 games played (spanning season boundaries), each as a per-game feature vector (raw stats, usage shares — target share, snap %, carry share — team context). Shorter histories are padded and masked.
+  - *Sequence:* the player's last 16 games played (spanning season boundaries), each as a per-game feature vector (raw stats, usage shares — target share, carry share — team context). Shorter histories are padded and masked.
   - *Target-week context:* opponent defense rolling allowed-stats by position, home/away, rest days, week number. Injected via a learned context token.
+- **Amendment (2026-07-10, Plan 2 Task 8 — snap % excluded in v1):** Spec originally listed snap % among sequence usage features. A join spike (`nflreadpy.load_snap_counts` keyed on `pfr_player_id` → `nflreadpy.load_players` pfr_id/gsis_id crosswalk → canonical weekly frame on `player_id`/`season`/`week`) measured per-season match rate for QB/RB/WR/TE player-weeks, gated at ≥90% every season 2012–2025 to ship:
+
+  | season | match rate | n |
+  |---|---|---|
+  | 2012 | 0.00% | 5,620 |
+  | 2013 | 99.98% | 5,516 |
+  | 2014 | 99.89% | 5,599 |
+  | 2015 | 99.96% | 5,618 |
+  | 2016 | 99.91% | 5,563 |
+  | 2017 | 99.98% | 5,641 |
+  | 2018 | 100.00% | 5,520 |
+  | 2019 | 99.89% | 5,530 |
+  | 2020 | 99.95% | 5,670 |
+  | 2021 | 99.90% | 5,987 |
+  | 2022 | 99.98% | 5,918 |
+  | 2023 | 99.90% | 5,893 |
+  | 2024 | 99.90% | 5,920 |
+  | 2025 | 99.77% | 6,102 |
+
+  The join mechanics are sound (2013–2025 all clear 99.7%+), but `nflreadpy.load_snap_counts(2012)` returns zero rows — nflverse has no Pro Football Reference snap-count data for the 2012 season at all (confirmed by calling the loader for 2012 in isolation), so no join could ever recover it. Since the gate requires ≥90% coverage in **every** training season and 2012 is included in the training window (§4 "Seasons ~2012–2025"), snap % is excluded from v1. `target_share` and `carry_share` remain as usage features. Revisit if the training window's start year moves past 2012, or if nflverse backfills 2012 snap counts.
 - **Scale honesty:** ~100–150k player-week samples total. This is small data and the model is sized accordingly (see §5).
 - **Cold start:** rookies with no NFL games get position-level prior projections; players changing teams keep their personal sequence with updated team/opponent context. Both limitations are documented on the site.
 
