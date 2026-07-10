@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 from pathlib import Path
 
 import pandas as pd
@@ -14,6 +15,20 @@ CONTEXT_COLUMNS = [
     "player_id", "player_display_name", "position", "team", "opponent_team",
     "season", "week",
 ]
+
+
+def _cache_name(prefix: str, seasons: list[int]) -> str:
+    """Generate a cache filename from prefix and season list.
+
+    Contiguous ranges use a simple span notation; non-contiguous lists include
+    a hash to distinguish them (e.g. [2012,2015] vs [2012,2013,2015]).
+    """
+    ordered = sorted(seasons)
+    span = f"{ordered[0]}_{ordered[-1]}"
+    if ordered == list(range(ordered[0], ordered[-1] + 1)):
+        return f"{prefix}_{span}"
+    digest = hashlib.md5("-".join(map(str, ordered)).encode()).hexdigest()[:8]
+    return f"{prefix}_{span}_{digest}"
 
 # Canonical columns derived by summing raw nflverse columns.
 _RAW_SUMS = {
@@ -39,6 +54,7 @@ def normalize_weekly(raw: pd.DataFrame) -> pd.DataFrame:
     )
     df = df[keep].copy()
     stat_cols = PREDICTED_STATS + SCORING_EXTRAS
+    # target_share stays NaN on purpose: NaN means "no meaningful share" (e.g. QBs); downstream consumers handle NaN natively.
     df[stat_cols] = df[stat_cols].fillna(0)
     return df.sort_values(["player_id", "season", "week"]).reset_index(drop=True)
 
@@ -62,7 +78,7 @@ def pull_weekly(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFra
         raw = nflreadpy.load_player_stats(seasons).to_pandas()
         return normalize_weekly(raw)
 
-    return _cached(cache_dir, f"weekly_{min(seasons)}_{max(seasons)}", load)
+    return _cached(cache_dir, _cache_name("weekly", seasons), load)
 
 
 def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFrame:
@@ -74,7 +90,7 @@ def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.Data
         keep = ["season", "week", "gameday", "home_team", "away_team"]
         return raw[keep].reset_index(drop=True)
 
-    return _cached(cache_dir, f"schedules_{min(seasons)}_{max(seasons)}", load)
+    return _cached(cache_dir, _cache_name("schedules", seasons), load)
 
 
 def main() -> None:

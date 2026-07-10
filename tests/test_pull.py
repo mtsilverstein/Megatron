@@ -53,6 +53,26 @@ def test_canonical_columns_present():
         assert col in out.columns, col
 
 
+def test_cache_name_distinguishes_same_span_lists():
+    from ffmodel.data.pull import _cache_name
+
+    contiguous = _cache_name("weekly", [2012, 2013, 2014, 2015])
+    assert contiguous == "weekly_2012_2015"
+    a = _cache_name("weekly", [2012, 2015])
+    b = _cache_name("weekly", [2012, 2013, 2015])
+    assert a != b
+    assert a != contiguous
+    assert _cache_name("weekly", [2015, 2012]) == a  # order-insensitive
+
+
+def test_target_share_nan_passes_through():
+    import numpy as np
+
+    raw = pd.DataFrame([_raw_row(target_share=np.nan)])
+    out = normalize_weekly(raw)
+    assert np.isnan(out["target_share"].iloc[0])
+
+
 @pytest.mark.integration
 def test_pull_real_season_and_scoring_matches_nflverse(tmp_path):
     from ffmodel.data.pull import pull_weekly
