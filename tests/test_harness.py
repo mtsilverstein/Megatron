@@ -103,3 +103,24 @@ def test_point_only_predictors_unchanged():
     features = _toy_features()
     results = run_backtest(features, [NaiveLast4()], test_seasons=[2023])
     assert "pinball_p50" not in results.columns or results["pinball_p50"].isna().all()
+
+
+def test_run_backtest_rejects_misaligned_quantiles():
+    features = _toy_features()
+
+    class MisalignedQuantiles:
+        name = "bad_quantiles"
+
+        def fit(self, train):
+            pass
+
+        def predict(self, test):
+            return test[PREDICTED_STATS].copy()
+
+        def predict_quantiles(self, test):
+            good = test[PREDICTED_STATS].copy()
+            bad = good.iloc[::-1].reset_index(drop=True)
+            return {"p10": bad, "p50": good, "p90": good.copy()}
+
+    with pytest.raises(ValueError, match="p10 index misaligned"):
+        run_backtest(features, [MisalignedQuantiles()], test_seasons=[2023])

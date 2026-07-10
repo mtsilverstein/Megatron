@@ -39,7 +39,12 @@ def run_backtest(
         actual = fantasy_points(test[PREDICTED_STATS], rules)
         for predictor in predictors:
             predictor.fit(train)
-            pred_stats = predictor.predict(test)
+            if hasattr(predictor, "predict_quantiles"):
+                quantile_stats = predictor.predict_quantiles(test)
+                pred_stats = quantile_stats["p50"]
+            else:
+                quantile_stats = None
+                pred_stats = predictor.predict(test)
             if not pred_stats.index.equals(test.index):
                 raise ValueError(
                     f"{predictor.name}: prediction index misaligned with test frame"
@@ -49,8 +54,7 @@ def run_backtest(
                 "actual": actual.to_numpy(),
                 "pred": fantasy_points(pred_stats, rules).to_numpy(),
             })
-            if hasattr(predictor, "predict_quantiles"):
-                quantile_stats = predictor.predict_quantiles(test)
+            if quantile_stats is not None:
                 for key in ("p10", "p90"):
                     frame = quantile_stats[key]
                     if not frame.index.equals(test.index):

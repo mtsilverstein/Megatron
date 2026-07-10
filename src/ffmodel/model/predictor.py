@@ -8,9 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from ffmodel.model.dataset import (
-    CTX_FEATURES, SEQ_FEATURES, Scaler, apply_scaler, build_sequences,
-)
+from ffmodel.model.dataset import Scaler, apply_scaler, build_sequences
 from ffmodel.model.net import QuantileTransformer, monotone
 from ffmodel.scoring import PREDICTED_STATS
 

@@ -9,7 +9,7 @@ from ffmodel.model.train import train_from_config
 from tests.test_features import make_schedules, make_weekly
 
 
-def _synthetic_features(n_players=12, seasons=(2020, 2021, 2022)):
+def _synthetic_features(n_players=12, seasons=(2020, 2021, 2022), extra_rows=None):
     rng = np.random.default_rng(0)
     rows = []
     for season in seasons:
@@ -21,6 +21,8 @@ def _synthetic_features(n_players=12, seasons=(2020, 2021, 2022)):
                     "receiving_yards": float(rng.integers(0, 120)),
                     "receptions": float(rng.integers(0, 10)),
                 })
+    if extra_rows:
+        rows.extend(extra_rows)
     sched = pd.concat([make_schedules(10, s) for s in seasons])
     return build_features(make_weekly(rows), sched)
 
