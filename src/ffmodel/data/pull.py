@@ -11,6 +11,24 @@ from ffmodel.scoring import PREDICTED_STATS, SCORING_EXTRAS
 
 POSITIONS = ["QB", "RB", "WR", "TE"]
 
+# nflverse player_stats uses current franchise codes for ALL seasons, while
+# schedules keep era-accurate codes. Normalize schedules to current codes so
+# the two frames join cleanly (Rams/Chargers/Raiders relocations).
+TEAM_CODE_FIXES = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
+
+
+def normalize_schedule_teams(sched: pd.DataFrame) -> pd.DataFrame:
+    """Replace legacy team codes with current franchise codes.
+
+    nflverse schedules preserve era-accurate codes (STL through 2015, SD through
+    2016, OAK through 2019) but player_stats uses current codes for all seasons.
+    This normalization ensures clean joins on team codes.
+    """
+    out = sched.copy()
+    for col in ("home_team", "away_team"):
+        out[col] = out[col].replace(TEAM_CODE_FIXES)
+    return out
+
 CONTEXT_COLUMNS = [
     "player_id", "player_display_name", "position", "team", "opponent_team",
     "season", "week",
@@ -90,7 +108,7 @@ def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.Data
         keep = ["season", "week", "gameday", "home_team", "away_team"]
         return raw[keep].reset_index(drop=True)
 
-    return _cached(cache_dir, _cache_name("schedules", seasons), load)
+    return normalize_schedule_teams(_cached(cache_dir, _cache_name("schedules", seasons), load))
 
 
 def main() -> None:

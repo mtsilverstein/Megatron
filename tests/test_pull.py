@@ -73,6 +73,22 @@ def test_target_share_nan_passes_through():
     assert np.isnan(out["target_share"].iloc[0])
 
 
+def test_schedule_team_codes_normalized_to_current():
+    from ffmodel.data.pull import normalize_schedule_teams
+
+    sched = pd.DataFrame({
+        "season": [2014, 2014, 2023], "week": [1, 1, 1],
+        "gameday": ["2014-09-07", "2014-09-07", "2023-09-10"],
+        "home_team": ["STL", "SD", "KC"],
+        "away_team": ["OAK", "LA", "DET"],
+    })
+    out = normalize_schedule_teams(sched)
+    assert list(out["home_team"]) == ["LA", "LAC", "KC"]
+    assert list(out["away_team"]) == ["LV", "LA", "DET"]
+    # input frame not mutated
+    assert list(sched["home_team"]) == ["STL", "SD", "KC"]
+
+
 @pytest.mark.integration
 def test_pull_real_season_and_scoring_matches_nflverse(tmp_path):
     from ffmodel.data.pull import pull_weekly
