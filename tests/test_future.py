@@ -78,3 +78,10 @@ def test_combined_contains_future_rows_by_index():
         .combined_future_features(weekly, _sched_with_future(), 2023, 7)
     assert future.index.isin(combined.index).all()
     assert len(combined) == len(future) + 12  # 2 players x 6 real weeks
+
+
+def test_player_with_later_season_games_is_excluded():
+    later = make_weekly([{"player_id": "future_guy", "season": 2024, "week": 1}])
+    weekly = pd.concat([_history(), later], ignore_index=True)
+    sk = future_skeleton(weekly, _sched_with_future(), season=2023, week=7)
+    assert "future_guy" not in set(sk["player_id"])

@@ -22,7 +22,7 @@ def future_skeleton(weekly: pd.DataFrame, schedules: pd.DataFrame,
                     season: int, week: int) -> pd.DataFrame:
     ordered = weekly.sort_values(["player_id", "season", "week"])
     latest = ordered.groupby("player_id").tail(1)
-    active = latest[latest["season"] >= season - 1]
+    active = latest[(latest["season"] >= season - 1) & (latest["season"] <= season)]
 
     games = schedules[(schedules["season"] == season) & (schedules["week"] == week)]
     home = games.rename(columns={"home_team": "team", "away_team": "opponent_team"})
