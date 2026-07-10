@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -56,3 +58,11 @@ def test_score_table_rejects_empty_frame():
     frame = pd.DataFrame({"position": [], "actual": [], "pred": []})
     with pytest.raises(ValueError, match="empty"):
         score_table(frame)
+
+
+def test_run_cli_parses_transformer_root():
+    from ffmodel.eval.run import build_parser
+
+    args = build_parser().parse_args(["--transformer-root", "models/transformer/v1"])
+    assert str(args.transformer_root) == str(Path("models/transformer/v1"))
+    assert build_parser().parse_args([]).transformer_root is None

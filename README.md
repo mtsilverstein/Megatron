@@ -20,6 +20,18 @@ python -m ffmodel.data.pull     # cache 2012-2025 data to data/raw/
 python -m ffmodel.eval.run      # walk-forward backtest -> models/backtests/baselines.json
 ```
 
+## Training on SageMaker Studio Lab
+
+1. Start a **GPU** runtime (T4; 4h/day quota) and open a terminal.
+2. Once: `git clone <repo-url> && cd <repo> && pip install -e .`
+3. Open `notebooks/train_studio_lab.ipynb` and run the cells top to bottom.
+   Each config trains one walk-forward artifact (`models/transformer/v1/through<year>/`);
+   training checkpoints every epoch, so if the session dies, restart the runtime
+   and rerun the same cell adding `--resume`.
+4. The last cell runs the full bake-off and commits artifacts + results.
+
+Local CPU training works identically (slower): same commands, no notebook needed.
+
 ## Status
 
 - [x] Plan 1: data pipeline, scoring, features, eval harness, baselines
