@@ -23,6 +23,7 @@ def build_features(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFram
     df = _add_carry_share(df)
     df = _add_player_lags(df)
     df = _add_schedule_context(df, schedules)
+    df = _add_opponent_allowed(df)
     df = _add_position_dummies(df)
     return df
 
@@ -78,6 +79,34 @@ def _add_schedule_context(df: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataF
     merged["rest_days"] = merged["rest_days"].fillna(7).astype(int)
     merged["is_home"] = merged["is_home"].fillna(0).astype(int)
     return merged
+
+
+def _add_opponent_allowed(df: pd.DataFrame) -> pd.DataFrame:
+    allowed = (
+        df.groupby(["opponent_team", "position", "season", "week"], as_index=False)
+        ["ppr_points"].sum()
+        .rename(columns={"opponent_team": "def_team", "ppr_points": "allowed"})
+        .sort_values(["def_team", "position", "season", "week"])
+        .reset_index(drop=True)
+    )
+    shifted = allowed.groupby(["def_team", "position"], sort=False)["allowed"].shift(1)
+    allowed["opp_allowed_last4"] = (
+        shifted.groupby([allowed["def_team"], allowed["position"]])
+        .rolling(4, min_periods=1)
+        .mean()
+        .reset_index(level=[0, 1], drop=True)
+    )
+    allowed["opp_allowed_season"] = (
+        allowed.groupby(["def_team", "position", "season"], sort=False)["allowed"]
+        .transform(lambda s: s.shift(1).expanding().mean())
+    )
+    return df.merge(
+        allowed[["def_team", "position", "season", "week",
+                 "opp_allowed_last4", "opp_allowed_season"]],
+        left_on=["opponent_team", "position", "season", "week"],
+        right_on=["def_team", "position", "season", "week"],
+        how="left",
+    ).drop(columns=["def_team"])
 
 
 def _add_position_dummies(df: pd.DataFrame) -> pd.DataFrame:

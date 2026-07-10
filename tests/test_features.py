@@ -80,3 +80,34 @@ def test_feature_columns_never_include_same_week_stats():
     assert not set(cols) & set(PREDICTED_STATS)
     assert "ppr_points" not in cols
     assert "fantasy_points_ppr" not in cols
+
+
+def test_opponent_allowed_uses_only_prior_weeks():
+    # Two WRs face defense BBB in weeks 1-3; BBB allowed 10 then 30 PPR pts.
+    weekly = make_weekly([
+        {"player_id": "p1", "week": 1, "receiving_yards": 100.0},  # 10 pts
+        {"player_id": "p1", "week": 2, "receiving_yards": 300.0},  # 30 pts
+        {"player_id": "p1", "week": 3, "receiving_yards": 0.0},
+    ])
+    out = build_features(weekly, make_schedules())
+    wk2 = out[out["week"] == 2].iloc[0]
+    wk3 = out[out["week"] == 3].iloc[0]
+    assert wk2["opp_allowed_last4"] == pytest.approx(10.0)
+    assert wk3["opp_allowed_last4"] == pytest.approx(20.0)   # mean(10, 30)
+    assert wk3["opp_allowed_season"] == pytest.approx(20.0)
+
+
+def test_opponent_allowed_is_position_specific():
+    weekly = make_weekly([
+        {"player_id": "wr", "position": "WR", "week": 1, "receiving_yards": 100.0},
+        {"player_id": "rb", "position": "RB", "week": 1, "rushing_yards": 200.0},
+        {"player_id": "wr", "position": "WR", "week": 2},
+    ])
+    out = build_features(weekly, make_schedules())
+    wk2 = out[(out["week"] == 2) & (out["player_id"] == "wr")].iloc[0]
+    assert wk2["opp_allowed_last4"] == pytest.approx(10.0)   # WR pts only, not RB's 20
+
+
+def test_opponent_allowed_nan_when_no_history():
+    out = build_features(make_weekly([{"week": 1}]), make_schedules())
+    assert np.isnan(out["opp_allowed_last4"].iloc[0])
