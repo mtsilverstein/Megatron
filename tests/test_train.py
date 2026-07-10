@@ -71,3 +71,25 @@ def test_seeded_determinism(tmp_path):
         art = train_from_config(cfg, features)
         m.append(json.loads((art / "metrics.json").read_text())["val_pinball"])
     assert m[0] == pytest.approx(m[1])
+
+
+def test_resume_matches_uninterrupted_run(tmp_path):
+    import json
+
+    features = _synthetic_features()
+    cfg_a = _cfg(tmp_path, epochs=2)
+    cfg_a["out_root"] = str(tmp_path / "a")
+    cfg_a["checkpoint_root"] = str(tmp_path / "a" / "ckpt")
+    art_a = train_from_config(cfg_a, features)
+
+    cfg_b = _cfg(tmp_path, epochs=1)
+    cfg_b["out_root"] = str(tmp_path / "b")
+    cfg_b["checkpoint_root"] = str(tmp_path / "b" / "ckpt")
+    train_from_config(cfg_b, features)
+    cfg_b["train"]["epochs"] = 2
+    art_b = train_from_config(cfg_b, features, resume=True)
+
+    ma = json.loads((art_a / "metrics.json").read_text())
+    mb = json.loads((art_b / "metrics.json").read_text())
+    assert mb["val_pinball"] == pytest.approx(ma["val_pinball"])
+    assert mb["best_epoch"] == ma["best_epoch"]

@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import random
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -105,22 +104,17 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
         torch.set_rng_state(state["torch_rng"])
         np.random.set_state(state["numpy_rng"])
 
-    train_loader = _loader(train_data, cfg["train"]["batch_size"], True, cfg["seed"])
     val_loader = _loader(val_data, cfg["train"]["batch_size"], False, cfg["seed"])
 
     last_epoch = start_epoch - 1
     for epoch in range(start_epoch, cfg["train"]["epochs"] + 1):
         last_epoch = epoch
+        train_loader = _loader(train_data, cfg["train"]["batch_size"], True,
+                               cfg["seed"] + epoch)  # per-epoch seed: resume-stable order
         train_loss = _epoch(model, train_loader, quantiles, device,
                             optimizer, cfg["train"]["grad_clip"], amp_scaler)
         val_loss = _epoch(model, val_loader, quantiles, device)
         print(f"epoch {epoch}: train {train_loss:.4f}  val {val_loss:.4f}")
-        torch.save({
-            "epoch": epoch, "model_state": model.state_dict(),
-            "optimizer_state": optimizer.state_dict(), "best_val": best_val,
-            "bad_epochs": bad, "torch_rng": torch.get_rng_state(),
-            "numpy_rng": np.random.get_state(),
-        }, latest)
         if val_loss < best_val:
             best_val, bad = val_loss, 0
             art_dir.mkdir(parents=True, exist_ok=True)
@@ -136,9 +130,15 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
             }, indent=2))
         else:
             bad += 1
-            if bad >= cfg["train"]["patience"]:
-                print(f"early stop at epoch {epoch}")
-                break
+        torch.save({
+            "epoch": epoch, "model_state": model.state_dict(),
+            "optimizer_state": optimizer.state_dict(), "best_val": best_val,
+            "bad_epochs": bad, "torch_rng": torch.get_rng_state(),
+            "numpy_rng": np.random.get_state(),
+        }, latest)
+        if bad >= cfg["train"]["patience"]:
+            print(f"early stop at epoch {epoch}")
+            break
     # keep last_epoch current even when the best artifact is older
     metrics_path = art_dir / "metrics.json"
     if metrics_path.exists():
