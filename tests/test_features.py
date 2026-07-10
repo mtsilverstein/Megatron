@@ -1,0 +1,82 @@
+import numpy as np
+import pandas as pd
+import pytest
+
+from ffmodel.data.features import build_features, feature_columns
+from ffmodel.scoring import PREDICTED_STATS
+
+
+def make_weekly(rows: list[dict]) -> pd.DataFrame:
+    """Synthetic canonical weekly frame; unspecified stats are zero."""
+    base = {
+        "player_id": "p1", "player_display_name": "P One", "position": "WR",
+        "team": "AAA", "opponent_team": "BBB", "season": 2023, "week": 1,
+        "target_share": np.nan, "fantasy_points_ppr": 0.0,
+        "two_point_conversions": 0, "special_teams_tds": 0,
+        **{s: 0.0 for s in PREDICTED_STATS},
+    }
+    return pd.DataFrame([{**base, **r} for r in rows])
+
+
+def make_schedules(weeks: int = 6, season: int = 2023) -> pd.DataFrame:
+    days = pd.date_range(f"{season}-09-10", periods=weeks, freq="7D")
+    return pd.DataFrame({
+        "season": season, "week": range(1, weeks + 1),
+        "gameday": days.strftime("%Y-%m-%d"),
+        "home_team": "AAA", "away_team": "BBB",
+    })
+
+
+def test_lag_features_use_only_prior_weeks():
+    weekly = make_weekly([
+        {"week": 1, "receiving_yards": 100.0},
+        {"week": 2, "receiving_yards": 50.0},
+        {"week": 3, "receiving_yards": 80.0},
+    ])
+    out = build_features(weekly, make_schedules())
+    wk3 = out[out["week"] == 3].iloc[0]
+    assert wk3["lag4_receiving_yards"] == pytest.approx(75.0)  # mean(100, 50)
+    assert wk3["receiving_yards"] == pytest.approx(80.0)       # label untouched
+
+
+def test_first_game_has_nan_lags_and_zero_games_prior():
+    out = build_features(make_weekly([{"week": 1}]), make_schedules())
+    row = out.iloc[0]
+    assert np.isnan(row["lag4_receiving_yards"])
+    assert row["games_prior"] == 0
+
+
+def test_lags_span_season_boundaries():
+    weekly = make_weekly([
+        {"season": 2022, "week": 18, "receiving_yards": 60.0},
+        {"season": 2023, "week": 1, "receiving_yards": 0.0},
+    ])
+    sched = pd.concat([make_schedules(18, 2022), make_schedules(6, 2023)])
+    out = build_features(weekly, sched)
+    wk1_2023 = out[(out["season"] == 2023) & (out["week"] == 1)].iloc[0]
+    assert wk1_2023["lag4_receiving_yards"] == pytest.approx(60.0)
+
+
+def test_carry_share():
+    weekly = make_weekly([
+        {"player_id": "p1", "carries": 15.0},
+        {"player_id": "p2", "carries": 5.0},
+    ])
+    out = build_features(weekly, make_schedules())
+    assert out[out["player_id"] == "p1"]["carry_share"].iloc[0] == pytest.approx(0.75)
+
+
+def test_home_and_rest_days():
+    weekly = make_weekly([{"week": 1}, {"week": 2}])
+    out = build_features(weekly, make_schedules())
+    assert out[out["week"] == 1]["is_home"].iloc[0] == 1     # AAA hosts every game
+    assert out[out["week"] == 1]["rest_days"].iloc[0] == 7   # unknown -> default 7
+    assert out[out["week"] == 2]["rest_days"].iloc[0] == 7   # 7-day gap
+
+
+def test_feature_columns_never_include_same_week_stats():
+    out = build_features(make_weekly([{"week": 1}]), make_schedules())
+    cols = feature_columns(out)
+    assert not set(cols) & set(PREDICTED_STATS)
+    assert "ppr_points" not in cols
+    assert "fantasy_points_ppr" not in cols
