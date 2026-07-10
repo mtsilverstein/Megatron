@@ -168,6 +168,35 @@ def test_merge_snap_pct_season_with_no_snap_rows_stays_all_nan():
     assert out["snap_pct"].isna().all()
 
 
+def test_merge_snap_pct_duplicate_rows_do_not_fan_out():
+    """Characterization test: snaps with a duplicate (pfr_player_id, season,
+    week) pair (e.g. a two-team week in the raw source) and a crosswalk with
+    a duplicate pfr_id row must not fan out the weekly join. snap_pct stays
+    a scalar per row -- the first match wins."""
+    import numpy as np
+
+    from ffmodel.data.pull import merge_snap_pct
+
+    weekly = _snap_weekly([
+        {"player_id": "g1", "season": 2023, "week": 1},
+        {"player_id": "g2", "season": 2023, "week": 1},
+    ])
+    snaps = pd.DataFrame([
+        {"pfr_player_id": "pfr1", "season": 2023, "week": 1, "offense_pct": 0.75},
+        {"pfr_player_id": "pfr1", "season": 2023, "week": 1, "offense_pct": 0.40},
+    ])
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "pfr1", "gsis_id": "g1"},
+        {"pfr_id": "pfr1", "gsis_id": "g1-duplicate"},
+    ])
+    out = merge_snap_pct(weekly, snaps, crosswalk)
+    assert len(out) == len(weekly)  # no fan-out from duplicate snap/crosswalk rows
+    g1 = out[out["player_id"] == "g1"]
+    assert len(g1) == 1
+    assert isinstance(g1["snap_pct"].iloc[0], (int, float, np.floating))
+    assert g1["snap_pct"].iloc[0] == pytest.approx(0.75)  # first match kept
+
+
 @pytest.mark.integration
 def test_pull_real_season_snap_pct_coverage_and_range(tmp_path):
     from ffmodel.data.pull import pull_weekly

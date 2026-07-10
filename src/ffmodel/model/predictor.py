@@ -44,6 +44,8 @@ class TransformerPredictor:
         metrics = json.loads((art / "metrics.json").read_text())
         self._seq_len = metrics["seq_len"]
         self._quantiles = metrics["quantiles"]
+        if len(self._quantiles) != 3 or list(self._quantiles) != sorted(self._quantiles):
+            raise ValueError(f"artifact quantiles must be 3 ascending values, got {self._quantiles}")
         self._scaler = Scaler.load(art / "scaler.json")
         self._model = QuantileTransformer(
             n_seq_features=metrics["n_seq_features"],

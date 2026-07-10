@@ -113,6 +113,9 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
         best_val, bad = state["best_val"], state["bad_epochs"]
         torch.set_rng_state(state["torch_rng"].cpu())  # set_rng_state needs CPU; map_location relocates it
         np.random.set_state(state["numpy_rng"])
+        # resume is bit-lossless on CPU; on CUDA it is deterministic modulo nondeterministic kernels.
+        if state.get("cuda_rng") is not None and torch.cuda.is_available():
+            torch.cuda.set_rng_state_all([t.cpu() for t in state["cuda_rng"]])
 
     val_loader = _loader(val_data, cfg["train"]["batch_size"], False, cfg["seed"])
 
@@ -145,6 +148,7 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
             "optimizer_state": optimizer.state_dict(), "best_val": best_val,
             "bad_epochs": bad, "torch_rng": torch.get_rng_state(),
             "numpy_rng": np.random.get_state(),
+            "cuda_rng": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
         }, latest)
         if bad >= cfg["train"]["patience"]:
             print(f"early stop at epoch {epoch}")

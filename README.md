@@ -23,12 +23,20 @@ python -m ffmodel.eval.run      # walk-forward backtest -> models/backtests/base
 ## Training on SageMaker Studio Lab
 
 1. Start a **GPU** runtime (T4; 4h/day quota) and open a terminal.
-2. Once: `git clone <repo-url> && cd <repo> && pip install -e .`
+2. Once: `git clone <repo-url> && cd <repo> && pip install -e .`, then set your
+   git identity (`git config --global user.name "..."` and `user.email "..."`)
+   and authenticate for pushing — a fresh Studio Lab runtime has neither
+   configured. Use a GitHub personal access token as the clone/push credential,
+   or run `gh auth login` if the `gh` CLI is available.
 3. Open `notebooks/train_studio_lab.ipynb` and run the cells top to bottom.
    Each config trains one walk-forward artifact (`models/transformer/v1/through<year>/`);
    training checkpoints every epoch, so if the session dies, restart the runtime
    and rerun the same cell adding `--resume`.
 4. The last cell runs the full bake-off and commits artifacts + results.
+   Note on fairness: the transformer reserves the season right before each
+   test year as an early-stopping validation set, while the baselines are
+   fit through that season with no holdout — a small handicap for the
+   transformer that we call out honestly in the results rather than hide.
 
 Local CPU training works identically (slower): same commands, no notebook needed.
 

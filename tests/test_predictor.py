@@ -1,3 +1,6 @@
+import json
+import shutil
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -76,3 +79,18 @@ def test_rookie_rows_use_position_fallback(trained):
     assert not np.allclose(qs["p10"].loc[wk2].iloc[0].to_numpy(dtype=float),
                            train.groupby("position")[PREDICTED_STATS]
                            .quantile(0.1).loc["WR"].to_numpy(dtype=float))
+
+
+def test_fit_rejects_non_ascending_quantiles(trained, tmp_path):
+    root, features = trained
+    doctored_root = tmp_path / "doctored"
+    shutil.copytree(root, doctored_root)
+    metrics_path = doctored_root / "through2022" / "metrics.json"
+    metrics = json.loads(metrics_path.read_text())
+    metrics["quantiles"] = [0.9, 0.5, 0.1]
+    metrics_path.write_text(json.dumps(metrics))
+
+    p = TransformerPredictor(doctored_root, features)
+    train = features[features["season"] <= 2022]
+    with pytest.raises(ValueError, match="ascending"):
+        p.fit(train)
