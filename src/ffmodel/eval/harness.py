@@ -11,6 +11,14 @@ from ffmodel.scoring import PPR, PREDICTED_STATS, ScoringRules, fantasy_points
 
 
 class Predictor(Protocol):
+    """One entrant in the backtest.
+
+    Plan 2 extension point: quantile models may additionally implement
+    predict_quantiles(test) -> dict[str, pd.DataFrame] with keys
+    "p10"/"p50"/"p90"; run_backtest scores p50 through the existing path and
+    will grow pinball/coverage reporting without breaking point-only
+    predictors.
+    """
     name: str
 
     def fit(self, train: pd.DataFrame) -> None: ...
@@ -26,10 +34,17 @@ def run_backtest(
     tables = []
     for season, train_idx, test_idx in walk_forward_splits(features, test_seasons):
         train, test = features.loc[train_idx], features.loc[test_idx]
+        # Actuals exclude SCORING_EXTRAS (2pt conversions, ST TDs): models are
+        # compared on the predictable stat components only.
         actual = fantasy_points(test[PREDICTED_STATS], rules)
         for predictor in predictors:
             predictor.fit(train)
-            pred_points = fantasy_points(predictor.predict(test), rules)
+            pred_stats = predictor.predict(test)
+            if not pred_stats.index.equals(test.index):
+                raise ValueError(
+                    f"{predictor.name}: prediction index misaligned with test frame"
+                )
+            pred_points = fantasy_points(pred_stats, rules)
             scored = pd.DataFrame({
                 "position": test["position"].to_numpy(),
                 "actual": actual.to_numpy(),

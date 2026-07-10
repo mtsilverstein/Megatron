@@ -10,7 +10,8 @@ weekly during the season.
 ## Quickstart
 
 ```bash
-pip install -e ".[dev]"
+python -m venv .venv                # Python >= 3.10
+.venv/Scripts/python -m pip install -e ".[dev]"   # POSIX: .venv/bin/python
 pytest                          # unit tests (offline)
 pytest -m integration           # network tests against live nflverse data
 

@@ -58,3 +58,19 @@ def test_run_backtest_shape_and_perfect_model():
     assert set(results["model"]) == {"oracle", "naive_last4"}
     oracle_overall = results[(results["model"] == "oracle") & (results["position"] == "OVERALL")]
     assert oracle_overall["mae"].iloc[0] == pytest.approx(0.0)
+
+
+def test_run_backtest_rejects_misaligned_predictions():
+    features = _toy_features()
+
+    class Reorderer:
+        name = "reorderer"
+
+        def fit(self, train):
+            pass
+
+        def predict(self, test):
+            return test[PREDICTED_STATS].iloc[::-1].reset_index(drop=True)
+
+    with pytest.raises(ValueError, match="misaligned"):
+        run_backtest(features, [Reorderer()], test_seasons=[2023])
