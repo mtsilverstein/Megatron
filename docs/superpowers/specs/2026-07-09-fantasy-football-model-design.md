@@ -57,7 +57,7 @@ ff-model/
 - **Positions:** QB, RB, WR, TE. Kickers and DST are out of scope for the model (the site may omit them entirely in v1).
 - **Unit of prediction:** (player, week) → **raw stat line** for that week: pass yards, pass TD, INT, rush attempts, rush yards, rush TD, targets, receptions, receiving yards, receiving TD, fumbles lost. Fantasy points under any scoring rule are computed deterministically from the stat line; PPR is the display default.
 - **Model input per sample:**
-  - *Sequence:* the player's last 16 games, each as a per-game feature vector (raw stats, usage shares — target share, snap %, carry share — team context). Shorter histories are padded and masked.
+  - *Sequence:* the player's last 16 games played (spanning season boundaries), each as a per-game feature vector (raw stats, usage shares — target share, snap %, carry share — team context). Shorter histories are padded and masked.
   - *Target-week context:* opponent defense rolling allowed-stats by position, home/away, rest days, week number. Injected via a learned context token.
 - **Scale honesty:** ~100–150k player-week samples total. This is small data and the model is sized accordingly (see §5).
 - **Cold start:** rookies with no NFL games get position-level prior projections; players changing teams keep their personal sequence with updated team/opponent context. Both limitations are documented on the site.
@@ -80,6 +80,7 @@ Small encoder-only transformer (PyTorch):
   3. The transformer.
 - **Metrics:** MAE and RMSE on PPR points, reported by position; quantile calibration (empirical coverage of the p10–p90 band, pinball loss).
 - **Reporting:** results published on the site's "About the model" page exactly as they land. A transformer loss to XGBoost is written up as a finding, not hidden.
+- **Production model:** after backtest evaluation fixes the architecture and hyperparameters, the deployed model is retrained on all seasons through 2025 for 2026 inference.
 
 ## 7. Draft values (August deliverable)
 
