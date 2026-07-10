@@ -28,4 +28,4 @@ Everything must run on free tiers; do not introduce paid infrastructure.
 
 ## Stack and layout
 
-Python (PyTorch, `nfl_data_py`, XGBoost, pytest) under `src/` with tests in `tests/`; static HTML/CSS/JS under `site/` (GitHub Pages, no backend, no framework). See the spec §3 for the full directory contract. Tests concentrate on the leak-prone pure functions: feature building, scoring math, walk-forward splits, and site-JSON schema.
+Python (PyTorch, `nflreadpy` — not the deprecated `nfl_data_py`, XGBoost, pytest) under `src/ffmodel/` with tests in `tests/`; static HTML/CSS/JS under `site/` (GitHub Pages, no backend, no framework). See the spec §3 for the full directory contract. Tests concentrate on the leak-prone pure functions: feature building, scoring math, walk-forward splits, and site-JSON schema.

@@ -37,8 +37,8 @@ Notebooks are thin wrappers that import from `src/`; no logic lives only in a no
 
 ```
 ff-model/
-├── src/
-│   ├── data/        # nfl_data_py pulls, caching, feature building
+├── src/ffmodel/     # installable package (src layout, `pip install -e .`)
+│   ├── data/        # nflreadpy pulls, caching, feature building
 │   ├── model/       # PyTorch transformer, dataset, training loop
 │   ├── baseline/    # naive average + XGBoost
 │   ├── eval/        # walk-forward backtest harness, metrics
@@ -53,7 +53,7 @@ ff-model/
 
 ## 4. Data
 
-- **Source:** `nfl_data_py` (nflverse): weekly player stats, schedules, rosters, snap counts. Seasons ~2012–2025 for training history.
+- **Source:** `nflreadpy` (nflverse's maintained Python package; `nfl_data_py` was deprecated in its favor — verified 2026-07-09): weekly player stats, schedules, rosters, snap counts. Seasons ~2012–2025 for training history. Regular-season games only.
 - **Positions:** QB, RB, WR, TE. Kickers and DST are out of scope for the model (the site may omit them entirely in v1).
 - **Unit of prediction:** (player, week) → **raw stat line** for that week: pass yards, pass TD, INT, rush attempts, rush yards, rush TD, targets, receptions, receiving yards, receiving TD, fumbles lost. Fantasy points under any scoring rule are computed deterministically from the stat line; PPR is the display default.
 - **Model input per sample:**
