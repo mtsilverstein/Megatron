@@ -1,8 +1,6 @@
 """Encoder-only quantile transformer sized for ~100k samples (spec §5)."""
 from __future__ import annotations
 
-import warnings
-
 import torch
 from torch import nn
 
@@ -20,9 +18,7 @@ class QuantileTransformer(nn.Module):
             d_model, n_heads, dim_feedforward=4 * d_model, dropout=dropout,
             batch_first=True, norm_first=True,
         )
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', message='.*enable_nested_tensor.*')
-            self.encoder = nn.TransformerEncoder(layer, n_layers)
+        self.encoder = nn.TransformerEncoder(layer, n_layers, enable_nested_tensor=False)
         self.head = nn.Sequential(nn.LayerNorm(d_model),
                                   nn.Linear(d_model, n_stats * n_quantiles))
 
