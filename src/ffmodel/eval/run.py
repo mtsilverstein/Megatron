@@ -43,7 +43,7 @@ def main() -> None:
         predictors.append(TransformerPredictor(args.transformer_root, features))
     results = run_backtest(features, predictors, test_seasons=args.test_seasons)
 
-    records = results.where(pd.notna(results), None).to_dict(orient="records")
+    records = results.astype(object).where(pd.notna(results), None).to_dict(orient="records")
     report = {
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "seasons": [args.first_season, args.last_season],

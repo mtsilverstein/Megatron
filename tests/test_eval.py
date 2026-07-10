@@ -66,3 +66,18 @@ def test_run_cli_parses_transformer_root():
     args = build_parser().parse_args(["--transformer-root", "models/transformer/v1"])
     assert str(args.transformer_root) == str(Path("models/transformer/v1"))
     assert build_parser().parse_args([]).transformer_root is None
+
+
+def test_mixed_entrant_records_serialize_to_valid_json():
+    import json
+
+    results = pd.DataFrame({
+        "position": ["OVERALL", "OVERALL"],
+        "mae": [4.5, 4.4],
+        "pinball_p10": [np.nan, 1.2],   # baseline row lacks quantile metrics
+    })
+    records = results.astype(object).where(pd.notna(results), None).to_dict(orient="records")
+    payload = json.dumps({"results": records})
+    parsed = json.loads(payload)        # strict parse must succeed
+    assert parsed["results"][0]["pinball_p10"] is None
+    assert parsed["results"][1]["pinball_p10"] == 1.2
