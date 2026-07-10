@@ -79,6 +79,33 @@ def normalize_weekly(raw: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values(["player_id", "season", "week"]).reset_index(drop=True)
 
 
+def merge_snap_pct(weekly: pd.DataFrame, snaps: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataFrame:
+    """Left-join offense snap share onto the weekly frame as `snap_pct`.
+
+    Joins via a pfr_player_id -> gsis_id crosswalk (nflverse `load_players()`
+    columns `pfr_id`/`gsis_id`) plus (season, week). `offense_pct` is already
+    a 0-1 fraction in the real nflverse frame (verified empirically), so no
+    rescaling is applied. Unmatched rows keep NaN on purpose -- NaN means "no
+    data" (all of season 2012, which has zero nflverse snap-count rows),
+    exactly like target_share. Do NOT fillna here.
+    """
+    xwalk = (
+        crosswalk[["pfr_id", "gsis_id"]]
+        .dropna()
+        .drop_duplicates(subset="pfr_id")
+        .rename(columns={"pfr_id": "pfr_player_id", "gsis_id": "player_id"})
+    )
+    mapped = snaps[["pfr_player_id", "season", "week", "offense_pct"]].merge(
+        xwalk, on="pfr_player_id", how="left",
+    )
+    mapped = mapped.dropna(subset=["player_id"])
+    mapped = mapped.drop_duplicates(subset=["player_id", "season", "week"])
+    snap_pct = mapped[["player_id", "season", "week", "offense_pct"]].rename(
+        columns={"offense_pct": "snap_pct"},
+    )
+    return weekly.merge(snap_pct, on=["player_id", "season", "week"], how="left")
+
+
 def _cached(cache_dir: Path | None, name: str, loader) -> pd.DataFrame:
     if cache_dir is not None:
         path = Path(cache_dir) / f"{name}.parquet"
@@ -98,7 +125,28 @@ def pull_weekly(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFra
         raw = nflreadpy.load_player_stats(seasons).to_pandas()
         return normalize_weekly(raw)
 
-    return _cached(cache_dir, _cache_name("weekly", seasons), load)
+    def load_snaps() -> pd.DataFrame:
+        import nflreadpy
+
+        raw = nflreadpy.load_snap_counts(seasons).to_pandas()
+        if "game_type" in raw.columns:
+            raw = raw[raw["game_type"] == "REG"]
+        elif "season_type" in raw.columns:
+            raw = raw[raw["season_type"] == "REG"]
+        return raw
+
+    def load_players() -> pd.DataFrame:
+        import nflreadpy
+
+        return nflreadpy.load_players().to_pandas()
+
+    weekly = _cached(cache_dir, _cache_name("weekly", seasons), load)
+    # Post-cache enrichment (same pattern as normalize_schedule_teams): applied
+    # on every read path so a weekly cache written before this feature existed
+    # self-heals on the next pull, without re-fetching player_stats.
+    snaps = _cached(cache_dir, _cache_name("snaps", seasons), load_snaps)
+    players = _cached(cache_dir, "players", load_players)
+    return merge_snap_pct(weekly, snaps, players)
 
 
 def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFrame:

@@ -13,7 +13,7 @@ import pandas as pd
 from ffmodel.data.pull import POSITIONS
 from ffmodel.scoring import PPR, PREDICTED_STATS, fantasy_points
 
-LAG_STATS = PREDICTED_STATS + ["target_share", "carry_share", "ppr_points"]
+LAG_STATS = PREDICTED_STATS + ["target_share", "carry_share", "ppr_points", "snap_pct"]
 LAG_WINDOWS = (4, 8)
 CONTEXT_FEATURES = ["games_prior", "is_home", "rest_days", "week"]
 

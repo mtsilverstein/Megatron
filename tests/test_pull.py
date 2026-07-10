@@ -115,3 +115,66 @@ def test_cache_name_rejects_empty_seasons():
 
     with pytest.raises(ValueError, match="seasons"):
         _cache_name("weekly", [])
+
+
+def _snap_weekly(rows):
+    base = {"player_display_name": "P", "position": "WR", "team": "AAA",
+            "opponent_team": "BBB"}
+    return pd.DataFrame([{**base, **r} for r in rows])
+
+
+def test_merge_snap_pct_matched_row_gets_value():
+    from ffmodel.data.pull import merge_snap_pct
+
+    weekly = _snap_weekly([{"player_id": "g1", "season": 2023, "week": 1}])
+    snaps = pd.DataFrame([
+        {"pfr_player_id": "pfr1", "season": 2023, "week": 1, "offense_pct": 0.75},
+    ])
+    crosswalk = pd.DataFrame([{"pfr_id": "pfr1", "gsis_id": "g1"}])
+    out = merge_snap_pct(weekly, snaps, crosswalk)
+    assert out["snap_pct"].iloc[0] == pytest.approx(0.75)
+
+
+def test_merge_snap_pct_unmatched_player_stays_nan():
+    import numpy as np
+
+    from ffmodel.data.pull import merge_snap_pct
+
+    weekly = _snap_weekly([
+        {"player_id": "g1", "season": 2023, "week": 1},
+        {"player_id": "g2", "season": 2023, "week": 1},  # no crosswalk entry
+    ])
+    snaps = pd.DataFrame([
+        {"pfr_player_id": "pfr1", "season": 2023, "week": 1, "offense_pct": 0.75},
+    ])
+    crosswalk = pd.DataFrame([{"pfr_id": "pfr1", "gsis_id": "g1"}])
+    out = merge_snap_pct(weekly, snaps, crosswalk)
+    g2 = out[out["player_id"] == "g2"]
+    assert np.isnan(g2["snap_pct"].iloc[0])
+
+
+def test_merge_snap_pct_season_with_no_snap_rows_stays_all_nan():
+    import numpy as np
+
+    from ffmodel.data.pull import merge_snap_pct
+
+    weekly = _snap_weekly([
+        {"player_id": "g1", "season": 2012, "week": 1},
+        {"player_id": "g2", "season": 2012, "week": 2},
+    ])
+    snaps = pd.DataFrame(columns=["pfr_player_id", "season", "week", "offense_pct"])
+    crosswalk = pd.DataFrame([{"pfr_id": "pfr1", "gsis_id": "g1"}])
+    out = merge_snap_pct(weekly, snaps, crosswalk)
+    assert out["snap_pct"].isna().all()
+
+
+@pytest.mark.integration
+def test_pull_real_season_snap_pct_coverage_and_range(tmp_path):
+    from ffmodel.data.pull import pull_weekly
+
+    df = pull_weekly([2023], cache_dir=tmp_path)
+    assert "snap_pct" in df.columns
+    non_nan = df["snap_pct"].notna()
+    assert non_nan.mean() > 0.95
+    valid = df.loc[non_nan, "snap_pct"]
+    assert (valid >= 0).all() and (valid <= 1).all()

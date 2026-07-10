@@ -11,7 +11,7 @@ def make_weekly(rows: list[dict]) -> pd.DataFrame:
     base = {
         "player_id": "p1", "player_display_name": "P One", "position": "WR",
         "team": "AAA", "opponent_team": "BBB", "season": 2023, "week": 1,
-        "target_share": np.nan, "fantasy_points_ppr": 0.0,
+        "target_share": np.nan, "snap_pct": np.nan, "fantasy_points_ppr": 0.0,
         "two_point_conversions": 0, "special_teams_tds": 0,
         **{s: 0.0 for s in PREDICTED_STATS},
     }

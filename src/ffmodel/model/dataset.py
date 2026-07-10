@@ -17,7 +17,7 @@ import pandas as pd
 from ffmodel.scoring import PREDICTED_STATS
 
 SEQ_FEATURES = PREDICTED_STATS + [
-    "target_share", "carry_share", "ppr_points", "is_home", "rest_days", "week",
+    "target_share", "carry_share", "ppr_points", "snap_pct", "is_home", "rest_days", "week",
 ]
 CTX_FEATURES = [
     "is_home", "rest_days", "week", "games_prior",
