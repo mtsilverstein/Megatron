@@ -94,3 +94,15 @@ def test_fit_rejects_non_ascending_quantiles(trained, tmp_path):
     train = features[features["season"] <= 2022]
     with pytest.raises(ValueError, match="ascending"):
         p.fit(train)
+
+
+def test_attach_features_enables_prediction_on_extended_frame(trained):
+    root, features = trained
+    p = TransformerPredictor(root, features.iloc[0:0])  # constructed with empty frame
+    p.fit(features[features["season"] <= 2022])
+    test = features[features["season"] == 2023]
+    with pytest.raises(ValueError, match="missing"):
+        p.predict_quantiles(test)
+    p.attach_features(features)
+    qs = p.predict_quantiles(test)
+    assert qs["p50"].index.equals(test.index)

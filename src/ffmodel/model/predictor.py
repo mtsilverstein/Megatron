@@ -33,6 +33,12 @@ class TransformerPredictor:
         self.device = device
         self._model = None
 
+    def attach_features(self, features: pd.DataFrame) -> None:
+        """Repoint the stored feature frame (e.g. one extended with
+        future-week rows). Sequences are always built from this frame, so
+        test rows must exist in it by index."""
+        self.features = features
+
     def fit(self, train: pd.DataFrame) -> None:
         through = int(train["season"].max())
         art = self.artifact_root / f"through{through}"
