@@ -1,0 +1,255 @@
+{
+  "created": "2026-07-10T06:25:35+00:00",
+  "seasons": [
+    2012,
+    2025
+  ],
+  "test_seasons": [
+    2023,
+    2024,
+    2025
+  ],
+  "scoring": "ppr",
+  "results": [
+    {
+      "position": "QB",
+      "mae": 6.170402881314858,
+      "rmse": 7.881643053051351,
+      "n": 663,
+      "model": "naive_last4",
+      "test_season": 2023
+    },
+    {
+      "position": "RB",
+      "mae": 4.392957408276668,
+      "rmse": 6.273258291923055,
+      "n": 1569,
+      "model": "naive_last4",
+      "test_season": 2023
+    },
+    {
+      "position": "TE",
+      "mae": 3.700418096433085,
+      "rmse": 5.072751161894739,
+      "n": 1202,
+      "model": "naive_last4",
+      "test_season": 2023
+    },
+    {
+      "position": "WR",
+      "mae": 4.685681107241493,
+      "rmse": 6.576568949356138,
+      "n": 2459,
+      "model": "naive_last4",
+      "test_season": 2023
+    },
+    {
+      "position": "OVERALL",
+      "mae": 4.573819731633674,
+      "rmse": 6.384605969474037,
+      "n": 5893,
+      "model": "naive_last4",
+      "test_season": 2023
+    },
+    {
+      "position": "QB",
+      "mae": 6.0969095762390895,
+      "rmse": 7.553731216833047,
+      "n": 663,
+      "model": "xgboost",
+      "test_season": 2023
+    },
+    {
+      "position": "RB",
+      "mae": 4.323018612303955,
+      "rmse": 5.993986211027847,
+      "n": 1569,
+      "model": "xgboost",
+      "test_season": 2023
+    },
+    {
+      "position": "TE",
+      "mae": 3.475060661009663,
+      "rmse": 4.734344238357489,
+      "n": 1202,
+      "model": "xgboost",
+      "test_season": 2023
+    },
+    {
+      "position": "WR",
+      "mae": 4.534038607350885,
+      "rmse": 6.212365971401811,
+      "n": 2459,
+      "model": "xgboost",
+      "test_season": 2023
+    },
+    {
+      "position": "OVERALL",
+      "mae": 4.437687273334611,
+      "rmse": 6.054841439638752,
+      "n": 5893,
+      "model": "xgboost",
+      "test_season": 2023
+    },
+    {
+      "position": "QB",
+      "mae": 6.514048613677614,
+      "rmse": 8.31646770540511,
+      "n": 664,
+      "model": "naive_last4",
+      "test_season": 2024
+    },
+    {
+      "position": "RB",
+      "mae": 4.496290522754276,
+      "rmse": 6.281892115006746,
+      "n": 1596,
+      "model": "naive_last4",
+      "test_season": 2024
+    },
+    {
+      "position": "TE",
+      "mae": 3.7129545422726475,
+      "rmse": 5.108388253525352,
+      "n": 1235,
+      "model": "naive_last4",
+      "test_season": 2024
+    },
+    {
+      "position": "WR",
+      "mae": 4.77295925100121,
+      "rmse": 6.70256414672025,
+      "n": 2425,
+      "model": "naive_last4",
+      "test_season": 2024
+    },
+    {
+      "position": "OVERALL",
+      "mae": 4.672522465740273,
+      "rmse": 6.499427811609362,
+      "n": 5920,
+      "model": "naive_last4",
+      "test_season": 2024
+    },
+    {
+      "position": "QB",
+      "mae": 6.294553667507975,
+      "rmse": 7.890283625711024,
+      "n": 664,
+      "model": "xgboost",
+      "test_season": 2024
+    },
+    {
+      "position": "RB",
+      "mae": 4.365091692741055,
+      "rmse": 6.030220474031544,
+      "n": 1596,
+      "model": "xgboost",
+      "test_season": 2024
+    },
+    {
+      "position": "TE",
+      "mae": 3.5779899484425908,
+      "rmse": 4.8412929774008,
+      "n": 1235,
+      "model": "xgboost",
+      "test_season": 2024
+    },
+    {
+      "position": "WR",
+      "mae": 4.626779308214876,
+      "rmse": 6.356750137382066,
+      "n": 2425,
+      "model": "xgboost",
+      "test_season": 2024
+    },
+    {
+      "position": "OVERALL",
+      "mae": 4.524497869187111,
+      "rmse": 6.182893003298774,
+      "n": 5920,
+      "model": "xgboost",
+      "test_season": 2024
+    },
+    {
+      "position": "QB",
+      "mae": 7.034261568087577,
+      "rmse": 8.844057176955591,
+      "n": 664,
+      "model": "naive_last4",
+      "test_season": 2025
+    },
+    {
+      "position": "RB",
+      "mae": 4.462107027392596,
+      "rmse": 6.413195873301499,
+      "n": 1637,
+      "model": "naive_last4",
+      "test_season": 2025
+    },
+    {
+      "position": "TE",
+      "mae": 3.789561720984304,
+      "rmse": 5.440031342744414,
+      "n": 1301,
+      "model": "naive_last4",
+      "test_season": 2025
+    },
+    {
+      "position": "WR",
+      "mae": 4.4399716446886455,
+      "rmse": 6.192608361692521,
+      "n": 2500,
+      "model": "naive_last4",
+      "test_season": 2025
+    },
+    {
+      "position": "OVERALL",
+      "mae": 4.589539134017375,
+      "rmse": 6.447190330657184,
+      "n": 6102,
+      "model": "naive_last4",
+      "test_season": 2025
+    },
+    {
+      "position": "QB",
+      "mae": 6.659596366458628,
+      "rmse": 8.207382870107885,
+      "n": 664,
+      "model": "xgboost",
+      "test_season": 2025
+    },
+    {
+      "position": "RB",
+      "mae": 4.351813190944616,
+      "rmse": 6.074984441389071,
+      "n": 1637,
+      "model": "xgboost",
+      "test_season": 2025
+    },
+    {
+      "position": "TE",
+      "mae": 3.577057312579452,
+      "rmse": 4.998268374383063,
+      "n": 1301,
+      "model": "xgboost",
+      "test_season": 2025
+    },
+    {
+      "position": "WR",
+      "mae": 4.290959732854843,
+      "rmse": 5.825234460005109,
+      "n": 2500,
+      "model": "xgboost",
+      "test_season": 2025
+    },
+    {
+      "position": "OVERALL",
+      "mae": 4.412822202017018,
+      "rmse": 6.038197245506025,
+      "n": 6102,
+      "model": "xgboost",
+      "test_season": 2025
+    }
+  ]
+}
