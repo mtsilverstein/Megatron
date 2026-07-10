@@ -44,11 +44,11 @@ def build_sequences(
     x_seq = np.zeros((n, seq_len, len(SEQ_FEATURES)), dtype=np.float32)
     pad_mask = np.ones((n, seq_len), dtype=bool)
     for idx in df.groupby("player_id", sort=False).indices.values():
-        for j, row in enumerate(idx):
+        for j, row_pos in enumerate(idx):
             hist = idx[max(0, j - seq_len):j]  # strictly prior games
             if len(hist):
-                x_seq[row, seq_len - len(hist):] = seq_vals[hist]
-                pad_mask[row, seq_len - len(hist):] = False
+                x_seq[row_pos, seq_len - len(hist):] = seq_vals[hist]
+                pad_mask[row_pos, seq_len - len(hist):] = False
     keep = df["games_prior"].to_numpy() >= min_history
     meta = df.loc[keep, ["row_id", "player_id", "season", "week", "position"]]
     return SequenceData(
@@ -80,14 +80,23 @@ def _safe_std(std: np.ndarray) -> np.ndarray:
     return np.where(std < 1e-6, 1.0, std).astype(np.float32)
 
 
+def _nan_safe_stats(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Column mean/std ignoring NaN; all-NaN (or empty) columns get mean 0, std 1."""
+    n_cols = arr.shape[1]
+    mean = np.zeros(n_cols, dtype=np.float32)
+    std = np.ones(n_cols, dtype=np.float32)
+    valid = ~np.all(np.isnan(arr), axis=0) if len(arr) else np.zeros(n_cols, dtype=bool)
+    if valid.any():
+        mean[valid] = np.nanmean(arr[:, valid], axis=0)
+        std[valid] = _safe_std(np.nanstd(arr[:, valid], axis=0))
+    return mean, std
+
+
 def fit_scaler(data: SequenceData) -> Scaler:
     real = data.x_seq[~data.pad_mask]  # only non-padded game entries
-    return Scaler(
-        seq_mean=np.nanmean(real, axis=0).astype(np.float32),
-        seq_std=_safe_std(np.nanstd(real, axis=0)),
-        ctx_mean=np.nanmean(data.x_ctx, axis=0).astype(np.float32),
-        ctx_std=_safe_std(np.nanstd(data.x_ctx, axis=0)),
-    )
+    seq_mean, seq_std = _nan_safe_stats(real)
+    ctx_mean, ctx_std = _nan_safe_stats(data.x_ctx)
+    return Scaler(seq_mean=seq_mean, seq_std=seq_std, ctx_mean=ctx_mean, ctx_std=ctx_std)
 
 
 def apply_scaler(data: SequenceData, scaler: Scaler) -> SequenceData:

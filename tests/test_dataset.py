@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from ffmodel.data.features import build_features
 from ffmodel.model.dataset import (
@@ -62,3 +61,17 @@ def test_scaler_train_only_and_zero_fills(tmp_path):
     scaler.save(tmp_path / "scaler.json")
     loaded = Scaler.load(tmp_path / "scaler.json")
     np.testing.assert_allclose(loaded.seq_mean, scaler.seq_mean)
+
+
+def test_scaler_handles_all_nan_columns_without_warnings():
+    import warnings
+
+    data = build_sequences(_features(), seq_len=4, min_history=1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any warning fails the test
+        scaler = fit_scaler(data)
+        scaled = apply_scaler(data, scaler)
+    ts = SEQ_FEATURES.index("target_share")  # all-NaN in the fixture
+    assert scaler.seq_mean[ts] == 0.0
+    assert scaler.seq_std[ts] == 1.0
+    assert not np.isnan(scaled.x_seq).any()
