@@ -1,5 +1,4 @@
 import pandas as pd
-import pytest
 
 from ffmodel.baseline.xgb import XGBBaseline
 from ffmodel.scoring import PREDICTED_STATS

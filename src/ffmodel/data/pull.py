@@ -41,6 +41,8 @@ def _cache_name(prefix: str, seasons: list[int]) -> str:
     Contiguous ranges use a simple span notation; non-contiguous lists include
     a hash to distinguish them (e.g. [2012,2015] vs [2012,2013,2015]).
     """
+    if not seasons:
+        raise ValueError("seasons list is empty")
     ordered = sorted(seasons)
     span = f"{ordered[0]}_{ordered[-1]}"
     if ordered == list(range(ordered[0], ordered[-1] + 1)):
@@ -106,7 +108,7 @@ def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.Data
         raw = nflreadpy.load_schedules(seasons).to_pandas()
         raw = raw[raw["game_type"] == "REG"]
         keep = ["season", "week", "gameday", "home_team", "away_team"]
-        return raw[keep].reset_index(drop=True)
+        return raw[keep].sort_values(["season", "week", "home_team"]).reset_index(drop=True)
 
     return normalize_schedule_teams(_cached(cache_dir, _cache_name("schedules", seasons), load))
 

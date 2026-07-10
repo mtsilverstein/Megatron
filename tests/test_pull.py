@@ -102,3 +102,16 @@ def test_pull_real_season_and_scoring_matches_nflverse(tmp_path):
     # Cache round-trip: second call must not hit the network (delete nflreadpy
     # from sys.modules is overkill; just assert the parquet file now exists).
     assert any(tmp_path.glob("*.parquet"))
+
+
+def test_canonical_columns_include_scoring_extras():
+    out = normalize_weekly(pd.DataFrame([_raw_row()]))
+    for col in ("two_point_conversions", "special_teams_tds"):
+        assert col in out.columns, col
+
+
+def test_cache_name_rejects_empty_seasons():
+    from ffmodel.data.pull import _cache_name
+
+    with pytest.raises(ValueError, match="seasons"):
+        _cache_name("weekly", [])

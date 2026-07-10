@@ -111,3 +111,42 @@ def test_opponent_allowed_is_position_specific():
 def test_opponent_allowed_nan_when_no_history():
     out = build_features(make_weekly([{"week": 1}]), make_schedules())
     assert np.isnan(out["opp_allowed_last4"].iloc[0])
+
+
+def test_lag_target_share_nan_stays_nan():
+    weekly = make_weekly([{"week": 1}, {"week": 2}])  # target_share NaN in base fixture
+    out = build_features(weekly, make_schedules())
+    assert np.isnan(out[out["week"] == 2]["lag4_target_share"].iloc[0])
+
+
+def test_rest_days_clip_bounds():
+    weekly = make_weekly([{"week": 1}, {"week": 2}, {"week": 3}])
+    sched = make_schedules(3)
+    sched.loc[sched["week"] == 2, "gameday"] = "2023-09-14"  # 4-day gap wk1->wk2
+    sched.loc[sched["week"] == 3, "gameday"] = "2023-11-01"  # 48-day gap wk2->wk3
+    out = build_features(weekly, sched)
+    assert out[out["week"] == 2]["rest_days"].iloc[0] == 4    # floor
+    assert out[out["week"] == 3]["rest_days"].iloc[0] == 14   # ceiling
+
+
+def test_position_dummies_all_positions():
+    rows = [{"player_id": p, "position": pos}
+            for p, pos in [("a", "QB"), ("b", "RB"), ("c", "WR"), ("d", "TE")]]
+    out = build_features(make_weekly(rows), make_schedules())
+    for pos in ("QB", "RB", "WR", "TE"):
+        sub = out[out["position"] == pos]
+        assert sub[f"pos_{pos}"].iloc[0] == 1
+        assert sub[[c for c in ("pos_QB", "pos_RB", "pos_WR", "pos_TE")
+                    if c != f"pos_{pos}"]].iloc[0].sum() == 0
+
+
+def test_opp_allowed_spans_season_boundary():
+    weekly = make_weekly([
+        {"season": 2022, "week": 18, "receiving_yards": 100.0},
+        {"season": 2023, "week": 1},
+    ])
+    sched = pd.concat([make_schedules(18, 2022), make_schedules(6, 2023)])
+    out = build_features(weekly, sched)
+    wk1 = out[(out["season"] == 2023) & (out["week"] == 1)].iloc[0]
+    assert wk1["opp_allowed_last4"] == pytest.approx(10.0)   # crosses the boundary
+    assert np.isnan(wk1["opp_allowed_season"])               # season-to-date resets

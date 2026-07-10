@@ -36,7 +36,7 @@ def main() -> None:
     report = {
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "seasons": [args.first_season, args.last_season],
-        "test_seasons": args.test_seasons,
+        "test_seasons": sorted(args.test_seasons),
         "scoring": "ppr",
         "results": results.to_dict(orient="records"),
     }

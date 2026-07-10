@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from ffmodel.data.pull import POSITIONS
 from ffmodel.scoring import PPR, PREDICTED_STATS, fantasy_points
 
 LAG_STATS = PREDICTED_STATS + ["target_share", "carry_share", "ppr_points"]
@@ -18,7 +19,7 @@ CONTEXT_FEATURES = ["games_prior", "is_home", "rest_days", "week"]
 
 
 def build_features(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
-    df = weekly.sort_values(["player_id", "season", "week"]).reset_index(drop=True).copy()
+    df = weekly.sort_values(["player_id", "season", "week"]).reset_index(drop=True)
     df["ppr_points"] = fantasy_points(df, PPR)
     df = _add_carry_share(df)
     df = _add_player_lags(df)
@@ -110,6 +111,6 @@ def _add_opponent_allowed(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _add_position_dummies(df: pd.DataFrame) -> pd.DataFrame:
-    for pos in ("QB", "RB", "WR", "TE"):
+    for pos in POSITIONS:
         df[f"pos_{pos}"] = (df["position"] == pos).astype(int)
     return df

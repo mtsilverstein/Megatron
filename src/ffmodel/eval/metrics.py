@@ -24,6 +24,8 @@ def coverage(y_true, lo, hi) -> float:
 
 def score_table(frame: pd.DataFrame) -> pd.DataFrame:
     """Per-position + OVERALL error table. Input columns: position, actual, pred."""
+    if frame.empty:
+        raise ValueError("score_table received an empty frame")
     def _row(name: str, part: pd.DataFrame) -> dict:
         return {
             "position": name,

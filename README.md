@@ -11,7 +11,8 @@ weekly during the season.
 
 ```bash
 python -m venv .venv                # Python >= 3.10
-.venv/Scripts/python -m pip install -e ".[dev]"   # POSIX: .venv/bin/python
+source .venv/Scripts/activate       # POSIX: source .venv/bin/activate
+.venv/Scripts/python.exe -m pip install -e ".[dev]"   # POSIX: .venv/bin/python
 pytest                          # unit tests (offline)
 pytest -m integration           # network tests against live nflverse data
 

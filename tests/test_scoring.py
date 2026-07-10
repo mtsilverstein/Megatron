@@ -43,3 +43,13 @@ def test_missing_columns_count_as_zero():
 def test_carries_and_targets_do_not_score():
     df = pd.DataFrame([{"carries": 20, "targets": 12}])
     assert fantasy_points(df, PPR).iloc[0] == pytest.approx(0.0)
+
+
+def test_rush_td_and_special_teams_td_weights():
+    df = pd.DataFrame([{"rushing_tds": 2, "special_teams_tds": 1}])
+    assert fantasy_points(df, PPR).iloc[0] == pytest.approx(18.0)  # 12 + 6
+
+
+def test_in_column_nan_counts_as_zero():
+    df = pd.DataFrame([{"rushing_yards": float("nan"), "receptions": 3}])
+    assert fantasy_points(df, PPR).iloc[0] == pytest.approx(3.0)

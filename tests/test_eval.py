@@ -44,3 +44,15 @@ def test_score_table_per_position_and_overall():
     assert table.loc["WR", "mae"] == pytest.approx(1.0)
     assert table.loc["RB", "n"] == 1
     assert table.loc["OVERALL", "mae"] == pytest.approx(2.0)
+
+
+def test_walk_forward_sorts_unsorted_test_seasons():
+    df = pd.DataFrame({"season": [2022, 2023, 2024]})
+    seasons = [s for s, _, _ in walk_forward_splits(df, test_seasons=[2024, 2023])]
+    assert seasons == [2023, 2024]
+
+
+def test_score_table_rejects_empty_frame():
+    frame = pd.DataFrame({"position": [], "actual": [], "pred": []})
+    with pytest.raises(ValueError, match="empty"):
+        score_table(frame)
