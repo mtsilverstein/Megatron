@@ -8,7 +8,7 @@ from pathlib import Path
 REQUIRED_KEYS = {"created", "test_seasons", "scoring", "results"}
 
 
-def build_about(backtest_paths: list[Path], data_through: str) -> dict:
+def build_about(backtest_paths: list[Path], data_through: str, site_model: str) -> dict:
     reports = []
     for path in backtest_paths:
         payload = json.loads(Path(path).read_text())
@@ -21,5 +21,6 @@ def build_about(backtest_paths: list[Path], data_through: str) -> dict:
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "data_through": data_through,
+        "site_model": site_model,
         "reports": reports,
     }

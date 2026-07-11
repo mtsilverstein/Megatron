@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.data.future import combined_future_features
-from ffmodel.scoring import PPR, fantasy_points
+from ffmodel.scoring import fantasy_points
+from ffmodel.site.weekly import RULESETS
 
 # 12-team league: points above the player at this positional rank define
 # value over replacement (roughly the first waiver-tier player).
@@ -15,9 +16,10 @@ REPLACEMENT_RANK = {"QB": 13, "RB": 25, "WR": 25, "TE": 13}
 
 
 def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
-                      season: int, weeks=range(1, 19)) -> pd.DataFrame:
+                      season: int, weeks=range(1, 19), prefit: bool = False) -> pd.DataFrame:
     """All weeks seeded from the same pre-season history (spec §7)."""
-    predictor.fit(_fit_frame(weekly, schedules))
+    if not prefit:
+        predictor.fit(_fit_frame(weekly, schedules))
     totals: dict[str, dict] = {}
     for week in weeks:
         combined, future = combined_future_features(weekly, schedules, season, week)
@@ -27,25 +29,30 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
             predictor.attach_features(combined)   # future rows live in this frame
         if hasattr(predictor, "predict_quantiles"):
             qs = predictor.predict_quantiles(future)
-            week_pts = {q: fantasy_points(qs[q], PPR) for q in ("p10", "p50", "p90")}
+            week_pts = {rn: {q: fantasy_points(qs[q], rules) for q in ("p10", "p50", "p90")}
+                        for rn, rules in RULESETS.items()}
         else:
-            week_pts = {"p50": fantasy_points(predictor.predict(future), PPR),
-                        "p10": None, "p90": None}
+            pred = predictor.predict(future)
+            week_pts = {rn: {"p50": fantasy_points(pred, rules), "p10": None, "p90": None}
+                        for rn, rules in RULESETS.items()}
         for idx, row in future.iterrows():
             entry = totals.setdefault(row["player_id"], {
                 "player_id": row["player_id"], "name": row["player_display_name"],
                 "team": row["team"], "position": row["position"],
-                "season_p50": 0.0, "season_p10": 0.0, "season_p90": 0.0, "games": 0,
+                **{f"{rn}_{q}": 0.0 for rn in RULESETS for q in ("p10", "p50", "p90")},
+                "games": 0,
             })
-            entry["season_p50"] += float(week_pts["p50"].loc[idx])
             entry["games"] += 1
-            for q in ("p10", "p90"):
-                if week_pts[q] is None:
-                    entry[f"season_{q}"] = np.nan
-                else:
-                    entry[f"season_{q}"] += float(week_pts[q].loc[idx])
+            for rn in RULESETS:
+                entry[f"{rn}_p50"] += float(week_pts[rn]["p50"].loc[idx])
+                for q in ("p10", "p90"):
+                    if week_pts[rn][q] is None:
+                        entry[f"{rn}_{q}"] = np.nan
+                    else:
+                        entry[f"{rn}_{q}"] += float(week_pts[rn][q].loc[idx])
     columns = ["player_id", "name", "team", "position",
-               "season_p50", "season_p10", "season_p90", "games"]
+               *[f"{rn}_{q}" for rn in RULESETS for q in ("p10", "p50", "p90")],
+               "games"]
     return pd.DataFrame(list(totals.values()), columns=columns)
 
 
@@ -73,10 +80,10 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
                     data_through: str, has_bands: bool) -> dict:
     frames = []
     for pos, group in players.groupby("position"):
-        group = group.sort_values("season_p50", ascending=False).reset_index(drop=True)
+        group = group.sort_values("ppr_p50", ascending=False).reset_index(drop=True)
         rank = REPLACEMENT_RANK.get(pos, 20)
-        replacement = group["season_p50"].iloc[min(rank, len(group)) - 1]
-        group["vorp"] = (group["season_p50"] - replacement).round(2)
+        replacement = group["ppr_p50"].iloc[min(rank, len(group)) - 1]
+        group["vorp"] = (group["ppr_p50"] - replacement).round(2)
         group["position_rank"] = group.index + 1
         group["tier"] = _assign_tiers(group["vorp"])
         frames.append(group)
@@ -97,9 +104,12 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
         "players": [{
             "player_id": row["player_id"], "name": row["name"], "team": row["team"],
             "position": row["position"],
-            "season_points": {"ppr": {"p50": round(float(row["season_p50"]), 1),
-                                      "p10": _band(row["season_p10"]),
-                                      "p90": _band(row["season_p90"])}},
+            "season_points": {rn: {"p50": round(float(row[f"{rn}_p50"]), 1),
+                                   "p10": _band(row[f"{rn}_p10"]),
+                                   "p90": _band(row[f"{rn}_p90"])}
+                              for rn in ("ppr", "half_ppr", "standard")},
+            "games": int(row["games"]),
+            "bye": row["bye"],
             "vorp": float(row["vorp"]),
             "position_rank": int(row["position_rank"]),
             "tier": int(row["tier"]),
@@ -108,12 +118,26 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
 
 
 def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
-                      season: int, data_through: str, weeks=range(1, 19)) -> dict:
-    players = season_projection(weekly, schedules, predictor, season, weeks)
+                      season: int, data_through: str, weeks=range(1, 19),
+                      prefit: bool = False) -> dict:
+    players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit)
     if players.empty:
         raise RuntimeError(
             f"no future games found for season {season} weeks {list(weeks)} — "
             f"refusing to build an empty draft board"
         )
+    season_sched = schedules[schedules["season"] == season]
+    weeks_list = list(weeks)
+    team_weeks = pd.concat([
+        season_sched.rename(columns={"home_team": "team"})[["team", "week"]],
+        season_sched.rename(columns={"away_team": "team"})[["team", "week"]],
+    ])
+
+    def _bye(team: str):
+        played = set(team_weeks[team_weeks["team"] == team]["week"])
+        missing = [w for w in weeks_list if w not in played]
+        return int(missing[0]) if len(missing) == 1 else None
+
+    players["bye"] = players["team"].map(_bye)
     has_bands = hasattr(predictor, "predict_quantiles")
     return _finalize_board(players, predictor.name, season, data_through, has_bands)

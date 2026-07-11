@@ -12,7 +12,7 @@ from tests.test_features import make_schedules, make_weekly
 def test_parser_defaults_and_flags():
     args = build_parser().parse_args(["--out", "site/data", "--model", "xgboost",
                                       "--season", "2023", "--week", "7"])
-    assert args.model == "xgboost" and args.week == 7 and not args.draft
+    assert args.model == "xgboost" and args.week == "7" and not args.draft
 
 
 def test_validate_rejects_empty_and_sparse():
@@ -57,3 +57,31 @@ def test_require_backtests_rejects_empty():
     with pytest.raises(RuntimeError, match="empty about page"):
         require_backtests([])
     assert require_backtests([Path("x.json")]) == [Path("x.json")]
+
+
+def test_parser_requires_week_or_draft():
+    from ffmodel.site.generate import parse_and_validate
+
+    with pytest.raises(SystemExit):
+        parse_and_validate(["--out", "x", "--model", "xgboost",
+                            "--season", "2026"])
+
+
+def test_week_auto_resolves_first_unplayed():
+    from ffmodel.site.generate import resolve_week
+
+    weekly = make_weekly([{"week": w, "player_id": f"p{i}"}
+                          for w in (1, 2) for i in range(3)])
+    sched = make_schedules(4)
+    assert resolve_week("auto", weekly, sched, season=2023) == 3
+    assert resolve_week(4, weekly, sched, season=2023) == 4
+
+
+def test_week_auto_errors_when_season_complete():
+    from ffmodel.site.generate import resolve_week
+
+    weekly = make_weekly([{"week": w, "player_id": f"p{i}"}
+                          for w in (1, 2, 3, 4) for i in range(3)])
+    sched = make_schedules(4)
+    with pytest.raises(RuntimeError, match="2023"):
+        resolve_week("auto", weekly, sched, season=2023)

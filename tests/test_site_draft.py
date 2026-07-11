@@ -20,8 +20,8 @@ def test_season_projection_sums_weeks():
                              weeks=range(7, 9))   # two future weeks
     p1 = proj[proj["player_id"] == "p1"].iloc[0]
     # stub: 13.0 PPR per week x 2 weeks
-    assert p1["season_p50"] == pytest.approx(26.0)
-    assert p1["season_p10"] == pytest.approx(13.0)
+    assert p1["ppr_p50"] == pytest.approx(26.0)
+    assert p1["ppr_p10"] == pytest.approx(13.0)
     assert p1["games"] == 2
 
 
@@ -34,12 +34,15 @@ def test_bye_week_reduces_games():
 
 
 def test_vorp_and_ordering():
+    ppr_p50 = list(range(300, 270, -1)) + list(range(400, 370, -1))
     players = pd.DataFrame({
         "player_id": [f"wr{i}" for i in range(30)] + [f"rb{i}" for i in range(30)],
         "name": "x", "team": "AAA",
         "position": ["WR"] * 30 + ["RB"] * 30,
-        "season_p50": list(range(300, 270, -1)) + list(range(400, 370, -1)),
-        "season_p10": np.nan, "season_p90": np.nan, "games": 17,
+        "ppr_p50": ppr_p50, "ppr_p10": np.nan, "ppr_p90": np.nan,
+        "half_ppr_p50": ppr_p50, "half_ppr_p10": np.nan, "half_ppr_p90": np.nan,
+        "standard_p50": ppr_p50, "standard_p10": np.nan, "standard_p90": np.nan,
+        "games": 17, "bye": None,
     })
     from ffmodel.site.draft import _finalize_board
 
@@ -76,3 +79,30 @@ def test_empty_weeks_range_fails_loud():
     with pytest.raises(RuntimeError, match="empty draft board"):
         build_draft_board(weekly, sched, _QuantileStub(), 2023,
                           "2023-10-15", weeks=range(9, 11))
+
+
+def test_board_carries_games_bye_and_all_rulesets():
+    weekly = _history()
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9))
+    top = board["players"][0]
+    assert top["games"] == 2
+    assert top["bye"] is None            # toy schedule has no bye in weeks 7-8
+    assert set(top["season_points"]) == {"ppr", "half_ppr", "standard"}
+    assert top["season_points"]["standard"]["p50"] <= top["season_points"]["ppr"]["p50"]
+
+
+def test_prefit_skips_internal_fit():
+    weekly = _history()
+
+    class CountingStub(_QuantileStub):
+        fits = 0
+
+        def fit(self, train):
+            type(self).fits += 1
+
+    stub = CountingStub()
+    stub.fit(None)                       # simulate generate.py's own fit
+    build_draft_board(weekly, _sched_with_future(), stub, 2023,
+                      "2023-10-15", weeks=range(7, 9), prefit=True)
+    assert CountingStub.fits == 1
