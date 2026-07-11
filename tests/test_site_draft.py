@@ -106,3 +106,27 @@ def test_prefit_skips_internal_fit():
     build_draft_board(weekly, _sched_with_future(), stub, 2023,
                       "2023-10-15", weeks=range(7, 9), prefit=True)
     assert CountingStub.fits == 1
+
+
+def test_bye_values_are_json_safe():
+    from tests.test_features import make_weekly, make_schedules
+
+    weekly = make_weekly([
+        {"player_id": "p1", "week": w, "receiving_yards": 50.0} for w in range(1, 7)
+    ] + [
+        {"player_id": "p3", "team": "CCC", "opponent_team": "DDD", "position": "RB",
+         "week": w, "rushing_yards": 40.0} for w in range(1, 7)
+    ])
+    sched = make_schedules(8)                     # AAA/BBB play weeks 7-8
+    extra = pd.DataFrame({                        # CCC/DDD play ONLY week 7 -> week 8 bye
+        "season": 2023, "week": [7],
+        "gameday": ["2023-10-22"], "home_team": "CCC", "away_team": "DDD",
+    })
+    sched = pd.concat([sched, extra], ignore_index=True)
+    board = build_draft_board(weekly, sched, _QuantileStub(), 2023,
+                              "2023-10-15", weeks=range(7, 9))
+    byes = {p["player_id"]: p["bye"] for p in board["players"]}
+    assert byes["p3"] == 8                        # genuine bye, plain int
+    assert byes["p1"] is None                     # plays both weeks
+    payload = json.dumps(board, allow_nan=False)  # must not raise
+    assert '"bye": 8' in payload

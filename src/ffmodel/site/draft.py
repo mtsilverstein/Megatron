@@ -109,7 +109,7 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
                                    "p90": _band(row[f"{rn}_p90"])}
                               for rn in ("ppr", "half_ppr", "standard")},
             "games": int(row["games"]),
-            "bye": row["bye"],
+            "bye": None if pd.isna(row["bye"]) else int(row["bye"]),
             "vorp": float(row["vorp"]),
             "position_rank": int(row["position_rank"]),
             "tier": int(row["tier"]),
