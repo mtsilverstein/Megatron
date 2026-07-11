@@ -1,0 +1,124 @@
+/* Floor & Ceiling — war-room board. Single committed dark look. */
+:root {
+  --board: #1B2127;
+  --board-raised: #232A31;
+  --chalk: #E9E4D8;
+  --chalk-dim: #9AA3AB;
+  --rule: #39424B;
+  --qb: #D64545; --rb: #3FA46A; --wr: #4A90D9; --te: #E8A33D;
+  --band-track: #2E363E;
+}
+
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body {
+  margin: 0; background: var(--board); color: var(--chalk);
+  font: 400 16px/1.55 "Source Sans 3", system-ui, sans-serif;
+}
+a { color: var(--chalk); }
+:focus-visible { outline: 2px solid var(--te); outline-offset: 2px; }
+
+/* -- header ------------------------------------------------------------ */
+.masthead {
+  display: flex; align-items: baseline; gap: 1.25rem; flex-wrap: wrap;
+  padding: 1.1rem 1.25rem .9rem; border-bottom: 1px solid var(--rule);
+}
+.wordmark {
+  font: 700 1.6rem/1 "Barlow Condensed", sans-serif;
+  letter-spacing: .04em; text-transform: uppercase; margin: 0;
+}
+.wordmark .amp { color: var(--chalk-dim); }
+.masthead nav { display: flex; gap: 1rem; margin-left: auto; }
+.masthead nav a {
+  font: 600 .95rem/1 "Barlow Condensed", sans-serif; letter-spacing: .09em;
+  text-transform: uppercase; text-decoration: none; color: var(--chalk-dim);
+  padding: .3rem 0; border-bottom: 2px solid transparent;
+}
+.masthead nav a[aria-current="page"] { color: var(--chalk); border-bottom-color: var(--chalk); }
+.stamp {
+  width: 100%; font: 500 .78rem/1.2 "IBM Plex Mono", monospace;
+  color: var(--chalk-dim); letter-spacing: .02em;
+}
+.stale {
+  background: var(--te); color: #1B2127; padding: .55rem 1.25rem;
+  font: 600 .9rem/1.3 "Source Sans 3", sans-serif;
+}
+
+main { max-width: 1080px; margin: 0 auto; padding: 1.25rem; }
+.eyebrow {
+  font: 600 .8rem/1 "Barlow Condensed", sans-serif; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--chalk-dim); margin: 0 0 .35rem;
+}
+h1, h2 { font-family: "Barlow Condensed", sans-serif; letter-spacing: .02em; }
+h1 { font-size: 2rem; font-weight: 700; margin: 0 0 1rem; }
+h2 { font-size: 1.3rem; font-weight: 600; margin: 2rem 0 .6rem; }
+
+/* -- position chips ------------------------------------------------------ */
+.pos-chip {
+  display: inline-block; min-width: 2.4em; text-align: center;
+  font: 600 .78rem/1.5 "Barlow Condensed", sans-serif; letter-spacing: .06em;
+  border-radius: 3px; color: #10151A;
+}
+.pos-qb { background: var(--qb); } .pos-rb { background: var(--rb); }
+.pos-wr { background: var(--wr); } .pos-te { background: var(--te); }
+
+/* -- tables -------------------------------------------------------------- */
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: .45rem .6rem; text-align: left; white-space: nowrap; }
+thead th {
+  font: 600 .78rem/1.2 "Barlow Condensed", sans-serif; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--chalk-dim);
+  border-bottom: 1px solid var(--rule); cursor: pointer; user-select: none;
+}
+thead th[aria-sort="descending"]::after { content: " ▾"; }
+thead th[aria-sort="ascending"]::after { content: " ▴"; }
+tbody tr { border-bottom: 1px solid color-mix(in srgb, var(--rule) 45%, transparent); }
+tbody tr:hover { background: var(--board-raised); }
+td.num, th.num { text-align: right; font: 500 .92rem/1.4 "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums; }
+
+/* -- signature: the range band ------------------------------------------- */
+.band { position: relative; width: 170px; height: 10px; }
+.band .track { position: absolute; inset: 3px 0; background: var(--band-track);
+  border-radius: 2px; }
+.band .fill { position: absolute; inset: 3px auto; height: 4px; top: 3px;
+  border-radius: 2px; opacity: .85; transform-origin: var(--p50x) center;
+  animation: unfold .22s ease-out both; }
+.band .tick { position: absolute; top: 0; width: 2px; height: 10px;
+  background: var(--chalk); }
+@keyframes unfold { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .band .fill { animation: none; } }
+
+/* -- draft board tier shelves --------------------------------------------- */
+.tier-break { border: 0; border-top: 1px solid var(--rule); position: relative;
+  margin: 1.4rem 0 1.1rem; overflow: visible; }
+.tier-break::after {
+  content: attr(data-label); position: absolute; top: -0.72em; left: 0;
+  background: var(--board); padding-right: .6rem;
+  font: 600 .8rem/1.4 "Barlow Condensed", sans-serif; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--chalk-dim);
+}
+
+/* -- filter chips ---------------------------------------------------------- */
+.filters { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0 0 1rem; }
+.filters button {
+  background: none; border: 1px solid var(--rule); color: var(--chalk-dim);
+  font: 600 .85rem/1 "Barlow Condensed", sans-serif; letter-spacing: .08em;
+  text-transform: uppercase; padding: .45rem .8rem; border-radius: 4px; cursor: pointer;
+}
+.filters button[aria-pressed="true"] { color: var(--chalk); border-color: var(--chalk); }
+
+/* -- about page ------------------------------------------------------------ */
+.prose { max-width: 68ch; }
+.prose p { color: var(--chalk); }
+.prose .lim { color: var(--chalk-dim); }
+.report-meta { font: 500 .8rem/1.4 "IBM Plex Mono", monospace; color: var(--chalk-dim); }
+
+footer { max-width: 1080px; margin: 2rem auto 0; padding: 1rem 1.25rem 2rem;
+  border-top: 1px solid var(--rule); color: var(--chalk-dim); font-size: .85rem; }
+
+@media (max-width: 560px) {
+  .band { width: 110px; }
+  main { padding: .9rem; }
+}

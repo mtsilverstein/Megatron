@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About the model — Floor &amp; Ceiling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="masthead">
+  <h1 class="wordmark">Floor <span class="amp">&amp;</span> Ceiling</h1>
+  <nav>
+    <a href="index.html">Draft board</a>
+    <a href="weekly.html">Weekly</a>
+    <a href="about.html" aria-current="page">About the model</a>
+  </nav>
+  <p class="stamp">loading…</p>
+</header>
+<main>
+  <p class="eyebrow">Methodology, honestly</p>
+  <h1>How these projections are made</h1>
+  <div class="prose">
+    <p>Every number on this site comes from models that predict <strong>raw stat
+    lines</strong> — yards, touchdowns, receptions — never fantasy points directly.
+    Points are computed from those stat lines under your scoring rules, so PPR,
+    half-PPR and standard all come from one prediction.</p>
+    <p>The headline model is a small quantile transformer (PyTorch) that reads each
+    player's recent game log and the matchup, and predicts a <strong>floor (p10),
+    median (p50) and ceiling (p90)</strong> for every stat. The range bands you see
+    on the draft board and weekly pages are those quantiles — uncertainty is the
+    product, not an afterthought. Classical baselines (a naive last-four-games
+    average and XGBoost) run through the exact same evaluation harness, and the
+    tables below report whichever model wins, exactly as it lands.</p>
+    <p>Evaluation is <strong>walk-forward only</strong>: train on seasons up to S,
+    test on season S+1, held out across 2023–2025. No random splits — rolling
+    features would leak the future into the past.</p>
+    <p class="lim"><strong>Known limitations:</strong> rookies with no NFL games are
+    not projected; players who changed teams keep their personal history with
+    updated matchup context; retired players may appear until rosters are pruned;
+    season range bands are sums of weekly quantiles, which overstates their width;
+    snap counts are excluded (no 2012 source data). These are design choices,
+    documented, not surprises.</p>
+  </div>
+  <h2>Backtest results</h2>
+  <p class="prose lim">Walk-forward mean absolute error in PPR points per
+  player-week, by position. Lower is better. Quantile columns appear for models
+  that predict bands; coverage is the share of outcomes that landed inside the
+  p10–p90 band (ideal: 0.80).</p>
+  <div id="reports"></div>
+</main>
+<footer>Floor &amp; Ceiling projects NFL fantasy performance with honest
+uncertainty. Built as an open portfolio project — data via nflverse.</footer>
+<script src="assets/app.js"></script>
+<script>
+(async () => {
+  const about = await FC.loadJSON("data/about.json");
+  FC.stampHeader(about);
+  const host = document.getElementById("reports");
+  for (const report of about.reports) {
+    const h = document.createElement("h2");
+    h.textContent = report.source.replace(".json", "");
+    const meta = document.createElement("p");
+    meta.className = "report-meta";
+    meta.textContent = `created ${report.created} · test seasons ${report.test_seasons.join(", ")} · scoring ${report.scoring}`;
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    const cols = ["model", "test_season", "position", "mae", "rmse", "n"];
+    const qcols = ["pinball_p50", "coverage_p10_p90"];
+    const hasQ = report.results.some(r => r.pinball_p50 != null);
+    const all = hasQ ? cols.concat(qcols) : cols;
+    const table = document.createElement("table");
+    table.innerHTML = `<thead><tr>${all.map(c => `<th>${c.replaceAll("_", " ")}</th>`).join("")}</tr></thead>`;
+    const tbody = document.createElement("tbody");
+    for (const row of report.results.filter(r => r.position === "OVERALL")) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = all.map(c => {
+        const v = row[c];
+        const num = typeof v === "number" && !Number.isInteger(v);
+        return `<td class="${typeof v === "number" ? "num" : ""}">${v == null ? "—" : num ? v.toFixed(3) : v}</td>`;
+      }).join("");
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    host.append(h, meta, wrap);
+  }
+})().catch(e => { document.querySelector(".stamp").textContent = `failed to load: ${e.message}`; });
+</script>
+</body>
+</html>
