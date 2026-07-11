@@ -59,13 +59,15 @@ window.FC = (() => {
     table.querySelectorAll("thead th[data-key]").forEach(th => {
       th.addEventListener("click", () => {
         const key = th.dataset.key;
-        const dir = th.getAttribute("aria-sort") === "descending" ? 1 : -1;
+        const wasDesc = th.getAttribute("aria-sort") === "descending";
         table.querySelectorAll("thead th").forEach(o => o.removeAttribute("aria-sort"));
-        th.setAttribute("aria-sort", dir === -1 ? "descending" : "ascending");
+        const desc = !wasDesc;                    // first click sorts descending
+        th.setAttribute("aria-sort", desc ? "descending" : "ascending");
+        const get = o => key.split(".").reduce((x, k) => (x ?? {})[k], o);
         rows.sort((a, b) => {
-          const av = key.split(".").reduce((o, k) => (o ?? {})[k], a) ?? -Infinity;
-          const bv = key.split(".").reduce((o, k) => (o ?? {})[k], b) ?? -Infinity;
-          return (av < bv ? -1 : av > bv ? 1 : 0) * -dir;
+          const av = get(a) ?? -Infinity;
+          const bv = get(b) ?? -Infinity;
+          return (av < bv ? -1 : av > bv ? 1 : 0) * (desc ? -1 : 1);
         });
         render(rows);
       });
