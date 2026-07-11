@@ -40,6 +40,37 @@ python -m ffmodel.eval.run      # walk-forward backtest -> models/backtests/base
 
 Local CPU training works identically (slower): same commands, no notebook needed.
 
+## Automation (GitHub Actions)
+
+Three workflows live in `.github/workflows/`:
+
+- **`ci.yml`** — runs the test suite (`pytest -W error`) on every push to `main`
+  and on every pull request.
+- **`weekly-update.yml`** — regenerates the site JSON in-season. Runs on a
+  cron of `23 5 * 9-12,1 3` (Wed 05:23 UTC = Tuesday night ET, September
+  through January), and can also be triggered manually
+  (`workflow_dispatch`).
+- **`pages.yml`** — deploys `site/` to GitHub Pages whenever a push to
+  `main` touches `site/**`, and can also be triggered manually.
+
+**Fail-safe contract:** `weekly-update.yml` generates the site JSON before it
+commits anything. If the data pull or generation step fails for any
+reason, the job fails before the commit step runs, so nothing is committed
+and nothing deploys — the site keeps serving last week's data, with its
+"data as of" stamp still honestly showing when that data was generated.
+
+**Switching to the transformer:** once a walk-forward transformer artifact
+is trained and committed, edit the `env:` block at the top of
+`weekly-update.yml`: set `MODEL: transformer` and `ARTIFACT_ROOT` to the
+committed artifact directory (e.g. `models/transformer_v1/through2025`).
+
+**One-time setup:** these workflows are inert until the repo is pushed to
+GitHub. Once pushed, enable Pages once under repo Settings -> Pages ->
+Source: GitHub Actions.
+
+**Preseason draft-board refresh:** before week 1, run `weekly-update.yml`
+manually with the `draft` input checked to regenerate the draft board.
+
 ## Status
 
 - [x] Plan 1: data pipeline, scoring, features, eval harness, baselines
