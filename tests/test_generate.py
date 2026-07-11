@@ -49,3 +49,11 @@ def test_atomic_write_happy_path(tmp_path):
     target = tmp_path / "draft.json"
     _atomic_write(target, {"ok": 1})
     assert json.loads(target.read_text()) == {"ok": 1}
+
+
+def test_require_backtests_rejects_empty():
+    from ffmodel.site.generate import require_backtests
+
+    with pytest.raises(RuntimeError, match="empty about page"):
+        require_backtests([])
+    assert require_backtests([Path("x.json")]) == [Path("x.json")]

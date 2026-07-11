@@ -48,6 +48,13 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def require_backtests(paths: list[Path]) -> list[Path]:
+    if not paths:
+        raise RuntimeError("models/backtests contains no reports — refusing to "
+                           "publish an empty about page")
+    return paths
+
+
 def _make_predictor(args, features: pd.DataFrame):
     if args.model == "transformer":
         if args.artifact_root is None:
@@ -96,7 +103,7 @@ def main() -> None:
                                   args.season, data_through)
         _atomic_write(args.out / "draft.json", board)
         print(f"draft.json: {len(board['players'])} players")
-    backtests = sorted(Path("models/backtests").glob("*.json"))
+    backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
     _atomic_write(args.out / "about.json", build_about(backtests, data_through))
     print("about.json written")
 
