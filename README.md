@@ -79,4 +79,13 @@ the season starts (cron or plain dispatch, which use `--week auto`).
 - [x] Plan 1: data pipeline, scoring, features, eval harness, baselines
 - [x] Plan 2: quantile transformer code complete (CPU smoke-tested end-to-end on real data)
   - Transformer walk-forward artifacts: pending GPU training (see Training on SageMaker Studio Lab)
-- [ ] Plan 3: draft board + weekly site, GitHub Actions automation
+- [x] Plan 3: draft board + weekly site, GitHub Actions automation
+  - Site pages (draft board, weekly, about) and all three workflows complete
+  - First real 2026 draft board generated (xgboost) and committed under `site/data/`
+
+Remaining user tasks:
+
+- [ ] Create the GitHub remote and push (workflows are inert until then)
+- [ ] Enable Pages once: repo Settings -> Pages -> Source: GitHub Actions
+- [ ] Train the transformer on Studio Lab GPU (see Training on SageMaker Studio Lab)
+- [ ] Flip `MODEL`/`ARTIFACT_ROOT` in `weekly-update.yml` to the trained transformer
