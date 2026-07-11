@@ -58,9 +58,35 @@ def test_vorp_and_ordering():
 
 
 def test_tier_breaks_on_gaps():
-    vorp = pd.Series([50.0, 49.0, 48.0, 30.0, 29.0, 5.0])
-    tiers = _assign_tiers(vorp)
-    assert tiers == [1, 1, 1, 2, 2, 3]
+    # 12 players, replacement_rank=5 -> draftable pool is the top 10.
+    # Pool steps are a steady 2.0 except one real cliff (94 -> 60) inside the
+    # pool; two "waiver tail" players sit far below with huge gaps that must
+    # NOT be allowed to inflate the threshold (that's the bug being fixed:
+    # the old span-based formula used the full range including this tail,
+    # which raised the threshold past 34 and hid the real cliff).
+    vorp = pd.Series([
+        100.0, 98.0, 96.0, 94.0,             # tier 1 (steady 2.0 steps)
+        60.0, 58.0, 56.0, 54.0, 52.0, 50.0,   # tier 2 (steady 2.0 steps; end of pool)
+        -200.0,                               # tier 3 (waiver tail)
+        -250.0,                               # tier 4 (waiver tail)
+    ])
+    # pool = first 10 values; mean_gap = (100 - 50) / 9 = 5.555..
+    # threshold = max(2.0, 2 * 5.555..) = 11.111..
+    tiers = _assign_tiers(vorp, replacement_rank=5)
+    assert tiers == [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 4]
+
+
+def test_tier_single_player_pool_too_small_for_gap_stats():
+    # n_draft = min(2*rank, len) < 2 -> no gap statistics possible.
+    vorp = pd.Series([42.0])
+    assert _assign_tiers(vorp, replacement_rank=5) == [1]
+
+
+def test_tier_all_equal_vorp_collapses_to_one_tier():
+    # Zero mean gap within the pool -> threshold floors at 2.0; with no
+    # diffs exceeding it, every player lands in a single tier.
+    vorp = pd.Series([10.0] * 8)
+    assert _assign_tiers(vorp, replacement_rank=3) == [1] * 8
 
 
 def test_end_to_end_board():

@@ -62,12 +62,15 @@ def _fit_frame(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
     return build_features(weekly, schedules)
 
 
-def _assign_tiers(vorp_desc: pd.Series) -> list[int]:
+def _assign_tiers(vorp_desc: pd.Series, replacement_rank: int) -> list[int]:
     values = vorp_desc.to_numpy(dtype=float)
     if len(values) == 0:
         return []
-    span = float(values.max() - values.min())
-    threshold = max(2.0, 0.15 * span)
+    n_draft = min(2 * replacement_rank, len(values))
+    if n_draft < 2:
+        return [1] * len(values)
+    mean_gap = (values[0] - values[n_draft - 1]) / (n_draft - 1)
+    threshold = max(2.0, 2.0 * mean_gap)
     tiers, tier = [1], 1
     for prev, cur in zip(values, values[1:]):
         if prev - cur > threshold:
@@ -85,7 +88,7 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
         replacement = group["ppr_p50"].iloc[min(rank, len(group)) - 1]
         group["vorp"] = (group["ppr_p50"] - replacement).round(2)
         group["position_rank"] = group.index + 1
-        group["tier"] = _assign_tiers(group["vorp"])
+        group["tier"] = _assign_tiers(group["vorp"], rank)
         frames.append(group)
     board = pd.concat(frames).sort_values("vorp", ascending=False)
 
