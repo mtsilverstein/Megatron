@@ -68,3 +68,11 @@ def test_end_to_end_board():
     assert board["methodology"]["replacement_rank"] == REPLACEMENT_RANK
     assert len(board["players"]) == 2
     json.dumps(board)
+
+
+def test_empty_weeks_range_fails_loud():
+    weekly = _history()
+    sched = _sched_with_future()          # weeks 1-8 scheduled; 9-10 do not exist
+    with pytest.raises(RuntimeError, match="empty draft board"):
+        build_draft_board(weekly, sched, _QuantileStub(), 2023,
+                          "2023-10-15", weeks=range(9, 11))

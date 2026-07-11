@@ -44,7 +44,9 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                     entry[f"season_{q}"] = np.nan
                 else:
                     entry[f"season_{q}"] += float(week_pts[q].loc[idx])
-    return pd.DataFrame(list(totals.values()))
+    columns = ["player_id", "name", "team", "position",
+               "season_p50", "season_p10", "season_p90", "games"]
+    return pd.DataFrame(list(totals.values()), columns=columns)
 
 
 def _fit_frame(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
@@ -108,5 +110,10 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
 def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       season: int, data_through: str, weeks=range(1, 19)) -> dict:
     players = season_projection(weekly, schedules, predictor, season, weeks)
+    if players.empty:
+        raise RuntimeError(
+            f"no future games found for season {season} weeks {list(weeks)} — "
+            f"refusing to build an empty draft board"
+        )
     has_bands = hasattr(predictor, "predict_quantiles")
     return _finalize_board(players, predictor.name, season, data_through, has_bands)
