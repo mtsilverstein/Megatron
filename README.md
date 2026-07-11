@@ -47,9 +47,9 @@ Three workflows live in `.github/workflows/`:
 - **`ci.yml`** — runs the test suite (`pytest -W error`) on every push to `main`
   and on every pull request.
 - **`weekly-update.yml`** — regenerates the site JSON in-season. Runs on a
-  cron of `23 5 * 9-12,1 3` (Wed 05:23 UTC = Tuesday night ET, September
-  through January), and can also be triggered manually
-  (`workflow_dispatch`).
+  cron of `23 5 * 9-12,1 3` (Wednesdays 05:23 UTC — overnight after
+  Tuesday's stat finalization, ET — September through January), and can
+  also be triggered manually (`workflow_dispatch`).
 - **`pages.yml`** — deploys `site/` to GitHub Pages whenever a push to
   `main` touches `site/**`, and can also be triggered manually.
 
@@ -62,14 +62,17 @@ and nothing deploys — the site keeps serving last week's data, with its
 **Switching to the transformer:** once a walk-forward transformer artifact
 is trained and committed, edit the `env:` block at the top of
 `weekly-update.yml`: set `MODEL: transformer` and `ARTIFACT_ROOT` to the
-committed artifact directory (e.g. `models/transformer_v1/through2025`).
+committed artifact directory (e.g. `models/transformer/v1/through2025`).
 
 **One-time setup:** these workflows are inert until the repo is pushed to
 GitHub. Once pushed, enable Pages once under repo Settings -> Pages ->
 Source: GitHub Actions.
 
 **Preseason draft-board refresh:** before week 1, run `weekly-update.yml`
-manually with the `draft` input checked to regenerate the draft board.
+manually with the `draft` input checked. This regenerates only the draft
+board (`--draft`, no `--week`), since the target season has no games yet
+and requesting its weekly stats would fail; the weekly slate resumes once
+the season starts (cron or plain dispatch, which use `--week auto`).
 
 ## Status
 

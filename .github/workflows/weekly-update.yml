@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       draft:
-        description: "also regenerate the draft board (preseason)"
+        description: "regenerate the draft board instead of the weekly slate (works preseason)"
         type: boolean
         default: false
 env:
@@ -23,8 +23,8 @@ jobs:
       - run: pip install -e .
       - name: Generate site JSON (fail-safe - any error stops the job, site keeps last data)
         run: |
-          ARGS="--out site/data --model $MODEL --season $SEASON --week auto"
-          if [ "${{ inputs.draft }}" = "true" ]; then ARGS="$ARGS --draft"; fi
+          ARGS="--out site/data --model $MODEL --season $SEASON"
+          if [ "${{ inputs.draft }}" = "true" ]; then ARGS="$ARGS --draft"; else ARGS="$ARGS --week auto"; fi
           if [ -n "$ARTIFACT_ROOT" ]; then ARGS="$ARGS --artifact-root $ARTIFACT_ROOT"; fi
           python -m ffmodel.site.generate $ARGS
       - name: Commit refreshed data
