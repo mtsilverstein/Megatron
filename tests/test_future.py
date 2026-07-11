@@ -85,3 +85,9 @@ def test_player_with_later_season_games_is_excluded():
     weekly = pd.concat([_history(), later], ignore_index=True)
     sk = future_skeleton(weekly, _sched_with_future(), season=2023, week=7)
     assert "future_guy" not in set(sk["player_id"])
+
+
+def test_refuses_already_played_week():
+    weekly = _history()          # weeks 1-6 played
+    with pytest.raises(RuntimeError, match="played"):
+        future_skeleton(weekly, _sched_with_future(), season=2023, week=6)

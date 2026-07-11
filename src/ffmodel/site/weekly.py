@@ -19,6 +19,11 @@ def _quantile_frames(future: pd.DataFrame, predictor) -> dict[str, pd.DataFrame 
 
 def build_weekly_projections(future: pd.DataFrame, predictor, season: int,
                              week: int, data_through: str) -> dict:
+    if future.empty:
+        raise RuntimeError(
+            f"no future rows for season {season} week {week} — "
+            f"refusing to publish an empty weekly page"
+        )
     frames = _quantile_frames(future, predictor)
     points = {
         rules_name: {

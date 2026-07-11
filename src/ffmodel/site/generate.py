@@ -88,24 +88,27 @@ def main() -> None:
     predictor = _make_predictor(args, features)
     predictor.fit(features)
 
-    args.out.mkdir(parents=True, exist_ok=True)
+    # Build every payload first: a failure here must leave ALL existing
+    # site files untouched (spec §9 fail-safe).
+    payloads: dict[str, dict] = {}
     if args.week is not None:
         combined, future = combined_future_features(weekly, schedules,
                                                     args.season, args.week)
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)
-        payload = build_weekly_projections(future, predictor, args.season,
-                                           args.week, data_through)
-        _atomic_write(args.out / "weekly.json", payload)
-        print(f"weekly.json: {len(payload['players'])} players")
+        payloads["weekly.json"] = build_weekly_projections(
+            future, predictor, args.season, args.week, data_through)
     if args.draft:
-        board = build_draft_board(weekly, schedules, predictor,
-                                  args.season, data_through)
-        _atomic_write(args.out / "draft.json", board)
-        print(f"draft.json: {len(board['players'])} players")
+        payloads["draft.json"] = build_draft_board(
+            weekly, schedules, predictor, args.season, data_through)
     backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
-    _atomic_write(args.out / "about.json", build_about(backtests, data_through))
-    print("about.json written")
+    payloads["about.json"] = build_about(backtests, data_through)
+
+    args.out.mkdir(parents=True, exist_ok=True)
+    for name, payload in payloads.items():
+        _atomic_write(args.out / name, payload)
+        print(f"{name}: written"
+              + (f" ({len(payload['players'])} players)" if "players" in payload else ""))
 
 
 if __name__ == "__main__":

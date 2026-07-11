@@ -67,3 +67,9 @@ def test_point_only_predictor_has_null_bands():
     top = payload["players"][0]
     assert top["points"]["ppr"]["p10"] is None and top["points"]["ppr"]["p90"] is None
     json.dumps(payload)
+
+
+def test_empty_future_fails_loud():
+    _, future = _future()
+    with pytest.raises(RuntimeError, match="empty weekly page"):
+        build_weekly_projections(future.iloc[0:0], _QuantileStub(), 2023, 7, "x")
