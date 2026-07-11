@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft board — Floor &amp; Ceiling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="masthead">
+  <h1 class="wordmark">Floor <span class="amp">&amp;</span> Ceiling</h1>
+  <nav>
+    <a href="index.html" aria-current="page">Draft board</a>
+    <a href="weekly.html">Weekly</a>
+    <a href="about.html">About the model</a>
+  </nav>
+  <p class="stamp">loading…</p>
+</header>
+<main>
+  <p class="eyebrow">2026 season · value over replacement</p>
+  <h1>Draft board</h1>
+  <div class="filters" id="pos-filters" role="group" aria-label="Filter by position"></div>
+  <div class="filters" id="scoring-filters" role="group" aria-label="Scoring format"></div>
+  <div class="table-wrap">
+    <table id="board">
+      <thead><tr>
+        <th data-key="vorp" class="num" aria-sort="descending">VORP</th>
+        <th>Pos</th>
+        <th data-key="name">Player</th>
+        <th>Team</th>
+        <th data-key="bye" class="num">Bye</th>
+        <th data-key="season_points.ppr.p50" class="num" id="pts-header">Season pts (p50)</th>
+        <th>Floor → ceiling</th>
+        <th data-key="position_rank" class="num">Pos rank</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+<footer>Bands show season floor (p10) to ceiling (p90); the tick is the median.
+Ordering is points above a replacement-level starter, so scarcity is priced in.
+Tier gaps mark real value cliffs — when your tier empties, don't chase.</footer>
+<script src="assets/app.js"></script>
+<script>
+(async () => {
+  const board = await FC.loadJSON("data/draft.json");
+  FC.stampHeader(board);
+  let scoring = "ppr";
+  let pos = "ALL";
+  let rows = board.players.slice();
+
+  const maxCeil = Math.max(...board.players.map(p =>
+    p.season_points.ppr.p90 ?? p.season_points.ppr.p50));
+
+  const tbody = document.querySelector("#board tbody");
+  function render(data) {
+    tbody.innerHTML = "";
+    let lastTier = null;
+    const filtered = data.filter(p => pos === "ALL" || p.position === pos);
+    for (const p of filtered) {
+      if (pos !== "ALL" && p.tier !== lastTier) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="8"><hr class="tier-break" data-label="Tier ${p.tier}"></td>`;
+        tbody.appendChild(tr);
+        lastTier = p.tier;
+      }
+      const s = p.season_points[scoring];
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="num">${FC.fmt(p.vorp)}</td>
+        <td><span class="pos-chip ${FC.POS_CLASS[p.position]}">${p.position}</span></td>
+        <td>${p.name}</td>
+        <td>${p.team}</td>
+        <td class="num">${p.bye ?? "—"}</td>
+        <td class="num">${FC.fmt(s.p50)}</td>
+        <td></td>
+        <td class="num">${p.position_rank}</td>`;
+      tr.children[6].appendChild(FC.bandBar(s.p10, s.p50, s.p90, maxCeil, p.position));
+      tbody.appendChild(tr);
+    }
+  }
+
+  FC.posFilter(document.getElementById("pos-filters"), p => { pos = p; render(rows); });
+  const scWrap = document.getElementById("scoring-filters");
+  ["ppr", "half_ppr", "standard"].forEach(rn => {
+    const b = document.createElement("button");
+    b.textContent = rn.replace("_", "-").toUpperCase();
+    b.setAttribute("aria-pressed", rn === "ppr" ? "true" : "false");
+    b.addEventListener("click", () => {
+      scWrap.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", "false"));
+      b.setAttribute("aria-pressed", "true");
+      scoring = rn;
+      document.getElementById("pts-header").textContent =
+        `Season pts (p50, ${rn.replace("_", "-")})`;
+      render(rows);
+    });
+    scWrap.appendChild(b);
+  });
+  FC.makeSortable(document.getElementById("board"), rows, render);
+  render(rows);
+})().catch(e => { document.querySelector(".stamp").textContent = `failed to load: ${e.message}`; });
+</script>
+</body>
+</html>
