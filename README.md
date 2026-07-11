@@ -51,7 +51,10 @@ Three workflows live in `.github/workflows/`:
   Tuesday's stat finalization, ET — September through January), and can
   also be triggered manually (`workflow_dispatch`).
 - **`pages.yml`** — deploys `site/` to GitHub Pages whenever a push to
-  `main` touches `site/**`, and can also be triggered manually.
+  `main` touches `site/**`, can be triggered manually, and is explicitly
+  dispatched by `weekly-update.yml` after it pushes fresh data (bot-token
+  pushes don't fire `on: push` workflows, so the weekly job calls
+  `gh workflow run pages.yml` itself).
 
 **Fail-safe contract:** `weekly-update.yml` generates the site JSON before it
 commits anything. If the data pull or generation step fails for any
