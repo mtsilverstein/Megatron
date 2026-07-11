@@ -39,9 +39,13 @@
     <p class="lim"><strong>Known limitations:</strong> rookies with no NFL games are
     not projected; players who changed teams keep their personal history with
     updated matchup context; retired players may appear until rosters are pruned;
-    season range bands are sums of weekly quantiles, which overstates their width;
-    snap counts are excluded (no 2012 source data). These are design choices,
-    documented, not surprises.</p>
+    season projections seed every week from end-of-prior-season form, so a short
+    late-season role spike (an injury fill-in) can be over-extrapolated across a
+    full year while a star's slow finish under-ranks them — expect the board to
+    have loud recency opinions; season range bands are sums of weekly quantiles,
+    which overstates their width; snap-count data has no 2012 source and is
+    treated as missing for that season. These are design choices, documented,
+    not surprises.</p>
   </div>
   <h2>Backtest results</h2>
   <p class="prose lim">Walk-forward mean absolute error in PPR points per
