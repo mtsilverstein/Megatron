@@ -62,10 +62,11 @@ reason, the job fails before the commit step runs, so nothing is committed
 and nothing deploys — the site keeps serving last week's data, with its
 "data as of" stamp still honestly showing when that data was generated.
 
-**Switching to the transformer:** once a walk-forward transformer artifact
-is trained and committed, edit the `env:` block at the top of
-`weekly-update.yml`: set `MODEL: transformer` and `ARTIFACT_ROOT` to the
-committed artifact directory (e.g. `models/transformer/v1/through2025`).
+**Deployed model:** the `env:` block at the top of `weekly-update.yml`
+selects the model. It is set to `MODEL: transformer` with `ARTIFACT_ROOT:
+models/transformer/v1` — the *run root*, not a `through<year>` directory;
+the predictor appends `through{last-trained-season}` itself. A
+comma-separated list of run roots deploys a seed ensemble.
 
 **One-time setup:** these workflows are inert until the repo is pushed to
 GitHub. Once pushed, enable Pages once under repo Settings -> Pages ->

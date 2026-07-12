@@ -9,8 +9,8 @@ on:
         type: boolean
         default: false
 env:
-  MODEL: xgboost               # flip to transformer + set ARTIFACT_ROOT after GPU training
-  ARTIFACT_ROOT: ""
+  MODEL: transformer
+  ARTIFACT_ROOT: "models/transformer/v1"   # run root; the predictor appends through{year}
   SEASON: "2026"
 jobs:
   regenerate:
