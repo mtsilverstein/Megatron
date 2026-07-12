@@ -91,6 +91,16 @@ def test_apply_overrides_rejects_unknown_nested_path(tmp_path):
         apply_overrides(base, {"nope.nested": 1})
 
 
+@pytest.mark.parametrize("typo_key", ["train.lrx", "epoch", "model.dmodel"])
+def test_apply_overrides_rejects_typoed_leaf(tmp_path, typo_key):
+    # a leaf absent from the base cfg must raise, not silently create a dead
+    # key -- otherwise a typo'd grid sweeps nothing while results.json reports
+    # distinct combos whose spread is pure training noise
+    base = _base_cfg(tmp_path)
+    with pytest.raises(KeyError, match="not found in base cfg"):
+        apply_overrides(base, {typo_key: 1})
+
+
 def test_build_run_cfg_points_paths_under_grid_out_root(tmp_path):
     base = _base_cfg(tmp_path)
     combo = {"seq_len": 8, "model.d_model": 64, "model.n_layers": 2, "train.lr": 3.0e-4}
@@ -187,10 +197,16 @@ def test_format_leaderboard_handles_empty():
 
 # --- protocol guard --------------------------------------------------------
 
-def test_run_sweep_rejects_val_season_in_grid(tmp_path):
+@pytest.mark.parametrize("forbidden_key", [
+    "val_season", "first_season", "run_name", "out_root", "checkpoint_root",
+])
+def test_run_sweep_rejects_forbidden_grid_keys(tmp_path, forbidden_key):
+    # window-widening keys would let a grid silently tune on held-out test
+    # seasons; the path keys are defense-in-depth (build_run_cfg overwrites
+    # them anyway)
     base = _base_cfg(tmp_path)
-    grid = {"val_season": [2023, 2024]}
-    with pytest.raises(ValueError, match="val_season"):
+    grid = {forbidden_key: ["a", "b"]}
+    with pytest.raises(ValueError, match=forbidden_key):
         run_sweep(base, grid, tmp_path / "out", pd.DataFrame())
 
 

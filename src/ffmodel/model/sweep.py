@@ -129,6 +129,12 @@ def apply_overrides(cfg: dict, combo: dict) -> dict:
                     f"a dict in the base config"
                 )
             node = node[p]
+        if leaf not in node:
+            raise KeyError(
+                f"grid key {dotted_key!r}: {leaf!r} not found in base cfg"
+                f"[{'.'.join(parents) or '<root>'}] — a typo here would "
+                f"silently sweep nothing for this parameter"
+            )
         node[leaf] = value
     return out
 
