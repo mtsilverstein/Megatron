@@ -56,22 +56,39 @@ window.FC = (() => {
 
   function makeSortable(table, rows, render) {
     // rows: array of data objects; render(rows) redraws tbody.
+    const sortBy = th => {
+      const key = th.dataset.key;
+      const wasDesc = th.getAttribute("aria-sort") === "descending";
+      table.querySelectorAll("thead th").forEach(o => o.removeAttribute("aria-sort"));
+      const desc = !wasDesc;                    // first click sorts descending
+      th.setAttribute("aria-sort", desc ? "descending" : "ascending");
+      const get = o => key.split(".").reduce((x, k) => (x ?? {})[k], o);
+      rows.sort((a, b) => {
+        const av = get(a) ?? -Infinity;
+        const bv = get(b) ?? -Infinity;
+        return (av < bv ? -1 : av > bv ? 1 : 0) * (desc ? -1 : 1);
+      });
+      table.dataset.sortKey = key;
+      table.dataset.sortDesc = String(desc);
+      render(rows);
+    };
     table.querySelectorAll("thead th[data-key]").forEach(th => {
-      th.addEventListener("click", () => {
-        const key = th.dataset.key;
-        const wasDesc = th.getAttribute("aria-sort") === "descending";
-        table.querySelectorAll("thead th").forEach(o => o.removeAttribute("aria-sort"));
-        const desc = !wasDesc;                    // first click sorts descending
-        th.setAttribute("aria-sort", desc ? "descending" : "ascending");
-        const get = o => key.split(".").reduce((x, k) => (x ?? {})[k], o);
-        rows.sort((a, b) => {
-          const av = get(a) ?? -Infinity;
-          const bv = get(b) ?? -Infinity;
-          return (av < bv ? -1 : av > bv ? 1 : 0) * (desc ? -1 : 1);
-        });
-        render(rows);
+      th.setAttribute("tabindex", "0");
+      th.addEventListener("click", () => sortBy(th));
+      th.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+          sortBy(th);
+        } else if (e.key === " ") {
+          e.preventDefault();               // don't let the page scroll
+          sortBy(th);
+        }
       });
     });
+  }
+
+  const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ESC_MAP[c]);
   }
 
   function posFilter(container, onChange) {
@@ -89,5 +106,5 @@ window.FC = (() => {
     });
   }
 
-  return { POS_CLASS, loadJSON, stampHeader, staleBanner, fmt, bandBar, makeSortable, posFilter };
+  return { POS_CLASS, loadJSON, stampHeader, staleBanner, fmt, bandBar, makeSortable, posFilter, esc };
 })();

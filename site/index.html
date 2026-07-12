@@ -52,16 +52,24 @@ Tier gaps mark real value cliffs — when your tier empties, don't chase.</foote
   let pos = "ALL";
   let rows = board.players.slice();
 
+  // Bars are pinned to the PPR p90 ceiling on purpose: a stable ruler across
+  // scoring toggles, so bars don't rescale when you switch PPR/half/standard.
   const maxCeil = Math.max(...board.players.map(p =>
     p.season_points.ppr.p90 ?? p.season_points.ppr.p50));
 
+  const table = document.getElementById("board");
   const tbody = document.querySelector("#board tbody");
   function render(data) {
     tbody.innerHTML = "";
     let lastTier = null;
+    // Tier shelves only make sense in VORP-descending order (their whole point
+    // is marking value cliffs down the draft board) — an unset dataset means
+    // the initial/default order, which is VORP desc from the source data.
+    const isVorpDesc = !table.dataset.sortKey ||
+      (table.dataset.sortKey === "vorp" && table.dataset.sortDesc === "true");
     const filtered = data.filter(p => pos === "ALL" || p.position === pos);
     for (const p of filtered) {
-      if (pos !== "ALL" && p.tier !== lastTier) {
+      if (pos !== "ALL" && isVorpDesc && p.tier !== lastTier) {
         const tr = document.createElement("tr");
         tr.innerHTML = `<td colspan="8"><hr class="tier-break" data-label="Tier ${p.tier}"></td>`;
         tbody.appendChild(tr);
@@ -72,8 +80,8 @@ Tier gaps mark real value cliffs — when your tier empties, don't chase.</foote
       tr.innerHTML = `
         <td class="num">${FC.fmt(p.vorp)}</td>
         <td><span class="pos-chip ${FC.POS_CLASS[p.position]}">${p.position}</span></td>
-        <td>${p.name}</td>
-        <td>${p.team}</td>
+        <td>${FC.esc(p.name)}</td>
+        <td>${FC.esc(p.team)}</td>
         <td class="num">${p.bye ?? "—"}</td>
         <td class="num">${FC.fmt(s.p50)}</td>
         <td></td>
@@ -99,7 +107,7 @@ Tier gaps mark real value cliffs — when your tier empties, don't chase.</foote
     });
     scWrap.appendChild(b);
   });
-  FC.makeSortable(document.getElementById("board"), rows, render);
+  FC.makeSortable(table, rows, render);
   render(rows);
 })().catch(e => { document.querySelector(".stamp").textContent = `failed to load: ${e.message}`; });
 </script>

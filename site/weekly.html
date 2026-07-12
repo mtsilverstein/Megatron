@@ -54,6 +54,8 @@ chase the higher ceiling when you need to swing.</footer>
   let pos = "ALL";
   let rows = payload.players.slice();
 
+  // Bars are pinned to the PPR p90 ceiling on purpose: a stable ruler across
+  // scoring toggles, so bars don't rescale when you switch PPR/half/standard.
   const maxCeil = Math.max(...payload.players.map(p =>
     p.points.ppr.p90 ?? p.points.ppr.p50));
 
@@ -67,9 +69,9 @@ chase the higher ceiling when you need to swing.</footer>
       tr.innerHTML = `
         <td class="num">${FC.fmt(pts.p50)}</td>
         <td><span class="pos-chip ${FC.POS_CLASS[p.position]}">${p.position}</span></td>
-        <td>${p.name}</td>
-        <td>${p.team}</td>
-        <td>${p.is_home ? "vs" : "@"} ${p.opponent}</td>
+        <td>${FC.esc(p.name)}</td>
+        <td>${FC.esc(p.team)}</td>
+        <td>${p.is_home ? "vs" : "@"} ${FC.esc(p.opponent)}</td>
         <td></td>
         <td class="num">${FC.fmt(pts.p10)}</td>
         <td class="num">${FC.fmt(pts.p90)}</td>`;

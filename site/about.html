@@ -8,6 +8,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<style>
+  /* Page-scoped: give OVERALL rows visual weight in the backtest tables. */
+  #reports tr.overall { font-weight: 700; }
+</style>
 </head>
 <body>
 <header class="masthead">
@@ -78,8 +82,18 @@ uncertainty. Built as an open portfolio project — data via nflverse.</footer>
     const table = document.createElement("table");
     table.innerHTML = `<thead><tr>${all.map(c => `<th>${c.replaceAll("_", " ")}</th>`).join("")}</tr></thead>`;
     const tbody = document.createElement("tbody");
-    for (const row of report.results.filter(r => r.position === "OVERALL")) {
+    // Sort by (model, test_season), OVERALL first within each group, so the
+    // per-position breakdown the copy promises actually renders.
+    const sorted = report.results.slice().sort((a, b) => {
+      if (a.model !== b.model) return a.model < b.model ? -1 : 1;
+      if (a.test_season !== b.test_season) return a.test_season - b.test_season;
+      if (a.position === "OVERALL") return -1;
+      if (b.position === "OVERALL") return 1;
+      return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
+    });
+    for (const row of sorted) {
       const tr = document.createElement("tr");
+      if (row.position === "OVERALL") tr.className = "overall";
       tr.innerHTML = all.map(c => {
         const v = row[c];
         const num = typeof v === "number" && !Number.isInteger(v);
