@@ -31,11 +31,11 @@ def _synthetic_features(n_players=12, seasons=(2020, 2021, 2022), extra_rows=Non
     return build_features(make_weekly(rows), sched)
 
 
-def _cfg(tmp_path, epochs=2):
+def _cfg(tmp_path, epochs=2, dropout=0.0):
     return {
         "run_name": "testrun", "seed": 0, "seq_len": 8, "val_season": 2022,
         "first_season": 2020, "quantiles": [0.1, 0.5, 0.9],
-        "model": {"d_model": 16, "n_heads": 2, "n_layers": 1, "dropout": 0.0},
+        "model": {"d_model": 16, "n_heads": 2, "n_layers": 1, "dropout": dropout},
         "train": {"batch_size": 64, "lr": 1e-3, "weight_decay": 0.0,
                   "epochs": epochs, "patience": 10, "grad_clip": 1.0},
         "out_root": str(tmp_path / "artifacts"),
@@ -112,13 +112,21 @@ def test_seeded_determinism(tmp_path):
 
 
 def test_resume_matches_uninterrupted_run(tmp_path, monkeypatch):
+    """Pinned equivalence test for the resume path's global-RNG restore.
+    dropout must be > 0 here: with dropout=0.0 the training forward pass
+    never calls into torch's global RNG (verified: F.dropout(p=0) is a
+    no-op on the RNG state), so a resumed run would match an uninterrupted
+    one bit-for-bit even if the torch.set_rng_state/np.random.set_state
+    restore lines in train.py's resume path were deleted. dropout=0.1 makes
+    the forward pass consume global torch RNG every training step, so the
+    restore is actually load-bearing for this assertion."""
     features = _synthetic_features()
-    cfg_a = _cfg(tmp_path, epochs=2)
+    cfg_a = _cfg(tmp_path, epochs=2, dropout=0.1)
     cfg_a["out_root"] = str(tmp_path / "a")
     cfg_a["checkpoint_root"] = str(tmp_path / "a" / "ckpt")
     art_a = train_from_config(cfg_a, features)
 
-    cfg_b = _cfg(tmp_path, epochs=2)
+    cfg_b = _cfg(tmp_path, epochs=2, dropout=0.1)
     cfg_b["out_root"] = str(tmp_path / "b")
     cfg_b["checkpoint_root"] = str(tmp_path / "b" / "ckpt")
 
@@ -134,6 +142,13 @@ def test_resume_matches_uninterrupted_run(tmp_path, monkeypatch):
     mb = json.loads((art_b / "metrics.json").read_text())
     assert mb["val_pinball"] == pytest.approx(ma["val_pinball"])
     assert mb["best_epoch"] == ma["best_epoch"]
+
+    # Belt-and-suspenders: exact tensor equality on the saved weights, not
+    # just an approx on a scalar metric that could coincidentally match.
+    state_a = torch.load(art_a / "model.pt", weights_only=True)
+    state_b = torch.load(art_b / "model.pt", weights_only=True)
+    for key in state_a:
+        assert torch.equal(state_a[key], state_b[key]), key
 
 
 def test_val_sequences_span_prior_seasons(tmp_path):
@@ -230,3 +245,75 @@ def test_fresh_flag_forces_retrain_even_when_complete(tmp_path, monkeypatch, cap
     metrics_after = json.loads((art2 / "metrics.json").read_text())
     assert metrics_after["complete"] is True
     assert metrics_after["last_epoch"] == 2
+
+
+def test_fresh_with_empty_run_name_raises_and_deletes_nothing(tmp_path):
+    """--fresh's deletion block must refuse to act on a blank/garbage
+    run_name instead of composing a bogus, possibly-escaping path and
+    rmtree-ing it. Plant decoys in both roots and confirm they survive."""
+    features = _synthetic_features()
+    cfg = _cfg(tmp_path, epochs=1)
+    cfg["run_name"] = ""
+
+    out_root = train_mod.Path(cfg["out_root"])
+    ckpt_root = train_mod.Path(cfg["checkpoint_root"])
+    out_root.mkdir(parents=True, exist_ok=True)
+    ckpt_root.mkdir(parents=True, exist_ok=True)
+    decoy_out = out_root / "decoy.txt"
+    decoy_ckpt = ckpt_root / "decoy.txt"
+    decoy_out.write_text("keep me")
+    decoy_ckpt.write_text("keep me too")
+
+    with pytest.raises(ValueError):
+        train_from_config(cfg, features, fresh=True)
+
+    assert decoy_out.exists() and decoy_out.read_text() == "keep me"
+    assert decoy_ckpt.exists() and decoy_ckpt.read_text() == "keep me too"
+
+
+def _force_early_stop(monkeypatch, worsening_after: int = 1):
+    """Monkeypatch train_mod._epoch so validation loss (the calls with no
+    optimizer) gets pinned to a value far worse than any real pinball loss
+    after `worsening_after` val-epochs, forcing the patience counter to trip
+    well before cfg['train']['epochs'] is reached — mirrors a real run that
+    stops early because it's overfitting. Mirrors the monkeypatch approach
+    used by _interrupt_after_epoch above."""
+    orig_epoch = train_mod._epoch
+    state = {"val_calls": 0}
+
+    def _flaky(model, loader, quantiles, device, optimizer=None, *args, **kwargs):
+        result = orig_epoch(model, loader, quantiles, device, optimizer, *args, **kwargs)
+        if optimizer is None:  # a val-epoch call (train calls always pass optimizer)
+            state["val_calls"] += 1
+            if state["val_calls"] > worsening_after:
+                return 1e6 + state["val_calls"]  # unbeatably worse than any real loss
+        return result
+
+    monkeypatch.setattr(train_mod, "_epoch", _flaky)
+
+
+def test_early_stop_completes_and_resume_is_skip(tmp_path, monkeypatch, capsys):
+    features = _synthetic_features()
+    cfg = _cfg(tmp_path, epochs=10)
+    cfg["train"]["patience"] = 2
+
+    with pytest.MonkeyPatch.context() as mp:
+        _force_early_stop(mp, worsening_after=1)
+        art = train_from_config(cfg, features)
+
+    metrics = json.loads((art / "metrics.json").read_text())
+    assert metrics["last_epoch"] < cfg["train"]["epochs"]  # actually stopped early
+    assert metrics["complete"] is True
+
+    # Resuming a run that finished via early-stop must be a skip, not a
+    # continuation: any _epoch call here is a bug.
+    def _boom(*args, **kwargs):
+        raise AssertionError("resume of an early-stopped run must be a skip")
+
+    monkeypatch.setattr(train_mod, "_epoch", _boom)
+    capsys.readouterr()
+    art2 = train_from_config(cfg, features)
+    out = capsys.readouterr().out
+
+    assert art2 == art
+    assert "already complete" in out

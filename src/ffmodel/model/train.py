@@ -80,6 +80,26 @@ def _prepare_data(cfg: dict, features: pd.DataFrame):
     return apply_scaler(raw_train, scaler), apply_scaler(raw_val, scaler), scaler
 
 
+def _assert_safe_to_delete(target: Path, root: Path, run_name) -> None:
+    """Guard for --fresh's destructive deletes (rmtree of art_dir, unlink
+    under ckpt_dir): both paths are composed from cfg['run_name'], so a
+    blank, whitespace, or path-traversing/absolute run_name could otherwise
+    collapse the composed path onto — or escape entirely outside — the
+    configured root before we recursively delete it. Refuse instead of
+    risking that."""
+    if not isinstance(run_name, str) or not run_name.strip():
+        raise ValueError(
+            f"refusing to delete under {root}: cfg['run_name'] must be a "
+            f"non-empty string, got {run_name!r}"
+        )
+    root_r, target_r = root.resolve(), target.resolve()
+    if target_r == root_r or not target_r.is_relative_to(root_r):
+        raise ValueError(
+            f"refusing to delete {target_r}: not a strict descendant of "
+            f"{root_r} (check cfg['run_name']={run_name!r})"
+        )
+
+
 def _run_is_complete(metrics_path: Path) -> bool:
     """True only for an explicit {"complete": true} marker — never inferred
     from epoch counts, so a process killed mid-run (Studio Lab session
@@ -107,6 +127,8 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
     run_id = art_dir.name
 
     if fresh:
+        _assert_safe_to_delete(ckpt_dir, Path(cfg["checkpoint_root"]), cfg.get("run_name"))
+        _assert_safe_to_delete(art_dir, Path(cfg["out_root"]), cfg.get("run_name"))
         if latest.exists():
             latest.unlink()
         if art_dir.exists():
