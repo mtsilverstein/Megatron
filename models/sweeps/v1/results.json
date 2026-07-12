@@ -1,0 +1,290 @@
+[
+  {
+    "run_name": "seq16_d64_l2_lr1e-03",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 64,
+      "model.n_layers": 2,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9381673544198351,
+    "best_epoch": 37,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d96_l3_lr1e-03",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 96,
+      "model.n_layers": 3,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9398103003213373,
+    "best_epoch": 25,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d128_l2_lr1e-03",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 128,
+      "model.n_layers": 2,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9401907182072714,
+    "best_epoch": 29,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d96_l2_lr1e-03",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 96,
+      "model.n_layers": 2,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9433574470810346,
+    "best_epoch": 22,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d128_l3_lr1e-03",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 128,
+      "model.n_layers": 3,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9439685110839517,
+    "best_epoch": 29,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d64_l2_lr1e-03",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 64,
+      "model.n_layers": 2,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9446794749785858,
+    "best_epoch": 37,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d64_l2_lr3e-04",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 64,
+      "model.n_layers": 2,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9455862040356138,
+    "best_epoch": 49,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d128_l2_lr1e-03",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 128,
+      "model.n_layers": 2,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9458067471190704,
+    "best_epoch": 25,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d64_l3_lr1e-03",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 64,
+      "model.n_layers": 3,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9467480347867958,
+    "best_epoch": 28,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d96_l2_lr3e-04",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 96,
+      "model.n_layers": 2,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9471336197100967,
+    "best_epoch": 37,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d128_l3_lr1e-03",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 128,
+      "model.n_layers": 3,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.947437099599978,
+    "best_epoch": 28,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d64_l2_lr3e-04",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 64,
+      "model.n_layers": 2,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9477186375415607,
+    "best_epoch": 49,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d96_l2_lr1e-03",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 96,
+      "model.n_layers": 2,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9480857663967551,
+    "best_epoch": 24,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d64_l3_lr1e-03",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 64,
+      "model.n_layers": 3,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9481356743799574,
+    "best_epoch": 30,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d128_l2_lr3e-04",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 128,
+      "model.n_layers": 2,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9482698754757936,
+    "best_epoch": 37,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d64_l3_lr3e-04",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 64,
+      "model.n_layers": 3,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.948465690800207,
+    "best_epoch": 40,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d128_l3_lr3e-04",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 128,
+      "model.n_layers": 3,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9526997434129141,
+    "best_epoch": 31,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d64_l3_lr3e-04",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 64,
+      "model.n_layers": 3,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9532257057719962,
+    "best_epoch": 43,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d128_l2_lr3e-04",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 128,
+      "model.n_layers": 2,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9538918527687978,
+    "best_epoch": 33,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d96_l3_lr1e-03",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 96,
+      "model.n_layers": 3,
+      "train.lr": 0.001
+    },
+    "val_pinball": 0.9543636578195076,
+    "best_epoch": 16,
+    "complete": true
+  },
+  {
+    "run_name": "seq16_d96_l3_lr3e-04",
+    "params": {
+      "seq_len": 16,
+      "model.d_model": 96,
+      "model.n_layers": 3,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9551726680771069,
+    "best_epoch": 30,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d96_l3_lr3e-04",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 96,
+      "model.n_layers": 3,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9565839965761458,
+    "best_epoch": 38,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d96_l2_lr3e-04",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 96,
+      "model.n_layers": 2,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9581552420663662,
+    "best_epoch": 29,
+    "complete": true
+  },
+  {
+    "run_name": "seq8_d128_l3_lr3e-04",
+    "params": {
+      "seq_len": 8,
+      "model.d_model": 128,
+      "model.n_layers": 3,
+      "train.lr": 0.0003
+    },
+    "val_pinball": 0.9593016194631429,
+    "best_epoch": 25,
+    "complete": true
+  }
+]

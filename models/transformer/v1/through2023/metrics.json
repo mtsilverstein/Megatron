@@ -1,0 +1,21 @@
+{
+  "val_season": 2023,
+  "best_epoch": 23,
+  "last_epoch": 31,
+  "val_pinball": 0.9377487627280212,
+  "quantiles": [
+    0.1,
+    0.5,
+    0.9
+  ],
+  "seq_len": 16,
+  "n_seq_features": 18,
+  "n_ctx_features": 10,
+  "model": {
+    "d_model": 96,
+    "n_heads": 4,
+    "n_layers": 3,
+    "dropout": 0.1
+  },
+  "complete": true
+}
