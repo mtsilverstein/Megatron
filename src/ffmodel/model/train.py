@@ -139,6 +139,16 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
 
     _seed_everything(cfg["seed"])
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    if device == "cuda":
+        try:  # preflight: modern torch wheels drop old GPU archs (e.g. Kaggle's
+            # P100 is sm_60 Pascal) and only fail at the first kernel launch
+            (torch.zeros(1, device=device) + 1).item()
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"CUDA preflight failed on {torch.cuda.get_device_name(0)}: this "
+                "PyTorch build has no kernels for the GPU's architecture. On "
+                "Kaggle, pick a T4 accelerator instead of the P100."
+            ) from exc
     quantiles = tuple(cfg["quantiles"])
 
     train_data, val_data, scaler = _prepare_data(cfg, features)
