@@ -28,6 +28,7 @@ a { color: var(--chalk); }
   letter-spacing: .04em; text-transform: uppercase; margin: 0;
 }
 .wordmark .amp { color: var(--chalk-dim); }
+.wordmark .logo { height: 1.05em; width: auto; vertical-align: -0.16em; margin-right: .35rem; }
 .masthead nav { display: flex; gap: 1rem; margin-left: auto; }
 .masthead nav a {
   font: 600 .95rem/1 "Barlow Condensed", sans-serif; letter-spacing: .09em;
