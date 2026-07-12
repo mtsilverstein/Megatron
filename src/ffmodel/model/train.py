@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -79,11 +80,44 @@ def _prepare_data(cfg: dict, features: pd.DataFrame):
     return apply_scaler(raw_train, scaler), apply_scaler(raw_val, scaler), scaler
 
 
-def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -> Path:
+def _run_is_complete(metrics_path: Path) -> bool:
+    """True only for an explicit {"complete": true} marker — never inferred
+    from epoch counts, so a process killed mid-run (Studio Lab session
+    cutoff) is never mistaken for a finished one, even if metrics.json was
+    left mid-write."""
+    if not metrics_path.exists():
+        return False
+    try:
+        return json.loads(metrics_path.read_text()).get("complete") is True
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
+def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
+                       fresh: bool = False) -> Path:
+    """`resume` is accepted only for backward compatibility: resuming from an
+    incomplete checkpoint now happens automatically whenever one exists, so
+    `resume` is a no-op alias of that default. Pass `fresh=True` to discard
+    any existing checkpoint/artifact for this run and train from scratch."""
+    val_season = cfg["val_season"]
+    ckpt_dir = Path(cfg["checkpoint_root"]) / f"{cfg['run_name']}_through{val_season}"
+    latest = ckpt_dir / "latest.pt"
+    art_dir = Path(cfg["out_root"]) / cfg["run_name"] / f"through{val_season}"
+    metrics_path = art_dir / "metrics.json"
+    run_id = art_dir.name
+
+    if fresh:
+        if latest.exists():
+            latest.unlink()
+        if art_dir.exists():
+            shutil.rmtree(art_dir)
+    elif _run_is_complete(metrics_path):
+        print(f"{run_id}: already complete — skipping (use --fresh to retrain)")
+        return art_dir
+
     _seed_everything(cfg["seed"])
     device = "cuda" if torch.cuda.is_available() else "cpu"
     quantiles = tuple(cfg["quantiles"])
-    val_season = cfg["val_season"]
 
     train_data, val_data, scaler = _prepare_data(cfg, features)
 
@@ -99,13 +133,10 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
     # amp_scaler state is intentionally not checkpointed: after a resume it
     # re-warms within a few steps, which costs less than it complicates.
 
-    ckpt_dir = Path(cfg["checkpoint_root"]) / f"{cfg['run_name']}_through{val_season}"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
-    latest = ckpt_dir / "latest.pt"
-    art_dir = Path(cfg["out_root"]) / cfg["run_name"] / f"through{val_season}"
 
     start_epoch, best_val, bad = 1, float("inf"), 0
-    if resume and latest.exists():
+    if (not fresh) and latest.exists():
         state = torch.load(latest, map_location=device, weights_only=False)
         model.load_state_dict(state["model_state"])
         optimizer.load_state_dict(state["optimizer_state"])
@@ -116,6 +147,7 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
         # resume is bit-lossless on CPU; on CUDA it is deterministic modulo nondeterministic kernels.
         if state.get("cuda_rng") is not None and torch.cuda.is_available():
             torch.cuda.set_rng_state_all([t.cpu() for t in state["cuda_rng"]])
+        print(f"{run_id}: resuming from checkpoint {latest} at epoch {state['epoch']}")
 
     val_loader = _loader(val_data, cfg["train"]["batch_size"], False, cfg["seed"])
 
@@ -140,6 +172,7 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
                 "quantiles": list(quantiles), "seq_len": cfg["seq_len"],
                 "n_seq_features": len(SEQ_FEATURES),
                 "n_ctx_features": len(CTX_FEATURES), "model": cfg["model"],
+                "complete": False,  # only the post-loop write below marks completion
             }, indent=2))
         else:
             bad += 1
@@ -153,11 +186,12 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
         if bad >= cfg["train"]["patience"]:
             print(f"early stop at epoch {epoch}")
             break
-    # keep last_epoch current even when the best artifact is older
-    metrics_path = art_dir / "metrics.json"
+    # keep last_epoch current even when the best artifact is older; this is
+    # the FINAL metrics.json write for the run, so it alone sets complete.
     if metrics_path.exists():
         metrics = json.loads(metrics_path.read_text())
         metrics["last_epoch"] = last_epoch
+        metrics["complete"] = True
         metrics_path.write_text(json.dumps(metrics, indent=2))
     return art_dir
 
@@ -165,7 +199,13 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False) -
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the quantile transformer.")
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--resume", action="store_true",
+                         help="Accepted for backward compatibility; resuming from an "
+                              "incomplete checkpoint now happens automatically, so this "
+                              "flag is a no-op.")
+    parser.add_argument("--fresh", action="store_true",
+                         help="Discard any existing checkpoint/artifact for this run "
+                              "and train from scratch, even if it was already complete.")
     parser.add_argument("--features-parquet", type=Path, default=None)
     args = parser.parse_args()
     cfg = yaml.safe_load(args.config.read_text())
@@ -177,7 +217,7 @@ def main() -> None:
         seasons = list(range(cfg["first_season"], cfg["val_season"] + 1))
         features = build_features(pull_weekly(seasons, Path("data/raw")),
                                   pull_schedules(seasons, Path("data/raw")))
-    art = train_from_config(cfg, features, resume=args.resume)
+    art = train_from_config(cfg, features, resume=args.resume, fresh=args.fresh)
     print(f"artifact -> {art}")
 
 
