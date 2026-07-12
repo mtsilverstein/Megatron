@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -67,6 +68,59 @@ def resolve_week(week, weekly: pd.DataFrame, schedules: pd.DataFrame, season: in
     return int(remaining[0])
 
 
+def _season_has_completed_game(schedules: pd.DataFrame, season: int) -> bool:
+    """True if any `season` game in `schedules` has a final score.
+
+    Distinguishes the legitimate pre-week-1 state (nflverse's player-stats
+    file for a season 404s until week 1 is actually played, even though the
+    schedule is already published) from a genuine mid-season upstream data
+    outage, where a failing stats pull must not be papered over.
+    """
+    if "home_score" not in schedules.columns or "away_score" not in schedules.columns:
+        # Should not happen -- pull_schedules always includes these columns
+        # (see the schedules_v2 cache bump in ffmodel.data.pull) -- but if a
+        # hand-built or stale frame slips through, don't guess: fail safe.
+        raise RuntimeError(
+            "schedules frame is missing home_score/away_score columns needed "
+            "to detect completed games -- if this is a local run, clear the "
+            "data/raw schedules cache and re-pull"
+        )
+    season_games = schedules[schedules["season"] == season]
+    return bool(season_games["home_score"].notna().any()
+                or season_games["away_score"].notna().any())
+
+
+def _extend_with_target_season(weekly: pd.DataFrame, schedules: pd.DataFrame,
+                                season: int, data_dir: Path | None) -> pd.DataFrame:
+    """Append the target season's weekly stats onto `weekly`, tolerating the
+    pre-week-1 state where nflverse's player-stats file for `season` doesn't
+    exist yet.
+
+    If the pull fails: zero completed `season` games in `schedules` means
+    the season genuinely hasn't started (proceed with prior-season data
+    only, unchanged); any completed game means the pull *should* have
+    returned data, so the failure is a real upstream outage and must abort
+    (fail-safe, mid-season breakage must not be skipped).
+    """
+    from ffmodel.data.pull import pull_weekly
+
+    try:
+        current = pull_weekly([season], cache_dir=data_dir)
+    except Exception as exc:
+        if _season_has_completed_game(schedules, season):
+            raise RuntimeError(
+                f"target-season {season} weekly stats pull failed and "
+                "schedules show completed game(s) this season -- aborting "
+                f"(fail-safe, mid-season data must not be skipped): {exc}"
+            ) from exc
+        print(f"NOTICE: {season} weekly stats pull failed ({exc}); schedules "
+              f"show zero completed {season} games -- treating this as the "
+              "pre-week-1 state and proceeding with prior-season data only.",
+              file=sys.stderr)
+        return weekly
+    return pd.concat([weekly, current], ignore_index=True)
+
+
 def require_backtests(paths: list[Path]) -> list[Path]:
     if not paths:
         raise RuntimeError("models/backtests contains no reports — refusing to "
@@ -97,13 +151,16 @@ def main() -> None:
 
     weekly = pull_weekly(list(range(args.first_season, args.season)),
                          cache_dir=args.data_dir)
-    if args.week is not None:
-        # in-season weekly needs the target season's played games; preseason
-        # draft-only runs never request the (gameless, 404ing) target season
-        current = pull_weekly([args.season], cache_dir=args.data_dir)
-        weekly = pd.concat([weekly, current], ignore_index=True)
     schedules = pull_schedules(list(range(args.first_season, args.season + 1)),
                                cache_dir=args.data_dir)
+    if args.week is not None:
+        # in-season weekly needs the target season's played games; preseason
+        # draft-only runs never request the (gameless, possibly-404ing)
+        # target season. Before week 1 actually kicks off, nflverse's
+        # player-stats file for the target season may not exist yet even
+        # though the schedule is already published -- _extend_with_target_season
+        # tolerates that specific case and re-raises anything else.
+        weekly = _extend_with_target_season(weekly, schedules, args.season, args.data_dir)
     validate_inputs(weekly, schedules, args.season)
     latest_season = int(weekly["season"].max())
     latest_week = int(weekly[weekly["season"] == latest_season]["week"].max())

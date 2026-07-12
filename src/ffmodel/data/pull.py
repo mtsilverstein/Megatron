@@ -155,10 +155,18 @@ def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.Data
 
         raw = nflreadpy.load_schedules(seasons).to_pandas()
         raw = raw[raw["game_type"] == "REG"]
-        keep = ["season", "week", "gameday", "home_team", "away_team"]
+        keep = ["season", "week", "gameday", "home_team", "away_team",
+                "home_score", "away_score"]
         return raw[keep].sort_values(["season", "week", "home_team"]).reset_index(drop=True)
 
-    return normalize_schedule_teams(_cached(cache_dir, _cache_name("schedules", seasons), load))
+    # home_score/away_score let site.generate tell "target season hasn't
+    # kicked off yet" (all scores NaN) apart from a genuine mid-season
+    # upstream outage. Cache prefix is bumped ("schedules_v2") so a
+    # pre-existing local cache written before these columns existed is
+    # never silently reused without them -- Actions always starts from an
+    # empty, gitignored data/raw, so this only matters for local caches.
+    return normalize_schedule_teams(
+        _cached(cache_dir, _cache_name("schedules_v2", seasons), load))
 
 
 def main() -> None:

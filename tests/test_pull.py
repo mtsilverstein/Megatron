@@ -197,6 +197,53 @@ def test_merge_snap_pct_duplicate_rows_do_not_fan_out():
     assert g1["snap_pct"].iloc[0] == pytest.approx(0.75)  # first match kept
 
 
+def test_pull_schedules_includes_completion_columns_and_uses_v2_cache(tmp_path, monkeypatch):
+    """Pin: pull_schedules selects home_score/away_score (needed to detect
+    completed target-season games in site.generate's pre-week-1 fail-safe
+    tolerance), and caches under a bumped 'schedules_v2' prefix so a
+    pre-existing local cache written before this column existed is not
+    silently reused without it."""
+    import sys
+
+    from ffmodel.data.pull import _cache_name, pull_schedules
+
+    raw = pd.DataFrame({
+        "season": [2026, 2026], "week": [1, 1],
+        "gameday": ["2026-09-10", "2026-09-10"],
+        "home_team": ["KC", "SF"], "away_team": ["DET", "LA"],
+        "game_type": ["REG", "REG"],
+        "home_score": [24.0, float("nan")], "away_score": [17.0, float("nan")],
+    })
+
+    class _Result:
+        def to_pandas(self):
+            return raw
+
+    class _FakeNflreadpy:
+        @staticmethod
+        def load_schedules(seasons):
+            return _Result()
+
+    monkeypatch.setitem(sys.modules, "nflreadpy", _FakeNflreadpy())
+
+    # Stale pre-existing cache under the OLD "schedules" prefix (no score
+    # columns) -- must be ignored, not read, by the bumped prefix.
+    stale = pd.DataFrame({
+        "season": [2026], "week": [1], "gameday": ["2026-09-10"],
+        "home_team": ["XXX"], "away_team": ["YYY"],
+    })
+    stale_path = tmp_path / f"{_cache_name('schedules', [2026])}.parquet"
+    stale.to_parquet(stale_path, index=False)
+
+    out = pull_schedules([2026], cache_dir=tmp_path)
+
+    assert "home_score" in out.columns and "away_score" in out.columns
+    assert out.loc[out["home_team"] == "KC", "home_score"].iloc[0] == 24.0
+
+    new_cache = tmp_path / f"{_cache_name('schedules_v2', [2026])}.parquet"
+    assert new_cache.exists()
+
+
 @pytest.mark.integration
 def test_pull_real_season_snap_pct_coverage_and_range(tmp_path):
     from ffmodel.data.pull import pull_weekly
