@@ -292,6 +292,75 @@ def _force_early_stop(monkeypatch, worsening_after: int = 1):
     monkeypatch.setattr(train_mod, "_epoch", _flaky)
 
 
+def test_apply_seed_override_noop_when_seed_none(tmp_path):
+    from ffmodel.model.train import apply_seed_override
+
+    cfg = _cfg(tmp_path)
+    out = apply_seed_override(cfg, None)
+    assert out is cfg  # true no-op: default (no --seed) path is byte-identical
+    assert out["run_name"] == "testrun"
+    assert out["seed"] == 0
+
+
+def test_apply_seed_override_sets_seed_and_suffixes_run_name(tmp_path):
+    from ffmodel.model.train import apply_seed_override
+
+    cfg = _cfg(tmp_path)
+    out = apply_seed_override(cfg, 43)
+    assert out["seed"] == 43
+    assert out["run_name"] == "testrun_s43"
+    # input cfg must be untouched -- caller may reuse it for other combos
+    assert cfg["seed"] == 0
+    assert cfg["run_name"] == "testrun"
+
+
+def test_apply_seed_override_different_seeds_give_sibling_run_names(tmp_path):
+    from ffmodel.model.train import apply_seed_override
+
+    cfg = _cfg(tmp_path)
+    out43 = apply_seed_override(cfg, 43)
+    out44 = apply_seed_override(cfg, 44)
+    assert out43["run_name"] == "testrun_s43"
+    assert out44["run_name"] == "testrun_s44"
+
+
+def test_build_parser_accepts_seed_flag():
+    from ffmodel.model.train import build_parser
+
+    args = build_parser().parse_args(["--config", "configs/x.yaml", "--seed", "43"])
+    assert args.seed == 43
+    no_seed = build_parser().parse_args(["--config", "configs/x.yaml"])
+    assert no_seed.seed is None
+
+
+def test_seed_cli_override_lands_artifact_in_sibling_dir(tmp_path, monkeypatch):
+    """End-to-end: --seed both overrides cfg['seed'] and routes the artifact
+    into a sibling directory (v1_s43/through2022), leaving the unsuffixed
+    default path (no --seed flag) untouched."""
+    features = _synthetic_features()
+    cfg_path = tmp_path / "cfg.yaml"
+    cfg = _cfg(tmp_path, epochs=1)
+    cfg["run_name"] = "v1"
+    cfg_path.write_text(yaml.safe_dump(cfg))
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["prog", "--config", str(cfg_path), "--seed", "43",
+         "--features-parquet", "unused.parquet"],
+    )
+    monkeypatch.setattr(pd, "read_parquet", lambda *a, **k: features)
+
+    from ffmodel.model.train import main
+
+    main()
+
+    art = train_mod.Path(cfg["out_root"]) / "v1_s43" / "through2022"
+    assert art.exists()
+    assert not (train_mod.Path(cfg["out_root"]) / "v1" / "through2022").exists()
+    metrics = json.loads((art / "metrics.json").read_text())
+    assert metrics["complete"] is True
+
+
 def test_early_stop_completes_and_resume_is_skip(tmp_path, monkeypatch, capsys):
     features = _synthetic_features()
     cfg = _cfg(tmp_path, epochs=10)

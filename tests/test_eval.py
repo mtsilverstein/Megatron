@@ -61,11 +61,30 @@ def test_score_table_rejects_empty_frame():
 
 
 def test_run_cli_parses_transformer_root():
+    """--transformer-root is repeatable (action="append"): a single flag
+    still adds exactly one entrant, now expressed as a one-element list
+    (see test_run_cli_parses_repeated_transformer_root for the ensemble
+    case) -- --transformer-root's downstream behavior for a single root is
+    unchanged, it's just carried in a list now."""
     from ffmodel.eval.run import build_parser
 
     args = build_parser().parse_args(["--transformer-root", "models/transformer/v1"])
-    assert str(args.transformer_root) == str(Path("models/transformer/v1"))
+    assert [str(p) for p in args.transformer_root] == [str(Path("models/transformer/v1"))]
     assert build_parser().parse_args([]).transformer_root is None
+
+
+def test_run_cli_parses_repeated_transformer_root():
+    """Repeating the flag collects multiple roots in order, e.g. to average
+    seed-ensemble artifacts (v1_s43, v1_s44, ...) at eval time."""
+    from ffmodel.eval.run import build_parser
+
+    args = build_parser().parse_args([
+        "--transformer-root", "models/transformer/v1_s43",
+        "--transformer-root", "models/transformer/v1_s44",
+    ])
+    assert [str(p) for p in args.transformer_root] == [
+        str(Path("models/transformer/v1_s43")), str(Path("models/transformer/v1_s44")),
+    ]
 
 
 def test_mixed_entrant_records_serialize_to_valid_json():

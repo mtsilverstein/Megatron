@@ -16,6 +16,50 @@ def test_parser_defaults_and_flags():
     assert args.model == "xgboost" and args.week == "7" and not args.draft
 
 
+def test_parser_artifact_root_accepts_comma_separated_string():
+    args = build_parser().parse_args(["--out", "site/data", "--model", "transformer",
+                                      "--season", "2023", "--week", "7",
+                                      "--artifact-root", "root_a,root_b"])
+    assert args.artifact_root == "root_a,root_b"
+
+
+def test_make_predictor_transformer_single_root_matches_single_member():
+    """A bare (no-comma) --artifact-root must still produce a predictor
+    equivalent to the pre-ensemble single-root call (site currently deploys
+    a single artifact root in production -- see the notebook's promotion
+    notes -- so this is the path GitHub Actions actually exercises)."""
+    from argparse import Namespace
+
+    from ffmodel.site.generate import _make_predictor
+
+    args = Namespace(model="transformer", artifact_root="models/transformer/v1")
+    predictor = _make_predictor(args, pd.DataFrame())
+    assert [str(r) for r in predictor.artifact_roots] == [str(Path("models/transformer/v1"))]
+
+
+def test_make_predictor_transformer_comma_separated_builds_ensemble():
+    from argparse import Namespace
+
+    from ffmodel.site.generate import _make_predictor
+
+    args = Namespace(model="transformer",
+                     artifact_root="models/transformer/v1_s43, models/transformer/v1_s44")
+    predictor = _make_predictor(args, pd.DataFrame())
+    assert [str(r) for r in predictor.artifact_roots] == [
+        str(Path("models/transformer/v1_s43")), str(Path("models/transformer/v1_s44")),
+    ]
+
+
+def test_make_predictor_transformer_requires_artifact_root():
+    from argparse import Namespace
+
+    from ffmodel.site.generate import _make_predictor
+
+    args = Namespace(model="transformer", artifact_root=None)
+    with pytest.raises(SystemExit):
+        _make_predictor(args, pd.DataFrame())
+
+
 def test_validate_rejects_empty_and_sparse():
     sched = make_schedules(6)
     with pytest.raises(RuntimeError, match="empty"):

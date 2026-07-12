@@ -5,3 +5,16 @@ __pycache__/
 /data/
 models/checkpoints/
 models/transformer/smoke/
+
+# Hyperparameter sweep artifacts (models/sweeps/) are experiments, not
+# production models -- only the summary leaderboard (results.json) is
+# committed, so it's cheap to see what a sweep found without carrying every
+# combo's checkpoints/weights/scaler in git. Production artifacts used by
+# the site/bake-off still live committed under models/transformer/.
+# Git won't recurse into an ignored directory to apply per-file negations,
+# so directories must be explicitly re-included (the `**/` line) before the
+# results.json re-include pattern can take effect -- verified with
+# `git check-ignore` on both a fake artifact path and a results.json path.
+/models/sweeps/**
+!/models/sweeps/**/
+!/models/sweeps/**/results.json

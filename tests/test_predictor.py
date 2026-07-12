@@ -24,6 +24,24 @@ def trained(tmp_path_factory):
     return art.parent, test_features  # art = <out_root>/testrun/through2022 -> root is its parent
 
 
+@pytest.fixture(scope="module")
+def trained_two_seeds(tmp_path_factory):
+    """Two artifacts trained on identical data/config but different seeds
+    (cfg["seed"] drives _seed_everything in train.py, so their weights --
+    and thus predictions -- genuinely differ), for ensemble-averaging
+    tests."""
+    tmp = tmp_path_factory.mktemp("ensemble")
+    features = _synthetic_features(seasons=(2020, 2021, 2022))
+    roots = []
+    for seed, sub in ((0, "a"), (1, "b")):
+        cfg = _cfg(tmp / sub)
+        cfg["seed"] = seed
+        art = train_from_config(cfg, features)
+        roots.append(art.parent)
+    test_features = _synthetic_features(seasons=(2020, 2021, 2022, 2023))
+    return roots, test_features
+
+
 def test_predict_quantiles_aligned_and_monotone(trained):
     root, features = trained
     p = TransformerPredictor(root, features)
@@ -94,6 +112,90 @@ def test_fit_rejects_non_ascending_quantiles(trained, tmp_path):
     train = features[features["season"] <= 2022]
     with pytest.raises(ValueError, match="ascending"):
         p.fit(train)
+
+
+def test_single_root_string_and_singleton_list_are_byte_identical(trained):
+    """Back-compat guarantee: constructing with a bare string/Path root (the
+    pre-ensemble call style) must give exactly the same predictions as
+    wrapping that one root in a list -- the multi-root code path must not
+    perturb the single-root case at all."""
+    root, features = trained
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+
+    p_str = TransformerPredictor(root, features)
+    p_str.fit(train)
+    qs_str = p_str.predict_quantiles(test)
+
+    p_list = TransformerPredictor([root], features)
+    p_list.fit(train)
+    qs_list = p_list.predict_quantiles(test)
+
+    for key in ("p10", "p50", "p90"):
+        pd.testing.assert_frame_equal(qs_str[key], qs_list[key], check_exact=True)
+
+
+def test_multi_root_predict_quantiles_matches_hand_computed_mean(trained_two_seeds):
+    roots, features = trained_two_seeds
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+
+    ensemble = TransformerPredictor(roots, features)
+    ensemble.fit(train)
+    qs = ensemble.predict_quantiles(test)
+
+    singles = []
+    for root in roots:
+        sp = TransformerPredictor(root, features)
+        sp.fit(train)
+        singles.append(sp.predict_quantiles(test))
+
+    # sanity: the two seeds must actually differ, or this test proves nothing
+    assert not np.allclose(singles[0]["p50"].to_numpy(), singles[1]["p50"].to_numpy())
+
+    for key in ("p10", "p50", "p90"):
+        expected = (singles[0][key].to_numpy() + singles[1][key].to_numpy()) / 2
+        np.testing.assert_allclose(qs[key].to_numpy(), expected, rtol=1e-5, atol=1e-6)
+
+
+def test_multi_root_predict_quantiles_stays_monotone(trained_two_seeds):
+    """Mean-of-two-sorted-triples is mathematically always sorted (averaging
+    is monotone-preserving componentwise), so this can't construct a case
+    where the guard is actually load-bearing -- it's belt-and-suspenders,
+    kept as the final step in case the averaging logic ever changes. This
+    test just pins that the output is (still) monotone after ensembling."""
+    roots, features = trained_two_seeds
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+
+    p = TransformerPredictor(roots, features)
+    p.fit(train)
+    qs = p.predict_quantiles(test)
+
+    assert (qs["p10"].to_numpy() <= qs["p50"].to_numpy() + 1e-6).all()
+    assert (qs["p50"].to_numpy() <= qs["p90"].to_numpy() + 1e-6).all()
+
+
+def test_multi_root_attach_features_propagates_to_all_members(trained_two_seeds):
+    roots, features = trained_two_seeds
+    p = TransformerPredictor(roots, features.iloc[0:0])  # constructed with empty frame
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+    p.fit(train)
+    with pytest.raises(ValueError, match="missing"):
+        p.predict_quantiles(test)
+    p.attach_features(features)
+    qs = p.predict_quantiles(test)
+    assert qs["p50"].index.equals(test.index)
+
+
+def test_multi_root_predict_returns_p50(trained_two_seeds):
+    roots, features = trained_two_seeds
+    p = TransformerPredictor(roots, features)
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+    p.fit(train)
+    pd.testing.assert_frame_equal(p.predict(test), p.predict_quantiles(test)["p50"])
 
 
 def test_attach_features_enables_prediction_on_extended_frame(trained):

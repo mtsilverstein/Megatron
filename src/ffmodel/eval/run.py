@@ -24,8 +24,13 @@ def build_parser() -> argparse.ArgumentParser:
                         default=[2023, 2024, 2025])
     parser.add_argument("--out", type=Path,
                         default=Path("models/backtests/baselines.json"))
-    parser.add_argument("--transformer-root", type=Path, default=None,
-                        help="e.g. models/transformer/v1 — adds the transformer entrant")
+    parser.add_argument("--transformer-root", type=Path, action="append", default=None,
+                        help="e.g. models/transformer/v1 — adds the transformer entrant. "
+                             "Repeatable: pass it more than once (e.g. "
+                             "--transformer-root models/transformer/v1_s43 "
+                             "--transformer-root models/transformer/v1_s44) to average "
+                             "multiple seed artifacts as one ensembled entrant. A single "
+                             "occurrence behaves exactly as before.")
     return parser
 
 

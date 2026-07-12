@@ -1,0 +1,22 @@
+# Hyperparameter sweep grid for the quantile transformer.
+#
+# Tuning protocol (binding -- see src/ffmodel/model/sweep.py's module
+# docstring): every combo trains/validates ONLY on `base`'s single
+# walk-forward fold (val_season 2022). Held-out test seasons 2023-2025 are
+# never touched by this sweep -- selection happens here, the winner is then
+# run through the normal 4-config bake-off (configs/transformer_v1*.yaml)
+# separately.
+#
+# Grid keys are dotted paths into the base config (must match its ACTUAL
+# key names: top-level `seq_len`, `model.d_model`, `model.n_layers`,
+# `train.lr` -- NOT `num_layers`, which is not a key this config uses).
+# Cartesian product of the lists below = 2 x 3 x 2 x 2 = 24 combos.
+base: configs/transformer_v1_through2022.yaml
+out_root: models/sweeps/v1
+grid:
+  seq_len: [8, 16]
+  model.d_model: [64, 96, 128]
+  model.n_layers: [2, 3]
+  # Scientific notation needs the decimal point (3.0e-4, not 3e-4) --
+  # PyYAML's implicit float resolver otherwise leaves it as a string.
+  train.lr: [3.0e-4, 1.0e-3]

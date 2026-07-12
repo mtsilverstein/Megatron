@@ -218,7 +218,25 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
     return art_dir
 
 
-def main() -> None:
+def apply_seed_override(cfg: dict, seed: int | None) -> dict:
+    """Pure helper for the CLI's --seed flag: overrides cfg['seed'] and
+    appends '_s{seed}' to run_name so a seed-ensemble member lands in a
+    sibling artifact directory (e.g. v1_s43/through2025) instead of
+    colliding with the unsuffixed default run. Returns `cfg` unchanged
+    (same object, true no-op) when `seed` is None, so the default (no
+    --seed flag) path and its existing artifact layout are byte-identical
+    to before this flag existed. Never mutates its input when seed is not
+    None -- returns a shallow copy instead, since only top-level keys
+    change."""
+    if seed is None:
+        return cfg
+    cfg = dict(cfg)
+    cfg["seed"] = seed
+    cfg["run_name"] = f"{cfg['run_name']}_s{seed}"
+    return cfg
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train the quantile transformer.")
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--resume", action="store_true",
@@ -229,8 +247,19 @@ def main() -> None:
                          help="Discard any existing checkpoint/artifact for this run "
                               "and train from scratch, even if it was already complete.")
     parser.add_argument("--features-parquet", type=Path, default=None)
-    args = parser.parse_args()
+    parser.add_argument("--seed", type=int, default=None,
+                         help="Override cfg['seed'] and suffix run_name with '_s{seed}' "
+                              "(e.g. v1_s43) so a seed-ensemble member's artifacts land "
+                              "in a sibling directory instead of overwriting the default "
+                              "run. Omit for the default (unsuffixed) artifact path -- "
+                              "existing layouts are unaffected.")
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
     cfg = yaml.safe_load(args.config.read_text())
+    cfg = apply_seed_override(cfg, args.seed)
     if args.features_parquet:
         features = pd.read_parquet(args.features_parquet)
     else:

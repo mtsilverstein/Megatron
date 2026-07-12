@@ -40,7 +40,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate the site's JSON payloads.")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--model", choices=["xgboost", "transformer"], required=True)
-    parser.add_argument("--artifact-root", type=Path, default=None)
+    parser.add_argument("--artifact-root", type=str, default=None,
+                         help="single artifact root (e.g. models/transformer/v1), or "
+                              "comma-separated roots (e.g. models/transformer/v1_s43,"
+                              "models/transformer/v1_s44) to average as a seed ensemble")
     parser.add_argument("--season", type=int, required=True)
     parser.add_argument("--week", type=str, default=None)
     parser.add_argument("--draft", action="store_true")
@@ -134,7 +137,13 @@ def _make_predictor(args, features: pd.DataFrame):
             raise SystemExit("--model transformer requires --artifact-root")
         from ffmodel.model.predictor import TransformerPredictor
 
-        return TransformerPredictor(args.artifact_root, features)
+        # Comma-separated roots average as a seed ensemble (predictor.py's
+        # multi-root support does the averaging); a single root is just a
+        # one-element list, so this is exactly the pre-ensemble behavior.
+        roots = [Path(p.strip()) for p in args.artifact_root.split(",") if p.strip()]
+        if not roots:
+            raise SystemExit(f"--artifact-root is empty: {args.artifact_root!r}")
+        return TransformerPredictor(roots, features)
     from ffmodel.baseline.xgb import XGBBaseline
 
     return XGBBaseline()
