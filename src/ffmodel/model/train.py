@@ -113,6 +113,29 @@ def _run_is_complete(metrics_path: Path) -> bool:
         return False
 
 
+def _cfg_matches_saved(cfg: dict, art_dir: Path) -> bool:
+    """True iff `art_dir/config.yaml` exists, parses, and matches `cfg`
+    exactly. Both sides are compared AFTER an identical yaml dump/load
+    round-trip: the saved file was itself produced by `yaml.safe_dump(cfg)`
+    (see the post-epoch artifact write below), so re-parsing the current
+    cfg through the same dump/load keeps the comparison well-defined even
+    for values (e.g. floats) that yaml's loader could in principle
+    normalize differently than Python's native equality would expect.
+    Returns False (never raises) when the file is missing or fails to
+    parse -- a missing/corrupt saved config is treated as 'config changed'
+    rather than silently trusted, since there is nothing safe to resume
+    onto."""
+    saved_path = art_dir / "config.yaml"
+    if not saved_path.exists():
+        return False
+    try:
+        saved_cfg = yaml.safe_load(saved_path.read_text())
+    except yaml.YAMLError:
+        return False
+    current_cfg = yaml.safe_load(yaml.safe_dump(cfg))
+    return saved_cfg == current_cfg
+
+
 def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
                        fresh: bool = False) -> Path:
     """`resume` is accepted only for backward compatibility: resuming from an
@@ -126,6 +149,19 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
     metrics_path = art_dir / "metrics.json"
     run_id = art_dir.name
 
+    is_complete = _run_is_complete(metrics_path)
+    # A checkpoint's optimizer/RNG state (and a completed run's weights) are
+    # only resumable/valid under the SAME cfg that produced them. Only ask
+    # the question when there IS a prior run to compare against (a
+    # completed marker or a checkpoint) -- a brand-new run has no saved
+    # config to mismatch against and must not print a "config changed"
+    # notice about a run that never existed.
+    has_prior_run = is_complete or latest.exists()
+    config_stale = has_prior_run and not _cfg_matches_saved(cfg, art_dir)
+    if config_stale and not fresh:
+        print(f"{run_id}: config changed since artifact was built — retraining fresh")
+    fresh = fresh or config_stale  # same deletion path as an explicit --fresh; see below
+
     if fresh:
         _assert_safe_to_delete(ckpt_dir, Path(cfg["checkpoint_root"]), cfg.get("run_name"))
         _assert_safe_to_delete(art_dir, Path(cfg["out_root"]), cfg.get("run_name"))
@@ -133,7 +169,7 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
             latest.unlink()
         if art_dir.exists():
             shutil.rmtree(art_dir)
-    elif _run_is_complete(metrics_path):
+    elif is_complete:
         print(f"{run_id}: already complete — skipping (use --fresh to retrain)")
         return art_dir
 

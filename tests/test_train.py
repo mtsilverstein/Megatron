@@ -192,6 +192,95 @@ def test_completed_run_is_skipped_by_default(tmp_path, monkeypatch, capsys):
     assert "--fresh" in out
 
 
+def test_completed_run_with_changed_lr_retrains(tmp_path, monkeypatch, capsys):
+    """A completed run whose config.yaml no longer matches the CURRENT cfg
+    (e.g. train.lr was edited after this artifact was built) must retrain
+    from scratch rather than silently skip -- skipping here would mean the
+    new hyperparameter is never actually used."""
+    features = _synthetic_features()
+    cfg = _cfg(tmp_path, epochs=1)
+    art = train_from_config(cfg, features)
+    metrics_before = json.loads((art / "metrics.json").read_text())
+    assert metrics_before["complete"] is True
+
+    calls = {"n": 0}
+    orig_epoch = train_mod._epoch
+
+    def _counting(*args, **kwargs):
+        calls["n"] += 1
+        return orig_epoch(*args, **kwargs)
+
+    monkeypatch.setattr(train_mod, "_epoch", _counting)
+
+    cfg2 = dict(cfg)
+    cfg2["train"] = dict(cfg["train"])
+    cfg2["train"]["lr"] = 5e-3  # changed since the completed artifact was built
+
+    capsys.readouterr()
+    art2 = train_from_config(cfg2, features)
+    out = capsys.readouterr().out
+
+    assert calls["n"] > 0  # training actually ran -- it was not skipped
+    assert "config changed" in out
+    assert art2 == art
+    new_cfg = yaml.safe_load((art2 / "config.yaml").read_text())
+    assert new_cfg["train"]["lr"] == 5e-3
+
+
+def test_interrupted_run_with_changed_cfg_does_not_resume(tmp_path, monkeypatch, capsys):
+    """An interrupted checkpoint whose saved config no longer matches the
+    CURRENT cfg must not be resumed -- its optimizer/RNG state was built
+    under the OLD hyperparameters. It must retrain from epoch 1 instead."""
+    features = _synthetic_features()
+    cfg = _cfg(tmp_path, epochs=2)
+
+    with pytest.MonkeyPatch.context() as mp:
+        _interrupt_after_epoch(mp, n_epochs_to_complete=1)
+        with pytest.raises(RuntimeError, match="simulated Studio Lab session cutoff"):
+            train_from_config(cfg, features)
+
+    ckpt_dir = train_mod.Path(cfg["checkpoint_root"]) / f"{cfg['run_name']}_through{cfg['val_season']}"
+    assert (ckpt_dir / "latest.pt").exists()
+
+    cfg2 = dict(cfg)
+    cfg2["train"] = dict(cfg["train"])
+    cfg2["train"]["lr"] = 5e-3  # changed since the interrupted checkpoint was built
+
+    calls = {"n": 0}
+    orig_epoch = train_mod._epoch
+
+    def _counting(*args, **kwargs):
+        calls["n"] += 1
+        return orig_epoch(*args, **kwargs)
+
+    monkeypatch.setattr(train_mod, "_epoch", _counting)
+    capsys.readouterr()
+    art2 = train_from_config(cfg2, features)
+    out = capsys.readouterr().out
+
+    assert "config changed" in out
+    # 2 epochs * (train + val) = 4 _epoch calls: restarted at epoch 1, not
+    # resumed at epoch 2 (which would be only 2 calls).
+    assert calls["n"] == 4
+    metrics = json.loads((art2 / "metrics.json").read_text())
+    assert metrics["last_epoch"] == 2
+    assert metrics["complete"] is True
+
+
+def test_cfg_roundtrips_through_yaml_without_changing_floats(tmp_path):
+    """Guards the config-match comparison against a false-mismatch loop: if
+    yaml dump->load ever perturbed a float (e.g. 1.0e-3 becoming something
+    that compares unequal), every invocation of train_from_config would see
+    its own just-written config.yaml as a 'mismatch' and retrain forever."""
+    cfg = _cfg(tmp_path)
+    cfg["train"]["lr"] = 1.0e-3
+    cfg["train"]["weight_decay"] = 0.01
+    cfg["model"]["dropout"] = 0.1
+    dumped = yaml.safe_dump(cfg)
+    reloaded = yaml.safe_load(dumped)
+    assert reloaded == cfg
+
+
 def test_interrupted_run_is_not_skipped(tmp_path, monkeypatch):
     """A checkpoint without a completion marker must never be treated as
     complete — this is the guard against silently skipping a genuinely
