@@ -129,3 +129,63 @@ before I run the real 2023–25 baseline:
    waiver tail is intentionally excluded so it can't dominate MAE/coverage.
 If any of these should differ, changing them now (before A2 + the baseline run) is
 cheap.
+
+**User sign-off received** ("yeah good") — proceeding with all three definitions as-is.
+
+---
+
+## Session 1 — Phase A2: the CLI / backtest loop (`board.py`, appended)
+
+### Changes made (commit A2)
+- **Appended to `src/ffmodel/eval/board.py`:** `run_board_backtest` (the testable
+  per-season loop), `_board_report` (JSON assembly mirroring `run.py`'s provenance),
+  `build_parser`, `_make_entrants`, `_data_through`, `main` (`python -m
+  ffmodel.eval.board`). Heavy imports (`build_features`, `build_draft_board`, pulls)
+  are deferred inside functions, matching `generate.py`.
+- **Leak-freedom — mirrors `generate.py` exactly:** for board season S, `world =
+  weekly[season < S]`; features built from the world; each entrant fit on
+  `features[season < S]` (a no-op filter since the world is already all < S, kept to
+  document intent); board built via the **production** `build_draft_board(world,
+  sched<=S, entrant, S, prefit=True)`. Nothing from season S reaches any predictor or
+  the board — the production played-week guard passes naturally because the world
+  contains no season-S rows. No production code was modified.
+- **Appended 6 tests to `tests/test_board.py`:** parser defaults + repeatable
+  `--transformer-root`; `_board_report` provenance + NaN→null (strict-JSON round-trip);
+  transformer-roots provenance; a stub end-to-end smoke on a synthetic 2-season world;
+  and a fail-loud test for a board season with no prior data.
+- Suite: **189 passed, 2 deselected, `-W error`** (183 + 6).
+- Commit: `feat: board backtest CLI — same-harness entrants, provenance, summary`.
+
+### Real-data integration check (naive + XGBoost, no transformer, to scratch)
+Ran `python -m ffmodel.eval.board --seasons 2023 2024 2025` against the real cached
+`data/raw` (8 min). **Numbers are sane AND leak-negative:**
+
+| model | season | season MAE | Spearman | hit-rate |
+|---|---|---|---|---|
+| naive | 2023 | 93.0 | 0.444 | 0.526 |
+| xgboost | 2023 | 80.9 | 0.448 | 0.539 |
+| naive | 2024 | 105.1 | 0.404 | 0.487 |
+| xgboost | 2024 | 83.7 | 0.431 | 0.447 |
+| naive | 2025 | 117.8 | 0.395 | 0.461 |
+| xgboost | 2025 | 87.7 | 0.487 | 0.513 |
+
+- XGBoost beats naive on season MAE every year (consistent with the weekly bake-off).
+- Modest Spearman (~0.4) and ~0.5 hit-rate: exactly what genuine out-of-sample season
+  projection should look like. **A leak would show near-zero MAE / near-perfect
+  Spearman; we see the opposite — reassuring.**
+- Season MAE is large (80–120 pts) because season totals are wildly variable
+  (injuries, busts, breakouts): this is the "the board was never measured" gap now
+  quantified. Report shape verified: 30 rows (2 entrants × 3 seasons × 5 groups),
+  provenance + NaN→null correct.
+
+### Caching note (for the real baseline run)
+The weekly cache is keyed by exact season list: the default `--seasons 2023 2024
+2025` spans 2012–2025 and hits the existing `weekly_2012_2025` cache; a single-season
+subset would MISS and hit the network. So the committed baseline uses the full
+default span.
+
+### NEXT (A3, in progress): committed baseline WITH the transformer ensemble
+Running `--seasons 2023 2024 2025 --transformer-root v1 --transformer-root v1_s43
+--transformer-root v1_s44 --out models/backtests/board_backtest.json` in the
+background — the "before" snapshot that includes the transformer's current (summed-
+quantile) season-band coverage, which Phase B will try to fix.

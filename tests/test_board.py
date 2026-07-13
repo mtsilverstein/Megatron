@@ -1,13 +1,21 @@
 """Board-backtest core (Plan 4 Phase A1): season actuals, the leak
-boundary, and board metrics -- all on hand-computable toy fixtures."""
+boundary, and board metrics -- all on hand-computable toy fixtures.
+Phase A2 (CLI/loop) tests live at the bottom."""
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from ffmodel.eval.board import board_metrics, board_world, season_actuals
+from ffmodel.eval.board import (
+    _board_report, board_metrics, board_world, build_parser,
+    run_board_backtest, season_actuals,
+)
 from ffmodel.scoring import STANDARD
 
-from tests.test_features import make_weekly
+from tests.test_features import make_schedules, make_weekly
+from tests.test_site_weekly import _QuantileStub
 
 
 def _bp(pid: str, pos: str, p50: float, p10=None, p90=None) -> dict:
@@ -236,3 +244,93 @@ def test_unknown_position_fails_loud():
 def test_empty_board_raises():
     with pytest.raises(ValueError, match="empty"):
         board_metrics([], _actuals([("qb1", "QB", 1.0)]))
+
+
+# --------------------------------------------------- Phase A2: CLI / loop
+
+def test_board_parser_defaults():
+    args = build_parser().parse_args([])
+    assert args.seasons == [2023, 2024, 2025]
+    assert args.transformer_root is None
+    assert str(args.out).endswith("board_backtest.json")
+
+
+def test_board_parser_repeated_transformer_root():
+    args = build_parser().parse_args([
+        "--transformer-root", "models/transformer/v1",
+        "--transformer-root", "models/transformer/v1_s43",
+    ])
+    assert [str(r) for r in args.transformer_root] == [
+        str(Path("models/transformer/v1")), str(Path("models/transformer/v1_s43"))]
+
+
+def test_board_report_provenance_and_nan_to_none():
+    results = pd.DataFrame([{
+        "model": "naive_last4", "board_season": 2023, "position": "OVERALL",
+        "n": 50, "season_mae_topN": 40.0, "spearman_topN": 0.5,
+        "hit_rate_starters": 0.6, "season_band_coverage": float("nan"),
+    }])
+    rep = _board_report(results, [2023], transformer_roots=None)
+    assert rep["board_seasons"] == [2023]
+    assert rep["scoring"] == "ppr"
+    assert rep["transformer_roots"] is None
+    # NaN coverage (band-less entrant) must serialize to null, not a NaN literal
+    assert rep["results"][0]["season_band_coverage"] is None
+    assert json.loads(json.dumps(rep))["results"][0]["season_band_coverage"] is None
+
+
+def test_board_report_records_transformer_roots():
+    results = pd.DataFrame([{
+        "model": "transformer", "board_season": 2023, "position": "OVERALL",
+        "n": 50, "season_mae_topN": 1.0, "spearman_topN": 1.0,
+        "hit_rate_starters": 1.0, "season_band_coverage": 0.8,
+    }])
+    rep = _board_report(results, [2023], transformer_roots=[
+        Path("models/transformer/v1"), Path("models/transformer/v1_s43")])
+    assert rep["transformer_roots"] == [
+        str(Path("models/transformer/v1")), str(Path("models/transformer/v1_s43"))]
+
+
+def _two_season_world():
+    """A 2022 history season (the world for board 2023) plus 2023 actuals."""
+    rows = []
+    for wk in range(1, 7):
+        rows += [
+            {"player_id": "p1", "season": 2022, "week": wk, "receiving_yards": 60.0},
+            {"player_id": "p2", "season": 2022, "week": wk, "position": "RB",
+             "team": "BBB", "opponent_team": "AAA", "rushing_yards": 45.0},
+            {"player_id": "p1", "season": 2023, "week": wk, "receiving_yards": 70.0},
+            {"player_id": "p2", "season": 2023, "week": wk, "position": "RB",
+             "team": "BBB", "opponent_team": "AAA", "rushing_yards": 50.0},
+        ]
+    return make_weekly(rows)
+
+
+def _two_season_sched():
+    return pd.concat([make_schedules(8, 2022), make_schedules(8, 2023)],
+                     ignore_index=True)
+
+
+def test_run_board_backtest_smoke_stub():
+    # end-to-end loop on a tiny synthetic world with a stub entrant: proves the
+    # season loop -> board -> metrics assembly runs and is shaped right (metric
+    # correctness is pinned by the board_metrics tests above).
+    results = run_board_backtest(
+        _two_season_world(), _two_season_sched(), [2023],
+        make_entrants=lambda features: [_QuantileStub()],
+    )
+    assert set(results["model"]) == {"stub"}
+    assert set(results["board_season"]) == {2023}
+    assert {"WR", "RB", "OVERALL"} <= set(results["position"])
+    for col in ("season_mae_topN", "spearman_topN", "hit_rate_starters",
+                "season_band_coverage"):
+        assert col in results.columns
+
+
+def test_run_board_backtest_rejects_seasonless_world():
+    # board season with no prior data to seed from must fail loud, not silently
+    # produce an empty/garbage board
+    weekly = make_weekly([{"player_id": "p1", "season": 2023, "week": 1}])
+    with pytest.raises(ValueError, match="prior-season"):
+        run_board_backtest(weekly, _two_season_sched(), [2023],
+                           make_entrants=lambda f: [_QuantileStub()])

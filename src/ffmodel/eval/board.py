@@ -17,6 +17,11 @@ what actually happened, honestly and leak-free:
 """
 from __future__ import annotations
 
+import argparse
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -152,3 +157,112 @@ def board_metrics(board_players: list[dict], actuals: pd.DataFrame,
     overall["hit_rate_starters"] = total_hits / total_slots if total_slots else float("nan")
     rows.append(overall)
     return pd.DataFrame(rows, columns=_METRIC_COLUMNS)
+
+
+# --- the CLI: run the backtest across board seasons (Plan 4 Phase A2) ------
+
+def _data_through(world: pd.DataFrame) -> str:
+    season = int(world["season"].max())
+    week = int(world[world["season"] == season]["week"].max())
+    return f"{season}-wk{week}"
+
+
+def run_board_backtest(weekly: pd.DataFrame, schedules: pd.DataFrame,
+                       seasons: list[int], make_entrants, rules: ScoringRules = PPR
+                       ) -> pd.DataFrame:
+    """For each board season S: reconstruct the leak-free "August world"
+    (`weekly` strictly before S), fit each entrant on it, generate a board
+    through the PRODUCTION `build_draft_board` path, and score it against S's
+    actual season totals. `make_entrants(features)` is a callable returning a
+    fresh list of predictors for that season (the transformer needs the
+    season's world features at construction); mirrors `generate.py`'s fit flow
+    exactly, so nothing from season S can reach a predictor or the board.
+    Returns one metrics DataFrame concatenated over (model, board_season)."""
+    from ffmodel.data.features import build_features
+    from ffmodel.site.draft import build_draft_board
+
+    tables = []
+    for season in sorted(seasons):
+        world = board_world(weekly, season)             # weekly[season < S]
+        if world.empty:
+            raise ValueError(f"board season {season}: no prior-season data to seed from")
+        sched_s = schedules[schedules["season"] <= season]   # generate.py uses <= S
+        features = build_features(world, sched_s)
+        train = features[features["season"] < season]   # == features (world is all < S)
+        actuals = season_actuals(weekly, season, rules)
+        data_through = _data_through(world)
+        for entrant in make_entrants(features):
+            entrant.fit(train)
+            board = build_draft_board(world, sched_s, entrant, season,
+                                      data_through, prefit=True)
+            metrics = board_metrics(board["players"], actuals)
+            metrics.insert(0, "board_season", season)
+            metrics.insert(0, "model", entrant.name)
+            tables.append(metrics)
+    return pd.concat(tables, ignore_index=True)
+
+
+def _board_report(results: pd.DataFrame, seasons: list[int],
+                  transformer_roots) -> dict:
+    records = results.astype(object).where(pd.notna(results), None).to_dict("records")
+    return {
+        "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "board_seasons": sorted(int(s) for s in seasons),
+        "scoring": "ppr",
+        # provenance: which artifact roots the transformer rows used (single
+        # seed vs ensemble is invisible from the metrics alone) — mirrors run.py
+        "transformer_roots": ([str(r) for r in transformer_roots]
+                              if transformer_roots else None),
+        "results": records,
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Draft-board walk-forward backtest.")
+    parser.add_argument("--seasons", nargs="+", type=int, default=[2023, 2024, 2025])
+    parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
+    parser.add_argument("--first-season", type=int, default=2012)
+    parser.add_argument("--out", type=Path,
+                        default=Path("models/backtests/board_backtest.json"))
+    parser.add_argument("--transformer-root", type=Path, action="append", default=None,
+                        help="e.g. models/transformer/v1 — adds the transformer "
+                             "entrant. Repeatable to average a seed ensemble.")
+    return parser
+
+
+def _make_entrants(transformer_roots, features):
+    from ffmodel.baseline.naive import NaiveLast4
+    from ffmodel.baseline.xgb import XGBBaseline
+
+    entrants = [NaiveLast4(), XGBBaseline()]
+    if transformer_roots:
+        from ffmodel.model.predictor import TransformerPredictor
+        entrants.append(TransformerPredictor(list(transformer_roots), features))
+    return entrants
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    from ffmodel.data.pull import pull_schedules, pull_weekly
+
+    seasons = sorted(args.seasons)
+    spans = list(range(args.first_season, max(seasons) + 1))
+    weekly = pull_weekly(spans, cache_dir=args.data_dir)
+    schedules = pull_schedules(spans, cache_dir=args.data_dir)
+
+    results = run_board_backtest(
+        weekly, schedules, seasons,
+        lambda features: _make_entrants(args.transformer_root, features),
+    )
+    report = _board_report(results, seasons, args.transformer_root)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(report, indent=2))
+
+    overall = results[results["position"] == "OVERALL"]
+    print(overall[["model", "board_season", "season_mae_topN", "spearman_topN",
+                   "hit_rate_starters", "season_band_coverage"]].to_string(index=False))
+    print(f"\nfull report -> {args.out}")
+
+
+if __name__ == "__main__":
+    main()
