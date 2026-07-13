@@ -10,8 +10,8 @@ quantiles:
 - 0.1
 - 0.5
 - 0.9
-run_name: v1
-seed: 42
+run_name: v1_s43
+seed: 43
 seq_len: 16
 train:
   amp: true

@@ -1,8 +1,8 @@
 {
   "val_season": 2023,
-  "best_epoch": 23,
-  "last_epoch": 31,
-  "val_pinball": 0.9377487627280212,
+  "best_epoch": 26,
+  "last_epoch": 34,
+  "val_pinball": 0.9395179437518533,
   "quantiles": [
     0.1,
     0.5,
