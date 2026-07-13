@@ -114,6 +114,10 @@ def main() -> None:
         "seasons": [args.first_season, args.last_season],
         "test_seasons": sorted(args.test_seasons),
         "scoring": "ppr",
+        # provenance: which artifact roots the "transformer" rows scored —
+        # a single root vs a seed ensemble is invisible from the metrics alone
+        "transformer_roots": ([str(r) for r in args.transformer_root]
+                              if args.transformer_root is not None else None),
         "results": records,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)

@@ -35,9 +35,12 @@
     player's recent game log and the matchup, and predicts a <strong>floor (p10),
     median (p50) and ceiling (p90)</strong> for every stat. The range bands you see
     on the draft board and weekly pages are those quantiles — uncertainty is the
-    product, not an afterthought. Classical baselines (a naive last-four-games
-    average and XGBoost) run through the exact same evaluation harness, and the
-    tables below report whichever model wins, exactly as it lands.</p>
+    product, not an afterthought. The deployed projections average three
+    independently seeded training runs of that model (a small ensemble), and the
+    bake-off table below scores exactly that ensemble. Classical baselines (a
+    naive last-four-games average and XGBoost) run through the exact same
+    evaluation harness, and the tables below report whichever model wins,
+    exactly as it lands.</p>
     <p>Evaluation is <strong>walk-forward only</strong>: train on seasons up to S,
     test on season S+1, held out across 2023–2025. No random splits — rolling
     features would leak the future into the past.</p>

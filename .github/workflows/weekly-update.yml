@@ -10,7 +10,9 @@ on:
         default: false
 env:
   MODEL: transformer
-  ARTIFACT_ROOT: "models/transformer/v1"   # run root; the predictor appends through{year}
+  # comma-separated run roots = the deployed 3-seed ensemble; the predictor
+  # appends through{year} to each and averages the quantiles
+  ARTIFACT_ROOT: "models/transformer/v1,models/transformer/v1_s43,models/transformer/v1_s44"
   SEASON: "2026"
 jobs:
   regenerate:

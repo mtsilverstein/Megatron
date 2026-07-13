@@ -168,3 +168,46 @@ def test_mixed_entrant_records_serialize_to_valid_json():
     parsed = json.loads(payload)        # strict parse must succeed
     assert parsed["results"][0]["pinball_p10"] is None
     assert parsed["results"][1]["pinball_p10"] == 1.2
+
+
+def _run_main_with_stubs(monkeypatch, tmp_path, extra_argv):
+    """Run the eval CLI end-to-end with the data pipeline and predictors
+    stubbed out, returning the parsed report JSON it writes."""
+    import sys
+
+    import ffmodel.eval.run as run_mod
+
+    dummy = pd.DataFrame({"season": [2023], "week": [1]})
+    results = pd.DataFrame({
+        "model": ["naive_last4"], "test_season": [2023],
+        "position": ["OVERALL"], "mae": [4.5], "rmse": [6.0], "n": [10],
+    })
+    monkeypatch.setattr(run_mod, "pull_weekly", lambda *a, **k: dummy)
+    monkeypatch.setattr(run_mod, "pull_schedules", lambda *a, **k: dummy)
+    monkeypatch.setattr(run_mod, "build_features", lambda *a, **k: dummy)
+    monkeypatch.setattr(run_mod, "run_backtest", lambda *a, **k: results)
+    import ffmodel.model.predictor as pred_mod
+    monkeypatch.setattr(pred_mod, "TransformerPredictor",
+                        lambda roots, features: object())
+    out = tmp_path / "report.json"
+    monkeypatch.setattr(sys, "argv", ["eval-run", "--out", str(out), *extra_argv])
+    run_mod.main()
+    import json
+    return json.loads(out.read_text())
+
+
+def test_report_records_transformer_roots_provenance(monkeypatch, tmp_path):
+    # which roots the "transformer" rows scored (single vs seed ensemble)
+    # is invisible from the metrics alone -- the report must say
+    report = _run_main_with_stubs(monkeypatch, tmp_path, [
+        "--transformer-root", "models/transformer/v1_s43",
+        "--transformer-root", "models/transformer/v1_s44",
+    ])
+    assert report["transformer_roots"] == [
+        str(Path("models/transformer/v1_s43")), str(Path("models/transformer/v1_s44")),
+    ]
+
+
+def test_report_transformer_roots_none_without_flag(monkeypatch, tmp_path):
+    report = _run_main_with_stubs(monkeypatch, tmp_path, [])
+    assert report["transformer_roots"] is None
