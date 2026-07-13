@@ -210,8 +210,10 @@ def _board_report(results: pd.DataFrame, seasons: list[int],
         "board_seasons": sorted(int(s) for s in seasons),
         "scoring": "ppr",
         # provenance: which artifact roots the transformer rows used (single
-        # seed vs ensemble is invisible from the metrics alone) — mirrors run.py
-        "transformer_roots": ([str(r) for r in transformer_roots]
+        # seed vs ensemble is invisible from the metrics alone). as_posix() so
+        # the recorded paths are forward-slash on every platform (this backtest
+        # may run on Windows locally or Linux in Actions).
+        "transformer_roots": ([Path(r).as_posix() for r in transformer_roots]
                               if transformer_roots else None),
         "results": records,
     }

@@ -1,0 +1,466 @@
+{
+  "created": "2026-07-13T15:00:01+00:00",
+  "board_seasons": [
+    2023,
+    2024,
+    2025
+  ],
+  "scoring": "ppr",
+  "transformer_roots": [
+    "models/transformer/v1",
+    "models/transformer/v1_s43",
+    "models/transformer/v1_s44"
+  ],
+  "results": [
+    {
+      "model": "naive_last4",
+      "board_season": 2023,
+      "position": "QB",
+      "n": 26,
+      "season_mae_topN": 123.36384615384614,
+      "spearman_topN": 0.3264957264957265,
+      "hit_rate_starters": 0.5384615384615384,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2023,
+      "position": "RB",
+      "n": 50,
+      "season_mae_topN": 91.8484,
+      "spearman_topN": 0.49143791073255483,
+      "hit_rate_starters": 0.56,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2023,
+      "position": "WR",
+      "n": 50,
+      "season_mae_topN": 88.836,
+      "spearman_topN": 0.31875915397312615,
+      "hit_rate_starters": 0.44,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2023,
+      "position": "TE",
+      "n": 26,
+      "season_mae_topN": 72.99923076923076,
+      "spearman_topN": 0.5485636435716946,
+      "hit_rate_starters": 0.6153846153846154,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2023,
+      "position": "OVERALL",
+      "n": 152,
+      "season_mae_topN": 93.02407894736842,
+      "spearman_topN": 0.4441332694216201,
+      "hit_rate_starters": 0.5263157894736842,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2023,
+      "position": "QB",
+      "n": 26,
+      "season_mae_topN": 129.27461538461537,
+      "spearman_topN": 0.45777777777777773,
+      "hit_rate_starters": 0.38461538461538464,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2023,
+      "position": "RB",
+      "n": 50,
+      "season_mae_topN": 78.7248,
+      "spearman_topN": 0.4168547418967587,
+      "hit_rate_starters": 0.56,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2023,
+      "position": "WR",
+      "n": 50,
+      "season_mae_topN": 72.3532,
+      "spearman_topN": 0.5891137844143284,
+      "hit_rate_starters": 0.56,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2023,
+      "position": "TE",
+      "n": 26,
+      "season_mae_topN": 53.333846153846146,
+      "spearman_topN": 0.4598290598290598,
+      "hit_rate_starters": 0.6153846153846154,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2023,
+      "position": "OVERALL",
+      "n": 152,
+      "season_mae_topN": 80.93236842105264,
+      "spearman_topN": 0.4481037054509311,
+      "hit_rate_starters": 0.5394736842105263,
+      "season_band_coverage": null
+    },
+    {
+      "model": "transformer",
+      "board_season": 2023,
+      "position": "QB",
+      "n": 26,
+      "season_mae_topN": 114.04846153846155,
+      "spearman_topN": 0.4338751640779553,
+      "hit_rate_starters": 0.3076923076923077,
+      "season_band_coverage": 0.6153846153846154
+    },
+    {
+      "model": "transformer",
+      "board_season": 2023,
+      "position": "RB",
+      "n": 50,
+      "season_mae_topN": 70.36320000000002,
+      "spearman_topN": 0.5075271916755002,
+      "hit_rate_starters": 0.56,
+      "season_band_coverage": 0.92
+    },
+    {
+      "model": "transformer",
+      "board_season": 2023,
+      "position": "WR",
+      "n": 50,
+      "season_mae_topN": 68.77199999999999,
+      "spearman_topN": 0.5954667697991552,
+      "hit_rate_starters": 0.6,
+      "season_band_coverage": 0.98
+    },
+    {
+      "model": "transformer",
+      "board_season": 2023,
+      "position": "TE",
+      "n": 26,
+      "season_mae_topN": 42.84615384615385,
+      "spearman_topN": 0.6341880341880342,
+      "hit_rate_starters": 0.5384615384615384,
+      "season_band_coverage": 0.9615384615384616
+    },
+    {
+      "model": "transformer",
+      "board_season": 2023,
+      "position": "OVERALL",
+      "n": 152,
+      "season_mae_topN": 72.60539473684211,
+      "spearman_topN": 0.43532160645432005,
+      "hit_rate_starters": 0.5263157894736842,
+      "season_band_coverage": 0.8947368421052632
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2024,
+      "position": "QB",
+      "n": 26,
+      "season_mae_topN": 131.1169230769231,
+      "spearman_topN": 0.4971790122245167,
+      "hit_rate_starters": 0.46153846153846156,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2024,
+      "position": "RB",
+      "n": 50,
+      "season_mae_topN": 107.15839999999999,
+      "spearman_topN": 0.3556420047611875,
+      "hit_rate_starters": 0.56,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2024,
+      "position": "WR",
+      "n": 50,
+      "season_mae_topN": 101.2684,
+      "spearman_topN": 0.3819722919123223,
+      "hit_rate_starters": 0.4,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2024,
+      "position": "TE",
+      "n": 26,
+      "season_mae_topN": 82.49615384615385,
+      "spearman_topN": 0.5371858515850865,
+      "hit_rate_starters": 0.5384615384615384,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2024,
+      "position": "OVERALL",
+      "n": 152,
+      "season_mae_topN": 105.10052631578947,
+      "spearman_topN": 0.40389284634166767,
+      "hit_rate_starters": 0.4868421052631579,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2024,
+      "position": "QB",
+      "n": 26,
+      "season_mae_topN": 113.60307692307691,
+      "spearman_topN": 0.39008547008547007,
+      "hit_rate_starters": 0.3076923076923077,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2024,
+      "position": "RB",
+      "n": 50,
+      "season_mae_topN": 84.2524,
+      "spearman_topN": 0.45778706291083615,
+      "hit_rate_starters": 0.6,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2024,
+      "position": "WR",
+      "n": 50,
+      "season_mae_topN": 81.34679999999999,
+      "spearman_topN": 0.3795918367346939,
+      "hit_rate_starters": 0.36,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2024,
+      "position": "TE",
+      "n": 26,
+      "season_mae_topN": 57.00230769230769,
+      "spearman_topN": 0.28957264957264955,
+      "hit_rate_starters": 0.46153846153846156,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2024,
+      "position": "OVERALL",
+      "n": 152,
+      "season_mae_topN": 83.65592105263158,
+      "spearman_topN": 0.4311766952205725,
+      "hit_rate_starters": 0.4473684210526316,
+      "season_band_coverage": null
+    },
+    {
+      "model": "transformer",
+      "board_season": 2024,
+      "position": "QB",
+      "n": 26,
+      "season_mae_topN": 88.72846153846156,
+      "spearman_topN": 0.31897435897435894,
+      "hit_rate_starters": 0.46153846153846156,
+      "season_band_coverage": 0.9230769230769231
+    },
+    {
+      "model": "transformer",
+      "board_season": 2024,
+      "position": "RB",
+      "n": 50,
+      "season_mae_topN": 77.4804,
+      "spearman_topN": 0.5987992487756792,
+      "hit_rate_starters": 0.68,
+      "season_band_coverage": 0.88
+    },
+    {
+      "model": "transformer",
+      "board_season": 2024,
+      "position": "WR",
+      "n": 50,
+      "season_mae_topN": 54.598800000000004,
+      "spearman_topN": 0.46320439879855,
+      "hit_rate_starters": 0.4,
+      "season_band_coverage": 0.94
+    },
+    {
+      "model": "transformer",
+      "board_season": 2024,
+      "position": "TE",
+      "n": 26,
+      "season_mae_topN": 51.2823076923077,
+      "spearman_topN": 0.2431184853450009,
+      "hit_rate_starters": 0.46153846153846156,
+      "season_band_coverage": 0.9230769230769231
+    },
+    {
+      "model": "transformer",
+      "board_season": 2024,
+      "position": "OVERALL",
+      "n": 152,
+      "season_mae_topN": 67.39631578947369,
+      "spearman_topN": 0.5013887099166404,
+      "hit_rate_starters": 0.5131578947368421,
+      "season_band_coverage": 0.9144736842105263
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2025,
+      "position": "QB",
+      "n": 26,
+      "season_mae_topN": 167.38538461538462,
+      "spearman_topN": 0.5938461538461539,
+      "hit_rate_starters": 0.5384615384615384,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2025,
+      "position": "RB",
+      "n": 50,
+      "season_mae_topN": 96.85079999999999,
+      "spearman_topN": 0.5288184590535195,
+      "hit_rate_starters": 0.52,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2025,
+      "position": "WR",
+      "n": 50,
+      "season_mae_topN": 127.8344,
+      "spearman_topN": 0.20990707620044843,
+      "hit_rate_starters": 0.44,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2025,
+      "position": "TE",
+      "n": 26,
+      "season_mae_topN": 89.36615384615385,
+      "spearman_topN": 0.09196581196581195,
+      "hit_rate_starters": 0.3076923076923077,
+      "season_band_coverage": null
+    },
+    {
+      "model": "naive_last4",
+      "board_season": 2025,
+      "position": "OVERALL",
+      "n": 152,
+      "season_mae_topN": 117.82763157894733,
+      "spearman_topN": 0.3948783714855472,
+      "hit_rate_starters": 0.4605263157894737,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2025,
+      "position": "QB",
+      "n": 26,
+      "season_mae_topN": 126.88846153846151,
+      "spearman_topN": 0.40314584278728,
+      "hit_rate_starters": 0.46153846153846156,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2025,
+      "position": "RB",
+      "n": 50,
+      "season_mae_topN": 85.88239999999998,
+      "spearman_topN": 0.6298212007657796,
+      "hit_rate_starters": 0.6,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2025,
+      "position": "WR",
+      "n": 50,
+      "season_mae_topN": 81.0524,
+      "spearman_topN": 0.3399606220358457,
+      "hit_rate_starters": 0.56,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2025,
+      "position": "TE",
+      "n": 26,
+      "season_mae_topN": 65.06230769230768,
+      "spearman_topN": 0.24307692307692305,
+      "hit_rate_starters": 0.3076923076923077,
+      "season_band_coverage": null
+    },
+    {
+      "model": "xgboost",
+      "board_season": 2025,
+      "position": "OVERALL",
+      "n": 152,
+      "season_mae_topN": 87.74644736842104,
+      "spearman_topN": 0.48666595008196084,
+      "hit_rate_starters": 0.5131578947368421,
+      "season_band_coverage": null
+    },
+    {
+      "model": "transformer",
+      "board_season": 2025,
+      "position": "QB",
+      "n": 26,
+      "season_mae_topN": 86.0330769230769,
+      "spearman_topN": 0.31731920450092943,
+      "hit_rate_starters": 0.5384615384615384,
+      "season_band_coverage": 0.8461538461538461
+    },
+    {
+      "model": "transformer",
+      "board_season": 2025,
+      "position": "RB",
+      "n": 50,
+      "season_mae_topN": 79.1196,
+      "spearman_topN": 0.5966184845217941,
+      "hit_rate_starters": 0.6,
+      "season_band_coverage": 0.88
+    },
+    {
+      "model": "transformer",
+      "board_season": 2025,
+      "position": "WR",
+      "n": 50,
+      "season_mae_topN": 59.59439999999999,
+      "spearman_topN": 0.5069516161551029,
+      "hit_rate_starters": 0.56,
+      "season_band_coverage": 0.92
+    },
+    {
+      "model": "transformer",
+      "board_season": 2025,
+      "position": "TE",
+      "n": 26,
+      "season_mae_topN": 46.893076923076926,
+      "spearman_topN": -0.06393162393162392,
+      "hit_rate_starters": 0.38461538461538464,
+      "season_band_coverage": 1.0
+    },
+    {
+      "model": "transformer",
+      "board_season": 2025,
+      "position": "OVERALL",
+      "n": 152,
+      "season_mae_topN": 68.36697368421052,
+      "spearman_topN": 0.45578956725115394,
+      "hit_rate_starters": 0.5394736842105263,
+      "season_band_coverage": 0.9078947368421053
+    }
+  ]
+}

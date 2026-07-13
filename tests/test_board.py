@@ -287,8 +287,10 @@ def test_board_report_records_transformer_roots():
     }])
     rep = _board_report(results, [2023], transformer_roots=[
         Path("models/transformer/v1"), Path("models/transformer/v1_s43")])
+    # forward-slash on every platform (as_posix), so a Windows-local run and a
+    # Linux Actions run record identical provenance
     assert rep["transformer_roots"] == [
-        str(Path("models/transformer/v1")), str(Path("models/transformer/v1_s43"))]
+        "models/transformer/v1", "models/transformer/v1_s43"]
 
 
 def _two_season_world():

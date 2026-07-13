@@ -189,3 +189,57 @@ Running `--seasons 2023 2024 2025 --transformer-root v1 --transformer-root v1_s4
 --transformer-root v1_s44 --out models/backtests/board_backtest.json` in the
 background — the "before" snapshot that includes the transformer's current (summed-
 quantile) season-band coverage, which Phase B will try to fix.
+
+---
+
+## Session 1 — Phase A3: committed baseline (`models/backtests/board_backtest.json`)
+
+### The baseline numbers (the "before" snapshot for Phase B)
+Full run (3 entrants × 3 seasons, ~30 min) against real cached data. OVERALL rows:
+
+| model | season | season MAE | Spearman | hit-rate | **band coverage** |
+|---|---|---|---|---|---|
+| naive | 2023 | 93.0 | 0.444 | 0.526 | — |
+| xgboost | 2023 | 80.9 | 0.448 | 0.539 | — |
+| **transformer** | 2023 | **72.6** | 0.435 | 0.526 | **0.895** |
+| naive | 2024 | 105.1 | 0.404 | 0.487 | — |
+| xgboost | 2024 | 83.7 | 0.431 | 0.447 | — |
+| **transformer** | 2024 | **67.4** | 0.501 | 0.513 | **0.914** |
+| naive | 2025 | 117.8 | 0.395 | 0.461 | — |
+| xgboost | 2025 | 87.7 | 0.487 | 0.513 | — |
+| **transformer** | 2025 | **68.4** | 0.456 | 0.539 | **0.908** |
+
+Two takeaways:
+1. **The transformer wins the board too.** It beats XGBoost on season MAE by 8–16
+   points every year (72.6 vs 80.9, 67.4 vs 83.7, 68.4 vs 87.7) — not just weekly.
+   So the deployed model is the right one for the draft board on measured grounds,
+   not just eyeball.
+2. **Season bands over-cover, ~0.90 vs the 0.80 target** (0.895 / 0.914 / 0.908) —
+   the summed-weekly-quantile bands are too wide, exactly the eyeball complaint now
+   quantified. **This is Phase B's target metric to move toward 0.80.** (Weekly
+   coverage was ~0.897, so both weekly and season bands over-cover similarly — Phase
+   B's two levers, conformal weekly calibration and Monte-Carlo season simulation,
+   both push the same direction here.)
+
+### Small cross-platform fix folded in
+`_board_report` now records `transformer_roots` via `Path(r).as_posix()` (forward
+slashes on every platform), so a Windows-local run and a Linux Actions run produce
+identical provenance. The committed JSON's three root strings were normalized to
+match (numbers untouched — only `\` → `/`). Updated the provenance test to assert
+the platform-independent form. Suite still 189 passed, `-W error`.
+
+### PHASE A COMPLETE
+Commit: `data: draft-board backtest baseline + as_posix provenance`. This closes the
+Opus stretch. Phase B (weekly conformal calibration + Monte-Carlo / MCMC season
+simulation) is **reserved for Fable** — and it's where the user's MCMC coursework is
+directly useful, so the timing lines up. The baseline above is the measurable target
+Phase B builds against.
+
+### FLAG for Phase B / the user
+- The season simulation in the plan (B2) currently specs **independent weeks** (2000
+  i.i.d. draws per player summed). That independence assumption is almost certainly
+  the biggest single reason season bands are too wide OR too narrow — real weekly
+  outcomes are correlated (a player's role/health persists week to week). This is
+  exactly where an MCMC / correlated-draw model beats naive i.i.d. sampling, and
+  where the user's coursework should drive the design. Worth revisiting the plan's B2
+  before implementing it.
