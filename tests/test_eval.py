@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -85,6 +86,73 @@ def test_run_cli_parses_repeated_transformer_root():
     assert [str(p) for p in args.transformer_root] == [
         str(Path("models/transformer/v1_s43")), str(Path("models/transformer/v1_s44")),
     ]
+
+
+def _make_run(root: Path, through_seasons, complete: bool = True) -> None:
+    """Tiny fake artifact dir: metrics.json only, no model.pt -- discovery
+    must not need the actual model weights."""
+    for season in through_seasons:
+        art_dir = root / f"through{season}"
+        art_dir.mkdir(parents=True, exist_ok=True)
+        (art_dir / "metrics.json").write_text(json.dumps({"complete": complete}))
+
+
+def test_discover_ensemble_roots_no_siblings_returns_base_only(tmp_path):
+    from ffmodel.eval.run import discover_ensemble_roots
+
+    base = tmp_path / "v1"
+    _make_run(base, [2022, 2023, 2024, 2025])
+
+    assert discover_ensemble_roots(base) == [base]
+
+
+def test_discover_ensemble_roots_includes_complete_sibling_sorted(tmp_path):
+    from ffmodel.eval.run import discover_ensemble_roots
+
+    base = tmp_path / "v1"
+    _make_run(base, [2022, 2023, 2024, 2025])
+    s44 = tmp_path / "v1_s44"
+    _make_run(s44, [2022, 2023, 2024, 2025])
+    s43 = tmp_path / "v1_s43"
+    _make_run(s43, [2022, 2023, 2024, 2025])
+
+    # created out of order (s44 before s43) -- result must still be sorted
+    assert discover_ensemble_roots(base) == [base, s43, s44]
+
+
+def test_discover_ensemble_roots_excludes_sibling_missing_through_dir(tmp_path, capsys):
+    from ffmodel.eval.run import discover_ensemble_roots
+
+    base = tmp_path / "v1"
+    _make_run(base, [2022, 2023, 2024, 2025])
+    s43 = tmp_path / "v1_s43"
+    _make_run(s43, [2022, 2023, 2024])  # missing through2025
+
+    assert discover_ensemble_roots(base) == [base]
+    warning = capsys.readouterr().out
+    assert "v1_s43" in warning
+    assert "through2025" in warning or "2025" in warning
+
+
+def test_discover_ensemble_roots_excludes_sibling_with_incomplete_run(tmp_path, capsys):
+    from ffmodel.eval.run import discover_ensemble_roots
+
+    base = tmp_path / "v1"
+    _make_run(base, [2022, 2023, 2024, 2025])
+    s43 = tmp_path / "v1_s43"
+    _make_run(s43, [2022, 2023, 2024])
+    _make_run(s43, [2025], complete=False)  # same set of through-dirs, one incomplete
+
+    assert discover_ensemble_roots(base) == [base]
+    warning = capsys.readouterr().out
+    assert "v1_s43" in warning
+
+
+def test_discover_ensemble_roots_missing_base_raises(tmp_path):
+    from ffmodel.eval.run import discover_ensemble_roots
+
+    with pytest.raises(ValueError):
+        discover_ensemble_roots(tmp_path / "does_not_exist")
 
 
 def test_mixed_entrant_records_serialize_to_valid_json():
