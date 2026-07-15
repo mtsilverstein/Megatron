@@ -56,6 +56,34 @@ def test_sorted_by_ppr_p50_desc():
     assert p50s == sorted(p50s, reverse=True)
 
 
+def test_weekly_band_ceiling_is_sign_coherent_for_interceptions():
+    # A passer's ceiling is his best game (fewest INTs), not his p90 INTs.
+    weekly, future = _future()
+
+    class _IntStub:
+        name = "intstub"
+
+        def fit(self, train):
+            pass
+
+        def predict(self, test):
+            return self.predict_quantiles(test)["p50"]
+
+        def predict_quantiles(self, test):
+            z = pd.DataFrame(0.0, index=test.index, columns=PREDICTED_STATS)
+            p10 = z.copy(); p10["passing_yards"] = 250.0; p10["passing_interceptions"] = 0.0
+            p50 = z.copy(); p50["passing_yards"] = 250.0; p50["passing_interceptions"] = 1.0
+            p90 = z.copy(); p90["passing_yards"] = 250.0; p90["passing_interceptions"] = 3.0
+            return {"p10": p10, "p50": p50, "p90": p90}
+
+    payload = build_weekly_projections(future, _IntStub(), 2023, 7, "2023-10-15")
+    pts = payload["players"][0]["points"]["ppr"]
+    assert pts["p50"] == pytest.approx(8.0)    # 250*0.04 - 1*2
+    assert pts["p90"] == pytest.approx(10.0)   # ceiling: 0 INTs, not the p90 (3) INTs
+    assert pts["p10"] == pytest.approx(4.0)    # floor: 3 INTs
+    assert pts["p10"] <= pts["p50"] <= pts["p90"]
+
+
 def test_point_only_predictor_has_null_bands():
     weekly, future = _future()
     from ffmodel.data.features import build_features

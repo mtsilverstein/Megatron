@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.data.future import combined_future_features
-from ffmodel.scoring import fantasy_points
+from ffmodel.scoring import fantasy_points, fantasy_points_quantiles
 from ffmodel.site.weekly import RULESETS
 
 # 12-team league: points above the player at this positional rank define
@@ -29,7 +29,9 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
             predictor.attach_features(combined)   # future rows live in this frame
         if hasattr(predictor, "predict_quantiles"):
             qs = predictor.predict_quantiles(future)
-            week_pts = {rn: {q: fantasy_points(qs[q], rules) for q in ("p10", "p50", "p90")}
+            # Sign-coherent floor/ceiling per week (summed into season bands
+            # below); keeps a passer's ceiling from absorbing his worst-case INTs.
+            week_pts = {rn: fantasy_points_quantiles(qs, rules)
                         for rn, rules in RULESETS.items()}
         else:
             pred = predictor.predict(future)

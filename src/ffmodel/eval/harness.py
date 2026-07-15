@@ -7,7 +7,13 @@ import pandas as pd
 
 from ffmodel.eval.metrics import score_table
 from ffmodel.eval.splits import walk_forward_splits
-from ffmodel.scoring import PPR, PREDICTED_STATS, ScoringRules, fantasy_points
+from ffmodel.scoring import (
+    PPR,
+    PREDICTED_STATS,
+    ScoringRules,
+    fantasy_points,
+    fantasy_points_band,
+)
 
 
 class Predictor(Protocol):
@@ -56,12 +62,18 @@ def run_backtest(
             })
             if quantile_stats is not None:
                 for key in ("p10", "p90"):
-                    frame = quantile_stats[key]
-                    if not frame.index.equals(test.index):
+                    if not quantile_stats[key].index.equals(test.index):
                         raise ValueError(
                             f"{predictor.name}: {key} index misaligned with test frame"
                         )
-                    scored[key] = fantasy_points(frame, rules).to_numpy()
+                # Sign-coherent floor/ceiling: negatively-scored components
+                # (INTs, fumbles) contribute their favourable end to each edge,
+                # not their raw p10/p90 (which understated e.g. QB ceilings).
+                floor, ceil = fantasy_points_band(
+                    quantile_stats["p10"], quantile_stats["p90"], rules
+                )
+                scored["p10"] = floor.to_numpy()
+                scored["p90"] = ceil.to_numpy()
             tables.append(
                 score_table(scored).assign(model=predictor.name, test_season=season)
             )

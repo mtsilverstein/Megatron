@@ -5,7 +5,13 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from ffmodel.scoring import HALF_PPR, PPR, PREDICTED_STATS, STANDARD, fantasy_points
+from ffmodel.scoring import (
+    HALF_PPR,
+    PPR,
+    PREDICTED_STATS,
+    STANDARD,
+    fantasy_points_quantiles,
+)
 
 RULESETS = {"ppr": PPR, "half_ppr": HALF_PPR, "standard": STANDARD}
 
@@ -25,11 +31,10 @@ def build_weekly_projections(future: pd.DataFrame, predictor, season: int,
             f"refusing to publish an empty weekly page"
         )
     frames = _quantile_frames(future, predictor)
+    # p10/p90 are sign-coherent floor/ceiling (fantasy_points_quantiles), so a
+    # passer's ceiling isn't dragged down by his worst-case interceptions.
     points = {
-        rules_name: {
-            q: (None if frame is None else fantasy_points(frame, rules))
-            for q, frame in frames.items()
-        }
+        rules_name: fantasy_points_quantiles(frames, rules)
         for rules_name, rules in RULESETS.items()
     }
     p50_stats = frames["p50"]
