@@ -126,6 +126,16 @@ def test_fantasy_points_quantiles_none_frames_give_none_bands():
     assert out["p50"].iloc[0] == pytest.approx(5.0)
 
 
+def test_fantasy_points_band_rejects_mismatched_indexes():
+    # pd.concat aligns on index, so a low/high pair with different row sets
+    # would silently produce degenerate bands (missing side skipped by
+    # max/min) — fail loud instead.
+    low = pd.DataFrame({"rushing_yards": [40.0, 50.0]}, index=[0, 1])
+    high = pd.DataFrame({"rushing_yards": [90.0, 95.0]}, index=[1, 2])
+    with pytest.raises(ValueError, match="index"):
+        fantasy_points_band(low, high, PPR)
+
+
 def test_stat_weights_is_the_source_of_truth_for_scoring():
     # Every nonzero weight in the map reproduces fantasy_points for a unit stat line.
     w = stat_weights(PPR)

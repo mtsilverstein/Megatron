@@ -86,6 +86,9 @@ def fantasy_points_band(
     pairs every component with its own points-favourable end instead. Returns
     (floor, ceiling), floor <= ceiling whenever low <= high componentwise.
     `low` and `high` must share an index (same rows)."""
+    if not low.index.equals(high.index):
+        raise ValueError("fantasy_points_band: low/high index mismatch — "
+                         "quantile frames must describe the same rows")
     floor = pd.Series(0.0, index=low.index)
     ceil = pd.Series(0.0, index=low.index)
     for name, weight in stat_weights(rules).items():

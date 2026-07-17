@@ -25,6 +25,39 @@ def test_season_projection_sums_weeks():
     assert p1["games"] == 2
 
 
+def test_season_bands_are_sign_coherent_for_interceptions():
+    # Regression pin on the DRAFT path (the third consumer of the band, after
+    # harness and weekly): season p90 must sum per-week sign-coherent ceilings.
+    # Discriminates constructions sharply — under the old fantasy_points(p90)
+    # scoring this stub yields ppr_p90 = 8.0 and ppr_p10 = 20.0 (inverted);
+    # the coherent band gives 20.0 / 8.0. Protects the plan-5 merge conflict
+    # in season_projection from silently reverting the construction.
+    class _IntStub:
+        name = "intstub"
+
+        def fit(self, train):
+            pass
+
+        def predict(self, test):
+            return self.predict_quantiles(test)["p50"]
+
+        def predict_quantiles(self, test):
+            z = pd.DataFrame(0.0, index=test.index, columns=PREDICTED_STATS)
+            p10 = z.copy(); p10["passing_yards"] = 250.0; p10["passing_interceptions"] = 0.0
+            p50 = z.copy(); p50["passing_yards"] = 250.0; p50["passing_interceptions"] = 1.0
+            p90 = z.copy(); p90["passing_yards"] = 250.0; p90["passing_interceptions"] = 3.0
+            return {"p10": p10, "p50": p50, "p90": p90}
+
+    weekly = _history()
+    proj = season_projection(weekly, _sched_with_future(), _IntStub(), 2023,
+                             weeks=range(7, 9))   # two future weeks
+    p1 = proj[proj["player_id"] == "p1"].iloc[0]
+    assert p1["ppr_p50"] == pytest.approx(16.0)   # (250*0.04 - 2) x 2
+    assert p1["ppr_p90"] == pytest.approx(20.0)   # ceiling: 0 INTs per week
+    assert p1["ppr_p10"] == pytest.approx(8.0)    # floor: 3 INTs per week
+    assert p1["ppr_p10"] <= p1["ppr_p50"] <= p1["ppr_p90"]
+
+
 def test_bye_week_reduces_games():
     weekly = _history()
     sched = _sched_with_future()
