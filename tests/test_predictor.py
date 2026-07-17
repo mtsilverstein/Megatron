@@ -6,9 +6,10 @@ import pandas as pd
 import pytest
 
 from ffmodel.eval.harness import run_backtest
+from ffmodel.model.calibrate import write_calibration
 from ffmodel.model.predictor import TransformerPredictor
 from ffmodel.model.train import train_from_config
-from ffmodel.scoring import PREDICTED_STATS
+from ffmodel.scoring import BAND_CONSTRUCTION, PREDICTED_STATS
 
 from tests.test_train import _cfg, _synthetic_features
 
@@ -208,3 +209,166 @@ def test_attach_features_enables_prediction_on_extended_frame(trained):
     p.attach_features(features)
     qs = p.predict_quantiles(test)
     assert qs["p50"].index.equals(test.index)
+
+
+# ---- calibration (Contract 3) --------------------------------------------
+
+_CALIB_FACTORS = {
+    "QB": {"s_lo": 0.4, "s_hi": 0.6},
+    "RB": {"s_lo": 0.5, "s_hi": 0.5},
+    "WR": {"s_lo": 0.6, "s_hi": 0.4},
+    "TE": {"s_lo": 0.3, "s_hi": 0.8},
+}
+_CALIB_TAILS = {pos: [0.1, 0.1] for pos in _CALIB_FACTORS}
+
+
+def _write_test_calibration(dest_root, through=2022, per_position=None,
+                            member_roots=None, fit_season=None,
+                            band_construction=None):
+    """Write a calibration.json into `dest_root` via the real writer, then
+    optionally doctor individual fields to construct a mismatch."""
+    fitted = {"per_position": per_position or _CALIB_FACTORS,
+              "achieved_val_tails": _CALIB_TAILS}
+    path = write_calibration(dest_root, through,
+                             member_roots if member_roots is not None else [dest_root],
+                             fitted)
+    if fit_season is not None or band_construction is not None:
+        payload = json.loads(path.read_text())
+        if fit_season is not None:
+            payload["fit_season"] = fit_season
+        if band_construction is not None:
+            payload["band_construction"] = band_construction
+        path.write_text(json.dumps(payload))
+    return path
+
+
+def test_predict_quantiles_absent_calibration_is_byte_identical_to_disabled(trained):
+    """No calibration.json on disk: the default (calibration=True) path
+    must produce output byte-identical to explicitly disabling it -- i.e.
+    predictions are unaffected by the feature's mere existence."""
+    root, features = trained
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+
+    p_default = TransformerPredictor(root, features)
+    p_default.fit(train)
+    qs_default = p_default.predict_quantiles(test)
+
+    p_disabled = TransformerPredictor(root, features, calibration=False)
+    p_disabled.fit(train)
+    qs_disabled = p_disabled.predict_quantiles(test)
+
+    for key in ("p10", "p50", "p90"):
+        pd.testing.assert_frame_equal(qs_default[key], qs_disabled[key], check_exact=True)
+
+
+def test_predict_quantiles_applies_valid_calibration(trained, tmp_path):
+    root, features = trained
+    calibrated_root = tmp_path / "calibrated"
+    shutil.copytree(root, calibrated_root)
+    _write_test_calibration(calibrated_root)
+
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+
+    raw = TransformerPredictor(calibrated_root, features, calibration=False)
+    raw.fit(train)
+    qs_raw = raw.predict_quantiles(test)
+
+    calibrated = TransformerPredictor(calibrated_root, features)
+    calibrated.fit(train)
+    qs_cal = calibrated.predict_quantiles(test)
+
+    # p50 untouched
+    pd.testing.assert_frame_equal(qs_cal["p50"], qs_raw["p50"], check_exact=True)
+
+    positions = test["position"]
+    s_lo = positions.map(lambda p: _CALIB_FACTORS[p]["s_lo"])
+    s_hi = positions.map(lambda p: _CALIB_FACTORS[p]["s_hi"])
+    expected_p10 = qs_raw["p50"] - (qs_raw["p50"] - qs_raw["p10"]).mul(s_lo, axis=0)
+    expected_p90 = qs_raw["p50"] + (qs_raw["p90"] - qs_raw["p50"]).mul(s_hi, axis=0)
+    pd.testing.assert_frame_equal(qs_cal["p10"], expected_p10, check_exact=False)
+    pd.testing.assert_frame_equal(qs_cal["p90"], expected_p90, check_exact=False)
+
+    # sanity: at least one position's factors actually moved the band
+    assert not qs_cal["p10"].equals(qs_raw["p10"])
+
+    # A single known row, computed fully by hand: pick the first test row,
+    # read its position and that position's (s_lo, s_hi), and re-derive one
+    # stat column's calibrated p10/p90 with plain arithmetic.
+    row = test.index[0]
+    pos = test.loc[row, "position"]
+    s_lo_row, s_hi_row = _CALIB_FACTORS[pos]["s_lo"], _CALIB_FACTORS[pos]["s_hi"]
+    raw_p10 = qs_raw["p10"].loc[row, "receiving_yards"]
+    raw_p50 = qs_raw["p50"].loc[row, "receiving_yards"]
+    raw_p90 = qs_raw["p90"].loc[row, "receiving_yards"]
+    hand_p10 = raw_p50 - s_lo_row * (raw_p50 - raw_p10)
+    hand_p90 = raw_p50 + s_hi_row * (raw_p90 - raw_p50)
+    assert qs_cal["p10"].loc[row, "receiving_yards"] == pytest.approx(hand_p10)
+    assert qs_cal["p90"].loc[row, "receiving_yards"] == pytest.approx(hand_p90)
+
+
+def test_fit_rejects_band_construction_mismatch(trained, tmp_path):
+    root, features = trained
+    calibrated_root = tmp_path / "calibrated"
+    shutil.copytree(root, calibrated_root)
+    path = _write_test_calibration(calibrated_root, band_construction="some_other_v0")
+
+    p = TransformerPredictor(calibrated_root, features)
+    train = features[features["season"] <= 2022]
+    with pytest.raises(ValueError, match="calibration.json"):
+        p.fit(train)
+
+
+def test_fit_rejects_member_roots_mismatch(trained, tmp_path):
+    root, features = trained
+    calibrated_root = tmp_path / "calibrated"
+    shutil.copytree(root, calibrated_root)
+    other_root = tmp_path / "not_the_root"
+    path = _write_test_calibration(calibrated_root, member_roots=[other_root])
+
+    p = TransformerPredictor(calibrated_root, features)
+    train = features[features["season"] <= 2022]
+    with pytest.raises(ValueError, match="calibration.json"):
+        p.fit(train)
+
+
+def test_fit_rejects_fit_season_mismatch(trained, tmp_path):
+    root, features = trained
+    calibrated_root = tmp_path / "calibrated"
+    shutil.copytree(root, calibrated_root)
+    path = _write_test_calibration(calibrated_root, fit_season=2021)
+
+    p = TransformerPredictor(calibrated_root, features)
+    train = features[features["season"] <= 2022]
+    with pytest.raises(ValueError, match="calibration.json"):
+        p.fit(train)
+
+
+def test_calibration_false_skips_loading_even_when_file_exists(trained, tmp_path):
+    root, features = trained
+    calibrated_root = tmp_path / "calibrated"
+    shutil.copytree(root, calibrated_root)
+    _write_test_calibration(calibrated_root)
+
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+
+    p_off = TransformerPredictor(calibrated_root, features, calibration=False)
+    p_off.fit(train)  # must not raise, must not load the file
+    qs_off = p_off.predict_quantiles(test)
+
+    # Same root, calibration explicitly disabled again -> must match (both
+    # skip loading, so both are the raw band).
+    p_raw = TransformerPredictor(calibrated_root, features, calibration=False)
+    p_raw.fit(train)
+    qs_raw = p_raw.predict_quantiles(test)
+    for key in ("p10", "p50", "p90"):
+        pd.testing.assert_frame_equal(qs_off[key], qs_raw[key], check_exact=True)
+
+    # The file really is valid and would change p10/p90 if loaded -- proves
+    # calibration=False actually skipped it rather than the file being inert.
+    p_on = TransformerPredictor(calibrated_root, features)
+    p_on.fit(train)
+    qs_on = p_on.predict_quantiles(test)
+    assert not qs_off["p10"].equals(qs_on["p10"])

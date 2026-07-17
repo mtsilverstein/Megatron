@@ -10,7 +10,7 @@ import torch
 
 from ffmodel.model.dataset import Scaler, apply_scaler, build_sequences
 from ffmodel.model.net import QuantileTransformer, monotone
-from ffmodel.scoring import PREDICTED_STATS
+from ffmodel.scoring import BAND_CONSTRUCTION, PREDICTED_STATS
 
 QUANTILE_KEYS = ("p10", "p50", "p90")
 
@@ -117,11 +117,22 @@ class TransformerPredictor:
     the identity element introduces no floating-point error) followed by
     re-sorting an already-sorted triple (also a no-op), so single-root
     callers get results byte-identical to the pre-ensemble implementation.
+
+    `calibration` (default True): after fitting, look for
+    `<artifact_roots[0]>/through{through}/calibration.json` (written by
+    `ffmodel.model.calibrate.write_calibration`) and, if present, validate
+    and apply its per-position (s_lo, s_hi) point-band scale factors in
+    `predict_quantiles` (see `_apply_calibration`). No file -> behavior is
+    byte-identical to calibration not existing at all. Pass
+    `calibration=False` to skip looking for/applying it even when the file
+    is on disk (e.g. the calibration-fitting CLI itself needs the raw,
+    uncalibrated band to fit against).
     """
 
     name = "transformer"
 
-    def __init__(self, artifact_root, features: pd.DataFrame, device: str = "cpu"):
+    def __init__(self, artifact_root, features: pd.DataFrame, device: str = "cpu", *,
+                 calibration: bool = True):
         roots = [artifact_root] if isinstance(artifact_root, (str, Path)) else list(artifact_root)
         if not roots:
             raise ValueError("artifact_root must be a path or a non-empty iterable of paths")
@@ -129,6 +140,8 @@ class TransformerPredictor:
         self.artifact_root = self.artifact_roots[0]  # back-compat single-root attribute
         self.features = features
         self.device = device
+        self.calibration = calibration
+        self._calibration = None  # loaded/validated per-position factors, or None
         self._members = [_SingleRootTransformer(r, features, device) for r in self.artifact_roots]
 
     def attach_features(self, features: pd.DataFrame) -> None:
@@ -141,6 +154,35 @@ class TransformerPredictor:
     def fit(self, train: pd.DataFrame) -> None:
         for member in self._members:
             member.fit(train)
+        self._calibration = None
+        if self.calibration:
+            through = int(train["season"].max())
+            path = self.artifact_roots[0] / f"through{through}" / "calibration.json"
+            if path.exists():
+                self._calibration = self._load_calibration(path, through)
+
+    def _load_calibration(self, path: Path, through: int) -> dict:
+        data = json.loads(path.read_text())
+        if data.get("band_construction") != BAND_CONSTRUCTION:
+            raise ValueError(
+                f"{path}: band_construction mismatch -- this artifact scores "
+                f"under {BAND_CONSTRUCTION!r}, but calibration.json was fit "
+                f"under {data.get('band_construction')!r}"
+            )
+        expected_roots = sorted(Path(r).as_posix() for r in self.artifact_roots)
+        got_roots = sorted(data.get("member_roots", []))
+        if got_roots != expected_roots:
+            raise ValueError(
+                f"{path}: member_roots mismatch -- predictor was constructed "
+                f"with {expected_roots}, but calibration.json lists {got_roots}"
+            )
+        if data.get("fit_season") != through:
+            raise ValueError(
+                f"{path}: fit_season mismatch -- this fold validates season "
+                f"{through}, but calibration.json was fit for season "
+                f"{data.get('fit_season')}"
+            )
+        return data
 
     def predict(self, test: pd.DataFrame) -> pd.DataFrame:
         return self.predict_quantiles(test)["p50"]
@@ -157,8 +199,33 @@ class TransformerPredictor:
         # order-preserving.
         stacked = np.stack([avg[key].to_numpy() for key in QUANTILE_KEYS], axis=-1)
         sorted_stacked = np.sort(stacked, axis=-1)
-        return {
+        result = {
             key: pd.DataFrame(sorted_stacked[:, :, qi],
                               columns=avg[key].columns, index=avg[key].index)
             for qi, key in enumerate(QUANTILE_KEYS)
         }
+        if self._calibration is not None:
+            result = self._apply_calibration(result, test)
+        return result
+
+    def _apply_calibration(self, quantiles: dict[str, pd.DataFrame],
+                            test: pd.DataFrame) -> dict[str, pd.DataFrame]:
+        """Shrink/expand p10 and p90 per row by that row's position's
+        (s_lo, s_hi) factors -- vectorized across all rows/stats at once, no
+        Python row loop. p50 is untouched; monotonicity holds for s >= 0 by
+        construction (each side moves toward, never past, p50), so no
+        re-sort is needed after this."""
+        per_position = self._calibration["per_position"]
+        positions = test["position"]
+        unknown = sorted(set(positions.unique()) - set(per_position))
+        if unknown:
+            raise ValueError(
+                f"predict_quantiles: no calibration factors for position(s) "
+                f"{unknown} (calibration covers {sorted(per_position)})"
+            )
+        s_lo = positions.map(lambda p: per_position[p]["s_lo"])
+        s_hi = positions.map(lambda p: per_position[p]["s_hi"])
+        p10, p50, p90 = quantiles["p10"], quantiles["p50"], quantiles["p90"]
+        p10c = p50 - (p50 - p10).mul(s_lo, axis=0)
+        p90c = p50 + (p90 - p50).mul(s_hi, axis=0)
+        return {"p10": p10c, "p50": p50, "p90": p90c}
