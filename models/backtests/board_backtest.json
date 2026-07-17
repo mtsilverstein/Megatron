@@ -1,11 +1,12 @@
 {
-  "created": "2026-07-13T15:00:01+00:00",
+  "created": "2026-07-17T13:25:40+00:00",
   "board_seasons": [
     2023,
     2024,
     2025
   ],
   "scoring": "ppr",
+  "band_construction": "sign_coherent_v1",
   "transformer_roots": [
     "models/transformer/v1",
     "models/transformer/v1_s43",
@@ -120,7 +121,7 @@
       "season_mae_topN": 114.04846153846155,
       "spearman_topN": 0.4338751640779553,
       "hit_rate_starters": 0.3076923076923077,
-      "season_band_coverage": 0.6153846153846154
+      "season_band_coverage": 1.0
     },
     {
       "model": "transformer",
@@ -130,7 +131,7 @@
       "season_mae_topN": 70.36320000000002,
       "spearman_topN": 0.5075271916755002,
       "hit_rate_starters": 0.56,
-      "season_band_coverage": 0.92
+      "season_band_coverage": 0.98
     },
     {
       "model": "transformer",
@@ -160,7 +161,7 @@
       "season_mae_topN": 72.60539473684211,
       "spearman_topN": 0.43532160645432005,
       "hit_rate_starters": 0.5263157894736842,
-      "season_band_coverage": 0.8947368421052632
+      "season_band_coverage": 0.9802631578947368
     },
     {
       "model": "naive_last4",
@@ -270,7 +271,7 @@
       "season_mae_topN": 88.72846153846156,
       "spearman_topN": 0.31897435897435894,
       "hit_rate_starters": 0.46153846153846156,
-      "season_band_coverage": 0.9230769230769231
+      "season_band_coverage": 1.0
     },
     {
       "model": "transformer",
@@ -280,7 +281,7 @@
       "season_mae_topN": 77.4804,
       "spearman_topN": 0.5987992487756792,
       "hit_rate_starters": 0.68,
-      "season_band_coverage": 0.88
+      "season_band_coverage": 0.92
     },
     {
       "model": "transformer",
@@ -290,7 +291,7 @@
       "season_mae_topN": 54.598800000000004,
       "spearman_topN": 0.46320439879855,
       "hit_rate_starters": 0.4,
-      "season_band_coverage": 0.94
+      "season_band_coverage": 0.98
     },
     {
       "model": "transformer",
@@ -310,7 +311,7 @@
       "season_mae_topN": 67.39631578947369,
       "spearman_topN": 0.5013887099166404,
       "hit_rate_starters": 0.5131578947368421,
-      "season_band_coverage": 0.9144736842105263
+      "season_band_coverage": 0.9539473684210527
     },
     {
       "model": "naive_last4",
@@ -420,7 +421,7 @@
       "season_mae_topN": 86.0330769230769,
       "spearman_topN": 0.31731920450092943,
       "hit_rate_starters": 0.5384615384615384,
-      "season_band_coverage": 0.8461538461538461
+      "season_band_coverage": 1.0
     },
     {
       "model": "transformer",
@@ -430,7 +431,7 @@
       "season_mae_topN": 79.1196,
       "spearman_topN": 0.5966184845217941,
       "hit_rate_starters": 0.6,
-      "season_band_coverage": 0.88
+      "season_band_coverage": 0.94
     },
     {
       "model": "transformer",
@@ -460,7 +461,7 @@
       "season_mae_topN": 68.36697368421052,
       "spearman_topN": 0.45578956725115394,
       "hit_rate_starters": 0.5394736842105263,
-      "season_band_coverage": 0.9078947368421053
+      "season_band_coverage": 0.9539473684210527
     }
   ]
 }
