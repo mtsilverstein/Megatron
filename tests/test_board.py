@@ -273,6 +273,7 @@ def test_board_report_provenance_and_nan_to_none():
     rep = _board_report(results, [2023], transformer_roots=None)
     assert rep["board_seasons"] == [2023]
     assert rep["scoring"] == "ppr"
+    assert rep["band_construction"] == "sign_coherent_v1"
     assert rep["transformer_roots"] is None
     # NaN coverage (band-less entrant) must serialize to null, not a NaN literal
     assert rep["results"][0]["season_band_coverage"] is None
@@ -336,3 +337,12 @@ def test_run_board_backtest_rejects_seasonless_world():
     with pytest.raises(ValueError, match="prior-season"):
         run_board_backtest(weekly, _two_season_sched(), [2023],
                            make_entrants=lambda f: [_QuantileStub()])
+
+
+def test_run_board_backtest_rejects_non_ppr_rules():
+    # board metrics hardcode the "ppr" season_points lens; a non-PPR rules
+    # arg would silently rescore actuals in a lens the board never reads --
+    # must fail loud before any heavy work, not produce a mismatched report
+    with pytest.raises(ValueError, match="ppr"):
+        run_board_backtest(pd.DataFrame(), pd.DataFrame(), [2023],
+                           make_entrants=lambda f: [], rules=STANDARD)

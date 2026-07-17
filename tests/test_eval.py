@@ -211,3 +211,9 @@ def test_report_records_transformer_roots_provenance(monkeypatch, tmp_path):
 def test_report_transformer_roots_none_without_flag(monkeypatch, tmp_path):
     report = _run_main_with_stubs(monkeypatch, tmp_path, [])
     assert report["transformer_roots"] is None
+
+
+def test_report_records_band_construction_provenance(monkeypatch, tmp_path):
+    # so old- and new-construction reports can never be silently compared
+    report = _run_main_with_stubs(monkeypatch, tmp_path, [])
+    assert report["band_construction"] == "sign_coherent_v1"

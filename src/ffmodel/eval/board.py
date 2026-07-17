@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ffmodel.scoring import PPR, PREDICTED_STATS, ScoringRules, fantasy_points
+from ffmodel.scoring import BAND_CONSTRUCTION, PPR, PREDICTED_STATS, ScoringRules, fantasy_points
 from ffmodel.site.draft import REPLACEMENT_RANK
 
 _VALID_POSITIONS = tuple(REPLACEMENT_RANK)          # QB, RB, WR, TE — v1 scope
@@ -178,6 +178,12 @@ def run_board_backtest(weekly: pd.DataFrame, schedules: pd.DataFrame,
     season's world features at construction); mirrors `generate.py`'s fit flow
     exactly, so nothing from season S can reach a predictor or the board.
     Returns one metrics DataFrame concatenated over (model, board_season)."""
+    if rules.name != "ppr":
+        raise ValueError(
+            "run_board_backtest only supports PPR: board metrics read the "
+            f"'ppr' season_points lens; got rules.name={rules.name!r}"
+        )
+
     from ffmodel.data.features import build_features
     from ffmodel.site.draft import build_draft_board
 
@@ -209,6 +215,7 @@ def _board_report(results: pd.DataFrame, seasons: list[int],
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "board_seasons": sorted(int(s) for s in seasons),
         "scoring": "ppr",
+        "band_construction": BAND_CONSTRUCTION,
         # provenance: which artifact roots the transformer rows used (single
         # seed vs ensemble is invisible from the metrics alone). as_posix() so
         # the recorded paths are forward-slash on every platform (this backtest

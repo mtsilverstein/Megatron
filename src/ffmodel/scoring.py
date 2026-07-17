@@ -16,6 +16,10 @@ PREDICTED_STATS = [
 # our points match official totals, absent (-> 0) on model output.
 SCORING_EXTRAS = ["two_point_conversions", "special_teams_tds"]
 
+# Names the point-band construction so eval reports and calibration artifacts
+# can never be silently compared across constructions.
+BAND_CONSTRUCTION = "sign_coherent_v1"
+
 
 @dataclass(frozen=True)
 class ScoringRules:

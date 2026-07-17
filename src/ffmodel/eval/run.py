@@ -14,6 +14,7 @@ from ffmodel.data.features import build_features
 from ffmodel.data.pull import pull_schedules, pull_weekly
 from ffmodel.eval.harness import run_backtest
 from ffmodel.model.train import _run_is_complete
+from ffmodel.scoring import BAND_CONSTRUCTION
 
 
 def discover_ensemble_roots(base_root: Path) -> list[Path]:
@@ -114,6 +115,7 @@ def main() -> None:
         "seasons": [args.first_season, args.last_season],
         "test_seasons": sorted(args.test_seasons),
         "scoring": "ppr",
+        "band_construction": BAND_CONSTRUCTION,
         # provenance: which artifact roots the "transformer" rows scored —
         # a single root vs a seed ensemble is invisible from the metrics alone
         "transformer_roots": ([str(r) for r in args.transformer_root]
