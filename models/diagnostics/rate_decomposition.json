@@ -1,0 +1,42 @@
+{
+  "created": "2026-07-17T13:32:36+00:00",
+  "board_season": 2025,
+  "table": [
+    {
+      "position": "QB",
+      "proj_games": 17.0,
+      "expected_games": 12.320512820512821,
+      "actual_mean_games": 12.461538461538462,
+      "proj_ppg": 14.209276018099548,
+      "actual_ppg": 15.845925925925929,
+      "rate_bias": -1.6366499078263814
+    },
+    {
+      "position": "RB",
+      "proj_games": 17.0,
+      "expected_games": 12.426666666666666,
+      "actual_mean_games": 12.4,
+      "proj_ppg": 7.138823529411765,
+      "actual_ppg": 11.922225806451614,
+      "rate_bias": -4.783402277039849
+    },
+    {
+      "position": "WR",
+      "proj_games": 17.0,
+      "expected_games": 13.423333333333334,
+      "actual_mean_games": 13.06,
+      "proj_ppg": 10.072941176470586,
+      "actual_ppg": 12.192159264931089,
+      "rate_bias": -2.119218088460503
+    },
+    {
+      "position": "TE",
+      "proj_games": 17.0,
+      "expected_games": 12.98076923076923,
+      "actual_mean_games": 14.23076923076923,
+      "proj_ppg": 7.280995475113122,
+      "actual_ppg": 9.494,
+      "rate_bias": -2.2130045248868777
+    }
+  ]
+}

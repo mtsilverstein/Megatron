@@ -1,0 +1,1646 @@
+{
+  "created": "2026-07-17T13:32:36+00:00",
+  "pairs": 6,
+  "per_through": {
+    "2022": {
+      "counts": [
+        {
+          "position": "QB",
+          "games": 0,
+          "count": 7
+        },
+        {
+          "position": "QB",
+          "games": 1,
+          "count": 0
+        },
+        {
+          "position": "QB",
+          "games": 2,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 3,
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "games": 4,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 5,
+          "count": 2
+        },
+        {
+          "position": "QB",
+          "games": 6,
+          "count": 2
+        },
+        {
+          "position": "QB",
+          "games": 7,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 8,
+          "count": 2
+        },
+        {
+          "position": "QB",
+          "games": 9,
+          "count": 5
+        },
+        {
+          "position": "QB",
+          "games": 10,
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "games": 11,
+          "count": 10
+        },
+        {
+          "position": "QB",
+          "games": 12,
+          "count": 8
+        },
+        {
+          "position": "QB",
+          "games": 13,
+          "count": 5
+        },
+        {
+          "position": "QB",
+          "games": 14,
+          "count": 10
+        },
+        {
+          "position": "QB",
+          "games": 15,
+          "count": 17
+        },
+        {
+          "position": "QB",
+          "games": 16,
+          "count": 54
+        },
+        {
+          "position": "QB",
+          "games": 17,
+          "count": 16
+        },
+        {
+          "position": "QB",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "RB",
+          "games": 0,
+          "count": 26
+        },
+        {
+          "position": "RB",
+          "games": 1,
+          "count": 4
+        },
+        {
+          "position": "RB",
+          "games": 2,
+          "count": 3
+        },
+        {
+          "position": "RB",
+          "games": 3,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 4,
+          "count": 7
+        },
+        {
+          "position": "RB",
+          "games": 5,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 6,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 7,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 8,
+          "count": 11
+        },
+        {
+          "position": "RB",
+          "games": 9,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 10,
+          "count": 18
+        },
+        {
+          "position": "RB",
+          "games": 11,
+          "count": 11
+        },
+        {
+          "position": "RB",
+          "games": 12,
+          "count": 20
+        },
+        {
+          "position": "RB",
+          "games": 13,
+          "count": 18
+        },
+        {
+          "position": "RB",
+          "games": 14,
+          "count": 33
+        },
+        {
+          "position": "RB",
+          "games": 15,
+          "count": 35
+        },
+        {
+          "position": "RB",
+          "games": 16,
+          "count": 64
+        },
+        {
+          "position": "RB",
+          "games": 17,
+          "count": 20
+        },
+        {
+          "position": "RB",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "WR",
+          "games": 0,
+          "count": 12
+        },
+        {
+          "position": "WR",
+          "games": 1,
+          "count": 4
+        },
+        {
+          "position": "WR",
+          "games": 2,
+          "count": 3
+        },
+        {
+          "position": "WR",
+          "games": 3,
+          "count": 1
+        },
+        {
+          "position": "WR",
+          "games": 4,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 5,
+          "count": 6
+        },
+        {
+          "position": "WR",
+          "games": 6,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 7,
+          "count": 6
+        },
+        {
+          "position": "WR",
+          "games": 8,
+          "count": 6
+        },
+        {
+          "position": "WR",
+          "games": 9,
+          "count": 14
+        },
+        {
+          "position": "WR",
+          "games": 10,
+          "count": 13
+        },
+        {
+          "position": "WR",
+          "games": 11,
+          "count": 8
+        },
+        {
+          "position": "WR",
+          "games": 12,
+          "count": 18
+        },
+        {
+          "position": "WR",
+          "games": 13,
+          "count": 20
+        },
+        {
+          "position": "WR",
+          "games": 14,
+          "count": 32
+        },
+        {
+          "position": "WR",
+          "games": 15,
+          "count": 48
+        },
+        {
+          "position": "WR",
+          "games": 16,
+          "count": 77
+        },
+        {
+          "position": "WR",
+          "games": 17,
+          "count": 28
+        },
+        {
+          "position": "WR",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 0,
+          "count": 10
+        },
+        {
+          "position": "TE",
+          "games": 1,
+          "count": 2
+        },
+        {
+          "position": "TE",
+          "games": 2,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 3,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 4,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 5,
+          "count": 5
+        },
+        {
+          "position": "TE",
+          "games": 6,
+          "count": 3
+        },
+        {
+          "position": "TE",
+          "games": 7,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 8,
+          "count": 7
+        },
+        {
+          "position": "TE",
+          "games": 9,
+          "count": 3
+        },
+        {
+          "position": "TE",
+          "games": 10,
+          "count": 7
+        },
+        {
+          "position": "TE",
+          "games": 11,
+          "count": 10
+        },
+        {
+          "position": "TE",
+          "games": 12,
+          "count": 10
+        },
+        {
+          "position": "TE",
+          "games": 13,
+          "count": 10
+        },
+        {
+          "position": "TE",
+          "games": 14,
+          "count": 17
+        },
+        {
+          "position": "TE",
+          "games": 15,
+          "count": 28
+        },
+        {
+          "position": "TE",
+          "games": 16,
+          "count": 30
+        },
+        {
+          "position": "TE",
+          "games": 17,
+          "count": 11
+        },
+        {
+          "position": "TE",
+          "games": 18,
+          "count": 0
+        }
+      ],
+      "summary": [
+        {
+          "position": "QB",
+          "mean_games": 12.666666666666666,
+          "std_games": 4.849442650150016,
+          "n_player_seasons": 156
+        },
+        {
+          "position": "RB",
+          "mean_games": 11.44,
+          "std_games": 5.2693832656203705,
+          "n_player_seasons": 300
+        },
+        {
+          "position": "WR",
+          "mean_games": 12.83,
+          "std_games": 4.406181264239288,
+          "n_player_seasons": 300
+        },
+        {
+          "position": "TE",
+          "mean_games": 12.147435897435898,
+          "std_games": 4.736390066419306,
+          "n_player_seasons": 156
+        }
+      ]
+    },
+    "2023": {
+      "counts": [
+        {
+          "position": "QB",
+          "games": 0,
+          "count": 6
+        },
+        {
+          "position": "QB",
+          "games": 1,
+          "count": 1
+        },
+        {
+          "position": "QB",
+          "games": 2,
+          "count": 6
+        },
+        {
+          "position": "QB",
+          "games": 3,
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "games": 4,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 5,
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "games": 6,
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "games": 7,
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "games": 8,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 9,
+          "count": 6
+        },
+        {
+          "position": "QB",
+          "games": 10,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 11,
+          "count": 10
+        },
+        {
+          "position": "QB",
+          "games": 12,
+          "count": 8
+        },
+        {
+          "position": "QB",
+          "games": 13,
+          "count": 5
+        },
+        {
+          "position": "QB",
+          "games": 14,
+          "count": 10
+        },
+        {
+          "position": "QB",
+          "games": 15,
+          "count": 13
+        },
+        {
+          "position": "QB",
+          "games": 16,
+          "count": 45
+        },
+        {
+          "position": "QB",
+          "games": 17,
+          "count": 22
+        },
+        {
+          "position": "QB",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "RB",
+          "games": 0,
+          "count": 17
+        },
+        {
+          "position": "RB",
+          "games": 1,
+          "count": 4
+        },
+        {
+          "position": "RB",
+          "games": 2,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 3,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 4,
+          "count": 7
+        },
+        {
+          "position": "RB",
+          "games": 5,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 6,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 7,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 8,
+          "count": 11
+        },
+        {
+          "position": "RB",
+          "games": 9,
+          "count": 7
+        },
+        {
+          "position": "RB",
+          "games": 10,
+          "count": 16
+        },
+        {
+          "position": "RB",
+          "games": 11,
+          "count": 12
+        },
+        {
+          "position": "RB",
+          "games": 12,
+          "count": 22
+        },
+        {
+          "position": "RB",
+          "games": 13,
+          "count": 21
+        },
+        {
+          "position": "RB",
+          "games": 14,
+          "count": 35
+        },
+        {
+          "position": "RB",
+          "games": 15,
+          "count": 37
+        },
+        {
+          "position": "RB",
+          "games": 16,
+          "count": 50
+        },
+        {
+          "position": "RB",
+          "games": 17,
+          "count": 34
+        },
+        {
+          "position": "RB",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "WR",
+          "games": 0,
+          "count": 7
+        },
+        {
+          "position": "WR",
+          "games": 1,
+          "count": 3
+        },
+        {
+          "position": "WR",
+          "games": 2,
+          "count": 3
+        },
+        {
+          "position": "WR",
+          "games": 3,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 4,
+          "count": 1
+        },
+        {
+          "position": "WR",
+          "games": 5,
+          "count": 5
+        },
+        {
+          "position": "WR",
+          "games": 6,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 7,
+          "count": 6
+        },
+        {
+          "position": "WR",
+          "games": 8,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 9,
+          "count": 17
+        },
+        {
+          "position": "WR",
+          "games": 10,
+          "count": 15
+        },
+        {
+          "position": "WR",
+          "games": 11,
+          "count": 8
+        },
+        {
+          "position": "WR",
+          "games": 12,
+          "count": 20
+        },
+        {
+          "position": "WR",
+          "games": 13,
+          "count": 20
+        },
+        {
+          "position": "WR",
+          "games": 14,
+          "count": 27
+        },
+        {
+          "position": "WR",
+          "games": 15,
+          "count": 44
+        },
+        {
+          "position": "WR",
+          "games": 16,
+          "count": 76
+        },
+        {
+          "position": "WR",
+          "games": 17,
+          "count": 42
+        },
+        {
+          "position": "WR",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 0,
+          "count": 8
+        },
+        {
+          "position": "TE",
+          "games": 1,
+          "count": 2
+        },
+        {
+          "position": "TE",
+          "games": 2,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 3,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 4,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 5,
+          "count": 4
+        },
+        {
+          "position": "TE",
+          "games": 6,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 7,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 8,
+          "count": 6
+        },
+        {
+          "position": "TE",
+          "games": 9,
+          "count": 3
+        },
+        {
+          "position": "TE",
+          "games": 10,
+          "count": 8
+        },
+        {
+          "position": "TE",
+          "games": 11,
+          "count": 10
+        },
+        {
+          "position": "TE",
+          "games": 12,
+          "count": 9
+        },
+        {
+          "position": "TE",
+          "games": 13,
+          "count": 12
+        },
+        {
+          "position": "TE",
+          "games": 14,
+          "count": 16
+        },
+        {
+          "position": "TE",
+          "games": 15,
+          "count": 33
+        },
+        {
+          "position": "TE",
+          "games": 16,
+          "count": 27
+        },
+        {
+          "position": "TE",
+          "games": 17,
+          "count": 15
+        },
+        {
+          "position": "TE",
+          "games": 18,
+          "count": 0
+        }
+      ],
+      "summary": [
+        {
+          "position": "QB",
+          "mean_games": 12.294871794871796,
+          "std_games": 5.048759620096026,
+          "n_player_seasons": 156
+        },
+        {
+          "position": "RB",
+          "mean_games": 11.86,
+          "std_games": 4.9746423657049625,
+          "n_player_seasons": 300
+        },
+        {
+          "position": "WR",
+          "mean_games": 13.243333333333334,
+          "std_games": 4.059243224488471,
+          "n_player_seasons": 300
+        },
+        {
+          "position": "TE",
+          "mean_games": 12.647435897435898,
+          "std_games": 4.393766690787114,
+          "n_player_seasons": 156
+        }
+      ]
+    },
+    "2024": {
+      "counts": [
+        {
+          "position": "QB",
+          "games": 0,
+          "count": 6
+        },
+        {
+          "position": "QB",
+          "games": 1,
+          "count": 2
+        },
+        {
+          "position": "QB",
+          "games": 2,
+          "count": 7
+        },
+        {
+          "position": "QB",
+          "games": 3,
+          "count": 2
+        },
+        {
+          "position": "QB",
+          "games": 4,
+          "count": 1
+        },
+        {
+          "position": "QB",
+          "games": 5,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 6,
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "games": 7,
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "games": 8,
+          "count": 5
+        },
+        {
+          "position": "QB",
+          "games": 9,
+          "count": 5
+        },
+        {
+          "position": "QB",
+          "games": 10,
+          "count": 7
+        },
+        {
+          "position": "QB",
+          "games": 11,
+          "count": 9
+        },
+        {
+          "position": "QB",
+          "games": 12,
+          "count": 8
+        },
+        {
+          "position": "QB",
+          "games": 13,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 14,
+          "count": 10
+        },
+        {
+          "position": "QB",
+          "games": 15,
+          "count": 15
+        },
+        {
+          "position": "QB",
+          "games": 16,
+          "count": 35
+        },
+        {
+          "position": "QB",
+          "games": 17,
+          "count": 30
+        },
+        {
+          "position": "QB",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "RB",
+          "games": 0,
+          "count": 13
+        },
+        {
+          "position": "RB",
+          "games": 1,
+          "count": 4
+        },
+        {
+          "position": "RB",
+          "games": 2,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 3,
+          "count": 3
+        },
+        {
+          "position": "RB",
+          "games": 4,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 5,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 6,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 7,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 8,
+          "count": 10
+        },
+        {
+          "position": "RB",
+          "games": 9,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 10,
+          "count": 14
+        },
+        {
+          "position": "RB",
+          "games": 11,
+          "count": 14
+        },
+        {
+          "position": "RB",
+          "games": 12,
+          "count": 20
+        },
+        {
+          "position": "RB",
+          "games": 13,
+          "count": 21
+        },
+        {
+          "position": "RB",
+          "games": 14,
+          "count": 33
+        },
+        {
+          "position": "RB",
+          "games": 15,
+          "count": 43
+        },
+        {
+          "position": "RB",
+          "games": 16,
+          "count": 46
+        },
+        {
+          "position": "RB",
+          "games": 17,
+          "count": 48
+        },
+        {
+          "position": "RB",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "WR",
+          "games": 0,
+          "count": 5
+        },
+        {
+          "position": "WR",
+          "games": 1,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 2,
+          "count": 3
+        },
+        {
+          "position": "WR",
+          "games": 3,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 4,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 5,
+          "count": 4
+        },
+        {
+          "position": "WR",
+          "games": 6,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 7,
+          "count": 6
+        },
+        {
+          "position": "WR",
+          "games": 8,
+          "count": 4
+        },
+        {
+          "position": "WR",
+          "games": 9,
+          "count": 13
+        },
+        {
+          "position": "WR",
+          "games": 10,
+          "count": 17
+        },
+        {
+          "position": "WR",
+          "games": 11,
+          "count": 8
+        },
+        {
+          "position": "WR",
+          "games": 12,
+          "count": 21
+        },
+        {
+          "position": "WR",
+          "games": 13,
+          "count": 21
+        },
+        {
+          "position": "WR",
+          "games": 14,
+          "count": 29
+        },
+        {
+          "position": "WR",
+          "games": 15,
+          "count": 39
+        },
+        {
+          "position": "WR",
+          "games": 16,
+          "count": 66
+        },
+        {
+          "position": "WR",
+          "games": 17,
+          "count": 56
+        },
+        {
+          "position": "WR",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 0,
+          "count": 7
+        },
+        {
+          "position": "TE",
+          "games": 1,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 2,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 3,
+          "count": 2
+        },
+        {
+          "position": "TE",
+          "games": 4,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 5,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 6,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 7,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 8,
+          "count": 7
+        },
+        {
+          "position": "TE",
+          "games": 9,
+          "count": 3
+        },
+        {
+          "position": "TE",
+          "games": 10,
+          "count": 10
+        },
+        {
+          "position": "TE",
+          "games": 11,
+          "count": 9
+        },
+        {
+          "position": "TE",
+          "games": 12,
+          "count": 9
+        },
+        {
+          "position": "TE",
+          "games": 13,
+          "count": 10
+        },
+        {
+          "position": "TE",
+          "games": 14,
+          "count": 18
+        },
+        {
+          "position": "TE",
+          "games": 15,
+          "count": 33
+        },
+        {
+          "position": "TE",
+          "games": 16,
+          "count": 26
+        },
+        {
+          "position": "TE",
+          "games": 17,
+          "count": 19
+        },
+        {
+          "position": "TE",
+          "games": 18,
+          "count": 0
+        }
+      ],
+      "summary": [
+        {
+          "position": "QB",
+          "mean_games": 12.320512820512821,
+          "std_games": 5.092713723580823,
+          "n_player_seasons": 156
+        },
+        {
+          "position": "RB",
+          "mean_games": 12.426666666666666,
+          "std_games": 4.736168165182576,
+          "n_player_seasons": 300
+        },
+        {
+          "position": "WR",
+          "mean_games": 13.423333333333334,
+          "std_games": 3.9001011382897355,
+          "n_player_seasons": 300
+        },
+        {
+          "position": "TE",
+          "mean_games": 12.98076923076923,
+          "std_games": 4.139353278246516,
+          "n_player_seasons": 156
+        }
+      ]
+    },
+    "2025": {
+      "counts": [
+        {
+          "position": "QB",
+          "games": 0,
+          "count": 6
+        },
+        {
+          "position": "QB",
+          "games": 1,
+          "count": 2
+        },
+        {
+          "position": "QB",
+          "games": 2,
+          "count": 5
+        },
+        {
+          "position": "QB",
+          "games": 3,
+          "count": 2
+        },
+        {
+          "position": "QB",
+          "games": 4,
+          "count": 0
+        },
+        {
+          "position": "QB",
+          "games": 5,
+          "count": 5
+        },
+        {
+          "position": "QB",
+          "games": 6,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 7,
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "games": 8,
+          "count": 5
+        },
+        {
+          "position": "QB",
+          "games": 9,
+          "count": 6
+        },
+        {
+          "position": "QB",
+          "games": 10,
+          "count": 7
+        },
+        {
+          "position": "QB",
+          "games": 11,
+          "count": 8
+        },
+        {
+          "position": "QB",
+          "games": 12,
+          "count": 8
+        },
+        {
+          "position": "QB",
+          "games": 13,
+          "count": 4
+        },
+        {
+          "position": "QB",
+          "games": 14,
+          "count": 12
+        },
+        {
+          "position": "QB",
+          "games": 15,
+          "count": 13
+        },
+        {
+          "position": "QB",
+          "games": 16,
+          "count": 29
+        },
+        {
+          "position": "QB",
+          "games": 17,
+          "count": 37
+        },
+        {
+          "position": "QB",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "RB",
+          "games": 0,
+          "count": 10
+        },
+        {
+          "position": "RB",
+          "games": 1,
+          "count": 4
+        },
+        {
+          "position": "RB",
+          "games": 2,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 3,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 4,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 5,
+          "count": 6
+        },
+        {
+          "position": "RB",
+          "games": 6,
+          "count": 4
+        },
+        {
+          "position": "RB",
+          "games": 7,
+          "count": 5
+        },
+        {
+          "position": "RB",
+          "games": 8,
+          "count": 9
+        },
+        {
+          "position": "RB",
+          "games": 9,
+          "count": 4
+        },
+        {
+          "position": "RB",
+          "games": 10,
+          "count": 16
+        },
+        {
+          "position": "RB",
+          "games": 11,
+          "count": 14
+        },
+        {
+          "position": "RB",
+          "games": 12,
+          "count": 17
+        },
+        {
+          "position": "RB",
+          "games": 13,
+          "count": 22
+        },
+        {
+          "position": "RB",
+          "games": 14,
+          "count": 28
+        },
+        {
+          "position": "RB",
+          "games": 15,
+          "count": 38
+        },
+        {
+          "position": "RB",
+          "games": 16,
+          "count": 38
+        },
+        {
+          "position": "RB",
+          "games": 17,
+          "count": 68
+        },
+        {
+          "position": "RB",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "WR",
+          "games": 0,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 1,
+          "count": 1
+        },
+        {
+          "position": "WR",
+          "games": 2,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 3,
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "games": 4,
+          "count": 4
+        },
+        {
+          "position": "WR",
+          "games": 5,
+          "count": 5
+        },
+        {
+          "position": "WR",
+          "games": 6,
+          "count": 3
+        },
+        {
+          "position": "WR",
+          "games": 7,
+          "count": 8
+        },
+        {
+          "position": "WR",
+          "games": 8,
+          "count": 5
+        },
+        {
+          "position": "WR",
+          "games": 9,
+          "count": 11
+        },
+        {
+          "position": "WR",
+          "games": 10,
+          "count": 15
+        },
+        {
+          "position": "WR",
+          "games": 11,
+          "count": 4
+        },
+        {
+          "position": "WR",
+          "games": 12,
+          "count": 21
+        },
+        {
+          "position": "WR",
+          "games": 13,
+          "count": 21
+        },
+        {
+          "position": "WR",
+          "games": 14,
+          "count": 30
+        },
+        {
+          "position": "WR",
+          "games": 15,
+          "count": 35
+        },
+        {
+          "position": "WR",
+          "games": 16,
+          "count": 63
+        },
+        {
+          "position": "WR",
+          "games": 17,
+          "count": 68
+        },
+        {
+          "position": "WR",
+          "games": 18,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 0,
+          "count": 5
+        },
+        {
+          "position": "TE",
+          "games": 1,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 2,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 3,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 4,
+          "count": 0
+        },
+        {
+          "position": "TE",
+          "games": 5,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 6,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 7,
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "games": 8,
+          "count": 7
+        },
+        {
+          "position": "TE",
+          "games": 9,
+          "count": 3
+        },
+        {
+          "position": "TE",
+          "games": 10,
+          "count": 9
+        },
+        {
+          "position": "TE",
+          "games": 11,
+          "count": 10
+        },
+        {
+          "position": "TE",
+          "games": 12,
+          "count": 11
+        },
+        {
+          "position": "TE",
+          "games": 13,
+          "count": 11
+        },
+        {
+          "position": "TE",
+          "games": 14,
+          "count": 12
+        },
+        {
+          "position": "TE",
+          "games": 15,
+          "count": 30
+        },
+        {
+          "position": "TE",
+          "games": 16,
+          "count": 25
+        },
+        {
+          "position": "TE",
+          "games": 17,
+          "count": 29
+        },
+        {
+          "position": "TE",
+          "games": 18,
+          "count": 0
+        }
+      ],
+      "summary": [
+        {
+          "position": "QB",
+          "mean_games": 12.461538461538462,
+          "std_games": 5.017130418190869,
+          "n_player_seasons": 156
+        },
+        {
+          "position": "RB",
+          "mean_games": 12.606666666666667,
+          "std_games": 4.763607409889647,
+          "n_player_seasons": 300
+        },
+        {
+          "position": "WR",
+          "mean_games": 13.643333333333333,
+          "std_games": 3.7313253528590735,
+          "n_player_seasons": 300
+        },
+        {
+          "position": "TE",
+          "mean_games": 13.397435897435898,
+          "std_games": 3.7938538135662756,
+          "n_player_seasons": 156
+        }
+      ]
+    }
+  }
+}

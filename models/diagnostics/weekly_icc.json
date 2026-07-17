@@ -1,0 +1,110 @@
+{
+  "created": "2026-07-17T13:32:36+00:00",
+  "pairs": 6,
+  "per_through": {
+    "2022": [
+      {
+        "position": "QB",
+        "icc": 0.18078579577821416,
+        "n_player_seasons": 149,
+        "n_weeks": 1976
+      },
+      {
+        "position": "RB",
+        "icc": 0.3197604930993228,
+        "n_player_seasons": 270,
+        "n_weeks": 3428
+      },
+      {
+        "position": "WR",
+        "icc": 0.19252138079306708,
+        "n_player_seasons": 284,
+        "n_weeks": 3845
+      },
+      {
+        "position": "TE",
+        "icc": 0.23223044310165356,
+        "n_player_seasons": 144,
+        "n_weeks": 1893
+      }
+    ],
+    "2023": [
+      {
+        "position": "QB",
+        "icc": 0.19528795818737874,
+        "n_player_seasons": 149,
+        "n_weeks": 1917
+      },
+      {
+        "position": "RB",
+        "icc": 0.3233144790133789,
+        "n_player_seasons": 279,
+        "n_weeks": 3554
+      },
+      {
+        "position": "WR",
+        "icc": 0.2024228027799479,
+        "n_player_seasons": 290,
+        "n_weeks": 3970
+      },
+      {
+        "position": "TE",
+        "icc": 0.24054766341214218,
+        "n_player_seasons": 146,
+        "n_weeks": 1971
+      }
+    ],
+    "2024": [
+      {
+        "position": "QB",
+        "icc": 0.19824912662001468,
+        "n_player_seasons": 148,
+        "n_weeks": 1920
+      },
+      {
+        "position": "RB",
+        "icc": 0.3205875749240492,
+        "n_player_seasons": 283,
+        "n_weeks": 3724
+      },
+      {
+        "position": "WR",
+        "icc": 0.18857700342792916,
+        "n_player_seasons": 293,
+        "n_weeks": 4025
+      },
+      {
+        "position": "TE",
+        "icc": 0.2203260766043868,
+        "n_player_seasons": 148,
+        "n_weeks": 2024
+      }
+    ],
+    "2025": [
+      {
+        "position": "QB",
+        "icc": 0.2027747453339489,
+        "n_player_seasons": 148,
+        "n_weeks": 1942
+      },
+      {
+        "position": "RB",
+        "icc": 0.3233908310841414,
+        "n_player_seasons": 286,
+        "n_weeks": 3778
+      },
+      {
+        "position": "WR",
+        "icc": 0.20360296354963212,
+        "n_player_seasons": 297,
+        "n_weeks": 4092
+      },
+      {
+        "position": "TE",
+        "icc": 0.21278562213334956,
+        "n_player_seasons": 151,
+        "n_weeks": 2090
+      }
+    ]
+  }
+}
