@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ffmodel.model.simulate import _inverse_cdf, games_probs_from_counts, simulate_season
+from ffmodel.model.simulate import (
+    _inverse_cdf, games_probs_from_counts, rho_from_icc, simulate_season,
+)
 
 
 def _point_mass(k: int, n: int = 19) -> np.ndarray:
@@ -135,6 +137,89 @@ def test_determinism_same_seed_identical_different_seed_differs():
     # rng=None default must also be deterministic (defaults to seed 0).
     assert (simulate_season(week_bands, games_probs, n_draws=200) ==
             simulate_season(week_bands, games_probs, n_draws=200))
+
+
+# ------------------------------------------------------- Gaussian-copula rho
+
+def test_variance_ordering_across_rho():
+    # The copula's whole point: correlating the weekly draws widens the
+    # simulated season band monotonically in rho. Symmetric band every week
+    # (no skew confound) and full availability (point mass at n_weeks) so
+    # every draw retains all 6 weeks -- isolates the copula's effect on
+    # width from the availability/skew machinery already covered above.
+    # Widths at (rho=0.0, 0.3, 0.9), this seed, n_draws=8000: verified
+    # empirically to be approximately (54.2, 85.8, 125.7) -- gaps of ~32 and
+    # ~40 between consecutive rhos, so a 5.0 margin is well inside each gap
+    # and far outside MC noise (single-run p10/p90 sampling error at n=8000
+    # is on the order of 1).
+    n_weeks = 6
+    week_bands = np.array([[10.0, 20.0, 30.0]] * n_weeks)
+    games_probs = _point_mass(n_weeks)
+    widths = []
+    for rho in (0.0, 0.3, 0.9):
+        out = simulate_season(week_bands, games_probs, n_draws=8000,
+                              rng=np.random.default_rng(42), rho=rho)
+        widths.append(out["p90"] - out["p10"])
+    assert widths[0] + 5.0 < widths[1]
+    assert widths[1] + 5.0 < widths[2]
+
+
+def test_rho_near_one_approaches_comonotonic_width():
+    # At rho=0.99 the idiosyncratic weight sqrt(1-rho)=0.1 is small relative
+    # to the shared-factor weight sqrt(0.99)~=0.995, so almost all of each
+    # week's z comes from the one shared factor F -- the weeks become
+    # nearly comonotonic (same percentile every week), and the season sum's
+    # p90-p10 approaches n_weeks * (single-week p90-p10) = 6 * 20 = 120 (the
+    # width if every week always landed at the same quantile). Verified
+    # empirically this seed/n_draws: observed width ~=124.7, i.e. within
+    # ~4% of the 120 comonotonic limit -- residual idiosyncratic noise
+    # (weight sqrt(1-0.99)=0.1) explains the small remaining gap, so
+    # tol=6.0 (5% of 120) has margin without being vacuous.
+    n_weeks = 6
+    week_bands = np.array([[10.0, 20.0, 30.0]] * n_weeks)
+    games_probs = _point_mass(n_weeks)
+    out = simulate_season(week_bands, games_probs, n_draws=8000,
+                          rng=np.random.default_rng(43), rho=0.99)
+    comonotonic_width = n_weeks * 20.0
+    assert out["p90"] - out["p10"] == pytest.approx(comonotonic_width, abs=6.0)
+
+
+def test_marginal_invariant_single_week_regardless_of_rho():
+    # z = sqrt(rho)*F + sqrt(1-rho)*E is standard normal for ANY rho in
+    # [0,1] (F, E iid N(0,1), so Var(z) = rho + (1-rho) = 1 exactly), so
+    # u = ndtr(z) is exactly U(0,1) regardless of rho -- the copula only
+    # distorts the JOINT distribution across weeks, and with only one week
+    # there is nothing to correlate against. rho=0.9 and rho=0.0 must
+    # therefore reproduce the same marginal distribution, up to MC noise
+    # from the different rng draws consumed along each path (n_draws=8000
+    # keeps that noise small; abs=1.0 is generous against it).
+    week_bands = np.array([[10.0, 20.0, 30.0]])
+    games_probs = _point_mass(1)
+    out_indep = simulate_season(week_bands, games_probs, n_draws=8000,
+                                rng=np.random.default_rng(11), rho=0.0)
+    out_corr = simulate_season(week_bands, games_probs, n_draws=8000,
+                               rng=np.random.default_rng(12), rho=0.9)
+    assert out_corr["p10"] == pytest.approx(out_indep["p10"], abs=1.0)
+    assert out_corr["p50"] == pytest.approx(out_indep["p50"], abs=1.0)
+    assert out_corr["p90"] == pytest.approx(out_indep["p90"], abs=1.0)
+
+
+def test_rho_from_icc_maps_position_to_float():
+    frame = pd.DataFrame([
+        {"position": "QB", "icc": 0.19, "n_player_seasons": 10, "n_weeks": 80},
+        {"position": "RB", "icc": 0.32, "n_player_seasons": 12, "n_weeks": 100},
+    ])
+    rho = rho_from_icc(frame)
+    assert rho == {"QB": pytest.approx(0.19), "RB": pytest.approx(0.32)}
+
+
+def test_rho_from_icc_nan_maps_to_zero():
+    # A position with < 2 qualifying cohorts gets icc=NaN from _icc1 --
+    # rho_from_icc maps that to 0.0 (independent weeks, the pre-copula
+    # behavior) rather than propagating NaN into simulate_season.
+    frame = pd.DataFrame([{"position": "TE", "icc": float("nan"),
+                           "n_player_seasons": 0, "n_weeks": 0}])
+    assert rho_from_icc(frame) == {"TE": 0.0}
 
 
 # ------------------------------------------------------- games_probs_from_counts

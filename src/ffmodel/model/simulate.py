@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from scipy.special import ndtr
 
 _MAX_GAMES = 18          # inclusive upper bound on the games axis (0..18 -> 19 values)
 _GAMES_AXIS_LEN = _MAX_GAMES + 1
@@ -59,7 +60,7 @@ def _inverse_cdf(u, p10, p50, p90, clip: float = -5.0):
 
 def simulate_season(week_bands: np.ndarray, games_probs: np.ndarray,
                     n_draws: int = 2000, rng: np.random.Generator = None,
-                    clip: float = -5.0) -> dict:
+                    clip: float = -5.0, rho: float = 0.0) -> dict:
     """Simulate `n_draws` season totals for one player+ruleset.
 
     `week_bands`: shape (n_weeks, 3) -- per scheduled week, the CALIBRATED
@@ -68,10 +69,21 @@ def simulate_season(week_bands: np.ndarray, games_probs: np.ndarray,
     games-played count G_d is sampled from `games_probs` (capped at
     n_weeks -- a player can't play more games than he has scheduled weeks in
     this projection), then a uniformly-random subset of G_d of the n_weeks
-    weeks is retained and summed, each week's value drawn independently from
-    its own inverse-CDF at a fresh U(0,1). Independent per-week draws (rather
-    than the comonotonic sum-of-quantiles) is the point: it is a narrower,
-    honest distribution for the season total.
+    weeks is retained and summed, each week's value drawn from its own
+    inverse-CDF at a per-week U(0,1) that is CORRELATED across weeks via a
+    one-factor Gaussian copula with equicorrelation `rho` (clipped into
+    [0.0, 0.99] here -- a negative rho, which has no meaning for this
+    one-factor construction, floors at 0.0): a single shared standard-normal
+    factor F per draw plus idiosyncratic standard-normal noise E per
+    (draw, week) combine as z = sqrt(rho)*F + sqrt(1-rho)*E (both weights
+    independent, so Var(z) = rho + (1-rho) = 1 for ANY rho -- z is always
+    exactly standard normal), and u = ndtr(z) (the standard-normal CDF) is
+    then exactly U(0,1) marginally, for any rho, so calibration is untouched
+    by construction -- only the CROSS-WEEK joint distribution is reshaped.
+    rho=0.0 collapses to z=E, i.e. the original independent-week draws, via
+    this SAME code path (no branch): a narrower, honest distribution for the
+    season total than the comonotonic sum-of-quantiles, widening toward that
+    comonotonic case as rho -> 1.
 
     Fully vectorized -- no Python loop over draws. `rng=None` defaults to
     `np.random.default_rng(0)` (deterministic default). Returns
@@ -81,12 +93,18 @@ def simulate_season(week_bands: np.ndarray, games_probs: np.ndarray,
     """
     if rng is None:
         rng = np.random.default_rng(0)
+    rho = min(max(rho, 0.0), 0.99)
     week_bands = np.asarray(week_bands, dtype=float)
     n_weeks = week_bands.shape[0]
     p10, p50, p90 = week_bands[:, 0], week_bands[:, 1], week_bands[:, 2]
 
-    # Per-draw, per-week outcome: independent U(0,1) -> inverse-CDF.
-    u_values = rng.random((n_draws, n_weeks))
+    # Per-draw, per-week outcome via the one-factor Gaussian copula above:
+    # a shared factor F (one per draw) and idiosyncratic noise E (one per
+    # draw, week) combine into z, then u = ndtr(z) -> inverse-CDF.
+    factor = rng.standard_normal(n_draws)
+    idio = rng.standard_normal((n_draws, n_weeks))
+    z = np.sqrt(rho) * factor[:, None] + np.sqrt(1.0 - rho) * idio
+    u_values = ndtr(z)
     values = _inverse_cdf(u_values, p10, p50, p90, clip)   # (n_draws, n_weeks)
 
     # Per-draw games-played count, capped at the number of scheduled weeks.
@@ -113,6 +131,21 @@ def simulate_season(week_bands: np.ndarray, games_probs: np.ndarray,
     return {
         "p10": float(p10_out), "p50": float(p50_out), "p90": float(p90_out),
         "mean": float(np.mean(sums)), "clip_frac": clip_frac,
+    }
+
+
+def rho_from_icc(icc_frame: pd.DataFrame) -> dict[str, float]:
+    """`ffmodel.eval.diagnose.weekly_residual_icc` output (columns
+    position/icc/...) -> position -> equicorrelation rho for the season
+    copula. ICC(1) IS the right rho here: both measure the same
+    between-player share of week-to-week variance for a one-way
+    random-effects model, which is exactly the equicorrelation the
+    one-factor copula needs. NaN icc (a position with fewer than 2
+    qualifying cohorts) maps to 0.0 -- independent weeks, the pre-copula
+    behavior -- rather than propagating NaN into `simulate_season`."""
+    return {
+        row["position"]: 0.0 if pd.isna(row["icc"]) else float(row["icc"])
+        for _, row in icc_frame.iterrows()
     }
 
 

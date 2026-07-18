@@ -176,6 +176,38 @@ def test_games_dist_injection_reduces_totals():
     assert p1["ppr_p90"] == pytest.approx(13.0)
 
 
+def test_rho_by_position_widens_season_band():
+    # Same construction as test_season_projection_simulates_weeks (2 future
+    # weeks, symmetric _QuantileStub band, full availability via games_dist
+    # point-mass at G=2 for both positions in the toy world) but comparing
+    # rho=0.9 vs rho=0.0 for WR (p1's position): correlating the two weekly
+    # draws is the copula's whole point, so it must strictly widen the
+    # simulated season band. n_draws=8000 keeps MC noise well under the
+    # observed gap (this construction mirrors test_variance_ordering_across_rho
+    # in tests/test_simulate.py, which empirically finds gaps of several
+    # tens of points between rho=0.0 and rho=0.9 on a similarly-shaped band,
+    # so a 1.0 margin here is conservative).
+    point_mass_g2 = np.zeros(19)
+    point_mass_g2[2] = 1.0
+    games_dist = {"WR": point_mass_g2, "RB": point_mass_g2}
+
+    weekly = _history()
+    sched = _sched_with_future()
+    proj_indep = season_projection(weekly, sched, _QuantileStub(), 2023,
+                                   weeks=range(7, 9), games_dist=games_dist,
+                                   rho_by_position={"WR": 0.0, "RB": 0.0},
+                                   n_draws=8000)
+    proj_corr = season_projection(weekly, sched, _QuantileStub(), 2023,
+                                  weeks=range(7, 9), games_dist=games_dist,
+                                  rho_by_position={"WR": 0.9, "RB": 0.9},
+                                  n_draws=8000)
+    p1_indep = proj_indep[proj_indep["player_id"] == "p1"].iloc[0]
+    p1_corr = proj_corr[proj_corr["player_id"] == "p1"].iloc[0]
+    width_indep = p1_indep["ppr_p90"] - p1_indep["ppr_p10"]
+    width_corr = p1_corr["ppr_p90"] - p1_corr["ppr_p10"]
+    assert width_corr > width_indep + 1.0
+
+
 def test_bye_week_reduces_games():
     weekly = _history()
     sched = _sched_with_future()

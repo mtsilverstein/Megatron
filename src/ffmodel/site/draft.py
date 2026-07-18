@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.data.future import combined_future_features
-from ffmodel.model.simulate import games_probs_from_counts, simulate_season
+from ffmodel.model.simulate import games_probs_from_counts, rho_from_icc, simulate_season
 from ffmodel.scoring import fantasy_points, fantasy_points_quantiles
 from ffmodel.site.weekly import RULESETS
 
@@ -22,7 +22,8 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       season: int, weeks=range(1, 19), prefit: bool = False, *,
                       n_draws: int = 2000, seed: int = 0,
                       games_dist: dict[str, np.ndarray] | None = None,
-                      diagnostics: dict | None = None) -> pd.DataFrame:
+                      diagnostics: dict | None = None,
+                      rho_by_position: dict[str, float] | None = None) -> pd.DataFrame:
     """All weeks seeded from the same pre-season history (spec §7).
 
     For a quantile predictor, the season p10/p50/p90 come from a Monte-Carlo
@@ -33,7 +34,10 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
     simulate.py's module docstring for why summing weekly quantiles was
     wrong on both counts). The season p50 this produces IS the point
     estimate (median-of-sums, not sum-of-medians) -- VORP downstream reads
-    it with no further change.
+    it with no further change. Weekly draws are correlated via a one-factor
+    Gaussian copula at each player's positional equicorrelation `rho` (see
+    `simulate_season`), derived leak-free from the SAME `weekly` history
+    handed to this call (a walk-forward measurement, never future data).
 
     `games_dist`, if given, maps position -> shape-(19,) games-probability
     vector and is used as-is (the board-backtest CLI threads a leak-free
@@ -46,6 +50,18 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
     back to a POINT MASS at each player's own scheduled-week count (i.e.
     deterministic full availability), so toy/short-history runs stay
     well-defined instead of crashing.
+
+    `rho_by_position`, if given, maps position -> equicorrelation and is
+    used as-is (same pattern as `games_dist`, for a caller threading one
+    measurement through repeated calls). Otherwise this derives one
+    internally from `weekly` via `weekly_residual_icc` + `rho_from_icc`
+    through the latest season present. `weekly_residual_icc` shares its
+    cohort-selection machinery with `availability_table` (same
+    `_select_pairs` short-world condition), so it fails under the exact
+    same circumstances as the `games_dist` fallback above -- kept as a
+    SEPARATE try/except anyway, for a simpler failure story per call. On
+    ValueError this falls back to {} (every position defaults to rho=0.0,
+    i.e. independent weeks -- the pre-copula behavior).
     """
     if not prefit:
         predictor.fit(_fit_frame(weekly, schedules))
@@ -98,7 +114,7 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
     if has_quantiles and totals:
         # Deferred import: ffmodel.eval.diagnose imports REPLACEMENT_RANK
         # from THIS module, so a top-level import here would be circular.
-        from ffmodel.eval.diagnose import availability_table
+        from ffmodel.eval.diagnose import availability_table, weekly_residual_icc
 
         if games_dist is not None:
             dist_by_position, fallback_full_availability = games_dist, False
@@ -112,6 +128,19 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                 dist_by_position = {}
                 fallback_full_availability = True
 
+        if rho_by_position is not None:
+            rho_map = rho_by_position
+        else:
+            # Separate try/except from the availability_table call above --
+            # see the docstring: the two share a failure condition, but a
+            # standalone guard per measurement is simpler to reason about.
+            try:
+                through = int(weekly["season"].max())
+                icc = weekly_residual_icc(weekly, through_season=through)
+                rho_map = rho_from_icc(icc)
+            except ValueError:
+                rho_map = {}
+
         rng = np.random.default_rng(seed)   # ONE shared stream for the whole call:
         # players consume from it in totals' iteration order, so the output
         # is deterministic given `seed` but NOT invariant to player order.
@@ -123,9 +152,10 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                 probs[min(entry["games"], _MAX_GAMES)] = 1.0
             else:
                 probs = dist_by_position[position]
+            rho = rho_map.get(position, 0.0)
             for rn in RULESETS:
                 week_bands = np.array(bands_by_player[pid][rn], dtype=float)
-                sim = simulate_season(week_bands, probs, n_draws, rng)
+                sim = simulate_season(week_bands, probs, n_draws, rng, rho=rho)
                 entry[f"{rn}_p10"] = sim["p10"]
                 entry[f"{rn}_p50"] = sim["p50"]
                 entry[f"{rn}_p90"] = sim["p90"]
