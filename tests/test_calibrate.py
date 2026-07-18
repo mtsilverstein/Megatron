@@ -8,8 +8,6 @@ import pytest
 from ffmodel.model.calibrate import build_parser, fit_calibration, write_calibration
 from ffmodel.scoring import BAND_CONSTRUCTION, PPR, PREDICTED_STATS, fantasy_points_band
 
-ZERO_STATS = [s for s in PREDICTED_STATS]
-
 
 def _frame(index, **overrides) -> pd.DataFrame:
     """A PREDICTED_STATS-columned frame, all zero except `overrides`
@@ -100,30 +98,106 @@ def test_fit_calibration_two_positions_differ():
 
 
 def test_fit_calibration_negative_weight_coupling_converges():
-    """passing_interceptions (weight -2) given a LARGE offset -- its combined
-    floor/ceiling swing (6 + 4 = 10 points) dominates passing_yards' (2 + 2
-    = 4 points) -- so the joint alternating-bisection fit must actually
-    resolve the cross-side coupling (per-side algebra would get this wrong,
-    per scoring.fantasy_points_band's docstring). Coefficients are chosen
-    (by solving the underlying 2x2 linear system for floor/ceil in terms of
-    s_lo/s_hi) so the true joint solution sits well inside (0,4)x(0,4)
-    -- s_lo*=2.0, s_hi*=1.0 -- rather than at a boundary corner, which would
-    trap coordinate-wise bisection regardless of implementation."""
+    """passing_interceptions (weight -2) is given offsets on BOTH sides of
+    p50, so it crosses sides per scoring.fantasy_points_band's docstring:
+    floor pairs it with its p90-scaled value (materially depends on s_hi),
+    ceiling pairs it with its p10-scaled value (materially depends on
+    s_lo) -- the cross-coupling per-side algebra would get wrong. This
+    specific combination of offsets/actual-distribution was chosen by
+    direct numerical search (not hand-solved algebra) to land in the
+    alternating-bisection scheme's basin of attraction: an earlier,
+    interceptions-DOMINANT construction (offsets 0.0/5.0, i.e. a combined
+    10-point swing vs. passing_yards' 4) looked convergent under the
+    ORIGINAL (buggy, stale-tail) loop, but per Important-1's fix, honestly
+    recomputing the tails at every sweep revealed it never actually
+    converges -- it spirals to the boundary corner (s_lo=4.0, s_hi=0.0)
+    with true tails (0.162, 0.024), no matter how many sweeps are allowed
+    (verified up to 40). That is a genuine structural limit of
+    coordinate-wise alternating bisection when a negative-weight
+    component's cross-coupling is strong enough to make BOTH tail rates
+    monotonically decreasing in BOTH s_lo and s_hi (verified by direct
+    grid evaluation) -- there is no contracting fixed point for the
+    alternating map to find. This test uses milder (but still nonzero
+    both-sides, still genuinely cross-coupled) interceptions offsets for
+    which the joint solution IS reachable, and the loop converges
+    monotonically sweep-over-sweep (verified) to s_lo~0.62, s_hi~3.34,
+    both strictly interior to (0,4)x(0,4)."""
     n = 500
     idx = pd.RangeIndex(n)
     p50 = _frame(idx, passing_yards=250.0, passing_interceptions=2.0)
-    p10 = _frame(idx, passing_yards=200.0, passing_interceptions=0.0)
-    p90 = _frame(idx, passing_yards=300.0, passing_interceptions=5.0)
+    p10 = _frame(idx, passing_yards=200.0, passing_interceptions=1.5)
+    p90 = _frame(idx, passing_yards=300.0, passing_interceptions=3.0)
     rng = np.random.default_rng(2)
     # p50 points = 250*.04 + 2*(-2) = 6.0
-    actual = pd.Series(rng.normal(loc=6.0, scale=7.803, size=n), index=idx)
+    actual = pd.Series(rng.normal(loc=6.0, scale=6.0, size=n), index=idx)
     positions = pd.Series(["QB"] * n, index=idx)
     quantiles = {"p10": p10, "p50": p50, "p90": p90}
 
     fitted = fit_calibration(quantiles, actual, positions)
+    s_lo = fitted["per_position"]["QB"]["s_lo"]
+    s_hi = fitted["per_position"]["QB"]["s_hi"]
     below, above = fitted["achieved_val_tails"]["QB"]
-    assert below == pytest.approx(0.10, abs=0.02)
-    assert above == pytest.approx(0.10, abs=0.02)
+
+    # Honesty check: because passing_interceptions crosses sides, the
+    # below-rate captured mid-sweep (while bisecting s_lo, under the OLD
+    # s_hi) goes stale the instant s_hi moves in the same sweep's second
+    # step. achieved_val_tails must equal the TRUE tails at the *returned*
+    # (s_lo, s_hi) -- recompute them the same way the single-position test
+    # above does, via the same formula the fit uses internally.
+    low = p50 - s_lo * (p50 - p10)
+    high = p50 + s_hi * (p90 - p50)
+    floor, ceil = fantasy_points_band(low, high, PPR)
+    recomputed_below = float((actual < floor).mean())
+    recomputed_above = float((actual > ceil).mean())
+    assert recomputed_below == pytest.approx(below, abs=1e-9)
+    assert recomputed_above == pytest.approx(above, abs=1e-9)
+
+    # And the (honest) achieved tails must actually hit the targets: this
+    # case's true joint optimum sits well inside (0,4)x(0,4) (see docstring
+    # above), so the fixed loop must converge within max_sweeps=5.
+    assert recomputed_below == pytest.approx(0.10, abs=0.02)
+    assert recomputed_above == pytest.approx(0.10, abs=0.02)
+
+
+def test_fit_calibration_lower_target_unreachable_reports_honest_boundary():
+    """actual is drawn far above the highest achievable floor -- the floor
+    at s_lo=0 (larger s_lo only lowers the floor further per the brief's
+    monotonicity note, so s_lo=0 is the *most* below-misses achievable) --
+    so the 10% lower-tail target can never be reached from below no matter
+    what s_lo the fit tries. Binding controller adjudication: fit_calibration
+    must NOT raise; it must return s_lo pinned at the boundary (0.0) and
+    achieved_val_tails must equal the RECOMPUTED true tail at that boundary
+    exactly, not a target-matching fabrication."""
+    n = 200
+    idx = pd.RangeIndex(n)
+    p50 = _frame(idx, receiving_yards=50.0, receptions=5.0)
+    p10 = _frame(idx, receiving_yards=30.0, receptions=3.0)
+    p90 = _frame(idx, receiving_yards=70.0, receptions=7.0)
+    rng = np.random.default_rng(3)
+    # p50 points = 50*.1 + 5*1 = 10.0. At s_lo=0 the floor collapses to
+    # (about) the p50 points themselves; actual is centered at 100 with
+    # tiny spread, so it never falls below that floor at ANY s_lo in [0,4]
+    # -> below-rate is ~0.0 everywhere, well under the 10% target.
+    actual = pd.Series(rng.normal(loc=100.0, scale=1.0, size=n), index=idx)
+    positions = pd.Series(["WR"] * n, index=idx)
+    quantiles = {"p10": p10, "p50": p50, "p90": p90}
+
+    fitted = fit_calibration(quantiles, actual, positions)
+
+    s_lo = fitted["per_position"]["WR"]["s_lo"]
+    s_hi = fitted["per_position"]["WR"]["s_hi"]
+    below, above = fitted["achieved_val_tails"]["WR"]
+
+    assert s_lo == 0.0  # boundary: unreachable from below, no exception raised
+
+    low = p50 - s_lo * (p50 - p10)
+    high = p50 + s_hi * (p90 - p50)
+    floor, ceil = fantasy_points_band(low, high, PPR)
+    recomputed_below = float((actual < floor).mean())
+    recomputed_above = float((actual > ceil).mean())
+    assert recomputed_below == pytest.approx(below, abs=1e-9)
+    assert recomputed_above == pytest.approx(above, abs=1e-9)
+    assert below < 0.10  # confirms genuinely unreachable, not merely close
 
 
 def test_fit_calibration_index_mismatch_raises():

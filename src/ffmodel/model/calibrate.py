@@ -77,6 +77,9 @@ def fit_calibration(
     achieves mean(actual < floor) ~ lo_target and mean(actual > ceil) ~
     hi_target, independently per position. See module docstring for why the
     two factors must be fit jointly rather than per-side."""
+    if max_sweeps < 1:
+        raise ValueError("fit_calibration: max_sweeps must be >= 1")
+
     p10, p50, p90 = quantiles["p10"], quantiles["p50"], quantiles["p90"]
     ref_index = actual.index
     for name, obj in (("quantiles['p10']", p10), ("quantiles['p50']", p50),
@@ -105,7 +108,6 @@ def fit_calibration(
         hi_offset = pos_p90 - pos_p50
 
         s_lo, s_hi = 1.0, 1.0
-        below_rate = above_rate = None
         for _sweep in range(max_sweeps):
             def below_at(s, _s_hi=s_hi):
                 low = pos_p50 - s * lo_offset
@@ -113,7 +115,13 @@ def fit_calibration(
                 floor, _ceil = fantasy_points_band(low, high, rules)
                 return float((pos_actual < floor).mean())
 
-            s_lo, below_rate = _bisect_to_target(below_at, lo_target)
+            # Bisection result is deliberately discarded here: it is the
+            # below-rate under the OLD s_hi, and gets stale the instant step
+            # (b) below moves s_hi (negative-weight components make the
+            # floor depend on s_hi too -- see module docstring). We
+            # re-evaluate both tails jointly at the final (s_lo, s_hi) pair
+            # after step (b) instead.
+            s_lo, _ = _bisect_to_target(below_at, lo_target)
 
             def above_at(s, _s_lo=s_lo):
                 low = pos_p50 - _s_lo * lo_offset
@@ -121,7 +129,17 @@ def fit_calibration(
                 _floor, ceil = fantasy_points_band(low, high, rules)
                 return float((pos_actual > ceil).mean())
 
-            s_hi, above_rate = _bisect_to_target(above_at, hi_target)
+            s_hi, _ = _bisect_to_target(above_at, hi_target)
+
+            # Honest re-evaluation: recompute BOTH tail rates at the current
+            # (s_lo, s_hi) pair (one extra fantasy_points_band call). Both
+            # the convergence check and the returned achieved_val_tails use
+            # these recomputed rates, never the stale per-step ones above.
+            low = pos_p50 - s_lo * lo_offset
+            high = pos_p50 + s_hi * hi_offset
+            floor, ceil = fantasy_points_band(low, high, rules)
+            below_rate = float((pos_actual < floor).mean())
+            above_rate = float((pos_actual > ceil).mean())
 
             if (abs(below_rate - lo_target) <= tol
                     and abs(above_rate - hi_target) <= tol):

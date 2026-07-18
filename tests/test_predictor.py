@@ -312,7 +312,7 @@ def test_fit_rejects_band_construction_mismatch(trained, tmp_path):
     root, features = trained
     calibrated_root = tmp_path / "calibrated"
     shutil.copytree(root, calibrated_root)
-    path = _write_test_calibration(calibrated_root, band_construction="some_other_v0")
+    _write_test_calibration(calibrated_root, band_construction="some_other_v0")
 
     p = TransformerPredictor(calibrated_root, features)
     train = features[features["season"] <= 2022]
@@ -325,7 +325,7 @@ def test_fit_rejects_member_roots_mismatch(trained, tmp_path):
     calibrated_root = tmp_path / "calibrated"
     shutil.copytree(root, calibrated_root)
     other_root = tmp_path / "not_the_root"
-    path = _write_test_calibration(calibrated_root, member_roots=[other_root])
+    _write_test_calibration(calibrated_root, member_roots=[other_root])
 
     p = TransformerPredictor(calibrated_root, features)
     train = features[features["season"] <= 2022]
@@ -337,7 +337,7 @@ def test_fit_rejects_fit_season_mismatch(trained, tmp_path):
     root, features = trained
     calibrated_root = tmp_path / "calibrated"
     shutil.copytree(root, calibrated_root)
-    path = _write_test_calibration(calibrated_root, fit_season=2021)
+    _write_test_calibration(calibrated_root, fit_season=2021)
 
     p = TransformerPredictor(calibrated_root, features)
     train = features[features["season"] <= 2022]
