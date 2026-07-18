@@ -169,8 +169,16 @@ class TransformerPredictor:
                 f"under {BAND_CONSTRUCTION!r}, but calibration.json was fit "
                 f"under {data.get('band_construction')!r}"
             )
-        expected_roots = sorted(Path(r).as_posix() for r in self.artifact_roots)
-        got_roots = sorted(data.get("member_roots", []))
+        # Compare resolved (absolute) paths, not literal spellings: the
+        # identity we care about is "same artifact on disk", not "same
+        # string". write_calibration persists repo-relative roots on
+        # purpose (portable across machines/checkouts), while a predictor
+        # may legitimately be constructed with absolute paths to those same
+        # artifacts. A relative string in calibration.json only ever means
+        # repo-root-relative (every CLI here runs from the repo root), so
+        # resolving it against cwd is the correct interpretation.
+        expected_roots = sorted(Path(r).resolve().as_posix() for r in self.artifact_roots)
+        got_roots = sorted(Path(r).resolve().as_posix() for r in data.get("member_roots", []))
         if got_roots != expected_roots:
             raise ValueError(
                 f"{path}: member_roots mismatch -- predictor was constructed "

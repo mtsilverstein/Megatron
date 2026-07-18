@@ -1,5 +1,7 @@
 import json
+import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -331,6 +333,32 @@ def test_fit_rejects_member_roots_mismatch(trained, tmp_path):
     train = features[features["season"] <= 2022]
     with pytest.raises(ValueError, match="calibration.json"):
         p.fit(train)
+
+
+def test_fit_accepts_member_roots_with_different_but_equivalent_spelling(trained, tmp_path):
+    """member_roots identity check must compare resolved paths, not literal
+    spellings -- calibration.json legitimately stores repo-relative roots
+    (write_calibration's contract, kept portable across machines), but a
+    predictor may be constructed with absolute paths to those exact same
+    artifacts. That must load and apply calibration, not raise."""
+    root, features = trained
+    calibrated_root = tmp_path / "calibrated"
+    shutil.copytree(root, calibrated_root)
+    relative_root = Path(os.path.relpath(calibrated_root, Path.cwd()))
+    _write_test_calibration(calibrated_root, member_roots=[relative_root])
+    assert relative_root.as_posix() != calibrated_root.resolve().as_posix()  # spellings differ
+
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+
+    p = TransformerPredictor(calibrated_root.resolve(), features)
+    p.fit(train)  # must not raise ValueError: member_roots mismatch
+    qs = p.predict_quantiles(test)
+
+    raw = TransformerPredictor(calibrated_root.resolve(), features, calibration=False)
+    raw.fit(train)
+    qs_raw = raw.predict_quantiles(test)
+    assert not qs["p10"].equals(qs_raw["p10"])  # calibration actually applied
 
 
 def test_fit_rejects_fit_season_mismatch(trained, tmp_path):
