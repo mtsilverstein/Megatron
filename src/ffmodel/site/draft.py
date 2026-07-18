@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.data.future import combined_future_features
+from ffmodel.model.simulate import games_probs_from_counts, simulate_season
 from ffmodel.scoring import fantasy_points, fantasy_points_quantiles
 from ffmodel.site.weekly import RULESETS
 
@@ -14,23 +15,57 @@ from ffmodel.site.weekly import RULESETS
 # value over replacement (roughly the first waiver-tier player).
 REPLACEMENT_RANK = {"QB": 13, "RB": 25, "WR": 25, "TE": 13}
 
+_MAX_GAMES = 18   # matches ffmodel.eval.diagnose._MAX_GAMES: G axis is 0..18
+
 
 def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
-                      season: int, weeks=range(1, 19), prefit: bool = False) -> pd.DataFrame:
-    """All weeks seeded from the same pre-season history (spec §7)."""
+                      season: int, weeks=range(1, 19), prefit: bool = False, *,
+                      n_draws: int = 2000, seed: int = 0,
+                      games_dist: dict[str, np.ndarray] | None = None,
+                      diagnostics: dict | None = None) -> pd.DataFrame:
+    """All weeks seeded from the same pre-season history (spec §7).
+
+    For a quantile predictor, the season p10/p50/p90 come from a Monte-Carlo
+    simulation over the player's weekly CALIBRATED bands
+    (`ffmodel.model.simulate.simulate_season`), sampling games-played from a
+    leak-free empirical distribution rather than assuming every scheduled
+    week is played and every week lands at the same percentile (see
+    simulate.py's module docstring for why summing weekly quantiles was
+    wrong on both counts). The season p50 this produces IS the point
+    estimate (median-of-sums, not sum-of-medians) -- VORP downstream reads
+    it with no further change.
+
+    `games_dist`, if given, maps position -> shape-(19,) games-probability
+    vector and is used as-is (the board-backtest CLI threads a leak-free
+    `availability_table` computed once per board season through this, so
+    repeated season_projection calls don't recompute it). Otherwise this
+    derives one internally from `weekly` via `availability_table` through
+    the latest season present. Short worlds -- a single season, or a toy
+    fixture with no consecutive season pair -- have no valid pair for
+    `availability_table` to measure, and it raises ValueError; this falls
+    back to a POINT MASS at each player's own scheduled-week count (i.e.
+    deterministic full availability), so toy/short-history runs stay
+    well-defined instead of crashing.
+    """
     if not prefit:
         predictor.fit(_fit_frame(weekly, schedules))
+    has_quantiles = hasattr(predictor, "predict_quantiles")
     totals: dict[str, dict] = {}
+    # Per player+ruleset, the per-week (p10, p50, p90) point triples for the
+    # weeks the player appears in -- fed to simulate_season after the loop
+    # instead of being summed into totals directly.
+    bands_by_player: dict[str, dict[str, list]] = {}
     for week in weeks:
         combined, future = combined_future_features(weekly, schedules, season, week)
         if future.empty:
             continue
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)   # future rows live in this frame
-        if hasattr(predictor, "predict_quantiles"):
+        if has_quantiles:
             qs = predictor.predict_quantiles(future)
-            # Sign-coherent floor/ceiling per week (summed into season bands
-            # below); keeps a passer's ceiling from absorbing his worst-case INTs.
+            # Sign-coherent floor/ceiling per week (fed into the season
+            # simulation below); keeps a passer's ceiling from absorbing his
+            # worst-case INTs.
             week_pts = {rn: fantasy_points_quantiles(qs, rules)
                         for rn, rules in RULESETS.items()}
         else:
@@ -38,20 +73,71 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
             week_pts = {rn: {"p50": fantasy_points(pred, rules), "p10": None, "p90": None}
                         for rn, rules in RULESETS.items()}
         for idx, row in future.iterrows():
-            entry = totals.setdefault(row["player_id"], {
-                "player_id": row["player_id"], "name": row["player_display_name"],
+            pid = row["player_id"]
+            entry = totals.setdefault(pid, {
+                "player_id": pid, "name": row["player_display_name"],
                 "team": row["team"], "position": row["position"],
                 **{f"{rn}_{q}": 0.0 for rn in RULESETS for q in ("p10", "p50", "p90")},
                 "games": 0,
             })
             entry["games"] += 1
-            for rn in RULESETS:
-                entry[f"{rn}_p50"] += float(week_pts[rn]["p50"].loc[idx])
-                for q in ("p10", "p90"):
-                    if week_pts[rn][q] is None:
+            if has_quantiles:
+                player_bands = bands_by_player.setdefault(pid, {rn: [] for rn in RULESETS})
+                for rn in RULESETS:
+                    p10v = float(week_pts[rn]["p10"].loc[idx])
+                    p50v = float(week_pts[rn]["p50"].loc[idx])
+                    p90v = float(week_pts[rn]["p90"].loc[idx])
+                    player_bands[rn].append((p10v, p50v, p90v))
+            else:
+                # Point-only predictors (naive/XGBoost): unchanged path.
+                for rn in RULESETS:
+                    entry[f"{rn}_p50"] += float(week_pts[rn]["p50"].loc[idx])
+                    for q in ("p10", "p90"):
                         entry[f"{rn}_{q}"] = np.nan
-                    else:
-                        entry[f"{rn}_{q}"] += float(week_pts[rn][q].loc[idx])
+
+    if has_quantiles and totals:
+        # Deferred import: ffmodel.eval.diagnose imports REPLACEMENT_RANK
+        # from THIS module, so a top-level import here would be circular.
+        from ffmodel.eval.diagnose import availability_table
+
+        if games_dist is not None:
+            dist_by_position, fallback_full_availability = games_dist, False
+        else:
+            try:
+                through = int(weekly["season"].max())
+                counts = availability_table(weekly, through_season=through)
+                dist_by_position = games_probs_from_counts(counts)
+                fallback_full_availability = False
+            except ValueError:
+                dist_by_position = {}
+                fallback_full_availability = True
+
+        rng = np.random.default_rng(seed)   # ONE shared stream for the whole call:
+        # players consume from it in totals' iteration order, so the output
+        # is deterministic given `seed` but NOT invariant to player order.
+        clip_fracs: dict[str, list[float]] = {}
+        for pid, entry in totals.items():
+            position = entry["position"]
+            if fallback_full_availability:
+                probs = np.zeros(_MAX_GAMES + 1, dtype=float)
+                probs[min(entry["games"], _MAX_GAMES)] = 1.0
+            else:
+                probs = dist_by_position[position]
+            for rn in RULESETS:
+                week_bands = np.array(bands_by_player[pid][rn], dtype=float)
+                sim = simulate_season(week_bands, probs, n_draws, rng)
+                entry[f"{rn}_p10"] = sim["p10"]
+                entry[f"{rn}_p50"] = sim["p50"]
+                entry[f"{rn}_p90"] = sim["p90"]
+                clip_fracs.setdefault(position, []).append(sim["clip_frac"])
+        if diagnostics is not None:
+            # Simple mean over players (and rulesets) per position -- a
+            # weighted-by-retained-draws average is overkill for a coarse
+            # diagnostic.
+            diagnostics["clip_frac"] = {
+                pos: float(np.mean(fracs)) for pos, fracs in clip_fracs.items()
+            }
+
     columns = ["player_id", "name", "team", "position",
                *[f"{rn}_{q}" for rn in RULESETS for q in ("p10", "p50", "p90")],
                "games"]
@@ -82,7 +168,7 @@ def _assign_tiers(vorp_desc: pd.Series, replacement_rank: int) -> list[int]:
 
 
 def _finalize_board(players: pd.DataFrame, model: str, season: int,
-                    data_through: str, has_bands: bool) -> dict:
+                    data_through: str, has_bands: bool, n_draws: int = 2000) -> dict:
     frames = []
     for pos, group in players.groupby("position"):
         group = group.sort_values("ppr_p50", ascending=False).reset_index(drop=True)
@@ -103,8 +189,10 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
         "has_bands": has_bands,
         "methodology": {
             "seeding": "end-of-prior-season form",
-            "bands": "sum of weekly quantiles (approximation)",
+            "bands": "simulated season distribution (calibrated weekly bands, "
+                     "availability-adjusted)",
             "replacement_rank": REPLACEMENT_RANK,
+            "n_draws": n_draws,
         },
         "players": [{
             "player_id": row["player_id"], "name": row["name"], "team": row["team"],
@@ -124,8 +212,12 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
 
 def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       season: int, data_through: str, weeks=range(1, 19),
-                      prefit: bool = False) -> dict:
-    players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit)
+                      prefit: bool = False, *, n_draws: int = 2000, seed: int = 0,
+                      games_dist: dict[str, np.ndarray] | None = None,
+                      diagnostics: dict | None = None) -> dict:
+    players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit,
+                                n_draws=n_draws, seed=seed, games_dist=games_dist,
+                                diagnostics=diagnostics)
     if players.empty:
         raise RuntimeError(
             f"no future games found for season {season} weeks {list(weeks)} — "
@@ -145,4 +237,4 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
 
     players["bye"] = players["team"].map(_bye)
     has_bands = hasattr(predictor, "predict_quantiles")
-    return _finalize_board(players, predictor.name, season, data_through, has_bands)
+    return _finalize_board(players, predictor.name, season, data_through, has_bands, n_draws)

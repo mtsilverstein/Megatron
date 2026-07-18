@@ -165,20 +165,30 @@ def test_board_metrics_hand_computed():
     #             -> 3/13 (qb5's breakout costs the board a slot)
     #   coverage: 290 in [250,350] ok; 310 in [230,330] ok; 200 < 210 out;
     #             0 not in [190,290] out -> 2/4
+    #   miss decomposition (of the 2 out-of-band misses): qb3 has actual
+    #   games=17 (present in _toy_actuals -> games>0, a played-but-mis-
+    #   projected miss); qb4 has no row in _toy_actuals -> actual_games_by_id
+    #   defaults to 0 (bust/retirement, no survivorship) -> zero-games miss.
+    #   So band_miss_zero_games=1 (qb4), band_miss_played=1 (qb3).
     qb = table.loc["QB"]
     assert qb["season_mae_topN"] == pytest.approx(85.0)
     assert qb["spearman_topN"] == pytest.approx(0.8)
     assert qb["hit_rate_starters"] == pytest.approx(3 / 13)
     assert qb["season_band_coverage"] == pytest.approx(0.5)
+    assert qb["band_miss_zero_games"] == 1
+    assert qb["band_miss_played"] == 1
     assert qb["n"] == 4
 
     # RB -- errors 40,10,10,40 -> MAE 25; order preserved -> spearman 1;
-    # all 4 of top-25 finished top-25 -> 4/25; all actuals in-band -> 1.0
+    # all 4 of top-25 finished top-25 -> 4/25; all actuals in-band -> 1.0,
+    # so no misses of either kind.
     rb = table.loc["RB"]
     assert rb["season_mae_topN"] == pytest.approx(25.0)
     assert rb["spearman_topN"] == pytest.approx(1.0)
     assert rb["hit_rate_starters"] == pytest.approx(4 / 25)
     assert rb["season_band_coverage"] == pytest.approx(1.0)
+    assert rb["band_miss_zero_games"] == 0
+    assert rb["band_miss_played"] == 0
     assert rb["n"] == 4
 
     # OVERALL -- union of the two pools:
@@ -187,11 +197,16 @@ def test_board_metrics_hand_computed():
     #             -> sum d^2 = 26 -> rho = 1 - 6*26/(8*63) = 29/42
     #   hit rate: (3 + 4) / (13 + 25) = 7/38
     #   coverage: (2 + 4) / 8 = 0.75
+    #   miss decomposition: OVERALL is the disjoint union of the position
+    #   pools, so it sums the position rows: zero_games = 1+0 = 1,
+    #   played = 1+0 = 1.
     ov = table.loc["OVERALL"]
     assert ov["season_mae_topN"] == pytest.approx(55.0)
     assert ov["spearman_topN"] == pytest.approx(29 / 42)
     assert ov["hit_rate_starters"] == pytest.approx(7 / 38)
     assert ov["season_band_coverage"] == pytest.approx(0.75)
+    assert ov["band_miss_zero_games"] == 1
+    assert ov["band_miss_played"] == 1
     assert ov["n"] == 8
 
 
@@ -221,6 +236,10 @@ def test_no_band_board_gets_nan_coverage_not_crash():
     actuals = _actuals([("qb1", "QB", 290.0), ("qb2", "QB", 270.0)])
     table = board_metrics(board, actuals).set_index("position")
     assert np.isnan(table.loc["QB", "season_band_coverage"])
+    # No band-carrying players in the pool -> the miss decomposition is
+    # equally undefined, NaN not 0 (same condition as season_band_coverage).
+    assert np.isnan(table.loc["QB", "band_miss_zero_games"])
+    assert np.isnan(table.loc["QB", "band_miss_played"])
     assert table.loc["QB", "season_mae_topN"] == pytest.approx(10.0)
     assert table.loc["QB", "spearman_topN"] == pytest.approx(1.0)
 

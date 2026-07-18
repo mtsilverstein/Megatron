@@ -30,7 +30,8 @@ from ffmodel.site.draft import REPLACEMENT_RANK
 
 _VALID_POSITIONS = tuple(REPLACEMENT_RANK)          # QB, RB, WR, TE — v1 scope
 _METRIC_COLUMNS = ["position", "n", "season_mae_topN", "spearman_topN",
-                   "hit_rate_starters", "season_band_coverage"]
+                   "hit_rate_starters", "season_band_coverage",
+                   "band_miss_zero_games", "band_miss_played"]
 
 
 def board_world(weekly: pd.DataFrame, season: int) -> pd.DataFrame:
@@ -76,12 +77,20 @@ def _safe_spearman(proj: np.ndarray, actual: np.ndarray) -> float:
     return float(spearmanr(proj, actual).correlation)
 
 
-def _band_coverage(pool: list[dict], actual: np.ndarray) -> float:
-    """Fraction of the pool whose actual total fell inside the projected p10-p90
-    band. NaN for point-only entrants (naive/XGBoost) whose players carry no
-    bands — computed only over players with both p10 and p90."""
+def _band_coverage(pool: list[dict], actual: np.ndarray,
+                   actual_games: np.ndarray) -> tuple[float, float, float]:
+    """Fraction of the pool whose actual total fell inside the projected
+    p10-p90 band, plus a miss decomposition of the players OUTSIDE the band:
+    how many recorded zero actual games (bust/retirement/injury — the model
+    had nothing real to be wrong about) vs. more than zero (a played-but-
+    mis-projected season, a materially different failure mode). All three
+    are computed only over players carrying a band — point-only entrants
+    (naive/XGBoost) have p10/p90 = None and contribute to none of them; a
+    pool with no band-carrying players yields NaN across all three (not 0),
+    matching the existing season_band_coverage NaN convention."""
     covered = total = 0
-    for player, a in zip(pool, actual):
+    miss_zero_games = miss_played = 0
+    for player, a, g in zip(pool, actual, actual_games):
         band = player["season_points"]["ppr"]
         lo, hi = band["p10"], band["p90"]
         if lo is None or hi is None:
@@ -89,20 +98,32 @@ def _band_coverage(pool: list[dict], actual: np.ndarray) -> float:
         total += 1
         if lo <= a <= hi:
             covered += 1
-    return covered / total if total else float("nan")
+        elif g == 0:
+            miss_zero_games += 1
+        else:
+            miss_played += 1
+    if not total:
+        return float("nan"), float("nan"), float("nan")
+    return covered / total, miss_zero_games, miss_played
 
 
-def _base_row(position: str, pool: list[dict], actual_by_id: dict) -> dict:
+def _base_row(position: str, pool: list[dict], actual_by_id: dict,
+             actual_games_by_id: dict) -> dict:
     """Everything but hit-rate (which the caller fills, since OVERALL sums
     integer hit counts rather than averaging per-position rates)."""
     proj = np.array([p["season_points"]["ppr"]["p50"] for p in pool], dtype=float)
     actual = np.array([float(actual_by_id.get(p["player_id"], 0.0)) for p in pool],
                       dtype=float)
+    actual_games = np.array(
+        [float(actual_games_by_id.get(p["player_id"], 0.0)) for p in pool], dtype=float)
     mae = float(np.mean(np.abs(proj - actual))) if len(proj) else float("nan")
+    coverage, miss_zero_games, miss_played = _band_coverage(pool, actual, actual_games)
     return {"position": position, "n": len(pool),
             "season_mae_topN": mae, "spearman_topN": _safe_spearman(proj, actual),
             "hit_rate_starters": float("nan"),
-            "season_band_coverage": _band_coverage(pool, actual)}
+            "season_band_coverage": coverage,
+            "band_miss_zero_games": miss_zero_games,
+            "band_miss_played": miss_played}
 
 
 def _starter_hits(pool: list[dict], leaderboard: pd.DataFrame, rank: int) -> int:
@@ -133,6 +154,7 @@ def board_metrics(board_players: list[dict], actuals: pd.DataFrame,
                          f"(v1 supports {list(_VALID_POSITIONS)})")
 
     actual_by_id = dict(zip(actuals["player_id"], actuals["actual_points"]))
+    actual_games_by_id = dict(zip(actuals["player_id"], actuals["games"]))
     present = [pos for pos in _VALID_POSITIONS
                if any(p["position"] == pos for p in board_players)]
 
@@ -146,14 +168,14 @@ def board_metrics(board_players: list[dict], actuals: pd.DataFrame,
         )
         pool = ranked[:2 * rank]
         hits = _starter_hits(pool, actuals[actuals["position"] == pos], rank)
-        row = _base_row(pos, pool, actual_by_id)
+        row = _base_row(pos, pool, actual_by_id, actual_games_by_id)
         row["hit_rate_starters"] = hits / rank
         rows.append(row)
         union_pool.extend(pool)
         total_hits += hits
         total_slots += rank
 
-    overall = _base_row("OVERALL", union_pool, actual_by_id)
+    overall = _base_row("OVERALL", union_pool, actual_by_id, actual_games_by_id)
     overall["hit_rate_starters"] = total_hits / total_slots if total_slots else float("nan")
     rows.append(overall)
     return pd.DataFrame(rows, columns=_METRIC_COLUMNS)
