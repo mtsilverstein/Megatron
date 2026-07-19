@@ -22,6 +22,27 @@
 <main>
   <p class="eyebrow">2026 season · value over replacement</p>
   <h1>Draft board</h1>
+  <details class="draft-panel" id="draft-panel">
+    <summary>Draft mode <span class="draft-status" id="draft-status">— off</span></summary>
+    <div class="draft-body">
+      <p class="draft-note">Live Sleeper overlay: drafted players get struck on the
+      board as picks come in. Read-only, no login — works on mock drafts too.</p>
+      <div class="draft-row" id="draft-connect">
+        <input id="draft-username" type="text" placeholder="Sleeper username" autocomplete="off">
+        <button id="draft-find">Find my drafts</button>
+        <input id="draft-id-input" type="text" placeholder="…or paste a draft URL / id">
+        <button id="draft-connect-id">Connect</button>
+      </div>
+      <div class="draft-row" id="draft-list"></div>
+      <div class="draft-row" id="draft-live" hidden>
+        <span id="draft-picks-count"></span>
+        <label><input type="checkbox" id="draft-hide"> hide drafted</label>
+        <button id="draft-disconnect">Disconnect</button>
+      </div>
+      <p class="draft-roster" id="draft-roster" hidden></p>
+      <p class="draft-note" id="draft-unmatched" hidden></p>
+    </div>
+  </details>
   <div class="filters" id="pos-filters" role="group" aria-label="Filter by position"></div>
   <div class="filters" id="scoring-filters" role="group" aria-label="Scoring format"></div>
   <div class="table-wrap">
@@ -47,6 +68,7 @@ from that same median. Ordering is points above a replacement-level starter,
 so scarcity is priced in. Tier gaps mark real value cliffs — when your tier
 empties, don't chase.</footer>
 <script src="assets/app.js"></script>
+<script src="assets/draftmode.js"></script>
 <script>
 (async () => {
   const board = await FC.loadJSON("data/draft.json");
@@ -112,6 +134,32 @@ empties, don't chase.</footer>
   });
   FC.makeSortable(table, rows, render);
   render(rows);
+
+  if (window.DraftMode) {
+    if (board.crosswalk) {
+      DraftMode.init({
+        board,
+        els: {
+          status: document.getElementById("draft-status"),
+          connect: document.getElementById("draft-connect"),
+          username: document.getElementById("draft-username"),
+          find: document.getElementById("draft-find"),
+          idInput: document.getElementById("draft-id-input"),
+          connectId: document.getElementById("draft-connect-id"),
+          list: document.getElementById("draft-list"),
+          live: document.getElementById("draft-live"),
+          picksCount: document.getElementById("draft-picks-count"),
+          hide: document.getElementById("draft-hide"),
+          disconnect: document.getElementById("draft-disconnect"),
+          roster: document.getElementById("draft-roster"),
+          note: document.getElementById("draft-unmatched"),
+        },
+        onUpdate: s => { console.log("draft-mode state", s); },   // Task 6 replaces this
+      });
+    } else {
+      DraftMode.disable("this board build has no Sleeper mapping — regenerate with --draft");
+    }
+  }
 })().catch(e => { document.querySelector(".stamp").textContent = `failed to load: ${e.message}`; });
 </script>
 </body>
