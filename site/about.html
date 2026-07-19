@@ -34,8 +34,12 @@
     <p>The headline model is a small quantile transformer (PyTorch) that reads each
     player's recent game log and the matchup, and predicts a <strong>floor (p10),
     median (p50) and ceiling (p90)</strong> for every stat. The range bands you see
-    on the draft board and weekly pages are those quantiles — uncertainty is the
-    product, not an afterthought. The deployed projections average three
+    on the weekly page start from those raw quantiles, then get calibrated
+    per position — widened or narrowed so measured coverage tracks the 0.80
+    target — before they reach the site. Season bands on the draft board build
+    on that calibrated weekly band through a season-long simulation (more on
+    that below); uncertainty is the product, not an afterthought. The
+    deployed projections average three
     independently seeded training runs of that model (a small ensemble), and the
     bake-off table below scores exactly that ensemble. Classical baselines (a
     naive last-four-games average and XGBoost) run through the exact same
@@ -50,10 +54,15 @@
     season projections seed every week from end-of-prior-season form, so a short
     late-season role spike (an injury fill-in) can be over-extrapolated across a
     full year while a star's slow finish under-ranks them — expect the board to
-    have loud recency opinions; season range bands are sums of weekly quantiles,
-    which overstates their width; snap-count data has no 2012 source and is
-    treated as missing for that season. These are design choices, documented,
-    not surprises.</p>
+    have loud recency opinions; weekly bands are calibrated per position so
+    roughly 80% of actual player-weeks land inside them, measured on
+    2023–2025 held-out seasons; season bands come from a Monte-Carlo
+    simulation — games played sampled from historical position availability,
+    weeks linked by a measured week-to-week correlation — and measured
+    season coverage runs about 0.73–0.77 by position, narrower than the 0.80
+    target for QB and RB, and we're saying so plainly rather than rounding
+    up; snap-count data has no 2012 source and is treated as missing for that
+    season. These are design choices, documented, not surprises.</p>
   </div>
   <h2>Backtest results</h2>
   <p class="prose lim">Walk-forward mean absolute error in PPR points per
