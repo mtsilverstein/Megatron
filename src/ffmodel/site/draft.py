@@ -244,7 +244,8 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       season: int, data_through: str, weeks=range(1, 19),
                       prefit: bool = False, *, n_draws: int = 2000, seed: int = 0,
                       games_dist: dict[str, np.ndarray] | None = None,
-                      diagnostics: dict | None = None) -> dict:
+                      diagnostics: dict | None = None,
+                      sleeper_players: dict | None = None) -> dict:
     players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit,
                                 n_draws=n_draws, seed=seed, games_dist=games_dist,
                                 diagnostics=diagnostics)
@@ -267,4 +268,18 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
 
     players["bye"] = players["team"].map(_bye)
     has_bands = hasattr(predictor, "predict_quantiles")
-    return _finalize_board(players, predictor.name, season, data_through, has_bands, n_draws)
+    payload = _finalize_board(players, predictor.name, season, data_through, has_bands, n_draws)
+    if sleeper_players is not None:
+        # Deferred import keeps draft.py import-light for consumers that
+        # never touch draft mode (board backtests, tests).
+        from ffmodel.site.sleeper import build_crosswalk
+
+        mapping, stats = build_crosswalk(payload["players"], sleeper_players)
+        if stats["unmatched"] == len(payload["players"]):
+            raise RuntimeError(
+                "sleeper crosswalk matched zero board players — dump format "
+                "drift? refusing to publish a board with dead draft mode")
+        for p in payload["players"]:
+            p["sleeper_id"] = mapping.get(p["player_id"])
+        payload["crosswalk"] = stats
+    return payload

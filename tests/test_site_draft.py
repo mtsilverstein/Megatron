@@ -339,3 +339,60 @@ def test_bye_values_are_json_safe():
     assert byes["p1"] is None                     # plays both weeks
     payload = json.dumps(board, allow_nan=False)  # must not raise
     assert '"bye": 8' in payload
+
+
+def _sleeper_for(board_payload: dict, skip: int = 0) -> dict:
+    """A fake Sleeper dump whose gsis ids mirror the board, minus `skip`."""
+    dump = {}
+    for i, p in enumerate(board_payload["players"]):
+        if i < skip:
+            continue
+        dump[str(1000 + i)] = {"gsis_id": p["player_id"],
+                               "full_name": p["name"], "position": p["position"]}
+    return dump
+
+
+def test_board_without_sleeper_players_is_unchanged():
+    weekly = _history()
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9))
+    assert "crosswalk" not in board
+    assert all("sleeper_id" not in p for p in board["players"])
+
+
+def test_board_bakes_sleeper_ids_and_crosswalk_stats():
+    weekly = _history()
+    base = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                             2023, "2023-10-15", weeks=range(7, 9))
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9),
+                              sleeper_players=_sleeper_for(base))
+    assert all(isinstance(p["sleeper_id"], str) for p in board["players"])
+    cw = board["crosswalk"]
+    assert cw["matched_gsis"] == len(board["players"])
+    assert cw["unmatched"] == 0 and cw["unmatched_names"] == []
+    json.dumps(board, allow_nan=False)
+
+
+def test_board_unmatched_players_get_null_sleeper_id():
+    weekly = _history()
+    base = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                             2023, "2023-10-15", weeks=range(7, 9))
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9),
+                              sleeper_players=_sleeper_for(base, skip=1))
+    ids = [p["sleeper_id"] for p in board["players"]]
+    assert ids.count(None) == 1
+    assert board["crosswalk"]["unmatched"] == 1
+    assert len(board["crosswalk"]["unmatched_names"]) == 1
+    json.dumps(board, allow_nan=False)
+
+
+def test_board_zero_match_crosswalk_fails_loud():
+    weekly = _history()
+    with pytest.raises(RuntimeError, match="crosswalk matched zero"):
+        build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                          2023, "2023-10-15", weeks=range(7, 9),
+                          sleeper_players={"1": {"gsis_id": "00-9999999",
+                                                 "full_name": "Nobody",
+                                                 "position": "QB"}})
