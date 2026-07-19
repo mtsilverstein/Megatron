@@ -1,6 +1,8 @@
+import json
+
 import pytest
 
-from ffmodel.site.sleeper import _normalize_name, build_crosswalk
+from ffmodel.site.sleeper import _normalize_name, build_crosswalk, pull_sleeper_players
 
 
 # --- name normalization -------------------------------------------------------
@@ -116,3 +118,65 @@ def test_sleeper_entries_without_name_or_position_are_skipped():
     sleeper = {"KC": {"position": "DEF"}, "X": {}, "1": None}
     mapping, stats = build_crosswalk(_board(("00-0000001", "Some Guy", "QB")), sleeper)
     assert mapping == {} and stats["unmatched"] == 1
+
+
+# --- pull_sleeper_players -------------------------------------------------------
+
+
+def _fake_dump(n: int = 1200, with_gsis: int = 200) -> dict:
+    dump = {}
+    for i in range(n):
+        gsis = f"00-{i:07d}" if i < with_gsis else None
+        dump[str(i)] = {"gsis_id": gsis, "full_name": f"Player {i}", "position": "WR"}
+    return dump
+
+
+def test_pull_uses_cache_when_present(tmp_path):
+    (tmp_path / "sleeper_players.json").write_text(json.dumps(_fake_dump()))
+    # No network stub installed: a fetch attempt would blow up loudly.
+    data = pull_sleeper_players(cache_dir=tmp_path)
+    assert len(data) == 1200
+
+
+def test_pull_fetches_validates_and_writes_cache(tmp_path, monkeypatch):
+    import ffmodel.site.sleeper as sleeper_mod
+
+    monkeypatch.setattr(sleeper_mod, "_fetch_players", lambda: _fake_dump())
+    data = pull_sleeper_players(cache_dir=tmp_path)
+    assert len(data) == 1200
+    cached = json.loads((tmp_path / "sleeper_players.json").read_text())
+    assert cached == data
+
+
+def test_pull_rejects_tiny_dump(tmp_path, monkeypatch):
+    import ffmodel.site.sleeper as sleeper_mod
+
+    monkeypatch.setattr(sleeper_mod, "_fetch_players", lambda: _fake_dump(n=50))
+    with pytest.raises(RuntimeError, match="suspicious"):
+        pull_sleeper_players(cache_dir=tmp_path)
+    assert not (tmp_path / "sleeper_players.json").exists()   # nothing cached
+
+
+def test_pull_rejects_dump_without_gsis_ids(tmp_path, monkeypatch):
+    import ffmodel.site.sleeper as sleeper_mod
+
+    monkeypatch.setattr(sleeper_mod, "_fetch_players",
+                        lambda: _fake_dump(with_gsis=0))
+    with pytest.raises(RuntimeError, match="gsis"):
+        pull_sleeper_players(cache_dir=tmp_path)
+
+
+def test_pull_revalidates_cached_copy(tmp_path):
+    (tmp_path / "sleeper_players.json").write_text(json.dumps({"1": {}}))
+    with pytest.raises(RuntimeError, match="suspicious"):
+        pull_sleeper_players(cache_dir=tmp_path)
+
+
+def test_pull_propagates_fetch_failure(tmp_path, monkeypatch):
+    import ffmodel.site.sleeper as sleeper_mod
+
+    def boom():
+        raise OSError("connection refused")
+    monkeypatch.setattr(sleeper_mod, "_fetch_players", boom)
+    with pytest.raises(OSError):
+        pull_sleeper_players(cache_dir=tmp_path)
