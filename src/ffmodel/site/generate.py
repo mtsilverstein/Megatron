@@ -171,6 +171,17 @@ def main() -> None:
         # tolerates that specific case and re-raises anything else.
         weekly = _extend_with_target_season(weekly, schedules, args.season, args.data_dir)
     validate_inputs(weekly, schedules, args.season)
+
+    sleeper_players = None
+    if args.draft:
+        # Fetched BEFORE any model work or file writes: a Sleeper outage
+        # aborts the whole run fail-safe (site keeps last-good data,
+        # including the last-good crosswalk). Weekly-only runs never
+        # reach this import.
+        from ffmodel.site.sleeper import pull_sleeper_players
+
+        sleeper_players = pull_sleeper_players(cache_dir=args.data_dir)
+
     latest_season = int(weekly["season"].max())
     latest_week = int(weekly[weekly["season"] == latest_season]["week"].max())
     data_through = f"{latest_season}-wk{latest_week}"
@@ -194,7 +205,8 @@ def main() -> None:
             future, predictor, args.season, week, data_through)
     if args.draft:
         payloads["draft.json"] = build_draft_board(
-            weekly, schedules, predictor, args.season, data_through, prefit=True)
+            weekly, schedules, predictor, args.season, data_through, prefit=True,
+            sleeper_players=sleeper_players)
     backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
     payloads["about.json"] = build_about(backtests, data_through, site_model=predictor.name)
 
