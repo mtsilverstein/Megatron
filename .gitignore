@@ -18,3 +18,4 @@ models/transformer/smoke/
 /models/sweeps/**
 !/models/sweeps/**/
 !/models/sweeps/**/results.json
+models_artifacts.zip

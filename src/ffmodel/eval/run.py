@@ -118,7 +118,7 @@ def main() -> None:
         "band_construction": BAND_CONSTRUCTION,
         # provenance: which artifact roots the "transformer" rows scored —
         # a single root vs a seed ensemble is invisible from the metrics alone
-        "transformer_roots": ([str(r) for r in args.transformer_root]
+        "transformer_roots": ([Path(r).as_posix() for r in args.transformer_root]
                               if args.transformer_root is not None else None),
         "results": records,
     }

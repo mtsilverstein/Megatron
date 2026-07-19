@@ -1,0 +1,160 @@
+{
+ "created": "2026-07-19T15:42:56+00:00",
+ "band_construction": "sign_coherent_v1",
+ "scope": "Phase B pre-registered gate evidence (plan 2026-07-13, Phase B revised 2026-07-16); measurements over pooled held-out test seasons 2023-25 unless noted",
+ "weekly_gate": {
+  "targets": {
+   "coverage": [
+    0.77,
+    0.83
+   ],
+   "each_tail": [
+    0.08,
+    0.12
+   ]
+  },
+  "ppr_per_position": {
+   "QB": {
+    "coverage": 0.7795,
+    "below": 0.1145,
+    "above": 0.106
+   },
+   "RB": {
+    "coverage": 0.8092,
+    "below": 0.0891,
+    "above": 0.1016
+   },
+   "WR": {
+    "coverage": 0.8002,
+    "below": 0.0999,
+    "above": 0.0998
+   },
+   "TE": {
+    "coverage": 0.8071,
+    "below": 0.095,
+    "above": 0.0979
+   }
+  },
+  "verdict": "PASSED all positions (coverage and both tails)"
+ },
+ "ruleset_diagnostics": {
+  "rule": "fit is PPR-exact; flag any ruleset position off by >0.05",
+  "half_ppr": {
+   "QB": {
+    "coverage": 0.777,
+    "below": 0.1145,
+    "above": 0.1085
+   },
+   "RB": {
+    "coverage": 0.8072,
+    "below": 0.0889,
+    "above": 0.1039
+   },
+   "WR": {
+    "coverage": 0.8128,
+    "below": 0.0867,
+    "above": 0.1005
+   },
+   "TE": {
+    "coverage": 0.8299,
+    "below": 0.0741,
+    "above": 0.096
+   }
+  },
+  "standard": {
+   "QB": {
+    "coverage": 0.7745,
+    "below": 0.115,
+    "above": 0.1105
+   },
+   "RB": {
+    "coverage": 0.7984,
+    "below": 0.091,
+    "above": 0.1106
+   },
+   "WR": {
+    "coverage": 0.8238,
+    "below": 0.073,
+    "above": 0.1032
+   },
+   "TE": {
+    "coverage": 0.8438,
+    "below": 0.0586,
+    "above": 0.0976
+   }
+  },
+  "verdict": "all within 0.05 (closest: TE standard 0.8438)"
+ },
+ "clip_gate": {
+  "rule": "sampled weekly mass at the -5 clip < 1% per position; board 2025",
+  "clip_frac": {
+   "QB": 0.00858,
+   "RB": 0.0,
+   "WR": 0.0,
+   "TE": 0.0
+  },
+  "verdict": "PASSED"
+ },
+ "season_coverage_gate": {
+  "rule": "<0.75 activate copula; [0.75,0.85] ship; >0.85 stop",
+  "iid_stage": {
+   "QB": 0.6282,
+   "RB": 0.56,
+   "WR": 0.6267,
+   "TE": 0.6795
+  },
+  "final_copula": {
+   "QB": 0.7436,
+   "RB": 0.7267,
+   "WR": 0.7667,
+   "TE": 0.7692
+  },
+  "adjudication": "copula activated per rule at iid stage; final QB/RB 0.006/0.023 under the 0.75 floor, within ~1 binomial SE (pool n 78/150); user accepted ship-as-is 2026-07-18 (tuning rho against the board backtest = test-set fitting, declined)"
+ },
+ "rank_metric_gate": {
+  "rule": "season MAE/Spearman/hit-rate degrade >2% rel vs A3 baseline -> stop and report",
+  "final_deltas_pct": {
+   "2023": {
+    "mae": 2.3,
+    "spearman": 3.1,
+    "hit_rate": 2.5
+   },
+   "2024": {
+    "mae": 0.4,
+    "spearman": -1.4,
+    "hit_rate": -5.1
+   },
+   "2025": {
+    "mae": 0.6,
+    "spearman": -1.3,
+    "hit_rate": -2.4
+   }
+  },
+  "adjudication": "letter tripped on integer hit-count moves of 1-2 slots/76 (SE ~5.7%) and 2023 MAE +2.3%; MAE improved at the iid stage (-2.6/-2.2/+0.4) confirming the Session-2 diagnosis, the copula median shift traded it for season coverage; reported and user-accepted 2026-07-18"
+ },
+ "simulated_mean_vs_median": {
+  "note": "board 2025, all 616 players x 3 rulesets; season point estimate is the simulated MEDIAN (MAE-optimal); mean recorded per plan for the record",
+  "per_position_avg": {
+   "QB": {
+    "median": 127.53,
+    "mean": 128.27,
+    "gap": 0.733
+   },
+   "RB": {
+    "median": 55.81,
+    "mean": 62.2,
+    "gap": 6.391
+   },
+   "WR": {
+    "median": 60.16,
+    "mean": 63.37,
+    "gap": 3.211
+   },
+   "TE": {
+    "median": 42.06,
+    "mean": 44.9,
+    "gap": 2.837
+   }
+  }
+ }
+}

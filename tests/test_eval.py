@@ -203,8 +203,10 @@ def test_report_records_transformer_roots_provenance(monkeypatch, tmp_path):
         "--transformer-root", "models/transformer/v1_s43",
         "--transformer-root", "models/transformer/v1_s44",
     ])
+    # as_posix: identical provenance strings from Windows-local and Linux
+    # Actions runs (board.py's _board_report made the same choice, same reason).
     assert report["transformer_roots"] == [
-        str(Path("models/transformer/v1_s43")), str(Path("models/transformer/v1_s44")),
+        "models/transformer/v1_s43", "models/transformer/v1_s44",
     ]
 
 
