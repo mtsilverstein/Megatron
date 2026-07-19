@@ -9,6 +9,7 @@ window.DraftMode = (() => {
   let cfg = null;       // {board, els, onUpdate}
   let session = null;   // {username, userId, draftId, totalPicks}
   let timer = null, backoff = POLL_MS;
+  let pollSeq = 0;       // generation token: bumped to silently retire stale poll chains
   const state = { connected: false, drafted: new Set(), mine: new Set(),
                   hideDrafted: false };
 
@@ -80,11 +81,12 @@ window.DraftMode = (() => {
       cfg.els.list.innerHTML = "";
       cfg.els.live.hidden = false;
       unmatchedNote();
-      poll();
+      startPolling();
     } catch (e) { setStatus(`connect failed: ${e.message}`); }
   }
 
   function disconnect() {
+    pollSeq++;             // retire any in-flight/pending chain before it can touch state
     clearTimeout(timer);
     localStorage.removeItem(STORE_KEY);
     session = null;
@@ -98,23 +100,33 @@ window.DraftMode = (() => {
     emit();
   }
 
-  async function poll() {
+  // The only entry point for beginning a poll chain. Bumping pollSeq here
+  // supersedes any older chain — its next bail check will see a stale seq
+  // and quietly stop, so at most one chain is ever alive.
+  function startPolling() {
+    const seq = ++pollSeq;
     clearTimeout(timer);
-    if (!session) return;
-    if (document.hidden) { timer = setTimeout(poll, POLL_MS); return; }
+    pollOnce(seq);
+  }
+
+  async function pollOnce(seq) {
+    if (seq !== pollSeq || !session) return;
+    if (document.hidden) { timer = setTimeout(() => pollOnce(seq), POLL_MS); return; }
     try {
       const picks = await api(`/draft/${session.draftId}/picks`) || [];
+      if (seq !== pollSeq || !session) return;
       backoff = POLL_MS;
       applyPicks(picks);
       if (session.totalPicks && picks.length >= session.totalPicks) {
         setStatus(`draft complete — ${picks.length} picks`);
         return;                                   // stop polling
       }
-      timer = setTimeout(poll, POLL_MS);
+      timer = setTimeout(() => pollOnce(seq), POLL_MS);
     } catch (e) {
+      if (seq !== pollSeq || !session) return;
       setStatus(`reconnecting… (${e.message})`);
       backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
-      timer = setTimeout(poll, backoff);
+      timer = setTimeout(() => pollOnce(seq), backoff);
     }
   }
 
@@ -160,7 +172,7 @@ window.DraftMode = (() => {
       emit();
     });
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden && session) poll();    // poll() clears any pending timer
+      if (!document.hidden && session) startPolling();  // supersedes any pending chain
     });
     const stored = localStorage.getItem(STORE_KEY);
     if (stored) {
