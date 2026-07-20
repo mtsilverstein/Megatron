@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-19T15:26:35+00:00",
+  "generated_at": "2026-07-20T01:29:25+00:00",
   "data_through": "2025-wk18",
   "season": 2026,
   "model": "transformer",
@@ -42,7 +42,8 @@
       "bye": 11,
       "vorp": 101.1,
       "position_rank": 1,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "9509"
     },
     {
       "player_id": "00-0033280",
@@ -70,7 +71,8 @@
       "bye": 8,
       "vorp": 99.94,
       "position_rank": 2,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "4034"
     },
     {
       "player_id": "00-0039139",
@@ -98,7 +100,8 @@
       "bye": 6,
       "vorp": 94.72,
       "position_rank": 3,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "9221"
     },
     {
       "player_id": "00-0039075",
@@ -126,7 +129,8 @@
       "bye": 11,
       "vorp": 91.07,
       "position_rank": 1,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "9493"
     },
     {
       "player_id": "00-0039040",
@@ -154,7 +158,8 @@
       "bye": 6,
       "vorp": 80.07,
       "position_rank": 4,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "9226"
     },
     {
       "player_id": "00-0037744",
@@ -182,7 +187,8 @@
       "bye": 14,
       "vorp": 76.6,
       "position_rank": 1,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "8130"
     },
     {
       "player_id": "00-0038543",
@@ -210,7 +216,8 @@
       "bye": 11,
       "vorp": 73.81,
       "position_rank": 2,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "9488"
     },
     {
       "player_id": "00-0036900",
@@ -238,7 +245,8 @@
       "bye": 6,
       "vorp": 65.73,
       "position_rank": 3,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7564"
     },
     {
       "player_id": "00-0036223",
@@ -266,7 +274,8 @@
       "bye": 13,
       "vorp": 58.7,
       "position_rank": 5,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "6813"
     },
     {
       "player_id": "00-0040122",
@@ -294,7 +303,8 @@
       "bye": 13,
       "vorp": 56.72,
       "position_rank": 6,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12527"
     },
     {
       "player_id": "00-0036963",
@@ -322,7 +332,8 @@
       "bye": 6,
       "vorp": 53.48,
       "position_rank": 4,
-      "tier": 4
+      "tier": 4,
+      "sleeper_id": "7547"
     },
     {
       "player_id": "00-0039067",
@@ -350,7 +361,8 @@
       "bye": 5,
       "vorp": 53.11,
       "position_rank": 5,
-      "tier": 4
+      "tier": 4,
+      "sleeper_id": "10229"
     },
     {
       "player_id": "00-0037238",
@@ -378,7 +390,8 @@
       "bye": 11,
       "vorp": 51.02,
       "position_rank": 6,
-      "tier": 4
+      "tier": 4,
+      "sleeper_id": "8112"
     },
     {
       "player_id": "00-0033288",
@@ -406,7 +419,8 @@
       "bye": 8,
       "vorp": 49.9,
       "position_rank": 2,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "4217"
     },
     {
       "player_id": "00-0039338",
@@ -434,7 +448,8 @@
       "bye": 13,
       "vorp": 49.89,
       "position_rank": 3,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "11604"
     },
     {
       "player_id": "00-0037239",
@@ -462,7 +477,8 @@
       "bye": 8,
       "vorp": 47.99,
       "position_rank": 7,
-      "tier": 4
+      "tier": 4,
+      "sleeper_id": "8144"
     },
     {
       "player_id": "00-0038597",
@@ -490,7 +506,8 @@
       "bye": 6,
       "vorp": 45.34,
       "position_rank": 7,
-      "tier": 4
+      "tier": 4,
+      "sleeper_id": "9224"
     },
     {
       "player_id": "00-0038117",
@@ -518,7 +535,8 @@
       "bye": 8,
       "vorp": 41.16,
       "position_rank": 8,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "8126"
     },
     {
       "player_id": "00-0037247",
@@ -546,7 +564,8 @@
       "bye": 14,
       "vorp": 40.7,
       "position_rank": 9,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "8137"
     },
     {
       "player_id": "00-0039337",
@@ -574,7 +593,8 @@
       "bye": 8,
       "vorp": 39.8,
       "position_rank": 10,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "11632"
     },
     {
       "player_id": "00-0040666",
@@ -602,7 +622,8 @@
       "bye": 7,
       "vorp": 37.09,
       "position_rank": 8,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "12507"
     },
     {
       "player_id": "00-0036358",
@@ -630,7 +651,8 @@
       "bye": 14,
       "vorp": 36.16,
       "position_rank": 11,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "6786"
     },
     {
       "player_id": "00-0034844",
@@ -658,7 +680,8 @@
       "bye": 10,
       "vorp": 35.61,
       "position_rank": 9,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "4866"
     },
     {
       "player_id": "00-0037840",
@@ -686,7 +709,8 @@
       "bye": 11,
       "vorp": 32.16,
       "position_rank": 10,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "8150"
     },
     {
       "player_id": "00-0039361",
@@ -714,7 +738,8 @@
       "bye": 10,
       "vorp": 32.04,
       "position_rank": 11,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "11584"
     },
     {
       "player_id": "00-0036139",
@@ -742,7 +767,8 @@
       "bye": 5,
       "vorp": 31.95,
       "position_rank": 12,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "7021"
     },
     {
       "player_id": "00-0036970",
@@ -770,7 +796,8 @@
       "bye": 11,
       "vorp": 31.29,
       "position_rank": 4,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7553"
     },
     {
       "player_id": "00-0039065",
@@ -798,7 +825,8 @@
       "bye": 6,
       "vorp": 26.35,
       "position_rank": 5,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10859"
     },
     {
       "player_id": "00-0032764",
@@ -826,7 +854,8 @@
       "bye": 13,
       "vorp": 26.25,
       "position_rank": 13,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "3198"
     },
     {
       "player_id": "00-0038120",
@@ -854,7 +883,8 @@
       "bye": 13,
       "vorp": 24.74,
       "position_rank": 14,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "8155"
     },
     {
       "player_id": "00-0036554",
@@ -882,7 +912,8 @@
       "bye": 8,
       "vorp": 24.27,
       "position_rank": 12,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7569"
     },
     {
       "player_id": "00-0038559",
@@ -910,7 +941,8 @@
       "bye": 14,
       "vorp": 23.86,
       "position_rank": 13,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "10232"
     },
     {
       "player_id": "00-0036275",
@@ -938,7 +970,8 @@
       "bye": 10,
       "vorp": 22.44,
       "position_rank": 15,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "6790"
     },
     {
       "player_id": "00-0038996",
@@ -966,7 +999,8 @@
       "bye": 11,
       "vorp": 21.37,
       "position_rank": 6,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "9484"
     },
     {
       "player_id": "00-0039064",
@@ -994,7 +1028,8 @@
       "bye": 13,
       "vorp": 21.09,
       "position_rank": 14,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9997"
     },
     {
       "player_id": "00-0035261",
@@ -1022,7 +1057,8 @@
       "bye": 9,
       "vorp": 20.36,
       "position_rank": 16,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "5967"
     },
     {
       "player_id": "00-0035676",
@@ -1050,7 +1086,8 @@
       "bye": 10,
       "vorp": 20.0,
       "position_rank": 15,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "5859"
     },
     {
       "player_id": "00-0039851",
@@ -1078,7 +1115,8 @@
       "bye": 11,
       "vorp": 19.55,
       "position_rank": 1,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "11564"
     },
     {
       "player_id": "00-0033873",
@@ -1106,7 +1144,8 @@
       "bye": 5,
       "vorp": 19.54,
       "position_rank": 2,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "4046"
     },
     {
       "player_id": "00-0034857",
@@ -1134,7 +1173,8 @@
       "bye": 7,
       "vorp": 19.08,
       "position_rank": 3,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "4984"
     },
     {
       "player_id": "00-0036971",
@@ -1162,7 +1202,8 @@
       "bye": 7,
       "vorp": 15.72,
       "position_rank": 4,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "7523"
     },
     {
       "player_id": "00-0034351",
@@ -1190,7 +1231,8 @@
       "bye": 10,
       "vorp": 15.34,
       "position_rank": 7,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5022"
     },
     {
       "player_id": "00-0036158",
@@ -1218,7 +1260,8 @@
       "bye": 10,
       "vorp": 14.98,
       "position_rank": 17,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "6806"
     },
     {
       "player_id": "00-0037228",
@@ -1246,7 +1289,8 @@
       "bye": 9,
       "vorp": 13.76,
       "position_rank": 18,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "8228"
     },
     {
       "player_id": "00-0034796",
@@ -1274,7 +1318,8 @@
       "bye": 13,
       "vorp": 13.72,
       "position_rank": 5,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "4881"
     },
     {
       "player_id": "00-0036973",
@@ -1302,7 +1347,8 @@
       "bye": 7,
       "vorp": 13.53,
       "position_rank": 19,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "7543"
     },
     {
       "player_id": "00-0039384",
@@ -1330,7 +1376,8 @@
       "bye": 8,
       "vorp": 13.0,
       "position_rank": 20,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "11655"
     },
     {
       "player_id": "00-0037240",
@@ -1358,7 +1405,8 @@
       "bye": 6,
       "vorp": 12.9,
       "position_rank": 16,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "8148"
     },
     {
       "player_id": "00-0031381",
@@ -1386,7 +1434,8 @@
       "bye": 11,
       "vorp": 12.87,
       "position_rank": 17,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "2133"
     },
     {
       "player_id": "00-0035228",
@@ -1414,7 +1463,8 @@
       "bye": 14,
       "vorp": 12.63,
       "position_rank": 6,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "5849"
     },
     {
       "player_id": "00-0037740",
@@ -1442,7 +1492,8 @@
       "bye": 13,
       "vorp": 12.47,
       "position_rank": 18,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "8146"
     },
     {
       "player_id": "00-0036355",
@@ -1470,7 +1521,8 @@
       "bye": 7,
       "vorp": 12.18,
       "position_rank": 7,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "6797"
     },
     {
       "player_id": "00-0030506",
@@ -1498,7 +1550,8 @@
       "bye": 5,
       "vorp": 11.76,
       "position_rank": 8,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "1466"
     },
     {
       "player_id": "00-0040124",
@@ -1526,7 +1579,8 @@
       "bye": 5,
       "vorp": 11.28,
       "position_rank": 19,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "12526"
     },
     {
       "player_id": "00-0040128",
@@ -1554,7 +1608,8 @@
       "bye": 13,
       "vorp": 10.58,
       "position_rank": 9,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12518"
     },
     {
       "player_id": "00-0026498",
@@ -1582,7 +1637,8 @@
       "bye": 11,
       "vorp": 9.45,
       "position_rank": 8,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "421"
     },
     {
       "player_id": "00-0040126",
@@ -1610,7 +1666,8 @@
       "bye": 10,
       "vorp": 9.07,
       "position_rank": 10,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12517"
     },
     {
       "player_id": "00-0036322",
@@ -1638,7 +1695,8 @@
       "bye": 6,
       "vorp": 7.92,
       "position_rank": 20,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "6794"
     },
     {
       "player_id": "00-0040663",
@@ -1666,7 +1724,8 @@
       "bye": 11,
       "vorp": 7.12,
       "position_rank": 11,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12506"
     },
     {
       "player_id": "00-0039918",
@@ -1694,7 +1753,8 @@
       "bye": 10,
       "vorp": 7.0,
       "position_rank": 9,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "11560"
     },
     {
       "player_id": "00-0039921",
@@ -1722,7 +1782,8 @@
       "bye": 14,
       "vorp": 6.68,
       "position_rank": 21,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11589"
     },
     {
       "player_id": "00-0033293",
@@ -1750,7 +1811,8 @@
       "bye": 6,
       "vorp": 5.99,
       "position_rank": 22,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4199"
     },
     {
       "player_id": "00-0033077",
@@ -1778,7 +1840,8 @@
       "bye": 14,
       "vorp": 5.49,
       "position_rank": 10,
-      "tier": 1
+      "tier": 1,
+      "sleeper_id": "3294"
     },
     {
       "player_id": "00-0036875",
@@ -1806,7 +1869,8 @@
       "bye": 11,
       "vorp": 3.55,
       "position_rank": 23,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7611"
     },
     {
       "player_id": "00-0031408",
@@ -1834,7 +1898,8 @@
       "bye": 10,
       "vorp": 3.43,
       "position_rank": 21,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "2216"
     },
     {
       "player_id": "00-0035640",
@@ -1862,7 +1927,8 @@
       "bye": 9,
       "vorp": 3.12,
       "position_rank": 22,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "5846"
     },
     {
       "player_id": "00-0036919",
@@ -1890,7 +1956,8 @@
       "bye": 9,
       "vorp": 2.77,
       "position_rank": 24,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0038544",
@@ -1918,7 +1985,8 @@
       "bye": 7,
       "vorp": 2.67,
       "position_rank": 23,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "9754"
     },
     {
       "player_id": "00-0035719",
@@ -1946,7 +2014,8 @@
       "bye": 7,
       "vorp": 2.24,
       "position_rank": 24,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "5872"
     },
     {
       "player_id": "00-0036389",
@@ -1974,7 +2043,8 @@
       "bye": 10,
       "vorp": 1.0,
       "position_rank": 11,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "6904"
     },
     {
       "player_id": "00-0039732",
@@ -2002,7 +2072,8 @@
       "bye": 10,
       "vorp": 0.68,
       "position_rank": 12,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "11563"
     },
     {
       "player_id": "00-0033106",
@@ -2030,7 +2101,8 @@
       "bye": 6,
       "vorp": 0.0,
       "position_rank": 13,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "3163"
     },
     {
       "player_id": "00-0036410",
@@ -2058,7 +2130,8 @@
       "bye": 6,
       "vorp": 0.0,
       "position_rank": 25,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "6801"
     },
     {
       "player_id": "00-0040715",
@@ -2086,7 +2159,8 @@
       "bye": 8,
       "vorp": 0.0,
       "position_rank": 25,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12481"
     },
     {
       "player_id": "00-0038041",
@@ -2114,7 +2188,8 @@
       "bye": 14,
       "vorp": 0.0,
       "position_rank": 12,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8110"
     },
     {
       "player_id": "00-0039847",
@@ -2142,7 +2217,8 @@
       "bye": 8,
       "vorp": 0.0,
       "position_rank": 13,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11597"
     },
     {
       "player_id": "00-0039910",
@@ -2170,7 +2246,8 @@
       "bye": 7,
       "vorp": -0.65,
       "position_rank": 14,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "11566"
     },
     {
       "player_id": "00-0038134",
@@ -2198,7 +2275,8 @@
       "bye": 11,
       "vorp": -1.41,
       "position_rank": 26,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8151"
     },
     {
       "player_id": "00-0040718",
@@ -2226,7 +2304,8 @@
       "bye": 7,
       "vorp": -1.92,
       "position_rank": 26,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "12530"
     },
     {
       "player_id": "00-0033553",
@@ -2254,7 +2333,8 @@
       "bye": 14,
       "vorp": -3.8,
       "position_rank": 27,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4137"
     },
     {
       "player_id": "00-0034383",
@@ -2282,7 +2362,8 @@
       "bye": 8,
       "vorp": -3.81,
       "position_rank": 14,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5001"
     },
     {
       "player_id": "00-0036040",
@@ -2310,7 +2391,8 @@
       "bye": 8,
       "vorp": -4.02,
       "position_rank": 15,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7002"
     },
     {
       "player_id": "00-0030061",
@@ -2338,7 +2420,8 @@
       "bye": 7,
       "vorp": -4.56,
       "position_rank": 16,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "1339"
     },
     {
       "player_id": "00-0040189",
@@ -2366,7 +2449,8 @@
       "bye": 7,
       "vorp": -4.77,
       "position_rank": 17,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12493"
     },
     {
       "player_id": "00-0036945",
@@ -2394,7 +2478,8 @@
       "bye": 13,
       "vorp": -4.85,
       "position_rank": 15,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "7591"
     },
     {
       "player_id": "00-0039165",
@@ -2422,7 +2507,8 @@
       "bye": 11,
       "vorp": -5.0,
       "position_rank": 28,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9753"
     },
     {
       "player_id": "00-0033921",
@@ -2450,7 +2536,8 @@
       "bye": 10,
       "vorp": -5.18,
       "position_rank": 27,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "4037"
     },
     {
       "player_id": "00-0035659",
@@ -2478,7 +2565,8 @@
       "bye": 7,
       "vorp": -5.76,
       "position_rank": 28,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "5927"
     },
     {
       "player_id": "00-0033090",
@@ -2506,7 +2594,8 @@
       "bye": 11,
       "vorp": -5.77,
       "position_rank": 18,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "3214"
     },
     {
       "player_id": "00-0023459",
@@ -2534,7 +2623,8 @@
       "bye": 9,
       "vorp": -5.99,
       "position_rank": 16,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "96"
     },
     {
       "player_id": "00-0036997",
@@ -2562,7 +2652,8 @@
       "bye": 14,
       "vorp": -6.36,
       "position_rank": 29,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7588"
     },
     {
       "player_id": "00-0033040",
@@ -2590,7 +2681,8 @@
       "bye": 6,
       "vorp": -7.13,
       "position_rank": 29,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "3321"
     },
     {
       "player_id": "00-0037248",
@@ -2618,7 +2710,8 @@
       "bye": 7,
       "vorp": -7.25,
       "position_rank": 30,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8138"
     },
     {
       "player_id": "00-0039875",
@@ -2646,7 +2739,8 @@
       "bye": 7,
       "vorp": -7.56,
       "position_rank": 31,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11575"
     },
     {
       "player_id": "00-0022942",
@@ -2674,7 +2768,8 @@
       "bye": 13,
       "vorp": -7.82,
       "position_rank": 17,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "331"
     },
     {
       "player_id": "00-0039373",
@@ -2702,7 +2797,8 @@
       "bye": 8,
       "vorp": -7.83,
       "position_rank": 32,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11579"
     },
     {
       "player_id": "00-0038606",
@@ -2730,7 +2826,8 @@
       "bye": 7,
       "vorp": -8.25,
       "position_rank": 30,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "9487"
     },
     {
       "player_id": "00-0039919",
@@ -2758,7 +2855,8 @@
       "bye": 10,
       "vorp": -9.31,
       "position_rank": 31,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "11620"
     },
     {
       "player_id": "00-0040129",
@@ -2786,7 +2884,8 @@
       "bye": 10,
       "vorp": -9.46,
       "position_rank": 32,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "12514"
     },
     {
       "player_id": "00-0040784",
@@ -2814,7 +2913,8 @@
       "bye": 11,
       "vorp": -9.7,
       "position_rank": 33,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12512"
     },
     {
       "player_id": "00-0040734",
@@ -2842,7 +2942,8 @@
       "bye": 11,
       "vorp": -9.94,
       "position_rank": 34,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12529"
     },
     {
       "player_id": "00-0038935",
@@ -2870,7 +2971,8 @@
       "bye": 7,
       "vorp": -10.59,
       "position_rank": 19,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "9480"
     },
     {
       "player_id": "00-0037834",
@@ -2898,7 +3000,8 @@
       "bye": 8,
       "vorp": -11.25,
       "position_rank": 18,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "8183"
     },
     {
       "player_id": "00-0040730",
@@ -2926,7 +3029,8 @@
       "bye": 10,
       "vorp": -11.66,
       "position_rank": 35,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12489"
     },
     {
       "player_id": "00-0038129",
@@ -2954,7 +3058,8 @@
       "bye": 10,
       "vorp": -12.04,
       "position_rank": 20,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8111"
     },
     {
       "player_id": "00-0040736",
@@ -2982,7 +3087,8 @@
       "bye": 13,
       "vorp": -12.54,
       "position_rank": 21,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12498"
     },
     {
       "player_id": "00-0034869",
@@ -3010,7 +3116,8 @@
       "bye": 11,
       "vorp": -12.6,
       "position_rank": 19,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "4943"
     },
     {
       "player_id": "00-0038933",
@@ -3038,7 +3145,8 @@
       "bye": 7,
       "vorp": -13.46,
       "position_rank": 22,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10236"
     },
     {
       "player_id": "00-0034753",
@@ -3066,7 +3174,8 @@
       "bye": 13,
       "vorp": -13.47,
       "position_rank": 23,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5012"
     },
     {
       "player_id": "00-0035700",
@@ -3094,7 +3203,8 @@
       "bye": 11,
       "vorp": -13.74,
       "position_rank": 36,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "5850"
     },
     {
       "player_id": "00-0036442",
@@ -3122,7 +3232,8 @@
       "bye": 6,
       "vorp": -14.29,
       "position_rank": 20,
-      "tier": 2
+      "tier": 2,
+      "sleeper_id": "6770"
     },
     {
       "player_id": "00-0036912",
@@ -3150,7 +3261,8 @@
       "bye": 10,
       "vorp": -16.05,
       "position_rank": 33,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7525"
     },
     {
       "player_id": "00-0038563",
@@ -3178,7 +3290,8 @@
       "bye": 13,
       "vorp": -17.86,
       "position_rank": 34,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10213"
     },
     {
       "player_id": "00-0036555",
@@ -3206,7 +3319,8 @@
       "bye": 5,
       "vorp": -18.55,
       "position_rank": 37,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7594"
     },
     {
       "player_id": "00-0039915",
@@ -3234,7 +3348,8 @@
       "bye": 7,
       "vorp": -18.77,
       "position_rank": 35,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11635"
     },
     {
       "player_id": "00-0039916",
@@ -3262,7 +3377,8 @@
       "bye": 8,
       "vorp": -18.82,
       "position_rank": 36,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11638"
     },
     {
       "player_id": "00-0034348",
@@ -3290,7 +3406,8 @@
       "bye": 10,
       "vorp": -19.01,
       "position_rank": 37,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5045"
     },
     {
       "player_id": "00-0039793",
@@ -3318,7 +3435,8 @@
       "bye": 11,
       "vorp": -19.61,
       "position_rank": 24,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11603"
     },
     {
       "player_id": "00-0034960",
@@ -3346,7 +3464,8 @@
       "bye": 7,
       "vorp": -19.62,
       "position_rank": 38,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5947"
     },
     {
       "player_id": "00-0034855",
@@ -3374,7 +3493,8 @@
       "bye": 10,
       "vorp": -19.67,
       "position_rank": 21,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4892"
     },
     {
       "player_id": "00-0037809",
@@ -3402,7 +3522,8 @@
       "bye": 9,
       "vorp": -20.35,
       "position_rank": 25,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8210"
     },
     {
       "player_id": "00-0033699",
@@ -3430,7 +3551,8 @@
       "bye": 7,
       "vorp": -20.44,
       "position_rank": 38,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4663"
     },
     {
       "player_id": "00-0033906",
@@ -3458,7 +3580,8 @@
       "bye": 8,
       "vorp": -20.87,
       "position_rank": 39,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4035"
     },
     {
       "player_id": "00-0037112",
@@ -3486,7 +3609,8 @@
       "bye": 8,
       "vorp": -21.42,
       "position_rank": 26,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8698"
     },
     {
       "player_id": "00-0032950",
@@ -3514,7 +3638,8 @@
       "bye": 6,
       "vorp": -21.65,
       "position_rank": 22,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "3161"
     },
     {
       "player_id": "00-0031610",
@@ -3542,7 +3667,8 @@
       "bye": 6,
       "vorp": -22.01,
       "position_rank": 27,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "2505"
     },
     {
       "player_id": "00-0036212",
@@ -3570,7 +3696,8 @@
       "bye": 6,
       "vorp": -22.2,
       "position_rank": 23,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "6768"
     },
     {
       "player_id": "00-0039893",
@@ -3598,7 +3725,8 @@
       "bye": 7,
       "vorp": -22.94,
       "position_rank": 39,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11631"
     },
     {
       "player_id": "00-0036259",
@@ -3626,7 +3754,8 @@
       "bye": 8,
       "vorp": -24.0,
       "position_rank": 40,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7049"
     },
     {
       "player_id": "00-0035229",
@@ -3654,7 +3783,8 @@
       "bye": 6,
       "vorp": -24.02,
       "position_rank": 28,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5844"
     },
     {
       "player_id": "00-0037664",
@@ -3682,7 +3812,8 @@
       "bye": 13,
       "vorp": -24.2,
       "position_rank": 41,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8142"
     },
     {
       "player_id": "00-0033885",
@@ -3710,7 +3841,8 @@
       "bye": 11,
       "vorp": -24.81,
       "position_rank": 29,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4033"
     },
     {
       "player_id": "00-0040236",
@@ -3738,7 +3870,8 @@
       "bye": 10,
       "vorp": -24.85,
       "position_rank": 40,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12534"
     },
     {
       "player_id": "00-0040691",
@@ -3766,7 +3899,8 @@
       "bye": 8,
       "vorp": -25.2,
       "position_rank": 24,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12508"
     },
     {
       "player_id": "00-0033110",
@@ -3794,7 +3928,8 @@
       "bye": 11,
       "vorp": -25.59,
       "position_rank": 30,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "3271"
     },
     {
       "player_id": "00-0036894",
@@ -3822,7 +3957,8 @@
       "bye": 9,
       "vorp": -26.86,
       "position_rank": 31,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7600"
     },
     {
       "player_id": "00-0037261",
@@ -3850,7 +3986,8 @@
       "bye": 7,
       "vorp": -27.09,
       "position_rank": 42,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8134"
     },
     {
       "player_id": "00-0036613",
@@ -3878,7 +4015,8 @@
       "bye": 6,
       "vorp": -27.16,
       "position_rank": 43,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7526"
     },
     {
       "player_id": "00-0031588",
@@ -3906,7 +4044,8 @@
       "bye": 11,
       "vorp": -27.34,
       "position_rank": 44,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "2449"
     },
     {
       "player_id": "00-0035710",
@@ -3934,7 +4073,8 @@
       "bye": 13,
       "vorp": -27.44,
       "position_rank": 25,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5870"
     },
     {
       "player_id": "00-0040583",
@@ -3962,7 +4102,8 @@
       "bye": 8,
       "vorp": -28.02,
       "position_rank": 41,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12474"
     },
     {
       "player_id": "00-0039066",
@@ -3990,7 +4131,8 @@
       "bye": 13,
       "vorp": -29.1,
       "position_rank": 32,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "9482"
     },
     {
       "player_id": "00-0036244",
@@ -4018,7 +4160,8 @@
       "bye": 11,
       "vorp": -29.17,
       "position_rank": 33,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "6865"
     },
     {
       "player_id": "00-0033357",
@@ -4046,7 +4189,8 @@
       "bye": 8,
       "vorp": -30.04,
       "position_rank": 34,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4381"
     },
     {
       "player_id": "00-0038124",
@@ -4074,7 +4218,8 @@
       "bye": 11,
       "vorp": -30.11,
       "position_rank": 45,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8167"
     },
     {
       "player_id": "00-0039032",
@@ -4102,7 +4247,8 @@
       "bye": 9,
       "vorp": -30.47,
       "position_rank": 42,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9508"
     },
     {
       "player_id": "00-0036924",
@@ -4130,7 +4276,8 @@
       "bye": 14,
       "vorp": -31.5,
       "position_rank": 43,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7607"
     },
     {
       "player_id": "00-0030279",
@@ -4158,7 +4305,8 @@
       "bye": 7,
       "vorp": -31.79,
       "position_rank": 46,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "1479"
     },
     {
       "player_id": "00-0037252",
@@ -4186,7 +4334,8 @@
       "bye": 6,
       "vorp": -33.36,
       "position_rank": 35,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8172"
     },
     {
       "player_id": "00-0038555",
@@ -4214,7 +4363,8 @@
       "bye": 10,
       "vorp": -33.85,
       "position_rank": 44,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9225"
     },
     {
       "player_id": "00-0039163",
@@ -4242,7 +4392,8 @@
       "bye": 8,
       "vorp": -34.18,
       "position_rank": 26,
-      "tier": 4
+      "tier": 4,
+      "sleeper_id": "9758"
     },
     {
       "player_id": "00-0033881",
@@ -4270,7 +4421,8 @@
       "bye": 10,
       "vorp": -34.75,
       "position_rank": 36,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4066"
     },
     {
       "player_id": "00-0040735",
@@ -4298,7 +4450,8 @@
       "bye": 10,
       "vorp": -35.09,
       "position_rank": 47,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12519"
     },
     {
       "player_id": "00-0037197",
@@ -4326,7 +4479,8 @@
       "bye": 5,
       "vorp": -35.17,
       "position_rank": 45,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8205"
     },
     {
       "player_id": "00-0037525",
@@ -4354,7 +4508,8 @@
       "bye": 6,
       "vorp": -36.33,
       "position_rank": 46,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8408"
     },
     {
       "player_id": "00-0039901",
@@ -4382,7 +4537,8 @@
       "bye": 7,
       "vorp": -36.55,
       "position_rank": 48,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11637"
     },
     {
       "player_id": "00-0035685",
@@ -4410,7 +4566,8 @@
       "bye": 6,
       "vorp": -36.59,
       "position_rank": 47,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "5892"
     },
     {
       "player_id": "00-0037816",
@@ -4438,7 +4595,8 @@
       "bye": 11,
       "vorp": -36.73,
       "position_rank": 49,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8121"
     },
     {
       "player_id": "00-0039491",
@@ -4466,7 +4624,8 @@
       "bye": 5,
       "vorp": -37.24,
       "position_rank": 50,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11646"
     },
     {
       "player_id": "00-0039849",
@@ -4494,7 +4653,8 @@
       "bye": 14,
       "vorp": -38.12,
       "position_rank": 51,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11628"
     },
     {
       "player_id": "00-0030565",
@@ -4522,7 +4682,8 @@
       "bye": 13,
       "vorp": -38.76,
       "position_rank": 27,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "1373"
     },
     {
       "player_id": "00-0037838",
@@ -4550,7 +4711,8 @@
       "bye": 13,
       "vorp": -40.16,
       "position_rank": 37,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8131"
     },
     {
       "player_id": "00-0036423",
@@ -4578,7 +4740,8 @@
       "bye": 13,
       "vorp": -40.3,
       "position_rank": 38,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "6843"
     },
     {
       "player_id": "00-0040162",
@@ -4606,7 +4769,8 @@
       "bye": 11,
       "vorp": -40.65,
       "position_rank": 48,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12469"
     },
     {
       "player_id": "00-0039917",
@@ -4634,7 +4798,8 @@
       "bye": 11,
       "vorp": -40.72,
       "position_rank": 28,
-      "tier": 5
+      "tier": 5,
+      "sleeper_id": "11559"
     },
     {
       "player_id": "00-0037563",
@@ -4662,7 +4827,8 @@
       "bye": 14,
       "vorp": -40.87,
       "position_rank": 49,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8800"
     },
     {
       "player_id": "00-0036252",
@@ -4690,7 +4856,8 @@
       "bye": 13,
       "vorp": -40.95,
       "position_rank": 52,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6819"
     },
     {
       "player_id": "00-0039146",
@@ -4718,7 +4885,8 @@
       "bye": 11,
       "vorp": -43.5,
       "position_rank": 53,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10222"
     },
     {
       "player_id": "00-0040242",
@@ -4746,7 +4914,8 @@
       "bye": 7,
       "vorp": -43.55,
       "position_rank": 50,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12533"
     },
     {
       "player_id": "00-0040584",
@@ -4774,7 +4943,8 @@
       "bye": 9,
       "vorp": -43.69,
       "position_rank": 39,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12502"
     },
     {
       "player_id": "00-0034829",
@@ -4802,7 +4972,8 @@
       "bye": 6,
       "vorp": -43.77,
       "position_rank": 40,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4993"
     },
     {
       "player_id": "00-0034827",
@@ -4830,7 +5001,8 @@
       "bye": 10,
       "vorp": -44.34,
       "position_rank": 54,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4983"
     },
     {
       "player_id": "00-0037005",
@@ -4858,7 +5030,8 @@
       "bye": 5,
       "vorp": -45.15,
       "position_rank": 41,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7694"
     },
     {
       "player_id": "00-0038994",
@@ -4886,7 +5059,8 @@
       "bye": 6,
       "vorp": -46.54,
       "position_rank": 55,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "9756"
     },
     {
       "player_id": "00-0036290",
@@ -4914,7 +5088,8 @@
       "bye": 10,
       "vorp": -46.62,
       "position_rank": 42,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "6826"
     },
     {
       "player_id": "00-0038611",
@@ -4942,7 +5117,8 @@
       "bye": 7,
       "vorp": -46.74,
       "position_rank": 51,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "10219"
     },
     {
       "player_id": "00-0038128",
@@ -4970,7 +5146,8 @@
       "bye": 11,
       "vorp": -47.29,
       "position_rank": 29,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8161"
     },
     {
       "player_id": "00-0039894",
@@ -4998,7 +5175,8 @@
       "bye": 5,
       "vorp": -47.37,
       "position_rank": 56,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11624"
     },
     {
       "player_id": "00-0040170",
@@ -5026,7 +5204,8 @@
       "bye": 9,
       "vorp": -47.5,
       "position_rank": 57,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12499"
     },
     {
       "player_id": "00-0036754",
@@ -5054,7 +5233,8 @@
       "bye": 6,
       "vorp": -47.9,
       "position_rank": 43,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7891"
     },
     {
       "player_id": "00-0040586",
@@ -5082,7 +5262,8 @@
       "bye": 14,
       "vorp": -48.11,
       "position_rank": 52,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12457"
     },
     {
       "player_id": "00-0033119",
@@ -5110,7 +5291,8 @@
       "bye": 14,
       "vorp": -48.53,
       "position_rank": 30,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "3257"
     },
     {
       "player_id": "00-0039150",
@@ -5138,7 +5320,8 @@
       "bye": 5,
       "vorp": -48.58,
       "position_rank": 31,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9228"
     },
     {
       "player_id": "00-0036755",
@@ -5166,7 +5349,8 @@
       "bye": 7,
       "vorp": -48.75,
       "position_rank": 53,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7537"
     },
     {
       "player_id": "00-0033943",
@@ -5194,7 +5378,8 @@
       "bye": 13,
       "vorp": -48.91,
       "position_rank": 58,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4171"
     },
     {
       "player_id": "00-0040743",
@@ -5222,7 +5407,8 @@
       "bye": 8,
       "vorp": -49.09,
       "position_rank": 32,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12545"
     },
     {
       "player_id": "00-0039410",
@@ -5250,7 +5436,8 @@
       "bye": 14,
       "vorp": -49.22,
       "position_rank": 59,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11783"
     },
     {
       "player_id": "00-0038115",
@@ -5278,7 +5465,8 @@
       "bye": 8,
       "vorp": -49.26,
       "position_rank": 44,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8225"
     },
     {
       "player_id": "00-0039356",
@@ -5306,7 +5494,8 @@
       "bye": 5,
       "vorp": -49.29,
       "position_rank": 45,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11600"
     },
     {
       "player_id": "00-0039738",
@@ -5334,7 +5523,8 @@
       "bye": 11,
       "vorp": -49.33,
       "position_rank": 54,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11586"
     },
     {
       "player_id": "00-0037755",
@@ -5362,7 +5552,8 @@
       "bye": 13,
       "vorp": -49.56,
       "position_rank": 46,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8219"
     },
     {
       "player_id": "00-0040705",
@@ -5390,7 +5581,8 @@
       "bye": 9,
       "vorp": -49.57,
       "position_rank": 60,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12540"
     },
     {
       "player_id": "00-0040130",
@@ -5418,7 +5610,8 @@
       "bye": 8,
       "vorp": -49.71,
       "position_rank": 61,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12484"
     },
     {
       "player_id": "00-0039868",
@@ -5446,7 +5639,8 @@
       "bye": 10,
       "vorp": -50.02,
       "position_rank": 62,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11627"
     },
     {
       "player_id": "00-0039855",
@@ -5474,7 +5668,8 @@
       "bye": 10,
       "vorp": -50.94,
       "position_rank": 63,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11618"
     },
     {
       "player_id": "00-0040737",
@@ -5502,7 +5697,8 @@
       "bye": 11,
       "vorp": -51.04,
       "position_rank": 47,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12487"
     },
     {
       "player_id": "00-0035662",
@@ -5530,7 +5726,8 @@
       "bye": 5,
       "vorp": -51.37,
       "position_rank": 64,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5848"
     },
     {
       "player_id": "00-0035689",
@@ -5558,7 +5755,8 @@
       "bye": 7,
       "vorp": -51.41,
       "position_rank": 48,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5906"
     },
     {
       "player_id": "00-0038997",
@@ -5586,7 +5784,8 @@
       "bye": 13,
       "vorp": -51.62,
       "position_rank": 65,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "9500"
     },
     {
       "player_id": "00-0036407",
@@ -5614,7 +5813,8 @@
       "bye": 11,
       "vorp": -52.43,
       "position_rank": 66,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6783"
     },
     {
       "player_id": "00-0038608",
@@ -5642,7 +5842,8 @@
       "bye": 11,
       "vorp": -52.69,
       "position_rank": 67,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "9504"
     },
     {
       "player_id": "00-0038797",
@@ -5670,7 +5871,8 @@
       "bye": 11,
       "vorp": -53.55,
       "position_rank": 55,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11435"
     },
     {
       "player_id": "00-0040078",
@@ -5698,7 +5900,8 @@
       "bye": 5,
       "vorp": -53.63,
       "position_rank": 56,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12455"
     },
     {
       "player_id": "00-0039144",
@@ -5726,7 +5929,8 @@
       "bye": 11,
       "vorp": -53.69,
       "position_rank": 49,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "9481"
     },
     {
       "player_id": "00-0039041",
@@ -5754,7 +5958,8 @@
       "bye": 14,
       "vorp": -54.16,
       "position_rank": 50,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10231"
     },
     {
       "player_id": "00-0035644",
@@ -5782,7 +5987,8 @@
       "bye": 6,
       "vorp": -54.36,
       "position_rank": 51,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5857"
     },
     {
       "player_id": "00-0037256",
@@ -5810,7 +6016,8 @@
       "bye": 10,
       "vorp": -55.92,
       "position_rank": 57,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8136"
     },
     {
       "player_id": "00-0027973",
@@ -5838,7 +6045,8 @@
       "bye": 5,
       "vorp": -56.2,
       "position_rank": 33,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "829"
     },
     {
       "player_id": "00-0033555",
@@ -5866,7 +6074,8 @@
       "bye": 11,
       "vorp": -56.75,
       "position_rank": 68,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4177"
     },
     {
       "player_id": "00-0035537",
@@ -5894,7 +6103,8 @@
       "bye": 7,
       "vorp": -57.12,
       "position_rank": 58,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6039"
     },
     {
       "player_id": "00-0040667",
@@ -5922,7 +6132,8 @@
       "bye": 11,
       "vorp": -57.2,
       "position_rank": 69,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12501"
     },
     {
       "player_id": "00-0038558",
@@ -5950,7 +6161,8 @@
       "bye": 9,
       "vorp": -57.62,
       "position_rank": 52,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "9479"
     },
     {
       "player_id": "00-0033923",
@@ -5978,7 +6190,8 @@
       "bye": 5,
       "vorp": -57.62,
       "position_rank": 59,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4098"
     },
     {
       "player_id": "00-0039391",
@@ -6006,7 +6219,8 @@
       "bye": 7,
       "vorp": -57.8,
       "position_rank": 60,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11647"
     },
     {
       "player_id": "00-0037004",
@@ -6034,7 +6248,8 @@
       "bye": 7,
       "vorp": -58.25,
       "position_rank": 53,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7535"
     },
     {
       "player_id": "00-0036637",
@@ -6062,7 +6277,8 @@
       "bye": 5,
       "vorp": -58.33,
       "position_rank": 54,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7828"
     },
     {
       "player_id": "00-0040648",
@@ -6090,7 +6306,8 @@
       "bye": 11,
       "vorp": -58.45,
       "position_rank": 70,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12497"
     },
     {
       "player_id": "00-0039424",
@@ -6118,7 +6335,8 @@
       "bye": 8,
       "vorp": -59.22,
       "position_rank": 71,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11834"
     },
     {
       "player_id": "00-0039359",
@@ -6146,7 +6364,8 @@
       "bye": 8,
       "vorp": -59.25,
       "position_rank": 55,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11599"
     },
     {
       "player_id": "00-0036264",
@@ -6174,7 +6393,8 @@
       "bye": 11,
       "vorp": -59.33,
       "position_rank": 34,
-      "tier": 7
+      "tier": 7,
+      "sleeper_id": "6804"
     },
     {
       "player_id": "00-0040628",
@@ -6202,7 +6422,8 @@
       "bye": 11,
       "vorp": -59.61,
       "position_rank": 56,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "13210"
     },
     {
       "player_id": "00-0039874",
@@ -6230,7 +6451,8 @@
       "bye": 6,
       "vorp": -59.96,
       "position_rank": 61,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11643"
     },
     {
       "player_id": "00-0034159",
@@ -6258,7 +6480,8 @@
       "bye": 7,
       "vorp": -60.09,
       "position_rank": 57,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5010"
     },
     {
       "player_id": "00-0033858",
@@ -6286,7 +6509,8 @@
       "bye": 9,
       "vorp": -60.23,
       "position_rank": 58,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4144"
     },
     {
       "player_id": "00-0034837",
@@ -6314,7 +6538,8 @@
       "bye": 9,
       "vorp": -60.47,
       "position_rank": 72,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4981"
     },
     {
       "player_id": "00-0034613",
@@ -6342,7 +6567,8 @@
       "bye": 6,
       "vorp": -60.81,
       "position_rank": 59,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5409"
     },
     {
       "player_id": "00-0037805",
@@ -6370,7 +6596,8 @@
       "bye": 13,
       "vorp": -60.82,
       "position_rank": 60,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8145"
     },
     {
       "player_id": "00-0036893",
@@ -6398,7 +6625,8 @@
       "bye": 7,
       "vorp": -61.36,
       "position_rank": 62,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7528"
     },
     {
       "player_id": "00-0034270",
@@ -6426,7 +6654,8 @@
       "bye": 7,
       "vorp": -61.51,
       "position_rank": 61,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5094"
     },
     {
       "player_id": "00-0039880",
@@ -6454,7 +6683,8 @@
       "bye": 6,
       "vorp": -61.8,
       "position_rank": 73,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11610"
     },
     {
       "player_id": "00-0035535",
@@ -6482,7 +6712,8 @@
       "bye": 8,
       "vorp": -61.93,
       "position_rank": 74,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6149"
     },
     {
       "player_id": "00-0036534",
@@ -6510,7 +6741,8 @@
       "bye": 6,
       "vorp": -62.37,
       "position_rank": 62,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8041"
     },
     {
       "player_id": "00-0036196",
@@ -6538,7 +6770,8 @@
       "bye": 7,
       "vorp": -62.46,
       "position_rank": 75,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6943"
     },
     {
       "player_id": "00-0040363",
@@ -6566,7 +6799,8 @@
       "bye": 7,
       "vorp": -62.66,
       "position_rank": 63,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12765"
     },
     {
       "player_id": "00-0040134",
@@ -6594,7 +6828,8 @@
       "bye": 10,
       "vorp": -62.67,
       "position_rank": 76,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12492"
     },
     {
       "player_id": "00-0038618",
@@ -6622,7 +6857,8 @@
       "bye": 8,
       "vorp": -63.07,
       "position_rank": 77,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10218"
     },
     {
       "player_id": "00-0033455",
@@ -6650,7 +6886,8 @@
       "bye": 6,
       "vorp": -63.81,
       "position_rank": 64,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4435"
     },
     {
       "player_id": "00-0035208",
@@ -6678,7 +6915,8 @@
       "bye": 10,
       "vorp": -63.98,
       "position_rank": 78,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6271"
     },
     {
       "player_id": "00-0039074",
@@ -6706,7 +6944,8 @@
       "bye": 11,
       "vorp": -63.99,
       "position_rank": 65,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10214"
     },
     {
       "player_id": "00-0038979",
@@ -6734,7 +6973,8 @@
       "bye": 11,
       "vorp": -64.5,
       "position_rank": 79,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10444"
     },
     {
       "player_id": "00-0033526",
@@ -6762,7 +7002,8 @@
       "bye": 6,
       "vorp": -64.75,
       "position_rank": 63,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4147"
     },
     {
       "player_id": "00-0035250",
@@ -6790,7 +7031,8 @@
       "bye": 8,
       "vorp": -65.25,
       "position_rank": 64,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6130"
     },
     {
       "player_id": "00-0032392",
@@ -6818,7 +7060,8 @@
       "bye": 11,
       "vorp": -65.26,
       "position_rank": 66,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "3202"
     },
     {
       "player_id": "00-0037263",
@@ -6846,7 +7089,8 @@
       "bye": 11,
       "vorp": -65.48,
       "position_rank": 65,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8132"
     },
     {
       "player_id": "00-0037539",
@@ -6874,7 +7118,8 @@
       "bye": 10,
       "vorp": -66.02,
       "position_rank": 67,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8249"
     },
     {
       "player_id": "00-0040187",
@@ -6902,7 +7147,8 @@
       "bye": 5,
       "vorp": -66.18,
       "position_rank": 68,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12473"
     },
     {
       "player_id": "00-0037837",
@@ -6930,7 +7176,8 @@
       "bye": 9,
       "vorp": -66.21,
       "position_rank": 80,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8125"
     },
     {
       "player_id": "00-0040202",
@@ -6958,7 +7205,8 @@
       "bye": 8,
       "vorp": -66.38,
       "position_rank": 66,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12476"
     },
     {
       "player_id": "00-0035249",
@@ -6986,7 +7234,8 @@
       "bye": 6,
       "vorp": -67.33,
       "position_rank": 69,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5973"
     },
     {
       "player_id": "00-0038589",
@@ -7014,7 +7263,8 @@
       "bye": 11,
       "vorp": -67.36,
       "position_rank": 70,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10212"
     },
     {
       "player_id": "00-0036422",
@@ -7042,7 +7292,8 @@
       "bye": 10,
       "vorp": -67.6,
       "position_rank": 71,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "6869"
     },
     {
       "player_id": "00-0033908",
@@ -7070,7 +7321,8 @@
       "bye": 11,
       "vorp": -68.07,
       "position_rank": 81,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4039"
     },
     {
       "player_id": "00-0034975",
@@ -7098,7 +7350,8 @@
       "bye": 13,
       "vorp": -68.35,
       "position_rank": 67,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "5995"
     },
     {
       "player_id": "00-0040244",
@@ -7126,7 +7379,8 @@
       "bye": 8,
       "vorp": -68.54,
       "position_rank": 72,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12480"
     },
     {
       "player_id": "00-0039405",
@@ -7154,7 +7408,8 @@
       "bye": 8,
       "vorp": -68.7,
       "position_rank": 68,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11588"
     },
     {
       "player_id": "00-0040739",
@@ -7182,7 +7437,8 @@
       "bye": 11,
       "vorp": -68.77,
       "position_rank": 73,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12521"
     },
     {
       "player_id": "00-0035243",
@@ -7210,7 +7466,8 @@
       "bye": 14,
       "vorp": -69.0,
       "position_rank": 69,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6151"
     },
     {
       "player_id": "00-0040311",
@@ -7238,7 +7495,8 @@
       "bye": 6,
       "vorp": -69.14,
       "position_rank": 82,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12860"
     },
     {
       "player_id": "00-0037291",
@@ -7266,7 +7524,8 @@
       "bye": 6,
       "vorp": -69.34,
       "position_rank": 83,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8180"
     },
     {
       "player_id": "00-0037231",
@@ -7294,7 +7553,8 @@
       "bye": 8,
       "vorp": -70.5,
       "position_rank": 84,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8200"
     },
     {
       "player_id": "00-0035631",
@@ -7322,7 +7582,8 @@
       "bye": 6,
       "vorp": -70.58,
       "position_rank": 74,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "6001"
     },
     {
       "player_id": "00-0034775",
@@ -7350,7 +7611,8 @@
       "bye": 8,
       "vorp": -70.67,
       "position_rank": 85,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4950"
     },
     {
       "player_id": "00-0036876",
@@ -7378,7 +7640,8 @@
       "bye": 10,
       "vorp": -70.72,
       "position_rank": 75,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7602"
     },
     {
       "player_id": "00-0036309",
@@ -7406,7 +7669,8 @@
       "bye": 11,
       "vorp": -70.75,
       "position_rank": 86,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7090"
     },
     {
       "player_id": "00-0038720",
@@ -7434,7 +7698,8 @@
       "bye": 6,
       "vorp": -70.85,
       "position_rank": 76,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11371"
     },
     {
       "player_id": "00-0040547",
@@ -7462,7 +7727,8 @@
       "bye": 11,
       "vorp": -70.87,
       "position_rank": 70,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0037475",
@@ -7490,7 +7756,8 @@
       "bye": 13,
       "vorp": -70.87,
       "position_rank": 77,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8583"
     },
     {
       "player_id": "00-0037348",
@@ -7518,7 +7785,8 @@
       "bye": 6,
       "vorp": -71.03,
       "position_rank": 78,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8849"
     },
     {
       "player_id": "00-0036906",
@@ -7546,7 +7814,8 @@
       "bye": 13,
       "vorp": -71.08,
       "position_rank": 71,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7608"
     },
     {
       "player_id": "00-0033217",
@@ -7574,7 +7843,8 @@
       "bye": 13,
       "vorp": -71.13,
       "position_rank": 79,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4054"
     },
     {
       "player_id": "00-0038104",
@@ -7602,7 +7872,8 @@
       "bye": 5,
       "vorp": -71.14,
       "position_rank": 87,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8188"
     },
     {
       "player_id": "00-0040466",
@@ -7630,7 +7901,8 @@
       "bye": 11,
       "vorp": -71.95,
       "position_rank": 72,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12472"
     },
     {
       "player_id": "00-0039342",
@@ -7658,7 +7930,8 @@
       "bye": 5,
       "vorp": -72.22,
       "position_rank": 88,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11626"
     },
     {
       "player_id": "00-0034791",
@@ -7686,7 +7959,8 @@
       "bye": 8,
       "vorp": -72.53,
       "position_rank": 73,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4988"
     },
     {
       "player_id": "00-0039458",
@@ -7714,7 +7988,8 @@
       "bye": 11,
       "vorp": -72.63,
       "position_rank": 80,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12374"
     },
     {
       "player_id": "00-0037015",
@@ -7742,7 +8017,8 @@
       "bye": 11,
       "vorp": -72.72,
       "position_rank": 81,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8089"
     },
     {
       "player_id": "00-0040719",
@@ -7770,7 +8046,8 @@
       "bye": 7,
       "vorp": -72.95,
       "position_rank": 74,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12490"
     },
     {
       "player_id": "00-0035993",
@@ -7798,7 +8075,8 @@
       "bye": 13,
       "vorp": -73.09,
       "position_rank": 35,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7083"
     },
     {
       "player_id": "00-0036628",
@@ -7826,7 +8104,8 @@
       "bye": 7,
       "vorp": -73.71,
       "position_rank": 82,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7716"
     },
     {
       "player_id": "00-0036328",
@@ -7854,7 +8133,8 @@
       "bye": 11,
       "vorp": -73.77,
       "position_rank": 75,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6945"
     },
     {
       "player_id": "00-0037086",
@@ -7882,7 +8162,8 @@
       "bye": 10,
       "vorp": -73.92,
       "position_rank": 83,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8177"
     },
     {
       "player_id": "00-0034981",
@@ -7910,7 +8191,8 @@
       "bye": 8,
       "vorp": -74.06,
       "position_rank": 84,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5985"
     },
     {
       "player_id": "00-0039890",
@@ -7938,7 +8220,8 @@
       "bye": 13,
       "vorp": -74.47,
       "position_rank": 89,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11625"
     },
     {
       "player_id": "00-0034365",
@@ -7966,7 +8249,8 @@
       "bye": 13,
       "vorp": -74.66,
       "position_rank": 85,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4995"
     },
     {
       "player_id": "00-0040727",
@@ -7994,7 +8278,8 @@
       "bye": 7,
       "vorp": -74.92,
       "position_rank": 90,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12509"
     },
     {
       "player_id": "00-0038976",
@@ -8022,7 +8307,8 @@
       "bye": 10,
       "vorp": -74.98,
       "position_rank": 91,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "9494"
     },
     {
       "player_id": "00-0036988",
@@ -8050,7 +8336,8 @@
       "bye": 7,
       "vorp": -75.13,
       "position_rank": 92,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0038809",
@@ -8078,7 +8365,8 @@
       "bye": 6,
       "vorp": -75.15,
       "position_rank": 86,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11082"
     },
     {
       "player_id": "00-0038551",
@@ -8106,7 +8394,8 @@
       "bye": 8,
       "vorp": -75.6,
       "position_rank": 76,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9757"
     },
     {
       "player_id": "00-0038794",
@@ -8134,7 +8423,8 @@
       "bye": 10,
       "vorp": -75.95,
       "position_rank": 77,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11439"
     },
     {
       "player_id": "00-0038705",
@@ -8162,7 +8452,8 @@
       "bye": 14,
       "vorp": -76.5,
       "position_rank": 78,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11199"
     },
     {
       "player_id": "00-0037276",
@@ -8190,7 +8481,8 @@
       "bye": 6,
       "vorp": -76.75,
       "position_rank": 79,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8230"
     },
     {
       "player_id": "00-0039912",
@@ -8218,7 +8510,8 @@
       "bye": 7,
       "vorp": -76.94,
       "position_rank": 87,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11596"
     },
     {
       "player_id": "00-0037545",
@@ -8246,7 +8539,8 @@
       "bye": 11,
       "vorp": -77.1,
       "position_rank": 93,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8676"
     },
     {
       "player_id": "00-0034272",
@@ -8274,7 +8568,8 @@
       "bye": 9,
       "vorp": -77.39,
       "position_rank": 94,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5086"
     },
     {
       "player_id": "00-0038046",
@@ -8302,7 +8597,8 @@
       "bye": 13,
       "vorp": -77.56,
       "position_rank": 88,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8127"
     },
     {
       "player_id": "00-0037157",
@@ -8330,7 +8626,8 @@
       "bye": 14,
       "vorp": -78.12,
       "position_rank": 80,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0033955",
@@ -8358,7 +8655,8 @@
       "bye": 7,
       "vorp": -78.42,
       "position_rank": 81,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4219"
     },
     {
       "player_id": "00-0038394",
@@ -8386,7 +8684,8 @@
       "bye": 13,
       "vorp": -78.48,
       "position_rank": 89,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10220"
     },
     {
       "player_id": "00-0040198",
@@ -8414,7 +8713,8 @@
       "bye": 6,
       "vorp": -78.63,
       "position_rank": 82,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12495"
     },
     {
       "player_id": "00-0039794",
@@ -8442,7 +8742,8 @@
       "bye": 13,
       "vorp": -79.06,
       "position_rank": 83,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11576"
     },
     {
       "player_id": "00-0036567",
@@ -8470,7 +8771,8 @@
       "bye": 5,
       "vorp": -79.45,
       "position_rank": 84,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7561"
     },
     {
       "player_id": "00-0040194",
@@ -8498,7 +8800,8 @@
       "bye": 7,
       "vorp": -79.57,
       "position_rank": 90,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12658"
     },
     {
       "player_id": "00-0037614",
@@ -8526,7 +8829,8 @@
       "bye": 13,
       "vorp": -79.67,
       "position_rank": 95,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8147"
     },
     {
       "player_id": "00-0038679",
@@ -8554,7 +8858,8 @@
       "bye": 7,
       "vorp": -79.94,
       "position_rank": 96,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11377"
     },
     {
       "player_id": "00-0038547",
@@ -8582,7 +8887,8 @@
       "bye": 14,
       "vorp": -80.04,
       "position_rank": 91,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10871"
     },
     {
       "player_id": "00-0033246",
@@ -8610,7 +8916,8 @@
       "bye": 7,
       "vorp": -80.1,
       "position_rank": 92,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4314"
     },
     {
       "player_id": "00-0038783",
@@ -8638,7 +8945,8 @@
       "bye": 10,
       "vorp": -80.17,
       "position_rank": 93,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11433"
     },
     {
       "player_id": "00-0037306",
@@ -8666,7 +8974,8 @@
       "bye": 11,
       "vorp": -80.34,
       "position_rank": 94,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8500"
     },
     {
       "player_id": "00-0029604",
@@ -8694,7 +9003,8 @@
       "bye": 11,
       "vorp": -80.37,
       "position_rank": 36,
-      "tier": 9
+      "tier": 9,
+      "sleeper_id": "1166"
     },
     {
       "player_id": "00-0036429",
@@ -8722,7 +9032,8 @@
       "bye": 11,
       "vorp": -80.42,
       "position_rank": 95,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7075"
     },
     {
       "player_id": "00-0037746",
@@ -8750,7 +9061,8 @@
       "bye": 8,
       "vorp": -80.54,
       "position_rank": 85,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8154"
     },
     {
       "player_id": "00-0040179",
@@ -8778,7 +9090,8 @@
       "bye": 13,
       "vorp": -80.84,
       "position_rank": 86,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12471"
     },
     {
       "player_id": "00-0040021",
@@ -8806,7 +9119,8 @@
       "bye": 14,
       "vorp": -80.97,
       "position_rank": 87,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12738"
     },
     {
       "player_id": "00-0040024",
@@ -8834,7 +9148,8 @@
       "bye": 10,
       "vorp": -81.53,
       "position_rank": 97,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "13150"
     },
     {
       "player_id": "00-0037741",
@@ -8862,7 +9177,8 @@
       "bye": 10,
       "vorp": -81.64,
       "position_rank": 98,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8119"
     },
     {
       "player_id": "00-0040067",
@@ -8890,7 +9206,8 @@
       "bye": 11,
       "vorp": -81.71,
       "position_rank": 88,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "13047"
     },
     {
       "player_id": "00-0036232",
@@ -8918,7 +9235,8 @@
       "bye": 8,
       "vorp": -81.92,
       "position_rank": 96,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "6850"
     },
     {
       "player_id": "00-0039530",
@@ -8946,7 +9264,8 @@
       "bye": 14,
       "vorp": -82.01,
       "position_rank": 97,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11593"
     },
     {
       "player_id": "00-0034860",
@@ -8974,7 +9293,8 @@
       "bye": 8,
       "vorp": -82.33,
       "position_rank": 99,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4992"
     },
     {
       "player_id": "00-0033307",
@@ -9002,7 +9322,8 @@
       "bye": 8,
       "vorp": -82.34,
       "position_rank": 100,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4454"
     },
     {
       "player_id": "00-0037282",
@@ -9030,7 +9351,8 @@
       "bye": 5,
       "vorp": -82.37,
       "position_rank": 98,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8170"
     },
     {
       "player_id": "00-0038621",
@@ -9058,7 +9380,8 @@
       "bye": 11,
       "vorp": -82.51,
       "position_rank": 101,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "9501"
     },
     {
       "player_id": "00-0037340",
@@ -9086,7 +9409,8 @@
       "bye": 8,
       "vorp": -82.61,
       "position_rank": 99,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8799"
     },
     {
       "player_id": "00-0032385",
@@ -9114,7 +9438,8 @@
       "bye": 10,
       "vorp": -82.7,
       "position_rank": 102,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "3200"
     },
     {
       "player_id": "00-0031236",
@@ -9142,7 +9467,8 @@
       "bye": 7,
       "vorp": -82.7,
       "position_rank": 103,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "2197"
     },
     {
       "player_id": "00-0039798",
@@ -9170,7 +9496,8 @@
       "bye": 13,
       "vorp": -82.82,
       "position_rank": 89,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11571"
     },
     {
       "player_id": "00-0039923",
@@ -9198,7 +9525,8 @@
       "bye": 6,
       "vorp": -82.86,
       "position_rank": 37,
-      "tier": 9
+      "tier": 9,
+      "sleeper_id": "11565"
     },
     {
       "player_id": "00-0036887",
@@ -9226,7 +9554,8 @@
       "bye": 8,
       "vorp": -82.91,
       "position_rank": 100,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7842"
     },
     {
       "player_id": "00-0038393",
@@ -9254,7 +9583,8 @@
       "bye": 11,
       "vorp": -82.91,
       "position_rank": 104,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "9486"
     },
     {
       "player_id": "00-0038685",
@@ -9282,7 +9612,8 @@
       "bye": 11,
       "vorp": -82.93,
       "position_rank": 90,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11370"
     },
     {
       "player_id": "00-0039737",
@@ -9310,7 +9641,8 @@
       "bye": 14,
       "vorp": -83.55,
       "position_rank": 101,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11716"
     },
     {
       "player_id": "00-0039603",
@@ -9338,7 +9670,8 @@
       "bye": 8,
       "vorp": -83.82,
       "position_rank": 91,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12171"
     },
     {
       "player_id": "00-0038619",
@@ -9366,7 +9699,8 @@
       "bye": 6,
       "vorp": -83.9,
       "position_rank": 105,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10226"
     },
     {
       "player_id": "00-0040556",
@@ -9394,7 +9728,8 @@
       "bye": 14,
       "vorp": -84.01,
       "position_rank": 92,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12491"
     },
     {
       "player_id": "00-0036590",
@@ -9422,7 +9757,8 @@
       "bye": 7,
       "vorp": -84.31,
       "position_rank": 102,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7536"
     },
     {
       "player_id": "00-0037012",
@@ -9450,7 +9786,8 @@
       "bye": 7,
       "vorp": -84.5,
       "position_rank": 38,
-      "tier": 9
+      "tier": 9,
+      "sleeper_id": "7610"
     },
     {
       "player_id": "00-0037277",
@@ -9478,7 +9815,8 @@
       "bye": 11,
       "vorp": -84.61,
       "position_rank": 103,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8227"
     },
     {
       "player_id": "00-0034073",
@@ -9506,7 +9844,8 @@
       "bye": 6,
       "vorp": -84.66,
       "position_rank": 104,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5285"
     },
     {
       "player_id": "00-0039648",
@@ -9534,7 +9873,8 @@
       "bye": 9,
       "vorp": -84.69,
       "position_rank": 105,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12357"
     },
     {
       "player_id": "00-0035500",
@@ -9562,7 +9902,8 @@
       "bye": 14,
       "vorp": -84.78,
       "position_rank": 106,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5970"
     },
     {
       "player_id": "00-0030035",
@@ -9590,7 +9931,8 @@
       "bye": 9,
       "vorp": -84.84,
       "position_rank": 107,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "1689"
     },
     {
       "player_id": "00-0038454",
@@ -9618,7 +9960,8 @@
       "bye": 13,
       "vorp": -85.15,
       "position_rank": 93,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9511"
     },
     {
       "player_id": "00-0032775",
@@ -9646,7 +9989,8 @@
       "bye": 8,
       "vorp": -85.17,
       "position_rank": 108,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "3286"
     },
     {
       "player_id": "00-0038951",
@@ -9674,7 +10018,8 @@
       "bye": 10,
       "vorp": -85.31,
       "position_rank": 94,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9506"
     },
     {
       "player_id": "00-0035406",
@@ -9702,7 +10047,8 @@
       "bye": 10,
       "vorp": -85.39,
       "position_rank": 109,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5938"
     },
     {
       "player_id": "00-0040669",
@@ -9730,7 +10076,8 @@
       "bye": 6,
       "vorp": -85.5,
       "position_rank": 110,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12535"
     },
     {
       "player_id": "00-0039631",
@@ -9758,7 +10105,8 @@
       "bye": 6,
       "vorp": -85.52,
       "position_rank": 106,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12062"
     },
     {
       "player_id": "00-0037267",
@@ -9786,7 +10134,8 @@
       "bye": 11,
       "vorp": -85.97,
       "position_rank": 95,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8143"
     },
     {
       "player_id": "00-0037258",
@@ -9814,7 +10163,8 @@
       "bye": 5,
       "vorp": -86.05,
       "position_rank": 96,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8129"
     },
     {
       "player_id": "00-0036741",
@@ -9842,7 +10192,8 @@
       "bye": 8,
       "vorp": -86.2,
       "position_rank": 107,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7946"
     },
     {
       "player_id": "00-0035359",
@@ -9870,7 +10221,8 @@
       "bye": 11,
       "vorp": -86.5,
       "position_rank": 111,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6154"
     },
     {
       "player_id": "00-0033757",
@@ -9898,7 +10250,8 @@
       "bye": 5,
       "vorp": -86.69,
       "position_rank": 108,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4602"
     },
     {
       "player_id": "00-0036415",
@@ -9926,7 +10279,8 @@
       "bye": 9,
       "vorp": -86.94,
       "position_rank": 112,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6853"
     },
     {
       "player_id": "00-0036265",
@@ -9954,7 +10308,8 @@
       "bye": 10,
       "vorp": -86.95,
       "position_rank": 97,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6828"
     },
     {
       "player_id": "00-0035645",
@@ -9982,7 +10337,8 @@
       "bye": 8,
       "vorp": -87.2,
       "position_rank": 113,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6699"
     },
     {
       "player_id": "00-0038040",
@@ -10010,7 +10366,8 @@
       "bye": 13,
       "vorp": -87.55,
       "position_rank": 98,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8139"
     },
     {
       "player_id": "00-0038440",
@@ -10038,7 +10395,8 @@
       "bye": 6,
       "vorp": -87.65,
       "position_rank": 99,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11299"
     },
     {
       "player_id": "00-0039824",
@@ -10066,7 +10424,8 @@
       "bye": 5,
       "vorp": -87.8,
       "position_rank": 109,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11595"
     },
     {
       "player_id": "00-0036165",
@@ -10094,7 +10453,8 @@
       "bye": 8,
       "vorp": -87.84,
       "position_rank": 114,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6920"
     },
     {
       "player_id": "00-0040782",
@@ -10122,7 +10482,8 @@
       "bye": 11,
       "vorp": -87.92,
       "position_rank": 115,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12503"
     },
     {
       "player_id": "00-0037742",
@@ -10150,7 +10511,8 @@
       "bye": 7,
       "vorp": -87.94,
       "position_rank": 116,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8135"
     },
     {
       "player_id": "00-0033576",
@@ -10178,7 +10540,8 @@
       "bye": 11,
       "vorp": -88.03,
       "position_rank": 110,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4189"
     },
     {
       "player_id": "00-0038710",
@@ -10206,7 +10569,8 @@
       "bye": 11,
       "vorp": -88.32,
       "position_rank": 111,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11201"
     },
     {
       "player_id": "00-0040509",
@@ -10234,7 +10598,8 @@
       "bye": 6,
       "vorp": -88.32,
       "position_rank": 112,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "13121"
     },
     {
       "player_id": "00-0039754",
@@ -10262,7 +10627,8 @@
       "bye": 10,
       "vorp": -88.39,
       "position_rank": 113,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11820"
     },
     {
       "player_id": "00-0040388",
@@ -10290,7 +10656,8 @@
       "bye": 11,
       "vorp": -88.4,
       "position_rank": 117,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12935"
     },
     {
       "player_id": "00-0040488",
@@ -10318,7 +10685,8 @@
       "bye": 13,
       "vorp": -88.47,
       "position_rank": 114,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "13122"
     },
     {
       "player_id": "00-0037654",
@@ -10346,7 +10714,8 @@
       "bye": 7,
       "vorp": -88.66,
       "position_rank": 115,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8885"
     },
     {
       "player_id": "00-0033591",
@@ -10374,7 +10743,8 @@
       "bye": 7,
       "vorp": -89.24,
       "position_rank": 118,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4234"
     },
     {
       "player_id": "00-0032104",
@@ -10402,7 +10772,8 @@
       "bye": 13,
       "vorp": -89.43,
       "position_rank": 100,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "2359"
     },
     {
       "player_id": "00-0039050",
@@ -10430,7 +10801,8 @@
       "bye": 10,
       "vorp": -89.7,
       "position_rank": 116,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10227"
     },
     {
       "player_id": "00-0035956",
@@ -10458,7 +10830,8 @@
       "bye": 6,
       "vorp": -89.84,
       "position_rank": 117,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0034798",
@@ -10486,7 +10859,8 @@
       "bye": 10,
       "vorp": -90.11,
       "position_rank": 118,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "5008"
     },
     {
       "player_id": "00-0039305",
@@ -10514,7 +10888,8 @@
       "bye": 11,
       "vorp": -90.17,
       "position_rank": 119,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12045"
     },
     {
       "player_id": "00-0029263",
@@ -10542,7 +10917,8 @@
       "bye": 8,
       "vorp": -90.8,
       "position_rank": 39,
-      "tier": 10
+      "tier": 10,
+      "sleeper_id": "1234"
     },
     {
       "player_id": "00-0040277",
@@ -10570,7 +10946,8 @@
       "bye": 10,
       "vorp": -90.85,
       "position_rank": 119,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "13079"
     },
     {
       "player_id": "00-0038498",
@@ -10598,7 +10975,8 @@
       "bye": 10,
       "vorp": -90.89,
       "position_rank": 120,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11304"
     },
     {
       "player_id": "00-0036550",
@@ -10626,7 +11004,8 @@
       "bye": 13,
       "vorp": -91.23,
       "position_rank": 120,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7571"
     },
     {
       "player_id": "00-0037304",
@@ -10654,7 +11033,8 @@
       "bye": 9,
       "vorp": -91.26,
       "position_rank": 121,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8181"
     },
     {
       "player_id": "00-0033439",
@@ -10682,7 +11062,8 @@
       "bye": 14,
       "vorp": -91.38,
       "position_rank": 122,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "4443"
     },
     {
       "player_id": "00-0038456",
@@ -10710,7 +11091,8 @@
       "bye": 14,
       "vorp": -91.44,
       "position_rank": 123,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11381"
     },
     {
       "player_id": "00-0039489",
@@ -10738,7 +11120,8 @@
       "bye": 6,
       "vorp": -91.71,
       "position_rank": 125,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12389"
     },
     {
       "player_id": "00-0040225",
@@ -10766,7 +11149,8 @@
       "bye": 8,
       "vorp": -91.71,
       "position_rank": 124,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "12715"
     },
     {
       "player_id": "00-0039451",
@@ -10794,7 +11178,8 @@
       "bye": 13,
       "vorp": -91.74,
       "position_rank": 121,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11608"
     },
     {
       "player_id": "00-0033857",
@@ -10822,7 +11207,8 @@
       "bye": 5,
       "vorp": -91.78,
       "position_rank": 122,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4040"
     },
     {
       "player_id": "00-0034983",
@@ -10850,7 +11236,8 @@
       "bye": 5,
       "vorp": -91.83,
       "position_rank": 123,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5955"
     },
     {
       "player_id": "00-0037292",
@@ -10878,7 +11265,8 @@
       "bye": 13,
       "vorp": -92.34,
       "position_rank": 126,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0036360",
@@ -10906,7 +11294,8 @@
       "bye": 5,
       "vorp": -92.42,
       "position_rank": 101,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6820"
     },
     {
       "player_id": "00-0033282",
@@ -10934,7 +11323,8 @@
       "bye": 7,
       "vorp": -92.43,
       "position_rank": 124,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4082"
     },
     {
       "player_id": "00-0036332",
@@ -10962,7 +11352,8 @@
       "bye": 14,
       "vorp": -92.64,
       "position_rank": 127,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7050"
     },
     {
       "player_id": "00-0040668",
@@ -10990,7 +11381,8 @@
       "bye": 11,
       "vorp": -92.9,
       "position_rank": 40,
-      "tier": 10
+      "tier": 10,
+      "sleeper_id": "12524"
     },
     {
       "player_id": "00-0036427",
@@ -11018,7 +11410,8 @@
       "bye": 13,
       "vorp": -92.94,
       "position_rank": 125,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6960"
     },
     {
       "player_id": "00-0039739",
@@ -11046,7 +11439,8 @@
       "bye": 9,
       "vorp": -93.35,
       "position_rank": 126,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11630"
     },
     {
       "player_id": "00-0032268",
@@ -11074,7 +11468,8 @@
       "bye": 7,
       "vorp": -93.81,
       "position_rank": 41,
-      "tier": 10
+      "tier": 10,
+      "sleeper_id": "2307"
     },
     {
       "player_id": "00-0040039",
@@ -11102,7 +11497,8 @@
       "bye": 7,
       "vorp": -93.94,
       "position_rank": 102,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12928"
     },
     {
       "player_id": "00-0040237",
@@ -11130,7 +11526,8 @@
       "bye": 10,
       "vorp": -94.34,
       "position_rank": 127,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12485"
     },
     {
       "player_id": "00-0032211",
@@ -11158,7 +11555,8 @@
       "bye": 13,
       "vorp": -94.4,
       "position_rank": 128,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "2374"
     },
     {
       "player_id": "00-0039623",
@@ -11186,7 +11584,8 @@
       "bye": 8,
       "vorp": -94.58,
       "position_rank": 129,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11895"
     },
     {
       "player_id": "00-0037031",
@@ -11214,7 +11613,8 @@
       "bye": 10,
       "vorp": -94.78,
       "position_rank": 128,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8107"
     },
     {
       "player_id": "00-0040058",
@@ -11242,7 +11642,8 @@
       "bye": 11,
       "vorp": -94.93,
       "position_rank": 129,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "13151"
     },
     {
       "player_id": "00-0039686",
@@ -11270,7 +11671,8 @@
       "bye": 7,
       "vorp": -95.05,
       "position_rank": 130,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11942"
     },
     {
       "player_id": "00-0024243",
@@ -11298,7 +11700,8 @@
       "bye": 10,
       "vorp": -95.75,
       "position_rank": 131,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "111"
     },
     {
       "player_id": "00-0036414",
@@ -11326,7 +11729,8 @@
       "bye": 11,
       "vorp": -95.97,
       "position_rank": 103,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6938"
     },
     {
       "player_id": "00-0036626",
@@ -11354,7 +11758,8 @@
       "bye": 7,
       "vorp": -96.03,
       "position_rank": 130,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7587"
     },
     {
       "player_id": "00-0038735",
@@ -11382,7 +11787,8 @@
       "bye": 14,
       "vorp": -96.43,
       "position_rank": 132,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "11508"
     },
     {
       "player_id": "00-0039792",
@@ -11410,7 +11816,8 @@
       "bye": 13,
       "vorp": -96.5,
       "position_rank": 131,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11629"
     },
     {
       "player_id": "00-0033891",
@@ -11438,7 +11845,8 @@
       "bye": 14,
       "vorp": -96.56,
       "position_rank": 132,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4080"
     },
     {
       "player_id": "00-0037311",
@@ -11466,7 +11874,8 @@
       "bye": 10,
       "vorp": -96.75,
       "position_rank": 133,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "8484"
     },
     {
       "player_id": "00-0031484",
@@ -11494,7 +11903,8 @@
       "bye": 8,
       "vorp": -96.81,
       "position_rank": 134,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "3048"
     },
     {
       "player_id": "00-0037666",
@@ -11522,7 +11932,8 @@
       "bye": 14,
       "vorp": -96.84,
       "position_rank": 133,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8117"
     },
     {
       "player_id": "00-0039884",
@@ -11550,7 +11961,8 @@
       "bye": 6,
       "vorp": -97.22,
       "position_rank": 134,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11821"
     },
     {
       "player_id": "00-0039920",
@@ -11578,7 +11990,8 @@
       "bye": 11,
       "vorp": -97.24,
       "position_rank": 135,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11617"
     },
     {
       "player_id": "00-0038564",
@@ -11606,7 +12019,8 @@
       "bye": 10,
       "vorp": -97.29,
       "position_rank": 135,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10210"
     },
     {
       "player_id": "00-0039746",
@@ -11634,7 +12048,8 @@
       "bye": 10,
       "vorp": -97.51,
       "position_rank": 104,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11577"
     },
     {
       "player_id": "00-0029892",
@@ -11662,7 +12077,8 @@
       "bye": 8,
       "vorp": -97.83,
       "position_rank": 105,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "1379"
     },
     {
       "player_id": "00-0036825",
@@ -11690,7 +12106,8 @@
       "bye": 11,
       "vorp": -97.89,
       "position_rank": 136,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "7531"
     },
     {
       "player_id": "00-0040729",
@@ -11718,7 +12135,8 @@
       "bye": 13,
       "vorp": -98.26,
       "position_rank": 136,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12483"
     },
     {
       "player_id": "00-0037085",
@@ -11746,7 +12164,8 @@
       "bye": 10,
       "vorp": -98.31,
       "position_rank": 106,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8208"
     },
     {
       "player_id": "00-0038400",
@@ -11774,7 +12193,8 @@
       "bye": 10,
       "vorp": -98.35,
       "position_rank": 42,
-      "tier": 11
+      "tier": 11,
+      "sleeper_id": "9230"
     },
     {
       "player_id": "00-0039299",
@@ -11802,7 +12222,8 @@
       "bye": 11,
       "vorp": -98.39,
       "position_rank": 107,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12048"
     },
     {
       "player_id": "00-0038590",
@@ -11830,7 +12251,8 @@
       "bye": 13,
       "vorp": -98.41,
       "position_rank": 137,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0038839",
@@ -11858,7 +12280,8 @@
       "bye": 6,
       "vorp": -98.52,
       "position_rank": 137,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0040234",
@@ -11886,7 +12309,8 @@
       "bye": 6,
       "vorp": -98.54,
       "position_rank": 43,
-      "tier": 11
+      "tier": 11,
+      "sleeper_id": "12500"
     },
     {
       "player_id": "00-0035311",
@@ -11914,7 +12338,8 @@
       "bye": 11,
       "vorp": -98.58,
       "position_rank": 108,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "5980"
     },
     {
       "player_id": "00-0038643",
@@ -11942,7 +12367,8 @@
       "bye": 8,
       "vorp": -98.59,
       "position_rank": 138,
-      "tier": 3
+      "tier": 3,
+      "sleeper_id": "10224"
     },
     {
       "player_id": "00-0037801",
@@ -11970,7 +12396,8 @@
       "bye": 14,
       "vorp": -98.64,
       "position_rank": 138,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8917"
     },
     {
       "player_id": "00-0035628",
@@ -11998,7 +12425,8 @@
       "bye": 11,
       "vorp": -98.76,
       "position_rank": 109,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6694"
     },
     {
       "player_id": "00-0031503",
@@ -12026,7 +12454,8 @@
       "bye": 8,
       "vorp": -99.3,
       "position_rank": 44,
-      "tier": 11
+      "tier": 11,
+      "sleeper_id": "2306"
     },
     {
       "player_id": "00-0038728",
@@ -12054,7 +12483,8 @@
       "bye": 8,
       "vorp": -99.39,
       "position_rank": 139,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11056"
     },
     {
       "player_id": "00-0038647",
@@ -12082,7 +12512,8 @@
       "bye": 8,
       "vorp": -99.41,
       "position_rank": 140,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10221"
     },
     {
       "player_id": "00-0040131",
@@ -12110,7 +12541,8 @@
       "bye": 11,
       "vorp": -99.44,
       "position_rank": 141,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0040138",
@@ -12138,7 +12570,8 @@
       "bye": 8,
       "vorp": -99.76,
       "position_rank": 142,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12536"
     },
     {
       "player_id": "00-0032688",
@@ -12166,7 +12599,8 @@
       "bye": 7,
       "vorp": -99.83,
       "position_rank": 143,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "3423"
     },
     {
       "player_id": "00-0031687",
@@ -12194,7 +12628,8 @@
       "bye": 13,
       "vorp": -100.26,
       "position_rank": 110,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "2749"
     },
     {
       "player_id": "00-0040429",
@@ -12222,7 +12657,8 @@
       "bye": 10,
       "vorp": -100.34,
       "position_rank": 111,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12787"
     },
     {
       "player_id": "00-0036842",
@@ -12250,7 +12686,8 @@
       "bye": 13,
       "vorp": -100.39,
       "position_rank": 112,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7720"
     },
     {
       "player_id": "00-0039757",
@@ -12278,7 +12715,8 @@
       "bye": 11,
       "vorp": -101.16,
       "position_rank": 113,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12412"
     },
     {
       "player_id": "00-0034407",
@@ -12306,7 +12744,8 @@
       "bye": 8,
       "vorp": -101.28,
       "position_rank": 144,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5096"
     },
     {
       "player_id": "00-0039266",
@@ -12334,7 +12773,8 @@
       "bye": 6,
       "vorp": -101.44,
       "position_rank": 114,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11649"
     },
     {
       "player_id": "00-0038359",
@@ -12362,7 +12802,8 @@
       "bye": 11,
       "vorp": -101.56,
       "position_rank": 145,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11168"
     },
     {
       "player_id": "00-0040142",
@@ -12390,7 +12831,8 @@
       "bye": 9,
       "vorp": -101.6,
       "position_rank": 115,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12504"
     },
     {
       "player_id": "00-0040522",
@@ -12418,7 +12860,8 @@
       "bye": 9,
       "vorp": -101.65,
       "position_rank": 146,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12520"
     },
     {
       "player_id": "00-0038397",
@@ -12446,7 +12889,8 @@
       "bye": 8,
       "vorp": -101.85,
       "position_rank": 116,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9220"
     },
     {
       "player_id": "00-0026158",
@@ -12474,7 +12918,8 @@
       "bye": 6,
       "vorp": -101.89,
       "position_rank": 45,
-      "tier": 11
+      "tier": 11,
+      "sleeper_id": "19"
     },
     {
       "player_id": "00-0036980",
@@ -12502,7 +12947,8 @@
       "bye": 7,
       "vorp": -101.94,
       "position_rank": 147,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7596"
     },
     {
       "player_id": "00-0037098",
@@ -12530,7 +12976,8 @@
       "bye": 8,
       "vorp": -102.55,
       "position_rank": 148,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8235"
     },
     {
       "player_id": "00-0034418",
@@ -12558,7 +13005,8 @@
       "bye": 6,
       "vorp": -102.71,
       "position_rank": 149,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5113"
     },
     {
       "player_id": "00-0034681",
@@ -12586,7 +13034,8 @@
       "bye": 7,
       "vorp": -102.8,
       "position_rank": 117,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "5000"
     },
     {
       "player_id": "00-0037329",
@@ -12614,7 +13063,8 @@
       "bye": 10,
       "vorp": -102.98,
       "position_rank": 118,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8423"
     },
     {
       "player_id": "00-0038738",
@@ -12642,7 +13092,8 @@
       "bye": 14,
       "vorp": -103.16,
       "position_rank": 119,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0032464",
@@ -12670,7 +13121,8 @@
       "bye": 6,
       "vorp": -103.3,
       "position_rank": 150,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "3634"
     },
     {
       "player_id": "00-0040581",
@@ -12698,7 +13150,8 @@
       "bye": 13,
       "vorp": -103.38,
       "position_rank": 151,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12541"
     },
     {
       "player_id": "00-0032398",
@@ -12726,7 +13179,8 @@
       "bye": 7,
       "vorp": -103.6,
       "position_rank": 152,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "3269"
     },
     {
       "player_id": "00-0040676",
@@ -12754,7 +13208,8 @@
       "bye": 9,
       "vorp": -103.63,
       "position_rank": 46,
-      "tier": 11
+      "tier": 11,
+      "sleeper_id": "12522"
     },
     {
       "player_id": "00-0037557",
@@ -12782,7 +13237,8 @@
       "bye": 11,
       "vorp": -103.92,
       "position_rank": 120,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8195"
     },
     {
       "player_id": "00-0036849",
@@ -12810,7 +13266,8 @@
       "bye": 11,
       "vorp": -104.15,
       "position_rank": 153,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7562"
     },
     {
       "player_id": "00-0038678",
@@ -12838,7 +13295,8 @@
       "bye": 9,
       "vorp": -104.28,
       "position_rank": 121,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11378"
     },
     {
       "player_id": "00-0035291",
@@ -12866,7 +13324,8 @@
       "bye": 11,
       "vorp": -104.53,
       "position_rank": 122,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6144"
     },
     {
       "player_id": "00-0040208",
@@ -12894,7 +13353,8 @@
       "bye": 6,
       "vorp": -104.7,
       "position_rank": 123,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12543"
     },
     {
       "player_id": "00-0040317",
@@ -12922,7 +13382,8 @@
       "bye": 7,
       "vorp": -104.91,
       "position_rank": 154,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0040476",
@@ -12950,7 +13411,8 @@
       "bye": 13,
       "vorp": -104.97,
       "position_rank": 124,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12826"
     },
     {
       "player_id": "00-0038579",
@@ -12978,7 +13440,8 @@
       "bye": 13,
       "vorp": -105.26,
       "position_rank": 47,
-      "tier": 11
+      "tier": 11,
+      "sleeper_id": "10866"
     },
     {
       "player_id": "00-0036569",
@@ -13006,7 +13469,8 @@
       "bye": 6,
       "vorp": -105.37,
       "position_rank": 125,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7529"
     },
     {
       "player_id": "00-0040590",
@@ -13034,7 +13498,8 @@
       "bye": 11,
       "vorp": -105.41,
       "position_rank": 155,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12718"
     },
     {
       "player_id": "00-0035125",
@@ -13062,7 +13527,8 @@
       "bye": 6,
       "vorp": -105.92,
       "position_rank": 126,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6109"
     },
     {
       "player_id": "00-0034386",
@@ -13090,7 +13556,8 @@
       "bye": 8,
       "vorp": -106.01,
       "position_rank": 156,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5374"
     },
     {
       "player_id": "00-0039379",
@@ -13118,7 +13585,8 @@
       "bye": 11,
       "vorp": -106.51,
       "position_rank": 157,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11633"
     },
     {
       "player_id": "00-0039363",
@@ -13146,7 +13614,8 @@
       "bye": 8,
       "vorp": -107.06,
       "position_rank": 127,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11651"
     },
     {
       "player_id": "00-0039521",
@@ -13174,7 +13643,8 @@
       "bye": 14,
       "vorp": -107.12,
       "position_rank": 158,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11921"
     },
     {
       "player_id": "00-0037745",
@@ -13202,7 +13672,8 @@
       "bye": 11,
       "vorp": -107.33,
       "position_rank": 128,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0039394",
@@ -13230,7 +13701,8 @@
       "bye": 11,
       "vorp": -107.42,
       "position_rank": 159,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11806"
     },
     {
       "player_id": "00-0037132",
@@ -13258,7 +13730,8 @@
       "bye": 10,
       "vorp": -107.44,
       "position_rank": 160,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8414"
     },
     {
       "player_id": "00-0040218",
@@ -13286,7 +13759,8 @@
       "bye": 5,
       "vorp": -107.48,
       "position_rank": 161,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12523"
     },
     {
       "player_id": "00-0038458",
@@ -13314,7 +13788,8 @@
       "bye": 10,
       "vorp": -108.39,
       "position_rank": 129,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11384"
     },
     {
       "player_id": "00-0033854",
@@ -13342,7 +13817,8 @@
       "bye": 8,
       "vorp": -108.44,
       "position_rank": 130,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4718"
     },
     {
       "player_id": "00-0040238",
@@ -13370,7 +13846,8 @@
       "bye": 7,
       "vorp": -108.98,
       "position_rank": 131,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12544"
     },
     {
       "player_id": "00-0030564",
@@ -13398,7 +13875,8 @@
       "bye": 13,
       "vorp": -109.3,
       "position_rank": 162,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "1426"
     },
     {
       "player_id": "00-0037524",
@@ -13426,7 +13904,8 @@
       "bye": 7,
       "vorp": -109.51,
       "position_rank": 163,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8250"
     },
     {
       "player_id": "00-0033375",
@@ -13454,7 +13933,8 @@
       "bye": 7,
       "vorp": -110.36,
       "position_rank": 164,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4351"
     },
     {
       "player_id": "00-0040184",
@@ -13482,7 +13962,8 @@
       "bye": 7,
       "vorp": -110.37,
       "position_rank": 165,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12670"
     },
     {
       "player_id": "00-0040563",
@@ -13510,7 +13991,8 @@
       "bye": 11,
       "vorp": -110.87,
       "position_rank": 166,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12542"
     },
     {
       "player_id": "00-0037617",
@@ -13538,7 +14020,8 @@
       "bye": 7,
       "vorp": -111.32,
       "position_rank": 132,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8123"
     },
     {
       "player_id": "00-0036133",
@@ -13566,7 +14049,8 @@
       "bye": 9,
       "vorp": -111.45,
       "position_rank": 167,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6957"
     },
     {
       "player_id": "00-0039796",
@@ -13594,7 +14078,8 @@
       "bye": 13,
       "vorp": -111.55,
       "position_rank": 133,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11570"
     },
     {
       "player_id": "00-0035298",
@@ -13622,7 +14107,8 @@
       "bye": 9,
       "vorp": -111.6,
       "position_rank": 168,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6290"
     },
     {
       "player_id": "00-0034054",
@@ -13650,7 +14136,8 @@
       "bye": 7,
       "vorp": -111.73,
       "position_rank": 169,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4854"
     },
     {
       "player_id": "00-0039062",
@@ -13678,7 +14165,8 @@
       "bye": 14,
       "vorp": -111.79,
       "position_rank": 170,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10225"
     },
     {
       "player_id": "00-0034959",
@@ -13706,7 +14194,8 @@
       "bye": 13,
       "vorp": -112.14,
       "position_rank": 134,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6323"
     },
     {
       "player_id": "00-0040398",
@@ -13734,7 +14223,8 @@
       "bye": 13,
       "vorp": -112.26,
       "position_rank": 48,
-      "tier": 12
+      "tier": 12,
+      "sleeper_id": "12538"
     },
     {
       "player_id": "00-0033869",
@@ -13762,7 +14252,8 @@
       "bye": 7,
       "vorp": -112.3,
       "position_rank": 49,
-      "tier": 12
+      "tier": 12,
+      "sleeper_id": "3976"
     },
     {
       "player_id": "00-0036984",
@@ -13790,7 +14281,8 @@
       "bye": 9,
       "vorp": -112.53,
       "position_rank": 135,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7593"
     },
     {
       "player_id": "00-0037120",
@@ -13818,7 +14310,8 @@
       "bye": 13,
       "vorp": -112.69,
       "position_rank": 136,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8207"
     },
     {
       "player_id": "00-0040644",
@@ -13846,7 +14339,8 @@
       "bye": 5,
       "vorp": -113.15,
       "position_rank": 137,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12531"
     },
     {
       "player_id": "00-0038409",
@@ -13874,7 +14368,8 @@
       "bye": 9,
       "vorp": -113.33,
       "position_rank": 138,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "9510"
     },
     {
       "player_id": "00-0040164",
@@ -13902,7 +14397,8 @@
       "bye": 7,
       "vorp": -113.45,
       "position_rank": 171,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12641"
     },
     {
       "player_id": "00-0040432",
@@ -13930,7 +14426,8 @@
       "bye": 8,
       "vorp": -113.45,
       "position_rank": 172,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12889"
     },
     {
       "player_id": "00-0033376",
@@ -13958,7 +14455,8 @@
       "bye": 13,
       "vorp": -113.63,
       "position_rank": 139,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "4353"
     },
     {
       "player_id": "00-0034521",
@@ -13986,7 +14484,8 @@
       "bye": 13,
       "vorp": -113.71,
       "position_rank": 173,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5185"
     },
     {
       "player_id": "00-0039021",
@@ -14014,7 +14513,8 @@
       "bye": 10,
       "vorp": -113.94,
       "position_rank": 140,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "10235"
     },
     {
       "player_id": "00-0040406",
@@ -14042,7 +14542,8 @@
       "bye": 13,
       "vorp": -113.96,
       "position_rank": 174,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12907"
     },
     {
       "player_id": "00-0035567",
@@ -14070,7 +14571,8 @@
       "bye": 6,
       "vorp": -114.23,
       "position_rank": 141,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6659"
     },
     {
       "player_id": "00-0038396",
@@ -14098,7 +14600,8 @@
       "bye": 8,
       "vorp": -114.34,
       "position_rank": 142,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "10223"
     },
     {
       "player_id": "00-0040205",
@@ -14126,7 +14629,8 @@
       "bye": 9,
       "vorp": -114.48,
       "position_rank": 143,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12516"
     },
     {
       "player_id": "00-0036727",
@@ -14154,7 +14658,8 @@
       "bye": 10,
       "vorp": -114.77,
       "position_rank": 144,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0038840",
@@ -14182,7 +14687,8 @@
       "bye": 5,
       "vorp": -114.8,
       "position_rank": 175,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11157"
     },
     {
       "player_id": "00-0026300",
@@ -14210,7 +14716,8 @@
       "bye": 7,
       "vorp": -115.62,
       "position_rank": 50,
-      "tier": 12
+      "tier": 12,
+      "sleeper_id": "260"
     },
     {
       "player_id": "00-0036187",
@@ -14238,7 +14745,8 @@
       "bye": 7,
       "vorp": -115.8,
       "position_rank": 145,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7204"
     },
     {
       "player_id": "00-0038938",
@@ -14266,7 +14774,8 @@
       "bye": 8,
       "vorp": -115.84,
       "position_rank": 176,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "9497"
     },
     {
       "player_id": "00-0034367",
@@ -14294,7 +14803,8 @@
       "bye": 8,
       "vorp": -115.93,
       "position_rank": 146,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "5347"
     },
     {
       "player_id": "00-0032918",
@@ -14322,7 +14832,8 @@
       "bye": 6,
       "vorp": -116.34,
       "position_rank": 147,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "3832"
     },
     {
       "player_id": "00-0038465",
@@ -14350,7 +14861,8 @@
       "bye": 11,
       "vorp": -116.93,
       "position_rank": 177,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11210"
     },
     {
       "player_id": "00-0039407",
@@ -14378,7 +14890,8 @@
       "bye": 13,
       "vorp": -116.93,
       "position_rank": 148,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11574"
     },
     {
       "player_id": "00-0039355",
@@ -14406,7 +14919,8 @@
       "bye": 7,
       "vorp": -116.93,
       "position_rank": 178,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11650"
     },
     {
       "player_id": "00-0040646",
@@ -14434,7 +14948,8 @@
       "bye": 5,
       "vorp": -116.99,
       "position_rank": 179,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12505"
     },
     {
       "player_id": "00-0038891",
@@ -14462,7 +14977,8 @@
       "bye": 13,
       "vorp": -117.08,
       "position_rank": 180,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11257"
     },
     {
       "player_id": "00-0033589",
@@ -14490,7 +15006,8 @@
       "bye": 5,
       "vorp": -117.12,
       "position_rank": 181,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4274"
     },
     {
       "player_id": "00-0035726",
@@ -14518,7 +15035,8 @@
       "bye": 8,
       "vorp": -117.23,
       "position_rank": 149,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6202"
     },
     {
       "player_id": "00-0036959",
@@ -14546,7 +15064,8 @@
       "bye": 10,
       "vorp": -117.35,
       "position_rank": 182,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8076"
     },
     {
       "player_id": "00-0040172",
@@ -14574,7 +15093,8 @@
       "bye": 8,
       "vorp": -117.58,
       "position_rank": 183,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12634"
     },
     {
       "player_id": "00-0037594",
@@ -14602,7 +15122,8 @@
       "bye": 9,
       "vorp": -117.62,
       "position_rank": 150,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "8254"
     },
     {
       "player_id": "00-0035891",
@@ -14630,7 +15151,8 @@
       "bye": 11,
       "vorp": -117.63,
       "position_rank": 184,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7039"
     },
     {
       "player_id": "00-0035594",
@@ -14658,7 +15180,8 @@
       "bye": 10,
       "vorp": -117.81,
       "position_rank": 151,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6012"
     },
     {
       "player_id": "00-0039364",
@@ -14686,7 +15209,8 @@
       "bye": 6,
       "vorp": -117.82,
       "position_rank": 152,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11729"
     },
     {
       "player_id": "00-0036425",
@@ -14714,7 +15238,8 @@
       "bye": 7,
       "vorp": -117.9,
       "position_rank": 153,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "6931"
     },
     {
       "player_id": "00-0038953",
@@ -14742,7 +15267,8 @@
       "bye": 11,
       "vorp": -118.02,
       "position_rank": 185,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11474"
     },
     {
       "player_id": "00-0040649",
@@ -14770,7 +15296,8 @@
       "bye": 11,
       "vorp": -118.15,
       "position_rank": 154,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "12656"
     },
     {
       "player_id": "00-0036841",
@@ -14798,7 +15325,8 @@
       "bye": 7,
       "vorp": -118.17,
       "position_rank": 186,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7746"
     },
     {
       "player_id": "00-0038488",
@@ -14826,7 +15354,8 @@
       "bye": 11,
       "vorp": -119.12,
       "position_rank": 155,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0038896",
@@ -14854,7 +15383,8 @@
       "bye": 6,
       "vorp": -119.16,
       "position_rank": 156,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "11237"
     },
     {
       "player_id": "00-0036950",
@@ -14882,7 +15412,8 @@
       "bye": 13,
       "vorp": -119.41,
       "position_rank": 157,
-      "tier": 6
+      "tier": 6,
+      "sleeper_id": "7809"
     },
     {
       "player_id": "00-0038640",
@@ -14910,7 +15441,8 @@
       "bye": 14,
       "vorp": -119.57,
       "position_rank": 187,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11034"
     },
     {
       "player_id": "00-0039376",
@@ -14938,7 +15470,8 @@
       "bye": 8,
       "vorp": -119.74,
       "position_rank": 51,
-      "tier": 12
+      "tier": 12,
+      "sleeper_id": "11562"
     },
     {
       "player_id": "00-0035639",
@@ -14966,7 +15499,8 @@
       "bye": 14,
       "vorp": -120.65,
       "position_rank": 188,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5880"
     },
     {
       "player_id": "00-0038573",
@@ -14994,7 +15528,8 @@
       "bye": 7,
       "vorp": -120.73,
       "position_rank": 189,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10234"
     },
     {
       "player_id": "00-0040582",
@@ -15022,7 +15557,8 @@
       "bye": 13,
       "vorp": -121.62,
       "position_rank": 190,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12539"
     },
     {
       "player_id": "00-0036527",
@@ -15050,7 +15586,8 @@
       "bye": 13,
       "vorp": -122.67,
       "position_rank": 191,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7989"
     },
     {
       "player_id": "00-0039751",
@@ -15078,7 +15615,8 @@
       "bye": 11,
       "vorp": -122.71,
       "position_rank": 192,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11623"
     },
     {
       "player_id": "00-0036182",
@@ -15106,7 +15644,8 @@
       "bye": 6,
       "vorp": -122.74,
       "position_rank": 193,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7496"
     },
     {
       "player_id": "00-0035140",
@@ -15134,7 +15673,8 @@
       "bye": 7,
       "vorp": -123.66,
       "position_rank": 194,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5917"
     },
     {
       "player_id": "00-0035876",
@@ -15162,7 +15702,8 @@
       "bye": 14,
       "vorp": -124.33,
       "position_rank": 195,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7233"
     },
     {
       "player_id": "00-0034854",
@@ -15190,7 +15731,8 @@
       "bye": 11,
       "vorp": -125.21,
       "position_rank": 196,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5773"
     },
     {
       "player_id": "00-0040009",
@@ -15218,7 +15760,8 @@
       "bye": 11,
       "vorp": -125.34,
       "position_rank": 197,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12482"
     },
     {
       "player_id": "00-0034487",
@@ -15246,7 +15789,8 @@
       "bye": 14,
       "vorp": -125.6,
       "position_rank": 198,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5154"
     },
     {
       "player_id": "00-0038752",
@@ -15274,7 +15818,8 @@
       "bye": 11,
       "vorp": -125.74,
       "position_rank": 199,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10867"
     },
     {
       "player_id": "00-0035021",
@@ -15302,7 +15847,8 @@
       "bye": 13,
       "vorp": -125.87,
       "position_rank": 200,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6427"
     },
     {
       "player_id": "00-0036630",
@@ -15330,7 +15876,8 @@
       "bye": 13,
       "vorp": -126.63,
       "position_rank": 201,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7595"
     },
     {
       "player_id": "00-0035544",
@@ -15358,7 +15905,8 @@
       "bye": 6,
       "vorp": -126.77,
       "position_rank": 202,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6588"
     },
     {
       "player_id": "00-0036497",
@@ -15386,7 +15934,8 @@
       "bye": 7,
       "vorp": -126.85,
       "position_rank": 203,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8013"
     },
     {
       "player_id": "00-0040259",
@@ -15414,7 +15963,8 @@
       "bye": 11,
       "vorp": -126.88,
       "position_rank": 204,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "13101"
     },
     {
       "player_id": "00-0034419",
@@ -15442,7 +15992,8 @@
       "bye": 8,
       "vorp": -127.19,
       "position_rank": 205,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5121"
     },
     {
       "player_id": "00-0036176",
@@ -15470,7 +16021,8 @@
       "bye": 9,
       "vorp": -127.31,
       "position_rank": 206,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7436"
     },
     {
       "player_id": "00-0036646",
@@ -15498,7 +16050,8 @@
       "bye": 14,
       "vorp": -127.55,
       "position_rank": 207,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7812"
     },
     {
       "player_id": "00-0036463",
@@ -15526,7 +16079,8 @@
       "bye": 11,
       "vorp": -127.59,
       "position_rank": 208,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7521"
     },
     {
       "player_id": "00-0039710",
@@ -15554,7 +16108,8 @@
       "bye": 6,
       "vorp": -127.67,
       "position_rank": 209,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11911"
     },
     {
       "player_id": "00-0034867",
@@ -15582,7 +16137,8 @@
       "bye": 8,
       "vorp": -127.77,
       "position_rank": 210,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "5781"
     },
     {
       "player_id": "00-0032951",
@@ -15610,7 +16166,8 @@
       "bye": 13,
       "vorp": -128.3,
       "position_rank": 211,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "3155"
     },
     {
       "player_id": "00-0040352",
@@ -15638,7 +16195,8 @@
       "bye": 13,
       "vorp": -128.38,
       "position_rank": 212,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12829"
     },
     {
       "player_id": "00-0039650",
@@ -15666,7 +16224,8 @@
       "bye": 9,
       "vorp": -128.51,
       "position_rank": 213,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11959"
     },
     {
       "player_id": "00-0040154",
@@ -15694,7 +16253,8 @@
       "bye": 6,
       "vorp": -128.53,
       "position_rank": 214,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12496"
     },
     {
       "player_id": "00-0038824",
@@ -15722,7 +16282,8 @@
       "bye": 10,
       "vorp": -129.09,
       "position_rank": 215,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11421"
     },
     {
       "player_id": "00-0037093",
@@ -15750,7 +16311,8 @@
       "bye": 11,
       "vorp": -129.23,
       "position_rank": 216,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8527"
     },
     {
       "player_id": "00-0037487",
@@ -15778,7 +16340,8 @@
       "bye": 11,
       "vorp": -129.75,
       "position_rank": 217,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8253"
     },
     {
       "player_id": "00-0040431",
@@ -15806,7 +16369,8 @@
       "bye": 8,
       "vorp": -129.77,
       "position_rank": 218,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12888"
     },
     {
       "player_id": "00-0040534",
@@ -15834,7 +16398,8 @@
       "bye": 6,
       "vorp": -129.95,
       "position_rank": 219,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12971"
     },
     {
       "player_id": "00-0039589",
@@ -15862,7 +16427,8 @@
       "bye": 10,
       "vorp": -130.02,
       "position_rank": 220,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11994"
     },
     {
       "player_id": "00-0036620",
@@ -15890,7 +16456,8 @@
       "bye": 6,
       "vorp": -130.1,
       "position_rank": 221,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7612"
     },
     {
       "player_id": "00-0039816",
@@ -15918,7 +16485,8 @@
       "bye": 13,
       "vorp": -130.28,
       "position_rank": 222,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11762"
     },
     {
       "player_id": "00-0035602",
@@ -15946,7 +16514,8 @@
       "bye": 13,
       "vorp": -130.32,
       "position_rank": 223,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6386"
     },
     {
       "player_id": "00-0040075",
@@ -15974,7 +16543,8 @@
       "bye": 13,
       "vorp": -130.56,
       "position_rank": 224,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12699"
     },
     {
       "player_id": "00-0038090",
@@ -16002,7 +16572,8 @@
       "bye": 8,
       "vorp": -130.61,
       "position_rank": 225,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8168"
     },
     {
       "player_id": "00-0038519",
@@ -16030,7 +16601,8 @@
       "bye": 5,
       "vorp": -130.64,
       "position_rank": 226,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11320"
     },
     {
       "player_id": "00-0038492",
@@ -16058,7 +16630,8 @@
       "bye": 5,
       "vorp": -130.68,
       "position_rank": 227,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11311"
     },
     {
       "player_id": "00-0038911",
@@ -16086,7 +16659,8 @@
       "bye": 6,
       "vorp": -130.82,
       "position_rank": 228,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10860"
     },
     {
       "player_id": "00-0038496",
@@ -16114,7 +16688,8 @@
       "bye": 10,
       "vorp": -130.96,
       "position_rank": 229,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "11306"
     },
     {
       "player_id": "00-0036862",
@@ -16142,7 +16717,8 @@
       "bye": 9,
       "vorp": -131.04,
       "position_rank": 230,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "7757"
     },
     {
       "player_id": "00-0038740",
@@ -16170,7 +16746,8 @@
       "bye": 14,
       "vorp": -131.3,
       "position_rank": 231,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": null
     },
     {
       "player_id": "00-0040506",
@@ -16198,7 +16775,8 @@
       "bye": 6,
       "vorp": -131.37,
       "position_rank": 232,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "13075"
     },
     {
       "player_id": "00-0040629",
@@ -16226,7 +16804,8 @@
       "bye": 5,
       "vorp": -131.41,
       "position_rank": 233,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "13202"
     },
     {
       "player_id": "00-0040241",
@@ -16254,7 +16833,8 @@
       "bye": 6,
       "vorp": -131.44,
       "position_rank": 234,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "12732"
     },
     {
       "player_id": "00-0037380",
@@ -16282,7 +16862,8 @@
       "bye": 11,
       "vorp": -131.46,
       "position_rank": 235,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "8755"
     },
     {
       "player_id": "00-0031763",
@@ -16310,7 +16891,8 @@
       "bye": 11,
       "vorp": -131.83,
       "position_rank": 236,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "2750"
     },
     {
       "player_id": "00-0034928",
@@ -16338,7 +16920,8 @@
       "bye": 14,
       "vorp": -131.88,
       "position_rank": 237,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6402"
     },
     {
       "player_id": "00-0036331",
@@ -16366,7 +16949,8 @@
       "bye": 10,
       "vorp": -132.37,
       "position_rank": 238,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "6847"
     },
     {
       "player_id": "00-0038576",
@@ -16394,7 +16978,8 @@
       "bye": 6,
       "vorp": -132.38,
       "position_rank": 239,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "10228"
     },
     {
       "player_id": "00-0033572",
@@ -16422,7 +17007,8 @@
       "bye": 11,
       "vorp": -132.59,
       "position_rank": 240,
-      "tier": 8
+      "tier": 8,
+      "sleeper_id": "4198"
     },
     {
       "player_id": "00-0028118",
@@ -16450,7 +17036,8 @@
       "bye": 13,
       "vorp": -132.65,
       "position_rank": 52,
-      "tier": 13
+      "tier": 13,
+      "sleeper_id": "827"
     },
     {
       "player_id": "00-0033662",
@@ -16478,7 +17065,8 @@
       "bye": 13,
       "vorp": -132.79,
       "position_rank": 53,
-      "tier": 13
+      "tier": 13,
+      "sleeper_id": "4574"
     },
     {
       "player_id": "00-0031237",
@@ -16506,7 +17094,8 @@
       "bye": 10,
       "vorp": -134.03,
       "position_rank": 54,
-      "tier": 13
+      "tier": 13,
+      "sleeper_id": "2152"
     },
     {
       "player_id": "00-0040206",
@@ -16534,7 +17123,8 @@
       "bye": 13,
       "vorp": -134.59,
       "position_rank": 55,
-      "tier": 13
+      "tier": 13,
+      "sleeper_id": "12470"
     },
     {
       "player_id": "00-0036679",
@@ -16562,7 +17152,8 @@
       "bye": 5,
       "vorp": -135.0,
       "position_rank": 56,
-      "tier": 13
+      "tier": 13,
+      "sleeper_id": "8002"
     },
     {
       "player_id": "00-0039398",
@@ -16590,7 +17181,8 @@
       "bye": 14,
       "vorp": -136.33,
       "position_rank": 57,
-      "tier": 13
+      "tier": 13,
+      "sleeper_id": "11557"
     },
     {
       "player_id": "00-0035100",
@@ -16618,7 +17210,8 @@
       "bye": 6,
       "vorp": -136.66,
       "position_rank": 58,
-      "tier": 13
+      "tier": 13,
+      "sleeper_id": "6111"
     },
     {
       "player_id": "00-0036898",
@@ -16646,7 +17239,8 @@
       "bye": 8,
       "vorp": -142.2,
       "position_rank": 59,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "7585"
     },
     {
       "player_id": "00-0037324",
@@ -16674,7 +17268,8 @@
       "bye": 5,
       "vorp": -142.41,
       "position_rank": 60,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "8413"
     },
     {
       "player_id": "00-0036972",
@@ -16702,7 +17297,8 @@
       "bye": 8,
       "vorp": -143.77,
       "position_rank": 61,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "7527"
     },
     {
       "player_id": "00-0033949",
@@ -16730,7 +17326,8 @@
       "bye": 11,
       "vorp": -144.34,
       "position_rank": 62,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "4179"
     },
     {
       "player_id": "00-0031345",
@@ -16758,7 +17355,8 @@
       "bye": 11,
       "vorp": -147.87,
       "position_rank": 63,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "1837"
     },
     {
       "player_id": "00-0038582",
@@ -16786,7 +17384,8 @@
       "bye": 11,
       "vorp": -148.13,
       "position_rank": 64,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "10217"
     },
     {
       "player_id": "00-0032434",
@@ -16814,7 +17413,8 @@
       "bye": 9,
       "vorp": -148.46,
       "position_rank": 65,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "3357"
     },
     {
       "player_id": "00-0040494",
@@ -16842,7 +17442,8 @@
       "bye": 6,
       "vorp": -148.5,
       "position_rank": 66,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "12775"
     },
     {
       "player_id": "00-0035289",
@@ -16870,7 +17471,8 @@
       "bye": 5,
       "vorp": -148.94,
       "position_rank": 67,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "6011"
     },
     {
       "player_id": "00-0039164",
@@ -16898,7 +17500,8 @@
       "bye": 13,
       "vorp": -149.13,
       "position_rank": 68,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "9229"
     },
     {
       "player_id": "00-0040704",
@@ -16926,7 +17529,8 @@
       "bye": 11,
       "vorp": -150.06,
       "position_rank": 69,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "12486"
     },
     {
       "player_id": "00-0037013",
@@ -16954,7 +17558,8 @@
       "bye": 6,
       "vorp": -152.55,
       "position_rank": 70,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "7538"
     },
     {
       "player_id": "00-0038416",
@@ -16982,7 +17587,8 @@
       "bye": 10,
       "vorp": -152.9,
       "position_rank": 71,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "11256"
     },
     {
       "player_id": "00-0038658",
@@ -17010,7 +17616,8 @@
       "bye": 8,
       "vorp": -153.17,
       "position_rank": 72,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "11065"
     },
     {
       "player_id": "00-0034955",
@@ -17038,7 +17645,8 @@
       "bye": 6,
       "vorp": -155.12,
       "position_rank": 73,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "6037"
     },
     {
       "player_id": "00-0034771",
@@ -17066,7 +17674,8 @@
       "bye": 9,
       "vorp": -155.12,
       "position_rank": 74,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "4972"
     },
     {
       "player_id": "00-0035704",
@@ -17094,7 +17703,8 @@
       "bye": 11,
       "vorp": -156.42,
       "position_rank": 75,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "5854"
     },
     {
       "player_id": "00-0033319",
@@ -17122,7 +17732,8 @@
       "bye": 7,
       "vorp": -157.07,
       "position_rank": 76,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "4464"
     },
     {
       "player_id": "00-0035264",
@@ -17150,7 +17761,8 @@
       "bye": 10,
       "vorp": -157.07,
       "position_rank": 77,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "6136"
     },
     {
       "player_id": "00-0038102",
@@ -17178,7 +17790,8 @@
       "bye": 13,
       "vorp": -157.61,
       "position_rank": 78,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "8160"
     },
     {
       "player_id": "00-0039577",
@@ -17206,7 +17819,8 @@
       "bye": 14,
       "vorp": -158.01,
       "position_rank": 79,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "11648"
     },
     {
       "player_id": "00-0034577",
@@ -17234,7 +17848,8 @@
       "bye": 6,
       "vorp": -159.25,
       "position_rank": 80,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "5127"
     },
     {
       "player_id": "00-0040673",
@@ -17262,7 +17877,30 @@
       "bye": 11,
       "vorp": -163.48,
       "position_rank": 81,
-      "tier": 14
+      "tier": 14,
+      "sleeper_id": "12510"
     }
-  ]
+  ],
+  "crosswalk": {
+    "matched_gsis": 169,
+    "matched_name": 432,
+    "unmatched": 15,
+    "unmatched_names": [
+      "Kenneth Gainwell",
+      "Nate Carter",
+      "Josh Palmer",
+      "Bam Knight",
+      "Giovanni Ricci",
+      "Andrew Ogletree",
+      "Justin Shorter",
+      "Mitchell Tinsley",
+      "Kyle Williams",
+      "Hunter Luepke",
+      "Jacoby Jones",
+      "Velus Jones Jr.",
+      "Adam Prentice",
+      "Brady Russell",
+      "Jalen Cropper"
+    ]
+  }
 }
