@@ -152,3 +152,8 @@ footer { max-width: 1080px; margin: 2rem auto 0; padding: 1rem 1.25rem 2rem;
 .draft-row label { font: 500 .85rem/1.3 "Source Sans 3", sans-serif; color: var(--chalk-dim); }
 .draft-roster, .draft-note { margin: 0; font: 500 .82rem/1.4 "IBM Plex Mono", monospace;
   color: var(--chalk-dim); }
+
+tr.drafted td { opacity: .38; }
+tr.drafted td:nth-child(3) { text-decoration: line-through; }
+tr.mine td { opacity: 1; }
+tr.mine { background: color-mix(in srgb, var(--te) 12%, transparent); }

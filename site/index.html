@@ -77,6 +77,10 @@ empties, don't chase.</footer>
   let pos = "ALL";
   let rows = board.players.slice();
 
+  let draftState = null;
+  const isDrafted = p => !!(draftState && p.sleeper_id && draftState.drafted.has(p.sleeper_id));
+  const isMine = p => !!(draftState && p.sleeper_id && draftState.mine.has(p.sleeper_id));
+
   // Bars are pinned to the PPR p90 ceiling on purpose: a stable ruler across
   // scoring toggles, so bars don't rescale when you switch PPR/half/standard.
   const maxCeil = Math.max(...board.players.map(p =>
@@ -92,7 +96,8 @@ empties, don't chase.</footer>
     // the initial/default order, which is VORP desc from the source data.
     const isVorpDesc = !table.dataset.sortKey ||
       (table.dataset.sortKey === "vorp" && table.dataset.sortDesc === "true");
-    const filtered = data.filter(p => pos === "ALL" || p.position === pos);
+    const filtered = data.filter(p => pos === "ALL" || p.position === pos)
+      .filter(p => !(draftState && draftState.hideDrafted && isDrafted(p) && !isMine(p)));
     for (const p of filtered) {
       if (pos !== "ALL" && isVorpDesc && p.tier !== lastTier) {
         const tr = document.createElement("tr");
@@ -112,6 +117,8 @@ empties, don't chase.</footer>
         <td></td>
         <td class="num">${p.position_rank}</td>`;
       tr.children[6].appendChild(FC.bandBar(s.p10, s.p50, s.p90, maxCeil, p.position));
+      if (isDrafted(p)) tr.classList.add("drafted");
+      if (isMine(p)) tr.classList.add("mine");
       tbody.appendChild(tr);
     }
   }
@@ -154,7 +161,7 @@ empties, don't chase.</footer>
           roster: document.getElementById("draft-roster"),
           note: document.getElementById("draft-unmatched"),
         },
-        onUpdate: s => { console.log("draft-mode state", s); },   // Task 6 replaces this
+        onUpdate: s => { draftState = s.connected ? s : null; render(rows); },
       });
     } else {
       DraftMode.disable("this board build has no Sleeper mapping — regenerate with --draft");
