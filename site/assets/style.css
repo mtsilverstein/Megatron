@@ -157,3 +157,4 @@ tr.drafted td { opacity: .38; }
 tr.drafted td:nth-child(3) { text-decoration: line-through; }
 tr.mine td { opacity: 1; }
 tr.mine { background: color-mix(in srgb, var(--te) 12%, transparent); }
+tr.mine td:nth-child(3) { text-decoration: none; }

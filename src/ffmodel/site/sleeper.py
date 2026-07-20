@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import unicodedata
 from pathlib import Path
 
 # Generation suffixes only. "V" is intentionally NOT stripped: it is a
@@ -20,7 +21,9 @@ _SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
 
 
 def _normalize_name(name: str) -> str:
-    cleaned = re.sub(r"[.'\-]", "", str(name).lower())
+    folded = "".join(c for c in unicodedata.normalize("NFKD", str(name))
+                     if not unicodedata.combining(c))
+    cleaned = re.sub(r"[.'\-]", "", folded.lower())
     return " ".join(t for t in cleaned.split() if t not in _SUFFIXES)
 
 

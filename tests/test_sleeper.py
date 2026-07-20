@@ -24,6 +24,11 @@ def test_normalize_collapses_whitespace():
     assert _normalize_name("  Kenneth   Walker  III ") == "kenneth walker"
 
 
+def test_normalize_folds_accents():
+    assert _normalize_name("Audric Estimé") == "audric estime"
+    assert _normalize_name("César Ruiz") == "cesar ruiz"
+
+
 # --- crosswalk ----------------------------------------------------------------
 
 def _board(*players):
