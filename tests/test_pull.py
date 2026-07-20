@@ -194,12 +194,12 @@ def test_normalize_draft_picks_maps_pfr_team_codes():
     from ffmodel.data.pull import normalize_draft_picks
 
     out = normalize_draft_picks(_raw_draft([
-        {"team": "GNB"}, {"team": "KAN"}, {"team": "NOR"}, {"team": "LVR"},
-        {"team": "LAR"}, {"team": "SDG"}, {"team": "STL"}, {"team": "OAK"},
-        {"team": "PHI"},
+        {"team": "GNB"}, {"team": "KAN"}, {"team": "NOR"}, {"team": "NWE"},
+        {"team": "SFO"}, {"team": "TAM"}, {"team": "LVR"}, {"team": "LAR"},
+        {"team": "SDG"}, {"team": "STL"}, {"team": "OAK"}, {"team": "PHI"},
     ]))
-    assert list(out["team"]) == ["GB", "KC", "NO", "LV", "LA", "LAC", "LA",
-                                 "LV", "PHI"]
+    assert list(out["team"]) == ["GB", "KC", "NO", "NE", "SF", "TB", "LV",
+                                 "LA", "LAC", "LA", "LV", "PHI"]
 
 
 def test_normalize_draft_picks_rejects_unknown_team_code():
@@ -220,13 +220,29 @@ def test_normalize_draft_picks_filters_to_skill_positions():
 
 
 def test_pull_draft_picks_uses_cache(tmp_path):
-    from ffmodel.data.pull import normalize_draft_picks, pull_draft_picks
+    from ffmodel.data.pull import pull_draft_picks
 
-    cached = normalize_draft_picks(_raw_draft([{}]))
-    cached.to_parquet(tmp_path / "draft_picks_2024_2024.parquet", index=False)
+    # Pre-write a RAW-style frame (not normalized) to cache.
+    raw = _raw_draft([{}])
+    raw.to_parquet(tmp_path / "draft_picks_raw_2024_2024.parquet", index=False)
     # No network stub: a real fetch attempt would fail loudly here.
     out = pull_draft_picks([2024], cache_dir=tmp_path)
-    assert len(out) == 1 and out["team"].iloc[0] == "KC"
+    # Normalization must have run on cache hit: team code mapped, columns whitelisted.
+    assert len(out) == 1
+    assert out["team"].iloc[0] == "KC"
+    assert list(out.columns) == ["season", "round", "pick", "team", "gsis_id",
+                                 "player_name", "position", "age", "college"]
+
+
+def test_pull_draft_picks_stale_cache_cannot_bypass_validation(tmp_path):
+    from ffmodel.data.pull import pull_draft_picks
+
+    # Pre-write a RAW cache with an invalid team code.
+    raw = _raw_draft([{"team": "ZZZ"}])
+    raw.to_parquet(tmp_path / "draft_picks_raw_2024_2024.parquet", index=False)
+    # Even cached, normalization validation must run and reject the bad code.
+    with pytest.raises(ValueError, match="ZZZ"):
+        pull_draft_picks([2024], cache_dir=tmp_path)
 
 
 def test_merge_snap_pct_duplicate_rows_do_not_fan_out():

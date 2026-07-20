@@ -190,6 +190,10 @@ DRAFT_COLUMNS = ["season", "round", "pick", "team", "gsis_id",
 
 
 def normalize_draft_picks(raw: pd.DataFrame) -> pd.DataFrame:
+    """Filter to skill positions, map PFR team codes, whitelist draft-day columns.
+
+    Structurally excludes career outcomes (future-leaking columns).
+    """
     df = raw[raw["position"].isin(POSITIONS)].copy()
     df["team"] = df["team"].replace(PFR_TEAM_FIXES)
     unknown = sorted(set(df["team"]) - FRANCHISE_CODES)
@@ -201,13 +205,21 @@ def normalize_draft_picks(raw: pd.DataFrame) -> pd.DataFrame:
 
 
 def pull_draft_picks(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFrame:
+    """Drafted-player pull, column-whitelisted to draft-day-known fields.
+
+    Normalization runs on EVERY read path (same reasoning as
+    pull_schedules' normalize_schedule_teams): a cache file predating this
+    code, or written by anything else, must still pass the leakage
+    whitelist and team-code validation — never trusted raw.
+    """
     def load() -> pd.DataFrame:
         import nflreadpy  # deferred: keep offline unit tests import-light
 
         raw = nflreadpy.load_draft_picks().to_pandas()
-        return normalize_draft_picks(raw[raw["season"].isin(seasons)])
+        return raw[raw["season"].isin(seasons)]
 
-    return _cached(cache_dir, _cache_name("draft_picks", seasons), load)
+    return normalize_draft_picks(
+        _cached(cache_dir, _cache_name("draft_picks_raw", seasons), load))
 
 
 def main() -> None:
