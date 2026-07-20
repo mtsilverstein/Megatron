@@ -168,6 +168,67 @@ def test_merge_snap_pct_season_with_no_snap_rows_stays_all_nan():
     assert out["snap_pct"].isna().all()
 
 
+def _raw_draft(rows):
+    """Synthetic nflverse draft_picks frame with the future-leaking columns
+    present, to prove they get dropped."""
+    base = {"season": 2024, "round": 1, "pick": 1, "team": "KAN",
+            "gsis_id": "00-0099999", "pfr_player_id": "X", "cfb_player_id": "Y",
+            "pfr_player_name": "Some Guy", "position": "RB", "age": 22.0,
+            "college": "State", "hof": False,
+            # future-leaking career-outcome columns:
+            "to": 2035, "w_av": 80, "car_av": 75, "dr_av": 70, "games": 150,
+            "allpro": 3, "probowls": 5, "seasons_started": 9,
+            "rush_yards": 9000, "rec_yards": 3000, "pass_yards": 0}
+    return pd.DataFrame([{**base, **r} for r in rows])
+
+
+def test_normalize_draft_picks_column_whitelist_excludes_career_outcomes():
+    from ffmodel.data.pull import normalize_draft_picks
+
+    out = normalize_draft_picks(_raw_draft([{}]))
+    assert list(out.columns) == ["season", "round", "pick", "team", "gsis_id",
+                                 "player_name", "position", "age", "college"]
+
+
+def test_normalize_draft_picks_maps_pfr_team_codes():
+    from ffmodel.data.pull import normalize_draft_picks
+
+    out = normalize_draft_picks(_raw_draft([
+        {"team": "GNB"}, {"team": "KAN"}, {"team": "NOR"}, {"team": "LVR"},
+        {"team": "LAR"}, {"team": "SDG"}, {"team": "STL"}, {"team": "OAK"},
+        {"team": "PHI"},
+    ]))
+    assert list(out["team"]) == ["GB", "KC", "NO", "LV", "LA", "LAC", "LA",
+                                 "LV", "PHI"]
+
+
+def test_normalize_draft_picks_rejects_unknown_team_code():
+    from ffmodel.data.pull import normalize_draft_picks
+
+    with pytest.raises(ValueError, match="ZZZ"):
+        normalize_draft_picks(_raw_draft([{"team": "ZZZ"}]))
+
+
+def test_normalize_draft_picks_filters_to_skill_positions():
+    from ffmodel.data.pull import normalize_draft_picks
+
+    out = normalize_draft_picks(_raw_draft([
+        {"position": "QB"}, {"position": "T"}, {"position": "DB"},
+        {"position": "TE"},
+    ]))
+    assert list(out["position"]) == ["QB", "TE"]
+
+
+def test_pull_draft_picks_uses_cache(tmp_path):
+    from ffmodel.data.pull import normalize_draft_picks, pull_draft_picks
+
+    cached = normalize_draft_picks(_raw_draft([{}]))
+    cached.to_parquet(tmp_path / "draft_picks_2024_2024.parquet", index=False)
+    # No network stub: a real fetch attempt would fail loudly here.
+    out = pull_draft_picks([2024], cache_dir=tmp_path)
+    assert len(out) == 1 and out["team"].iloc[0] == "KC"
+
+
 def test_merge_snap_pct_duplicate_rows_do_not_fan_out():
     """Characterization test: snaps with a duplicate (pfr_player_id, season,
     week) pair (e.g. a two-team week in the raw source) and a crosswalk with

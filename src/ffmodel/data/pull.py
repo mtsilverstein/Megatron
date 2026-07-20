@@ -169,6 +169,47 @@ def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.Data
         _cached(cache_dir, _cache_name("schedules_v2", seasons), load))
 
 
+# PFR-style codes used by nflverse draft_picks, mapped to the current
+# franchise codes the rest of the project uses (relocations map to the
+# current franchise, consistent with TEAM_CODE_FIXES above).
+PFR_TEAM_FIXES = {
+    "GNB": "GB", "KAN": "KC", "NOR": "NO", "NWE": "NE", "SFO": "SF",
+    "TAM": "TB", "LVR": "LV", "LAR": "LA", "SDG": "LAC",
+    "STL": "LA", "OAK": "LV",
+}
+FRANCHISE_CODES = {
+    "ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN",
+    "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN",
+    "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS",
+}
+# Draft-day-known columns ONLY. nflverse's draft_picks also carries career
+# OUTCOMES (games, w_av, to, career stats, allpro, ...) which encode the
+# future -- structurally excluded here so no downstream consumer can leak.
+DRAFT_COLUMNS = ["season", "round", "pick", "team", "gsis_id",
+                 "player_name", "position", "age", "college"]
+
+
+def normalize_draft_picks(raw: pd.DataFrame) -> pd.DataFrame:
+    df = raw[raw["position"].isin(POSITIONS)].copy()
+    df["team"] = df["team"].replace(PFR_TEAM_FIXES)
+    unknown = sorted(set(df["team"]) - FRANCHISE_CODES)
+    if unknown:
+        raise ValueError(f"unknown draft team code(s) {unknown} — refusing "
+                         "to silently mis-assign teams/byes")
+    df = df.rename(columns={"pfr_player_name": "player_name"})
+    return df[DRAFT_COLUMNS].sort_values(["season", "pick"]).reset_index(drop=True)
+
+
+def pull_draft_picks(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFrame:
+    def load() -> pd.DataFrame:
+        import nflreadpy  # deferred: keep offline unit tests import-light
+
+        raw = nflreadpy.load_draft_picks().to_pandas()
+        return normalize_draft_picks(raw[raw["season"].isin(seasons)])
+
+    return _cached(cache_dir, _cache_name("draft_picks", seasons), load)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Pull and cache nflverse data.")
     parser.add_argument("--seasons", nargs=2, type=int, default=[2012, 2025],
