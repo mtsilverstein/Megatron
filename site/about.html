@@ -48,8 +48,7 @@
     <p>Evaluation is <strong>walk-forward only</strong>: train on seasons up to S,
     test on season S+1, held out across 2023–2025. No random splits — rolling
     features would leak the future into the past.</p>
-    <p class="lim"><strong>Known limitations:</strong> rookies with no NFL games are
-    not projected; players who changed teams keep their personal history with
+    <p class="lim"><strong>Known limitations:</strong> undrafted rookies are not projected; drafted rookies get a draft-capital prior on the board (see Rookies below), and rookies enter weekly projections only once they have NFL games; players who changed teams keep their personal history with
     updated matchup context; retired players may appear until rosters are pruned;
     season projections seed every week from end-of-prior-season form, so a short
     late-season role spike (an injury fill-in) can be over-extrapolated across a
