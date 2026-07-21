@@ -173,7 +173,8 @@ window.DraftMode = (() => {
   function nextPickNumber(slot, teams, rounds, reversalRound, picksMade, type = "snake") {
     if (!Number.isInteger(slot) || !Number.isInteger(teams) || !Number.isInteger(rounds)
         || slot < 1 || teams < 1 || rounds < 1 || slot > teams
-        || !Number.isInteger(picksMade) || picksMade < 0) return null;
+        || !Number.isInteger(picksMade) || picksMade < 0
+        || !Number.isInteger(reversalRound || 0) || (reversalRound || 0) < 0) return null;
     if (type !== "snake" && type !== "linear") return null;
     for (let r = 1; r <= rounds; r++) {
       const p = pickForRoundSlot(r, slot, teams, reversalRound || 0, type);
@@ -189,7 +190,7 @@ window.DraftMode = (() => {
     // matched sleeper_id can be drafted). Sorted by VORP desc; the naive
     // assumption removes the top picksUntilMine overall.
     const avail = players
-      .filter(p => !(p.sleeper_id && draftedSet.has(p.sleeper_id)))
+      .filter(p => !(p.sleeper_id && draftedSet.has(p.sleeper_id)) && Number.isFinite(p.vorp))
       .slice()
       .sort((a, b) => (b.vorp ?? -Infinity) - (a.vorp ?? -Infinity));
     const after = avail.slice(picksUntilMine);
