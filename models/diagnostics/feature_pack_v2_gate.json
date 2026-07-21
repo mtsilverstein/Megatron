@@ -1,0 +1,259 @@
+{
+  "generated_at": "2026-07-21T23:01:57+00:00",
+  "experiment": "feature-pack-v2",
+  "verdict": "NOT PROMOTED",
+  "summary": "Both pre-registered criteria were met by the letter, but the accuracy gain is statistically indistinguishable from zero: the pooled paired 95% CI on per-row absolute-error difference includes zero, v2 wins only 1 of 3 held-out seasons (and is significantly WORSE in 2024), and QB regresses significantly. The features did not earn promotion; the site stays on v1.",
+  "spec": "docs/superpowers/specs/2026-07-21-feature-pack-v2-design.md",
+  "features_added": [
+    "air_share (lagged 4/8)",
+    "team_pass_att_last4",
+    "is_indoor"
+  ],
+  "artifacts_evaluated": {
+    "v2_roots": [
+      "models/transformer/v2",
+      "models/transformer/v2_s43",
+      "models/transformer/v2_s44"
+    ],
+    "v1_roots": [
+      "models/transformer/v1",
+      "models/transformer/v1_s43",
+      "models/transformer/v1_s44"
+    ],
+    "repo_commit": "120f50e",
+    "feature_set": "v2 (19 seq / 12 ctx features)"
+  },
+  "pre_registered_rule": {
+    "recorded_before_results": true,
+    "criterion_1_accuracy": "v2 3-seed ensemble OVERALL walk-forward PPR MAE < v1's, and pinball_p50 not worse. Committed v1 bar 4.3263.",
+    "criterion_2_calibration": "fresh conformal refit lands held-out weekly coverage in [0.75, 0.85] for every position/season.",
+    "note": "Both models re-run through the same harness on the SAME current data; naive_last4 (4.612) and xgboost (4.450) were byte-identical across the two runs, confirming no data shift mid-evaluation. MAE and pinball_p50 are calibration-invariant, so v1 carrying calibration.json and v2 not cannot bias criterion 1."
+  },
+  "gate_1_accuracy": {
+    "per_season": [
+      {
+        "test_season": 2023,
+        "n": 5893,
+        "v1_mae": 4.3407,
+        "v2_mae": 4.2781,
+        "delta_mae": -0.0626,
+        "v1_pinball_p50": 2.1703,
+        "v2_pinball_p50": 2.139,
+        "paired_mean_delta": -0.0626,
+        "paired_ci95": [
+          -0.08001,
+          -0.04536
+        ],
+        "paired_t": -7.148,
+        "v2_better": true
+      },
+      {
+        "test_season": 2024,
+        "n": 5920,
+        "v1_mae": 4.4039,
+        "v2_mae": 4.4335,
+        "delta_mae": 0.0295,
+        "v1_pinball_p50": 2.202,
+        "v2_pinball_p50": 2.2167,
+        "paired_mean_delta": 0.02955,
+        "paired_ci95": [
+          0.01564,
+          0.04332
+        ],
+        "paired_t": 4.169,
+        "v2_better": false
+      },
+      {
+        "test_season": 2025,
+        "n": 6095,
+        "v1_mae": 4.2324,
+        "v2_mae": 4.2428,
+        "delta_mae": 0.0105,
+        "v1_pinball_p50": 2.1162,
+        "v2_pinball_p50": 2.1214,
+        "paired_mean_delta": 0.01045,
+        "paired_ci95": [
+          -0.00127,
+          0.02222
+        ],
+        "paired_t": 1.747,
+        "v2_better": false
+      }
+    ],
+    "v1_mae_mean": 4.3257,
+    "v2_mae_mean": 4.3181,
+    "delta_mae_mean": -0.0075,
+    "v1_pinball_p50_mean": 2.1628,
+    "v2_pinball_p50_mean": 2.1591,
+    "committed_v1_bar": 4.3263,
+    "v1_rerun_drift_vs_committed_bar": -0.0006,
+    "criterion_met_by_letter": true,
+    "seasons_v2_better": 1,
+    "pooled_paired": {
+      "n": 17908,
+      "mean_delta": -0.00727,
+      "ci95": [
+        -0.01569,
+        0.001
+      ],
+      "t": -1.713,
+      "ci_includes_zero": true
+    },
+    "season_level_effect": {
+      "mean_of_season_deltas": -0.00753,
+      "sd_across_seasons": 0.04864,
+      "se": 0.02808,
+      "note": "effect is ~1/4 of its own standard error across seasons"
+    },
+    "by_position": [
+      {
+        "position": "QB",
+        "n": 1991,
+        "paired_mean_delta": 0.08148,
+        "paired_ci95": [
+          0.03947,
+          0.12408
+        ],
+        "v2_worse": true
+      },
+      {
+        "position": "RB",
+        "n": 4826,
+        "paired_mean_delta": -0.00367,
+        "paired_ci95": [
+          -0.01646,
+          0.00888
+        ],
+        "v2_worse": false
+      },
+      {
+        "position": "TE",
+        "n": 3694,
+        "paired_mean_delta": -0.02699,
+        "paired_ci95": [
+          -0.03965,
+          -0.01452
+        ],
+        "v2_worse": false
+      },
+      {
+        "position": "WR",
+        "n": 7397,
+        "paired_mean_delta": -0.02367,
+        "paired_ci95": [
+          -0.03647,
+          -0.01099
+        ],
+        "v2_worse": false
+      }
+    ]
+  },
+  "gate_2_calibration": {
+    "passed": true,
+    "target_window": [
+      0.75,
+      0.85
+    ],
+    "out_of_window": [],
+    "per_position_season": [
+      {
+        "position": "QB",
+        "test_season": 2023,
+        "v1_coverage": 0.7677,
+        "v2_coverage": 0.7541,
+        "in_window": true
+      },
+      {
+        "position": "QB",
+        "test_season": 2024,
+        "v1_coverage": 0.8027,
+        "v2_coverage": 0.7952,
+        "in_window": true
+      },
+      {
+        "position": "QB",
+        "test_season": 2025,
+        "v1_coverage": 0.7681,
+        "v2_coverage": 0.7575,
+        "in_window": true
+      },
+      {
+        "position": "RB",
+        "test_season": 2023,
+        "v1_coverage": 0.8414,
+        "v2_coverage": 0.8223,
+        "in_window": true
+      },
+      {
+        "position": "RB",
+        "test_season": 2024,
+        "v1_coverage": 0.7883,
+        "v2_coverage": 0.7895,
+        "in_window": true
+      },
+      {
+        "position": "RB",
+        "test_season": 2025,
+        "v1_coverage": 0.7964,
+        "v2_coverage": 0.797,
+        "in_window": true
+      },
+      {
+        "position": "TE",
+        "test_season": 2023,
+        "v1_coverage": 0.8047,
+        "v2_coverage": 0.7988,
+        "in_window": true
+      },
+      {
+        "position": "TE",
+        "test_season": 2024,
+        "v1_coverage": 0.8013,
+        "v2_coverage": 0.7939,
+        "in_window": true
+      },
+      {
+        "position": "TE",
+        "test_season": 2025,
+        "v1_coverage": 0.8145,
+        "v2_coverage": 0.8262,
+        "in_window": true
+      },
+      {
+        "position": "WR",
+        "test_season": 2023,
+        "v1_coverage": 0.8244,
+        "v2_coverage": 0.8305,
+        "in_window": true
+      },
+      {
+        "position": "WR",
+        "test_season": 2024,
+        "v1_coverage": 0.7857,
+        "v2_coverage": 0.7903,
+        "in_window": true
+      },
+      {
+        "position": "WR",
+        "test_season": 2025,
+        "v1_coverage": 0.7914,
+        "v2_coverage": 0.7958,
+        "in_window": true
+      }
+    ],
+    "note": "conformal refit fit on each fold's VAL season (never the test season); val tails converged to ~0.100/0.101 against a 0.10 target."
+  },
+  "decision": {
+    "promoted": false,
+    "site_model": "v1 (ARTIFACT_ROOT unchanged)",
+    "rationale": "Criterion 1 was satisfied only in point estimate. A paired test on the 17,908 identical held-out rows puts the difference within noise, the sign of the effect flips across seasons, and QB degrades. Shipping would add live-pipeline surface (three more upstream nflverse columns) and a measurable QB regression to buy nothing that survives scrutiny.",
+    "kept": "v2 artifacts and the versioned feature-set infrastructure remain committed, so a future feature pack can reuse them without rework."
+  },
+  "follow_up_hypotheses": [
+    {
+      "observation": "QB is the only position that regresses, and it is significant: paired mean +0.0815 PPR MAE, CI [+0.0395, +0.1241], n=1991.",
+      "hypothesis": "air_share is receiver-centric (share of team receiving air yards) and is structurally NaN/uninformative for QBs, so it may act as noise in the QB sequence channel; passing_air_yards is pulled but currently unconsumed and would be the QB-native analogue.",
+      "discipline": "NOT acted on here. Changing features in response to held-out results is tuning against test data. Any future test must be pre-registered before looking at 2023-25."
+    }
+  ]
+}
