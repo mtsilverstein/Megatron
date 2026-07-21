@@ -42,9 +42,16 @@ def normalize_rankings(raw: pd.DataFrame) -> pd.DataFrame:
 
 
 def season_kickoff(schedules: pd.DataFrame, season: int) -> pd.Timestamp:
-    """First REGULAR-season kickoff for `season` — the leak boundary."""
-    games = schedules[(schedules["season"] == season)
-                      & (schedules["game_type"] == "REG")]
+    """First REGULAR-season kickoff for `season` — the leak boundary.
+
+    `game_type` is OPTIONAL: `pull_schedules` already filters to REG and
+    drops the column, so the project's own schedule frames never carry it.
+    When it is present (a raw nflverse frame) it is honored, so a preseason
+    game can never pull the boundary earlier than the real week-1 kickoff.
+    """
+    games = schedules[schedules["season"] == season]
+    if "game_type" in games.columns:
+        games = games[games["game_type"] == "REG"]
     if games.empty:
         raise ValueError(f"no REG games for season {season} — cannot place "
                          f"the consensus leak boundary")

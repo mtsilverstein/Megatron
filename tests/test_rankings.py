@@ -92,6 +92,25 @@ def test_season_kickoff_ignores_preseason_games():
     assert season_kickoff(sched, 2024) == pd.Timestamp("2024-09-05")
 
 
+def test_season_kickoff_works_on_the_production_schedule_shape():
+    """Regression: pull_schedules filters to REG and DROPS game_type, so the
+    real frame has no such column. Requiring it crashed the benchmark on the
+    first live run while every synthetic-fixture test passed."""
+    from ffmodel.data.pull import pull_schedules
+    from ffmodel.data.rankings import season_kickoff
+
+    import inspect
+    assert "game_type" not in inspect.getsource(pull_schedules).split("keep = ")[1].split("]")[0]
+
+    sched = pd.DataFrame({                       # exactly pull_schedules' columns
+        "season": [2024, 2024], "week": [1, 2],
+        "gameday": ["2024-09-05", "2024-09-12"],
+        "home_team": ["KC", "SF"], "away_team": ["DET", "LA"],
+        "home_score": [27.0, 20.0], "away_score": [20.0, 17.0], "roof": ["outdoors"] * 2,
+    })
+    assert season_kickoff(sched, 2024) == pd.Timestamp("2024-09-05")
+
+
 def test_season_kickoff_raises_for_missing_season():
     from ffmodel.data.rankings import season_kickoff
 
