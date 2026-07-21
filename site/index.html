@@ -66,7 +66,8 @@ simulation — games played sampled from historical availability, weeks linked
 by a measured correlation; the tick is the simulated median, and VORP is built
 from that same median. Ordering is points above a replacement-level starter,
 so scarcity is priced in. Tier gaps mark real value cliffs — when your tier
-empties, don't chase.</footer>
+empties, don't chase. Rookies (marked R) carry draft-capital cohort priors — wide bands on
+purpose; see the about page.</footer>
 <script src="assets/app.js"></script>
 <script src="assets/draftmode.js"></script>
 <script>
@@ -110,7 +111,7 @@ empties, don't chase.</footer>
       tr.innerHTML = `
         <td class="num">${FC.fmt(p.vorp)}</td>
         <td><span class="pos-chip ${FC.POS_CLASS[p.position]}">${p.position}</span></td>
-        <td>${FC.esc(p.name)}</td>
+        <td>${FC.esc(p.name)}${p.rookie ? ' <span class="rookie-chip" title="rookie — draft-capital cohort prior">R</span>' : ""}</td>
         <td>${FC.esc(p.team)}</td>
         <td class="num">${p.bye ?? "—"}</td>
         <td class="num">${FC.fmt(s.p50)}</td>

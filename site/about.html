@@ -64,6 +64,23 @@
     up; snap-count data has no 2012 source and is treated as missing for that
     season. These are design choices, documented, not surprises.</p>
   </div>
+  <h2>Rookies</h2>
+  <div class="prose">
+  <p>Drafted rookies have no NFL games to model, so they get an empirical
+  prior instead: we group every drafted QB/RB/WR/TE since 2012 by position
+  and draft capital (top-12 picks, rest of round 1, round 2, round 3, day
+  3), and a 2026 rookie inherits the distribution of what players with his
+  draft profile actually did as rookies — including the ones who never
+  played a snap. That zero-games outcome is kept in the math, which is why
+  rookie floors are low and rookie bands are wide.</p>
+  <p class="lim">This makes rookie ranks look conservative next to draft-hype
+  ADP — historically, that conservatism has been the accurate call on
+  average, and the p90 ceiling still shows the upside case. Limitations we
+  accept and label: games played and per-game quality are treated as
+  independent within a cohort, and undrafted rookies aren't projected at
+  all. The walk-forward rookie backtest behind this lives in
+  models/diagnostics/.</p>
+  </div>
   <h2>Backtest results</h2>
   <p class="prose lim">Walk-forward mean absolute error in PPR points per
   player-week, by position. Lower is better. Quantile columns appear for models

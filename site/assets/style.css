@@ -158,3 +158,10 @@ tr.drafted td:nth-child(3) { text-decoration: line-through; }
 tr.mine td { opacity: 1; }
 tr.mine { background: color-mix(in srgb, var(--te) 12%, transparent); }
 tr.mine td:nth-child(3) { text-decoration: none; }
+
+/* -- rookie chip ---------------------------------------------------------- */
+.rookie-chip {
+  display: inline-block; margin-left: .35rem; padding: 0 .3rem;
+  font: 600 .7rem/1.5 "Barlow Condensed", sans-serif; letter-spacing: .06em;
+  border: 1px solid var(--te); border-radius: 3px; color: var(--te);
+}
