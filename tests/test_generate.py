@@ -236,9 +236,13 @@ def test_extend_with_target_season_concats_on_success(monkeypatch):
     assert set(out["season"]) == {2025, 2026}
 
 
-def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict):
+def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
+                             pull_draft_picks=None):
     """Run generate.main() end-to-end with data pulls, predictor, and payload
-    builders stubbed. Records the sleeper_players kwarg build_draft_board saw."""
+    builders stubbed. Records the sleeper_players/draft_picks kwargs
+    build_draft_board saw. `pull_draft_picks`, if given, overrides the
+    default tiny-valid-frame stub for `ffmodel.data.pull.pull_draft_picks`
+    (e.g. a boom function, to prove a weekly-only run never calls it)."""
     import sys
 
     import ffmodel.data.features as features_mod
@@ -258,6 +262,14 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict):
     monkeypatch.setattr(pull_mod, "pull_schedules", lambda *a, **k: sched)
     monkeypatch.setattr(features_mod, "build_features", lambda *a, **k: weekly)
 
+    if pull_draft_picks is None:
+        draft_picks_frame = pd.DataFrame([
+            {"season": 2012, "round": 1, "pick": 1, "team": "AAA",
+             "gsis_id": "00-0000001", "player_name": "A B", "position": "QB",
+             "age": 21.0, "college": "State"}])
+        pull_draft_picks = lambda *a, **k: draft_picks_frame
+    monkeypatch.setattr(pull_mod, "pull_draft_picks", pull_draft_picks)
+
     class _Stub:
         name = "stub"
         def fit(self, train): pass
@@ -265,6 +277,7 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict):
 
     def fake_board(*a, **k):
         capture["sleeper_players"] = k.get("sleeper_players")
+        capture["draft_picks"] = k.get("draft_picks")
         return {"players": []}
     monkeypatch.setattr(draft_mod, "build_draft_board", fake_board)
     monkeypatch.setattr(about_mod, "build_about",
@@ -285,6 +298,7 @@ def test_draft_run_threads_sleeper_dump_into_board(monkeypatch, tmp_path):
     capture = {}
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
     assert capture["sleeper_players"] is dump
+    assert capture["draft_picks"] is not None
     assert (tmp_path / "out" / "draft.json").exists()
 
 
@@ -300,8 +314,12 @@ def test_weekly_only_run_never_touches_sleeper(monkeypatch, tmp_path):
                         lambda *a, **k: (None, None))
     monkeypatch.setattr(weekly_mod, "build_weekly_projections",
                         lambda *a, **k: {"players": []})
+
+    def boom_draft_picks(*a, **k):
+        raise AssertionError("weekly-only run must not pull draft picks")
     capture = {}
-    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], capture)
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], capture,
+                             pull_draft_picks=boom_draft_picks)
     assert (tmp_path / "out" / "weekly.json").exists()
 
 

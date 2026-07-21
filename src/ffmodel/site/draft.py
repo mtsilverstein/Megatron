@@ -147,11 +147,18 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
         clip_fracs: dict[str, list[float]] = {}
         for pid, entry in totals.items():
             position = entry["position"]
-            if fallback_full_availability:
+            probs = None if fallback_full_availability else dist_by_position.get(position)
+            if probs is None or not np.isclose(probs.sum(), 1.0):
+                # Per-position degenerate fallback: a position with zero
+                # cohort members in the measured season pair(s) (e.g. no
+                # prior-season history at all for that position in a thin
+                # world) yields an all-zero, non-normalized vector from
+                # `games_probs_from_counts` -- rather than crash `rng.choice`
+                # on a probability vector that doesn't sum to 1, fall back to
+                # this player's own point-mass full availability, same as the
+                # global `fallback_full_availability` case above.
                 probs = np.zeros(_MAX_GAMES + 1, dtype=float)
                 probs[min(entry["games"], _MAX_GAMES)] = 1.0
-            else:
-                probs = dist_by_position[position]
             rho = rho_map.get(position, 0.0)
             for rn in RULESETS:
                 week_bands = np.array(bands_by_player[pid][rn], dtype=float)
@@ -197,8 +204,74 @@ def _assign_tiers(vorp_desc: pd.Series, replacement_rank: int) -> list[int]:
     return tiers
 
 
+def _rookie_frame(weekly, draft_picks, season, players, team_weeks, weeks_list,
+                  *, n_draws, seed, rookie_min_n):
+    """Rookie rows for the target season's draft class, on the veterans'
+    scale: cohort weekly triples -> simulate_season -> season quantiles.
+    Dedupe: a drafted player already carrying weekly history (by gsis id,
+    or by normalized name+position against the veteran board) gets the
+    real model only."""
+    from ffmodel.eval.diagnose import weekly_residual_icc
+    from ffmodel.model.rookie import fit_rookie_cohorts, rookie_projection
+    from ffmodel.site.sleeper import _normalize_name
+
+    cls = draft_picks[draft_picks["season"] == season]
+    if cls.empty:
+        raise RuntimeError(f"draft class for season {season} is empty — "
+                           "aborting (data problem, not a skip)")
+    kwargs = {} if rookie_min_n is None else {"min_n": rookie_min_n}
+    cohorts = fit_rookie_cohorts(weekly, draft_picks[draft_picks["season"] < season],
+                                 through_season=season - 1, **kwargs)
+    try:
+        rho_map = rho_from_icc(weekly_residual_icc(
+            weekly, through_season=int(weekly["season"].max())))
+    except ValueError:
+        rho_map = {}
+
+    known_ids = set(weekly["player_id"])
+    vet_keys = {(_normalize_name(n), p)
+                for n, p in zip(players["name"], players["position"])}
+    rng = np.random.default_rng(seed + 1)   # distinct stream from the vets'
+    rows = []
+    for _, r in cls.iterrows():
+        if r["gsis_id"] in known_ids:
+            continue                                    # real model wins
+        if (_normalize_name(r["player_name"]), r["position"]) in vet_keys:
+            continue
+        scheduled = int(team_weeks[team_weeks["team"] == r["team"]]["week"]
+                        .isin(weeks_list).sum())
+        if scheduled == 0:
+            scheduled = len(weeks_list)                 # toy schedules: play on
+        frames, games_probs = rookie_projection(
+            cohorts, r["position"], int(r["round"]), int(r["pick"]))
+        row = {"player_id": r["gsis_id"], "name": r["player_name"],
+               "team": r["team"], "position": r["position"],
+               "games": scheduled, "rookie": True}
+        for rn, rules in RULESETS.items():
+            pts = fantasy_points_quantiles(frames, rules)
+            triple = (float(pts["p10"].iloc[0]), float(pts["p50"].iloc[0]),
+                      float(pts["p90"].iloc[0]))
+            sim = simulate_season(np.array([triple] * scheduled), games_probs,
+                                  n_draws, rng,
+                                  rho=rho_map.get(r["position"], 0.0))
+            row[f"{rn}_p10"] = sim["p10"]
+            row[f"{rn}_p50"] = sim["p50"]
+            row[f"{rn}_p90"] = sim["p90"]
+        rows.append(row)
+    meta = {"classes": f"2012–{season - 1}",
+            "n_rookies": len(rows),
+            "min_n": cohorts["min_n"],
+            "buckets": {pos: d["merge_map"]
+                        for pos, d in cohorts["positions"].items()}}
+    columns = ["player_id", "name", "team", "position",
+               *[f"{rn}_{q}" for rn in RULESETS for q in ("p10", "p50", "p90")],
+               "games", "rookie"]
+    return pd.DataFrame(rows, columns=columns), meta
+
+
 def _finalize_board(players: pd.DataFrame, model: str, season: int,
-                    data_through: str, has_bands: bool, n_draws: int = 2000) -> dict:
+                    data_through: str, has_bands: bool, n_draws: int = 2000,
+                    rookie_prior: dict | None = None) -> dict:
     frames = []
     for pos, group in players.groupby("position"):
         group = group.sort_values("ppr_p50", ascending=False).reset_index(drop=True)
@@ -213,7 +286,7 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
     def _band(value) -> float | None:
         return None if pd.isna(value) else round(float(value), 1)
 
-    return {
+    payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "data_through": data_through, "season": season, "model": model,
         "has_bands": has_bands,
@@ -236,8 +309,12 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
             "vorp": float(row["vorp"]),
             "position_rank": int(row["position_rank"]),
             "tier": int(row["tier"]),
+            "rookie": bool(row["rookie"]) if "rookie" in row.index else False,
         } for _, row in board.iterrows()],
     }
+    if rookie_prior is not None:
+        payload["methodology"]["rookie_prior"] = rookie_prior
+    return payload
 
 
 def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
@@ -245,7 +322,9 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       prefit: bool = False, *, n_draws: int = 2000, seed: int = 0,
                       games_dist: dict[str, np.ndarray] | None = None,
                       diagnostics: dict | None = None,
-                      sleeper_players: dict | None = None) -> dict:
+                      sleeper_players: dict | None = None,
+                      draft_picks: pd.DataFrame | None = None,
+                      rookie_min_n: int | None = None) -> dict:
     players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit,
                                 n_draws=n_draws, seed=seed, games_dist=games_dist,
                                 diagnostics=diagnostics)
@@ -261,6 +340,14 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
         season_sched.rename(columns={"away_team": "team"})[["team", "week"]],
     ])
 
+    rookie_prior_meta = None
+    players["rookie"] = False
+    if draft_picks is not None:
+        rookie_rows, rookie_prior_meta = _rookie_frame(
+            weekly, draft_picks, season, players, team_weeks, weeks_list,
+            n_draws=n_draws, seed=seed, rookie_min_n=rookie_min_n)
+        players = pd.concat([players, rookie_rows], ignore_index=True)
+
     def _bye(team: str):
         played = set(team_weeks[team_weeks["team"] == team]["week"])
         missing = [w for w in weeks_list if w not in played]
@@ -268,7 +355,8 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
 
     players["bye"] = players["team"].map(_bye)
     has_bands = hasattr(predictor, "predict_quantiles")
-    payload = _finalize_board(players, predictor.name, season, data_through, has_bands, n_draws)
+    payload = _finalize_board(players, predictor.name, season, data_through, has_bands,
+                              n_draws, rookie_prior=rookie_prior_meta)
     if sleeper_players is not None:
         # Deferred import keeps draft.py import-light for consumers that
         # never touch draft mode (board backtests, tests).

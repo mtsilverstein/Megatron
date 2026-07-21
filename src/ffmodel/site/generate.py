@@ -173,6 +173,7 @@ def main() -> None:
     validate_inputs(weekly, schedules, args.season)
 
     sleeper_players = None
+    draft_picks = None
     if args.draft:
         # Fetched BEFORE any model work or file writes: a Sleeper outage
         # aborts the whole run fail-safe (site keeps last-good data,
@@ -181,6 +182,11 @@ def main() -> None:
         from ffmodel.site.sleeper import pull_sleeper_players
 
         sleeper_players = pull_sleeper_players(cache_dir=args.data_dir)
+
+        from ffmodel.data.pull import pull_draft_picks
+
+        draft_picks = pull_draft_picks(list(range(2012, args.season + 1)),
+                                       cache_dir=args.data_dir)
 
     latest_season = int(weekly["season"].max())
     latest_week = int(weekly[weekly["season"] == latest_season]["week"].max())
@@ -206,7 +212,7 @@ def main() -> None:
     if args.draft:
         payloads["draft.json"] = build_draft_board(
             weekly, schedules, predictor, args.season, data_through, prefit=True,
-            sleeper_players=sleeper_players)
+            sleeper_players=sleeper_players, draft_picks=draft_picks)
     backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
     payloads["about.json"] = build_about(backtests, data_through, site_model=predictor.name)
 

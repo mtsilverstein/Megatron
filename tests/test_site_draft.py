@@ -396,3 +396,112 @@ def test_board_zero_match_crosswalk_fails_loud():
                           sleeper_players={"1": {"gsis_id": "00-9999999",
                                                  "full_name": "Nobody",
                                                  "position": "QB"}})
+
+
+def _rookie_world():
+    """History with a productive 2022 rookie class + a 2023 class to draft.
+    Reuses _history() (2023 veteran weeks 1-6, players p1/p2)."""
+    from tests.test_features import make_weekly
+
+    weekly = _history()
+    hist_rows = []
+    for i in range(30):
+        pid = f"00-H{i:03d}"
+        for w in range(1, 10):
+            # team "ZZZ" is NOT in _sched_with_future()'s schedule (AAA/BBB
+            # only) -- these are 2022-only historical players meant purely to
+            # seed the rookie cohort prior; if they carried a scheduled team
+            # they'd wrongly qualify as real 2023 board players too, since
+            # future_skeleton's "last season" window (season - 1) includes
+            # 2022.
+            hist_rows.append({"player_id": pid, "season": 2022, "week": w,
+                              "position": "RB", "team": "ZZZ",
+                              "rushing_yards": 90.0})
+    hist = make_weekly(hist_rows)
+    weekly = pd.concat([weekly, hist], ignore_index=True)
+
+    import pandas as _pd
+    picks = _pd.DataFrame([
+        {"season": 2022, "round": 1, "pick": i + 1, "team": "AAA",
+         "gsis_id": f"00-H{i:03d}", "player_name": f"H{i}", "position": "RB",
+         "age": 22.0, "college": "State"} for i in range(30)
+    ] + [
+        {"season": 2023, "round": 1, "pick": 2, "team": "AAA",
+         "gsis_id": "DRAFT001", "player_name": "New Rookie", "position": "RB",
+         "age": 21.0, "college": "State"},
+    ])
+    return weekly, picks
+
+
+def test_board_appends_rookie_jointly_ranked():
+    weekly, picks = _rookie_world()
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9),
+                              draft_picks=picks)
+    rookies = [p for p in board["players"] if p["rookie"]]
+    vets = [p for p in board["players"] if not p["rookie"]]
+    assert len(rookies) == 1 and rookies[0]["name"] == "New Rookie"
+    assert len(vets) == 2
+    r = rookies[0]
+    assert r["position"] == "RB" and r["player_id"] == "DRAFT001"
+    assert r["season_points"]["ppr"]["p10"] is not None
+    # joint ranking: rookie has a position_rank among RBs, vorp on same scale
+    assert isinstance(r["vorp"], float) and isinstance(r["position_rank"], int)
+    assert board["methodology"]["rookie_prior"]["n_rookies"] == 1
+    json.dumps(board, allow_nan=False)
+
+
+def test_board_without_draft_picks_has_rookie_false_only():
+    weekly, _ = _rookie_world()
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9))
+    assert all(p["rookie"] is False for p in board["players"])
+    assert "rookie_prior" not in board["methodology"]
+
+
+def test_rookie_dedupe_by_gsis_prefers_real_model():
+    weekly, picks = _rookie_world()
+    # draft p1 (who HAS 2023 weekly history) in the 2023 class:
+    import pandas as _pd
+    picks = _pd.concat([picks, _pd.DataFrame([
+        {"season": 2023, "round": 1, "pick": 3, "team": "AAA",
+         "gsis_id": "p1", "player_name": "Someone Else", "position": "WR",
+         "age": 21.0, "college": "State"}])], ignore_index=True)
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9),
+                              draft_picks=picks)
+    p1_rows = [p for p in board["players"] if p["player_id"] == "p1"]
+    assert len(p1_rows) == 1 and p1_rows[0]["rookie"] is False
+
+
+def test_rookie_dedupe_by_name_position():
+    weekly, picks = _rookie_world()
+    import pandas as _pd
+    # placeholder id, but same normalized name+position as veteran p1 (WR "P One")
+    vet_name = [p for p in build_draft_board(
+        weekly, _sched_with_future(), _QuantileStub(), 2023, "2023-10-15",
+        weeks=range(7, 9))["players"] if p["player_id"] == "p1"][0]["name"]
+    vet_pos = "WR"
+    picks = _pd.concat([picks, _pd.DataFrame([
+        {"season": 2023, "round": 2, "pick": 40, "team": "AAA",
+         "gsis_id": "PLACEHOLDER9", "player_name": vet_name,
+         "position": vet_pos, "age": 21.0, "college": "State"}])],
+        ignore_index=True)
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9),
+                              draft_picks=picks)
+    # match on (name, position), not name alone: _history()'s p2 also
+    # defaults to display name "P One" (make_weekly's fixture default,
+    # unrelated to this dedupe path) but at position RB, so a bare name
+    # match would always see 2 regardless of the rookie dedupe under test.
+    assert sum(1 for p in board["players"]
+              if p["name"] == vet_name and p["position"] == vet_pos) == 1
+
+
+def test_empty_target_class_fails_loud():
+    weekly, picks = _rookie_world()
+    picks = picks[picks["season"] != 2023]
+    with pytest.raises(RuntimeError, match="draft class"):
+        build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                          2023, "2023-10-15", weeks=range(7, 9),
+                          draft_picks=picks)
