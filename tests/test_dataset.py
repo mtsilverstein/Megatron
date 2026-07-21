@@ -84,3 +84,28 @@ def test_subset_keeps_rows_aligned():
     assert len(sub.meta) == mask.sum()
     np.testing.assert_array_equal(sub.y, data.y[mask])
     assert (sub.meta["week"] >= 4).all()
+
+
+def test_feature_set_registry_pins_v2_lists():
+    from ffmodel.model.dataset import (
+        CTX_FEATURES_V2, FEATURE_SETS, SEQ_FEATURES_V2,
+    )
+
+    assert FEATURE_SETS["v1"] == (SEQ_FEATURES, CTX_FEATURES)
+    assert SEQ_FEATURES_V2 == SEQ_FEATURES + ["air_share"]
+    assert CTX_FEATURES_V2 == CTX_FEATURES + ["team_pass_att_last4", "is_indoor"]
+    assert FEATURE_SETS["v2"] == (SEQ_FEATURES_V2, CTX_FEATURES_V2)
+
+
+def test_build_sequences_with_v2_lists_and_v1_default():
+    from ffmodel.model.dataset import CTX_FEATURES_V2, SEQ_FEATURES_V2
+
+    features = _features()
+    v2 = build_sequences(features, seq_len=4, min_history=1,
+                         seq_features=SEQ_FEATURES_V2,
+                         ctx_features=CTX_FEATURES_V2)
+    assert v2.x_seq.shape == (5, 4, len(SEQ_FEATURES_V2))
+    assert v2.x_ctx.shape == (5, len(CTX_FEATURES_V2))
+    v1 = build_sequences(features, seq_len=4, min_history=1)
+    assert v1.x_seq.shape == (5, 4, len(SEQ_FEATURES))
+    assert v1.x_ctx.shape == (5, len(CTX_FEATURES))

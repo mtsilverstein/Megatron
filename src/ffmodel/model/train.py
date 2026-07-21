@@ -15,7 +15,7 @@ import yaml
 from torch.utils.data import DataLoader, TensorDataset
 
 from ffmodel.model.dataset import (
-    CTX_FEATURES, SEQ_FEATURES, apply_scaler, build_sequences, fit_scaler, subset,
+    FEATURE_SETS, apply_scaler, build_sequences, fit_scaler, subset,
 )
 from ffmodel.model.net import QuantileTransformer, pinball_loss
 from ffmodel.scoring import PREDICTED_STATS
@@ -64,6 +64,19 @@ def _epoch(model, loader, quantiles, device, optimizer=None, grad_clip=1.0,
     return total / count
 
 
+def _resolve_feature_set(cfg: dict) -> tuple[str, list[str], list[str]]:
+    """cfg['feature_set'] names an entry in dataset.FEATURE_SETS (default
+    'v1', so every pre-v2 config trains byte-identically). The resolved
+    lists drive sequence building, model input dims, and the artifact's
+    metrics.json, from which inference reconstructs the exact inputs."""
+    name = cfg.get("feature_set", "v1")
+    if name not in FEATURE_SETS:
+        raise ValueError(
+            f"unknown feature_set {name!r} (known: {sorted(FEATURE_SETS)})")
+    seq_features, ctx_features = FEATURE_SETS[name]
+    return name, list(seq_features), list(ctx_features)
+
+
 def _prepare_data(cfg: dict, features: pd.DataFrame):
     """Build sequences over the whole window so val histories span prior
     seasons (matching inference); split by target-row season afterwards.
@@ -72,7 +85,9 @@ def _prepare_data(cfg: dict, features: pd.DataFrame):
     val_season = cfg["val_season"]
     window = features[(features["season"] >= cfg["first_season"])
                       & (features["season"] <= val_season)]
-    raw = build_sequences(window, cfg["seq_len"])
+    _, seq_features, ctx_features = _resolve_feature_set(cfg)
+    raw = build_sequences(window, cfg["seq_len"],
+                          seq_features=seq_features, ctx_features=ctx_features)
     train_mask = (raw.meta["season"] < val_season).to_numpy()
     val_mask = (raw.meta["season"] == val_season).to_numpy()
     raw_train, raw_val = subset(raw, train_mask), subset(raw, val_mask)
@@ -142,6 +157,7 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
     incomplete checkpoint now happens automatically whenever one exists, so
     `resume` is a no-op alias of that default. Pass `fresh=True` to discard
     any existing checkpoint/artifact for this run and train from scratch."""
+    feature_set, seq_features, ctx_features = _resolve_feature_set(cfg)
     val_season = cfg["val_season"]
     ckpt_dir = Path(cfg["checkpoint_root"]) / f"{cfg['run_name']}_through{val_season}"
     latest = ckpt_dir / "latest.pt"
@@ -190,7 +206,7 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
     train_data, val_data, scaler = _prepare_data(cfg, features)
 
     model = QuantileTransformer(
-        n_seq_features=len(SEQ_FEATURES), n_ctx_features=len(CTX_FEATURES),
+        n_seq_features=len(seq_features), n_ctx_features=len(ctx_features),
         max_seq_len=cfg["seq_len"], n_stats=len(PREDICTED_STATS),
         n_quantiles=len(quantiles), **cfg["model"],
     ).to(device)
@@ -238,8 +254,10 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
                 "val_season": val_season, "best_epoch": epoch,
                 "last_epoch": epoch, "val_pinball": val_loss,
                 "quantiles": list(quantiles), "seq_len": cfg["seq_len"],
-                "n_seq_features": len(SEQ_FEATURES),
-                "n_ctx_features": len(CTX_FEATURES), "model": cfg["model"],
+                "n_seq_features": len(seq_features),
+                "n_ctx_features": len(ctx_features), "model": cfg["model"],
+                "feature_set": feature_set,
+                "seq_features": seq_features, "ctx_features": ctx_features,
                 "complete": False,  # only the post-loop write below marks completion
             }, indent=2))
         else:

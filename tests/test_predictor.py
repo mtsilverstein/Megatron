@@ -400,3 +400,57 @@ def test_calibration_false_skips_loading_even_when_file_exists(trained, tmp_path
     p_on.fit(train)
     qs_on = p_on.predict_quantiles(test)
     assert not qs_off["p10"].equals(qs_on["p10"])
+
+
+def test_pre_v2_artifact_without_feature_lists_defaults_to_v1(tmp_path):
+    """Deployed v1 artifacts predate the metrics.json feature lists.
+    Stripping the new keys must reproduce EXACTLY the same predictions --
+    the default path is the frozen v1 constants."""
+    features = _synthetic_features(seasons=(2020, 2021, 2022))
+    test_features = _synthetic_features(seasons=(2020, 2021, 2022, 2023))
+    art = train_from_config(_cfg(tmp_path, epochs=1), features)
+    train = test_features[test_features["season"] <= 2022]
+    test = test_features[test_features["season"] == 2023]
+
+    p = TransformerPredictor(art.parent, test_features, calibration=False)
+    p.fit(train)
+    baseline = p.predict_quantiles(test)
+
+    metrics = json.loads((art / "metrics.json").read_text())
+    for key in ("feature_set", "seq_features", "ctx_features"):
+        metrics.pop(key, None)
+    (art / "metrics.json").write_text(json.dumps(metrics))
+
+    p2 = TransformerPredictor(art.parent, test_features, calibration=False)
+    p2.fit(train)
+    stripped = p2.predict_quantiles(test)
+    for key in ("p10", "p50", "p90"):
+        pd.testing.assert_frame_equal(baseline[key], stripped[key])
+
+
+def test_v2_artifact_predicts_with_v2_inputs(tmp_path):
+    features = _synthetic_features(seasons=(2020, 2021, 2022))
+    test_features = _synthetic_features(seasons=(2020, 2021, 2022, 2023))
+    cfg = _cfg(tmp_path, epochs=1)
+    cfg["feature_set"] = "v2"
+    art = train_from_config(cfg, features)
+
+    p = TransformerPredictor(art.parent, test_features, calibration=False)
+    train = test_features[test_features["season"] <= 2022]
+    test = test_features[test_features["season"] == 2023]
+    p.fit(train)
+    qs = p.predict_quantiles(test)
+    assert list(qs["p50"].columns) == PREDICTED_STATS
+    assert np.isfinite(qs["p50"].to_numpy()).all()
+
+
+def test_inconsistent_artifact_feature_lists_raise(tmp_path):
+    features = _synthetic_features(seasons=(2020, 2021, 2022))
+    art = train_from_config(_cfg(tmp_path, epochs=1), features)
+    metrics = json.loads((art / "metrics.json").read_text())
+    metrics["seq_features"] = metrics["seq_features"][:-1]  # disagrees with n_seq_features
+    (art / "metrics.json").write_text(json.dumps(metrics))
+
+    p = TransformerPredictor(art.parent, features, calibration=False)
+    with pytest.raises(ValueError, match="disagree"):
+        p.fit(features[features["season"] <= 2022])

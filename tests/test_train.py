@@ -475,3 +475,40 @@ def test_early_stop_completes_and_resume_is_skip(tmp_path, monkeypatch, capsys):
 
     assert art2 == art
     assert "already complete" in out
+
+
+def test_feature_set_v2_trains_and_records_lists(tmp_path):
+    from ffmodel.model.dataset import CTX_FEATURES_V2, SEQ_FEATURES_V2, Scaler
+
+    features = _synthetic_features()
+    cfg = _cfg(tmp_path, epochs=1)
+    cfg["feature_set"] = "v2"
+    art = train_from_config(cfg, features)
+    metrics = json.loads((art / "metrics.json").read_text())
+    assert metrics["feature_set"] == "v2"
+    assert metrics["seq_features"] == SEQ_FEATURES_V2
+    assert metrics["ctx_features"] == CTX_FEATURES_V2
+    assert metrics["n_seq_features"] == len(SEQ_FEATURES_V2)
+    assert metrics["n_ctx_features"] == len(CTX_FEATURES_V2)
+    scaler = Scaler.load(art / "scaler.json")
+    assert scaler.seq_mean.shape == (len(SEQ_FEATURES_V2),)
+    assert scaler.ctx_mean.shape == (len(CTX_FEATURES_V2),)
+
+
+def test_default_config_records_v1_feature_set(tmp_path):
+    from ffmodel.model.dataset import CTX_FEATURES, SEQ_FEATURES
+
+    features = _synthetic_features()
+    art = train_from_config(_cfg(tmp_path, epochs=1), features)
+    metrics = json.loads((art / "metrics.json").read_text())
+    assert metrics["feature_set"] == "v1"
+    assert metrics["seq_features"] == SEQ_FEATURES
+    assert metrics["ctx_features"] == CTX_FEATURES
+
+
+def test_unknown_feature_set_raises_before_touching_artifacts(tmp_path):
+    features = _synthetic_features()
+    cfg = _cfg(tmp_path, epochs=1)
+    cfg["feature_set"] = "v99"
+    with pytest.raises(ValueError, match="v99"):
+        train_from_config(cfg, features)

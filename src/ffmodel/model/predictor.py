@@ -8,7 +8,9 @@ import numpy as np
 import pandas as pd
 import torch
 
-from ffmodel.model.dataset import Scaler, apply_scaler, build_sequences
+from ffmodel.model.dataset import (
+    CTX_FEATURES, SEQ_FEATURES, Scaler, apply_scaler, build_sequences,
+)
 from ffmodel.model.net import QuantileTransformer, monotone
 from ffmodel.scoring import BAND_CONSTRUCTION, PREDICTED_STATS
 
@@ -51,6 +53,18 @@ class _SingleRootTransformer:
         metrics = json.loads((art / "metrics.json").read_text())
         self._seq_len = metrics["seq_len"]
         self._quantiles = metrics["quantiles"]
+        # Feature lists are resolved from the ARTIFACT, not module globals:
+        # pre-v2 artifacts lack the keys and get the frozen v1 constants,
+        # so their predictions are byte-identical to before this existed.
+        self._seq_features = metrics.get("seq_features", SEQ_FEATURES)
+        self._ctx_features = metrics.get("ctx_features", CTX_FEATURES)
+        if (len(self._seq_features) != metrics["n_seq_features"]
+                or len(self._ctx_features) != metrics["n_ctx_features"]):
+            raise ValueError(
+                f"{art}: feature lists in metrics.json disagree with the "
+                f"recorded n_seq_features/n_ctx_features — artifact is "
+                f"inconsistent"
+            )
         if len(self._quantiles) != 3 or list(self._quantiles) != sorted(self._quantiles):
             raise ValueError(f"artifact quantiles must be 3 ascending values, got {self._quantiles}")
         self._scaler = Scaler.load(art / "scaler.json")
@@ -71,7 +85,10 @@ class _SingleRootTransformer:
 
     def predict_quantiles(self, test: pd.DataFrame) -> dict[str, pd.DataFrame]:
         data = apply_scaler(
-            build_sequences(self.features, self._seq_len, min_history=0), self._scaler
+            build_sequences(self.features, self._seq_len, min_history=0,
+                            seq_features=self._seq_features,
+                            ctx_features=self._ctx_features),
+            self._scaler,
         )
         pos = pd.Index(data.meta["row_id"]).get_indexer(test.index)
         if (pos < 0).any():

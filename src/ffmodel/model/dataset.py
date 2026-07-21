@@ -24,6 +24,17 @@ CTX_FEATURES = [
     "opp_allowed_last4", "opp_allowed_season",
     "pos_QB", "pos_RB", "pos_WR", "pos_TE",
 ]
+# Feature-pack v2: per-game air-yards share rides in the sequence (the
+# transformer's history mechanism); pass-volume and roof are target-week
+# context. The v1 constants above stay FROZEN -- deployed v1 artifacts
+# (metrics.json without explicit feature lists) resolve to them.
+SEQ_FEATURES_V2 = SEQ_FEATURES + ["air_share"]
+CTX_FEATURES_V2 = CTX_FEATURES + ["team_pass_att_last4", "is_indoor"]
+# Registry keyed by the training config's `feature_set` (default "v1").
+FEATURE_SETS = {
+    "v1": (SEQ_FEATURES, CTX_FEATURES),
+    "v2": (SEQ_FEATURES_V2, CTX_FEATURES_V2),
+}
 
 
 @dataclass
@@ -36,12 +47,15 @@ class SequenceData:
 
 
 def build_sequences(
-    features: pd.DataFrame, seq_len: int = 16, min_history: int = 1
+    features: pd.DataFrame, seq_len: int = 16, min_history: int = 1,
+    seq_features: list[str] | None = None, ctx_features: list[str] | None = None,
 ) -> SequenceData:
+    seq_features = SEQ_FEATURES if seq_features is None else list(seq_features)
+    ctx_features = CTX_FEATURES if ctx_features is None else list(ctx_features)
     df = features.sort_values(["player_id", "season", "week"]).reset_index(names="row_id")
-    seq_vals = df[SEQ_FEATURES].to_numpy(dtype=np.float32)
+    seq_vals = df[seq_features].to_numpy(dtype=np.float32)
     n = len(df)
-    x_seq = np.zeros((n, seq_len, len(SEQ_FEATURES)), dtype=np.float32)
+    x_seq = np.zeros((n, seq_len, len(seq_features)), dtype=np.float32)
     pad_mask = np.ones((n, seq_len), dtype=bool)
     for idx in df.groupby("player_id", sort=False).indices.values():
         for j, row_pos in enumerate(idx):
@@ -52,7 +66,7 @@ def build_sequences(
     keep = df["games_prior"].to_numpy() >= min_history
     meta = df.loc[keep, ["row_id", "player_id", "season", "week", "position"]]
     return SequenceData(
-        x_seq[keep], df[CTX_FEATURES].to_numpy(dtype=np.float32)[keep],
+        x_seq[keep], df[ctx_features].to_numpy(dtype=np.float32)[keep],
         df[PREDICTED_STATS].to_numpy(dtype=np.float32)[keep],
         pad_mask[keep], meta.reset_index(drop=True),
     )
