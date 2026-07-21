@@ -108,23 +108,45 @@ stat, exactly like `is_home`.
 
 ### Wiring
 
-- `LAG_STATS` gains `"air_share"`.
-- `CONTEXT_FEATURES` gains `"is_indoor"`.
-- `team_pass_att_last4` is added to the `extra` block in `feature_columns`
-  alongside the existing `opp_allowed_last4` / `opp_allowed_season` columns.
-- `feature_columns(df)` returns `lag_cols + CONTEXT_FEATURES + extra +
-  pos_cols` unchanged in structure — the three new columns flow through
-  automatically, so XGBoost and the transformer stay in lockstep.
+The two models consume features through different contracts, and both must
+receive the same three signals:
+
+- **XGBoost** consumes `feature_columns(df)`: `LAG_STATS` handling gains
+  `air_share` (as an *optional* lag stat — computed and lagged only when its
+  source column exists, so pre-v2 frames still build), `CONTEXT_FEATURES`
+  gains `is_indoor`, and `team_pass_att_last4` joins the guarded `extra`
+  block alongside `opp_allowed_last4` / `opp_allowed_season`.
+- **Transformer** consumes the `SEQ_FEATURES` / `CTX_FEATURES` lists in
+  `model/dataset.py` — *not* `feature_columns`. Editing those constants
+  in place would break deployed v1 inference (input-dimension mismatch in
+  the weekly Actions run), so v2 introduces a **versioned feature-set
+  registry**: `FEATURE_SETS = {"v1": (SEQ_FEATURES, CTX_FEATURES), "v2":
+  (SEQ_FEATURES + ["air_share"], CTX_FEATURES + ["team_pass_att_last4",
+  "is_indoor"])}`. Training configs select a set via a `feature_set` key
+  (default `"v1"`); the chosen name **and explicit lists** are recorded in
+  the artifact's `metrics.json`; the predictor resolves each artifact's
+  lists from its own metrics (missing keys → v1 constants), so existing v1
+  artifacts predict byte-identically and v1/v2 artifacts can coexist in
+  one eval run.
+
+The raw per-game `air_share` rides in the sequence (the transformer's
+history mechanism is its lag structure); its `lag4/lag8` means serve
+XGBoost. `team_pass_att_last4` and `is_indoor` are target-week context for
+both models. Same three signals, each model's native idiom.
 
 ## Training (user runs on Kaggle)
 
-- New configs under `configs/`: `transformer_v2.yaml`, `transformer_v2_s43.yaml`,
-  `transformer_v2_s44.yaml`, mirroring the v1 three-seed configs **byte-for-byte
-  except** the feature set (inherited automatically via `feature_columns`) and
-  the artifact roots `models/transformer/v2`, `.../v2_s43`, `.../v2_s44`. Same
-  `lr=1e-3`, same schedule, same everything else — no new sweep.
+- New configs under `configs/`: `transformer_v2.yaml` plus the three
+  walk-forward fold variants (`transformer_v2_through2022/2023/2024.yaml`),
+  mirroring their v1 counterparts **byte-for-byte except** `run_name: v2` and
+  the new `feature_set: v2` key. Same `lr=1e-3`, same schedule, same
+  everything else — no new sweep. A committed test pins this mirror invariant.
+- Seed-ensemble members come from the existing train CLI `--seed 43` /
+  `--seed 44` flag (`apply_seed_override` routes artifacts to sibling roots
+  `models/transformer/v2_s43`, `.../v2_s44`) — no per-seed config files,
+  matching how the v1 ensemble was produced.
 - The config-aware "skip if complete" training path already lets the user run
-  the three seeds within Kaggle's 30 GPU-h/week budget (T4 ×2, not P100/sm_60).
+  the seeds/folds within Kaggle's 30 GPU-h/week budget (T4 ×2, not P100/sm_60).
 - Each artifact is committed with its YAML and eval metrics, per the repo
   invariant.
 
@@ -175,8 +197,15 @@ concentrate on the leak-prone pure functions, per the repo's testing contract:
   `attempts`, `passing_air_yards`; `pull_schedules` retains `roof`; a stale
   cache written under the old prefix is not served (prefix-bump regression,
   mirroring the draft-picks stale-cache test).
-- **Lockstep:** `feature_columns` returns the three new columns so the
-  XGBoost baseline and transformer see an identical feature list.
+- **Lockstep:** `feature_columns` exposes all three signals to XGBoost;
+  the `FEATURE_SETS["v2"]` registry entry exposes the same three to the
+  transformer; a registry test pins both lists.
+- **v1 safety:** an artifact whose `metrics.json` lacks feature lists (every
+  deployed v1 artifact) predicts byte-identically before and after this
+  change; a train run without `feature_set` in its config records `v1`.
+- **Config mirror:** each `transformer_v2*.yaml` equals its v1 counterpart
+  on every key except `run_name` and `feature_set` (the no-new-sweep
+  invariant, enforced by test).
 
 Veteran calibrated projections are **not** expected to change from the local
 half alone (no artifacts yet); the retrain half is where v2 numbers first
