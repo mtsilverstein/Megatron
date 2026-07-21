@@ -34,6 +34,12 @@ CONTEXT_COLUMNS = [
     "season", "week",
 ]
 
+# Feature-pack-v2 source columns kept through normalization: attempts is
+# PASS attempts (team pass volume); receiving_air_yards feeds air_share;
+# passing_air_yards is retained for the QB air-volume path. Counting
+# stats, so NaN -> 0 like PREDICTED_STATS.
+V2_SOURCE_COLUMNS = ["attempts", "receiving_air_yards", "passing_air_yards"]
+
 
 def _cache_name(prefix: str, seasons: list[int]) -> str:
     """Generate a cache filename from prefix and season list.
@@ -69,11 +75,11 @@ def normalize_weekly(raw: pd.DataFrame) -> pd.DataFrame:
     for out, parts in _RAW_SUMS.items():
         df[out] = sum(df[p].fillna(0) for p in parts)
     keep = (
-        CONTEXT_COLUMNS + PREDICTED_STATS + SCORING_EXTRAS
+        CONTEXT_COLUMNS + PREDICTED_STATS + SCORING_EXTRAS + V2_SOURCE_COLUMNS
         + ["target_share", "fantasy_points_ppr"]
     )
     df = df[keep].copy()
-    stat_cols = PREDICTED_STATS + SCORING_EXTRAS
+    stat_cols = PREDICTED_STATS + SCORING_EXTRAS + V2_SOURCE_COLUMNS
     # target_share stays NaN on purpose: NaN means "no meaningful share" (e.g. QBs); downstream consumers handle NaN natively.
     df[stat_cols] = df[stat_cols].fillna(0)
     return df.sort_values(["player_id", "season", "week"]).reset_index(drop=True)
@@ -140,7 +146,15 @@ def pull_weekly(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFra
 
         return nflreadpy.load_players().to_pandas()
 
-    weekly = _cached(cache_dir, _cache_name("weekly", seasons), load)
+    # Prefix bumped to weekly_v2 for the feature-pack-v2 source columns: a
+    # local cache written before they existed must never be silently reused.
+    weekly = _cached(cache_dir, _cache_name("weekly_v2", seasons), load)
+    missing = [c for c in V2_SOURCE_COLUMNS if c not in weekly.columns]
+    if missing:
+        raise ValueError(
+            f"weekly cache is missing v2 source column(s) {missing} — delete "
+            f"the weekly_v2 parquet under the cache dir and re-pull"
+        )
     # Post-cache enrichment (same pattern as normalize_schedule_teams): applied
     # on every read path so a weekly cache written before this feature existed
     # self-heals on the next pull, without re-fetching player_stats.
@@ -156,7 +170,7 @@ def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.Data
         raw = nflreadpy.load_schedules(seasons).to_pandas()
         raw = raw[raw["game_type"] == "REG"]
         keep = ["season", "week", "gameday", "home_team", "away_team",
-                "home_score", "away_score"]
+                "home_score", "away_score", "roof"]
         return raw[keep].sort_values(["season", "week", "home_team"]).reset_index(drop=True)
 
     # home_score/away_score let site.generate tell "target season hasn't
@@ -165,8 +179,9 @@ def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.Data
     # pre-existing local cache written before these columns existed is
     # never silently reused without them -- Actions always starts from an
     # empty, gitignored data/raw, so this only matters for local caches.
+    # v3 bump: adds the roof column (feature-pack v2 is_indoor).
     return normalize_schedule_teams(
-        _cached(cache_dir, _cache_name("schedules_v2", seasons), load))
+        _cached(cache_dir, _cache_name("schedules_v3", seasons), load))
 
 
 # PFR-style codes used by nflverse draft_picks, mapped to the current

@@ -11,7 +11,9 @@ def _raw_row(**overrides):
         "position": "WR", "position_group": "WR",
         "season": 2023, "week": 1, "season_type": "REG",
         "team": "KC", "opponent_team": "DET",
-        "completions": 0, "attempts": 0, "passing_yards": 0.0, "passing_tds": 0,
+        "completions": 0, "attempts": 0,
+        "passing_air_yards": 0.0, "receiving_air_yards": 0.0,
+        "passing_yards": 0.0, "passing_tds": 0,
         "passing_interceptions": 0, "sack_fumbles_lost": 0,
         "passing_2pt_conversions": 0,
         "carries": 0, "rushing_yards": 0.0, "rushing_tds": 0,
@@ -274,12 +276,94 @@ def test_merge_snap_pct_duplicate_rows_do_not_fan_out():
     assert g1["snap_pct"].iloc[0] == pytest.approx(0.75)  # first match kept
 
 
-def test_pull_schedules_includes_completion_columns_and_uses_v2_cache(tmp_path, monkeypatch):
+def test_normalize_weekly_retains_v2_source_columns():
+    from ffmodel.data.pull import V2_SOURCE_COLUMNS
+
+    assert V2_SOURCE_COLUMNS == ["attempts", "receiving_air_yards",
+                                 "passing_air_yards"]
+    raw = pd.DataFrame([_raw_row(attempts=34, receiving_air_yards=88.0,
+                                 passing_air_yards=310.0)])
+    out = normalize_weekly(raw)
+    assert out["attempts"].iloc[0] == 34
+    assert out["receiving_air_yards"].iloc[0] == pytest.approx(88.0)
+    assert out["passing_air_yards"].iloc[0] == pytest.approx(310.0)
+
+
+def test_normalize_weekly_v2_columns_nan_filled_to_zero():
+    import numpy as np
+
+    raw = pd.DataFrame([_raw_row(attempts=np.nan, receiving_air_yards=np.nan,
+                                 passing_air_yards=np.nan)])
+    out = normalize_weekly(raw)
+    for col in ("attempts", "receiving_air_yards", "passing_air_yards"):
+        assert out[col].iloc[0] == 0, col
+
+
+def test_pull_weekly_uses_v2_prefix_and_ignores_stale_v1_cache(tmp_path, monkeypatch):
+    """Pin: pull_weekly caches under 'weekly_v2' so a pre-v2 local cache
+    (no air-yards/attempts columns) is never silently reused."""
+    import sys
+
+    from ffmodel.data.pull import V2_SOURCE_COLUMNS, _cache_name, pull_weekly
+
+    raw = pd.DataFrame([_raw_row()])
+
+    class _Result:
+        def __init__(self, frame):
+            self._frame = frame
+
+        def to_pandas(self):
+            return self._frame
+
+    class _FakeNflreadpy:
+        @staticmethod
+        def load_player_stats(seasons):
+            return _Result(raw)
+
+        @staticmethod
+        def load_snap_counts(seasons):
+            return _Result(pd.DataFrame(columns=[
+                "pfr_player_id", "season", "week", "offense_pct", "game_type"]))
+
+        @staticmethod
+        def load_players():
+            return _Result(pd.DataFrame([{"pfr_id": "x", "gsis_id": "y"}]))
+
+    monkeypatch.setitem(sys.modules, "nflreadpy", _FakeNflreadpy())
+
+    # Stale cache under the OLD "weekly" prefix: must be ignored, not read.
+    stale = normalize_weekly(pd.DataFrame([_raw_row()])).drop(
+        columns=V2_SOURCE_COLUMNS)
+    stale.to_parquet(tmp_path / f"{_cache_name('weekly', [2023])}.parquet",
+                     index=False)
+
+    out = pull_weekly([2023], cache_dir=tmp_path)
+    for col in V2_SOURCE_COLUMNS:
+        assert col in out.columns, col
+    assert (tmp_path / f"{_cache_name('weekly_v2', [2023])}.parquet").exists()
+
+
+def test_pull_weekly_rejects_cache_missing_v2_columns(tmp_path):
+    """The v2-column guard runs on EVERY read path: a weekly_v2 cache that
+    somehow lacks the columns (hand-written, corrupt) fails loudly instead
+    of silently producing v1-only features. No network stub on purpose --
+    the guard must fire on the cached frame before any other loader runs."""
+    from ffmodel.data.pull import V2_SOURCE_COLUMNS, _cache_name, pull_weekly
+
+    bad = normalize_weekly(pd.DataFrame([_raw_row()])).drop(
+        columns=V2_SOURCE_COLUMNS)
+    bad.to_parquet(tmp_path / f"{_cache_name('weekly_v2', [2023])}.parquet",
+                   index=False)
+    with pytest.raises(ValueError, match="receiving_air_yards"):
+        pull_weekly([2023], cache_dir=tmp_path)
+
+
+def test_pull_schedules_includes_roof_and_uses_v3_cache(tmp_path, monkeypatch):
     """Pin: pull_schedules selects home_score/away_score (needed to detect
     completed target-season games in site.generate's pre-week-1 fail-safe
-    tolerance), and caches under a bumped 'schedules_v2' prefix so a
-    pre-existing local cache written before this column existed is not
-    silently reused without it."""
+    tolerance) and roof (feature-pack v2 is_indoor), and caches under a
+    bumped 'schedules_v3' prefix so a pre-existing local cache written
+    before this column existed is not silently reused without it."""
     import sys
 
     from ffmodel.data.pull import _cache_name, pull_schedules
@@ -290,6 +374,7 @@ def test_pull_schedules_includes_completion_columns_and_uses_v2_cache(tmp_path, 
         "home_team": ["KC", "SF"], "away_team": ["DET", "LA"],
         "game_type": ["REG", "REG"],
         "home_score": [24.0, float("nan")], "away_score": [17.0, float("nan")],
+        "roof": ["dome", "outdoors"],
     })
 
     class _Result:
@@ -303,21 +388,23 @@ def test_pull_schedules_includes_completion_columns_and_uses_v2_cache(tmp_path, 
 
     monkeypatch.setitem(sys.modules, "nflreadpy", _FakeNflreadpy())
 
-    # Stale pre-existing cache under the OLD "schedules" prefix (no score
-    # columns) -- must be ignored, not read, by the bumped prefix.
+    # Stale pre-existing cache under the OLD "schedules_v2" prefix (no roof
+    # column) -- must be ignored, not read, by the bumped prefix.
     stale = pd.DataFrame({
         "season": [2026], "week": [1], "gameday": ["2026-09-10"],
         "home_team": ["XXX"], "away_team": ["YYY"],
     })
-    stale_path = tmp_path / f"{_cache_name('schedules', [2026])}.parquet"
+    stale_path = tmp_path / f"{_cache_name('schedules_v2', [2026])}.parquet"
     stale.to_parquet(stale_path, index=False)
 
     out = pull_schedules([2026], cache_dir=tmp_path)
 
     assert "home_score" in out.columns and "away_score" in out.columns
     assert out.loc[out["home_team"] == "KC", "home_score"].iloc[0] == 24.0
+    assert "roof" in out.columns
+    assert out.loc[out["home_team"] == "KC", "roof"].iloc[0] == "dome"
 
-    new_cache = tmp_path / f"{_cache_name('schedules_v2', [2026])}.parquet"
+    new_cache = tmp_path / f"{_cache_name('schedules_v3', [2026])}.parquet"
     assert new_cache.exists()
 
 
