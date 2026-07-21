@@ -1,0 +1,57 @@
+{
+  "val_season": 2025,
+  "best_epoch": 21,
+  "last_epoch": 29,
+  "val_pinball": 0.891875392466045,
+  "quantiles": [
+    0.1,
+    0.5,
+    0.9
+  ],
+  "seq_len": 16,
+  "n_seq_features": 19,
+  "n_ctx_features": 12,
+  "model": {
+    "d_model": 96,
+    "n_heads": 4,
+    "n_layers": 3,
+    "dropout": 0.1
+  },
+  "feature_set": "v2",
+  "seq_features": [
+    "passing_yards",
+    "passing_tds",
+    "passing_interceptions",
+    "carries",
+    "rushing_yards",
+    "rushing_tds",
+    "targets",
+    "receptions",
+    "receiving_yards",
+    "receiving_tds",
+    "fumbles_lost",
+    "target_share",
+    "carry_share",
+    "ppr_points",
+    "snap_pct",
+    "is_home",
+    "rest_days",
+    "week",
+    "air_share"
+  ],
+  "ctx_features": [
+    "is_home",
+    "rest_days",
+    "week",
+    "games_prior",
+    "opp_allowed_last4",
+    "opp_allowed_season",
+    "pos_QB",
+    "pos_RB",
+    "pos_WR",
+    "pos_TE",
+    "team_pass_att_last4",
+    "is_indoor"
+  ],
+  "complete": true
+}
