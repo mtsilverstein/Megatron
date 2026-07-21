@@ -505,3 +505,25 @@ def test_empty_target_class_fails_loud():
         build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
                           2023, "2023-10-15", weeks=range(7, 9),
                           draft_picks=picks)
+
+
+def test_rookie_with_nan_gsis_id_gets_synthetic_id():
+    # nflreadpy's draft_picks occasionally has NaN gsis_id (7 of 80 in the
+    # real 2026 class, e.g. Carson Beck, Nicholas Singleton) -- a NaN
+    # player_id blows up json.dumps(..., allow_nan=False) downstream, so
+    # _rookie_frame must synthesize a stable id from the draft slot instead.
+    weekly, picks = _rookie_world()
+    import pandas as _pd
+    picks = _pd.concat([picks, _pd.DataFrame([
+        {"season": 2023, "round": 3, "pick": 65, "team": "AAA",
+         "gsis_id": float("nan"), "player_name": "No Gsis Guy",
+         "position": "RB", "age": 21.0, "college": "State"}])],
+        ignore_index=True)
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9),
+                              draft_picks=picks)
+    ids = [p["player_id"] for p in board["players"]]
+    assert "draft2023-p065" in ids
+    row = [p for p in board["players"] if p["player_id"] == "draft2023-p065"][0]
+    assert row["rookie"] is True and row["name"] == "No Gsis Guy"
+    json.dumps(board, allow_nan=False)

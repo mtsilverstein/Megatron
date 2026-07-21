@@ -234,7 +234,7 @@ def _rookie_frame(weekly, draft_picks, season, players, team_weeks, weeks_list,
     rng = np.random.default_rng(seed + 1)   # distinct stream from the vets'
     rows = []
     for _, r in cls.iterrows():
-        if r["gsis_id"] in known_ids:
+        if pd.notna(r["gsis_id"]) and r["gsis_id"] in known_ids:
             continue                                    # real model wins
         if (_normalize_name(r["player_name"]), r["position"]) in vet_keys:
             continue
@@ -244,7 +244,16 @@ def _rookie_frame(weekly, draft_picks, season, players, team_weeks, weeks_list,
             scheduled = len(weeks_list)                 # toy schedules: play on
         frames, games_probs = rookie_projection(
             cohorts, r["position"], int(r["round"]), int(r["pick"]))
-        row = {"player_id": r["gsis_id"], "name": r["player_name"],
+        # nflreadpy's draft_picks occasionally has NaN gsis_id (undrafted-
+        # supplemental-style rows, or a player nflverse hasn't assigned an id
+        # to yet -- e.g. 7 of 80 in the 2026 class) -- a NaN player_id blows
+        # up json.dumps(..., allow_nan=False) downstream, so synthesize a
+        # stable, unique id from the draft slot instead. Name+position
+        # dedupe above already covers these players if/when the real model
+        # picks them up later.
+        pid = (r["gsis_id"] if pd.notna(r["gsis_id"])
+               else f"draft{season}-p{int(r['pick']):03d}")
+        row = {"player_id": pid, "name": r["player_name"],
                "team": r["team"], "position": r["position"],
                "games": scheduled, "rookie": True}
         for rn, rules in RULESETS.items():
