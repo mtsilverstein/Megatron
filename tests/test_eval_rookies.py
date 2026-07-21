@@ -21,9 +21,14 @@ def _picks(rows):
     return pd.DataFrame([{**base, **r} for r in rows])
 
 
-def _toy_world():
+def _toy_world(played_last=True):
     """Two history classes (2020, 2021) where early picks produce and late
-    picks don't, plus a 2022 class to project."""
+    picks don't, plus a 2022 class to project. `played_last=True` gives the
+    2022 class's early picks rookie-year weekly rows too (same pattern as
+    the history classes), so a gate measured against the 2022 class has
+    genuine actual-points variance; `played_last=False` keeps 2022 entirely
+    rowless (nobody has played yet), for exercising the degenerate-actuals
+    path."""
     picks, weekly = [], []
     pid = 0
     for season in (2020, 2021, 2022):
@@ -31,7 +36,7 @@ def _toy_world():
             pid += 1
             picks.append({"season": season, "round": 1, "pick": (i % 12) + 1,
                           "gsis_id": f"00-{pid:04d}", "player_name": f"E{pid}"})
-            if season < 2022:
+            if season < 2022 or played_last:
                 for w in range(1, 15):
                     weekly.append({"player_id": f"00-{pid:04d}", "season": season,
                                    "week": w, "rushing_yards": 80.0,
@@ -75,6 +80,7 @@ def test_report_schema_and_gate(tmp_path, monkeypatch):
     assert set(g) >= {"bucketed_spearman", "position_only_spearman", "passed"}
     # toy world has genuine capital signal -> bucketed must win
     assert g["passed"] is True
+    assert g["bucketed_spearman"] is not None
     assert "coverage_p10_p90" in report and "per_class" in report
     json.dumps(report)
 
@@ -82,8 +88,24 @@ def test_report_schema_and_gate(tmp_path, monkeypatch):
 def test_actuals_include_zero_for_never_played(tmp_path):
     from ffmodel.eval.rookies import actual_rookie_points
 
-    weekly, picks = _toy_world()
+    weekly, picks = _toy_world(played_last=False)
     cls = picks[picks["season"] == 2022]
     actuals = actual_rookie_points(weekly, cls, 2022)
     assert len(actuals) == 60
     assert (actuals == 0.0).all()   # toy 2022 class has no weekly rows
+
+
+def test_degenerate_actuals_fail_loud(tmp_path, monkeypatch):
+    import sys
+
+    import ffmodel.eval.rookies as rk_mod
+
+    weekly, picks = _toy_world(played_last=False)
+    monkeypatch.setattr(rk_mod, "pull_weekly", lambda *a, **k: weekly)
+    monkeypatch.setattr(rk_mod, "pull_draft_picks", lambda *a, **k: picks)
+    out = tmp_path / "rookie_backtest.json"
+    monkeypatch.setattr(sys, "argv", ["rookies", "--classes", "2022",
+                                      "--out", str(out)])
+    with pytest.raises(RuntimeError, match="identical"):
+        rk_mod.main()
+    assert not out.exists()

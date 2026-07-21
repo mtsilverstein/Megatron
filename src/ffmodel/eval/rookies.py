@@ -87,7 +87,7 @@ def main() -> None:
     picks = pull_draft_picks(list(range(args.first_season, last + 1)),
                              cache_dir=args.data_dir)
 
-    per_class, pred_b, pred_p, actual_all, positions = [], [], [], [], []
+    per_class, pred_b, pred_p, actual_all = [], [], [], []
     covered = {}
     for class_season in sorted(args.classes):
         cls = picks[picks["season"] == class_season]
@@ -101,28 +101,28 @@ def main() -> None:
             pred_b.append(row_b["p50"])
             pred_p.append(row_p["p50"])
             actual_all.append(float(actual))
-            positions.append(row_b["position"])
             covered.setdefault(row_b["position"], []).append(
                 row_b["p10"] <= float(actual) <= row_b["p90"])
         per_class.append({"class": class_season, "n": int(len(cls))})
 
-    # A held-out class with zero variance in actual points (e.g. a class
-    # whose season hasn't been played yet) makes Spearman correlation
-    # mathematically undefined -- nothing to rank against. Gate 1 is
-    # vacuously satisfied in that case (there is no comparison to lose),
-    # reported with null correlations rather than crashing on NaN. Any real
-    # backtest class (60+ rookies, some producing and some not) has
-    # non-zero variance, so this guard never engages on real data.
+    # A held-out set with zero variance in actual points (e.g. classes whose
+    # seasons haven't been played yet, or a broken data pull that silently
+    # returned empty weekly rows) makes Spearman correlation mathematically
+    # undefined -- nothing to rank against. This must NOT be reported as a
+    # passing gate: a gate that measured nothing is not a gate that passed
+    # (fail-safe invariant -- see CLAUDE.md). Abort loudly before writing
+    # anything. Any real backtest class (60+ rookies, some producing and
+    # some not) has non-zero variance, so this never fires on a healthy run.
     if len(set(actual_all)) <= 1:
-        rho_b = rho_p = None
-        gate1 = {"bucketed_spearman": None, "position_only_spearman": None,
-                 "passed": True}
-    else:
-        rho_b = float(spearmanr(pred_b, actual_all).statistic)
-        rho_p = float(spearmanr(pred_p, actual_all).statistic)
-        gate1 = {"bucketed_spearman": round(rho_b, 4),
-                 "position_only_spearman": round(rho_p, 4),
-                 "passed": bool(rho_b > rho_p)}
+        raise RuntimeError(
+            "all rookie actuals are identical — data pull broken or classes "
+            "not yet played; refusing to write a gate report")
+
+    rho_b = float(spearmanr(pred_b, actual_all).statistic)
+    rho_p = float(spearmanr(pred_p, actual_all).statistic)
+    gate1 = {"bucketed_spearman": round(rho_b, 4),
+             "position_only_spearman": round(rho_p, 4),
+             "passed": bool(rho_b > rho_p)}
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "classes": sorted(args.classes),
@@ -134,9 +134,8 @@ def main() -> None:
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2, allow_nan=False))
-    rho_desc = ("n/a (degenerate actuals)" if rho_b is None else
-               f"bucketed {rho_b:.3f} vs position-only {rho_p:.3f}")
-    print(f"{args.out}: gate1 passed={report['gate1']['passed']} ({rho_desc})")
+    print(f"{args.out}: gate1 passed={report['gate1']['passed']} "
+          f"(bucketed {rho_b:.3f} vs position-only {rho_p:.3f})")
 
 
 if __name__ == "__main__":
