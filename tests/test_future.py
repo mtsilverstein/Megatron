@@ -91,3 +91,23 @@ def test_refuses_already_played_week():
     weekly = _history()          # weeks 1-6 played
     with pytest.raises(RuntimeError, match="played"):
         future_skeleton(weekly, _sched_with_future(), season=2023, week=6)
+
+
+def test_future_week_inherits_team_pass_volume_and_roof():
+    """The unplayed target week gets team_pass_att_last4 from prior weeks
+    (shift-then-roll frontier, like opp_allowed) and is_indoor from the
+    schedule; its own v2 source columns are NaN like every stat."""
+    rows = []
+    for week in range(1, 7):
+        rows.append({"player_id": "p1", "week": week, "attempts": 30.0 + week})
+        rows.append({"player_id": "p2", "week": week, "position": "RB",
+                     "team": "BBB", "opponent_team": "AAA"})
+    weekly = make_weekly(rows)
+    sched = make_schedules(8, roof="dome")
+    future = build_future_features(weekly, sched, season=2023, week=7)
+    p1 = future[future["player_id"] == "p1"].iloc[0]
+    # AAA attempts weeks 3-6: mean(33, 34, 35, 36) = 34.5; week 7 is unplayed
+    assert p1["team_pass_att_last4"] == pytest.approx(34.5)
+    assert p1["is_indoor"] == 1
+    assert np.isnan(p1["attempts"])
+    assert np.isnan(p1["receiving_air_yards"])

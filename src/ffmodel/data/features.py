@@ -14,17 +14,25 @@ from ffmodel.data.pull import POSITIONS
 from ffmodel.scoring import PPR, PREDICTED_STATS, fantasy_points
 
 LAG_STATS = PREDICTED_STATS + ["target_share", "carry_share", "ppr_points", "snap_pct"]
+# v2 lag stats are computed (and lagged) only when their source columns
+# exist in the weekly frame, so pre-v2 frames/fixtures still build. Only
+# stats listed here may be skipped -- a typo in LAG_STATS still fails loud.
+OPTIONAL_LAG_STATS = ["air_share"]
 LAG_WINDOWS = (4, 8)
-CONTEXT_FEATURES = ["games_prior", "is_home", "rest_days", "week"]
+CONTEXT_FEATURES = ["games_prior", "is_home", "rest_days", "week", "is_indoor"]
 
 
 def build_features(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
     df = weekly.sort_values(["player_id", "season", "week"]).reset_index(drop=True)
     df["ppr_points"] = fantasy_points(df, PPR)
     df = _add_carry_share(df)
+    if "receiving_air_yards" in df.columns:
+        df = _add_air_share(df)
     df = _add_player_lags(df)
     df = _add_schedule_context(df, schedules)
     df = _add_opponent_allowed(df)
+    if "attempts" in df.columns:
+        df = _add_team_pass_volume(df)
     df = _add_position_dummies(df)
     return df
 
@@ -32,7 +40,8 @@ def build_features(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFram
 def feature_columns(df: pd.DataFrame) -> list[str]:
     lag_cols = [c for c in df.columns if c.startswith(("lag4_", "lag8_"))]
     pos_cols = [c for c in df.columns if c.startswith("pos_")]
-    extra = [c for c in ("opp_allowed_last4", "opp_allowed_season") if c in df.columns]
+    extra = [c for c in ("opp_allowed_last4", "opp_allowed_season",
+                         "team_pass_att_last4") if c in df.columns]
     return lag_cols + CONTEXT_FEATURES + extra + pos_cols
 
 
@@ -42,11 +51,17 @@ def _add_carry_share(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _add_air_share(df: pd.DataFrame) -> pd.DataFrame:
+    team_air = df.groupby(["team", "season", "week"])["receiving_air_yards"].transform("sum")
+    df["air_share"] = df["receiving_air_yards"] / team_air.replace(0, np.nan)
+    return df
+
+
 def _add_player_lags(df: pd.DataFrame) -> pd.DataFrame:
     # df is sorted by (player_id, season, week); "last N games played"
     # deliberately spans season boundaries (spec §4).
     grouped = df.groupby("player_id", sort=False)
-    for stat in LAG_STATS:
+    for stat in LAG_STATS + [s for s in OPTIONAL_LAG_STATS if s in df.columns]:
         shifted = grouped[stat].shift(1)  # exclude the current game
         for window in LAG_WINDOWS:
             df[f"lag{window}_{stat}"] = (
@@ -62,9 +77,17 @@ def _add_player_lags(df: pd.DataFrame) -> pd.DataFrame:
 def _add_schedule_context(df: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
     sched = schedules.copy()
     sched["gameday"] = pd.to_datetime(sched["gameday"])
+    # Roof is known from the schedule before kickoff, so the CURRENT week's
+    # value is a legitimate context feature (like is_home). Missing column
+    # or unrecognized value -> 0 (treated as outdoors).
+    if "roof" in sched.columns:
+        sched["is_indoor"] = sched["roof"].isin(["dome", "closed"]).astype(int)
+    else:
+        sched["is_indoor"] = 0
     sides = []
     for side, flag in (("home_team", 1), ("away_team", 0)):
-        part = sched.rename(columns={side: "team"})[["season", "week", "team", "gameday"]]
+        part = sched.rename(columns={side: "team"})[
+            ["season", "week", "team", "gameday", "is_indoor"]]
         sides.append(part.assign(is_home=flag))
     team_games = pd.concat(sides, ignore_index=True).sort_values(["team", "gameday"])
     team_games["rest_days"] = (
@@ -74,11 +97,12 @@ def _add_schedule_context(df: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataF
         .astype(int)
     )
     merged = df.merge(
-        team_games[["season", "week", "team", "is_home", "rest_days"]],
+        team_games[["season", "week", "team", "is_home", "rest_days", "is_indoor"]],
         on=["season", "week", "team"], how="left",
     )
     merged["rest_days"] = merged["rest_days"].fillna(7).astype(int)
     merged["is_home"] = merged["is_home"].fillna(0).astype(int)
+    merged["is_indoor"] = merged["is_indoor"].fillna(0).astype(int)
     return merged
 
 
@@ -108,6 +132,25 @@ def _add_opponent_allowed(df: pd.DataFrame) -> pd.DataFrame:
         right_on=["def_team", "position", "season", "week"],
         how="left",
     ).drop(columns=["def_team"])
+
+
+def _add_team_pass_volume(df: pd.DataFrame) -> pd.DataFrame:
+    team = (
+        df.groupby(["team", "season", "week"], as_index=False)["attempts"].sum()
+        .sort_values(["team", "season", "week"])
+        .reset_index(drop=True)
+    )
+    shifted = team.groupby("team", sort=False)["attempts"].shift(1)
+    team["team_pass_att_last4"] = (
+        shifted.groupby(team["team"])
+        .rolling(4, min_periods=1)
+        .mean()
+        .reset_index(level=0, drop=True)
+    )
+    return df.merge(
+        team[["team", "season", "week", "team_pass_att_last4"]],
+        on=["team", "season", "week"], how="left",
+    )
 
 
 def _add_position_dummies(df: pd.DataFrame) -> pd.DataFrame:

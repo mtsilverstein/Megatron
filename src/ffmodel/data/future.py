@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.data.features import build_features
-from ffmodel.data.pull import CONTEXT_COLUMNS
+from ffmodel.data.pull import CONTEXT_COLUMNS, V2_SOURCE_COLUMNS
 from ffmodel.scoring import PREDICTED_STATS, SCORING_EXTRAS
 
 _NAN_COLUMNS = PREDICTED_STATS + SCORING_EXTRAS + [
@@ -40,9 +40,11 @@ def future_skeleton(weekly: pd.DataFrame, schedules: pd.DataFrame,
     )
     rows["season"] = season
     rows["week"] = week
-    for col in _NAN_COLUMNS:
+    nan_cols = _NAN_COLUMNS + [c for c in V2_SOURCE_COLUMNS
+                               if c in weekly.columns]
+    for col in nan_cols:
         rows[col] = np.nan
-    return rows[CONTEXT_COLUMNS + _NAN_COLUMNS].reset_index(drop=True)
+    return rows[CONTEXT_COLUMNS + nan_cols].reset_index(drop=True)
 
 
 def combined_future_features(weekly: pd.DataFrame, schedules: pd.DataFrame,

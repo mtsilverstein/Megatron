@@ -13,18 +13,23 @@ def make_weekly(rows: list[dict]) -> pd.DataFrame:
         "team": "AAA", "opponent_team": "BBB", "season": 2023, "week": 1,
         "target_share": np.nan, "snap_pct": np.nan, "fantasy_points_ppr": 0.0,
         "two_point_conversions": 0, "special_teams_tds": 0,
+        "attempts": 0.0, "receiving_air_yards": 0.0, "passing_air_yards": 0.0,
         **{s: 0.0 for s in PREDICTED_STATS},
     }
     return pd.DataFrame([{**base, **r} for r in rows])
 
 
-def make_schedules(weeks: int = 6, season: int = 2023) -> pd.DataFrame:
+def make_schedules(weeks: int = 6, season: int = 2023,
+                   roof: str | None = None) -> pd.DataFrame:
     days = pd.date_range(f"{season}-09-10", periods=weeks, freq="7D")
-    return pd.DataFrame({
+    sched = pd.DataFrame({
         "season": season, "week": range(1, weeks + 1),
         "gameday": days.strftime("%Y-%m-%d"),
         "home_team": "AAA", "away_team": "BBB",
     })
+    if roof is not None:
+        sched["roof"] = roof
+    return sched
 
 
 def test_lag_features_use_only_prior_weeks():
@@ -80,6 +85,9 @@ def test_feature_columns_never_include_same_week_stats():
     assert not set(cols) & set(PREDICTED_STATS)
     assert "ppr_points" not in cols
     assert "fantasy_points_ppr" not in cols
+    assert not {"air_share", "attempts", "receiving_air_yards",
+                "passing_air_yards"} & set(cols)
+    assert "team_pass_att_last4" in cols and "is_indoor" in cols
 
 
 def test_opponent_allowed_uses_only_prior_weeks():
@@ -150,3 +158,82 @@ def test_opp_allowed_spans_season_boundary():
     wk1 = out[(out["season"] == 2023) & (out["week"] == 1)].iloc[0]
     assert wk1["opp_allowed_last4"] == pytest.approx(10.0)   # crosses the boundary
     assert np.isnan(wk1["opp_allowed_season"])               # season-to-date resets
+
+
+def test_air_share_is_share_of_team_air_yards():
+    weekly = make_weekly([
+        {"player_id": "p1", "receiving_air_yards": 75.0},
+        {"player_id": "p2", "receiving_air_yards": 25.0},
+    ])
+    out = build_features(weekly, make_schedules())
+    assert out[out["player_id"] == "p1"]["air_share"].iloc[0] == pytest.approx(0.75)
+    assert out[out["player_id"] == "p2"]["air_share"].iloc[0] == pytest.approx(0.25)
+
+
+def test_air_share_zero_team_air_yards_is_nan():
+    out = build_features(make_weekly([{"week": 1}]), make_schedules())
+    assert np.isnan(out["air_share"].iloc[0])
+
+
+def test_air_share_lagged_not_same_week_in_feature_columns():
+    weekly = make_weekly([
+        {"week": 1, "receiving_air_yards": 80.0},
+        {"week": 2, "receiving_air_yards": 20.0},
+    ])
+    out = build_features(weekly, make_schedules())
+    cols = feature_columns(out)
+    assert "lag4_air_share" in cols and "lag8_air_share" in cols
+    assert "air_share" not in cols
+    wk2 = out[out["week"] == 2].iloc[0]
+    assert wk2["lag4_air_share"] == pytest.approx(1.0)  # sole receiver week 1
+
+
+def test_team_pass_volume_uses_only_prior_weeks():
+    weekly = make_weekly([
+        {"player_id": "qb", "position": "QB", "week": 1, "attempts": 30.0},
+        {"player_id": "qb", "position": "QB", "week": 2, "attempts": 40.0},
+        {"player_id": "qb", "position": "QB", "week": 3, "attempts": 99.0},
+    ])
+    out = build_features(weekly, make_schedules())
+    assert np.isnan(out[out["week"] == 1]["team_pass_att_last4"].iloc[0])
+    assert out[out["week"] == 2]["team_pass_att_last4"].iloc[0] == pytest.approx(30.0)
+    # the current week's 99 must not leak into week 3's own feature value
+    assert out[out["week"] == 3]["team_pass_att_last4"].iloc[0] == pytest.approx(35.0)
+
+
+def test_team_pass_volume_sums_across_team_players():
+    weekly = make_weekly([
+        {"player_id": "qb1", "position": "QB", "week": 1, "attempts": 20.0},
+        {"player_id": "qb2", "position": "QB", "week": 1, "attempts": 10.0},
+        {"player_id": "qb1", "position": "QB", "week": 2},
+    ])
+    out = build_features(weekly, make_schedules())
+    assert out[out["week"] == 2]["team_pass_att_last4"].iloc[0] == pytest.approx(30.0)
+
+
+def test_is_indoor_roof_values():
+    weekly = make_weekly([{"week": 1}])
+    for roof, expected in (("dome", 1), ("closed", 1), ("outdoors", 0),
+                           ("open", 0)):
+        out = build_features(weekly, make_schedules(roof=roof))
+        assert out["is_indoor"].iloc[0] == expected, roof
+
+
+def test_is_indoor_defaults_to_zero_without_roof_column():
+    out = build_features(make_weekly([{"week": 1}]), make_schedules())
+    assert out["is_indoor"].iloc[0] == 0
+    assert "is_indoor" in feature_columns(out)
+
+
+def test_build_features_without_v2_source_columns_still_builds():
+    """Pre-v2 frames (fixtures, old exports) must still build v1 features:
+    v2 stat features are conditional on their source columns, never a hard
+    requirement. is_indoor is schedule-derived and always present."""
+    weekly = make_weekly([{"week": 1}, {"week": 2}]).drop(
+        columns=["attempts", "receiving_air_yards", "passing_air_yards"])
+    out = build_features(weekly, make_schedules())
+    cols = feature_columns(out)
+    assert "lag4_air_share" not in cols
+    assert "team_pass_att_last4" not in cols
+    assert "is_indoor" in cols
+    assert "lag4_receiving_yards" in out.columns
