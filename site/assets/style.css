@@ -150,7 +150,7 @@ footer { max-width: 1080px; margin: 2rem auto 0; padding: 1rem 1.25rem 2rem;
 }
 .draft-row button:hover { color: var(--chalk); border-color: var(--chalk); }
 .draft-row label { font: 500 .85rem/1.3 "Source Sans 3", sans-serif; color: var(--chalk-dim); }
-.draft-roster, .draft-note { margin: 0; font: 500 .82rem/1.4 "IBM Plex Mono", monospace;
+.draft-roster, .draft-note, .draft-ticker, .draft-vona { margin: 0; font: 500 .82rem/1.4 "IBM Plex Mono", monospace;
   color: var(--chalk-dim); }
 
 tr.drafted td { opacity: .38; }

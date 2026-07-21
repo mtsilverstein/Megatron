@@ -40,6 +40,8 @@
         <button id="draft-disconnect">Disconnect</button>
       </div>
       <p class="draft-roster" id="draft-roster" hidden></p>
+      <p class="draft-ticker" id="draft-ticker" hidden></p>
+      <p class="draft-vona" id="draft-vona" hidden></p>
       <p class="draft-note" id="draft-unmatched" hidden></p>
     </div>
   </details>
@@ -160,6 +162,8 @@ purpose; see the about page.</footer>
           hide: document.getElementById("draft-hide"),
           disconnect: document.getElementById("draft-disconnect"),
           roster: document.getElementById("draft-roster"),
+          ticker: document.getElementById("draft-ticker"),
+          vona: document.getElementById("draft-vona"),
           note: document.getElementById("draft-unmatched"),
         },
         onUpdate: s => { draftState = s.connected ? s : null; render(rows); },

@@ -10,6 +10,8 @@ window.DraftMode = (() => {
   let session = null;   // {username, userId, draftId, totalPicks}
   let timer = null, backoff = POLL_MS;
   let pollSeq = 0;       // generation token: bumped to silently retire stale poll chains
+  let lastPickCount = -1;   // render guard: picks are append-only
+  let statusChecks = 0;     // draft-complete fallback when settings lack rounds/teams
   const state = { connected: false, drafted: new Set(), mine: new Set(),
                   hideDrafted: false };
 
@@ -73,8 +75,15 @@ window.DraftMode = (() => {
       const draft = await api(`/draft/${draftId}`);
       if (!draft || !draft.draft_id) throw new Error("draft not found");
       const s = draft.settings || {};
+      const order = draft.draft_order || {};
       session = { username, userId, draftId,
-                  totalPicks: (s.rounds || 0) * (s.teams || 0) };
+                  totalPicks: (s.rounds || 0) * (s.teams || 0),
+                  slot: (userId && order[userId]) || null,
+                  teams: s.teams || 0, rounds: s.rounds || 0,
+                  reversalRound: s.reversal_round || 0,
+                  type: draft.type || "snake" };
+      lastPickCount = -1;
+      statusChecks = 0;
       localStorage.setItem(STORE_KEY, JSON.stringify({ username, userId, draftId }));
       state.connected = true;
       cfg.els.connect.hidden = true;
@@ -96,6 +105,13 @@ window.DraftMode = (() => {
     cfg.els.connect.hidden = false;
     cfg.els.live.hidden = true;
     cfg.els.roster.hidden = true;
+    cfg.els.ticker.hidden = true;
+    cfg.els.vona.hidden = true;
+    cfg.els.note.hidden = true;
+    cfg.els.hide.checked = false;
+    state.hideDrafted = false;
+    lastPickCount = -1;
+    statusChecks = 0;
     setStatus("— off");
     emit();
   }
@@ -116,7 +132,19 @@ window.DraftMode = (() => {
       const picks = await api(`/draft/${session.draftId}/picks`) || [];
       if (seq !== pollSeq || !session) return;
       backoff = POLL_MS;
-      applyPicks(picks);
+      if (picks.length !== lastPickCount) {
+        applyPicks(picks);                    // render guard: append-only picks
+      }
+      if (!session.totalPicks && ++statusChecks % 10 === 0) {
+        // Sleeper omitted settings.rounds/teams: fall back to re-checking
+        // the draft object's status every 10th poll so completion still stops us.
+        const d = await api(`/draft/${session.draftId}`);
+        if (seq !== pollSeq || !session) return;
+        if (d && d.status === "complete") {
+          setStatus(`draft complete — ${picks.length} picks`);
+          return;
+        }
+      }
       if (session.totalPicks && picks.length >= session.totalPicks) {
         setStatus(`draft complete — ${picks.length} picks`);
         return;                                   // stop polling
@@ -131,6 +159,7 @@ window.DraftMode = (() => {
   }
 
   function applyPicks(picks) {
+    lastPickCount = picks.length;
     state.drafted = new Set(picks.map(p => String(p.player_id)));
     state.mine = new Set(picks.filter(p => session.userId && p.picked_by === session.userId)
                               .map(p => String(p.player_id)));
@@ -147,8 +176,43 @@ window.DraftMode = (() => {
         `Your roster: QB ${counts.QB} · RB ${counts.RB} · WR ${counts.WR} · TE ${counts.TE}`
         + (counts.other ? ` · +${counts.other} other` : "");
     }
+    updateAids(picks);
     setStatus(`connected — live`);
     emit();
+  }
+
+  function updateAids(picks) {
+    const t = cfg.els.ticker, v = cfg.els.vona;
+    if (picks.length) {
+      const recent = picks.slice(-3).map(p => {
+        const m = p.metadata || {};
+        const name = [m.first_name, m.last_name].filter(Boolean).join(" ")
+                     || m.position || "?";
+        return `#${p.pick_no} ${name}`;
+      });
+      t.textContent = "Recent: " + recent.join(" · ");
+      t.hidden = false;
+    } else {
+      t.hidden = true;
+    }
+    v.hidden = true;                    // default: render nothing, never wrong math
+    if (!session || !session.slot || !session.teams || !session.rounds) return;
+    const next = nextPickNumber(session.slot, session.teams, session.rounds,
+                                session.reversalRound, picks.length, session.type);
+    if (next === null) return;          // auction/unknown type or no pick left
+    const until = next - picks.length - 1;   // full picks before yours
+    let line = until <= 0 ? "you're on the clock"
+                          : `pick #${picks.length + 1} next · your turn in ${until + 1}`;
+    if (until > 0) {
+      const deltas = vonaDeltas(cfg.board.players, state.drafted, until);
+      if (deltas) {
+        const parts = Object.entries(deltas).map(([pos, d]) => `${pos} −${d.toFixed(1)}`);
+        if (parts.length) line += ` · waiting costs: ${parts.join(" · ")}`;
+      }
+    }
+    v.textContent = line;
+    v.title = "assumes the picks before yours take the best available by VORP";
+    v.hidden = false;
   }
 
   function unmatchedNote() {
@@ -224,9 +288,13 @@ window.DraftMode = (() => {
     const stored = localStorage.getItem(STORE_KEY);
     if (stored) {
       try {
-        const { username, userId, draftId } = JSON.parse(stored);
-        document.getElementById("draft-panel").open = true;
-        connect(username, userId, draftId);       // mid-draft refresh reconnects
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.draftId) {
+          document.getElementById("draft-panel").open = true;
+          connect(parsed.username, parsed.userId, parsed.draftId);
+        } else {
+          localStorage.removeItem(STORE_KEY);   // incomplete blob: clear, don't 404
+        }
       } catch (e) { localStorage.removeItem(STORE_KEY); }
     }
   }
