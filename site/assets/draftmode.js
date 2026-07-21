@@ -160,6 +160,52 @@ window.DraftMode = (() => {
     }
   }
 
+  // --- pure draft math (exported for fixture verification) -----------------
+  function pickForRoundSlot(r, slot, teams, reversalRound, type) {
+    if (type === "linear") return (r - 1) * teams + slot;
+    // Snake; Sleeper third-round-reversal flips direction parity from
+    // reversalRound on (round 3 repeats round 2's direction, etc).
+    let reversed = r % 2 === 0;
+    if (reversalRound && r >= reversalRound) reversed = !reversed;
+    return reversed ? r * teams - slot + 1 : (r - 1) * teams + slot;
+  }
+
+  function nextPickNumber(slot, teams, rounds, reversalRound, picksMade, type = "snake") {
+    if (!Number.isInteger(slot) || !Number.isInteger(teams) || !Number.isInteger(rounds)
+        || slot < 1 || teams < 1 || rounds < 1 || slot > teams
+        || !Number.isInteger(picksMade) || picksMade < 0) return null;
+    if (type !== "snake" && type !== "linear") return null;
+    for (let r = 1; r <= rounds; r++) {
+      const p = pickForRoundSlot(r, slot, teams, reversalRound || 0, type);
+      if (p > picksMade) return p;
+    }
+    return null;                       // this slot has no pick left
+  }
+
+  function vonaDeltas(players, draftedSet, picksUntilMine) {
+    if (!Array.isArray(players) || !(draftedSet instanceof Set)
+        || !Number.isInteger(picksUntilMine) || picksUntilMine < 0) return null;
+    // Available = not struck (same predicate as the board render: only a
+    // matched sleeper_id can be drafted). Sorted by VORP desc; the naive
+    // assumption removes the top picksUntilMine overall.
+    const avail = players
+      .filter(p => !(p.sleeper_id && draftedSet.has(p.sleeper_id)))
+      .slice()
+      .sort((a, b) => (b.vorp ?? -Infinity) - (a.vorp ?? -Infinity));
+    const after = avail.slice(picksUntilMine);
+    const deltas = {};
+    for (const pos of ["QB", "RB", "WR", "TE"]) {
+      const now = avail.find(p => p.position === pos);
+      if (!now) continue;                              // position empty: omit
+      const later = after.find(p => p.position === pos);
+      // No survivor at the position => next-best is replacement level
+      // (VORP 0 by construction), so the cost is the whole current VORP.
+      const cost = now.vorp - (later ? later.vorp : 0);
+      deltas[pos] = Math.round(cost * 10) / 10;
+    }
+    return deltas;
+  }
+
   function init(options) {
     cfg = options;
     cfg.els.find.addEventListener("click", findDrafts);
@@ -192,5 +238,5 @@ window.DraftMode = (() => {
     if (body) body.querySelectorAll("input, button").forEach(el => { el.disabled = true; });
   }
 
-  return { init, disable };
+  return { init, disable, nextPickNumber, vonaDeltas };
 })();
