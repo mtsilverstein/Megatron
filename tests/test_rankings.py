@@ -158,7 +158,7 @@ def test_attach_gsis_drops_unmatched_and_counts_them():
         {"id": "1001", "player": "Known"},
         {"id": "7777", "player": "Fringe FA", "mergename": "fringe fa"},
     ]))
-    matched, stats = attach_gsis(snap, _crosswalk([{}]))
+    matched, stats = attach_gsis(snap, _crosswalk([{}]), min_match_rate=0.0)
     assert len(matched) == 1
     assert stats["unmatched"] == 1
     assert stats["unmatched_players"] == ["Fringe FA"]
@@ -183,6 +183,81 @@ def test_attach_gsis_ignores_crosswalk_rows_missing_gsis():
     snap = normalize_rankings(_raw_rankings([{"id": "1001"}]))
     xwalk = pd.DataFrame([{"fantasypros_id": "1001", "gsis_id": None,
                            "merge_name": "some guy", "position": "WR"}])
-    matched, stats = attach_gsis(snap, xwalk)
+    matched, stats = attach_gsis(snap, xwalk, min_match_rate=0.0)
     assert len(matched) == 0
     assert stats["unmatched"] == 1
+
+
+def test_merge_name_fallback_survives_case_mismatch_between_feeds():
+    """Regression (dead-code class): ff_rankings' `mergename` is Title-Case
+    since 2022 while ff_playerids' `merge_name` is lowercase, so a raw
+    equality join matched 0% and the advertised fallback could never fire.
+    The original test compared two identical literals and passed vacuously."""
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": "9999", "mergename": "Christian McCaffrey"},   # feed casing
+    ]))
+    xwalk = _crosswalk([{"fantasypros_id": "1001", "gsis_id": "00-0044444",
+                         "merge_name": "christian mccaffrey"}])  # crosswalk casing
+    matched, stats = attach_gsis(snap, xwalk)
+    assert stats["matched_by_name"] == 1
+    assert matched["player_id"].iloc[0] == "00-0044444"
+
+
+def test_attach_gsis_raises_below_match_rate_floor():
+    """A partial crosswalk degradation must fail loudly, not silently
+    benchmark against a thinned consensus pool."""
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": str(i), "player": f"P{i}", "mergename": f"p{i}"} for i in range(10)
+    ]))
+    xwalk = _crosswalk([{"fantasypros_id": "0", "gsis_id": "00-0001",
+                         "merge_name": "p0"}])          # 1/10 = 10%
+    with pytest.raises(ValueError, match="refusing to benchmark"):
+        attach_gsis(snap, xwalk)
+
+
+def test_attach_gsis_counts_gsis_collisions():
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": "1", "player": "Dup A", "ecr": 5.0},
+        {"id": "2", "player": "Dup B", "ecr": 9.0},
+    ]))
+    xwalk = pd.DataFrame([
+        {"fantasypros_id": "1", "gsis_id": "00-0001", "merge_name": "a", "position": "WR"},
+        {"fantasypros_id": "2", "gsis_id": "00-0001", "merge_name": "b", "position": "WR"},
+    ])
+    matched, stats = attach_gsis(snap, xwalk)
+    assert len(matched) == 1
+    assert stats["gsis_collisions"] == 1
+    assert matched["ecr"].iloc[0] == pytest.approx(5.0)   # better rank kept
+
+
+def test_rest_of_season_pages_are_filtered_out():
+    """The (ro, redraft-overall) slice also contains in-season ROS pages; an
+    ROS scrape landing before a future kickoff would otherwise silently
+    become the 'preseason' consensus."""
+    from ffmodel.data.rankings import normalize_rankings
+
+    raw = _raw_rankings([
+        {"id": "1", "fp_page": "https://www.fantasypros.com/nfl/rankings/ppr-cheatsheets.php"},
+        {"id": "2", "fp_page": "https://www.fantasypros.com/nfl/rankings/ros-ppr-overall.php"},
+    ])
+    out = normalize_rankings(raw)
+    assert list(out["fp_id"]) == ["1"]
+
+
+def test_snapshot_spanning_two_source_pages_raises():
+    """Two pages sharing a date must never be merged: the ecr-ascending
+    dedupe would silently cherry-pick the friendlier of two rankings."""
+    from ffmodel.data.rankings import normalize_rankings, preseason_snapshot
+
+    raw = _raw_rankings([
+        {"id": "1", "fp_page": "page-a", "scrape_date": "2024-08-30"},
+        {"id": "2", "fp_page": "page-b", "scrape_date": "2024-08-30"},
+    ])
+    with pytest.raises(ValueError, match="multiple source pages"):
+        preseason_snapshot(normalize_rankings(raw), pd.Timestamp("2024-09-05"))
