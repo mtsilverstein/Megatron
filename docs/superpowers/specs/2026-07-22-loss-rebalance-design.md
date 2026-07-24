@@ -57,9 +57,12 @@ def pinball_loss(pred, target, quantiles, head_weights=None):
 ```
 
 `head_weights=None` is byte-identical to today. Weights are **normalized to
-mean 1** so the overall loss magnitude — and therefore the effective learning
-rate — stays in the same regime as v1 (no LR retuning, preserving the
-no-new-sweep discipline).
+mean 1**, which fixes the *mean* weight at 1 and keeps the gradient scale in
+the same regime as v1 (no LR retuning, preserving the no-new-sweep
+discipline). Note this does not preserve the numeric loss *value* for
+non-uniform weights — the upweighted heads are the low-loss TD heads, so the
+realized weighted loss shifts; that is intended, not an LR change, and is why
+weighted-run `val_pinball` is not comparable by eye to v1's 0.89.
 
 ### Two schemes (`train.py`)
 
@@ -121,11 +124,21 @@ through the same harness as v1:
 
 1. **Weekly PPR MAE** ≤ v1's (4.326) — not worse; **and**
 2. **QB weekly within-position Spearman** (conditional on playing, vs the
-   weekly-consensus harness built this session) strictly beats v1's, since
-   repairing QB is the point; **and**
-3. **Season board hit-rate** not worse than v1 (no regression on the primary
+   weekly-consensus harness built this session) beats v1 by a margin that
+   **exceeds the v1 seed-ensemble spread** — a within-noise +0.003 does not
+   count (review finding: "strictly beats" has no significance margin; this
+   session repeatedly saw thin wins evaporate). Report the paired per-cell CI;
+   **and**
+3. **No weekly within-position Spearman regression for RB, WR, or TE** —
+   MAE-not-worse does not imply rank-not-worse (variance shrinkage can hold
+   MAE while flattening ranks), and the whole point is to fix ranking without
+   collateral damage. Each of the other three positions must be within noise
+   or better on the same weekly harness (review finding: the gate must protect
+   the 3 positions it isn't optimizing, especially since the post-hoc
+   expectation experiment already showed a fix that helped QB *hurt* RB); **and**
+4. **Season board hit-rate** not worse than v1 (no regression on the primary
    product metric); **and**
-4. **Calibration** — a fresh Phase-B conformal refit lands weekly coverage in
+5. **Calibration** — a fresh Phase-B conformal refit lands weekly coverage in
    0.75–0.85 for every position/tail (the un-collapsed heads change the raw
    band, so this must be re-verified, not assumed).
 
