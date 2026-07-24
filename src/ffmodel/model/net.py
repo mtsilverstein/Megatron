@@ -39,10 +39,22 @@ class QuantileTransformer(nn.Module):
 
 
 def pinball_loss(pred: torch.Tensor, target: torch.Tensor,
-                 quantiles: tuple[float, ...]) -> torch.Tensor:
+                 quantiles: tuple[float, ...],
+                 head_weights: torch.Tensor | None = None) -> torch.Tensor:
+    """Mean pinball loss over [batch, n_stats, n_quantiles].
+
+    `head_weights` (shape [n_stats], normalized to mean 1 by the caller)
+    rescales each stat head's contribution before the mean, to counter the
+    scale domination of large-magnitude heads (yardage) over small-magnitude
+    high-value heads (touchdowns). `None` is byte-identical to the unweighted
+    loss, so every pre-existing caller and artifact is unaffected.
+    """
     diff = target.unsqueeze(-1) - pred
     q = torch.tensor(quantiles, device=pred.device, dtype=pred.dtype).view(1, 1, -1)
-    return torch.maximum(q * diff, (q - 1) * diff).mean()
+    loss = torch.maximum(q * diff, (q - 1) * diff)      # [n, n_stats, n_q]
+    if head_weights is not None:
+        loss = loss * head_weights.to(loss.dtype).view(1, -1, 1)
+    return loss.mean()
 
 
 def monotone(pred: torch.Tensor) -> torch.Tensor:

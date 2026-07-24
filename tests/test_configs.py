@@ -10,10 +10,19 @@ def _by_stem(pattern):
     return {p.stem: p for p in Path("configs").glob(pattern)}
 
 
-def test_v2_config_exists_for_every_v1_fold():
-    v1 = _by_stem("transformer_v1*.yaml")
-    v2 = _by_stem("transformer_v2*.yaml")
-    assert set(v2) == {name.replace("v1", "v2") for name in v1}
+# v2 mirrors these four canonical walk-forward folds. v1 has additional
+# earlier folds (through2019-2021, added for the RB out-of-sample test) that
+# v2 deliberately does not mirror, so pin the canonical set explicitly rather
+# than globbing every transformer_v1* config.
+CANONICAL_FOLDS = {"transformer_v2", "transformer_v2_through2022",
+                   "transformer_v2_through2023", "transformer_v2_through2024"}
+
+
+def test_v2_config_exists_for_every_canonical_fold():
+    assert set(_by_stem("transformer_v2*.yaml")) == CANONICAL_FOLDS
+    # every v2 fold has a v1 counterpart on disk
+    for name in CANONICAL_FOLDS:
+        assert (Path("configs") / f"{name.replace('v2', 'v1')}.yaml").exists()
 
 
 def test_v2_mirrors_v1_except_run_name_and_feature_set():

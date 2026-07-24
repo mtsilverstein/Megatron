@@ -35,7 +35,7 @@ def _loader(data, batch_size: int, shuffle: bool, seed: int) -> DataLoader:
 
 
 def _epoch(model, loader, quantiles, device, optimizer=None, grad_clip=1.0,
-           amp_scaler=None):
+           amp_scaler=None, head_weights=None):
     training = optimizer is not None
     use_amp = amp_scaler is not None and device == "cuda"  # fp16 on the T4 (spec §5)
     model.train(training)
@@ -46,7 +46,7 @@ def _epoch(model, loader, quantiles, device, optimizer=None, grad_clip=1.0,
             pad, y = pad.to(device), y.to(device)
             with torch.autocast(device_type="cuda", enabled=use_amp):
                 pred = model(x_seq, x_ctx, pad)
-                loss = pinball_loss(pred, y, quantiles)
+                loss = pinball_loss(pred, y, quantiles, head_weights=head_weights)
             if training:
                 optimizer.zero_grad()
                 if use_amp:
@@ -75,6 +75,39 @@ def _resolve_feature_set(cfg: dict) -> tuple[str, list[str], list[str]]:
             f"unknown feature_set {name!r} (known: {sorted(FEATURE_SETS)})")
     seq_features, ctx_features = FEATURE_SETS[name]
     return name, list(seq_features), list(ctx_features)
+
+
+def _head_weights(cfg: dict, train_targets: np.ndarray) -> np.ndarray | None:
+    """Per-head loss weights (mean-normalized to 1) for the multi-task pinball
+    loss, selected by cfg['loss_weighting'] (default 'none').
+
+    'none' -> None (v1, byte-identical). 'std' -> 1/std of each stat over the
+    TRAINING targets (train rows only, same leak discipline as fit_scaler),
+    degenerate variance floored like _safe_std. 'points' -> |scoring
+    coefficient| from scoring.stat_weights(PPR), with the unscored carries/
+    targets heads floored at the smallest nonzero coefficient so no head is
+    fully starved. Normalizing to mean 1 keeps the overall loss magnitude --
+    and thus the effective learning rate -- in the same regime as v1.
+    """
+    scheme = cfg.get("loss_weighting", "none")
+    if scheme == "none":
+        return None
+    if scheme == "std":
+        std = train_targets.std(axis=0)
+        std = np.where(std < 1e-6, 1.0, std)
+        w = 1.0 / std
+    elif scheme == "points":
+        from ffmodel.scoring import PPR, stat_weights
+        coef = stat_weights(PPR)
+        nonzero = [abs(v) for v in coef.values() if v]
+        floor = min(nonzero)
+        w = np.array([abs(coef.get(s, 0.0)) or floor for s in PREDICTED_STATS],
+                     dtype=np.float64)
+    else:
+        raise ValueError(
+            f"unknown loss_weighting {scheme!r} (known: none, std, points)")
+    w = np.asarray(w, dtype=np.float64)
+    return (w / w.mean()).astype(np.float32)
 
 
 def _prepare_data(cfg: dict, features: pd.DataFrame):
@@ -158,6 +191,10 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
     `resume` is a no-op alias of that default. Pass `fresh=True` to discard
     any existing checkpoint/artifact for this run and train from scratch."""
     feature_set, seq_features, ctx_features = _resolve_feature_set(cfg)
+    loss_weighting = cfg.get("loss_weighting", "none")
+    if loss_weighting not in ("none", "std", "points"):
+        raise ValueError(
+            f"unknown loss_weighting {loss_weighting!r} (known: none, std, points)")
     val_season = cfg["val_season"]
     ckpt_dir = Path(cfg["checkpoint_root"]) / f"{cfg['run_name']}_through{val_season}"
     latest = ckpt_dir / "latest.pt"
@@ -204,6 +241,9 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
     quantiles = tuple(cfg["quantiles"])
 
     train_data, val_data, scaler = _prepare_data(cfg, features)
+    head_weights_np = _head_weights(cfg, train_data.y)
+    head_weights = (None if head_weights_np is None
+                    else torch.from_numpy(head_weights_np).to(device))
 
     model = QuantileTransformer(
         n_seq_features=len(seq_features), n_ctx_features=len(ctx_features),
@@ -241,8 +281,10 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
         train_loader = _loader(train_data, cfg["train"]["batch_size"], True,
                                cfg["seed"] + epoch)  # per-epoch seed: resume-stable order
         train_loss = _epoch(model, train_loader, quantiles, device,
-                            optimizer, cfg["train"]["grad_clip"], amp_scaler)
-        val_loss = _epoch(model, val_loader, quantiles, device)
+                            optimizer, cfg["train"]["grad_clip"], amp_scaler,
+                            head_weights=head_weights)
+        val_loss = _epoch(model, val_loader, quantiles, device,
+                          head_weights=head_weights)
         print(f"epoch {epoch}: train {train_loss:.4f}  val {val_loss:.4f}")
         if val_loss < best_val:
             best_val, bad = val_loss, 0
@@ -258,6 +300,9 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
                 "n_ctx_features": len(ctx_features), "model": cfg["model"],
                 "feature_set": feature_set,
                 "seq_features": seq_features, "ctx_features": ctx_features,
+                "loss_weighting": loss_weighting,
+                "head_weights": (None if head_weights_np is None
+                                 else head_weights_np.tolist()),
                 "complete": False,  # only the post-loop write below marks completion
             }, indent=2))
         else:
