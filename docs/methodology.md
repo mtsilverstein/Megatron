@@ -114,10 +114,18 @@ tie**: within-position rank correlation 0.594 vs 0.596, a paired 95% interval
 that includes zero. For a free model against a paid expert panel, parity is a
 genuine result — and it points at where the model's real value lives.
 
-There is a promising **running-back weekly** signal (the model out-ranks weekly
-consensus 0.72 vs 0.70, winning all three discovery seasons) that is being
-tested cleanly out-of-sample before it is claimed. RB value is workload-driven,
-which is exactly what the model's usage features capture well.
+The model has one measurable **running-back weekly** edge, and it survives
+out-of-sample replication. It was found on 2023–25 (out-ranking weekly
+consensus 0.72 vs 0.70, winning all three seasons). The replication was
+pre-registered *before* the earlier-fold models were trained, then run on the
+disjoint 2020–22 seasons — and it held: **0.666 vs 0.642, winning all three
+again, a pooled advantage of +0.024 with a paired 95% interval [+0.007, +0.044]
+that excludes zero.** The effect is RB-specific — quarterback actually *loses*
+(−0.063), tight end and receiver tie — which is the signature of a real signal
+rather than a scoring artifact: a global quirk would lift every position, but
+only the one whose value is workload-driven (carries, targets, snap share)
+benefits, and that is exactly what the model's usage features capture. It is
+the one place the model measurably out-ranks the expert panel.
 
 ## 4. What didn't work — and why
 
@@ -172,7 +180,8 @@ process, and it is a more honest portfolio signal than a leaderboard number.
 ## 6. What the model is genuinely good for
 
 - **A free, transparent weekly projector at parity with a paid expert panel**,
-  conditional on availability — with a plausible running-back edge under test.
+  conditional on availability — and measurably *ahead* of it at running back,
+  an edge confirmed out-of-sample (§3).
 - **Calibrated floor/ceiling bands.** Held-out weekly coverage sits inside a
   0.75–0.85 target for every position; ADP and ECR give a single number, this
   gives a distribution. That is a real product difference neither benchmark

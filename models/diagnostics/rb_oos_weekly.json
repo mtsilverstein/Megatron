@@ -1,0 +1,55 @@
+{
+  "generated_at": "2026-07-25T20:25:14+00:00",
+  "experiment": "rb-weekly-out-of-sample",
+  "verdict": "REPLICATES",
+  "summary": "The running-back weekly ranking edge over expert consensus, discovered on 2023-25 (RB within-position Spearman 0.7215 vs 0.6958, won 3/3, pooled p=0.002), replicates cleanly on the disjoint 2020-22 seasons it was NOT found on: RB ours 0.6658 vs consensus 0.6415, won 3/3, pooled delta +0.0243 with a paired 95% CI [+0.0066, +0.0437] that excludes zero. The effect is RB-specific — QB loses (-0.0631), TE and WR are ties — which argues for a real workload signal rather than a cross-positional artifact. Both pre-registered criteria (RB wins >=2/3 seasons AND pooled delta > 0) are met.",
+  "spec": "pre-registered in .superpowers/sdd/progress.md (2026-07-22), before these artifacts were trained",
+  "design": {
+    "hypothesis": "The 2023-25 RB weekly edge generalizes to seasons not used to find it.",
+    "discovery_set": [2023, 2024, 2025],
+    "out_of_sample_set": [2020, 2021, 2022],
+    "disjoint": true,
+    "method": "ensemble {v1,v1_s43,v1_s44}/through{S-1} predicts weekly S; within-position weekly RB Spearman vs weekly FantasyPros ECR, scored through the sign-safe committed eval/weekly_rankings.py (goodness scores, assert_model_sane tripwire) with leak-safe weekly_snapshot; model trained on seasons <= S-1 only, lag features strictly prior.",
+    "no_tuning": "No hyperparameter or feature choice was made against 2020-22; the earlier-fold configs (transformer_v1_through2019/2020/2021.yaml) are pure v1, only val_season differs."
+  },
+  "artifacts_evaluated": {
+    "ensemble_roots": [
+      "models/transformer/v1",
+      "models/transformer/v1_s43",
+      "models/transformer/v1_s44"
+    ],
+    "folds_used": ["through2019", "through2020", "through2021"],
+    "loss_weighting": "none",
+    "repo_commit": "543b57b"
+  },
+  "pre_registered_rule": {
+    "recorded_before_results": true,
+    "criterion": "RB ours > consensus in >=2 of 3 out-of-sample seasons AND pooled mean delta > 0.",
+    "note": "This is a replication test, not a promotion gate. Anything less would mean the 2023-25 RB edge did not generalize (honest negative)."
+  },
+  "result": {
+    "position": "RB",
+    "per_season": [
+      {"season": 2020, "cells": 11, "sp_ours": 0.6419, "sp_consensus": 0.6121, "delta": 0.0298, "cells_won_pct": 63.6, "rb_won": true},
+      {"season": 2021, "cells": 16, "sp_ours": 0.6525, "sp_consensus": 0.6251, "delta": 0.0274, "cells_won_pct": 75.0, "rb_won": true},
+      {"season": 2022, "cells": 15, "sp_ours": 0.6975, "sp_consensus": 0.6805, "delta": 0.0170, "cells_won_pct": 73.3, "rb_won": true}
+    ],
+    "pooled": {
+      "cells": 42,
+      "sp_ours": 0.6658,
+      "sp_consensus": 0.6415,
+      "delta": 0.0243,
+      "paired_bootstrap_ci95": [0.0066, 0.0437],
+      "ci_excludes_zero": true,
+      "seasons_rb_won": 3,
+      "criterion_met": true
+    }
+  },
+  "context_all_positions": [
+    {"position": "QB", "sp_ours": 0.4155, "sp_consensus": 0.4786, "delta": -0.0631},
+    {"position": "RB", "sp_ours": 0.6658, "sp_consensus": 0.6415, "delta": 0.0243},
+    {"position": "TE", "sp_ours": 0.5572, "sp_consensus": 0.5717, "delta": -0.0144},
+    {"position": "WR", "sp_ours": 0.6275, "sp_consensus": 0.6247, "delta": 0.0027}
+  ],
+  "interpretation": "RB is the only position where the model out-ranks weekly consensus out-of-sample. A global calibration or scoring artifact would lift every position; this lifts only the one whose value is workload-driven (carries, targets, snap share) — exactly what the model's usage features capture. The delta is nearly identical across the two disjoint sets (+0.026 discovery, +0.024 out-of-sample), and the paired CI excludes zero. The edge is claimable."
+}
