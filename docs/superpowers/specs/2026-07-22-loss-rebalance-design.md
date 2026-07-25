@@ -1,6 +1,35 @@
 # Loss rebalance (fix the collapsed touchdown heads) — design
 
-**Date:** 2026-07-22 · **Status:** approved
+> ## ⚠️ RETRACTED 2026-07-22 — the diagnosis was wrong; do NOT train these arms
+>
+> A pre-training audit measured the **actual gradient** each head receives (not
+> just its loss value). The two are very different for pinball loss:
+>
+> | | LOSS share | GRADIENT share (measured, v1/through2025, 2024 val) |
+> |---|---|---|
+> | yardage heads | 86.8% | **26.3%** |
+> | all TD/INT/fumble heads | 1.6% | **46.5%** |
+>
+> The pinball gradient is `−q` or `1−q` — **bounded and independent of error
+> magnitude** — so large-scale heads do *not* dominate the gradient (the TD
+> heads actually receive *more*). The "scale domination starves the TD heads"
+> premise imported the **MSE** intuition (gradient `2(pred−target)`, which does
+> scale) into a **quantile-loss** setting where it is invalid. The p50 TD heads
+> sit at ~0 because the conditional **median of a zero-inflated variable is 0** —
+> correct pinball behavior, not starvation. Constant per-head weighting cannot
+> move a head's converged quantile (`argmin w·f = argmin f`), and `std`/`points`
+> weights would *over*-emphasize the low-information median-zero TD heads while
+> starving the yardage heads that carry most rankable signal — predicted
+> **null-to-harmful**.
+>
+> **Status:** the CODE stays (correct, tested, opt-in — harmless in `main`), but
+> the `stdw`/`ptsw` arms are **not trained**. The real lever for the median-of-
+> zero-inflated problem is **expectation-based ranking** (E over quantiles),
+> tested post-hoc and pursued separately — no retrain. The bundled earlier-fold
+> v1 configs (through2019/20/21) remain valid and useful for the RB
+> out-of-sample test. Everything below is the original (superseded) design.
+
+**Date:** 2026-07-22 · **Status:** RETRACTED (see banner) — was "approved"
 **Feature:** rebalance the multi-task pinball loss so the eleven stat heads
 receive comparable learning capacity, instead of the 87% / 1.6% split
 between yardage and touchdown heads that currently collapses the highest-
