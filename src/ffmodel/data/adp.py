@@ -59,3 +59,22 @@ def pull_adp(season: int, cache_dir: Path | None = None, teams: int = 12,
         return normalize_adp(raw, pull_player_ids(cache_dir))
 
     return _cached(cache_dir, f"adp_{scoring}_{teams}_{season}", load)
+
+
+# K/DST are OUT of model scope (kickers/defenses do not predict year to year),
+# so they get no projection -- only the crowd's ADP, as a late-round slot
+# reminder. Display-only, hence no gsis crosswalk.
+LATE_SLOT_POSITIONS = {"K": "K", "DEF": "DST"}
+
+
+def late_slot_adp(raw: dict) -> dict:
+    """K/DST rows from a raw FFCalculator `/adp` payload, ADP-ascending."""
+    out: dict[str, list] = {"K": [], "DST": []}
+    for row in raw.get("players", []):
+        key = LATE_SLOT_POSITIONS.get(row.get("position"))
+        if key is None:
+            continue
+        out[key].append({"name": row["name"], "adp": float(row["adp"])})
+    for key in out:
+        out[key].sort(key=lambda r: r["adp"])
+    return out

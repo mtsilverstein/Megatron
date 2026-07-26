@@ -381,3 +381,25 @@ def test_draft_consensus_ecr_failure_propagates(monkeypatch):
                             ValueError("no consensus scrape before kickoff")))
     with pytest.raises(ValueError, match="no consensus scrape"):
         generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
+
+
+def test_draft_payload_carries_late_slots(monkeypatch, tmp_path):
+    from ffmodel.site import generate
+
+    payload = {"season": 2026, "players": []}
+    monkeypatch.setattr(generate, "_late_slots", lambda season, data_dir:
+                        {"K": [{"name": "Early K", "adp": 140.5}], "DST": []})
+    out = generate._attach_late_slots(payload, 2026, tmp_path)
+    assert out["late_slots"] == {"K": [{"name": "Early K", "adp": 140.5}],
+                                 "DST": []}
+
+
+def test_late_slots_degrade_to_empty_when_adp_unavailable(monkeypatch, tmp_path):
+    from ffmodel.site import generate
+
+    def boom(season, data_dir):
+        raise RuntimeError("ffcalculator down")
+
+    monkeypatch.setattr(generate, "_late_slots", boom)
+    out = generate._attach_late_slots({"season": 2026, "players": []}, 2026, tmp_path)
+    assert out["late_slots"] == {"K": [], "DST": []}

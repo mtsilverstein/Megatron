@@ -40,3 +40,26 @@ def test_normalize_adp_drops_unmatched_without_crashing():
                         "stdev": 1.0, "times_drafted": 3}]}
     out = normalize_adp(raw, _crosswalk())
     assert out.empty
+
+
+def test_late_slot_adp_keeps_only_k_and_dst_sorted_by_adp():
+    from ffmodel.data.adp import late_slot_adp
+
+    raw = {"players": [
+        {"name": "Some RB", "position": "RB", "adp": 1.2},
+        {"name": "Late K", "position": "K", "adp": 150.0},
+        {"name": "Early K", "position": "K", "adp": 140.5},
+        {"name": "A Defense", "position": "DEF", "adp": 138.0},
+    ]}
+    out = late_slot_adp(raw)
+    assert list(out) == ["K", "DST"]
+    assert out["K"] == [{"name": "Early K", "adp": 140.5},
+                        {"name": "Late K", "adp": 150.0}]
+    assert out["DST"] == [{"name": "A Defense", "adp": 138.0}]
+
+
+def test_late_slot_adp_missing_positions_yield_empty_lists():
+    from ffmodel.data.adp import late_slot_adp
+
+    out = late_slot_adp({"players": [{"name": "RB", "position": "RB", "adp": 1.0}]})
+    assert out == {"K": [], "DST": []}

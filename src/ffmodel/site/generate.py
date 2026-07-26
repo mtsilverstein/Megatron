@@ -148,6 +148,32 @@ def _load_adp(season, data_dir):
     return pull_adp(season, cache_dir=data_dir)
 
 
+def _late_slots(season, data_dir):
+    """Raw K/DST ADP for the late-round slot reminder (display-only)."""
+    import json
+    import urllib.request
+
+    from ffmodel.data.adp import late_slot_adp
+
+    url = ("https://fantasyfootballcalculator.com/api/v1/adp/ppr"
+           f"?teams=12&year={season}&position=all")
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        raw = json.loads(resp.read().decode("utf-8"))
+    return late_slot_adp(raw)
+
+
+def _attach_late_slots(payload, season, data_dir):
+    """Best-effort: the board never depends on K/DST ADP, so a failure just
+    yields empty lists and the UI degrades to a generic reminder."""
+    try:
+        payload["late_slots"] = _late_slots(season, data_dir)
+    except Exception as exc:                     # noqa: BLE001 - overlay is optional
+        print(f"K/DST ADP unavailable ({exc}); late-slot lists will be empty")
+        payload["late_slots"] = {"K": [], "DST": []}
+    return payload
+
+
 def _draft_consensus(season, schedules, data_dir):
     """ECR is the required spine (raise -> abort the run, fail-safe); ADP is a
     best-effort overlay (failure -> None, board still builds). Replacement is
@@ -248,10 +274,10 @@ def main() -> None:
         payloads["weekly.json"] = build_weekly_projections(
             future, predictor, args.season, week, data_through)
     if args.draft:
-        payloads["draft.json"] = build_draft_board(
+        payloads["draft.json"] = _attach_late_slots(build_draft_board(
             weekly, schedules, predictor, args.season, data_through, prefit=True,
             sleeper_players=sleeper_players, draft_picks=draft_picks,
-            ecr=ecr, adp=adp, replacement_rank=replacement)
+            ecr=ecr, adp=adp, replacement_rank=replacement), args.season, args.data_dir)
     backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
     payloads["about.json"] = build_about(backtests, data_through, site_model=predictor.name)
 
