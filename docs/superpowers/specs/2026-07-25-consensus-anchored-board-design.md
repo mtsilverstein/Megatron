@@ -91,10 +91,12 @@ only in the `--draft` generation.
    ECR's; the gaps are the model's scarcity structure. This keeps VORP monotone
    with the sort and suppresses the model's per-player ranking opinion.
 3. **Flex-aware replacement + VORP.** `VORP = value_points − value_points at the
-   replacement rank`. Replacement ranks are config-driven; proposed defaults for
-   this 2-flex league: **QB 13 / RB 32 / WR 38 / TE 15** — 24/24/12 base starters
-   plus a 24-spot flex split of ~35% RB / 55% WR / 10% TE, +1 for next-man-up.
-   The flex split is the single judgment knob and is documented where it lives.
+   replacement rank`. Replacement is *derived*, not guessed: every team fills its
+   dedicated slots (12 QB / 24 RB / 24 WR / 12 TE league-wide), then the 24 flex
+   spots go to the best remaining players by ECR across RB/WR/TE — so the flex
+   split falls out of the rankings. Replacement rank = (dedicated + flex started)
+   + 1 per position. This only affects cross-position interleaving and the
+   tier-pool size; it never reorders players within a position (that is pure ECR).
 4. **Tiers** — existing `_assign_tiers` on the fused VORP, unchanged.
 5. **Bands** — each player's own model p10/p90 → floor/ceiling points, unchanged.
    The model's genuine per-player contribution.
@@ -165,8 +167,9 @@ ADP-surplus calculator. No claim that the board out-ranks the experts.
 
 ## 11. Open / tunable knobs (documented, not blocking)
 
-- The flex split (35/55/10) behind the replacement ranks — one judgment call,
-  easy to retune; VORP magnitudes shift, ordering within a position does not.
+- The league config (`LEAGUE_DEDICATED` / `LEAGUE_FLEX_SLOTS`) that feeds the
+  derived replacement — set to this league's 12-team, 2-flex shape; ordering
+  within a position is unaffected by it, only cross-position balance.
 - The optional ADP market cue in the UI — ship or cut for time.
 - Sleeper `previous_league_id` keeper auto-fill — a later enhancement.
 
