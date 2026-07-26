@@ -9,6 +9,13 @@
 > honest negative recorded in `models/diagnostics/` and the site keeps v1. The
 > experiment is **not** re-run with adjusted knobs afterwards — that is
 > p-hacking, and the FPv2 precedent (`2026-07-21`) explicitly forbids it.
+>
+> **Revised 2026-07-26, still pre-training** (no run has executed): the fold
+> count was raised from 6 to **9** and a minimum-detectable-effect statement
+> added (§8), after the GPU budget constraint was lifted. Power is the
+> project's recurring failure mode — FPv2 died undecidable at SE 0.028 — so
+> buying folds is the highest-value use of an unconstrained budget. Nothing
+> else changed; no result informed this edit.
 
 ## 1. Context & the premise this replaces
 
@@ -77,14 +84,23 @@ conditional **mean**.
     (`passing_tds`, `rushing_tds`, `receiving_tds`); p50 for all others.
   - **Arm B (secondary):** mean for all 8 count components; p50 for the 3 yardage.
 - **λ (mean-loss weight) is selected strictly causally:** candidates
-  `{0.3, 1.0, 3.0}`, chosen on the **`through2019` fold's validation season
-  (2019)** by validation-season PPR MAE computed from the Arm-A point estimate,
-  seed 42 only — then **frozen** for every fold and seed. 2019 precedes every
-  test season (2020–2025), so no fold is contaminated and no test data informs it.
-- **6 walk-forward folds × 3 seeds.** The FPv2 lesson is explicit: 3 test seasons
-  gives SE ≈ 0.028 on a MAE delta, too coarse to resolve ~0.01 effects.
-- **Baseline is free.** All 7 v1 folds × 3 seeds are already committed, so only
-  the new arm consumes GPU.
+  `{0.1, 0.3, 1.0, 3.0}`, chosen on the **`through2016` fold's validation season
+  (2016)** by validation-season PPR MAE computed from the Arm-A point estimate,
+  seed 42 only — then **frozen** for every fold and seed. 2016 precedes *every*
+  test season (2017–2025), so no fold is contaminated and no test data informs it.
+- **9 walk-forward folds × 3 seeds.** Folds `through2016 … through2024`, testing
+  **2017–2025**. Power is this project's recurring failure mode (FPv2 died
+  undecidable at SE 0.028 on 3 seasons), and with the GPU budget unconstrained
+  the cheapest fix is more paired folds. Data supports it: from 2013 on, every
+  season carries ~5.5–6.1k rows with ~100% `snap_pct` coverage; the earliest
+  fold still trains on 2012–2015. Earlier folds yield weaker models, but the
+  comparison is **paired** — both arms train on identical data, so a weaker fold
+  costs precision, never validity.
+- **3 seeds, not more.** The committed v1 baseline is a 3-seed ensemble;
+  matching it exactly keeps the comparison fair. Fairness beats extra power here.
+- **Baseline is mostly free.** v1 is already committed for `through2019 …
+  through2025` × 3 seeds; only `through2016/2017/2018` must be trained to
+  complete the 9-fold baseline.
 
 ## 4. Non-goals / scope
 
@@ -132,25 +148,36 @@ asserted in a test.
 
 ## 7. Training plan (Kaggle, free tier)
 
-Configs `configs/transformer_mh_through{2019..2024}.yaml`, `run_name: mh`,
+Configs `configs/transformer_mh_through{2016..2024}.yaml`, `run_name: mh`,
 identical to their `v1` counterparts plus `predict_mean: true` and `mean_lambda`.
-Artifacts land in `models/transformer/mh{,_s43,_s44}/through{Y}/`.
+Artifacts land in `models/transformer/mh{,_s43,_s44}/through{Y}/`. Three new v1
+configs (`transformer_v1_through{2016,2017,2018}.yaml`) complete the baseline.
 
 | stage | runs | notes |
 |---|---|---|
-| λ selection | 3 | `through2019` only, seed 42, λ ∈ {0.3, 1.0, 3.0} |
-| main arm | 18 | 6 folds × 3 seeds (42/43/44) at the frozen λ |
-| deploy fold | 3 | `through2025` × 3 seeds — **only if the gate passes** |
+| λ selection | 4 | `through2016` only, seed 42, λ ∈ {0.1, 0.3, 1.0, 3.0} |
+| baseline backfill | 9 | v1 `through2016/2017/2018` × 3 seeds |
+| main arm | 27 | 9 folds × 3 seeds (42/43/44) at the frozen λ |
+| deploy fold | 3 | `mh through2025` × 3 seeds — **only if the gate passes** |
 
-21 runs to a decision. T4 ×2 (never P100 — `sm_60` is unsupported); training is
-checkpointed every epoch and `train.py` is already config-aware skip-if-complete,
-so a session cutoff loses nothing and "Run All" resumes.
+**40 runs to a decision.** T4 ×2 (never P100 — `sm_60` is unsupported); training
+is checkpointed every epoch and `train.py` is already config-aware
+skip-if-complete, so a session cutoff loses nothing and "Run All" resumes. Order
+matters: λ selection must finish before the main arm, since λ is frozen from it.
 
 ## 8. Pre-registered gate (BINDING)
 
-Evaluated with the existing walk-forward harness on the **6 test seasons
-2020–2025**, 3-seed ensemble vs the committed 3-seed v1 ensemble, on **identical
-rows**, paired bootstrap over player-weeks (or player-seasons for board metrics).
+Evaluated with the existing walk-forward harness on the **9 test seasons
+2017–2025**, 3-seed ensemble vs the 3-seed v1 ensemble, on **identical rows**,
+paired bootstrap over player-weeks (or player-seasons for board metrics).
+
+**Minimum detectable effect (stated in advance so a null is interpretable).**
+Prior walk-forward work put the per-season Spearman-delta SD at ~0.02–0.03; with
+9 paired folds that is SE ≈ 0.007–0.010, so this design resolves a pooled effect
+of **≈ +0.02 Spearman** at 95%. If the gate fails, the honest claim is therefore
+"no effect of ≈0.02 or larger" — **not** "no effect". A real-but-smaller effect
+would remain undetected, and per §10 that is accepted, not a reason to widen the
+search afterwards.
 
 **PRIMARY (must pass).** Weekly within-position Spearman, **RB/WR/TE pooled**,
 Arm A vs v1: pooled delta **> 0** with a **paired-bootstrap 95% CI excluding
