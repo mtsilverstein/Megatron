@@ -526,4 +526,48 @@ def test_rookie_with_nan_gsis_id_gets_synthetic_id():
     assert "draft2023-p065" in ids
     row = [p for p in board["players"] if p["player_id"] == "draft2023-p065"][0]
     assert row["rookie"] is True and row["name"] == "No Gsis Guy"
-    json.dumps(board, allow_nan=False)
+
+
+def test_finalize_board_consensus_orders_by_ecr():
+    # Model would rank by ppr_p50 (rb-hi best); ECR flips the top two.
+    from ffmodel.site.draft import _finalize_board
+    players = pd.DataFrame({
+        "player_id": ["r0", "r1", "r2"],
+        "name": "x", "team": "AAA", "position": ["RB"] * 3,
+        "ppr_p50": [300.0, 290.0, 280.0],
+        "ppr_p10": np.nan, "ppr_p90": np.nan,
+        "half_ppr_p50": [300.0, 290.0, 280.0], "half_ppr_p10": np.nan, "half_ppr_p90": np.nan,
+        "standard_p50": [300.0, 290.0, 280.0], "standard_p10": np.nan, "standard_p90": np.nan,
+        "games": 17, "bye": None,
+    })
+    ecr = {"r1": 1.0, "r0": 2.0, "r2": 3.0}          # experts prefer r1
+    adp = {"r1": 6.0, "r0": 18.0, "r2": 30.0}
+    payload = _finalize_board(players, model="m", season=2026,
+                              data_through="2025-01-05", has_bands=False,
+                              ecr=ecr, adp=adp, replacement_rank={"RB": 2})
+    order = [p["player_id"] for p in payload["players"]]
+    assert order[0] == "r1"                          # ECR winner leads the board
+    top = payload["players"][0]
+    assert top["ecr"] == 1.0 and top["adp"] == 6.0 and top["adp_round"] == 1
+    assert [p["vorp"] for p in payload["players"]] == sorted(
+        [p["vorp"] for p in payload["players"]], reverse=True)
+
+
+def test_finalize_board_without_ecr_matches_model_ordering():
+    # Regression: no ecr/adp -> value_points == ppr_p50 -> identical to before,
+    # and the new fields serialize as null.
+    from ffmodel.site.draft import _finalize_board
+    ppr = list(range(400, 370, -1))
+    players = pd.DataFrame({
+        "player_id": [f"rb{i}" for i in range(30)], "name": "x", "team": "AAA",
+        "position": ["RB"] * 30, "ppr_p50": ppr, "ppr_p10": np.nan, "ppr_p90": np.nan,
+        "half_ppr_p50": ppr, "half_ppr_p10": np.nan, "half_ppr_p90": np.nan,
+        "standard_p50": ppr, "standard_p10": np.nan, "standard_p90": np.nan,
+        "games": 17, "bye": None,
+    })
+    payload = _finalize_board(players, model="m", season=2026,
+                              data_through="2025-01-05", has_bands=False)
+    top = payload["players"][0]
+    assert top["position_rank"] == 1 and top["vorp"] == pytest.approx(24.0)
+    assert top["ecr"] is None and top["adp"] is None and top["adp_round"] is None
+    json.dumps(payload, allow_nan=False)

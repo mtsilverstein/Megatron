@@ -9,6 +9,7 @@ import pandas as pd
 from ffmodel.data.future import combined_future_features
 from ffmodel.model.simulate import games_probs_from_counts, rho_from_icc, simulate_season
 from ffmodel.scoring import fantasy_points, fantasy_points_quantiles
+from ffmodel.site.board_rank import _assign_tiers, rank_board
 from ffmodel.site.weekly import RULESETS
 
 # 12-team league: points above the player at this positional rank define
@@ -187,23 +188,6 @@ def _fit_frame(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
     return build_features(weekly, schedules)
 
 
-def _assign_tiers(vorp_desc: pd.Series, replacement_rank: int) -> list[int]:
-    values = vorp_desc.to_numpy(dtype=float)
-    if len(values) == 0:
-        return []
-    n_draft = min(2 * replacement_rank, len(values))
-    if n_draft < 2:
-        return [1] * len(values)
-    mean_gap = (values[0] - values[n_draft - 1]) / (n_draft - 1)
-    threshold = max(2.0, 2.0 * mean_gap)
-    tiers, tier = [1], 1
-    for prev, cur in zip(values, values[1:]):
-        if prev - cur > threshold:
-            tier += 1
-        tiers.append(tier)
-    return tiers
-
-
 def _rookie_frame(weekly, draft_picks, season, players, team_weeks, weeks_list,
                   *, n_draws, seed, rookie_min_n):
     """Rookie rows for the target season's draft class, on the veterans'
@@ -280,20 +264,22 @@ def _rookie_frame(weekly, draft_picks, season, players, team_weeks, weeks_list,
 
 def _finalize_board(players: pd.DataFrame, model: str, season: int,
                     data_through: str, has_bands: bool, n_draws: int = 2000,
-                    rookie_prior: dict | None = None) -> dict:
-    frames = []
-    for pos, group in players.groupby("position"):
-        group = group.sort_values("ppr_p50", ascending=False).reset_index(drop=True)
-        rank = REPLACEMENT_RANK.get(pos, 20)
-        replacement = group["ppr_p50"].iloc[min(rank, len(group)) - 1]
-        group["vorp"] = (group["ppr_p50"] - replacement).round(2)
-        group["position_rank"] = group.index + 1
-        group["tier"] = _assign_tiers(group["vorp"], rank)
-        frames.append(group)
-    board = pd.concat(frames).sort_values("vorp", ascending=False)
+                    rookie_prior: dict | None = None, *,
+                    ecr: dict | None = None, adp: dict | None = None,
+                    replacement_rank: dict = REPLACEMENT_RANK) -> dict:
+    players = players.copy()
+    players["ecr"] = (players["player_id"].map(ecr) if ecr is not None
+                      else np.nan)
+    players["adp"] = (players["player_id"].map(adp) if adp is not None
+                      else np.nan)
+    board = rank_board(players, replacement_rank)
+    consensus_anchored = ecr is not None
 
     def _band(value) -> float | None:
         return None if pd.isna(value) else round(float(value), 1)
+
+    def _opt(value, cast):
+        return None if pd.isna(value) else cast(value)
 
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -303,7 +289,10 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
             "seeding": "end-of-prior-season form",
             "bands": "simulated season distribution (calibrated weekly bands, "
                      "availability-adjusted)",
-            "replacement_rank": REPLACEMENT_RANK,
+            "ranking": ("expert-consensus (FantasyPros ECR); the model supplies "
+                        "the value curve and the floor/ceiling bands, not the order"
+                        if consensus_anchored else "model season median (VORP)"),
+            "replacement_rank": replacement_rank,
             "n_draws": n_draws,
         },
         "players": [{
@@ -318,6 +307,9 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
             "vorp": float(row["vorp"]),
             "position_rank": int(row["position_rank"]),
             "tier": int(row["tier"]),
+            "ecr": _opt(row["ecr"], float),
+            "adp": _opt(row["adp"], float),
+            "adp_round": _opt(row["adp_round"], int),
             "rookie": bool(row["rookie"]) if "rookie" in row.index else False,
         } for _, row in board.iterrows()],
     }
@@ -333,7 +325,9 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       diagnostics: dict | None = None,
                       sleeper_players: dict | None = None,
                       draft_picks: pd.DataFrame | None = None,
-                      rookie_min_n: int | None = None) -> dict:
+                      rookie_min_n: int | None = None,
+                      ecr: dict | None = None, adp: dict | None = None,
+                      replacement_rank: dict = REPLACEMENT_RANK) -> dict:
     players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit,
                                 n_draws=n_draws, seed=seed, games_dist=games_dist,
                                 diagnostics=diagnostics)
@@ -365,7 +359,8 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
     players["bye"] = players["team"].map(_bye)
     has_bands = hasattr(predictor, "predict_quantiles")
     payload = _finalize_board(players, predictor.name, season, data_through, has_bands,
-                              n_draws, rookie_prior=rookie_prior_meta)
+                              n_draws, rookie_prior=rookie_prior_meta,
+                              ecr=ecr, adp=adp, replacement_rank=replacement_rank)
     if sleeper_players is not None:
         # Deferred import keeps draft.py import-light for consumers that
         # never touch draft mode (board backtests, tests).
