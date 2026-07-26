@@ -66,10 +66,11 @@
   </div>
   <details class="keeper-panel" id="keepers">
     <summary>Keeper value — which to keep</summary>
-    <p class="keeper-help">Add each keeper-eligible player and the round you drafted him last year (or mark waiver). Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
+    <p class="keeper-help">Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (cost drops one round per year kept). Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
     <form class="keeper-add">
       <input class="keeper-name" placeholder="Player (start typing)" list="playerlist" autocomplete="off" />
-      <input class="keeper-round" type="number" min="1" max="20" placeholder="Round drafted" />
+      <input class="keeper-round" type="number" min="1" max="20" placeholder="Original round" />
+      <input class="keeper-year" type="number" min="2000" max="2100" placeholder="Year drafted" />
       <label><input class="keeper-waiver" type="checkbox" /> waiver pickup (R12)</label>
       <button type="submit">Add</button>
       <span class="keeper-msg" role="alert"></span>
@@ -167,7 +168,8 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   render(rows);
 
   if (window.Keepers) {
-    Keepers.init({ players: board.players, panel: document.getElementById("keepers") });
+    Keepers.init({ players: board.players, panel: document.getElementById("keepers"),
+                   currentSeason: board.season });
   }
 
   if (window.DraftMode) {

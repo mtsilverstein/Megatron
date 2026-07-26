@@ -13,35 +13,36 @@
   const WAIVER_COST_ROUND = 12;
   const MAX_KEEPERS = 2;
 
-  function costRound(draftedRound, isWaiver) {
-    return isWaiver ? WAIVER_COST_ROUND : draftedRound - 1;
+  // Cost escalates one round per year kept, anchored to the ORIGINAL draft
+  // round, floored at R1. Waiver pickups (never drafted) are R12 flat.
+  function keeperCost(c, currentSeason) {
+    if (c.isWaiver) return WAIVER_COST_ROUND;
+    return Math.max(1, c.originalRound - (currentSeason - c.originalYear));
   }
-  function eligible(draftedRound, isWaiver) {
-    return isWaiver || draftedRound > 2;
+  function eligible(c) {
+    return c.isWaiver || c.originalRound > 2;   // "no keepers from rounds 1-2"
   }
   function valueRound(adpRound, overallRank, teams = 12) {
     if (adpRound != null) return adpRound;
     return Math.ceil(overallRank / teams);
   }
-  function surplus(c) {
-    return costRound(c.draftedRound, c.isWaiver)
-         - valueRound(c.adpRound, c.overallRank);
+  function surplus(c, currentSeason) {
+    return keeperCost(c, currentSeason) - valueRound(c.adpRound, c.overallRank);
   }
-  function rankKeepers(candidates) {
+  function rankKeepers(candidates, currentSeason) {
     return candidates
-      .filter(c => eligible(c.draftedRound, c.isWaiver))
-      .map(c => Object.assign({}, c, { surplus: surplus(c) }))
+      .filter(eligible)
+      .map(c => Object.assign({}, c, { surplus: surplus(c, currentSeason) }))
       .sort((a, b) => b.surplus - a.surplus);
   }
-  // Which players to actually keep: the best up-to-`maxKeepers` with POSITIVE
-  // surplus. Empty result = keep nobody (nothing beats its cost).
-  function recommendKeepers(candidates, maxKeepers = MAX_KEEPERS) {
-    return rankKeepers(candidates).filter(c => c.surplus > 0).slice(0, maxKeepers);
+  // Which players to actually keep: best up-to-maxKeepers with POSITIVE surplus.
+  function recommendKeepers(candidates, currentSeason, maxKeepers = MAX_KEEPERS) {
+    return rankKeepers(candidates, currentSeason)
+      .filter(c => c.surplus > 0).slice(0, maxKeepers);
   }
 
-  // Panel: players is the loaded board (sorted VORP desc -> overallRank = i+1).
   function init(options) {
-    const { players, panel } = options;
+    const { players, panel, currentSeason } = options;
     if (!panel) return;
     const esc = window.FC.esc;
     const rankByName = new Map(players.map((p, i) => [p.name, {
@@ -57,10 +58,9 @@
     const outEl = panel.querySelector(".keeper-out");
 
     function redraw() {
-      const ranked = rankKeepers(candidates);          // eligible, surplus desc
-      const rec = recommendKeepers(candidates);        // positive surplus, <=2
+      const ranked = rankKeepers(candidates, currentSeason);
+      const rec = recommendKeepers(candidates, currentSeason);
       const recNames = new Set(rec.map(r => r.name));
-      // headline: the objective recommendation
       if (!candidates.length) {
         recEl.innerHTML = "";
       } else if (!rec.length) {
@@ -69,33 +69,38 @@
         recEl.innerHTML = "<strong>Keep:</strong> " + rec.map(r =>
           `${esc(r.name)} (+${r.surplus} rd${r.surplus === 1 ? "" : "s"})`).join(", ");
       }
-      // full breakdown: eligible best-first, then ineligible
       const detail = c => {
-        const cost = costRound(c.draftedRound, c.isWaiver);
+        const cost = keeperCost(c, currentSeason);
         const val = valueRound(c.adpRound, c.overallRank);
         const s = c.surplus;
         return `keep for R${cost} · worth R${val} · <strong>${s >= 0 ? "+" : ""}${s} rds</strong>`;
       };
-      const ineligible = candidates.filter(c => !eligible(c.draftedRound, c.isWaiver));
+      const ineligible = candidates.filter(c => !eligible(c));
       outEl.innerHTML = ranked.map(c =>
           `<li class="${recNames.has(c.name) ? "keep-best" : ""}">${esc(c.name)} — ${detail(c)}</li>`)
         .concat(ineligible.map(c =>
           `<li class="keeper-ineligible">${esc(c.name)} — ineligible (drafted R1–2)</li>`))
         .join("");
     }
+    // Exposed so the Sleeper loader (Task 3) can push a batch of candidates.
+    panel._keeperAdd = (list) => { candidates.push(...list); redraw(); };
+    panel._keeperReset = () => { candidates.length = 0; redraw(); };
 
     panel.querySelector(".keeper-add").addEventListener("submit", e => {
       e.preventDefault();
       const name = panel.querySelector(".keeper-name").value.trim();
       const isWaiver = panel.querySelector(".keeper-waiver").checked;
-      const draftedRound = parseInt(panel.querySelector(".keeper-round").value, 10) || 0;
+      const originalRound = parseInt(panel.querySelector(".keeper-round").value, 10) || 0;
+      // blank year defaults to last season (a single-year keeper)
+      const originalYear = parseInt(panel.querySelector(".keeper-year").value, 10) || (currentSeason - 1);
       const meta = rankByName.get(name);
       if (!meta) { panel.querySelector(".keeper-msg").textContent = "no board match for that name"; return; }
       panel.querySelector(".keeper-msg").textContent = "";
-      candidates.push({ name, isWaiver, draftedRound, adpRound: meta.adpRound, overallRank: meta.overallRank });
+      candidates.push({ name, position: meta.position, originalRound, originalYear,
+                        isWaiver, adpRound: meta.adpRound, overallRank: meta.overallRank });
       redraw();
     });
   }
 
-  return { init, costRound, eligible, valueRound, surplus, rankKeepers, recommendKeepers };
+  return { init, keeperCost, eligible, valueRound, surplus, rankKeepers, recommendKeepers };
 });
