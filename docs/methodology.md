@@ -188,6 +188,11 @@ process, and it is a more honest portfolio signal than a leaderboard number.
   rewards.
 - **Honest baselines and honest bands**, so a user knows not just a projection
   but how much to trust it.
+- **A draft board that ranks on consensus and shows the model's bands.** The
+  ordering is expert-consensus (ECR), not the model — because the model's own
+  ranking was measured to lose — with ADP as a market/keeper overlay and the
+  model's calibrated floor/ceiling bands on every player. The board embodies the
+  conclusion above: a banded view of consensus, not a contrarian oracle.
 
 ## 7. Honest limitations and what would actually move the needle
 

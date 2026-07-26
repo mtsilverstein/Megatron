@@ -58,18 +58,23 @@
         <th data-key="season_points.ppr.p50" class="num" id="pts-header">Season pts (p50)</th>
         <th>Floor → ceiling</th>
         <th data-key="position_rank" class="num">Pos rank</th>
+        <th data-key="ecr" class="num">ECR</th>
+        <th data-key="adp" class="num">ADP</th>
       </tr></thead>
       <tbody></tbody>
     </table>
   </div>
 </main>
-<footer>Bands show season floor (p10) to ceiling (p90) from a Monte-Carlo season
-simulation — games played sampled from historical availability, weeks linked
-by a measured correlation; the tick is the simulated median, and VORP is built
-from that same median. Ordering is points above a replacement-level starter,
-so scarcity is priced in. Tier gaps mark real value cliffs — when your tier
-empties, don't chase. Rookies (marked R) carry draft-capital cohort priors — wide bands on
-purpose; see the about page.</footer>
+<footer>Players are ranked by <strong>expert consensus (FantasyPros ECR)</strong>, the
+most accurate free ranking a drafter has — the model contributes the
+floor→ceiling <strong>bands</strong> and the VORP value curve, not the order.
+ADP shows where your league-mates' market takes each player. VORP prices in
+positional scarcity; tier gaps mark real value cliffs. Bands show season floor
+(p10) to ceiling (p90) from a Monte-Carlo season simulation — games played
+sampled from historical availability, weeks linked by a measured correlation;
+the tick is the simulated median, and VORP is built from that same median.
+When your tier empties, don't chase. Rookies (marked R) carry draft-capital
+cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/app.js"></script>
 <script src="assets/draftmode.js"></script>
 <script>
@@ -104,7 +109,7 @@ purpose; see the about page.</footer>
     for (const p of filtered) {
       if (pos !== "ALL" && isVorpDesc && p.tier !== lastTier) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td colspan="8"><hr class="tier-break" data-label="Tier ${p.tier}"></td>`;
+        tr.innerHTML = `<td colspan="10"><hr class="tier-break" data-label="Tier ${p.tier}"></td>`;
         tbody.appendChild(tr);
         lastTier = p.tier;
       }
@@ -118,7 +123,9 @@ purpose; see the about page.</footer>
         <td class="num">${p.bye ?? "—"}</td>
         <td class="num">${FC.fmt(s.p50)}</td>
         <td></td>
-        <td class="num">${p.position_rank}</td>`;
+        <td class="num">${p.position_rank}</td>
+        <td class="num">${p.ecr == null ? "—" : p.ecr.toFixed(1)}</td>
+        <td class="num" title="${p.adp == null ? "no ADP" : "avg pick " + p.adp.toFixed(1)}">${p.adp_round == null ? "—" : "R" + p.adp_round}</td>`;
       tr.children[6].appendChild(FC.bandBar(s.p10, s.p50, s.p90, maxCeil, p.position));
       if (isDrafted(p)) tr.classList.add("drafted");
       if (isMine(p)) tr.classList.add("mine");

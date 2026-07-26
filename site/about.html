@@ -48,6 +48,11 @@
     <p>Evaluation is <strong>walk-forward only</strong>: train on seasons up to S,
     test on season S+1, held out across 2023–2025. No random splits — rolling
     features would leak the future into the past.</p>
+    <p>The draft board is <strong>consensus-anchored</strong>: players are ordered
+    by FantasyPros expert-consensus ranking, because in walk-forward tests the
+    model's own season-long ranking lost to both expert consensus and ADP. The
+    model earns its place with calibrated floor/ceiling bands and the value curve —
+    the parts ADP and ECR don't give you.</p>
     <p class="lim"><strong>Known limitations:</strong> undrafted rookies are not projected; drafted rookies get a draft-capital prior on the board (see Rookies below), and rookies enter weekly projections only once they have NFL games; players who changed teams keep their personal history with
     updated matchup context; retired players may appear until rosters are pruned;
     season projections seed every week from end-of-prior-season form, so a short
