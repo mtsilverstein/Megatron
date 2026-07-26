@@ -64,6 +64,17 @@
       <tbody></tbody>
     </table>
   </div>
+  <details class="keeper-panel" id="keepers">
+    <summary>Keeper value (manual)</summary>
+    <form class="keeper-add">
+      <input class="keeper-name" placeholder="Player (exact board name)" list="playerlist" />
+      <input class="keeper-round" type="number" min="1" max="20" placeholder="Round drafted" />
+      <label><input class="keeper-waiver" type="checkbox" /> waiver pickup (R12)</label>
+      <button type="submit">Add</button>
+      <span class="keeper-msg" role="alert"></span>
+    </form>
+    <ol class="keeper-out"></ol>
+  </details>
 </main>
 <footer>Players are ranked by <strong>expert consensus (FantasyPros ECR)</strong>, the
 most accurate free ranking a drafter has — the model contributes the
@@ -77,6 +88,7 @@ When your tier empties, don't chase. Rookies (marked R) carry draft-capital
 cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/app.js"></script>
 <script src="assets/draftmode.js"></script>
+<script src="assets/keepers.js"></script>
 <script>
 (async () => {
   const board = await FC.loadJSON("data/draft.json");
@@ -151,6 +163,10 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   });
   FC.makeSortable(table, rows, render);
   render(rows);
+
+  if (window.Keepers) {
+    Keepers.init({ players: board.players, panel: document.getElementById("keepers") });
+  }
 
   if (window.DraftMode) {
     if (board.crosswalk) {
