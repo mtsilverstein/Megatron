@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-26T15:27:03+00:00",
+  "generated_at": "2026-07-26T23:00:02+00:00",
   "data_through": "2025-wk18",
   "season": 2026,
   "model": "transformer",
@@ -23008,6 +23008,176 @@
       "Adam Prentice",
       "Jack Westover",
       "Brady Russell"
+    ]
+  },
+  "late_slots": {
+    "K": [
+      {
+        "name": "Brandon Aubrey",
+        "adp": 128.7
+      },
+      {
+        "name": "Cameron Dicker",
+        "adp": 139.0
+      },
+      {
+        "name": "Jason Myers",
+        "adp": 142.4
+      },
+      {
+        "name": "Ka'imi Fairbairn",
+        "adp": 143.8
+      },
+      {
+        "name": "Jake Bates",
+        "adp": 149.0
+      },
+      {
+        "name": "Tyler Bass",
+        "adp": 151.6
+      },
+      {
+        "name": "Harrison Mevis",
+        "adp": 152.3
+      },
+      {
+        "name": "Trey Smack",
+        "adp": 152.5
+      },
+      {
+        "name": "Chris Boswell",
+        "adp": 154.1
+      },
+      {
+        "name": "Cam Little",
+        "adp": 155.0
+      },
+      {
+        "name": "Eddy Pi\u00f1eiro",
+        "adp": 157.0
+      },
+      {
+        "name": "Tyler Loop",
+        "adp": 157.1
+      },
+      {
+        "name": "Harrison Butker",
+        "adp": 158.6
+      },
+      {
+        "name": "Chase McLaughlin",
+        "adp": 161.3
+      },
+      {
+        "name": "Cairo Santos",
+        "adp": 164.1
+      },
+      {
+        "name": "Will Reichard",
+        "adp": 165.3
+      },
+      {
+        "name": "Wil Lutz",
+        "adp": 165.5
+      },
+      {
+        "name": "Evan McPherson",
+        "adp": 167.1
+      }
+    ],
+    "DST": [
+      {
+        "name": "Seattle Defense",
+        "adp": 93.4
+      },
+      {
+        "name": "Denver Defense",
+        "adp": 100.9
+      },
+      {
+        "name": "LA Rams Defense",
+        "adp": 105.8
+      },
+      {
+        "name": "Houston Defense",
+        "adp": 108.9
+      },
+      {
+        "name": "New England Defense",
+        "adp": 114.4
+      },
+      {
+        "name": "Philadelphia Defense",
+        "adp": 130.1
+      },
+      {
+        "name": "Jacksonville Defense",
+        "adp": 131.3
+      },
+      {
+        "name": "Cincinnati Defense",
+        "adp": 140.6
+      },
+      {
+        "name": "Detroit Defense",
+        "adp": 140.7
+      },
+      {
+        "name": "Minnesota Defense",
+        "adp": 142.1
+      },
+      {
+        "name": "Dallas Defense",
+        "adp": 146.9
+      },
+      {
+        "name": "Pittsburgh Defense",
+        "adp": 150.9
+      },
+      {
+        "name": "Buffalo Defense",
+        "adp": 153.1
+      },
+      {
+        "name": "LA Chargers Defense",
+        "adp": 156.6
+      },
+      {
+        "name": "Baltimore Defense",
+        "adp": 158.2
+      },
+      {
+        "name": "Green Bay Defense",
+        "adp": 159.4
+      },
+      {
+        "name": "NY Jets Defense",
+        "adp": 165.5
+      },
+      {
+        "name": "Chicago Defense",
+        "adp": 166.1
+      },
+      {
+        "name": "Atlanta Defense",
+        "adp": 171.9
+      },
+      {
+        "name": "San Francisco Defense",
+        "adp": 172.8
+      },
+      {
+        "name": "Washington Defense",
+        "adp": 173.3
+      },
+      {
+        "name": "NY Giants Defense",
+        "adp": 174.6
+      },
+      {
+        "name": "Kansas City Defense",
+        "adp": 177.1
+      }
     ]
   }
 }
