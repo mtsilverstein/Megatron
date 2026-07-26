@@ -526,6 +526,7 @@ def test_rookie_with_nan_gsis_id_gets_synthetic_id():
     assert "draft2023-p065" in ids
     row = [p for p in board["players"] if p["player_id"] == "draft2023-p065"][0]
     assert row["rookie"] is True and row["name"] == "No Gsis Guy"
+    json.dumps(board, allow_nan=False)
 
 
 def test_finalize_board_consensus_orders_by_ecr():
