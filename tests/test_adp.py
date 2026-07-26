@@ -19,7 +19,7 @@ def _raw():
         {"name": "Kenny Gainwell", "position": "RB", "adp": 140.1, "stdev": 9.0, "times_drafted": 22},
         {"name": "A.J. Brown", "position": "WR", "adp": 12.3, "stdev": 4.0, "times_drafted": 88},
         {"name": "Patrick Mahomes II", "position": "QB", "adp": 40.0, "stdev": 6.0, "times_drafted": 70},
-        {"name": "Some Kicker", "position": "K", "adp": 200.0, "stdev": 3.0, "times_drafted": 5},
+        {"name": "Some Kicker", "position": "PK", "adp": 200.0, "stdev": 3.0, "times_drafted": 5},
     ]}
 
 
@@ -47,13 +47,15 @@ def test_late_slot_adp_keeps_only_k_and_dst_sorted_by_adp():
 
     raw = {"players": [
         {"name": "Some RB", "position": "RB", "adp": 1.2},
-        {"name": "Late K", "position": "K", "adp": 150.0},
-        {"name": "Early K", "position": "K", "adp": 140.5},
+        {"name": "Late K", "position": "PK", "adp": 150.0},
+        {"name": "Early K", "position": "PK", "adp": 140.5},
+        {"name": "Alias K", "position": "K", "adp": 145.0},
         {"name": "A Defense", "position": "DEF", "adp": 138.0},
     ]}
     out = late_slot_adp(raw)
     assert list(out) == ["K", "DST"]
     assert out["K"] == [{"name": "Early K", "adp": 140.5},
+                        {"name": "Alias K", "adp": 145.0},
                         {"name": "Late K", "adp": 150.0}]
     assert out["DST"] == [{"name": "A Defense", "adp": 138.0}]
 

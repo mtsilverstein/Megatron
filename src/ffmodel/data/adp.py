@@ -64,7 +64,10 @@ def pull_adp(season: int, cache_dir: Path | None = None, teams: int = 12,
 # K/DST are OUT of model scope (kickers/defenses do not predict year to year),
 # so they get no projection -- only the crowd's ADP, as a late-round slot
 # reminder. Display-only, hence no gsis crosswalk.
-LATE_SLOT_POSITIONS = {"K": "K", "DEF": "DST"}
+# FFCalculator labels kickers "PK" (verified against the live /adp endpoint);
+# "K" is kept as a defensive alias in case another endpoint uses it. Our
+# OUTPUT key stays "K" either way -- the site consumes late_slots.K.
+LATE_SLOT_POSITIONS = {"PK": "K", "K": "K", "DEF": "DST"}
 
 
 def late_slot_adp(raw: dict) -> dict:

@@ -275,6 +275,8 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
                         lambda s, sched, d: (ecr_df, {"match_rate": 1.0}))
     monkeypatch.setattr(gen_mod, "_load_adp",
                         lambda s, d: pd.DataFrame({"player_id": ["00-0000001"], "adp": [1.0]}))
+    monkeypatch.setattr(gen_mod, "_late_slots",
+                        lambda season, data_dir: {"K": [], "DST": []})
 
     class _Stub:
         name = "stub"
