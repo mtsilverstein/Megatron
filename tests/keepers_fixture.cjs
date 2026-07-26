@@ -44,4 +44,28 @@ const none = K.recommendKeepers([
 ], S);
 assert.deepStrictEqual(none, []);
 
+// buildKeeperCandidates: map roster + draft history + board -> candidates
+const board = new Map([
+  ["s_bijan", { name: "Bijan", position: "RB", adpRound: 1, overallRank: 2 }],
+  ["s_puka",  { name: "Puka",  position: "WR", adpRound: 1, overallRank: 5 }],
+  ["s_waiverguy", { name: "WaiverGuy", position: "WR", adpRound: 9, overallRank: 110 }],
+]);
+// Bijan's earliest pick is 2024 (kept, so he ALSO appears escalated in 2025 —
+// earliest season must win); WaiverGuy is on no draft; s_kicker is off-board.
+const original = new Map([
+  ["s_bijan", { round: 4, season: 2024 }],
+  ["s_puka",  { round: 6, season: 2025 }],
+]);
+const { candidates, skipped } = K.buildKeeperCandidates(
+  ["s_bijan", "s_puka", "s_waiverguy", "s_kicker"], original, board);
+assert.deepStrictEqual(skipped, ["s_kicker"]);               // off-board, dropped
+const byName = Object.fromEntries(candidates.map(c => [c.name, c]));
+assert.deepStrictEqual(
+  { r: byName.Bijan.originalRound, y: byName.Bijan.originalYear, w: byName.Bijan.isWaiver },
+  { r: 4, y: 2024, w: false });
+assert.strictEqual(byName.WaiverGuy.isWaiver, true);          // not in any draft
+assert.strictEqual(byName.Puka.adpRound, 1);                  // board fields carried
+// escalation end-to-end via Task 1: Bijan cost = 4 - (2026-2024) = 2, value R1 -> +1
+assert.strictEqual(K.surplus(byName.Bijan, 2026), 1);
+
 console.log("keepers_fixture: OK");

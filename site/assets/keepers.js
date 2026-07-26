@@ -41,6 +41,24 @@
       .filter(c => c.surplus > 0).slice(0, maxKeepers);
   }
 
+  // Map a Sleeper roster (player_ids) + original-draft history + the board into
+  // keeper candidates. Players with no board entry (K/DST/retired/deep) are
+  // dropped into `skipped` and counted, never valued.
+  function buildKeeperCandidates(rosterPlayerIds, originalByPlayerId, boardBySleeperId) {
+    const candidates = [], skipped = [];
+    for (const pid of rosterPlayerIds) {
+      const b = boardBySleeperId.get(pid);
+      if (!b) { skipped.push(pid); continue; }
+      const orig = originalByPlayerId.get(pid);
+      const c = { name: b.name, position: b.position,
+                  adpRound: b.adpRound, overallRank: b.overallRank };
+      if (orig) { c.originalRound = orig.round; c.originalYear = orig.season; c.isWaiver = false; }
+      else { c.isWaiver = true; }          // on no draft in the chain -> waiver R12
+      candidates.push(c);
+    }
+    return { candidates, skipped };
+  }
+
   function init(options) {
     const { players, panel, currentSeason } = options;
     if (!panel) return;
@@ -102,5 +120,6 @@
     });
   }
 
-  return { init, keeperCost, eligible, valueRound, surplus, rankKeepers, recommendKeepers };
+  return { init, keeperCost, eligible, valueRound, surplus, rankKeepers,
+           recommendKeepers, buildKeeperCandidates };
 });
