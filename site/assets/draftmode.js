@@ -107,6 +107,7 @@ window.DraftMode = (() => {
     cfg.els.roster.hidden = true;
     cfg.els.ticker.hidden = true;
     cfg.els.vona.hidden = true;
+    if (cfg.els.late) cfg.els.late.hidden = true;   // else a stale K/DST banner survives
     cfg.els.note.hidden = true;
     cfg.els.hide.checked = false;
     state.hideDrafted = false;
