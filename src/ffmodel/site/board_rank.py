@@ -90,7 +90,19 @@ def rank_board(players: pd.DataFrame,
         repl = ordered["value_points"].iloc[min(rank, len(ordered)) - 1]
         ordered["vorp"] = (ordered["value_points"] - repl).round(2)
         ordered["position_rank"] = ordered.index + 1
-        ordered["tier"] = _assign_tiers(ordered["vorp"], rank)
+        # Tiers mark value cliffs within the RANKED (ECR'd) pool; they must not
+        # extend into the no-ECR depth tail (spec §6.7), or a depth player would
+        # render a spurious tier shelf. `order_and_value` puts the ECR'd players
+        # first, so the head n_ecr rows are the ranked pool. When there is no ECR
+        # at all (pure-model fallback) or every player is ranked, tier the whole
+        # group as before -- backward-compat with the model-only board + backtest.
+        n_ecr = int(group["ecr"].notna().sum())
+        if 0 < n_ecr < len(ordered):
+            head = _assign_tiers(ordered["vorp"].iloc[:n_ecr], rank)
+            tail_tier = (head[-1] + 1) if head else 1
+            ordered["tier"] = head + [tail_tier] * (len(ordered) - n_ecr)
+        else:
+            ordered["tier"] = _assign_tiers(ordered["vorp"], rank)
         frames.append(ordered)
     board = pd.concat(frames).sort_values("vorp", ascending=False, kind="mergesort")
     # Map adp_round values, then convert to object dtype to preserve None

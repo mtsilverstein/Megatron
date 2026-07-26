@@ -29,4 +29,20 @@ const ranked = K.rankKeepers([
 assert.deepStrictEqual(ranked.map(r => r.name), ["B", "C"]);
 assert.strictEqual(ranked[0].surplus, 5);
 
+// recommendKeepers: only POSITIVE-surplus players, best up to 2
+const rec = K.recommendKeepers([
+  { name: "Best", draftedRound: 12, isWaiver: false, adpRound: 3, overallRank: 30 },  // +8
+  { name: "Good", draftedRound: 10, isWaiver: false, adpRound: 4, overallRank: 44 },  // +5
+  { name: "Neutral", draftedRound: 6, isWaiver: false, adpRound: 5, overallRank: 55 }, // 0 -> not kept
+  { name: "Bad", draftedRound: 4, isWaiver: false, adpRound: 8, overallRank: 90 },     // -5 -> not kept
+]);
+assert.deepStrictEqual(rec.map(r => r.name), ["Best", "Good"]);   // top-2 positive only
+
+// keep NONE when nothing beats its cost (surplus <= 0)
+const none = K.recommendKeepers([
+  { name: "Zero", draftedRound: 6, isWaiver: false, adpRound: 5, overallRank: 55 },  // 0
+  { name: "Neg", draftedRound: 3, isWaiver: false, adpRound: 6, overallRank: 70 },   // -4
+]);
+assert.deepStrictEqual(none, []);
+
 console.log("keepers_fixture: OK");

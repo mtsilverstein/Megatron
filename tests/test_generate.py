@@ -284,6 +284,9 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     def fake_board(*a, **k):
         capture["sleeper_players"] = k.get("sleeper_players")
         capture["draft_picks"] = k.get("draft_picks")
+        capture["ecr"] = k.get("ecr")
+        capture["adp"] = k.get("adp")
+        capture["replacement_rank"] = k.get("replacement_rank")
         return {"players": []}
     monkeypatch.setattr(draft_mod, "build_draft_board", fake_board)
     monkeypatch.setattr(about_mod, "build_about",
@@ -305,6 +308,11 @@ def test_draft_run_threads_sleeper_dump_into_board(monkeypatch, tmp_path):
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
     assert capture["sleeper_players"] is dump
     assert capture["draft_picks"] is not None
+    # the three consensus kwargs are actually forwarded into the board build
+    assert capture["ecr"] == {"00-0000001": 1.0}
+    assert capture["adp"] == {"00-0000001": 1.0}
+    assert set(capture["replacement_rank"]) == {"QB", "RB", "WR", "TE"}
+    assert capture["replacement_rank"]["QB"] == 13   # derived, non-flex position
     assert (tmp_path / "out" / "draft.json").exists()
 
 

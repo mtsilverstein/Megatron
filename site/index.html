@@ -65,14 +65,16 @@
     </table>
   </div>
   <details class="keeper-panel" id="keepers">
-    <summary>Keeper value (manual)</summary>
+    <summary>Keeper value — which to keep</summary>
+    <p class="keeper-help">Add each keeper-eligible player and the round you drafted him last year (or mark waiver). Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
     <form class="keeper-add">
-      <input class="keeper-name" placeholder="Player (exact board name)" list="playerlist" />
+      <input class="keeper-name" placeholder="Player (start typing)" list="playerlist" autocomplete="off" />
       <input class="keeper-round" type="number" min="1" max="20" placeholder="Round drafted" />
       <label><input class="keeper-waiver" type="checkbox" /> waiver pickup (R12)</label>
       <button type="submit">Add</button>
       <span class="keeper-msg" role="alert"></span>
     </form>
+    <p class="keeper-rec" role="status"></p>
     <ol class="keeper-out"></ol>
   </details>
 </main>
@@ -137,7 +139,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
         <td></td>
         <td class="num">${p.position_rank}</td>
         <td class="num">${p.ecr == null ? "—" : p.ecr.toFixed(1)}</td>
-        <td class="num" title="${p.adp == null ? "no ADP" : "avg pick " + p.adp.toFixed(1)}">${p.adp_round == null ? "—" : "R" + p.adp_round}</td>`;
+        <td class="num" title="${p.adp == null ? "no ADP" : "avg overall pick " + p.adp.toFixed(1)}">${p.adp == null ? "—" : p.adp.toFixed(1) + " · R" + p.adp_round}</td>`;
       tr.children[6].appendChild(FC.bandBar(s.p10, s.p50, s.p90, maxCeil, p.position));
       if (isDrafted(p)) tr.classList.add("drafted");
       if (isMine(p)) tr.classList.add("mine");

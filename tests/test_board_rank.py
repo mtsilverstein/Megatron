@@ -40,6 +40,25 @@ def test_order_and_value_no_ecr_reduces_to_p50_order():
     assert list(out["value_points"]) == [30.0, 20.0, 10.0]     # == own p50 in order
 
 
+def test_rank_board_tiers_do_not_extend_into_no_ecr_tail():
+    # spec §6.7: tiers mark cliffs within the ECR'd pool only; the no-ECR depth
+    # tail is one trailing tier, never a shelf per depth player.
+    players = pd.DataFrame({
+        "player_id": ["a", "b", "c", "d", "t1", "t2"],
+        "position": "RB",
+        "ppr_p50": [100.0, 98.0, 60.0, 58.0, 30.0, 20.0],
+        "ecr": [1.0, 2.0, 3.0, 4.0, np.nan, np.nan],   # t1/t2 unranked tail
+        "adp": [np.nan] * 6,
+    })
+    board = rank_board(players, {"RB": 3})
+    tier = {r.player_id: r.tier for r in board.itertuples()}
+    # ranked pool: 98->60 cliff splits a,b (tier 1) from c,d (tier 2)
+    assert tier["a"] == 1 and tier["b"] == 1
+    assert tier["c"] == 2 and tier["d"] == 2
+    # the tail shares ONE trailing tier (no per-depth-player shelves)
+    assert tier["t1"] == tier["t2"] == 3
+
+
 def test_rank_board_vorp_monotone_and_flex_replacement():
     players = pd.DataFrame({
         "player_id": [f"rb{i}" for i in range(5)],
