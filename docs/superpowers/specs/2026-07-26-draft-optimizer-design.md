@@ -29,17 +29,36 @@ late-slot pool and (optionally) signals runs. It never sets value.
 
 - **Output = ranked shortlist** (top 3–5) with a one-line "why" per row, not a
   single "take X" and not a board-only re-tint. The user still chooses.
+- **Objective (stated).** Maximize expected **starting-lineup VORP**, subject to
+  filling roster slots, given other drafters pick between your picks. The score
+  approximates each player's **marginal contribution** to that objective.
 - **Scoring model** (per available player), computed each poll:
   ```
-  score = vorp × need(pos) + w_u·urgency(pos) + w_s·steal(player) − bye_penalty
+  score = vona(X) + w_s·steal(X) − bye_penalty(X)
   ```
-- **`need(pos)`** decays with your live roster but **never to zero** (a floor),
-  so an absolute steal stays visible while "6th QB" is killed.
-- **`steal`** is measured against **ECR/board rank, never ADP**: getting a
+  where `vona(X)` is a single **roster-aware VONA** term (below) that unifies
+  value, need, and timing — replacing the earlier `vorp × need + w_u·urgency`
+  decomposition, which double-counted scarcity (VORP already prices it) and
+  carried two arbitrary weights.
+- **`vona(X)` = roster-aware Value Over Next Available:**
+  `startValue(X) − replacement(pos, gap)`. `startValue(X)` is X's VORP if he'd
+  crack your lineup (an open dedicated **or** flex slot) else a small bench
+  value; `replacement(pos, gap)` is the best VORP at his position expected to
+  **survive to your next pick** (`gap` picks away). This one term auto-discounts
+  deep positions (survivor ≈ X ⇒ vona ≈ 0 ⇒ "wait"), auto-boosts positions about
+  to cliff, and collapses a filled position to bench value — no `need` multiplier
+  or `w_u` needed. See §6.
+- **Timing (`gap`) is measured to your NEXT pick and is active on the clock.**
+  The relevant cliff for an on-the-clock decision is "who survives the `gap`
+  picks until I pick *again*" — never zero when it's your turn. (The shipped
+  `vonaDeltas` line used the gap to your *upcoming* pick, which is 0 on the
+  clock; that inversion is corrected here.)
+- **`steal(X)`** is measured against **ECR/board rank, never ADP**: getting a
   player later than his consensus value says he should go. Expressed in VORP
-  points as surplus over a "par" pick at the current slot (see §6).
-- **`urgency`** is the existing VONA waiting-cost (positional cliff before your
-  next pick) — the dynamic "given who's gone" push.
+  points as surplus over a "par" pick at the current slot (see §6). Kept as a
+  separate additive term because trade/price value is a different currency than
+  expected starting points — so a genuine steal surfaces **even on a position
+  you're heavy at**.
 - **`bye_penalty`** is a small ding only when a player would give you a **3rd+
   starter** sharing a bye week (read from the board's `bye` field). Marginal by
   design; never overrides a real value gap.
@@ -66,7 +85,7 @@ late-slot pool and (optionally) signals runs. It never sets value.
 
 | Unit | Status | Responsibility |
 |---|---|---|
-| pure scoring module (new, in `draftmode.js` or a sibling exported for the fixture) | **new** | `rosterSlots`, `need`, `parVorp`, `steal`, `byePenalty`, `scorePlayer`, `rankShortlist`, `lateSlotTrigger` — all pure, node-tested. |
+| pure scoring module (new, in `draftmode.js` or a sibling exported for the fixture) | **new** | `rosterSlots`, `openSlot`, `replacement`, `vona`, `parVorp`, `steal`, `byePenalty`, `scorePlayer`, `rankShortlist`, `lateSlotTrigger` — all pure, node-tested. |
 | `updateAids` in `draftmode.js` | **modify** | Replace the roster-blind "waiting costs" line with the ranked shortlist render + late-slot nudge; drive from `state.mine` + board. |
 | roster inference | **modify/extend** | Map `state.mine` (my drafted player_ids) → filled starter/flex slots + my drafted players' bye weeks (via the crosswalk / board lookup). |
 | `site/index.html` draft panel | **modify** | The `#draft-vona` slot becomes the shortlist container (+ a late-slot line). Minor copy. |
@@ -87,50 +106,67 @@ Each poll, `applyPicks` already builds `state.drafted` (all struck ids) and
 2. **Available pool.** Board players not in `state.drafted`, with finite `vorp`
    (same predicate the board render + existing VONA use).
 3. **Score** every available QB/RB/WR/TE via §6; take the top 3–5.
-4. **Urgency** reuses the existing next-pick math (`nextPickNumber`) to know how
-   many picks fall before yours, and the survivor-at-position after that many
-   best-VORP picks (the existing `vonaDeltas` logic, per position).
+4. **Gap to your next pick.** Using `nextPickNumber` twice (this pick and the one
+   after), compute `gap` = picks between the current selection and your next
+   pick. The `replacement(pos, gap)` in `vona` is the best available at each
+   position after `gap` best-VORP picks are removed (the existing `vonaDeltas`
+   survivor logic, but over the *next* gap, so it is live on the clock).
 5. **Late-slot trigger.** If rounds-remaining ≤ 2 (from `session.rounds` − your
    picks made) and your K/DST slots are unfilled, surface the K/DST nudge from
    `board.late_slots`, ordered by ADP.
 6. Render the shortlist + optional nudge into the panel; fail soft.
 
-## 6. Scoring rules (exact, with default weights)
+## 6. Scoring rules (exact, with default constants)
 
 Given the available pool, your roster slots, the current overall pick number
-`P`, and `until` = picks before yours:
+`P`, and `gap` = picks between this selection and your **next** pick (§5.4):
 
-- **`need(pos)`** (QB/RB/WR/TE):
-  - dedicated starter slot for `pos` still open → **1.0**
-  - dedicated full, a **flex** slot still open (your RB+WR+TE surplus beyond
-    dedicated < 2) → **0.7** (`FLEX_NEED`)
-  - all `pos`-eligible slots (dedicated + flex) full → **0.35** (`NEED_FLOOR`)
-  - QB/TE are not flex-eligible: they go 1.0 → 0.35 the moment their single
-    starter is filled.
+- **Open slot.** `openSlot(pos, roster) ∈ {dedicated, flex, none}`:
+  - a dedicated starter slot for `pos` is unfilled → **dedicated**
+  - else a **flex** slot is open (your RB+WR+TE surplus beyond dedicated < 2) and
+    `pos ∈ {RB,WR,TE}` → **flex**
+  - else → **none** (QB/TE reach `none` the moment their single starter is
+    filled; they are not flex-eligible).
+  `starts = openSlot ≠ none`.
+- **`replacement(pos, gap)`** = the `vorp` of the best available player at `pos`
+  after the top `gap` available players (by VORP, across all positions) are
+  removed — the survivor at your next pick. Floored at 0 (no survivor ⇒
+  replacement level, VORP 0 by construction). When `gap = 0` (rare; you pick
+  again immediately) it equals the current best at `pos`, so `vona` for an open
+  slot is 0 — correct (you can just take him next too).
+- **`vona(X)`** (roster-aware Value Over Next Available):
+  - `starts` → `vorp(X) − replacement(pos, gap)` (≥ 0). High when X's position
+    cliffs before your next pick; ~0 when the position is deep.
+  - `!starts` (would ride the bench) → `BENCH_WEIGHT × vorp(X)` (**default
+    `BENCH_WEIGHT = 0.2`**) — his standalone depth value, so benched players
+    still order sensibly among themselves. This is the sole "need" discount;
+    there is no separate multiplier.
 - **`parVorp(P)`** = `vorp` of the board player at overall rank `P` (the value
   you'd "normally" get at this pick); if `P` exceeds the board, par = 0.
-- **`steal(player)`** = `max(0, player.vorp − parVorp(P))` — surplus value over a
-  par pick at this slot. ECR-anchored (board rank encodes ECR order). In VORP
-  points, so it adds cleanly.
-- **`urgency(pos)`** = `now.vorp − survivor.vorp` where `now` is the best
-  available at `pos` and `survivor` is the best at `pos` expected to remain after
-  `until` best-VORP picks (the existing `vonaDeltas` computation). A player at a
-  position about to fall off a cliff gets boosted. `urgency = 0` when it's your
-  turn (`until ≤ 0`) or no cliff.
-- **`byePenalty(player, roster)`** = `BYE_PEN` (**default 3.0** VORP points) if
-  adding this player as a *starter* would make ≥ 3 of your starters share his
-  bye week; else 0. Only applies while `need(pos) ≥ FLEX_NEED` (i.e. he'd
-  actually start); pure-depth picks aren't penalized.
-- **`scorePlayer`** = `vorp × need(pos) + W_URGENCY·urgency(pos)
-  + W_STEAL·steal(player) − byePenalty`.
-  Defaults: **`W_URGENCY = 0.5`**, **`W_STEAL = 0.5`**. Urgency and steal are
-  both already in VORP points; the 0.5 weights keep the static ECR-anchored base
-  dominant while letting cliffs and steals reorder near-ties and surface
-  genuine outliers.
-- **"why" label** per row = the single largest positive contributor among
-  {need (as "fills RB2"/"flex"), urgency ("cliff −X"), steal ("ECR r, here at
-  P")}, with a bye note appended when penalized. Depth picks (floor need, no
-  cliff, no steal) read "depth · safe to wait".
+- **`steal(X)`** = `max(0, vorp(X) − parVorp(P))` — surplus value over a par pick
+  at this slot. ECR-anchored (board rank encodes ECR order), in VORP points.
+- **`byePenalty(X, roster)`** = `BYE_PEN` (**default 3.0** VORP points) if adding
+  X as a *starter* would make ≥ 3 of your starters share his bye week; else 0.
+  Only applies when `starts` (a pure-depth/bench pick is not penalized).
+- **`scorePlayer`** = `vona(X) + W_STEAL·steal(X) − byePenalty(X)`.
+  Default **`W_STEAL = 0.5`** — the only free weight (the unification removed
+  `W_URGENCY`). `vona` carries value+need+timing in native VORP points and stays
+  dominant; `steal` at 0.5 lets a genuine faller surface even on a filled
+  position (a liquid-trade asset) without routinely overriding a real starter
+  need.
+- **"why" label** per row = the single largest positive contributor:
+  - `vona` dominated by an open slot with a low survivor → "fills RB2 · cliff −X
+    before your next pick" (or just "fills WR2" when no cliff);
+  - `steal` dominant → "steal: ECR r, here at P";
+  - benched with no steal → "depth · safe to wait";
+  with a bye note appended when penalized.
+
+**Worked check.** Pick #29, WR2 slot open, gap 23. Best WR vorp 40, survivor WR
+after 23 picks vorp 22 ⇒ `vona = 18` (fills + cliff). A benched elite RB (all RB
+slots full) vorp 100, `parVorp(29)` 45 ⇒ `vona = 0.2·100 = 20`, `steal =
+0.5·(100−45) = 27.5` ⇒ score 47.5, and he surfaces *above* the WR as a trade
+steal — matching the "don't go blind to a faller" intent, while a *par* benched
+RB (vorp≈45, steal 0) scores just `0.2·45 = 9` and correctly sinks.
 
 ## 7. UI
 
@@ -178,15 +214,21 @@ ON THE CLOCK · pick #29 · your turn in 1        (or: pick #17 · your turn in 
 ## 10. Testing
 
 - **Pure (node fixture, `keepers_fixture.cjs` pattern):**
-  - `need()` at each roster state: RB2 open → 1.0; dedicated full + flex open →
-    0.7; flex full → 0.35; QB filled → 0.35 immediately.
+  - `openSlot()` at each roster state: RB dedicated open → `dedicated`; dedicated
+    full + flex open → `flex`; flex full → `none`; QB → `none` the moment its
+    starter is filled (never `flex`).
+  - `replacement(pos, gap)`: with a planted pool, the survivor after `gap`
+    best-VORP picks is correct; `gap = 0` ⇒ replacement = current best ⇒ open-slot
+    `vona = 0`.
+  - `vona()`: open slot at a cliff position scores high; open slot at a deep
+    position scores ~0 ("wait"); a benched player scores `BENCH_WEIGHT × vorp`.
   - `parVorp`/`steal`: ECR-15 player available at pick 40 scores a positive
     steal; a par pick scores steal 0.
-  - `scorePlayer` ordering: a filled-position elite steal outranks a
-    marginal open-need player; a cliff position boosts over an equal-vorp
-    non-cliff position.
-  - `byePenalty`: 3rd starter on a shared bye penalized; a depth pick (floor
-    need) not penalized.
+  - `scorePlayer` ordering (the §6 worked check): a benched elite faller
+    (vona `BENCH_WEIGHT·vorp` + steal) outranks a marginal open-slot player; a
+    par benched player sinks below every open-slot starter.
+  - `byePenalty`: 3rd starter on a shared bye penalized; a benched (`!starts`)
+    pick not penalized.
   - `lateSlotTrigger`: fires only when rounds-remaining ≤ 2 and the slot is
     open; K/DST ordered by ADP.
 - **Browser E2E (mocked draft, `draftmode` pattern):** connect to a stubbed
@@ -199,9 +241,18 @@ ON THE CLOCK · pick #29 · your turn in 1        (or: pick #17 · your turn in 
 
 ## 11. Open / limitations (documented)
 
-- **Weights are un-tuned defaults.** They encode priorities (ECR base dominant,
-  cliffs/steals as nudges), not fitted parameters; deliberately so, to respect
-  the no-held-out-tuning rule. Revisit only via forward observation.
+- **Bands unused (planned v1.1 lever).** The optimizer scores on the median
+  (`vorp`) and ignores the model's p10/p90 — its own differentiator. A follow-up
+  can weight `startValue`/`steal` toward **ceiling (p90)** for bench/flex upside
+  darts and **floor (p10)** for must-hit starters, and surface floor→ceiling in
+  the "why". Deferred to keep v1 focused on the roster-aware VONA core.
+- **Constants are un-tuned defaults** (`W_STEAL = 0.5`, `BENCH_WEIGHT = 0.2`,
+  `BYE_PEN = 3.0`). They encode priorities (VONA dominant, steal/bye as nudges),
+  not fitted parameters; deliberately so, to respect the no-held-out-tuning rule.
+  Revisit only via forward observation.
+- **Flex replacement is per-position.** `replacement(pos, gap)` uses the same
+  position's survivor, not the best survivor across flex-eligible positions; a
+  finer flex model is a possible refinement.
 - **Others' picks assumed best-VORP** for the urgency survivor estimate (same
   assumption the shipped VONA line already makes) — real drafters reach/slide,
   so urgency is a guide, not a guarantee.
