@@ -359,8 +359,8 @@ def test_late_slot_adp_keeps_only_k_and_dst_sorted_by_adp():
 
     raw = {"players": [
         {"name": "Some RB", "position": "RB", "adp": 1.2},
-        {"name": "Late K", "position": "K", "adp": 150.0},
-        {"name": "Early K", "position": "K", "adp": 140.5},
+        {"name": "Late K", "position": "PK", "adp": 150.0},   # FFCalculator uses PK
+        {"name": "Early K", "position": "K", "adp": 140.5},   # defensive alias
         {"name": "A Defense", "position": "DEF", "adp": 138.0},
     ]}
     out = late_slot_adp(raw)
@@ -390,7 +390,9 @@ Append to `src/ffmodel/data/adp.py`:
 # K/DST are OUT of model scope (kickers/defenses do not predict year to year),
 # so they get no projection -- only the crowd's ADP, as a late-round slot
 # reminder. Display-only, hence no gsis crosswalk.
-LATE_SLOT_POSITIONS = {"K": "K", "DEF": "DST"}
+# FFCalculator labels kickers "PK" (verified against the live payload); "K" is
+# kept as a defensive alias. Our OUTPUT key is always "K".
+LATE_SLOT_POSITIONS = {"PK": "K", "K": "K", "DEF": "DST"}
 
 
 def late_slot_adp(raw: dict) -> dict:
