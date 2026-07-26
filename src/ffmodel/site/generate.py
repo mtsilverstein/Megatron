@@ -131,6 +131,42 @@ def require_backtests(paths: list[Path]) -> list[Path]:
     return paths
 
 
+# The live board's league: 12-team, dedicated 1 QB / 2 RB / 2 WR / 1 TE per
+# team (x12), plus 2 FLEX per team (24 league-wide). Replacement is DERIVED
+# from these + the ECR pool (flex split falls out of the rankings), not guessed.
+LEAGUE_DEDICATED = {"QB": 12, "RB": 24, "WR": 24, "TE": 12}
+LEAGUE_FLEX_SLOTS = 24
+
+
+def _load_consensus(season, schedules, data_dir):
+    from ffmodel.data.rankings import consensus_for_season
+    return consensus_for_season(season, schedules, data_dir)
+
+
+def _load_adp(season, data_dir):
+    from ffmodel.data.adp import pull_adp
+    return pull_adp(season, cache_dir=data_dir)
+
+
+def _draft_consensus(season, schedules, data_dir):
+    """ECR is the required spine (raise -> abort the run, fail-safe); ADP is a
+    best-effort overlay (failure -> None, board still builds). Replacement is
+    derived from the ECR pool so the flex split is not a guess."""
+    from ffmodel.site.board_rank import flex_replacement_ranks
+
+    ecr_df, _stats = _load_consensus(season, schedules, data_dir)
+    ecr = dict(zip(ecr_df["player_id"], ecr_df["ecr"]))
+    pool = ecr_df.rename(columns={"pos": "position"})[["position", "ecr"]]
+    replacement = flex_replacement_ranks(pool, LEAGUE_DEDICATED, LEAGUE_FLEX_SLOTS)
+    try:
+        adp_df = _load_adp(season, data_dir)
+        adp = dict(zip(adp_df["player_id"], adp_df["adp"]))
+    except Exception as exc:                     # noqa: BLE001 - overlay is optional
+        print(f"ADP unavailable ({exc}); board builds without the market overlay")
+        adp = None
+    return ecr, adp, replacement
+
+
 def _make_predictor(args, features: pd.DataFrame):
     if args.model == "transformer":
         if args.artifact_root is None:
@@ -188,6 +224,8 @@ def main() -> None:
         draft_picks = pull_draft_picks(list(range(2012, args.season + 1)),
                                        cache_dir=args.data_dir)
 
+        ecr, adp, replacement = _draft_consensus(args.season, schedules, args.data_dir)
+
     latest_season = int(weekly["season"].max())
     latest_week = int(weekly[weekly["season"] == latest_season]["week"].max())
     data_through = f"{latest_season}-wk{latest_week}"
@@ -212,7 +250,8 @@ def main() -> None:
     if args.draft:
         payloads["draft.json"] = build_draft_board(
             weekly, schedules, predictor, args.season, data_through, prefit=True,
-            sleeper_players=sleeper_players, draft_picks=draft_picks)
+            sleeper_players=sleeper_players, draft_picks=draft_picks,
+            ecr=ecr, adp=adp, replacement_rank=replacement)
     backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
     payloads["about.json"] = build_about(backtests, data_through, site_model=predictor.name)
 

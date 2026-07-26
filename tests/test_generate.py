@@ -270,6 +270,12 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
         pull_draft_picks = lambda *a, **k: draft_picks_frame
     monkeypatch.setattr(pull_mod, "pull_draft_picks", pull_draft_picks)
 
+    ecr_df = pd.DataFrame({"player_id": ["00-0000001"], "pos": ["QB"], "ecr": [1.0]})
+    monkeypatch.setattr(gen_mod, "_load_consensus",
+                        lambda s, sched, d: (ecr_df, {"match_rate": 1.0}))
+    monkeypatch.setattr(gen_mod, "_load_adp",
+                        lambda s, d: pd.DataFrame({"player_id": ["00-0000001"], "adp": [1.0]}))
+
     class _Stub:
         name = "stub"
         def fit(self, train): pass
@@ -335,3 +341,35 @@ def test_draft_run_aborts_before_writing_when_sleeper_pull_fails(monkeypatch, tm
     out = tmp_path / "out"
     assert not (out / "draft.json").exists()
     assert not (out / "about.json").exists()   # fail-safe: NOTHING was written
+
+
+def test_draft_consensus_ecr_required_adp_best_effort(monkeypatch):
+    from ffmodel.site import generate
+
+    ecr_df = pd.DataFrame({"player_id": ["00-1", "00-2"],
+                           "pos": ["RB", "WR"], "ecr": [1.0, 2.0]})
+    monkeypatch.setattr(generate, "_load_consensus",
+                        lambda s, sched, d: (ecr_df, {"match_rate": 1.0}))
+
+    # ADP fails -> swallowed, ecr still returned; replacement derived (tiny pool)
+    monkeypatch.setattr(generate, "_load_adp",
+                        lambda s, d: (_ for _ in ()).throw(RuntimeError("403")))
+    ecr, adp, replacement = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
+    assert ecr == {"00-1": 1.0, "00-2": 2.0} and adp is None
+    assert set(replacement) == {"QB", "RB", "WR", "TE"}   # derived, all positions
+
+    # ADP ok -> mapped
+    adp_df = pd.DataFrame({"player_id": ["00-1"], "adp": [6.0]})
+    monkeypatch.setattr(generate, "_load_adp", lambda s, d: adp_df)
+    ecr, adp, replacement = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
+    assert adp == {"00-1": 6.0}
+
+
+def test_draft_consensus_ecr_failure_propagates(monkeypatch):
+    from ffmodel.site import generate
+
+    monkeypatch.setattr(generate, "_load_consensus",
+                        lambda s, sched, d: (_ for _ in ()).throw(
+                            ValueError("no consensus scrape before kickoff")))
+    with pytest.raises(ValueError, match="no consensus scrape"):
+        generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
