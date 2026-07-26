@@ -316,6 +316,9 @@ def test_draft_run_threads_sleeper_dump_into_board(monkeypatch, tmp_path):
     assert set(capture["replacement_rank"]) == {"QB", "RB", "WR", "TE"}
     assert capture["replacement_rank"]["QB"] == 13   # derived, non-flex position
     assert (tmp_path / "out" / "draft.json").exists()
+    # main() actually attaches the late-slot block (stubbed empty by the helper)
+    written = json.loads((tmp_path / "out" / "draft.json").read_text())
+    assert written["late_slots"] == {"K": [], "DST": []}
 
 
 def test_weekly_only_run_never_touches_sleeper(monkeypatch, tmp_path):

@@ -29,6 +29,7 @@
   const FLEX_POS = ["RB", "WR", "TE"];
   const POSITIONS = ["QB", "RB", "WR", "TE"];
   const BYE_STACK_LIMIT = 3;  // penalize the 3rd+ starter sharing a bye
+  const CLIFF_MIN = 1.0;      // VORP points below which a "cliff" is just noise
 
   function rosterSlots(myPlayers) {
     const counts = { QB: 0, RB: 0, WR: 0, TE: 0 };
@@ -102,7 +103,9 @@
     } else if (slot !== "none") {
       const cliff = player.vorp - replacement(ctx.available, player.position, ctx.gap);
       const where = slot === "flex" ? "flex" : `${player.position}${ctx.counts[player.position] + 1}`;
-      parts.push(cliff > 0
+      // Only call it a cliff when the drop is worth acting on -- a sub-point
+      // gap is noise, and reads as a false alarm.
+      parts.push(cliff >= CLIFF_MIN
         ? `fills ${where} · cliff −${cliff.toFixed(1)} before your next pick`
         : `fills ${where}`);
     } else {
