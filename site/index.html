@@ -42,6 +42,7 @@
       <p class="draft-roster" id="draft-roster" hidden></p>
       <p class="draft-ticker" id="draft-ticker" hidden></p>
       <p class="draft-vona" id="draft-vona" hidden></p>
+      <p class="draft-late" id="draft-late" hidden></p>
       <p class="draft-note" id="draft-unmatched" hidden></p>
     </div>
   </details>
@@ -97,6 +98,7 @@ the tick is the simulated median, and VORP is built from that same median.
 When your tier empties, don't chase. Rookies (marked R) carry draft-capital
 cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/app.js"></script>
+<script src="assets/optimizer.js"></script>
 <script src="assets/draftmode.js"></script>
 <script src="assets/keepers.js"></script>
 <script>
@@ -198,6 +200,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
           roster: document.getElementById("draft-roster"),
           ticker: document.getElementById("draft-ticker"),
           vona: document.getElementById("draft-vona"),
+          late: document.getElementById("draft-late"),
           note: document.getElementById("draft-unmatched"),
         },
         onUpdate: s => { draftState = s.connected ? s : null; render(rows); },

@@ -181,8 +181,27 @@ window.DraftMode = (() => {
     emit();
   }
 
+  const esc = s => String(s).replace(/[&<>"']/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // My drafted board rows (for roster counts + bye stacking). Players with no
+  // board entry (K/DST/retired) simply do not contribute.
+  function myBoardPlayers() {
+    const rows = [];
+    for (const p of cfg.board.players) {
+      if (p.sleeper_id && state.mine.has(p.sleeper_id)) rows.push(p);
+    }
+    return rows;
+  }
+
+  function haveLateSlot(picks, position) {
+    if (!session || !session.userId) return false;
+    return picks.some(p => p.picked_by === session.userId
+      && p.metadata && p.metadata.position === position);
+  }
+
   function updateAids(picks) {
-    const t = cfg.els.ticker, v = cfg.els.vona;
+    const t = cfg.els.ticker, v = cfg.els.vona, l = cfg.els.late;
     if (picks.length) {
       const recent = picks.slice(-3).map(p => {
         const m = p.metadata || {};
@@ -196,23 +215,56 @@ window.DraftMode = (() => {
       t.hidden = true;
     }
     v.hidden = true;                    // default: render nothing, never wrong math
+    if (l) l.hidden = true;
+    if (!window.Optimizer) return;
     if (!session || !session.slot || !session.teams || !session.rounds) return;
     const next = nextPickNumber(session.slot, session.teams, session.rounds,
                                 session.reversalRound, picks.length, session.type);
     if (next === null) return;          // auction/unknown type or no pick left
+    const gap = gapToNextPick(session.slot, session.teams, session.rounds,
+                              session.reversalRound, picks.length, session.type);
     const until = next - picks.length - 1;   // full picks before yours
-    let line = until <= 0 ? "you're on the clock"
-                          : `pick #${picks.length + 1} next · your turn in ${until + 1}`;
-    if (until > 0) {
-      const deltas = vonaDeltas(cfg.board.players, state.drafted, until);
-      if (deltas) {
-        const parts = Object.entries(deltas).map(([pos, d]) => `${pos} −${d.toFixed(1)}`);
-        if (parts.length) line += ` · waiting costs: ${parts.join(" · ")}`;
-      }
-    }
-    v.textContent = line;
+    const mine = myBoardPlayers();
+    const available = cfg.board.players
+      .filter(p => !(p.sleeper_id && state.drafted.has(p.sleeper_id))
+                   && Number.isFinite(p.vorp))
+      .slice()
+      .sort((a, b) => b.vorp - a.vorp);
+    const shortlist = window.Optimizer.rankShortlist({
+      counts: window.Optimizer.rosterSlots(mine),
+      available, gap: gap === null ? 0 : gap,
+      players: cfg.board.players, pickNo: picks.length + 1, myPlayers: mine,
+    });
+    const head = until <= 0
+      ? `ON THE CLOCK · pick #${picks.length + 1}`
+      : `pick #${picks.length + 1} · your turn in ${until + 1}`;
+    const rows = shortlist.map((r, i) =>
+      `<li>${i + 1}. ${esc(r.player.name)} (${esc(r.player.position)}) — ${esc(r.why)}</li>`)
+      .join("");
+    v.innerHTML = `<strong>${esc(head)}</strong><ol class="draft-shortlist">${rows}</ol>`;
     v.title = "assumes the picks before yours take the best available by VORP";
     v.hidden = false;
+    renderLateSlots(picks, l);
+  }
+
+  function renderLateSlots(picks, l) {
+    if (!l || !session || !session.rounds) return;
+    const myPickCount = session.userId
+      ? picks.filter(p => p.picked_by === session.userId).length : 0;
+    const roundsLeft = session.rounds - myPickCount;
+    const haveK = haveLateSlot(picks, "K");
+    const haveDst = haveLateSlot(picks, "DEF");
+    if (!window.Optimizer.lateSlotTrigger(roundsLeft, haveK, haveDst)) return;
+    const late = cfg.board.late_slots || { K: [], DST: [] };
+    const need = [!haveK ? "K" : null, !haveDst ? "D/ST" : null].filter(Boolean);
+    const names = key => (late[key] || []).slice(0, 3)
+      .map(r => esc(r.name)).join(" · ");
+    const lists = [!haveK && names("K") ? `K: ${names("K")}` : null,
+                   !haveDst && names("DST") ? `D/ST: ${names("DST")}` : null]
+      .filter(Boolean).join(" | ");
+    l.innerHTML = `⚠ fill ${esc(need.join(" + "))} — ADP says now`
+      + (lists ? ` · ${lists} <em>(not projected)</em>` : "");
+    l.hidden = false;
   }
 
   function unmatchedNote() {
@@ -247,28 +299,16 @@ window.DraftMode = (() => {
     return null;                       // this slot has no pick left
   }
 
-  function vonaDeltas(players, draftedSet, picksUntilMine) {
-    if (!Array.isArray(players) || !(draftedSet instanceof Set)
-        || !Number.isInteger(picksUntilMine) || picksUntilMine < 0) return null;
-    // Available = not struck (same predicate as the board render: only a
-    // matched sleeper_id can be drafted). Sorted by VORP desc; the naive
-    // assumption removes the top picksUntilMine overall.
-    const avail = players
-      .filter(p => !(p.sleeper_id && draftedSet.has(p.sleeper_id)) && Number.isFinite(p.vorp))
-      .slice()
-      .sort((a, b) => (b.vorp ?? -Infinity) - (a.vorp ?? -Infinity));
-    const after = avail.slice(picksUntilMine);
-    const deltas = {};
-    for (const pos of ["QB", "RB", "WR", "TE"]) {
-      const now = avail.find(p => p.position === pos);
-      if (!now) continue;                              // position empty: omit
-      const later = after.find(p => p.position === pos);
-      // No survivor at the position => next-best is replacement level
-      // (VORP 0 by construction), so the cost is the whole current VORP.
-      const cost = now.vorp - (later ? later.vorp : 0);
-      deltas[pos] = Math.round(cost * 10) / 10;
-    }
-    return deltas;
+  // Picks between the selection currently on the clock and your NEXT pick.
+  // This is the window other drafters get before you choose again -- the
+  // horizon the optimizer's replacement level is measured over. It is nonzero
+  // when you are on the clock, which is exactly when it drives the decision.
+  function gapToNextPick(slot, teams, rounds, reversalRound, picksMade, type = "snake") {
+    const current = nextPickNumber(slot, teams, rounds, reversalRound, picksMade, type);
+    if (current === null) return null;
+    const after = nextPickNumber(slot, teams, rounds, reversalRound, current, type);
+    if (after === null) return null;
+    return after - current - 1;
   }
 
   function init(options) {
@@ -307,5 +347,5 @@ window.DraftMode = (() => {
     if (body) body.querySelectorAll("input, button").forEach(el => { el.disabled = true; });
   }
 
-  return { init, disable, nextPickNumber, vonaDeltas };
+  return { init, disable, nextPickNumber, gapToNextPick };
 })();
