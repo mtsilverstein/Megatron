@@ -67,6 +67,13 @@
   <details class="keeper-panel" id="keepers">
     <summary>Keeper value — which to keep</summary>
     <p class="keeper-help">Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (cost drops one round per year kept). Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
+    <div class="keeper-load">
+      <input class="keeper-user" placeholder="Sleeper username" autocomplete="off" />
+      <button type="button" class="keeper-load-btn">Load from Sleeper</button>
+      <span class="keeper-load-status" role="status"></span>
+      <div class="keeper-league-picker"></div>
+      <span class="keeper-skip-note"></span>
+    </div>
     <form class="keeper-add">
       <input class="keeper-name" placeholder="Player (start typing)" list="playerlist" autocomplete="off" />
       <input class="keeper-round" type="number" min="1" max="20" placeholder="Original round" />

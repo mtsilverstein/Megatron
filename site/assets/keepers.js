@@ -12,6 +12,43 @@
 })(this, function () {
   const WAIVER_COST_ROUND = 12;
   const MAX_KEEPERS = 2;
+  const SLEEPER = "https://api.sleeper.app/v1";
+  const CHAIN_CAP = 8;   // safety cap on previous_league_id hops
+  let loadSeq = 0;       // generation token: a stale load can't overwrite a newer one
+
+  async function sapi(path) {
+    const res = await fetch(`${SLEEPER}${path}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  // Walk previous_league_id backward from `startLeagueId`, recording each
+  // player's EARLIEST draft (round, season) -> his original draft. Partial
+  // failures skip that hop and keep walking.
+  async function buildOriginalByPlayerId(startLeagueId) {
+    const original = new Map();
+    let lid = startLeagueId, hops = 0;
+    while (lid && hops < CHAIN_CAP) {
+      let league = null;
+      try { league = await sapi(`/league/${lid}`); } catch (e) { break; }
+      try {
+        const drafts = (await sapi(`/league/${lid}/drafts`)) || [];
+        const draft = drafts.find(d => d.status === "complete") || drafts[0];
+        if (draft) {
+          const season = parseInt(draft.season, 10);
+          const picks = (await sapi(`/draft/${draft.draft_id}/picks`)) || [];
+          for (const p of picks) {
+            if (!p.player_id) continue;
+            const prev = original.get(p.player_id);
+            if (!prev || season < prev.season) original.set(p.player_id, { round: p.round, season });
+          }
+        }
+      } catch (e) { /* skip this season's draft, keep walking */ }
+      lid = league && league.previous_league_id;
+      hops++;
+    }
+    return original;
+  }
 
   // Cost escalates one round per year kept, anchored to the ORIGINAL draft
   // round, floored at R1. Waiver pickups (never drafted) are R12 flat.
@@ -118,6 +155,72 @@
                         isWaiver, adpRound: meta.adpRound, overallRank: meta.overallRank });
       redraw();
     });
+
+    // --- Load from Sleeper -------------------------------------------------
+    const boardBySleeperId = new Map();
+    players.forEach((p, i) => {
+      if (p.sleeper_id) boardBySleeperId.set(p.sleeper_id,
+        { name: p.name, position: p.position, adpRound: p.adp_round, overallRank: i + 1 });
+    });
+    const loadEls = {
+      user: panel.querySelector(".keeper-user"),
+      btn: panel.querySelector(".keeper-load-btn"),
+      status: panel.querySelector(".keeper-load-status"),
+      picker: panel.querySelector(".keeper-league-picker"),
+      skip: panel.querySelector(".keeper-skip-note"),
+    };
+    const setLoad = t => { loadEls.status.textContent = t; };
+
+    // Render league buttons and resolve with the chosen league (or null).
+    function pickLeague(leagues) {
+      return new Promise(resolve => {
+        loadEls.picker.innerHTML = "";
+        setLoad(`${leagues.length} leagues — pick one`);
+        leagues.forEach(lg => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = lg.name || lg.league_id;
+          b.addEventListener("click", () => { loadEls.picker.innerHTML = ""; resolve(lg); });
+          loadEls.picker.appendChild(b);
+        });
+      });
+    }
+
+    async function loadFromSleeper() {
+      const username = loadEls.user.value.trim();
+      if (!username) { setLoad("enter your Sleeper username"); return; }
+      const seq = ++loadSeq;
+      const stale = () => seq !== loadSeq;
+      loadEls.skip.textContent = "";
+      try {
+        setLoad("looking up user…");
+        const user = await sapi(`/user/${encodeURIComponent(username)}`);
+        if (!user || !user.user_id) { setLoad("user not found"); return; }
+        const leagues = (await sapi(`/user/${user.user_id}/leagues/nfl/${currentSeason}`)) || [];
+        if (stale()) return;
+        if (!leagues.length) { setLoad(`no ${currentSeason} leagues for ${username}`); return; }
+        const league = leagues.length === 1 ? leagues[0] : await pickLeague(leagues);
+        if (!league || stale()) return;
+        const prevId = league.previous_league_id;
+        if (!prevId) { setLoad("no prior season found — enter keepers manually"); return; }
+        setLoad("reading last season's roster…");
+        const rosters = (await sapi(`/league/${prevId}/rosters`)) || [];
+        const mine = rosters.find(r => r.owner_id === user.user_id);
+        if (!mine || !mine.players) { setLoad("couldn't find your roster last season — enter manually"); return; }
+        setLoad("tracing draft history…");
+        const original = await buildOriginalByPlayerId(prevId);
+        if (stale()) return;
+        const { candidates, skipped } = buildKeeperCandidates(mine.players, original, boardBySleeperId);
+        panel._keeperReset();
+        panel._keeperAdd(candidates);
+        setLoad(`loaded ${candidates.length} player(s)`);
+        loadEls.skip.textContent = skipped.length
+          ? ` · ${skipped.length} not on the board (K/DST/retired) — add manually if needed` : "";
+      } catch (e) {
+        setLoad(`load failed: ${e.message} — enter keepers manually`);
+      }
+    }
+    loadEls.btn.addEventListener("click", loadFromSleeper);
   }
 
   return { init, keeperCost, eligible, valueRound, surplus, rankKeepers,
