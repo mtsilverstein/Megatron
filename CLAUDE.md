@@ -29,3 +29,15 @@ Everything must run on free tiers; do not introduce paid infrastructure.
 ## Stack and layout
 
 Python (PyTorch, `nflreadpy` — not the deprecated `nfl_data_py`, XGBoost, pytest) under `src/ffmodel/` with tests in `tests/`; static HTML/CSS/JS under `site/` (GitHub Pages, no backend, no framework). See the spec §3 for the full directory contract. Tests concentrate on the leak-prone pure functions: feature building, scoring math, walk-forward splits, and site-JSON schema.
+
+## How work gets executed
+
+- **Implementation plans are always executed subagent-driven** (fresh implementer per task → task review → final whole-branch review). Don't ask which mode; announce it and go.
+- **Match the model to the task — never default to the most capable one.** Always pass `model` explicitly when dispatching:
+  - *Transcription-style implementers* (the plan/brief already contains the code; the job is apply-and-test) → `sonnet`. Single-file mechanical fixes → `sonnet`.
+  - *Task reviewers* → `sonnet`, scaled up only for genuinely subtle diffs (concurrency, numerics, leak surfaces).
+  - *Final whole-branch review* and *architecture/design work* → `opus`.
+  - Turn count beats token price: a model that needs 3× the turns costs more than the tier it saved. Don't reach below `sonnet` for anything multi-step.
+- **Dispatch in parallel only when the work is genuinely independent** (non-overlapping files); anything sharing a file or an interface runs sequentially.
+- Hand subagents artifacts as **files** (task brief, report path, review package), not pasted text — pasted context stays resident for the whole session.
+- **Verify a plan's factual premises before writing them down.** Two real failures to learn from: a plan asserted an external API's field label without checking it (would have shipped a permanently-empty list), and a plan told an implementer to append to a test file that didn't exist. Check the API, the file, and the function signature first.
