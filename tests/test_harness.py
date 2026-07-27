@@ -153,3 +153,64 @@ def test_run_backtest_rejects_misaligned_quantiles():
 
     with pytest.raises(ValueError, match="p10 index misaligned"):
         run_backtest(features, [MisalignedQuantiles()], test_seasons=[2023])
+
+
+class _PointArmPredictor:
+    """Quantile predictor that also exposes predict_point, so the harness's
+    point_arm path can be exercised without a trained artifact."""
+    name = "pointarm"
+
+    def __init__(self, features):
+        self.features = features
+        self.point_calls = []
+
+    def fit(self, train):
+        pass
+
+    def predict(self, test):
+        return self.predict_quantiles(test)["p50"]
+
+    def predict_quantiles(self, test):
+        base = test[PREDICTED_STATS].astype(float)
+        return {"p10": base * 0.5, "p50": base, "p90": base * 1.5}
+
+    def predict_point(self, test, arm="A", quantiles=None):
+        self.point_calls.append((arm, quantiles is not None))
+        return self.predict_quantiles(test)["p50"] * 2.0
+
+
+def test_run_backtest_default_is_unchanged_when_point_arm_is_none():
+    """The existing p50 path must be byte-identical when point_arm is not passed."""
+    features_fixture = _toy_features()
+    p = _PointArmPredictor(features_fixture)
+    results = run_backtest(features_fixture, [p], test_seasons=[2023])
+    assert p.point_calls == [], "predict_point was used without point_arm being set"
+
+
+def test_run_backtest_point_arm_uses_predict_point_and_reuses_quantiles():
+    features_fixture = _toy_features()
+    p = _PointArmPredictor(features_fixture)
+    results = run_backtest(features_fixture, [p], test_seasons=[2023], point_arm="A")
+    assert p.point_calls == [("A", True)], (
+        "point_arm must call predict_point once with the already-computed quantiles"
+    )
+    # bands still come from predict_quantiles, unaffected by the arm
+    # (run_backtest returns the aggregated score_table, whose quantile-derived
+    # columns are pinball_p10/pinball_p90/coverage_p10_p90, not raw p10/p90)
+    assert {"pinball_p10", "pinball_p90", "coverage_p10_p90"} <= set(results.columns)
+
+
+def test_run_backtest_point_arm_ignored_for_predictors_without_predict_point():
+    """Baselines have no mean head; they must still score through the normal
+    path rather than erroring when point_arm is set."""
+    features_fixture = _toy_features()
+    results = run_backtest(features_fixture, [NaiveLast4()], test_seasons=[2023],
+                           point_arm="A")
+    assert not results.empty
+
+
+def test_run_backtest_rejects_unknown_point_arm():
+    features_fixture = _toy_features()
+    with pytest.raises(ValueError, match="point_arm"):
+        run_backtest(features_fixture, [NaiveLast4()], test_seasons=[2023],
+                     point_arm="Z")

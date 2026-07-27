@@ -289,16 +289,34 @@ class TransformerPredictor:
             out = out + f
         return out / len(frames)
 
-    def predict_point(self, test: pd.DataFrame, arm: str = "A") -> pd.DataFrame:
+    def predict_point(self, test: pd.DataFrame, arm: str = "A",
+                      quantiles: dict[str, pd.DataFrame] | None = None) -> pd.DataFrame:
         """The stat line used for POINT estimates (never for bands).
 
         Arm A swaps in the conditional mean for the touchdown components only;
         arm B for all count components. Yardage always keeps p50 -- switching
         volume components to an expectation measurably hurt RB in prior testing.
+
+        `quantiles`: an already-computed predict_quantiles() result for THIS
+        `test` frame. Supplying it avoids a second full build_sequences pass
+        over the feature frame, which is the dominant cost when a caller (the
+        gate evaluator) needs both the band and the point line. Passing a
+        result computed for different rows would silently mix players, so the
+        index is validated rather than trusted.
         """
         if arm not in ("A", "B"):
             raise ValueError(f"unknown arm {arm!r} (known: 'A', 'B')")
-        point = self.predict_quantiles(test)["p50"].copy()
+        if quantiles is None:
+            quantiles = self.predict_quantiles(test)
+        else:
+            for key in QUANTILE_KEYS:
+                if key not in quantiles:
+                    raise ValueError(f"predict_point: injected quantiles missing {key!r}")
+                if not quantiles[key].index.equals(test.index):
+                    raise ValueError(
+                        f"predict_point: injected {key} index does not match `test`"
+                    )
+        point = quantiles["p50"].copy()
         if not self.has_mean:
             return point
         means = self.predict_mean(test)

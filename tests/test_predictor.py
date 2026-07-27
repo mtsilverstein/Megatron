@@ -749,3 +749,37 @@ def test_mixed_ensemble_has_mean_false_and_predict_point_falls_back(trained, tra
     point = p.predict_point(test)
     qs = p.predict_quantiles(test)
     pd.testing.assert_frame_equal(point, qs["p50"])
+
+
+def test_predict_point_accepts_precomputed_quantiles(trained_mean, monkeypatch):
+    """Passing `quantiles=` must give the identical result to letting
+    predict_point compute them itself, and must not call predict_quantiles."""
+    root, features = trained_mean
+    p = TransformerPredictor(root, features)
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+    p.fit(train)
+
+    baseline = p.predict_point(test, arm="A")
+
+    q = p.predict_quantiles(test)
+    calls = []
+    real = p.predict_quantiles
+    monkeypatch.setattr(p, "predict_quantiles",
+                        lambda t: (calls.append(1), real(t))[1])
+    injected = p.predict_point(test, arm="A", quantiles=q)
+
+    assert calls == [], "predict_point recomputed quantiles despite being given them"
+    pd.testing.assert_frame_equal(baseline, injected)
+
+
+def test_predict_point_rejects_misaligned_injected_quantiles(trained_mean):
+    root, features = trained_mean
+    p = TransformerPredictor(root, features)
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+    p.fit(train)
+    q = p.predict_quantiles(test)
+    q["p50"] = q["p50"].iloc[::-1]  # same rows, wrong order
+    with pytest.raises(ValueError, match="index"):
+        p.predict_point(test, arm="A", quantiles=q)

@@ -23,7 +23,11 @@ class Predictor(Protocol):
     predict_quantiles(test) -> dict[str, pd.DataFrame] with keys
     "p10"/"p50"/"p90"; run_backtest scores p50 through the existing path and
     will grow pinball/coverage reporting without breaking point-only
-    predictors.
+    predictors. Quantile models may also implement predict_point(test, arm,
+    quantiles=None) -> pd.DataFrame; when the harness's point_arm is set,
+    this supplies the point line instead of p50, and is handed the already-
+    computed quantiles so nothing is recomputed. Predictors without
+    predict_point are unaffected by point_arm.
     """
     name: str
 
@@ -36,7 +40,18 @@ def run_backtest(
     predictors: list[Predictor],
     test_seasons: list[int],
     rules: ScoringRules = PPR,
+    point_arm: str | None = None,
 ) -> pd.DataFrame:
+    """`point_arm`: when None (the default) the point estimate is p50, exactly
+    as before. When "A" or "B", any predictor exposing `predict_point` supplies
+    the point line for that arm instead, and is handed the band's already-
+    computed quantiles so nothing is recomputed. Predictors without
+    `predict_point` (the baselines) are unaffected -- the arm is a property of
+    the mean-head model, not of the backtest, so a baseline must still score.
+    Bands always come from predict_quantiles and are never arm-dependent.
+    """
+    if point_arm not in (None, "A", "B"):
+        raise ValueError(f"unknown point_arm {point_arm!r} (known: None, 'A', 'B')")
     tables = []
     for season, train_idx, test_idx in walk_forward_splits(features, test_seasons):
         train, test = features.loc[train_idx], features.loc[test_idx]
@@ -47,7 +62,12 @@ def run_backtest(
             predictor.fit(train)
             if hasattr(predictor, "predict_quantiles"):
                 quantile_stats = predictor.predict_quantiles(test)
-                pred_stats = quantile_stats["p50"]
+                if point_arm is not None and hasattr(predictor, "predict_point"):
+                    pred_stats = predictor.predict_point(
+                        test, arm=point_arm, quantiles=quantile_stats
+                    )
+                else:
+                    pred_stats = quantile_stats["p50"]
             else:
                 quantile_stats = None
                 pred_stats = predictor.predict(test)
