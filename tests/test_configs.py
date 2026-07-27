@@ -71,14 +71,25 @@ def test_baseline_backfill_configs_exist_and_are_pure_v1():
 
 
 def test_mean_head_configs_mirror_v1_exactly_apart_from_the_mean_keys():
-    """Any other difference would confound the comparison the gate depends on."""
+    """Any other difference would confound the comparison the gate depends on.
+
+    Compares the FULL config dicts (minus the three keys that are allowed to
+    differ) rather than a named subset: a whole-dict equality catches a changed
+    value, an added key, a DROPPED key, and any nested difference alike. A
+    named-field version silently passed a typo'd `out_root`/`checkpoint_root`
+    or a dropped `quantiles`, which is exactly the confound-by-typo this test
+    exists to prevent -- and it would only surface 40 GPU runs later.
+    """
+    allowed_to_differ = {"run_name", "predict_mean", "mean_lambda"}
     for year in FOLDS:
         mh = _load_cfg(f"transformer_mh_through{year}.yaml")
         v1 = _load_cfg(f"transformer_v1_through{year}.yaml")
-        assert mh["seed"] == v1["seed"]
-        assert mh["seq_len"] == v1["seq_len"]
-        assert mh["first_season"] == v1["first_season"]
-        assert mh["model"] == v1["model"]
+        mh_cmp = {k: v for k, v in mh.items() if k not in allowed_to_differ}
+        v1_cmp = {k: v for k, v in v1.items() if k not in allowed_to_differ}
+        assert mh_cmp == v1_cmp, f"through{year}: mh/v1 differ beyond the mean keys"
+        # and the mean keys really are the only additions
+        assert set(mh) - set(v1) == {"predict_mean", "mean_lambda"}
+        assert set(v1) - set(mh) == set(), f"through{year}: mh dropped a v1 key"
+        # the tuned hyperparameters are the confound that matters most; assert
+        # them explicitly too so a failure names them rather than dumping dicts
         assert {k: mh["train"][k] for k in TUNED} == {k: v1["train"][k] for k in TUNED}
-        extra = set(mh) - set(v1)
-        assert extra == {"predict_mean", "mean_lambda"}, extra
