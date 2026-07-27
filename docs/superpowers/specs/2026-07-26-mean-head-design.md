@@ -108,8 +108,19 @@ conditional **mean**.
 - **Not** a loss-reweighting scheme (retracted; `argmin w·f = argmin f`).
 - **No** new features, no new data sources, no architecture scaling (capacity was
   settled as a non-lever: we are generalization-bound, not capacity-bound).
-- **No** site/deployment change unless the gate passes; deployment then follows
-  the existing promote pattern (ARTIFACT_ROOT swap + regenerate).
+- **No** site/deployment change unless the gate passes.
+  **Correction (2026-07-26, pre-training):** an earlier draft said promotion
+  "follows the existing promote pattern (ARTIFACT_ROOT swap + regenerate)".
+  That is **wrong** and would be actively harmful. `eval/harness.py` hardcodes
+  `pred_stats = quantile_stats["p50"]`, and `site/weekly.py` / `site/draft.py`
+  only ever call `predict_quantiles` — **nothing calls `predict_point`**. So a
+  bare root swap would deploy the mean-head *weights* while still displaying
+  p50 point estimates: all of the shared-trunk band risk, none of the benefit.
+  Both **gate evaluation** and **promotion** therefore require wiring
+  `predict_point(arm)` into the harness and the site builders first. That
+  wiring is deliberately out of scope here (it is only worth building if the
+  arm trains), but it is a prerequisite for §8's primary metric and must be
+  done before any decision is read.
 - **No** change to K/DST scope, walk-forward protocol, or free-tier constraints.
 
 ## 5. Architecture change
@@ -222,7 +233,7 @@ retune λ and re-run.
 | risk | mitigation |
 |---|---|
 | Mean head disturbs the shared trunk and breaks calibrated bands | Guard 2 is a hard gate; conformal is refit, not assumed |
-| λ too large drowns the pinball objective | λ chosen causally on 2019 val; guards 2–3 catch damage |
+| λ too large drowns the pinball objective | λ chosen causally on the through2016 fold's 2016 validation season; guards 2–3 catch damage |
 | Arm A helps TDs but hurts volume-driven RB (the prior failure) | Yardage is never switched; primary is RB/WR/TE pooled so RB harm shows up directly |
 | Effect is real but smaller than 6-fold resolution | Accepted: an unresolvable effect is not a shippable one — that is the FPv2 lesson, not a reason to widen the search |
 

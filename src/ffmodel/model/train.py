@@ -44,6 +44,15 @@ def _validate_mean_cfg(cfg: dict) -> tuple[bool, float]:
         raise ValueError(
             "mean_lambda > 0 requires predict_mean: true (there is no mean head "
             "to train otherwise)")
+    if predict_mean and not mean_lambda:
+        # Otherwise the head is BUILT but never receives gradient, and inference
+        # happily serves exp(random init) -- plausible-looking per-game rates
+        # (e.g. 2.67 rushing TDs) with no error anywhere. One typo while editing
+        # nine configs to the selected lambda would invalidate a whole GPU
+        # campaign invisibly, so make it impossible to express.
+        raise ValueError(
+            "predict_mean: true requires mean_lambda > 0 (a head with no loss "
+            "term is never trained, and would serve random initial weights)")
     return predict_mean, mean_lambda
 
 

@@ -44,6 +44,9 @@ def test_v2_mirrors_v1_except_run_name_and_feature_set():
 FOLDS = list(range(2016, 2025))          # through2016 .. through2024
 BACKFILL = [2016, 2017, 2018]            # v1 folds that do not exist yet
 TUNED = {"batch_size", "lr", "weight_decay", "epochs", "patience", "grad_clip", "amp"}
+# Pre-registered lambda candidates (spec 2026-07-26 section 3). The selected
+# value is written into all nine mh configs before the main arm launches.
+LAMBDA_CANDIDATES = {0.1, 0.3, 1.0, 3.0}
 
 
 def _load_cfg(name):
@@ -56,8 +59,19 @@ def test_mean_head_configs_exist_for_every_fold():
         assert cfg["val_season"] == year
         assert cfg["run_name"] == "mh"
         assert cfg["predict_mean"] is True
-        assert cfg["mean_lambda"] == 1.0        # frozen placeholder, see below
+        # lambda is a pre-registered CANDIDATE, selected on the through2016
+        # validation season and then frozen across all nine folds. Pinning the
+        # placeholder value exactly would turn CI red the moment the selected
+        # value is written in -- which is a REQUIRED step, not a mistake. So
+        # assert what actually matters: it is one of the pre-registered
+        # candidates, it is trainable (> 0), and all nine folds agree.
+        assert cfg["mean_lambda"] in LAMBDA_CANDIDATES
+        assert cfg["mean_lambda"] > 0
         assert cfg["quantiles"] == [0.1, 0.5, 0.9]
+
+    lambdas = {_load_cfg(f"transformer_mh_through{y}.yaml")["mean_lambda"]
+               for y in FOLDS}
+    assert len(lambdas) == 1, f"all nine folds must share one lambda, got {lambdas}"
 
 
 def test_baseline_backfill_configs_exist_and_are_pure_v1():

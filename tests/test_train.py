@@ -584,3 +584,10 @@ def test_train_config_rejects_unknown_mean_settings():
         _validate_mean_cfg({"predict_mean": True, "mean_lambda": -1.0})
     with pytest.raises(ValueError, match="predict_mean"):
         _validate_mean_cfg({"predict_mean": False, "mean_lambda": 1.0})
+    # An untrained-but-served head is the dangerous case: it is built, gets no
+    # gradient, and inference returns exp(random init) -- plausible per-game
+    # rates with no error raised anywhere. Must be impossible to express.
+    with pytest.raises(ValueError, match="mean_lambda > 0"):
+        _validate_mean_cfg({"predict_mean": True, "mean_lambda": 0.0})
+    with pytest.raises(ValueError, match="mean_lambda > 0"):
+        _validate_mean_cfg({"predict_mean": True})
