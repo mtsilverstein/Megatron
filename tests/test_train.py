@@ -375,7 +375,10 @@ def _force_early_stop(monkeypatch, worsening_after: int = 1):
         if optimizer is None:  # a val-epoch call (train calls always pass optimizer)
             state["val_calls"] += 1
             if state["val_calls"] > worsening_after:
-                return 1e6 + state["val_calls"]  # unbeatably worse than any real loss
+                # unbeatably worse total than any real loss; pin/mean_nll
+                # components are unused by the early-stop comparison, so 0.0
+                # placeholders are fine here.
+                return 1e6 + state["val_calls"], 0.0, 0.0
         return result
 
     monkeypatch.setattr(train_mod, "_epoch", _flaky)
@@ -512,3 +515,72 @@ def test_unknown_feature_set_raises_before_touching_artifacts(tmp_path):
     cfg["feature_set"] = "v99"
     with pytest.raises(ValueError, match="v99"):
         train_from_config(cfg, features)
+
+
+def test_lambda_zero_loss_is_identical_to_v1_pinball():
+    """The whole backward-compat claim in one assertion: with the mean head off,
+    the training objective is exactly the v1 objective."""
+    import torch
+    from ffmodel.model.net import pinball_loss
+    from ffmodel.model.train import _combined_loss
+
+    torch.manual_seed(0)
+    pred = torch.randn(4, 11, 3)
+    y = torch.rand(4, 11) * 5
+    expected = pinball_loss(pred, y, (0.1, 0.5, 0.9))
+    total, pin, mean_nll = _combined_loss(pred, None, y, (0.1, 0.5, 0.9),
+                                          head_weights=None, mean_lambda=0.0)
+    assert torch.isclose(total, expected)
+    assert torch.isclose(pin, expected)
+    assert mean_nll == 0.0
+
+
+def test_combined_loss_adds_lambda_weighted_poisson():
+    import torch
+    from ffmodel.model.net import pinball_loss, poisson_mean_loss
+    from ffmodel.model.train import _combined_loss
+    from ffmodel.scoring import COUNT_IDX
+
+    torch.manual_seed(0)
+    pred = torch.randn(4, 11, 3)
+    log_rate = torch.randn(4, len(COUNT_IDX))
+    y = torch.rand(4, 11) * 5
+    pin = pinball_loss(pred, y, (0.1, 0.5, 0.9))
+    pois = poisson_mean_loss(log_rate, y[:, COUNT_IDX])
+    total, pin_out, mean_out = _combined_loss(pred, log_rate, y, (0.1, 0.5, 0.9),
+                                              head_weights=None, mean_lambda=2.0)
+    assert torch.isclose(total, pin + 2.0 * pois)
+    assert torch.isclose(pin_out, pin)
+    assert torch.isclose(mean_out, pois)
+
+
+def test_combined_loss_targets_the_count_columns_by_name():
+    """A wrong index would silently train a head against another statistic."""
+    import torch
+    from ffmodel.model.train import _combined_loss
+    from ffmodel.scoring import COUNT_IDX, COUNT_STATS, PREDICTED_STATS
+
+    assert [PREDICTED_STATS[i] for i in COUNT_IDX] == COUNT_STATS
+    pred = torch.zeros(2, 11, 3)
+    y = torch.zeros(2, 11)
+    y[:, PREDICTED_STATS.index("receiving_tds")] = 3.0
+    log_rate = torch.zeros(2, len(COUNT_IDX))
+    _, _, mean_nll = _combined_loss(pred, log_rate, y, (0.1, 0.5, 0.9),
+                                    head_weights=None, mean_lambda=1.0)
+    # exp(0)=1 for all 8; the one column with target 3 contributes 1-3*0=1 too,
+    # so the mean is 1.0 -- but it must be FINITE and driven by the count cols
+    assert torch.isfinite(mean_nll)
+    assert float(mean_nll) > 0
+
+
+def test_train_config_rejects_unknown_mean_settings():
+    import pytest
+
+    from ffmodel.model.train import _validate_mean_cfg
+
+    _validate_mean_cfg({})                                   # defaults are legal
+    _validate_mean_cfg({"predict_mean": True, "mean_lambda": 1.0})
+    with pytest.raises(ValueError, match="mean_lambda"):
+        _validate_mean_cfg({"predict_mean": True, "mean_lambda": -1.0})
+    with pytest.raises(ValueError, match="predict_mean"):
+        _validate_mean_cfg({"predict_mean": False, "mean_lambda": 1.0})

@@ -17,8 +17,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from ffmodel.model.dataset import (
     FEATURE_SETS, apply_scaler, build_sequences, fit_scaler, subset,
 )
-from ffmodel.model.net import QuantileTransformer, pinball_loss
-from ffmodel.scoring import PREDICTED_STATS
+from ffmodel.model.net import QuantileTransformer, pinball_loss, poisson_mean_loss
+from ffmodel.scoring import COUNT_IDX, PREDICTED_STATS
 
 
 def _seed_everything(seed: int) -> None:
@@ -34,19 +34,46 @@ def _loader(data, batch_size: int, shuffle: bool, seed: int) -> DataLoader:
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, generator=gen)
 
 
+def _validate_mean_cfg(cfg: dict) -> tuple[bool, float]:
+    """Read/validate the conditional-mean settings. Absent keys reproduce v1."""
+    predict_mean = bool(cfg.get("predict_mean", False))
+    mean_lambda = float(cfg.get("mean_lambda", 0.0))
+    if mean_lambda < 0:
+        raise ValueError(f"mean_lambda must be >= 0, got {mean_lambda}")
+    if mean_lambda and not predict_mean:
+        raise ValueError(
+            "mean_lambda > 0 requires predict_mean: true (there is no mean head "
+            "to train otherwise)")
+    return predict_mean, mean_lambda
+
+
+def _combined_loss(pred, log_rate, y, quantiles, head_weights, mean_lambda):
+    """Total training objective, plus its two components for reporting.
+
+    With mean_lambda == 0 (or no mean head) this is EXACTLY the v1 pinball
+    objective -- the property that keeps every committed artifact comparable.
+    """
+    pinball = pinball_loss(pred, y, quantiles, head_weights=head_weights)
+    if log_rate is None or not mean_lambda:
+        return pinball, pinball, 0.0
+    mean_nll = poisson_mean_loss(log_rate, y[:, COUNT_IDX])
+    return pinball + mean_lambda * mean_nll, pinball, mean_nll
+
+
 def _epoch(model, loader, quantiles, device, optimizer=None, grad_clip=1.0,
-           amp_scaler=None, head_weights=None):
+           amp_scaler=None, head_weights=None, mean_lambda=0.0):
     training = optimizer is not None
     use_amp = amp_scaler is not None and device == "cuda"  # fp16 on the T4 (spec §5)
     model.train(training)
-    total, count = 0.0, 0
+    total, pin_total, mean_total, count = 0.0, 0.0, 0.0, 0
     with torch.set_grad_enabled(training):
         for x_seq, x_ctx, pad, y in loader:
             x_seq, x_ctx = x_seq.to(device), x_ctx.to(device)
             pad, y = pad.to(device), y.to(device)
             with torch.autocast(device_type="cuda", enabled=use_amp):
-                pred = model(x_seq, x_ctx, pad)
-                loss = pinball_loss(pred, y, quantiles, head_weights=head_weights)
+                pred, log_rate = model.forward_all(x_seq, x_ctx, pad)
+                loss, pin, mean_nll = _combined_loss(
+                    pred, log_rate, y, quantiles, head_weights, mean_lambda)
             if training:
                 optimizer.zero_grad()
                 if use_amp:
@@ -60,8 +87,16 @@ def _epoch(model, loader, quantiles, device, optimizer=None, grad_clip=1.0,
                     torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
                     optimizer.step()
             total += loss.item() * len(y)
+            # pin/mean_nll may still require grad here (no detach yet) -- float()
+            # on such a tensor emits a UserWarning ("Converting a tensor with
+            # requires_grad=True to a scalar"), which -W error turns into a hard
+            # failure; .item() carries no such warning. mean_nll is a plain
+            # Python 0.0 (not a tensor) whenever there's no mean head/lambda.
+            pin_total += pin.item() * len(y)
+            mean_total += (mean_nll.item() if torch.is_tensor(mean_nll)
+                          else mean_nll) * len(y)
             count += len(y)
-    return total / count
+    return total / count, pin_total / count, mean_total / count
 
 
 def _resolve_feature_set(cfg: dict) -> tuple[str, list[str], list[str]]:
@@ -239,6 +274,7 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
                 "Kaggle, pick a T4 accelerator instead of the P100."
             ) from exc
     quantiles = tuple(cfg["quantiles"])
+    predict_mean, mean_lambda = _validate_mean_cfg(cfg)
 
     train_data, val_data, scaler = _prepare_data(cfg, features)
     head_weights_np = _head_weights(cfg, train_data.y)
@@ -248,7 +284,8 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
     model = QuantileTransformer(
         n_seq_features=len(seq_features), n_ctx_features=len(ctx_features),
         max_seq_len=cfg["seq_len"], n_stats=len(PREDICTED_STATS),
-        n_quantiles=len(quantiles), **cfg["model"],
+        n_quantiles=len(quantiles),
+        n_counts=len(COUNT_IDX) if predict_mean else 0, **cfg["model"],
     ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["train"]["lr"],
                                   weight_decay=cfg["train"]["weight_decay"])
@@ -280,11 +317,12 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
         last_epoch = epoch
         train_loader = _loader(train_data, cfg["train"]["batch_size"], True,
                                cfg["seed"] + epoch)  # per-epoch seed: resume-stable order
-        train_loss = _epoch(model, train_loader, quantiles, device,
-                            optimizer, cfg["train"]["grad_clip"], amp_scaler,
-                            head_weights=head_weights)
-        val_loss = _epoch(model, val_loader, quantiles, device,
-                          head_weights=head_weights)
+        train_loss, _, _ = _epoch(model, train_loader, quantiles, device,
+                                  optimizer, cfg["train"]["grad_clip"], amp_scaler,
+                                  head_weights=head_weights, mean_lambda=mean_lambda)
+        val_loss, val_pin, val_mean = _epoch(model, val_loader, quantiles, device,
+                                             head_weights=head_weights,
+                                             mean_lambda=mean_lambda)
         print(f"epoch {epoch}: train {train_loss:.4f}  val {val_loss:.4f}")
         if val_loss < best_val:
             best_val, bad = val_loss, 0
@@ -294,7 +332,9 @@ def train_from_config(cfg: dict, features: pd.DataFrame, resume: bool = False,
             (art_dir / "config.yaml").write_text(yaml.safe_dump(cfg))
             (art_dir / "metrics.json").write_text(json.dumps({
                 "val_season": val_season, "best_epoch": epoch,
-                "last_epoch": epoch, "val_pinball": val_loss,
+                "last_epoch": epoch, "val_pinball": val_pin,
+                "val_mean_nll": val_mean, "val_total": val_loss,
+                "predict_mean": predict_mean, "mean_lambda": mean_lambda,
                 "quantiles": list(quantiles), "seq_len": cfg["seq_len"],
                 "n_seq_features": len(seq_features),
                 "n_ctx_features": len(ctx_features), "model": cfg["model"],
