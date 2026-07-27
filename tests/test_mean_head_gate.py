@@ -53,10 +53,21 @@ def test_weekly_spearman_pools_requested_positions_into_one_cell_per_week():
     assert float(out.loc[out["position"] == "WR", "spearman"].iloc[0]) == pytest.approx(-1.0)
 
 
-def test_weekly_spearman_drops_degenerate_weeks():
+def test_weekly_spearman_drops_degenerate_weeks(recwarn):
     """A week with fewer than 3 rows, with zero variance in actuals, or with
     zero variance in the PREDICTION, has no defined ranking correlation and
-    must be dropped rather than become NaN or an invented 0.0."""
+    must be dropped rather than become NaN or an invented 0.0.
+
+    The zero-variance-in-PREDICTION week (week 3) must be caught by an
+    explicit `np.ptp(pred) == 0` check BEFORE it reaches scipy. scipy's
+    spearmanr on a constant array also returns nan (which weekly_spearman's
+    `np.isfinite(r)` check would drop too), so under a plain `pytest` run
+    len(out) == 0 would hold either way -- deleting the explicit guard only
+    shows up as a test failure when scipy's ConstantInputWarning is promoted
+    to an error, which happens under `-W error` but not by default. Recording
+    warnings with `recwarn` (a stock pytest fixture, no external flag needed)
+    and asserting none were raised gives this case teeth unconditionally.
+    """
     rows = _rows(
         season=[2023] * 8, week=[1, 1, 2, 2, 2, 3, 3, 3],
         position=["RB"] * 8,
@@ -66,6 +77,7 @@ def test_weekly_spearman_drops_degenerate_weeks():
     out = weekly_spearman(rows, "pred", ["RB"])
     assert len(out) == 0
     assert not out["spearman"].isna().any()
+    assert len(recwarn) == 0
 
 
 def test_paired_bootstrap_ci_excludes_zero_for_a_clear_effect():
@@ -233,3 +245,114 @@ def test_collect_fold_predictions_rejects_mh_without_mean_head(monkeypatch):
 
     with pytest.raises(ValueError, match="no mean head"):
         collect_fold_predictions(features, ["v1"], ["mh_no_mean"], test_seasons=[2022, 2023])
+
+
+from ffmodel.eval.mean_head_gate import evaluate_gate
+
+
+def _synthetic_rows(effect_a: float, effect_b: float = 0.0, qb_effect: float = 0.0,
+                    mae_penalty: float = 0.0, mono_ok: bool = True):
+    """Nine folds x 17 weeks x 4 positions x 6 players, with a controllable
+    ranking edge for each arm so the verdict logic can be driven directly."""
+    rng = np.random.default_rng(7)
+    recs = []
+    for season in range(2017, 2026):
+        for week in range(1, 18):
+            for position in ("QB", "RB", "WR", "TE"):
+                actual = rng.normal(12, 6, 6)
+                base = actual + rng.normal(0, 4, 6)
+                eff = qb_effect if position == "QB" else effect_a
+                for i in range(6):
+                    recs.append({
+                        "season": season, "week": week, "position": position,
+                        "actual": actual[i],
+                        "v1": base[i],
+                        "mh_a": base[i] + eff * (actual[i] - actual.mean()) + mae_penalty,
+                        "mh_b": base[i] + effect_b * (actual[i] - actual.mean()),
+                        "mono_ok": mono_ok,
+                        "point_in_band": True,
+                    })
+    return pd.DataFrame(recs)
+
+
+def _all_good_coverage():
+    return pd.DataFrame([
+        {"season": s, "position": p, "coverage": 0.80, "in_band": True}
+        for s in range(2017, 2026) for p in ("QB", "RB", "WR", "TE")
+    ])
+
+
+def test_gate_passes_when_primary_positive_and_all_guards_hold():
+    # NOTE: effect_a=0.03, not the plan's 0.6. _synthetic_rows adds
+    # eff*(actual-mean) to a prediction that is otherwise pure noise around
+    # `actual`; since that term is independent of the noise, ANY eff != 0
+    # strictly inflates the error variance and therefore the pooled MAE, so
+    # a large eff (0.6, or even 0.1) makes points_not_worse fail every time
+    # -- it is not possible for this generator to produce "primary passes AND
+    # all guards hold" at eff=0.6. 0.03 keeps the primary's CI clearly
+    # excluding zero while keeping the MAE guard's CI straddling zero
+    # (verified: primary mean 0.0092 ci95 [0.0055, 0.0128]; MAE-guard mean
+    # 0.0026 ci95 [-0.0031, 0.0078]). No assertion below was changed.
+    result = evaluate_gate(_synthetic_rows(effect_a=0.03), _all_good_coverage())
+    assert result["primary"]["passed"] is True
+    assert all(g["passed"] for g in result["guards"].values())
+    assert result["verdict"] == "PROMOTE ARM A"
+
+
+def test_gate_fails_when_primary_ci_includes_zero():
+    result = evaluate_gate(_synthetic_rows(effect_a=0.0), _all_good_coverage())
+    assert result["primary"]["passed"] is False
+    assert result["verdict"] == "NOT PROMOTED"
+
+
+def test_guard_2_failure_blocks_promotion_even_with_a_strong_primary():
+    """Band damage is the primary architectural risk; a coverage miss must veto
+    a promotion the primary would otherwise earn."""
+    cov = _all_good_coverage()
+    cov.loc[0, ["coverage", "in_band"]] = [0.62, False]
+    result = evaluate_gate(_synthetic_rows(effect_a=0.6), cov)
+    assert result["primary"]["passed"] is True
+    assert result["guards"]["bands_intact"]["passed"] is False
+    assert result["verdict"] == "NOT PROMOTED"
+
+
+def test_guard_4_monotonicity_violation_blocks_promotion():
+    rows = _synthetic_rows(effect_a=0.6)
+    rows.loc[0, "mono_ok"] = False
+    result = evaluate_gate(rows, _all_good_coverage())
+    assert result["guards"]["monotonicity"]["passed"] is False
+    assert result["verdict"] == "NOT PROMOTED"
+
+
+def test_guard_1_qb_harm_blocks_promotion():
+    """A QB Spearman CI lying ENTIRELY below zero is the failure condition."""
+    result = evaluate_gate(_synthetic_rows(effect_a=0.6, qb_effect=-1.2),
+                           _all_good_coverage())
+    assert result["guards"]["no_qb_harm"]["passed"] is False
+    assert result["verdict"] == "NOT PROMOTED"
+
+
+def test_arm_b_reported_but_loses_ties_to_arm_a():
+    """Spec: ties go to Arm A. Equal arms must promote A, not B."""
+    # effect_a=0.03 for the same reason as test_gate_passes_... above: arm A
+    # must fully pass (including points_not_worse) for "PROMOTE ARM A" to be
+    # reachable at all, and 0.6 makes points_not_worse fail unconditionally.
+    rows = _synthetic_rows(effect_a=0.03)
+    rows["mh_b"] = rows["mh_a"]
+    result = evaluate_gate(rows, _all_good_coverage())
+    assert "arm_b" in result
+    assert result["verdict"] == "PROMOTE ARM A"
+
+
+def test_arm_b_promoted_only_when_it_passes_and_strictly_beats_arm_a():
+    # NOTE: effect_a=0.02, effect_b=0.05, not the plan's 0.3/1.2 -- see the
+    # note in test_gate_passes_when_primary_positive_and_all_guards_hold:
+    # any eff large enough to give a big Spearman edge also inflates pooled
+    # MAE past the guard-3 boundary, so effect_b=1.2 makes arm B fail its own
+    # points_not_worse guard and the verdict can never be "PROMOTE ARM B".
+    # These magnitudes keep arm B's own gate passing (verified: guard-3 mean
+    # 0.0072 ci95 [-0.0021, 0.0156]) while still giving it a strictly larger
+    # primary mean than arm A's (0.0131 vs 0.0066).
+    result = evaluate_gate(_synthetic_rows(effect_a=0.02, effect_b=0.05),
+                           _all_good_coverage())
+    assert result["verdict"] == "PROMOTE ARM B"
