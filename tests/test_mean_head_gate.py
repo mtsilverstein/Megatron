@@ -623,6 +623,70 @@ def test_build_summary_not_promoted_names_the_failing_guard_when_primary_passed(
     assert "bands_intact" in summary
 
 
+def _gate_result(primary_passed, failed_guards=()):
+    """Hand-built `evaluate_gate`-shaped result, minimal enough to drive
+    build_summary's NOT-PROMOTED branch directly without needing
+    _synthetic_rows to coincidentally land on a given combination of
+    primary/guard outcomes (some combinations, like primary failing while a
+    guard also fails, are awkward to isolate through the random generator).
+    build_summary reads only result["primary"], result["arm_a"]["guards"],
+    and result["arm_b"]["passed"] on this path, so those are the only keys
+    populated."""
+    primary = {"mean": 0.0031, "ci95": [-0.002, 0.008], "passed": primary_passed}
+    guard_names = ["no_qb_harm", "bands_intact", "points_not_worse", "monotonicity"]
+    guards = {name: {"passed": name not in failed_guards} for name in guard_names}
+    return {
+        "verdict": "NOT PROMOTED",
+        "primary": primary,
+        "guards": guards,
+        "arm_a": {"guards": guards},
+        "arm_b": {"passed": False},
+    }
+
+
+def test_build_summary_hand_built_primary_fails_and_all_guards_hold():
+    """Case (a): primary fails, no guard failures -- the reason must name
+    only the primary."""
+    summary = build_summary(_gate_result(primary_passed=False, failed_guards=[]))
+    assert "did not clear the pre-registered bar" in summary
+    for guard in ("no_qb_harm", "bands_intact", "points_not_worse", "monotonicity"):
+        assert guard not in summary
+
+
+def test_build_summary_hand_built_primary_passes_and_one_guard_fails():
+    """Case (b): primary passes, one guard fails -- the reason must name
+    that guard and say the primary cleared the bar."""
+    summary = build_summary(_gate_result(primary_passed=True,
+                                         failed_guards=["bands_intact"]))
+    assert "cleared the pre-registered bar" in summary
+    assert "did not clear the pre-registered bar" not in summary
+    assert "bands_intact" in summary
+
+
+def test_build_summary_hand_built_primary_fails_and_a_guard_fails():
+    """Case (c), the bug this module fixes: BOTH the primary and a guard
+    failed in the actual mean-head run (primary and bands_intact), but the
+    old `elif` chain reported only the primary's failure and never named the
+    failed guard -- a reader of the permanent record would wrongly conclude
+    the bands were fine. Both facts must now appear in the same string."""
+    result = _gate_result(primary_passed=False, failed_guards=["bands_intact"])
+    summary = build_summary(result)
+    assert "did not clear the pre-registered bar" in summary
+    assert "bands_intact" in summary
+
+
+def test_build_summary_hand_built_primary_fails_and_multiple_guards_fail():
+    """Case (d): every failed guard name must appear, not just the first."""
+    result = _gate_result(primary_passed=False,
+                          failed_guards=["bands_intact", "monotonicity"])
+    summary = build_summary(result)
+    assert "did not clear the pre-registered bar" in summary
+    assert "bands_intact" in summary
+    assert "monotonicity" in summary
+    assert "no_qb_harm" not in summary
+    assert "points_not_worse" not in summary
+
+
 def test_build_summary_notes_when_arm_b_also_fails_its_own_gate():
     result = evaluate_gate(_synthetic_rows(effect_a=0.0), _all_good_coverage())
     assert result["arm_b"]["passed"] is False

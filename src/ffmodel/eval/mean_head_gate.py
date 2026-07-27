@@ -439,7 +439,11 @@ def build_summary(result: dict) -> str:
                 f"promoted arm.{b_note}")
 
     failed_a = _failed_guard_names(result["arm_a"])
-    if not primary["passed"]:
+    if not primary["passed"] and failed_a:
+        reason = (f"the primary did not clear the pre-registered bar "
+                  f"({primary_line}), and guard(s) {', '.join(failed_a)} "
+                  f"also failed")
+    elif not primary["passed"]:
         reason = f"the primary did not clear the pre-registered bar ({primary_line})"
     elif failed_a:
         reason = (f"{primary_line} cleared the pre-registered bar, but "
