@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -54,7 +55,7 @@ def collect_fold_predictions(
     apart through differing row filters.
 
     Columns: season, week, position, actual, v1, mh_a, mh_b, mono_ok (bool,
-    guard 4), point_in_band (bool, diagnostic).
+    guard 4), point_in_band_a, point_in_band_b (bool, diagnostic, one per arm).
 
     mono_ok holds BY CONSTRUCTION and is not evidence about the mean head:
     TransformerPredictor.predict_quantiles unconditionally np.sorts the
@@ -64,13 +65,18 @@ def collect_fold_predictions(
     specified -- it just cannot fail against the mean head as currently
     shipped, so a True here says nothing about the mean head's quality.
 
-    point_in_band is a NON-GATING diagnostic -- nothing may block on it. It
-    is True where the arm-A point line's PPR value (mh_a, scored) falls
-    inside the sign-coherent (floor, ceiling) band built from
-    fantasy_points_band(mh_q["p10"], mh_q["p90"], rules). This is the risk
-    the mean head actually introduces -- a spliced conditional-mean point
-    estimate escaping the band it should sit inside -- and nothing else here
-    checks it.
+    point_in_band_a / point_in_band_b are NON-GATING diagnostics -- nothing
+    may block on either. point_in_band_a is True where arm A's point line's
+    PPR value (mh_a, scored) falls inside the sign-coherent (floor, ceiling)
+    band built from fantasy_points_band(mh_q["p10"], mh_q["p90"], rules);
+    point_in_band_b is the same check against arm B's point line (mh_b).
+    Arm B splices every count component (not just touchdowns), so its
+    band-escape rate is at least arm A's and must be tracked separately --
+    reusing arm A's column for arm B would understate arm B's true
+    band-escape rate in the permanent record. This is the risk the mean
+    head actually introduces -- a spliced conditional-mean point estimate
+    escaping the band it should sit inside -- and nothing else here checks
+    it.
     """
     from ffmodel.model.predictor import TransformerPredictor
 
@@ -98,10 +104,15 @@ def collect_fold_predictions(
             & (mh_q["p50"] <= mh_q["p90"] + 1e-6).all(axis=1)
         )
         mh_a_points = fantasy_points(mh_a, rules)
-        # Diagnostic only (see docstring): does arm A's spliced point line
+        mh_b_points = fantasy_points(mh_b, rules)
+        # Diagnostic only (see docstring): does each arm's spliced point line
         # stay inside the band it should sit inside? Not a gate criterion.
+        # Both arms are checked against the SAME sign-coherent band -- the
+        # band itself doesn't depend on which arm's point line is being
+        # tested against it.
         floor, ceil = fantasy_points_band(mh_q["p10"], mh_q["p90"], rules)
-        point_in_band = (mh_a_points >= floor) & (mh_a_points <= ceil)
+        point_in_band_a = (mh_a_points >= floor) & (mh_a_points <= ceil)
+        point_in_band_b = (mh_b_points >= floor) & (mh_b_points <= ceil)
         frames.append(pd.DataFrame({
             "season": season,
             "week": test["week"].to_numpy(),
@@ -109,9 +120,10 @@ def collect_fold_predictions(
             "actual": fantasy_points(test[PREDICTED_STATS], rules).to_numpy(),
             "v1": fantasy_points(v1_q["p50"], rules).to_numpy(),
             "mh_a": mh_a_points.to_numpy(),
-            "mh_b": fantasy_points(mh_b, rules).to_numpy(),
+            "mh_b": mh_b_points.to_numpy(),
             "mono_ok": mono.to_numpy(),
-            "point_in_band": point_in_band.to_numpy(),
+            "point_in_band_a": point_in_band_a.to_numpy(),
+            "point_in_band_b": point_in_band_b.to_numpy(),
         }, index=test.index))
     return pd.concat(frames)
 
@@ -279,19 +291,40 @@ def _mae_delta(rows: pd.DataFrame, arm_col: str) -> dict:
     return stats
 
 
+def _primary_passed(stats: dict) -> bool:
+    """PRIMARY: pooled delta > 0 AND the 95% CI excludes zero. Both conjuncts
+    matter: dropping `mean > 0` would let a CI that lies entirely BELOW zero
+    (the arm significantly worse) pass just because it "excludes zero"."""
+    return bool(stats["mean"] > 0 and stats["ci95"][0] > 0)
+
+
+def _qb_ok(stats: dict) -> bool:
+    """Guard 1 (no_qb_harm) FAILS only if the QB Spearman-delta CI lies
+    ENTIRELY below zero. A CI straddling zero, or lying entirely above zero,
+    passes -- this guard exists to catch QB harm, not to require QB
+    improvement."""
+    return not (stats["ci95"][1] < 0)
+
+
+def _mae_ok(stats: dict) -> bool:
+    """Guard 3 (points_not_worse) FAILS only if the pooled MAE-delta CI lies
+    ENTIRELY above zero (the arm significantly worse on points). A CI
+    straddling zero, or lying entirely below zero (the arm significantly
+    BETTER on points), passes -- this is deliberately asymmetric, the mirror
+    image of `_qb_ok`, not a symmetric "CI excludes zero" check."""
+    return not (stats["ci95"][0] > 0)
+
+
 def _arm_result(rows: pd.DataFrame, coverage: pd.DataFrame, arm_col: str) -> dict:
     primary = _spearman_delta(rows, arm_col, PRIMARY_POSITIONS)
-    # PRIMARY: pooled delta > 0 AND the 95% CI excludes zero.
-    primary["passed"] = bool(primary["mean"] > 0 and primary["ci95"][0] > 0)
+    primary["passed"] = _primary_passed(primary)
 
     qb = _spearman_delta(rows, arm_col, ["QB"])
-    # Guard 1 FAILS only if the CI lies ENTIRELY below zero.
-    qb_ok = not (qb["ci95"][1] < 0)
+    qb_ok = _qb_ok(qb)
 
     bad_cov = coverage[~coverage["in_band"]]
     mae = _mae_delta(rows, arm_col)
-    # Guard 3 FAILS only if the CI lies ENTIRELY above zero (significantly worse).
-    mae_ok = not (mae["ci95"][0] > 0)
+    mae_ok = _mae_ok(mae)
     mono_violations = int((~rows["mono_ok"]).sum())
 
     guards = {
@@ -310,14 +343,16 @@ def _arm_result(rows: pd.DataFrame, coverage: pd.DataFrame, arm_col: str) -> dic
     # allowed to influence `passed` -- the gate criteria are pre-registered and
     # adding one here after the fact would be exactly the p-hacking the spec
     # forbids.
+    band_col = "point_in_band_" + arm_col.rsplit("_", 1)[-1]  # mh_a -> _a, mh_b -> _b
     diagnostics = {
-        "point_line_outside_band": int((~rows["point_in_band"]).sum()),
+        "point_line_outside_band": int((~rows[band_col]).sum()),
         "note": "guard 4 (monotonicity) holds by construction upstream -- "
                 "predict_quantiles sorts the triple and the mh roots carry no "
                 "calibration.json -- so it is not evidence about the mean head. "
                 "point_line_outside_band is the risk the mean head actually "
-                "introduces (a spliced conditional mean escaping the band) and "
-                "is reported here as a DIAGNOSTIC ONLY, not a criterion.",
+                "introduces (a spliced conditional mean escaping the band, "
+                "checked against THIS arm's own point line) and is reported "
+                "here as a DIAGNOSTIC ONLY, not a criterion.",
     }
     return {"primary": primary, "guards": guards, "diagnostics": diagnostics,
             "passed": bool(primary["passed"] and all(g["passed"] for g in guards.values()))}
@@ -341,6 +376,34 @@ def evaluate_gate(rows: pd.DataFrame, coverage: pd.DataFrame) -> dict:
             "arm_a": a, "arm_b": b}
 
 
+def _validate_test_seasons(features: pd.DataFrame, test_seasons: list[int]) -> None:
+    """Fails fast and legibly if a caller's --first-season/--last-season
+    narrows the built features below what TEST_SEASONS requires, instead of
+    dying deep inside refit_coverage with an opaque TypeError after a full
+    (expensive) inference pass has already run."""
+    missing = sorted(set(test_seasons) - set(features["season"].unique()))
+    if missing:
+        raise ValueError(
+            f"mean_head_gate: TEST_SEASONS requires season(s) {missing} that "
+            f"are not present in the built features -- widen "
+            f"--first-season/--last-season to cover them"
+        )
+
+
+def _git_short_sha() -> str | None:
+    """Best-effort short commit SHA for the permanent record. Never raises:
+    degrades to None if git is missing or this isn't a checkout, since the
+    report must still be written either way."""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, check=True,
+        )
+        return out.stdout.strip() or None
+    except Exception:
+        return None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Evaluate the PRE-REGISTERED mean-head gate (spec 2026-07-26 section 8).")
@@ -357,6 +420,7 @@ def main() -> None:
     seasons = list(range(args.first_season, args.last_season + 1))
     features = build_features(pull_weekly(seasons, cache_dir=args.data_dir),
                               pull_schedules(seasons, cache_dir=args.data_dir))
+    _validate_test_seasons(features, TEST_SEASONS)
 
     rows = collect_fold_predictions(features, V1_ROOTS, MH_ROOTS, TEST_SEASONS)
     coverage = refit_coverage(features, MH_ROOTS, TEST_SEASONS)
@@ -391,6 +455,17 @@ def main() -> None:
             "v1_roots": [p.as_posix() for p in V1_ROOTS],
             "test_seasons": TEST_SEASONS,
         },
+        "run_parameters": {
+            "first_season": args.first_season,
+            "last_season": args.last_season,
+            "git_commit": _git_short_sha(),
+            "primary_positions": PRIMARY_POSITIONS,
+            "min_week_rows": MIN_WEEK_ROWS,
+            "mae_guard_note": "guard 3's pooled PPR MAE (points_not_worse) pools "
+                              "across ALL positions, INCLUDING QB -- a defensible "
+                              "reading of the spec's bare 'pooled', locked in by "
+                              "design before this run, not a post-hoc choice.",
+        },
         "arm_a": result["arm_a"],
         "arm_b": result["arm_b"],
         "coverage_refit": coverage.to_dict(orient="records"),
@@ -399,10 +474,15 @@ def main() -> None:
     args.out.write_text(json.dumps(report, indent=2))
 
     print(f"VERDICT: {result['verdict']}")
-    p = result["primary"]
-    print(f"primary  delta={p['mean']:+.4f}  ci95=[{p['ci95'][0]:+.4f}, "
+    # Print the WINNING arm's numbers -- under "PROMOTE ARM B" that is arm_b,
+    # never arm_a, so the console output can't mislead about which arm the
+    # verdict actually describes.
+    winner_key = "arm_b" if result["verdict"] == "PROMOTE ARM B" else "arm_a"
+    winner = result[winner_key]
+    p = winner["primary"]
+    print(f"primary [{winner_key}]  delta={p['mean']:+.4f}  ci95=[{p['ci95'][0]:+.4f}, "
           f"{p['ci95'][1]:+.4f}]  cells={p['cells']}")
-    for name, g in result["guards"].items():
+    for name, g in winner["guards"].items():
         print(f"guard {name:<18} {'PASS' if g['passed'] else 'FAIL'}")
     print(f"\nreport -> {args.out}")
 
