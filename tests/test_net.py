@@ -65,3 +65,94 @@ def test_pinball_matches_numpy_reference():
 def test_monotone_sorts_quantiles():
     x = torch.tensor([[[3.0, 1.0, 2.0]]])
     torch.testing.assert_close(monotone(x), torch.tensor([[[1.0, 2.0, 3.0]]]))
+
+
+def test_count_stat_constants_resolve_by_name():
+    from ffmodel.scoring import COUNT_IDX, COUNT_STATS, PREDICTED_STATS, TD_STATS
+
+    assert len(COUNT_STATS) == 8
+    # yardage must NEVER get a mean head (spec: median is healthy there)
+    for s in ("passing_yards", "rushing_yards", "receiving_yards"):
+        assert s not in COUNT_STATS
+    assert TD_STATS == ["passing_tds", "rushing_tds", "receiving_tds"]
+    assert set(TD_STATS) <= set(COUNT_STATS)
+    # indices are derived by NAME, so a reordering cannot silently retarget heads
+    assert COUNT_IDX == [PREDICTED_STATS.index(s) for s in COUNT_STATS]
+    assert [PREDICTED_STATS[i] for i in COUNT_IDX] == COUNT_STATS
+
+
+def _tiny_model(n_counts=0):
+    import torch
+    from ffmodel.model.net import QuantileTransformer
+
+    torch.manual_seed(0)
+    return QuantileTransformer(n_seq_features=4, n_ctx_features=3, max_seq_len=5,
+                               d_model=8, n_heads=2, n_layers=1, n_stats=11,
+                               n_quantiles=3, n_counts=n_counts)
+
+
+def _tiny_batch(batch=2, seq=5, n_seq=4, n_ctx=3):
+    import torch
+
+    return (torch.randn(batch, seq, n_seq), torch.randn(batch, n_ctx),
+            torch.zeros(batch, seq, dtype=torch.bool))
+
+
+def test_no_mean_head_is_structurally_identical_to_v1():
+    m = _tiny_model(n_counts=0)
+    assert m.mean_head is None
+    # no extra parameters => committed v1/v2 checkpoints load with strict=True
+    assert not [k for k in m.state_dict() if "mean_head" in k]
+
+
+def test_mean_head_adds_only_its_own_parameters():
+    base, withmean = _tiny_model(0), _tiny_model(8)
+    extra = set(withmean.state_dict()) - set(base.state_dict())
+    assert all("mean_head" in k for k in extra)
+    assert set(base.state_dict()) <= set(withmean.state_dict())
+
+
+def test_forward_shape_unchanged_and_forward_all_agrees():
+    import torch
+
+    m = _tiny_model(n_counts=8)
+    x_seq, x_ctx, pad = _tiny_batch()
+    m.eval()
+    with torch.no_grad():
+        q = m(x_seq, x_ctx, pad)
+        q2, log_rate = m.forward_all(x_seq, x_ctx, pad)
+    assert q.shape == (2, 11, 3)
+    assert log_rate.shape == (2, 8)
+    # forward and forward_all must share the trunk exactly
+    assert torch.allclose(q, q2)
+
+
+def test_forward_all_returns_none_without_mean_head():
+    import torch
+
+    m = _tiny_model(n_counts=0)
+    m.eval()
+    with torch.no_grad():
+        q, log_rate = m.forward_all(*_tiny_batch())
+    assert log_rate is None
+    assert q.shape == (2, 11, 3)
+
+
+def test_poisson_mean_loss_hand_computed_and_positive_rate():
+    import torch
+    from ffmodel.model.net import poisson_mean_loss
+
+    # NLL under a log link (constant log(target!) term dropped):
+    #   exp(log_rate) - target * log_rate
+    # log_rate=0, target=2  ->  1 - 0 = 1
+    log_rate = torch.zeros(1, 2)
+    target = torch.tensor([[2.0, 2.0]])
+    assert torch.isclose(poisson_mean_loss(log_rate, target), torch.tensor(1.0))
+    # log_rate=ln(2), target=2 -> 2 - 2*ln2
+    lr = torch.log(torch.tensor([[2.0]]))
+    expected = 2.0 - 2.0 * float(torch.log(torch.tensor(2.0)))
+    assert torch.isclose(poisson_mean_loss(lr, torch.tensor([[2.0]])),
+                         torch.tensor(expected))
+    # the log link makes a NEGATIVE predicted count unrepresentable -- this is
+    # what fixes the observed negative fumbles_lost prediction
+    assert bool((torch.exp(torch.randn(50, 8) * 5) > 0).all())

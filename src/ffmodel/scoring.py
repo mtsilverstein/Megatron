@@ -12,6 +12,21 @@ PREDICTED_STATS = [
     "fumbles_lost",
 ]
 
+# Count-valued components. Their conditional MEAN is well defined even when the
+# conditional MEDIAN is 0 (a receiving TD occurs in ~18% of WR games), so these
+# are the heads that get a Poisson mean estimator. Yardage is deliberately
+# ABSENT: its median is healthy, and switching volume components to an
+# expectation measurably hurt RB in prior testing.
+COUNT_STATS = [
+    "passing_tds", "passing_interceptions", "carries", "rushing_tds",
+    "targets", "receptions", "receiving_tds", "fumbles_lost",
+]
+# Arm A replaces only these in the point estimate: high-value, zero-inflated.
+TD_STATS = ["passing_tds", "rushing_tds", "receiving_tds"]
+# Resolved BY NAME so reordering PREDICTED_STATS can never silently retarget a
+# head to the wrong statistic.
+COUNT_IDX = [PREDICTED_STATS.index(s) for s in COUNT_STATS]
+
 # Columns that affect scoring but are not predicted; present on actuals so
 # our points match official totals, absent (-> 0) on model output.
 SCORING_EXTRAS = ["two_point_conversions", "special_teams_tds"]
