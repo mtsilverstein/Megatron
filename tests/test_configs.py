@@ -35,3 +35,50 @@ def test_v2_mirrors_v1_except_run_name_and_feature_set():
         assert cfg1.pop("run_name") == "v1", name
         assert "feature_set" not in cfg1, name  # v1 configs stay pre-v2
         assert cfg2 == cfg1, name  # every remaining key equal, incl. val_season
+
+
+# --- mean-head experiment (spec 2026-07-26) -------------------------------
+# These configs are inputs to 40 GPU runs; a typo only surfaces hours later,
+# so they are asserted rather than eyeballed.
+
+FOLDS = list(range(2016, 2025))          # through2016 .. through2024
+BACKFILL = [2016, 2017, 2018]            # v1 folds that do not exist yet
+TUNED = {"batch_size", "lr", "weight_decay", "epochs", "patience", "grad_clip", "amp"}
+
+
+def _load_cfg(name):
+    return yaml.safe_load((Path("configs") / name).read_text())
+
+
+def test_mean_head_configs_exist_for_every_fold():
+    for year in FOLDS:
+        cfg = _load_cfg(f"transformer_mh_through{year}.yaml")
+        assert cfg["val_season"] == year
+        assert cfg["run_name"] == "mh"
+        assert cfg["predict_mean"] is True
+        assert cfg["mean_lambda"] == 1.0        # frozen placeholder, see below
+        assert cfg["quantiles"] == [0.1, 0.5, 0.9]
+
+
+def test_baseline_backfill_configs_exist_and_are_pure_v1():
+    for year in BACKFILL:
+        cfg = _load_cfg(f"transformer_v1_through{year}.yaml")
+        assert cfg["val_season"] == year
+        assert cfg["run_name"] == "v1"
+        # the baseline must NOT carry mean-head settings, or it is not a baseline
+        assert "predict_mean" not in cfg
+        assert "mean_lambda" not in cfg
+
+
+def test_mean_head_configs_mirror_v1_exactly_apart_from_the_mean_keys():
+    """Any other difference would confound the comparison the gate depends on."""
+    for year in FOLDS:
+        mh = _load_cfg(f"transformer_mh_through{year}.yaml")
+        v1 = _load_cfg(f"transformer_v1_through{year}.yaml")
+        assert mh["seed"] == v1["seed"]
+        assert mh["seq_len"] == v1["seq_len"]
+        assert mh["first_season"] == v1["first_season"]
+        assert mh["model"] == v1["model"]
+        assert {k: mh["train"][k] for k in TUNED} == {k: v1["train"][k] for k in TUNED}
+        extra = set(mh) - set(v1)
+        assert extra == {"predict_mean", "mean_lambda"}, extra
