@@ -16,10 +16,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr
 
 from ffmodel.eval.splits import walk_forward_splits
-from ffmodel.scoring import PPR, PREDICTED_STATS, ScoringRules, fantasy_points
+from ffmodel.eval.weekly_rankings import goodness_spearman
+from ffmodel.scoring import (
+    PPR, PREDICTED_STATS, ScoringRules, fantasy_points, fantasy_points_band,
+)
 
 V1_ROOTS = [Path("models/transformer/v1"), Path("models/transformer/v1_s43"),
             Path("models/transformer/v1_s44")]
@@ -46,8 +48,24 @@ def collect_fold_predictions(
     walk-forward loop, so the paired comparison the gate depends on cannot drift
     apart through differing row filters.
 
-    Columns: season, week, position, actual, v1, mh_a, mh_b,
-             mono_ok (bool, guard 4), plus the mh p10/p90 needed by guard 2.
+    Columns: season, week, position, actual, v1, mh_a, mh_b, mono_ok (bool,
+    guard 4), point_in_band (bool, diagnostic).
+
+    mono_ok holds BY CONSTRUCTION and is not evidence about the mean head:
+    TransformerPredictor.predict_quantiles unconditionally np.sorts the
+    quantile triple before returning it, and the mh artifact roots ship no
+    calibration.json, so mono_ok can never be False for these artifacts. The
+    spec's guard 4 requires this literal check, so it is kept exactly as
+    specified -- it just cannot fail against the mean head as currently
+    shipped, so a True here says nothing about the mean head's quality.
+
+    point_in_band is a NON-GATING diagnostic -- nothing may block on it. It
+    is True where the arm-A point line's PPR value (mh_a, scored) falls
+    inside the sign-coherent (floor, ceiling) band built from
+    fantasy_points_band(mh_q["p10"], mh_q["p90"], rules). This is the risk
+    the mean head actually introduces -- a spliced conditional-mean point
+    estimate escaping the band it should sit inside -- and nothing else here
+    checks it.
     """
     from ffmodel.model.predictor import TransformerPredictor
 
@@ -74,17 +92,21 @@ def collect_fold_predictions(
             (mh_q["p10"] <= mh_q["p50"] + 1e-6).all(axis=1)
             & (mh_q["p50"] <= mh_q["p90"] + 1e-6).all(axis=1)
         )
+        mh_a_points = fantasy_points(mh_a, rules)
+        # Diagnostic only (see docstring): does arm A's spliced point line
+        # stay inside the band it should sit inside? Not a gate criterion.
+        floor, ceil = fantasy_points_band(mh_q["p10"], mh_q["p90"], rules)
+        point_in_band = (mh_a_points >= floor) & (mh_a_points <= ceil)
         frames.append(pd.DataFrame({
             "season": season,
             "week": test["week"].to_numpy(),
             "position": test["position"].to_numpy(),
             "actual": fantasy_points(test[PREDICTED_STATS], rules).to_numpy(),
             "v1": fantasy_points(v1_q["p50"], rules).to_numpy(),
-            "mh_a": fantasy_points(mh_a, rules).to_numpy(),
+            "mh_a": mh_a_points.to_numpy(),
             "mh_b": fantasy_points(mh_b, rules).to_numpy(),
-            "mh_p10": fantasy_points(mh_q["p10"], rules).to_numpy(),
-            "mh_p90": fantasy_points(mh_q["p90"], rules).to_numpy(),
             "mono_ok": mono.to_numpy(),
+            "point_in_band": point_in_band.to_numpy(),
         }, index=test.index))
     return pd.concat(frames)
 
@@ -112,7 +134,11 @@ def weekly_spearman(rows: pd.DataFrame, pred_col: str,
         pred = cell[pred_col].to_numpy()
         if np.ptp(actual) == 0 or np.ptp(pred) == 0:
             continue
-        r = spearmanr(pred, actual).correlation
+        # goodness_spearman (weekly_rankings.py) is the one place a sign bug
+        # shipped before; both pred_col and actual here are already
+        # higher-is-better PPR points, so it is a direct drop-in for the
+        # spearmanr call it wraps -- use it instead of calling scipy directly.
+        r = goodness_spearman(pred, actual)
         if not np.isfinite(r):
             continue
         out.append({"season": int(season), "week": int(week),
@@ -129,6 +155,12 @@ def paired_bootstrap(deltas, clusters, n_boot: int = 10000,
     would understate the standard error and could turn one lucky fold into a
     significant result -- so whole FOLDS are resampled with replacement, which
     is the resampling unit the spec's "9 paired folds" power statement assumes.
+
+    The reported point estimate (`mean`) is PLAYER-WEEK-WEIGHTED, not
+    equal-fold-weighted: `deltas` is the concatenation of every fold's rows,
+    so a season with more player-weeks contributes proportionally more to
+    the mean than a smaller season, matching the spec's "paired bootstrap
+    over player-weeks" -- it is not a straight average of 9 per-fold means.
     """
     deltas = np.asarray(deltas, dtype=float)
     clusters = np.asarray(clusters)
@@ -153,4 +185,6 @@ def paired_bootstrap(deltas, clusters, n_boot: int = 10000,
         "n": int(len(deltas)),
         "n_clusters": int(len(uniq)),
         "excludes_zero": bool(lo > 0 or hi < 0),
+        "seed": int(seed),
+        "n_boot": int(n_boot),
     }
