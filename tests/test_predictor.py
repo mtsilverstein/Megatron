@@ -454,3 +454,85 @@ def test_inconsistent_artifact_feature_lists_raise(tmp_path):
     p = TransformerPredictor(art.parent, features, calibration=False)
     with pytest.raises(ValueError, match="disagree"):
         p.fit(features[features["season"] <= 2022])
+
+
+def _fake_quantiles(index):
+    import pandas as pd
+
+    from ffmodel.scoring import PREDICTED_STATS
+
+    def frame(v):
+        return pd.DataFrame({s: [float(v)] * len(index) for s in PREDICTED_STATS},
+                            index=index)
+    return {"p10": frame(1), "p50": frame(2), "p90": frame(3)}
+
+
+def test_predict_point_arm_a_replaces_only_touchdowns(monkeypatch):
+    import pandas as pd
+
+    from ffmodel.model import predictor as P
+    from ffmodel.scoring import COUNT_STATS, PREDICTED_STATS, TD_STATS
+
+    idx = pd.Index([0, 1])
+    obj = P.TransformerPredictor.__new__(P.TransformerPredictor)
+    monkeypatch.setattr(obj, "predict_quantiles", lambda t: _fake_quantiles(idx),
+                        raising=False)
+    monkeypatch.setattr(obj, "predict_mean",
+                        lambda t: pd.DataFrame({s: [9.0, 9.0] for s in COUNT_STATS},
+                                               index=idx), raising=False)
+    monkeypatch.setattr(type(obj), "has_mean", property(lambda self: True))
+    out = P.TransformerPredictor.predict_point(obj, pd.DataFrame(index=idx), arm="A")
+    assert list(out.columns) == PREDICTED_STATS
+    for s in PREDICTED_STATS:
+        expected = 9.0 if s in TD_STATS else 2.0
+        assert out[s].tolist() == [expected, expected], s
+    # yardage must never move off p50
+    assert out["receiving_yards"].tolist() == [2.0, 2.0]
+
+
+def test_predict_point_arm_b_replaces_all_count_components(monkeypatch):
+    import pandas as pd
+
+    from ffmodel.model import predictor as P
+    from ffmodel.scoring import COUNT_STATS, PREDICTED_STATS
+
+    idx = pd.Index([0, 1])
+    obj = P.TransformerPredictor.__new__(P.TransformerPredictor)
+    monkeypatch.setattr(obj, "predict_quantiles", lambda t: _fake_quantiles(idx),
+                        raising=False)
+    monkeypatch.setattr(obj, "predict_mean",
+                        lambda t: pd.DataFrame({s: [9.0, 9.0] for s in COUNT_STATS},
+                                               index=idx), raising=False)
+    monkeypatch.setattr(type(obj), "has_mean", property(lambda self: True))
+    out = P.TransformerPredictor.predict_point(obj, pd.DataFrame(index=idx), arm="B")
+    for s in COUNT_STATS:
+        assert out[s].tolist() == [9.0, 9.0], s
+    for s in ("passing_yards", "rushing_yards", "receiving_yards"):
+        assert out[s].tolist() == [2.0, 2.0], s
+
+
+def test_predict_point_without_mean_head_returns_p50(monkeypatch):
+    import pandas as pd
+
+    from ffmodel.model import predictor as P
+    from ffmodel.scoring import PREDICTED_STATS
+
+    idx = pd.Index([0])
+    obj = P.TransformerPredictor.__new__(P.TransformerPredictor)
+    monkeypatch.setattr(obj, "predict_quantiles", lambda t: _fake_quantiles(idx),
+                        raising=False)
+    monkeypatch.setattr(type(obj), "has_mean", property(lambda self: False))
+    out = P.TransformerPredictor.predict_point(obj, pd.DataFrame(index=idx), arm="A")
+    assert out[PREDICTED_STATS].iloc[0].tolist() == [2.0] * len(PREDICTED_STATS)
+
+
+def test_predict_point_rejects_unknown_arm(monkeypatch):
+    import pandas as pd
+    import pytest
+
+    from ffmodel.model import predictor as P
+
+    obj = P.TransformerPredictor.__new__(P.TransformerPredictor)
+    monkeypatch.setattr(type(obj), "has_mean", property(lambda self: True))
+    with pytest.raises(ValueError, match="arm"):
+        P.TransformerPredictor.predict_point(obj, pd.DataFrame(index=[0]), arm="C")

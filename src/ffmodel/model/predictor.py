@@ -12,7 +12,7 @@ from ffmodel.model.dataset import (
     CTX_FEATURES, SEQ_FEATURES, Scaler, apply_scaler, build_sequences,
 )
 from ffmodel.model.net import QuantileTransformer, monotone
-from ffmodel.scoring import BAND_CONSTRUCTION, PREDICTED_STATS
+from ffmodel.scoring import BAND_CONSTRUCTION, COUNT_STATS, PREDICTED_STATS, TD_STATS
 
 QUANTILE_KEYS = ("p10", "p50", "p90")
 
@@ -51,6 +51,7 @@ class _SingleRootTransformer:
                 f"`python -m ffmodel.model.train` (val_season {through})"
             )
         metrics = json.loads((art / "metrics.json").read_text())
+        self._predict_mean = bool(metrics.get("predict_mean", False))
         self._seq_len = metrics["seq_len"]
         self._quantiles = metrics["quantiles"]
         # Feature lists are resolved from the ARTIFACT, not module globals:
@@ -72,7 +73,9 @@ class _SingleRootTransformer:
             n_seq_features=metrics["n_seq_features"],
             n_ctx_features=metrics["n_ctx_features"],
             max_seq_len=self._seq_len, n_stats=len(PREDICTED_STATS),
-            n_quantiles=len(self._quantiles), **metrics["model"],
+            n_quantiles=len(self._quantiles),
+            n_counts=len(COUNT_STATS) if self._predict_mean else 0,
+            **metrics["model"],
         ).to(self.device)
         self._model.load_state_dict(
             torch.load(art / "model.pt", map_location=self.device, weights_only=True)
@@ -82,6 +85,10 @@ class _SingleRootTransformer:
             q: train.groupby("position")[PREDICTED_STATS].quantile(q)
             for q in self._quantiles
         }
+        # Rookies have no history, so they fall back to their position's
+        # empirical mean -- the mean-head analogue of the existing quantile
+        # fallback, kept in the same place so the two cannot drift apart.
+        self._pos_mean_fallback = train.groupby("position")[COUNT_STATS].mean()
 
     def predict_quantiles(self, test: pd.DataFrame) -> dict[str, pd.DataFrame]:
         data = apply_scaler(
@@ -115,6 +122,40 @@ class _SingleRootTransformer:
                 ).astype(np.float32)
             result[key] = frame
         return result
+
+    @property
+    def has_mean(self) -> bool:
+        return self._predict_mean
+
+    def predict_mean(self, test: pd.DataFrame) -> pd.DataFrame:
+        """Conditional MEAN of each count component, exp() of the head's log-rate."""
+        if not self._predict_mean:
+            raise ValueError("this artifact has no mean head (predict_mean false)")
+        data = apply_scaler(
+            build_sequences(self.features, self._seq_len, min_history=0,
+                            seq_features=self._seq_features,
+                            ctx_features=self._ctx_features),
+            self._scaler,
+        )
+        pos = pd.Index(data.meta["row_id"]).get_indexer(test.index)
+        if (pos < 0).any():
+            raise ValueError("test rows missing from the predictor's feature frame")
+        with torch.no_grad():
+            _, log_rate = self._model.forward_all(
+                torch.from_numpy(data.x_seq[pos]).to(self.device),
+                torch.from_numpy(data.x_ctx[pos]).to(self.device),
+                torch.from_numpy(data.pad_mask[pos]).to(self.device),
+            )
+            means = torch.exp(log_rate).cpu().numpy()
+        frame = pd.DataFrame(means, columns=COUNT_STATS, index=test.index)
+        rookie = test["games_prior"].to_numpy() == 0
+        if rookie.any():
+            fallback = test.loc[rookie, "position"].map(
+                lambda p: self._pos_mean_fallback.loc[p])
+            frame.loc[rookie] = pd.DataFrame(
+                list(fallback), index=test.index[rookie], columns=COUNT_STATS,
+            ).astype(np.float32)
+        return frame
 
 
 class TransformerPredictor:
@@ -232,6 +273,38 @@ class TransformerPredictor:
         if self._calibration is not None:
             result = self._apply_calibration(result, test)
         return result
+
+    @property
+    def has_mean(self) -> bool:
+        """True only when EVERY root carries a mean head -- a partial ensemble
+        would silently average different quantities."""
+        return bool(self._members) and all(m.has_mean for m in self._members)
+
+    def predict_mean(self, test: pd.DataFrame) -> pd.DataFrame:
+        if not self.has_mean:
+            raise ValueError("ensemble has no mean head on every root")
+        frames = [m.predict_mean(test) for m in self._members]
+        out = frames[0].copy()
+        for f in frames[1:]:
+            out = out + f
+        return out / len(frames)
+
+    def predict_point(self, test: pd.DataFrame, arm: str = "A") -> pd.DataFrame:
+        """The stat line used for POINT estimates (never for bands).
+
+        Arm A swaps in the conditional mean for the touchdown components only;
+        arm B for all count components. Yardage always keeps p50 -- switching
+        volume components to an expectation measurably hurt RB in prior testing.
+        """
+        if arm not in ("A", "B"):
+            raise ValueError(f"unknown arm {arm!r} (known: 'A', 'B')")
+        point = self.predict_quantiles(test)["p50"].copy()
+        if not self.has_mean:
+            return point
+        means = self.predict_mean(test)
+        for stat in (TD_STATS if arm == "A" else COUNT_STATS):
+            point[stat] = means[stat]
+        return point
 
     def _apply_calibration(self, quantiles: dict[str, pd.DataFrame],
                             test: pd.DataFrame) -> dict[str, pd.DataFrame]:
