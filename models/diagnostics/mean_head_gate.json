@@ -1,0 +1,667 @@
+{
+  "generated_at": "2026-07-27T22:07:16+00:00",
+  "experiment": "mean-head",
+  "spec": "docs/superpowers/specs/2026-07-26-mean-head-design.md",
+  "verdict": "NOT PROMOTED",
+  "pre_registered_rule": {
+    "recorded_before_results": true,
+    "primary": "weekly within-position Spearman, RB/WR/TE pooled, Arm A vs v1: pooled delta > 0 with a paired-bootstrap 95% CI excluding zero",
+    "guards": [
+      "no QB harm",
+      "p10-p90 coverage in [0.75, 0.85] for every position-season after a fresh conformal refit",
+      "pooled PPR MAE not significantly worse",
+      "p10 <= p50 <= p90 everywhere"
+    ],
+    "mde": "SE ~0.007-0.010 over 9 paired folds resolves ~+0.02 Spearman at 95%; a failure means 'no effect of ~0.02 or larger', not 'no effect'",
+    "realized_precision": {
+      "primary_ci95_half_width": 0.0009589604907138747,
+      "note": "Observed, not pre-registered: computed from this run's actual paired-bootstrap 95% CI for the primary (half_width = (ci95_hi - ci95_lo) / 2). The 'mde' field above is the spec's prior anticipation, copied verbatim and left untouched by this field; this field does not affect the verdict."
+    },
+    "bootstrap_seed": 20260727,
+    "bootstrap_unit": "fold (season) resampled with replacement, not row",
+    "pooled_mean_weighting": {
+      "primary": "cell-weighted, NOT player-week-weighted: _spearman_delta feeds paired_bootstrap one delta per (season, week, position) cell, unweighted by cell size -- weekly_spearman computes an `n` (row count) column per cell that is never used as a weight, so a 40-player cell and a 3-player cell count equally toward the pooled mean.",
+      "guard_3_points_not_worse": "player-week-weighted: _mae_delta operates directly on player-week rows (concatenate-then-mean weights folds by row count), matching the spec's 'paired bootstrap over player-weeks'."
+    }
+  },
+  "artifacts_evaluated": {
+    "mh_roots": [
+      "models/transformer/mh",
+      "models/transformer/mh_s43",
+      "models/transformer/mh_s44"
+    ],
+    "v1_roots": [
+      "models/transformer/v1",
+      "models/transformer/v1_s43",
+      "models/transformer/v1_s44"
+    ],
+    "test_seasons": [
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "feature_set": {
+      "mh": "v1",
+      "v1": "v1"
+    }
+  },
+  "run_parameters": {
+    "first_season": 2012,
+    "last_season": 2025,
+    "git_commit": "4530aa0",
+    "primary_positions": [
+      "RB",
+      "WR",
+      "TE"
+    ],
+    "min_week_rows": 3,
+    "feature_rows": 80090,
+    "mean_lambda": 0.1,
+    "mean_lambda_note": "selected causally on the through2016 fold's 2016 validation season from the pre-registered candidates {0.1, 0.3, 1.0, 3.0} (spec section 3), seed 42, then frozen for every fold/seed; sweep artifacts mh_l01/mh_l03/mh_l10/mh_l30 remain on disk. Read here from an mh artifact's metrics.json, not hardcoded.",
+    "mae_guard_note": "guard 3's pooled PPR MAE (points_not_worse) pools across ALL positions, INCLUDING QB -- a defensible reading of the spec's bare 'pooled', locked in by design before this run, not a post-hoc choice."
+  },
+  "summary": "NOT PROMOTED: the primary did not clear the pre-registered bar (primary (Arm A vs v1) pooled within-position weekly Spearman delta -0.0005, 95% CI [-0.0015, +0.0004]), and guard(s) bands_intact also failed. Arm B did not pass its own gate either. The site stays on v1.",
+  "decision": {
+    "promoted": false,
+    "site_model": "v1 (ARTIFACT_ROOT unchanged)",
+    "rationale": "NOT PROMOTED: the primary did not clear the pre-registered bar (primary (Arm A vs v1) pooled within-position weekly Spearman delta -0.0005, 95% CI [-0.0015, +0.0004]), and guard(s) bands_intact also failed. Arm B did not pass its own gate either. The site stays on v1.",
+    "kept": "mh/mh_s43/mh_s44 artifacts, the lambda-sweep artifacts (mh_l01/mh_l03/mh_l10/mh_l30), and this evaluation harness remain committed so a future design can reuse or re-examine them without rework."
+  },
+  "arm_a": {
+    "primary": {
+      "mean": -0.0005011922761098984,
+      "ci95": [
+        -0.001472915914822688,
+        0.0004450050666050613
+      ],
+      "n": 474,
+      "n_clusters": 9,
+      "excludes_zero": false,
+      "seed": 20260727,
+      "n_boot": 10000,
+      "v1_mean": 0.6303942480681355,
+      "arm_mean": 0.6298930557920256,
+      "cells": 474,
+      "passed": false
+    },
+    "guards": {
+      "no_qb_harm": {
+        "passed": true,
+        "mean": 0.005103192412616428,
+        "ci95": [
+          -0.011047106353539525,
+          0.02272634289019879
+        ],
+        "n": 158,
+        "n_clusters": 9,
+        "excludes_zero": false,
+        "seed": 20260727,
+        "n_boot": 10000,
+        "v1_mean": 0.4712188528608762,
+        "arm_mean": 0.47632204527349276,
+        "cells": 158
+      },
+      "bands_intact": {
+        "passed": false,
+        "band": [
+          0.75,
+          0.85
+        ],
+        "position_seasons_checked": 36,
+        "out_of_band": [
+          {
+            "season": 2022,
+            "position": "QB",
+            "coverage": 0.8609794628751974,
+            "in_band": false
+          }
+        ]
+      },
+      "points_not_worse": {
+        "passed": true,
+        "mean": -0.08701361609384553,
+        "ci95": [
+          -0.11191595697838261,
+          -0.05935356066821867
+        ],
+        "n": 52174,
+        "n_clusters": 9,
+        "excludes_zero": true,
+        "seed": 20260727,
+        "n_boot": 10000,
+        "v1_mae": 4.490671285569814,
+        "arm_mae": 4.403657669475968
+      },
+      "monotonicity": {
+        "passed": true,
+        "violations": 0
+      }
+    },
+    "diagnostics": {
+      "point_line_outside_band": 0,
+      "note": "guard 4 (monotonicity) holds by construction upstream -- predict_quantiles sorts the triple and the mh roots carry no calibration.json -- so it is not evidence about the mean head. point_line_outside_band is the risk the mean head actually introduces (a spliced conditional mean escaping the band, checked against THIS arm's own point line) and is reported here as a DIAGNOSTIC ONLY, not a criterion."
+    },
+    "passed": false
+  },
+  "arm_b": {
+    "primary": {
+      "mean": -0.0011455851617214652,
+      "ci95": [
+        -0.0019295875061525244,
+        -0.0003703438688065094
+      ],
+      "n": 474,
+      "n_clusters": 9,
+      "excludes_zero": true,
+      "seed": 20260727,
+      "n_boot": 10000,
+      "v1_mean": 0.6303942480681355,
+      "arm_mean": 0.6292486629064141,
+      "cells": 474,
+      "passed": false
+    },
+    "guards": {
+      "no_qb_harm": {
+        "passed": true,
+        "mean": 0.014673650206605392,
+        "ci95": [
+          0.0031621947573886363,
+          0.027990390242102745
+        ],
+        "n": 158,
+        "n_clusters": 9,
+        "excludes_zero": true,
+        "seed": 20260727,
+        "n_boot": 10000,
+        "v1_mean": 0.4712188528608762,
+        "arm_mean": 0.48589250306748155,
+        "cells": 158
+      },
+      "bands_intact": {
+        "passed": false,
+        "band": [
+          0.75,
+          0.85
+        ],
+        "position_seasons_checked": 36,
+        "out_of_band": [
+          {
+            "season": 2022,
+            "position": "QB",
+            "coverage": 0.8609794628751974,
+            "in_band": false
+          }
+        ]
+      },
+      "points_not_worse": {
+        "passed": true,
+        "mean": -0.06203959874363679,
+        "ci95": [
+          -0.09092160463470207,
+          -0.029989811507475022
+        ],
+        "n": 52174,
+        "n_clusters": 9,
+        "excludes_zero": true,
+        "seed": 20260727,
+        "n_boot": 10000,
+        "v1_mae": 4.490671285569814,
+        "arm_mae": 4.428631686826177
+      },
+      "monotonicity": {
+        "passed": true,
+        "violations": 0
+      }
+    },
+    "diagnostics": {
+      "point_line_outside_band": 0,
+      "note": "guard 4 (monotonicity) holds by construction upstream -- predict_quantiles sorts the triple and the mh roots carry no calibration.json -- so it is not evidence about the mean head. point_line_outside_band is the risk the mean head actually introduces (a spliced conditional mean escaping the band, checked against THIS arm's own point line) and is reported here as a DIAGNOSTIC ONLY, not a criterion."
+    },
+    "passed": false
+  },
+  "coverage_refit": [
+    {
+      "season": 2017,
+      "position": "QB",
+      "coverage": 0.7787162162162162,
+      "in_band": true
+    },
+    {
+      "season": 2017,
+      "position": "RB",
+      "coverage": 0.8086532602071907,
+      "in_band": true
+    },
+    {
+      "season": 2017,
+      "position": "TE",
+      "coverage": 0.7792985457656116,
+      "in_band": true
+    },
+    {
+      "season": 2017,
+      "position": "WR",
+      "coverage": 0.80393032603841,
+      "in_band": true
+    },
+    {
+      "season": 2018,
+      "position": "QB",
+      "coverage": 0.7840531561461794,
+      "in_band": true
+    },
+    {
+      "season": 2018,
+      "position": "RB",
+      "coverage": 0.7937017994858612,
+      "in_band": true
+    },
+    {
+      "season": 2018,
+      "position": "TE",
+      "coverage": 0.8001760563380281,
+      "in_band": true
+    },
+    {
+      "season": 2018,
+      "position": "WR",
+      "coverage": 0.789308176100629,
+      "in_band": true
+    },
+    {
+      "season": 2019,
+      "position": "QB",
+      "coverage": 0.797962648556876,
+      "in_band": true
+    },
+    {
+      "season": 2019,
+      "position": "RB",
+      "coverage": 0.7973145780051151,
+      "in_band": true
+    },
+    {
+      "season": 2019,
+      "position": "TE",
+      "coverage": 0.8260481712756468,
+      "in_band": true
+    },
+    {
+      "season": 2019,
+      "position": "WR",
+      "coverage": 0.7952127659574468,
+      "in_band": true
+    },
+    {
+      "season": 2020,
+      "position": "QB",
+      "coverage": 0.7781350482315113,
+      "in_band": true
+    },
+    {
+      "season": 2020,
+      "position": "RB",
+      "coverage": 0.8211382113821138,
+      "in_band": true
+    },
+    {
+      "season": 2020,
+      "position": "TE",
+      "coverage": 0.784965034965035,
+      "in_band": true
+    },
+    {
+      "season": 2020,
+      "position": "WR",
+      "coverage": 0.7943600867678958,
+      "in_band": true
+    },
+    {
+      "season": 2021,
+      "position": "QB",
+      "coverage": 0.8198473282442749,
+      "in_band": true
+    },
+    {
+      "season": 2021,
+      "position": "RB",
+      "coverage": 0.7673568818514007,
+      "in_band": true
+    },
+    {
+      "season": 2021,
+      "position": "TE",
+      "coverage": 0.8028169014084507,
+      "in_band": true
+    },
+    {
+      "season": 2021,
+      "position": "WR",
+      "coverage": 0.801449859041482,
+      "in_band": true
+    },
+    {
+      "season": 2022,
+      "position": "QB",
+      "coverage": 0.8609794628751974,
+      "in_band": false
+    },
+    {
+      "season": 2022,
+      "position": "RB",
+      "coverage": 0.7995269071555293,
+      "in_band": true
+    },
+    {
+      "season": 2022,
+      "position": "TE",
+      "coverage": 0.8003314001657,
+      "in_band": true
+    },
+    {
+      "season": 2022,
+      "position": "WR",
+      "coverage": 0.7880184331797235,
+      "in_band": true
+    },
+    {
+      "season": 2023,
+      "position": "QB",
+      "coverage": 0.7692307692307693,
+      "in_band": true
+    },
+    {
+      "season": 2023,
+      "position": "RB",
+      "coverage": 0.8375796178343949,
+      "in_band": true
+    },
+    {
+      "season": 2023,
+      "position": "TE",
+      "coverage": 0.8055555555555556,
+      "in_band": true
+    },
+    {
+      "season": 2023,
+      "position": "WR",
+      "coverage": 0.8288834951456311,
+      "in_band": true
+    },
+    {
+      "season": 2024,
+      "position": "QB",
+      "coverage": 0.7936746987951807,
+      "in_band": true
+    },
+    {
+      "season": 2024,
+      "position": "RB",
+      "coverage": 0.8032378580323786,
+      "in_band": true
+    },
+    {
+      "season": 2024,
+      "position": "TE",
+      "coverage": 0.7882256745707277,
+      "in_band": true
+    },
+    {
+      "season": 2024,
+      "position": "WR",
+      "coverage": 0.7919241862381541,
+      "in_band": true
+    },
+    {
+      "season": 2025,
+      "position": "QB",
+      "coverage": 0.766566265060241,
+      "in_band": true
+    },
+    {
+      "season": 2025,
+      "position": "RB",
+      "coverage": 0.7927272727272727,
+      "in_band": true
+    },
+    {
+      "season": 2025,
+      "position": "TE",
+      "coverage": 0.8191738113795791,
+      "in_band": true
+    },
+    {
+      "season": 2025,
+      "position": "WR",
+      "coverage": 0.7926341072858286,
+      "in_band": true
+    }
+  ],
+  "coverage_refit_v1": {
+    "note": "NON-GATING. Added to the report after the mean-head guard-2 result was already known, to give a failing coverage cell a baseline -- see the mean-head 2022 QB cell in coverage_refit. It was not part of the pre-registration and does not affect the verdict, which is determined solely by the pre-registered criteria in pre_registered_rule/guards above.",
+    "rows": [
+      {
+        "season": 2017,
+        "position": "QB",
+        "coverage": 0.777027027027027,
+        "in_band": true
+      },
+      {
+        "season": 2017,
+        "position": "RB",
+        "coverage": 0.8068251066422912,
+        "in_band": true
+      },
+      {
+        "season": 2017,
+        "position": "TE",
+        "coverage": 0.7630453378956373,
+        "in_band": true
+      },
+      {
+        "season": 2017,
+        "position": "WR",
+        "coverage": 0.8043769539973202,
+        "in_band": true
+      },
+      {
+        "season": 2018,
+        "position": "QB",
+        "coverage": 0.7740863787375415,
+        "in_band": true
+      },
+      {
+        "season": 2018,
+        "position": "RB",
+        "coverage": 0.7975578406169666,
+        "in_band": true
+      },
+      {
+        "season": 2018,
+        "position": "TE",
+        "coverage": 0.7992957746478874,
+        "in_band": true
+      },
+      {
+        "season": 2018,
+        "position": "WR",
+        "coverage": 0.7789757412398922,
+        "in_band": true
+      },
+      {
+        "season": 2019,
+        "position": "QB",
+        "coverage": 0.801358234295416,
+        "in_band": true
+      },
+      {
+        "season": 2019,
+        "position": "RB",
+        "coverage": 0.7992327365728901,
+        "in_band": true
+      },
+      {
+        "season": 2019,
+        "position": "TE",
+        "coverage": 0.8171275646743978,
+        "in_band": true
+      },
+      {
+        "season": 2019,
+        "position": "WR",
+        "coverage": 0.8000886524822695,
+        "in_band": true
+      },
+      {
+        "season": 2020,
+        "position": "QB",
+        "coverage": 0.7733118971061094,
+        "in_band": true
+      },
+      {
+        "season": 2020,
+        "position": "RB",
+        "coverage": 0.8205128205128205,
+        "in_band": true
+      },
+      {
+        "season": 2020,
+        "position": "TE",
+        "coverage": 0.7998251748251748,
+        "in_band": true
+      },
+      {
+        "season": 2020,
+        "position": "WR",
+        "coverage": 0.7947939262472885,
+        "in_band": true
+      },
+      {
+        "season": 2021,
+        "position": "QB",
+        "coverage": 0.8106870229007633,
+        "in_band": true
+      },
+      {
+        "season": 2021,
+        "position": "RB",
+        "coverage": 0.7728380024360536,
+        "in_band": true
+      },
+      {
+        "season": 2021,
+        "position": "TE",
+        "coverage": 0.7945318972659486,
+        "in_band": true
+      },
+      {
+        "season": 2021,
+        "position": "WR",
+        "coverage": 0.8006443817962142,
+        "in_band": true
+      },
+      {
+        "season": 2022,
+        "position": "QB",
+        "coverage": 0.8436018957345972,
+        "in_band": true
+      },
+      {
+        "season": 2022,
+        "position": "RB",
+        "coverage": 0.8083973979893554,
+        "in_band": true
+      },
+      {
+        "season": 2022,
+        "position": "TE",
+        "coverage": 0.8094449047224523,
+        "in_band": true
+      },
+      {
+        "season": 2022,
+        "position": "WR",
+        "coverage": 0.7947214076246334,
+        "in_band": true
+      },
+      {
+        "season": 2023,
+        "position": "QB",
+        "coverage": 0.7677224736048266,
+        "in_band": true
+      },
+      {
+        "season": 2023,
+        "position": "RB",
+        "coverage": 0.8420382165605096,
+        "in_band": true
+      },
+      {
+        "season": 2023,
+        "position": "TE",
+        "coverage": 0.8038720538720538,
+        "in_band": true
+      },
+      {
+        "season": 2023,
+        "position": "WR",
+        "coverage": 0.8240291262135923,
+        "in_band": true
+      },
+      {
+        "season": 2024,
+        "position": "QB",
+        "coverage": 0.802710843373494,
+        "in_band": true
+      },
+      {
+        "season": 2024,
+        "position": "RB",
+        "coverage": 0.7926525529265255,
+        "in_band": true
+      },
+      {
+        "season": 2024,
+        "position": "TE",
+        "coverage": 0.7988552739165985,
+        "in_band": true
+      },
+      {
+        "season": 2024,
+        "position": "WR",
+        "coverage": 0.7853316852080758,
+        "in_band": true
+      },
+      {
+        "season": 2025,
+        "position": "QB",
+        "coverage": 0.7680722891566265,
+        "in_band": true
+      },
+      {
+        "season": 2025,
+        "position": "RB",
+        "coverage": 0.7963636363636364,
+        "in_band": true
+      },
+      {
+        "season": 2025,
+        "position": "TE",
+        "coverage": 0.8144972720187061,
+        "in_band": true
+      },
+      {
+        "season": 2025,
+        "position": "WR",
+        "coverage": 0.7914331465172137,
+        "in_band": true
+      }
+    ]
+  }
+}
