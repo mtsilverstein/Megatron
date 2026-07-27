@@ -173,11 +173,17 @@ def paired_bootstrap(deltas, clusters, n_boot: int = 10000,
     significant result -- so whole FOLDS are resampled with replacement, which
     is the resampling unit the spec's "9 paired folds" power statement assumes.
 
-    The reported point estimate (`mean`) is PLAYER-WEEK-WEIGHTED, not
+    The reported point estimate (`mean`) is weighted by whichever unit
+    `deltas` was given in, concatenate-then-mean rather than
     equal-fold-weighted: `deltas` is the concatenation of every fold's rows,
-    so a season with more player-weeks contributes proportionally more to
-    the mean than a smaller season, matching the spec's "paired bootstrap
-    over player-weeks" -- it is not a straight average of 9 per-fold means.
+    so a fold contributing more rows pulls the mean proportionally more than
+    a fold contributing fewer -- it is not a straight average of 9 per-fold
+    means. Callers pass different row units: `_mae_delta` passes one row per
+    player-week (PLAYER-WEEK-WEIGHTED, matching the spec's "paired bootstrap
+    over player-weeks" verbatim), while `_spearman_delta` passes one row per
+    (season, week, position) CELL, unweighted by how many players are in it
+    (CELL-WEIGHTED) -- see `pooled_mean_weighting` in the emitted report for
+    the reader-facing statement of this split.
     """
     deltas = np.asarray(deltas, dtype=float)
     clusters = np.asarray(clusters)
@@ -376,6 +382,113 @@ def evaluate_gate(rows: pd.DataFrame, coverage: pd.DataFrame) -> dict:
             "arm_a": a, "arm_b": b}
 
 
+def realized_precision(primary_stats: dict) -> dict:
+    """OBSERVED (not pre-registered) precision of the primary's paired
+    bootstrap, reported as a sibling of the pre-registered `mde` string --
+    never edited into `mde` itself, since `mde` is the spec's prior estimate
+    copied verbatim and is the pre-registration.
+
+    Both arms share the same trunk and Arm A only swaps 3 TD components, so
+    the realized CI can come out far tighter than the `mde` string's prior
+    (SE ~0.007-0.010) anticipated. Left unreported, a reader would wrongly
+    conclude the design could only ever rule out effects as large as that
+    prior MDE, when the actual run may resolve much smaller ones.
+
+    Pure function of the primary's own `ci95`, so this needs no bootstrap
+    re-run and cannot disagree with the CI printed beside it.
+    """
+    lo, hi = primary_stats["ci95"]
+    return {
+        "primary_ci95_half_width": float((hi - lo) / 2.0),
+        "note": "Observed, not pre-registered: computed from this run's "
+                "actual paired-bootstrap 95% CI for the primary "
+                "(half_width = (ci95_hi - ci95_lo) / 2). The 'mde' field "
+                "above is the spec's prior anticipation, copied verbatim "
+                "and left untouched by this field; this field does not "
+                "affect the verdict.",
+    }
+
+
+def _failed_guard_names(arm: dict) -> list[str]:
+    return [name for name, g in arm["guards"].items() if not g["passed"]]
+
+
+def build_summary(result: dict) -> str:
+    """Honest one-paragraph narrative of the ACTUAL computed result, derived
+    purely from `result` (verdict, primary mean/CI, which guards failed) so it
+    is testable against hand-built `evaluate_gate` outputs and cannot drift
+    from the numbers reported beside it -- there is no second, hand-typed copy
+    of the verdict logic for a human to accidentally leave stale.
+    """
+    primary = result["primary"]  # arm A's primary; evaluate_gate always sets this
+    mean, (lo, hi) = primary["mean"], primary["ci95"]
+    primary_line = (f"primary (Arm A vs v1) pooled within-position weekly "
+                    f"Spearman delta {mean:+.4f}, 95% CI [{lo:+.4f}, {hi:+.4f}]")
+
+    verdict = result["verdict"]
+    if verdict != "NOT PROMOTED":
+        winner_key = "arm_b" if verdict == "PROMOTE ARM B" else "arm_a"
+        winner = result[winner_key]
+        wp = winner["primary"]
+        b_note = ""
+        if winner_key == "arm_b":
+            b_note = (f" Arm B's own primary delta was {wp['mean']:+.4f} "
+                      f"(95% CI [{wp['ci95'][0]:+.4f}, {wp['ci95'][1]:+.4f}]), "
+                      f"which strictly beat Arm A's and made it the promoted arm.")
+        return (f"{verdict}: {primary_line}; every guard held for the "
+                f"promoted arm.{b_note}")
+
+    failed_a = _failed_guard_names(result["arm_a"])
+    if not primary["passed"]:
+        reason = f"the primary did not clear the pre-registered bar ({primary_line})"
+    elif failed_a:
+        reason = (f"{primary_line} cleared the pre-registered bar, but "
+                  f"guard(s) {', '.join(failed_a)} failed")
+    else:  # defensive; unreachable via evaluate_gate (a["passed"] would be True)
+        reason = f"{primary_line} cleared the bar and all Arm A guards held"
+
+    if result["arm_b"]["passed"]:
+        b_note = ("Arm B passed its own gate but did not strictly beat Arm A "
+                  "on the primary, so the spec's tie rule leaves Arm A's "
+                  "result controlling.")
+    else:
+        b_note = "Arm B did not pass its own gate either."
+    return f"NOT PROMOTED: {reason}. {b_note} The site stays on v1."
+
+
+def build_decision(result: dict) -> dict:
+    """`promoted`/`site_model`/`rationale`/`kept`, matching the rigor of
+    `feature_pack_v2_gate.json`. `rationale` reuses `build_summary` so the two
+    can never say different things about the same run.
+    """
+    summary = build_summary(result)
+    if result["verdict"] == "NOT PROMOTED":
+        return {
+            "promoted": False,
+            "site_model": "v1 (ARTIFACT_ROOT unchanged)",
+            "rationale": summary,
+            "kept": "mh/mh_s43/mh_s44 artifacts, the lambda-sweep artifacts "
+                    "(mh_l01/mh_l03/mh_l10/mh_l30), and this evaluation "
+                    "harness remain committed so a future design can reuse "
+                    "or re-examine them without rework.",
+        }
+    arm_label = "B" if result["verdict"] == "PROMOTE ARM B" else "A"
+    return {
+        "promoted": True,
+        "site_model": (
+            f"mh (arm {arm_label}) passed the gate but is NOT auto-deployed "
+            f"by this script -- spec section 4 requires wiring "
+            f"predict_point(arm) into eval/harness.py and the site builders "
+            f"before ARTIFACT_ROOT can move, which is out of scope for this "
+            f"gate evaluation. ARTIFACT_ROOT stays on v1 until that wiring "
+            f"lands and is verified."
+        ),
+        "rationale": summary,
+        "kept": "v1 artifacts remain committed and live until the "
+                "predict_point wiring lands and is verified.",
+    }
+
+
 def _validate_test_seasons(features: pd.DataFrame, test_seasons: list[int]) -> None:
     """Fails fast and legibly if a caller's --first-season/--last-season
     narrows the built features below what TEST_SEASONS requires, instead of
@@ -388,6 +501,13 @@ def _validate_test_seasons(features: pd.DataFrame, test_seasons: list[int]) -> N
             f"are not present in the built features -- widen "
             f"--first-season/--last-season to cover them"
         )
+
+
+def _read_metrics(root: Path, fold: str = "through2016") -> dict:
+    """Reads one fold's committed metrics.json so report fields like
+    feature_set/mean_lambda come from the artifact on disk rather than being
+    retyped by hand (and silently drifting from what actually trained)."""
+    return json.loads((root / fold / "metrics.json").read_text())
 
 
 def _git_short_sha() -> str | None:
@@ -426,6 +546,18 @@ def main() -> None:
     coverage = refit_coverage(features, MH_ROOTS, TEST_SEASONS)
     result = evaluate_gate(rows, coverage)
 
+    # NON-GATING: v1's coverage under the identical refit, added so a bare
+    # out-of-band mh cell isn't read in isolation. Computed AFTER guard 2's
+    # result was already known (see the note embedded below) -- it must never
+    # reach evaluate_gate and must never change `passed` for either arm.
+    coverage_v1 = refit_coverage(features, V1_ROOTS, TEST_SEASONS)
+
+    # Read from committed artifacts rather than hardcoding, so these fields
+    # cannot drift from what actually trained.
+    mh_metrics = _read_metrics(MH_ROOTS[0])
+    v1_metrics = _read_metrics(V1_ROOTS[0])
+    feature_rows = int(len(features))
+
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "experiment": "mean-head",
@@ -443,17 +575,30 @@ def main() -> None:
             "mde": "SE ~0.007-0.010 over 9 paired folds resolves ~+0.02 Spearman "
                    "at 95%; a failure means 'no effect of ~0.02 or larger', not "
                    "'no effect'",
+            "realized_precision": realized_precision(result["primary"]),
             "bootstrap_seed": BOOTSTRAP_SEED,
             "bootstrap_unit": "fold (season) resampled with replacement, not row",
-            "pooled_mean_weighting": "player-week-weighted (concatenate-then-mean "
-                                     "weights folds by row count), matching the "
-                                     "spec's 'paired bootstrap over player-weeks' "
-                                     "and the reported point estimate",
+            "pooled_mean_weighting": {
+                "primary": "cell-weighted, NOT player-week-weighted: "
+                           "_spearman_delta feeds paired_bootstrap one delta "
+                           "per (season, week, position) cell, unweighted by "
+                           "cell size -- weekly_spearman computes an `n` "
+                           "(row count) column per cell that is never used "
+                           "as a weight, so a 40-player cell and a 3-player "
+                           "cell count equally toward the pooled mean.",
+                "guard_3_points_not_worse": "player-week-weighted: "
+                           "_mae_delta operates directly on player-week "
+                           "rows (concatenate-then-mean weights folds by "
+                           "row count), matching the spec's 'paired "
+                           "bootstrap over player-weeks'.",
+            },
         },
         "artifacts_evaluated": {
             "mh_roots": [p.as_posix() for p in MH_ROOTS],
             "v1_roots": [p.as_posix() for p in V1_ROOTS],
             "test_seasons": TEST_SEASONS,
+            "feature_set": {"mh": mh_metrics["feature_set"],
+                            "v1": v1_metrics["feature_set"]},
         },
         "run_parameters": {
             "first_season": args.first_season,
@@ -461,14 +606,36 @@ def main() -> None:
             "git_commit": _git_short_sha(),
             "primary_positions": PRIMARY_POSITIONS,
             "min_week_rows": MIN_WEEK_ROWS,
+            "feature_rows": feature_rows,
+            "mean_lambda": mh_metrics["mean_lambda"],
+            "mean_lambda_note": "selected causally on the through2016 fold's "
+                                "2016 validation season from the "
+                                "pre-registered candidates {0.1, 0.3, 1.0, "
+                                "3.0} (spec section 3), seed 42, then frozen "
+                                "for every fold/seed; sweep artifacts "
+                                "mh_l01/mh_l03/mh_l10/mh_l30 remain on disk. "
+                                "Read here from an mh artifact's "
+                                "metrics.json, not hardcoded.",
             "mae_guard_note": "guard 3's pooled PPR MAE (points_not_worse) pools "
                               "across ALL positions, INCLUDING QB -- a defensible "
                               "reading of the spec's bare 'pooled', locked in by "
                               "design before this run, not a post-hoc choice.",
         },
+        "summary": build_summary(result),
+        "decision": build_decision(result),
         "arm_a": result["arm_a"],
         "arm_b": result["arm_b"],
         "coverage_refit": coverage.to_dict(orient="records"),
+        "coverage_refit_v1": {
+            "note": "NON-GATING. Added to the report after the mean-head "
+                    "guard-2 result was already known, to give a failing "
+                    "coverage cell a baseline -- see the mean-head 2022 QB "
+                    "cell in coverage_refit. It was not part of the "
+                    "pre-registration and does not affect the verdict, "
+                    "which is determined solely by the pre-registered "
+                    "criteria in pre_registered_rule/guards above.",
+            "rows": coverage_v1.to_dict(orient="records"),
+        },
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2))

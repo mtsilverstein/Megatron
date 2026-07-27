@@ -6,8 +6,10 @@ import pandas as pd
 import pytest
 
 from ffmodel.eval.mean_head_gate import (
-    BOOTSTRAP_SEED, _mae_ok, _primary_passed, _qb_ok, _validate_test_seasons,
-    collect_fold_predictions, paired_bootstrap, refit_coverage, weekly_spearman,
+    BOOTSTRAP_SEED, _failed_guard_names, _mae_ok, _primary_passed, _qb_ok,
+    _validate_test_seasons, build_decision, build_summary,
+    collect_fold_predictions, paired_bootstrap, realized_precision,
+    refit_coverage, weekly_spearman,
 )
 from ffmodel.eval.splits import walk_forward_splits
 from ffmodel.scoring import PREDICTED_STATS
@@ -538,3 +540,126 @@ def test_validate_test_seasons_raises_a_clear_error_naming_missing_seasons():
 def test_validate_test_seasons_passes_when_every_season_is_present():
     features = pd.DataFrame({"season": [2017, 2018, 2019]})
     _validate_test_seasons(features, [2017, 2018, 2019])  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# realized_precision / build_summary / build_decision: the review-mandated
+# additive reporting fields. All three are PURE functions of an
+# `evaluate_gate` result (or a hand-built stats dict), so they are tested
+# directly against hand-built inputs and against real `evaluate_gate` output
+# from `_synthetic_rows` -- never against a real training run.
+# ---------------------------------------------------------------------------
+
+def test_realized_precision_reports_half_width_and_never_touches_mde():
+    stats = {"mean": 0.01, "ci95": [-0.01, 0.03]}
+    out = realized_precision(stats)
+    assert out["primary_ci95_half_width"] == pytest.approx(0.02)
+    assert "not pre-registered" in out["note"]
+    assert "mde" in out["note"]
+
+
+def test_realized_precision_is_a_pure_function_of_ci95():
+    """Same ci95, different mean/extra keys -- the half-width must depend
+    only on ci95, so a caller can trust it against any stats dict carrying
+    that key."""
+    a = realized_precision({"mean": 5.0, "ci95": [0.0, 0.04], "extra": "x"})
+    b = realized_precision({"mean": -5.0, "ci95": [0.0, 0.04]})
+    assert a["primary_ci95_half_width"] == pytest.approx(b["primary_ci95_half_width"])
+    assert a["primary_ci95_half_width"] == pytest.approx(0.02)
+
+
+def test_failed_guard_names_lists_only_failing_guards():
+    arm = {"guards": {
+        "no_qb_harm": {"passed": True},
+        "bands_intact": {"passed": False},
+        "points_not_worse": {"passed": False},
+        "monotonicity": {"passed": True},
+    }}
+    assert _failed_guard_names(arm) == ["bands_intact", "points_not_worse"]
+
+
+def test_build_summary_promote_arm_a_states_the_verdict_and_primary():
+    result = evaluate_gate(_synthetic_rows(effect_a=0.03), _all_good_coverage())
+    assert result["verdict"] == "PROMOTE ARM A"
+    summary = build_summary(result)
+    assert summary.startswith("PROMOTE ARM A:")
+    assert "every guard held" in summary
+    p = result["primary"]
+    assert f"{p['mean']:+.4f}" in summary
+
+
+def test_build_summary_promote_arm_b_names_arm_b_own_delta():
+    result = evaluate_gate(_synthetic_rows(effect_a=0.02, effect_b=0.05),
+                           _all_good_coverage())
+    assert result["verdict"] == "PROMOTE ARM B"
+    summary = build_summary(result)
+    assert summary.startswith("PROMOTE ARM B:")
+    wp = result["arm_b"]["primary"]
+    assert f"{wp['mean']:+.4f}" in summary
+    assert "strictly beat Arm A" in summary
+
+
+def test_build_summary_not_promoted_when_primary_fails():
+    result = evaluate_gate(_synthetic_rows(effect_a=0.0), _all_good_coverage())
+    assert result["verdict"] == "NOT PROMOTED"
+    summary = build_summary(result)
+    assert summary.startswith("NOT PROMOTED:")
+    assert "did not clear the pre-registered bar" in summary
+    assert "site stays on v1" in summary
+
+
+def test_build_summary_not_promoted_names_the_failing_guard_when_primary_passed():
+    """The mean-head run's actual expected shape: primary clears the bar but
+    guard 2 (bands_intact) fails -- the summary must name bands_intact by
+    name rather than a generic "a guard failed", per finding 1's honesty
+    requirement."""
+    cov = _all_good_coverage()
+    cov.loc[0, ["coverage", "in_band"]] = [0.62, False]
+    result = evaluate_gate(_synthetic_rows(effect_a=0.03), cov)
+    assert result["verdict"] == "NOT PROMOTED"
+    assert result["primary"]["passed"] is True
+    summary = build_summary(result)
+    assert "cleared the pre-registered bar" in summary
+    assert "bands_intact" in summary
+
+
+def test_build_summary_notes_when_arm_b_also_fails_its_own_gate():
+    result = evaluate_gate(_synthetic_rows(effect_a=0.0), _all_good_coverage())
+    assert result["arm_b"]["passed"] is False
+    summary = build_summary(result)
+    assert "Arm B did not pass its own gate either" in summary
+
+
+def test_build_decision_not_promoted_keeps_artifact_root_on_v1():
+    result = evaluate_gate(_synthetic_rows(effect_a=0.0), _all_good_coverage())
+    decision = build_decision(result)
+    assert decision["promoted"] is False
+    assert decision["site_model"] == "v1 (ARTIFACT_ROOT unchanged)"
+    assert decision["rationale"] == build_summary(result)
+    assert "kept" in decision
+
+
+def test_build_decision_promoted_still_requires_predict_point_wiring():
+    """Spec section 4's correction: a passing gate does not by itself move
+    ARTIFACT_ROOT -- predict_point(arm) must be wired into the harness and
+    site builders first. The decision block must say so rather than implying
+    an automatic deploy."""
+    result = evaluate_gate(_synthetic_rows(effect_a=0.03), _all_good_coverage())
+    assert result["verdict"] == "PROMOTE ARM A"
+    decision = build_decision(result)
+    assert decision["promoted"] is True
+    assert "predict_point" in decision["site_model"]
+    assert "ARTIFACT_ROOT stays on v1" in decision["site_model"]
+    assert decision["rationale"] == build_summary(result)
+
+
+def test_build_decision_rationale_never_drifts_from_build_summary():
+    """decision['rationale'] must always equal build_summary(result) exactly
+    -- a hand-typed second copy could silently diverge from the numbers the
+    summary field reports."""
+    for result in (
+        evaluate_gate(_synthetic_rows(effect_a=0.0), _all_good_coverage()),
+        evaluate_gate(_synthetic_rows(effect_a=0.03), _all_good_coverage()),
+        evaluate_gate(_synthetic_rows(effect_a=0.02, effect_b=0.05), _all_good_coverage()),
+    ):
+        assert build_decision(result)["rationale"] == build_summary(result)
