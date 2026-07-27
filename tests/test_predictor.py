@@ -7,12 +7,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from ffmodel.data.features import build_features
 from ffmodel.eval.harness import run_backtest
 from ffmodel.model.calibrate import write_calibration
 from ffmodel.model.predictor import TransformerPredictor
 from ffmodel.model.train import train_from_config
-from ffmodel.scoring import BAND_CONSTRUCTION, PREDICTED_STATS
+from ffmodel.scoring import BAND_CONSTRUCTION, COUNT_STATS, PREDICTED_STATS
 
+from tests.test_features import make_schedules, make_weekly
 from tests.test_train import _cfg, _synthetic_features
 
 
@@ -536,3 +538,214 @@ def test_predict_point_rejects_unknown_arm(monkeypatch):
     monkeypatch.setattr(type(obj), "has_mean", property(lambda self: True))
     with pytest.raises(ValueError, match="arm"):
         P.TransformerPredictor.predict_point(obj, pd.DataFrame(index=[0]), arm="C")
+
+
+# ---- conditional-mean head (Poisson) — real artifacts, not mocks ----------
+#
+# The four test_predict_point_* tests above monkeypatch predict_quantiles,
+# predict_mean, and has_mean with UNIFORM fake data (9.0 in every COUNT_STATS
+# column). That's correct for what they test (predict_point's branching), but
+# it means none of them ever run the real _SingleRootTransformer.predict_mean,
+# its rookie fallback, or the real ensemble averaging in
+# TransformerPredictor.predict_mean. Because the fake data is uniform across
+# columns, a column permutation inside the real predict_mean (e.g.
+# accidentally pairing COUNT_STATS names against the wrong tensor columns)
+# would be completely invisible to those four tests. The tests below train
+# small real artifacts through train_from_config and exercise the real code.
+
+def _synthetic_features_elevated(elevated_stat: str, seasons=(2020, 2021, 2022),
+                                 n_players: int = 8, level: float = 10.0):
+    """Synthetic frame where every row sets `elevated_stat` (a COUNT_STATS
+    name) to `level` and leaves every OTHER predicted stat at make_weekly's
+    0.0 default. A column permutation in predict_mean would attribute this
+    signal to the wrong column, so whichever column comes back largest names
+    the bug directly."""
+    rows = []
+    for season in seasons:
+        for week in range(1, 11):
+            for p in range(n_players):
+                rows.append({
+                    "player_id": f"p{p}", "season": season, "week": week,
+                    "position": ["QB", "RB", "WR", "TE"][p % 4],
+                    elevated_stat: level,
+                })
+    sched = pd.concat([make_schedules(10, s) for s in seasons])
+    return build_features(make_weekly(rows), sched)
+
+
+def _mean_cfg(tmp_path, **overrides):
+    """_cfg (see tests/test_train.py) plus predict_mean: true and a training
+    setup tuned to make the Poisson mean head actually converge within a tiny
+    number of epochs on tiny synthetic data: higher lr, more epochs, more
+    patience than the quantile-only default. Still fast — d_model=16,
+    n_layers=1, ~150 training rows."""
+    cfg = _cfg(tmp_path, epochs=60)
+    cfg["predict_mean"] = True
+    cfg["mean_lambda"] = 5.0
+    cfg["train"] = dict(cfg["train"])
+    cfg["train"]["lr"] = 2e-2
+    cfg["train"]["patience"] = 15
+    for k, v in overrides.items():
+        cfg[k] = v
+    return cfg
+
+
+@pytest.fixture(scope="module")
+def trained_mean_head_elevated(tmp_path_factory):
+    """A predict_mean:true artifact trained so exactly ONE COUNT_STATS
+    component ("targets") is clearly elevated and every other component is
+    ~0 -- the fixture the column-alignment test needs."""
+    tmp = tmp_path_factory.mktemp("meanhead_elevated")
+    elevated = "targets"
+    features = _synthetic_features_elevated(elevated, seasons=(2020, 2021, 2022))
+    art = train_from_config(_mean_cfg(tmp), features)
+    test_features = _synthetic_features_elevated(
+        elevated, seasons=(2020, 2021, 2022, 2023))
+    return art.parent, test_features, elevated
+
+
+@pytest.fixture(scope="module")
+def trained_mean(tmp_path_factory):
+    """A predict_mean:true artifact trained on the ordinary (non-elevated)
+    synthetic frame -- used where the exact learned values don't matter, only
+    that the head/artifact genuinely exist (has_mean, rookie fallback)."""
+    tmp = tmp_path_factory.mktemp("artifact_mean")
+    features = _synthetic_features(seasons=(2020, 2021, 2022))
+    art = train_from_config(_mean_cfg(tmp), features)
+    test_features = _synthetic_features(seasons=(2020, 2021, 2022, 2023))
+    return art.parent, test_features
+
+
+@pytest.fixture(scope="module")
+def trained_two_seeds_mean(tmp_path_factory):
+    """Two predict_mean:true artifacts, identical config but different seeds
+    (genuinely different weights/predictions) -- for the ensemble-averaging
+    test, mirroring `trained_two_seeds` above."""
+    tmp = tmp_path_factory.mktemp("ensemble_mean")
+    features = _synthetic_features(seasons=(2020, 2021, 2022))
+    roots = []
+    for seed, sub in ((0, "a"), (1, "b")):
+        cfg = _mean_cfg(tmp / sub)
+        cfg["seed"] = seed
+        art = train_from_config(cfg, features)
+        roots.append(art.parent)
+    test_features = _synthetic_features(seasons=(2020, 2021, 2022, 2023))
+    return roots, test_features
+
+
+def test_predict_mean_column_alignment_not_permuted(trained_mean_head_elevated):
+    """The highest-value new test: if predict_mean ever zipped COUNT_STATS
+    against the wrong tensor columns, the signal trained into "targets"
+    would come back under some OTHER column's label instead of its own."""
+    root, features, elevated = trained_mean_head_elevated
+    p = TransformerPredictor(root, features)
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+    p.fit(train)
+    assert p.has_mean is True
+
+    means = p.predict_mean(test)
+    assert list(means.columns) == COUNT_STATS
+
+    col_means = means.mean(axis=0)
+    other = col_means.drop(elevated)
+    assert col_means[elevated] > 3 * other.max(), (
+        f"expected {elevated!r} to dominate every other column at least "
+        f"3x over; got column means:\n{col_means}"
+    )
+    assert col_means.idxmax() == elevated
+
+
+def test_has_mean_true_when_artifact_has_mean_head(trained_mean):
+    root, features = trained_mean
+    p = TransformerPredictor(root, features)
+    p.fit(features[features["season"] <= 2022])
+    assert p.has_mean is True
+
+
+def test_has_mean_false_and_predict_mean_raises_without_mean_head(trained):
+    root, features = trained
+    p = TransformerPredictor(root, features)
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+    p.fit(train)
+    assert p.has_mean is False
+    with pytest.raises(ValueError, match="mean head"):
+        p.predict_mean(test)
+
+
+def test_rookie_rows_use_position_mean_fallback(trained_mean):
+    """Mirrors test_rookie_rows_use_position_fallback above (the quantile
+    fallback), but for the mean head's per-position MEAN fallback."""
+    root, _ = trained_mean
+    rookie_rows = [
+        {"player_id": "rookie", "season": 2023, "week": w, "position": "WR",
+         "receiving_yards": 30.0, "receptions": 2.0}
+        for w in range(1, 11)
+    ]
+    features = _synthetic_features(seasons=(2020, 2021, 2022, 2023),
+                                   extra_rows=rookie_rows)
+    p = TransformerPredictor(root, features)
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+    p.fit(train)
+    means = p.predict_mean(test)
+
+    debut = (test["player_id"] == "rookie") & (test["week"] == 1)
+    assert test.loc[debut, "games_prior"].iloc[0] == 0  # fixture sanity
+    expected_mean = train.groupby("position")[COUNT_STATS].mean().loc["WR"]
+    got = means.loc[debut].iloc[0]
+    np.testing.assert_allclose(got.to_numpy(dtype=float),
+                               expected_mean.to_numpy(dtype=float), rtol=1e-5)
+
+    # week 2 is no longer a debut -> must NOT be the fallback row
+    wk2 = (test["player_id"] == "rookie") & (test["week"] == 2)
+    assert not np.allclose(means.loc[wk2].iloc[0].to_numpy(dtype=float),
+                           expected_mean.to_numpy(dtype=float))
+
+
+def test_multi_root_predict_mean_matches_hand_computed_mean(trained_two_seeds_mean):
+    roots, features = trained_two_seeds_mean
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+
+    ensemble = TransformerPredictor(roots, features)
+    ensemble.fit(train)
+    assert ensemble.has_mean is True
+    means = ensemble.predict_mean(test)
+
+    singles = []
+    for root in roots:
+        sp = TransformerPredictor(root, features)
+        sp.fit(train)
+        singles.append(sp.predict_mean(test))
+
+    # sanity: the two seeds must actually differ, or this test proves nothing
+    assert not np.allclose(singles[0].to_numpy(), singles[1].to_numpy())
+
+    expected = (singles[0].to_numpy() + singles[1].to_numpy()) / 2
+    expected_frame = pd.DataFrame(expected, columns=singles[0].columns,
+                                  index=singles[0].index)
+    pd.testing.assert_frame_equal(means, expected_frame, check_exact=False,
+                                  atol=1e-6, rtol=1e-5)
+
+
+def test_mixed_ensemble_has_mean_false_and_predict_point_falls_back(trained, trained_mean):
+    """One root carries a mean head, one doesn't -> the ensemble must treat
+    itself as having NO mean head at all (a partial ensemble would silently
+    average different quantities across roots), predict_mean must raise, and
+    predict_point must fall back to the plain p50 frame."""
+    root_no_mean, features = trained
+    root_mean, _ = trained_mean
+    p = TransformerPredictor([root_no_mean, root_mean], features)
+    train = features[features["season"] <= 2022]
+    test = features[features["season"] == 2023]
+    p.fit(train)
+
+    assert p.has_mean is False
+    with pytest.raises(ValueError, match="mean head"):
+        p.predict_mean(test)
+
+    point = p.predict_point(test)
+    qs = p.predict_quantiles(test)
+    pd.testing.assert_frame_equal(point, qs["p50"])
