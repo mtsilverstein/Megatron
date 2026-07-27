@@ -1,0 +1,60 @@
+{
+  "val_season": 2022,
+  "best_epoch": 22,
+  "last_epoch": 30,
+  "val_pinball": 0.9453728837897871,
+  "val_mean_nll": -0.36380020611616193,
+  "val_total": 0.9089928618424351,
+  "predict_mean": true,
+  "mean_lambda": 0.1,
+  "quantiles": [
+    0.1,
+    0.5,
+    0.9
+  ],
+  "seq_len": 16,
+  "n_seq_features": 18,
+  "n_ctx_features": 10,
+  "model": {
+    "d_model": 96,
+    "n_heads": 4,
+    "n_layers": 3,
+    "dropout": 0.1
+  },
+  "feature_set": "v1",
+  "seq_features": [
+    "passing_yards",
+    "passing_tds",
+    "passing_interceptions",
+    "carries",
+    "rushing_yards",
+    "rushing_tds",
+    "targets",
+    "receptions",
+    "receiving_yards",
+    "receiving_tds",
+    "fumbles_lost",
+    "target_share",
+    "carry_share",
+    "ppr_points",
+    "snap_pct",
+    "is_home",
+    "rest_days",
+    "week"
+  ],
+  "ctx_features": [
+    "is_home",
+    "rest_days",
+    "week",
+    "games_prior",
+    "opp_allowed_last4",
+    "opp_allowed_season",
+    "pos_QB",
+    "pos_RB",
+    "pos_WR",
+    "pos_TE"
+  ],
+  "loss_weighting": "none",
+  "head_weights": null,
+  "complete": true
+}
