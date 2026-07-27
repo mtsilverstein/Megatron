@@ -199,6 +199,21 @@ def test_run_backtest_point_arm_uses_predict_point_and_reuses_quantiles():
     # columns are pinball_p10/pinball_p90/coverage_p10_p90, not raw p10/p90)
     assert {"pinball_p10", "pinball_p90", "coverage_p10_p90"} <= set(results.columns)
 
+    # Prove the arm moved the point estimate but left the band alone: compare
+    # against a fresh predictor run with point_arm=None (p50 path).
+    baseline_results = run_backtest(features_fixture, [_PointArmPredictor(features_fixture)],
+                                    test_seasons=[2023], point_arm=None)
+    arm_row = results[results["position"] == "OVERALL"].iloc[0]
+    base_row = baseline_results[baseline_results["position"] == "OVERALL"].iloc[0]
+    for col in ("pinball_p10", "pinball_p90", "coverage_p10_p90"):
+        assert arm_row[col] == pytest.approx(base_row[col]), (
+            f"{col} should be unaffected by point_arm (bands are arm-independent)"
+        )
+    for col in ("mae", "rmse"):
+        assert arm_row[col] != pytest.approx(base_row[col]), (
+            f"{col} should differ under point_arm (predict_point returns p50 * 2.0)"
+        )
+
 
 def test_run_backtest_point_arm_ignored_for_predictors_without_predict_point():
     """Baselines have no mean head; they must still score through the normal
@@ -207,6 +222,40 @@ def test_run_backtest_point_arm_ignored_for_predictors_without_predict_point():
     results = run_backtest(features_fixture, [NaiveLast4()], test_seasons=[2023],
                            point_arm="A")
     assert not results.empty
+
+
+class _QuantileOnlyPredictor:
+    """Has predict_quantiles but deliberately NO predict_point, unlike
+    _PointArmPredictor. Exercises the hasattr(predictor, "predict_point")
+    guard itself (not just the point_arm is not None check), which
+    NaiveLast4-based tests can never reach since NaiveLast4 has neither
+    method."""
+    name = "quantile_only"
+
+    def fit(self, train):
+        pass
+
+    def predict(self, test):
+        return self.predict_quantiles(test)["p50"]
+
+    def predict_quantiles(self, test):
+        base = test[PREDICTED_STATS].astype(float)
+        return {"p10": base * 0.5, "p50": base, "p90": base * 1.5}
+
+
+def test_run_backtest_point_arm_falls_back_to_p50_without_predict_point():
+    """A predictor with predict_quantiles but no predict_point must still
+    score successfully when point_arm is set, falling back to the p50 path
+    exactly as when point_arm is None. This is the scenario the
+    NaiveLast4-based test above cannot reach, since NaiveLast4 has neither
+    predict_quantiles nor predict_point and never touches the
+    hasattr(predictor, "predict_point") guard."""
+    features_fixture = _toy_features()
+    with_arm = run_backtest(features_fixture, [_QuantileOnlyPredictor()],
+                            test_seasons=[2023], point_arm="A")
+    without_arm = run_backtest(features_fixture, [_QuantileOnlyPredictor()],
+                               test_seasons=[2023], point_arm=None)
+    pd.testing.assert_frame_equal(with_arm, without_arm)
 
 
 def test_run_backtest_rejects_unknown_point_arm():
