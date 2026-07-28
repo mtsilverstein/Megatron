@@ -138,9 +138,9 @@ LEAGUE_DEDICATED = {"QB": 12, "RB": 24, "WR": 24, "TE": 12}
 LEAGUE_FLEX_SLOTS = 24
 
 
-def _load_consensus(season, schedules, data_dir):
+def _load_consensus(season, schedules, data_dir, draft_picks=None):
     from ffmodel.data.rankings import consensus_for_season
-    return consensus_for_season(season, schedules, data_dir)
+    return consensus_for_season(season, schedules, data_dir, draft_picks=draft_picks)
 
 
 def _load_adp(season, data_dir):
@@ -197,7 +197,7 @@ def _attach_late_slots(payload, season, data_dir):
     return payload
 
 
-def _draft_consensus(season, schedules, data_dir):
+def _draft_consensus(season, schedules, data_dir, *, draft_picks=None):
     """ECR is the required spine (raise -> abort the run, fail-safe); ADP is a
     best-effort overlay (failure -> None/None, board still builds). Replacement
     is derived from the ECR pool so the flex split is not a guess.
@@ -207,7 +207,10 @@ def _draft_consensus(season, schedules, data_dir):
     say honestly which one it used -- None whenever `adp` itself is None."""
     from ffmodel.site.board_rank import flex_replacement_ranks
 
-    ecr_df, _stats = _load_consensus(season, schedules, data_dir)
+    if draft_picks is None:
+        ecr_df, _stats = _load_consensus(season, schedules, data_dir)
+    else:
+        ecr_df, _stats = _load_consensus(season, schedules, data_dir, draft_picks)
     ecr = dict(zip(ecr_df["player_id"], ecr_df["ecr"]))
     pool = ecr_df.rename(columns={"pos": "position"})[["position", "ecr"]]
     replacement = flex_replacement_ranks(pool, LEAGUE_DEDICATED, LEAGUE_FLEX_SLOTS)
@@ -277,7 +280,8 @@ def main() -> None:
         draft_picks = pull_draft_picks(list(range(2012, args.season + 1)),
                                        cache_dir=args.data_dir)
 
-        ecr, adp, replacement, adp_source = _draft_consensus(args.season, schedules, args.data_dir)
+        ecr, adp, replacement, adp_source = _draft_consensus(
+            args.season, schedules, args.data_dir, draft_picks=draft_picks)
 
     latest_season = int(weekly["season"].max())
     latest_week = int(weekly[weekly["season"] == latest_season]["week"].max())

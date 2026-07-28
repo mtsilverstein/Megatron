@@ -205,6 +205,25 @@ def test_attach_gsis_ignores_crosswalk_rows_missing_gsis():
     assert stats["unmatched"] == 1
 
 
+def test_backfill_draft_gsis_restores_only_blank_ids_by_exact_pfr_id():
+    """The rookie identity repair must not overwrite a live player-id row
+    or rely on a fuzzy player-name match."""
+    from ffmodel.data.rankings import _backfill_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "Rookie00", "gsis_id": None},
+        {"pfr_id": "Veteran00", "gsis_id": "00-0001"},
+    ])
+    picks = pd.DataFrame([
+        {"pfr_player_id": "Rookie00", "gsis_id": "ROO123456"},
+        {"pfr_player_id": "Veteran00", "gsis_id": "WRONG0000"},
+    ])
+
+    out, restored = _backfill_draft_gsis(crosswalk, picks)
+    assert restored == 1
+    assert list(out["gsis_id"]) == ["ROO123456", "00-0001"]
+
+
 def test_merge_name_fallback_survives_case_mismatch_between_feeds():
     """Regression (dead-code class): ff_rankings' `mergename` is Title-Case
     since 2022 while ff_playerids' `merge_name` is lowercase, so a raw

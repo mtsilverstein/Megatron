@@ -188,7 +188,7 @@ def test_normalize_draft_picks_column_whitelist_excludes_career_outcomes():
     from ffmodel.data.pull import normalize_draft_picks
 
     out = normalize_draft_picks(_raw_draft([{}]))
-    assert list(out.columns) == ["season", "round", "pick", "team", "gsis_id",
+    assert list(out.columns) == ["season", "round", "pick", "team", "gsis_id", "pfr_player_id",
                                  "player_name", "position", "age", "college"]
 
 
@@ -232,7 +232,7 @@ def test_pull_draft_picks_uses_cache(tmp_path):
     # Normalization must have run on cache hit: team code mapped, columns whitelisted.
     assert len(out) == 1
     assert out["team"].iloc[0] == "KC"
-    assert list(out.columns) == ["season", "round", "pick", "team", "gsis_id",
+    assert list(out.columns) == ["season", "round", "pick", "team", "gsis_id", "pfr_player_id",
                                  "player_name", "position", "age", "college"]
 
 

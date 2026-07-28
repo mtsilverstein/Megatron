@@ -265,14 +265,17 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     if pull_draft_picks is None:
         draft_picks_frame = pd.DataFrame([
             {"season": 2012, "round": 1, "pick": 1, "team": "AAA",
-             "gsis_id": "00-0000001", "player_name": "A B", "position": "QB",
+             "gsis_id": "00-0000001", "pfr_player_id": "B0000001",
+             "player_name": "A B", "position": "QB",
              "age": 21.0, "college": "State"}])
         pull_draft_picks = lambda *a, **k: draft_picks_frame
     monkeypatch.setattr(pull_mod, "pull_draft_picks", pull_draft_picks)
 
     ecr_df = pd.DataFrame({"player_id": ["00-0000001"], "pos": ["QB"], "ecr": [1.0]})
-    monkeypatch.setattr(gen_mod, "_load_consensus",
-                        lambda s, sched, d: (ecr_df, {"match_rate": 1.0}))
+    def fake_consensus(s, sched, d, picks=None):
+        capture["consensus_draft_picks"] = picks
+        return ecr_df, {"match_rate": 1.0}
+    monkeypatch.setattr(gen_mod, "_load_consensus", fake_consensus)
     monkeypatch.setattr(gen_mod, "_load_adp",
                         lambda s, d: (pd.DataFrame({"player_id": ["00-0000001"], "adp": [1.0]}),
                                      {"source": "sleeper_snapshot",
@@ -312,6 +315,7 @@ def test_draft_run_threads_sleeper_dump_into_board(monkeypatch, tmp_path):
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
     assert capture["sleeper_players"] is dump
     assert capture["draft_picks"] is not None
+    assert capture["consensus_draft_picks"] is capture["draft_picks"]
     # the three consensus kwargs are actually forwarded into the board build
     assert capture["ecr"] == {"00-0000001": 1.0}
     assert capture["adp"] == {"00-0000001": 1.0}

@@ -168,6 +168,45 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
     return deduped, stats
 
 
+def _backfill_draft_gsis(crosswalk: pd.DataFrame,
+                         draft_picks: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Restore blank player-id rows from the draft-picks source.
+
+    nflverse's player-id feed can temporarily omit ``gsis_id`` for the
+    current rookie class even when its draft-picks feed has already assigned
+    the identifier used throughout this project. Join on PFR's stable player
+    ID, never on a fuzzy name, and only fill blanks -- a non-null player-id
+    record remains authoritative.
+    """
+    required_crosswalk = {"pfr_id", "gsis_id"}
+    required_picks = {"pfr_player_id", "gsis_id"}
+    missing_crosswalk = required_crosswalk - set(crosswalk.columns)
+    missing_picks = required_picks - set(draft_picks.columns)
+    if missing_crosswalk or missing_picks:
+        raise ValueError(
+            "cannot backfill draft gsis ids; missing crosswalk columns "
+            f"{sorted(missing_crosswalk)} or draft-pick columns "
+            f"{sorted(missing_picks)}"
+        )
+
+    picks = draft_picks.dropna(subset=["pfr_player_id", "gsis_id"])[
+        ["pfr_player_id", "gsis_id"]
+    ].copy()
+    conflicts = picks.groupby("pfr_player_id")["gsis_id"].nunique()
+    conflicts = conflicts[conflicts > 1]
+    if not conflicts.empty:
+        raise ValueError("draft-pick crosswalk has conflicting gsis ids for "
+                         f"PFR ids {sorted(conflicts.index.tolist())}")
+    by_pfr = picks.drop_duplicates("pfr_player_id").set_index("pfr_player_id")["gsis_id"]
+
+    out = crosswalk.copy()
+    blank = out["gsis_id"].isna()
+    restored = out.loc[blank, "pfr_id"].map(by_pfr)
+    filled = int(restored.notna().sum())
+    out.loc[blank, "gsis_id"] = restored.where(restored.notna(), out.loc[blank, "gsis_id"])
+    return out, filled
+
+
 def pull_rankings(cache_dir: Path | None = None) -> pd.DataFrame:
     """Historical FantasyPros consensus, normalized on every read path.
 
@@ -194,13 +233,19 @@ def pull_player_ids(cache_dir: Path | None = None) -> pd.DataFrame:
 
 
 def consensus_for_season(season: int, schedules: pd.DataFrame,
-                         cache_dir: Path | None = None
+                         cache_dir: Path | None = None, *,
+                         draft_picks: pd.DataFrame | None = None
                          ) -> tuple[pd.DataFrame, dict]:
     """Leak-free preseason consensus for board season `season`, on our ids."""
+    if draft_picks is None:
+        from ffmodel.data.pull import pull_draft_picks
+        draft_picks = pull_draft_picks([season], cache_dir)
     rankings = pull_rankings(cache_dir)
     kickoff = season_kickoff(schedules, season)
     snapshot = preseason_snapshot(rankings, kickoff)
-    matched, stats = attach_gsis(snapshot, pull_player_ids(cache_dir))
+    crosswalk, restored = _backfill_draft_gsis(pull_player_ids(cache_dir), draft_picks)
+    matched, stats = attach_gsis(snapshot, crosswalk)
+    stats["gsis_backfilled_from_draft_picks"] = restored
     stats["snapshot_date"] = str(snapshot["scrape_date"].iloc[0].date())
     stats["kickoff"] = str(kickoff.date())
     stats["source_page"] = str(snapshot["fp_page"].iloc[0])

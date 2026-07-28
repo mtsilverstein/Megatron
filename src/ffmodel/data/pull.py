@@ -200,7 +200,7 @@ FRANCHISE_CODES = {
 # Draft-day-known columns ONLY. nflverse's draft_picks also carries career
 # OUTCOMES (games, w_av, to, career stats, allpro, ...) which encode the
 # future -- structurally excluded here so no downstream consumer can leak.
-DRAFT_COLUMNS = ["season", "round", "pick", "team", "gsis_id",
+DRAFT_COLUMNS = ["season", "round", "pick", "team", "gsis_id", "pfr_player_id",
                  "player_name", "position", "age", "college"]
 
 
