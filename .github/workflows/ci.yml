@@ -11,3 +11,18 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -e ".[dev]"
       - run: pytest -W error
+
+  # The draft-night JS (VONA/steal math, Sleeper draft sync, keeper cost) is
+  # gated ONLY by these node fixtures -- pytest never loads site/assets/. They
+  # ran local-only until now, so a regression in the tool actually used live on
+  # draft day could reach main unnoticed. Each fixture exits non-zero on a
+  # failed assert, so plain `node` is the whole runner; no package.json needed.
+  node-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - run: node tests/optimizer_fixture.cjs
+      - run: node tests/draftmode_fixture.cjs
+      - run: node tests/keepers_fixture.cjs
