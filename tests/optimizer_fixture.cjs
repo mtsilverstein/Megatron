@@ -102,4 +102,212 @@ assert.strictEqual(O.lateSlotTrigger(2, true, true), false);    // both already 
 assert.strictEqual(O.lateSlotTrigger(5, false, false), false);  // too early
 assert.strictEqual(O.lateSlotTrigger(1, true, false), true);    // DST still open
 
+// ===========================================================================
+// v1.1 — Gap A (bands priced) and Gap B (flex worth less than dedicated)
+// ===========================================================================
+// Board shape for bands, as published by src/ffmodel/site/draft.py:
+//   season_points: { ppr: {p10,p50,p90}, half_ppr: {...}, standard: {...} }
+const band = (p10, p50, p90) => ({ season_points: { ppr: { p10, p50, p90 } } });
+
+// --- bandGaps: only trust a well-formed PPR band ----------------------------
+assert.strictEqual(O.bandGaps(P("nb", "RB", 50)), null);          // no season_points
+assert.strictEqual(O.bandGaps(P("nb", "RB", 50, { season_points: {} })), null);
+// has_bands:false publishes p10/p90 as null -> treated as absent
+assert.strictEqual(O.bandGaps(P("nb", "RB", 50, band(null, 240, null))), null);
+// crossed quantiles are a data bug, not a signal
+assert.strictEqual(O.bandGaps(P("nb", "RB", 50, band(300, 240, 200))), null);
+assert.strictEqual(O.bandGaps(P("nb", "RB", 50, band("200", 240, 300))), null);
+assert.deepStrictEqual(O.bandGaps(P("b", "RB", 50, band(200, 240, 300))),
+                       { p10: 200, p50: 240, p90: 300, down: 40, up: 60 });
+// the ruleset is pinned to the one the value curve is built from
+assert.strictEqual(O.BAND_RULESET, "ppr");
+
+// --- riskValue: same appetite, opposite sign --------------------------------
+// no band -> vorp, byte-identical, in BOTH roles
+assert.strictEqual(O.riskValue(P("p", "RB", 50), true), 50);
+assert.strictEqual(O.riskValue(P("p", "RB", 50), false), 50);
+// must-start: downside room (p50-p10 = 40) is charged
+assert.strictEqual(O.riskValue(P("p", "RB", 60, band(200, 240, 300)), true),
+                   60 - O.W_RISK * 40);
+// benched: upside room (p90-p50 = 60) is credited
+assert.strictEqual(O.riskValue(P("p", "RB", 60, band(200, 240, 300)), false),
+                   60 + O.W_RISK * 60);
+
+// --- Gap A, starter side: the level shift CANCELS ---------------------------
+// Two starters with equally wide bands must score exactly as they do today --
+// the penalty is applied to the player AND to the survivor he is measured
+// against, so only the *differential* spread can move the score.
+const symX = P("symX", "RB", 60, band(200, 240, 300));   // down 40
+const symS = P("symS", "RB", 50, band(160, 200, 260));   // down 40
+const symPool = [symX, symS];
+const plainPool = [P("symX", "RB", 60), P("symS", "RB", 50)];
+assert.strictEqual(O.vona(symX, empty, symPool, 1), 10);
+assert.strictEqual(O.vona(symX, empty, symPool, 1),
+                   O.vona(plainPool[0], empty, plainPool, 1));   // no level shift
+
+// ...but a differential DOES move it: same player, fallback is now boom/bust
+const bustS = P("bustS", "RB", 50, band(120, 200, 260));  // down 80, not 40
+assert.strictEqual(O.vona(symX, empty, [symX, bustS], 1), 20);
+// the whole move is exactly W_RISK * (extra downside room on the fallback)
+assert.strictEqual(O.vona(symX, empty, [symX, bustS], 1)
+                   - O.vona(symX, empty, symPool, 1),
+                   O.W_RISK * (80 - 40));
+
+// --- Gap A: the SAME player is treated oppositely by slot -------------------
+// Starter slot: his own downside is a cost, so he scores BELOW his no-band twin.
+const twoWay = P("twoWay", "RB", 60, band(200, 240, 300));
+const twoWayPool = [twoWay, P("fallback", "RB", 50)];        // fallback unbanded
+const twoWayPlain = [P("twoWay", "RB", 60), P("fallback", "RB", 50)];
+assert.strictEqual(O.vona(twoWay, empty, twoWayPool, 1), 0);
+assert.strictEqual(O.vona(twoWayPlain[0], empty, twoWayPlain, 1), 10);
+assert.ok(O.vona(twoWay, empty, twoWayPool, 1)
+          < O.vona(twoWayPlain[0], empty, twoWayPlain, 1));
+// Bench slot: the same band is now a credit, so he scores ABOVE his twin.
+assert.strictEqual(O.vona(twoWay, full, twoWayPool, 1),
+                   O.BENCH_WEIGHT * (60 + O.W_RISK * 60));
+assert.ok(O.vona(twoWay, full, twoWayPool, 1)
+          > O.vona(twoWayPlain[0], full, twoWayPlain, 1));
+
+// --- Gap A, bench side: ceiling breaks the tie between equal medians --------
+const dartHi = P("dartHi", "WR", 50, band(180, 200, 260));   // up 60
+const dartLo = P("dartLo", "WR", 50, band(180, 200, 220));   // up 20
+assert.strictEqual(O.vona(dartHi, full, [dartHi, dartLo], 1),
+                   O.BENCH_WEIGHT * (50 + O.W_RISK * 60));
+assert.strictEqual(O.vona(dartLo, full, [dartHi, dartLo], 1),
+                   O.BENCH_WEIGHT * (50 + O.W_RISK * 20));
+assert.ok(O.vona(dartHi, full, [dartHi, dartLo], 1)
+          > O.vona(dartLo, full, [dartHi, dartLo], 1));
+
+// --- Gap A: steal is deliberately NOT risk-adjusted -------------------------
+// trade value is a different currency; one band must not move a score twice
+assert.strictEqual(O.steal(P("s", "RB", 100, band(10, 50, 400)), board, 3),
+                   O.steal(P("s", "RB", 100), board, 3));
+
+// --- BACKWARD COMPATIBILITY: no bands => byte-identical to v1.0 -------------
+// (the §6 worked-check asserts above — 47.5 and 9 — are unbanded and unchanged)
+const bcPool = [P("bc1", "RB", 100), P("bc2", "WR", 90), P("bc3", "RB", 80)];
+const bcCtx = { counts: { QB: 0, RB: 0, WR: 0, TE: 0 }, available: bcPool, gap: 2,
+                players: [P("z1", "RB", 120), P("z2", "RB", 60)], pickNo: 2,
+                myPlayers: [] };
+// the v1.0 formula, rebuilt from primitives whose contract did not change
+const legacyScore = Math.max(0, bcPool[0].vorp - O.replacement(bcPool, "RB", 2))
+  + O.W_STEAL * O.steal(bcPool[0], bcCtx.players, bcCtx.pickNo)
+  - O.byePenalty(bcPool[0], bcCtx.myPlayers, bcCtx.counts);
+assert.strictEqual(O.scorePlayer(bcPool[0], bcCtx), legacyScore);
+assert.strictEqual(O.scorePlayer(bcPool[0], bcCtx), 40);
+// a player carrying a null band (has_bands:false) scores exactly like one
+// carrying no band block at all -- pool differs only in that element
+const nulledPool = [P("bc1", "RB", 100, band(null, 240, null)), bcPool[1], bcPool[2]];
+assert.strictEqual(
+  O.scorePlayer(nulledPool[0], Object.assign({}, bcCtx, { available: nulledPool })),
+  O.scorePlayer(bcPool[0], bcCtx));
+// callers pass no new ctx fields: the v1.0 ctx shape still scores identically
+assert.deepStrictEqual(Object.keys(bcCtx).sort(),
+  ["available", "counts", "gap", "myPlayers", "pickNo", "players"]);
+
+// ===========================================================================
+// Gap B — a flex opening is worth less than a dedicated one
+// ===========================================================================
+// the slot ladder: bench < flex < dedicated(1.0)
+assert.ok(O.BENCH_WEIGHT < O.FLEX_WEIGHT && O.FLEX_WEIGHT < 1);
+
+// --- B.1 the flex fallback spans ALL flex positions, not just his own -------
+// pool desc: rbA 70, wrA 58, rbB 40. gap 1 -> RB survivor 40, WR survivor 58.
+const flexPool = [P("rbA", "RB", 70), P("wrA", "WR", 58), P("rbB", "RB", 40)];
+assert.strictEqual(O.fallbackValue(flexPool, "RB", 1, "dedicated"), 40);
+assert.strictEqual(O.fallbackValue(flexPool, "RB", 1, "flex"), 58);  // the WR wins
+// a flex fallback is never worse than the same-position one -- the inequality
+// that makes "flex <= dedicated" structural rather than a hardcoded ordering
+assert.ok(O.fallbackValue(flexPool, "RB", 1, "flex")
+          >= O.fallbackValue(flexPool, "RB", 1, "dedicated"));
+// same player, same pool, same gap: dedicated 30 vs flex 6
+const flexCounts = { QB: 0, RB: 2, WR: 2, TE: 0 };   // RB -> flex, flex slots free
+assert.strictEqual(O.openSlot("RB", flexCounts), "flex");
+assert.strictEqual(O.vona(flexPool[0], empty, flexPool, 1), 30);        // dedicated
+assert.strictEqual(O.vona(flexPool[0], flexCounts, flexPool, 1),
+                   O.FLEX_WEIGHT * (70 - 58));                          // = 6
+assert.strictEqual(O.vona(flexPool[0], flexCounts, flexPool, 1), 6);
+// teeth for the cross-position term specifically: per-position would give 15
+assert.notStrictEqual(O.vona(flexPool[0], flexCounts, flexPool, 1),
+                      O.FLEX_WEIGHT * (70 - 40));
+assert.ok(O.vona(flexPool[0], flexCounts, flexPool, 1)
+          < O.vona(flexPool[0], empty, flexPool, 1));
+
+// --- B.2 REGRESSION: greedy must not spend both flex slots on RBs -----------
+// RB2 already filled, WR wide open. Both positions cliff after the gap, RB just
+// slightly richer -- so v1.0, which prices a flex opening exactly like a
+// dedicated one, takes RB3 then RB4 and never reaches WR1.
+const gPool = [P("rb3", "RB", 72), P("rb4", "RB", 70), P("wr1", "WR", 68),
+               P("wr2", "WR", 66), P("rb5", "RB", 40), P("wr3", "WR", 39),
+               P("rb6", "RB", 38), P("wr4", "WR", 37)];
+const gBoard = [P("par", "RB", 1000)];   // par >= every vorp -> steal 0 for all
+const gCounts = { QB: 0, RB: 2, WR: 0, TE: 0 };
+const gGap = 4;
+assert.strictEqual(O.openSlot("RB", gCounts), "flex");
+assert.strictEqual(O.openSlot("WR", gCounts), "dedicated");
+
+// the v1.0 defect, reproduced from primitives that still exist: an undiscounted
+// flex edge (32) beat the mandatory WR opening (29), which is why RBs won both.
+const v10FlexRb3 = Math.max(0, gPool[0].vorp - O.replacement(gPool, "RB", gGap));
+const v10DedWr1 = Math.max(0, gPool[2].vorp - O.replacement(gPool, "WR", gGap));
+assert.strictEqual(v10FlexRb3, 32);
+assert.strictEqual(v10DedWr1, 29);
+assert.ok(v10FlexRb3 > v10DedWr1, "v1.0 defect: flex outbid a mandatory slot");
+
+// v1.1: the cross-position max is the RB himself here (40 > 39), so this case
+// isolates FLEX_WEIGHT -- 0.5 * 32 = 16, now below the WR's 29.
+assert.strictEqual(O.fallbackValue(gPool, "RB", gGap, "flex"), 40);
+assert.strictEqual(O.vona(gPool[0], gCounts, gPool, gGap), O.FLEX_WEIGHT * 32);
+assert.strictEqual(O.vona(gPool[0], gCounts, gPool, gGap), 16);
+assert.strictEqual(O.vona(gPool[2], gCounts, gPool, gGap), 29);
+assert.ok(O.vona(gPool[2], gCounts, gPool, gGap)
+          > O.vona(gPool[0], gCounts, gPool, gGap));
+
+// run the greedy the way draft night actually runs it: take the top row, add
+// him to the roster, remove him from the pool, re-rank.
+function greedy(pool, counts, gap, boardRows, picks) {
+  let avail = pool.slice();
+  const c = Object.assign({}, counts);
+  const taken = [];
+  for (let i = 0; i < picks; i++) {
+    const row = O.rankShortlist({ counts: c, available: avail, gap,
+                                  players: boardRows, pickNo: 1, myPlayers: [] })[0];
+    if (!row) break;
+    taken.push(row.player);
+    c[row.player.position]++;
+    avail = avail.filter(p => p !== row.player);
+  }
+  return { taken, counts: c };
+}
+const g2 = greedy(gPool, gCounts, gGap, gBoard, 2);
+assert.deepStrictEqual(g2.taken.map(p => p.position), ["WR", "WR"]);
+assert.deepStrictEqual(g2.taken.map(p => p.name), ["wr1", "wr2"]);
+assert.strictEqual(g2.counts.WR, 2);          // both mandatory WR slots filled
+assert.strictEqual(g2.counts.RB, 2);          // zero flex slots burned on RBs
+// and once the obligations are discharged the flex correctly takes the best
+// player left, so this is a re-ordering, not a blanket ban on flex RBs
+const g3 = greedy(gPool, gCounts, gGap, gBoard, 3);
+assert.deepStrictEqual(g3.taken.map(p => p.position), ["WR", "WR", "RB"]);
+assert.strictEqual(g3.taken[2].name, "rb3");
+
+// --- whyLabel ---------------------------------------------------------------
+const whyCtx = { counts: gCounts, available: gPool, gap: gGap, players: gBoard,
+                 pickNo: 1, myPlayers: [] };
+assert.ok(O.whyLabel(gPool[0], whyCtx).startsWith("fills flex"));
+assert.ok(O.whyLabel(gPool[2], whyCtx).startsWith("fills WR1"));
+// the cliff shown is the number that was actually scored (post-discount edge)
+assert.ok(O.whyLabel(gPool[0], whyCtx).includes("−32.0"));
+// starters surface p10 (the quantile that priced them)
+const floorCtx = { counts: empty, available: [twoWay, P("fallback", "RB", 50)],
+                   gap: 1, players: gBoard, pickNo: 1, myPlayers: [] };
+assert.ok(O.whyLabel(twoWay, floorCtx).includes("floor 200"));
+// bench darts surface p90; a flat bench player keeps the v1.0 wording
+const dartCtx = { counts: full, available: [dartHi, dartLo], gap: 1,
+                  players: gBoard, pickNo: 1, myPlayers: [] };
+assert.ok(O.whyLabel(dartHi, dartCtx).includes("upside dart"));
+assert.ok(O.whyLabel(dartHi, dartCtx).includes("ceiling 260"));
+assert.strictEqual(O.whyLabel(P("flat", "RB", 50), dartCtx), "depth · safe to wait");
+assert.strictEqual(O.whyLabel(P("flat", "RB", 50, band(198, 200, 205)), dartCtx),
+                   "depth · safe to wait");   // sub-CLIFF_MIN upside is noise
+
 console.log("optimizer_fixture: OK");
