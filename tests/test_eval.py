@@ -172,7 +172,10 @@ def test_mixed_entrant_records_serialize_to_valid_json():
 
 def _run_main_with_stubs(monkeypatch, tmp_path, extra_argv):
     """Run the eval CLI end-to-end with the data pipeline and predictors
-    stubbed out, returning the parsed report JSON it writes."""
+    stubbed out, returning the parsed report JSON it writes.
+
+    --data-dir points at an empty tmp dir unless the caller overrides it, so
+    the vintage hashing never touches (or depends on) a real data/raw."""
     import sys
 
     import ffmodel.eval.run as run_mod
@@ -190,7 +193,11 @@ def _run_main_with_stubs(monkeypatch, tmp_path, extra_argv):
     monkeypatch.setattr(pred_mod, "TransformerPredictor",
                         lambda roots, features: object())
     out = tmp_path / "report.json"
-    monkeypatch.setattr(sys, "argv", ["eval-run", "--out", str(out), *extra_argv])
+    data_dir = tmp_path / "raw"
+    data_dir.mkdir(exist_ok=True)
+    monkeypatch.setattr(sys, "argv", [
+        "eval-run", "--out", str(out), "--data-dir", str(data_dir), *extra_argv,
+    ])
     run_mod.main()
     import json
     return json.loads(out.read_text())
@@ -219,3 +226,75 @@ def test_report_records_band_construction_provenance(monkeypatch, tmp_path):
     # so old- and new-construction reports can never be silently compared
     report = _run_main_with_stubs(monkeypatch, tmp_path, [])
     assert report["band_construction"] == "sign_coherent_v1"
+
+
+def test_source_data_files_follow_pull_cache_names(tmp_path):
+    """The hashed files must be the ones the pulls actually read -- names
+    come from pull's own _cache_name, not a second copy of the convention."""
+    from ffmodel.data.pull import _cache_name
+    from ffmodel.eval.run import source_data_files
+
+    seasons = list(range(2012, 2026))
+    names = [p.name for p in source_data_files(tmp_path, seasons)]
+    assert names == [
+        f"{_cache_name('weekly_v2', seasons)}.parquet",
+        f"{_cache_name('snaps', seasons)}.parquet",
+        "players.parquet",
+        f"{_cache_name('schedules_v3', seasons)}.parquet",
+    ]
+    assert all(p.parent == tmp_path for p in source_data_files(tmp_path, seasons))
+
+
+def test_data_vintage_hashes_file_contents(tmp_path):
+    """Content hash, not mtime: a byte-for-byte identical re-pull must read
+    as the SAME vintage, and a one-byte revision as a different one."""
+    import hashlib
+
+    from ffmodel.eval.run import data_vintage, source_data_files
+
+    seasons = [2012, 2013]
+    paths = source_data_files(tmp_path, seasons)
+    for i, path in enumerate(paths):
+        path.write_bytes(b"payload" * (i + 1))
+
+    vintage = data_vintage(tmp_path, seasons, feature_rows=1234)
+    assert vintage["feature_rows"] == 1234
+    assert [s["file"] for s in vintage["sources"]] == [p.name for p in paths]
+    assert vintage["sources"][0]["sha256"] == hashlib.sha256(b"payload").hexdigest()
+    assert vintage["sources"][0]["bytes"] == len(b"payload")
+
+    # rewriting identical bytes (a re-pull that changed nothing) is the same vintage
+    for i, path in enumerate(paths):
+        path.write_bytes(b"payload" * (i + 1))
+    assert data_vintage(tmp_path, seasons, 1234) == vintage
+
+    # a single changed byte is a different vintage
+    paths[0].write_bytes(b"payloae")
+    assert data_vintage(tmp_path, seasons, 1234) != vintage
+
+
+def test_data_vintage_records_missing_source_as_null(tmp_path):
+    """A cache file the run didn't find is recorded as null rather than
+    dropped -- a shorter list would quietly look like a different schema."""
+    from ffmodel.eval.run import data_vintage
+
+    vintage = data_vintage(tmp_path, [2012, 2013], feature_rows=0)
+    assert len(vintage["sources"]) == 4
+    assert all(s["sha256"] is None and s["bytes"] is None for s in vintage["sources"])
+
+
+def test_report_records_data_vintage_and_feature_set(monkeypatch, tmp_path):
+    """Two reports run on different nflverse pulls are not comparable, and
+    the record used to have no field that said so (see
+    models/diagnostics/xgb_feature_set_audit.json)."""
+    report = _run_main_with_stubs(monkeypatch, tmp_path, [])
+
+    # the stubbed features frame is one row
+    assert report["data_vintage"]["feature_rows"] == 1
+    assert [s["file"] for s in report["data_vintage"]["sources"]] == [
+        "weekly_v2_2012_2025.parquet", "snaps_2012_2025.parquet",
+        "players.parquet", "schedules_v3_2012_2025.parquet",
+    ]
+    # the xgboost entrant's resolved feature set -- exactly what used to be
+    # invisible when feature resolution was implicit-on-presence
+    assert report["xgb_feature_set"] == "v1"
