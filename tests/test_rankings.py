@@ -57,6 +57,23 @@ def test_preseason_snapshot_is_strictly_before_kickoff():
     assert (snap["scrape_date"] < pd.Timestamp("2023-09-07")).all()
 
 
+def test_preseason_snapshot_excludes_exact_kickoff_tie():
+    """The leak boundary is STRICTLY before kickoff (`<`, not `<=`). A
+    scrape timestamped exactly at kickoff is not a preseason opinion; the
+    existing before/after test never exercises an exact tie, so a `<` -> `<=`
+    regression would leave the suite green while letting a kickoff-instant
+    scrape silently enter the preseason consensus."""
+    from ffmodel.data.rankings import normalize_rankings, preseason_snapshot
+
+    rankings = normalize_rankings(_raw_rankings([
+        {"id": "1", "scrape_date": "2023-08-25", "ecr": 3.0},   # latest pre-kickoff
+        {"id": "2", "scrape_date": "2023-09-07", "ecr": 1.0},   # exact kickoff tie
+    ]))
+    snap = preseason_snapshot(rankings, pd.Timestamp("2023-09-07"))
+    assert list(snap["fp_id"]) == ["1"]
+    assert (snap["scrape_date"] < pd.Timestamp("2023-09-07")).all()
+
+
 def test_preseason_snapshot_raises_when_no_pre_kickoff_scrape():
     """Must never silently fall back to a post-kickoff scrape."""
     from ffmodel.data.rankings import normalize_rankings, preseason_snapshot

@@ -356,6 +356,45 @@ def test_draft_run_aborts_before_writing_when_sleeper_pull_fails(monkeypatch, tm
     assert not (out / "about.json").exists()   # fail-safe: NOTHING was written
 
 
+def test_failed_pull_leaves_preseeded_published_json_byte_identical(monkeypatch, tmp_path):
+    """CLAUDE.md fail-safe invariant: 'on a failed or incomplete data pull,
+    abort without touching published JSON.' The existing abort test only
+    proves nothing is created in an EMPTY output dir -- it can't distinguish
+    'wrote nothing' from 'silently clobbered what was already there'.
+    Pre-seed the output dir with realistic prior-run JSON, trigger the same
+    failed-pull abort (Sleeper down, before any payload is built or written),
+    and assert every pre-seeded file is byte-identical (and its mtime
+    unchanged) afterward. `main()` happens to satisfy this today by building
+    everything in memory before writing anything, but nothing short of this
+    would catch a future regression that moved a write earlier."""
+    import ffmodel.site.sleeper as sleeper_mod
+
+    out = tmp_path / "out"
+    out.mkdir()
+    prior_files = {
+        "weekly.json": '{"players": [{"name": "Prior Guy"}], "data_through": "2022-wk10"}',
+        "draft.json": '{"players": [{"name": "Old Board"}], "season": 2022}',
+        "about.json": '{"site_model": "prior-run", "data_through": "2022-wk10"}',
+    }
+    for name, content in prior_files.items():
+        (out / name).write_text(content)
+    before_bytes = {name: (out / name).read_bytes() for name in prior_files}
+    before_mtimes = {name: (out / name).stat().st_mtime_ns for name in prior_files}
+
+    def fail(**k):
+        raise RuntimeError("sleeper is down")
+    monkeypatch.setattr(sleeper_mod, "pull_sleeper_players", fail)
+
+    capture = {}
+    with pytest.raises(RuntimeError, match="sleeper is down"):
+        _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
+
+    for name in prior_files:
+        assert (out / name).read_bytes() == before_bytes[name], f"{name} bytes changed"
+        assert (out / name).stat().st_mtime_ns == before_mtimes[name], f"{name} mtime changed"
+    assert not list(out.glob("*.tmp"))
+
+
 def test_draft_consensus_ecr_required_adp_best_effort(monkeypatch):
     from ffmodel.site import generate
 
@@ -408,3 +447,32 @@ def test_late_slots_degrade_to_empty_when_adp_unavailable(monkeypatch, tmp_path)
     monkeypatch.setattr(generate, "_late_slots", boom)
     out = generate._attach_late_slots({"season": 2026, "players": []}, 2026, tmp_path)
     assert out["late_slots"] == {"K": [], "DST": []}
+
+
+def test_data_through_stamp_is_derived_from_data_and_lands_in_json(monkeypatch, tmp_path):
+    """CLAUDE.md: 'The site always shows a data as of <date> stamp.' Pin that
+    main()'s `data_through` is actually computed from the pulled weekly
+    frame's max (season, week) -- not a constant, not missing -- and that the
+    value reaches the written weekly.json. `_run_generate_with_stubs`'s fixed
+    weekly frame (tests/test_features.py::make_weekly, season 2023, weeks
+    1..6) makes the expected stamp "2023-wk6"; a hardcoded placeholder like
+    "unknown" would not match and would fail this test."""
+    import ffmodel.data.future as future_mod
+    import ffmodel.site.weekly as weekly_mod
+
+    monkeypatch.setattr(future_mod, "combined_future_features", lambda *a, **k: (None, None))
+
+    capture = {}
+
+    def fake_build_weekly_projections(future, predictor, season, week, data_through):
+        capture["data_through"] = data_through
+        return {"players": [], "data_through": data_through}
+    monkeypatch.setattr(weekly_mod, "build_weekly_projections", fake_build_weekly_projections)
+
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], capture)
+
+    assert capture["data_through"] not in (None, "", "unknown")
+    assert capture["data_through"] == "2023-wk6"
+
+    written = json.loads((tmp_path / "out" / "weekly.json").read_text())
+    assert written["data_through"] == "2023-wk6"
