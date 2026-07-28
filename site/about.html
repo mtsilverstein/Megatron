@@ -68,6 +68,38 @@
     up; snap-count data has no 2012 source and is treated as missing for that
     season. These are design choices, documented, not surprises.</p>
   </div>
+  <h2>Weekly ranking</h2>
+  <div class="prose">
+  <p>Season-long draft ranking loses to expert consensus, as stated above.
+  Weekly ranking is measured separately, and overall it's close: across all
+  four positions, the model's weekly within-position rank correlation with
+  actual outcomes is a <strong>statistical tie</strong> with weekly expert
+  consensus (Spearman 0.5940 vs 0.5958; the paired 95% interval on the gap
+  includes zero). That's parity, not a win, and the draft board still defers
+  to consensus for the reason given above.</p>
+  <p>One position breaks the tie. At running back, weekly within-position
+  ranking beat weekly consensus on the 2023–2025 seasons where the effect
+  was found (Spearman 0.7215 vs 0.6958, won 3 of 3 seasons, p=0.002). Finding
+  an edge on the seasons used to build a model is the easy part; the test
+  that matters is whether it holds on seasons the model never touched.</p>
+  <p>It did. Before evaluating, we pre-registered the pass/fail rule — RB
+  ranking has to beat consensus in at least 2 of 3 seasons, with a positive
+  pooled advantage — then ran it on 2020–2022, seasons disjoint from the ones
+  that found the effect and untouched by any of the model folds involved. RB
+  ranking held: Spearman 0.6658 vs 0.6415, won all three seasons (2020
+  +0.0298, 2021 +0.0274, 2022 +0.0170), pooled delta <strong>+0.0243</strong>,
+  paired bootstrap 95% CI <strong>[+0.0066, +0.0437]</strong> — excluding
+  zero.</p>
+  <p class="lim">This is one position out of four, and it should be read that
+  way. Run the identical test on the others and QB <em>loses</em> to weekly
+  consensus (−0.0631), TE loses narrowly (−0.0144), WR ties (+0.0027). The
+  effect concentrates on the position most driven by workload — carries,
+  targets, snap share — which the model's usage features encode directly;
+  that specificity is why we treat it as a real signal rather than a scoring
+  artifact. It does not generalize past RB, and it does not change how the
+  draft board is built. Full numbers in
+  models/diagnostics/rb_oos_weekly.json.</p>
+  </div>
   <h2>Rookies</h2>
   <div class="prose">
   <p>Drafted rookies have no NFL games to model, so they get an empirical
