@@ -72,11 +72,19 @@
   <div class="prose">
   <p>Season-long draft ranking loses to expert consensus, as stated above.
   Weekly ranking is measured separately, and overall it's close: across all
-  four positions, the model's weekly within-position rank correlation with
-  actual outcomes is a <strong>statistical tie</strong> with weekly expert
-  consensus (Spearman 0.5940 vs 0.5958; the paired 95% interval on the gap
-  includes zero). That's parity, not a win, and the draft board still defers
-  to consensus for the reason given above.</p>
+  four positions on <strong>2023&ndash;2025</strong>, the model's weekly
+  within-position rank correlation with actual outcomes is a
+  <strong>statistical tie</strong> with weekly expert consensus (Spearman
+  0.5940 vs 0.5958; delta &minus;0.0018, paired 95% interval
+  [&minus;0.0123, +0.0083], which includes zero). That's parity, not a win,
+  and the draft board still defers to consensus for the reason given
+  above.</p>
+  <p class="lim">Scope of that number: 172 position-weeks and 12,182
+  player-weeks, restricted to <strong>weeks 3&ndash;17</strong>. Eleven of
+  54 season-weeks are missing because the expert feed carries no ranking
+  scraped in the seven days before kickoff, and we will not reach past
+  kickoff to fill a gap. The tie is a tie on weeks 3&ndash;17, not on a full
+  season. Numbers in models/diagnostics/weekly_consensus.json.</p>
   <p>One position breaks the tie. At running back, weekly within-position
   ranking beat weekly consensus on the 2023–2025 seasons where the effect
   was found (Spearman 0.7215 vs 0.6958, won 3 of 3 seasons, p=0.002). Finding
@@ -92,7 +100,11 @@
   zero.</p>
   <p class="lim">This is one position out of four, and it should be read that
   way. Run the identical test on the others and QB <em>loses</em> to weekly
-  consensus (−0.0631), TE loses narrowly (−0.0144), WR ties (+0.0027). The
+  consensus — −0.0631 on the 2020–2022 replication, and −0.0404 on
+  2023–2025 with an interval excluding zero, so it is a real loss on both
+  samples rather than noise. TE is flat (−0.0144 then −0.0013) and WR a
+  shade positive (+0.0027 then +0.0088), neither separable from zero on
+  2023–2025. RB is the only position that clears zero on both. The
   effect concentrates on the position most driven by workload — carries,
   targets, snap share — which the model's usage features encode directly;
   that specificity is why we treat it as a real signal rather than a scoring
