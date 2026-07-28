@@ -61,6 +61,133 @@ def pull_adp(season: int, cache_dir: Path | None = None, teams: int = 12,
     return _cached(cache_dir, f"adp_{scoring}_{teams}_{season}", load)
 
 
+# --- Sleeper-population ADP: committed FantasyPros snapshot ---------------
+#
+# Sleeper (the project's actual keeper league host) publishes no ADP API.
+# This is a manually-exported FantasyPros CSV that carries Sleeper's own ADP
+# column alongside several other platforms' -- deliberately static and
+# committed, so the weekly GitHub Actions cron never grows a new network
+# dependency for it. The whole point: FFCalculator's population is
+# self-selected mock drafters with no money at stake, while Sleeper's ADP
+# reflects the actual population this league's drafter faces. Refresh by
+# re-exporting and updating SNAPSHOT_PATH; nothing here scrapes it.
+SNAPSHOT_PATH = Path("data_snapshots/fantasypros_adp_2026-07-27.csv")
+
+# The export marks "not ranked on this platform" with an em-dash, never an
+# empty cell or a 0 -- a missing Sleeper ADP must never be coerced to either.
+_MISSING = "—"
+
+# Packed "Name   TEAM (bye)" field, gap of 2+ spaces. Unsigned free agents
+# (no current team) carry just the name -- no team/bye suffix at all.
+_PLAYER_BYE = re.compile(r"^(?P<name>.+?)\s{2,}(?P<team>[A-Z]{2,4})\s+\((?P<bye>\d+)\)$")
+
+# Snapshot filenames end in _YYYY-MM-DD.csv; provenance reads the date from
+# there rather than a second hardcoded constant, so a refreshed snapshot
+# (new SNAPSHOT_PATH, same naming convention) stays correct for free.
+_SNAPSHOT_DATE = re.compile(r"_(\d{4}-\d{2}-\d{2})\.csv$")
+
+# Same floor as rankings.MIN_MATCH_RATE -- below this the crosswalk is too
+# thin to trust this as the board's ADP source.
+MIN_SNAPSHOT_MATCH_RATE = 0.95
+
+
+def snapshot_date(path: Path = SNAPSHOT_PATH) -> str:
+    """Capture date parsed from the snapshot's own filename convention."""
+    m = _SNAPSHOT_DATE.search(Path(path).name)
+    if not m:
+        raise ValueError(f"{path}: filename doesn't end in _YYYY-MM-DD.csv -- "
+                         f"cannot derive the ADP snapshot's provenance date")
+    return m.group(1)
+
+
+def parse_player_bye(raw: str) -> tuple[str, str | None, int | None]:
+    """Split the export's packed "Name   TEAM (bye)" field.
+
+    Unsigned free agents (no current NFL team) carry just the name in this
+    export -- team and bye come back None rather than a guessed value.
+    """
+    s = str(raw).strip()
+    m = _PLAYER_BYE.match(s)
+    if not m:
+        return s, None, None
+    return m.group("name").strip(), m.group("team"), int(m.group("bye"))
+
+
+def parse_snapshot_csv(path: Path) -> pd.DataFrame:
+    """Read the committed snapshot CSV and reduce it to in-scope rows that
+    actually carry a Sleeper ADP, with name/position/adp parsed out.
+
+    Pure function of the file at `path` -- no crosswalk, no network. Scope
+    is filtered to QB/RB/WR/TE here (CLAUDE.md's scope guard), same as the
+    FFCalculator path's `normalize_adp`; the live snapshot happens to carry
+    zero Sleeper-ranked K/DST rows already (verified), so this filter is
+    belt-and-suspenders against a future export ever changing that -- K/DST
+    ADP stays sourced from FFCalculator via `late_slot_adp` regardless (see
+    that function's docstring for why swapping it would silently empty the
+    late-slot block).
+    """
+    raw = pd.read_csv(path, encoding="utf-8")
+    sleeper_raw = raw["Sleeper"]
+    missing = sleeper_raw.isna() | sleeper_raw.astype(str).str.strip().isin(["", _MISSING])
+    df = raw[~missing].copy()
+    df["position"] = df["POS"].astype(str).str.replace(r"\d+$", "", regex=True)
+    df = df[df["position"].isin(POSITIONS)]
+    parsed = df["Player (Bye)"].map(parse_player_bye)
+    df["name"] = [p[0] for p in parsed]
+    df["adp"] = pd.to_numeric(sleeper_raw.loc[df.index], errors="raise")
+    return df[["name", "position", "adp"]].reset_index(drop=True)
+
+
+def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
+                           min_match_rate: float = MIN_SNAPSHOT_MATCH_RATE
+                           ) -> pd.DataFrame:
+    """Crosswalk `parse_snapshot_csv`'s output onto gsis ids, in `pull_adp`'s
+    output shape (same columns, `stdev`/`times_drafted` filled as <NA> since
+    this source doesn't carry them).
+
+    Reuses the FFCalculator path's `norm()` for name matching -- no separate
+    suffix-stripping logic, since both feeds hit the same nickname/Jr/Sr/II
+    edge cases and `norm()` already strips them.
+
+    Below `min_match_rate` this raises, naming every unmatched player (mirrors
+    rankings.attach_gsis's MIN_MATCH_RATE guard) -- a silently-thinned ADP
+    source would degrade the market overlay without anyone noticing.
+    """
+    x = crosswalk[crosswalk["gsis_id"].notna()].copy()
+    x["_k"] = x["merge_name"].map(norm)
+    by_name = x.drop_duplicates("_k").set_index("_k")["gsis_id"]
+
+    df = raw.copy()
+    df["player_id"] = df["name"].map(norm).map(by_name)
+    unmatched = df[df["player_id"].isna()]
+    matched = (df.dropna(subset=["player_id"]).drop_duplicates("player_id")
+               .reset_index(drop=True))
+
+    match_rate = (len(matched) / len(df)) if len(df) else 1.0
+    if len(df) and match_rate < min_match_rate:
+        names = sorted(unmatched["name"].tolist())
+        raise ValueError(
+            f"Sleeper-ADP snapshot crosswalk matched only {match_rate:.1%} of "
+            f"{len(df)} players with a Sleeper ADP (floor {min_match_rate:.0%}) "
+            f"-- unmatched: {names} -- refusing to publish a partially-"
+            f"crosswalked ADP source"
+        )
+    for col in ("stdev", "times_drafted"):
+        matched[col] = pd.NA
+    return matched[["player_id", "name", "position", "adp", "stdev", "times_drafted"]]
+
+
+def load_snapshot_adp(path: Path, crosswalk: pd.DataFrame,
+                      min_match_rate: float = MIN_SNAPSHOT_MATCH_RATE) -> pd.DataFrame:
+    """Sleeper ADP from the committed snapshot at `path`, on gsis ids.
+
+    Pure function of the file plus the crosswalk it's given -- no network,
+    no hidden global state -- so it is directly unit-testable with a small
+    on-disk CSV and a synthetic crosswalk (no fixtures-on-the-internet).
+    """
+    return normalize_snapshot_adp(parse_snapshot_csv(path), crosswalk, min_match_rate)
+
+
 # K/DST are OUT of model scope (kickers/defenses do not predict year to year),
 # so they get no projection -- only the crowd's ADP, as a late-round slot
 # reminder. Display-only, hence no gsis crosswalk.

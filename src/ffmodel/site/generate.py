@@ -144,8 +144,31 @@ def _load_consensus(season, schedules, data_dir):
 
 
 def _load_adp(season, data_dir):
-    from ffmodel.data.adp import pull_adp
-    return pull_adp(season, cache_dir=data_dir)
+    """Sleeper-population ADP for the draft board (preferred): this
+    project's actual league is a Sleeper keeper league, so the committed
+    FantasyPros/Sleeper snapshot (data_snapshots/) matches that population
+    far better than FFCalculator's self-selected mock-draft crowd. Falls
+    back to the live FFCalculator pull only if the snapshot file is
+    missing (e.g. before a season's snapshot has been captured yet).
+
+    Returns (adp_df, source) so the draft-board payload can record which
+    path actually ran -- honestly, even on the fallback.
+
+    K/DST: the snapshot never carries a Sleeper ADP for them (see adp.py's
+    `parse_snapshot_csv`), so this function's output is always QB/RB/WR/TE
+    regardless of which source ran. `_late_slots()` below stays pinned to
+    FFCalculator's raw payload for K/DST specifically -- do not repoint it
+    at this snapshot, it would silently go empty.
+    """
+    from ffmodel.data.adp import SNAPSHOT_PATH, load_snapshot_adp, pull_adp, snapshot_date
+    from ffmodel.data.rankings import pull_player_ids
+
+    if SNAPSHOT_PATH.exists():
+        adp_df = load_snapshot_adp(SNAPSHOT_PATH, pull_player_ids(data_dir))
+        return adp_df, {"source": "sleeper_snapshot",
+                        "path": SNAPSHOT_PATH.as_posix(),
+                        "snapshot_date": snapshot_date(SNAPSHOT_PATH)}
+    return pull_adp(season, cache_dir=data_dir), {"source": "ffcalculator"}
 
 
 def _late_slots(season, data_dir):
@@ -176,8 +199,12 @@ def _attach_late_slots(payload, season, data_dir):
 
 def _draft_consensus(season, schedules, data_dir):
     """ECR is the required spine (raise -> abort the run, fail-safe); ADP is a
-    best-effort overlay (failure -> None, board still builds). Replacement is
-    derived from the ECR pool so the flex split is not a guess."""
+    best-effort overlay (failure -> None/None, board still builds). Replacement
+    is derived from the ECR pool so the flex split is not a guess.
+
+    Returns (ecr, adp, replacement, adp_source); adp_source records which ADP
+    path actually produced `adp` (see `_load_adp`) so the published board can
+    say honestly which one it used -- None whenever `adp` itself is None."""
     from ffmodel.site.board_rank import flex_replacement_ranks
 
     ecr_df, _stats = _load_consensus(season, schedules, data_dir)
@@ -185,12 +212,12 @@ def _draft_consensus(season, schedules, data_dir):
     pool = ecr_df.rename(columns={"pos": "position"})[["position", "ecr"]]
     replacement = flex_replacement_ranks(pool, LEAGUE_DEDICATED, LEAGUE_FLEX_SLOTS)
     try:
-        adp_df = _load_adp(season, data_dir)
+        adp_df, adp_source = _load_adp(season, data_dir)
         adp = dict(zip(adp_df["player_id"], adp_df["adp"]))
     except Exception as exc:                     # noqa: BLE001 - overlay is optional
         print(f"ADP unavailable ({exc}); board builds without the market overlay")
-        adp = None
-    return ecr, adp, replacement
+        adp, adp_source = None, None
+    return ecr, adp, replacement, adp_source
 
 
 def _make_predictor(args, features: pd.DataFrame):
@@ -250,7 +277,7 @@ def main() -> None:
         draft_picks = pull_draft_picks(list(range(2012, args.season + 1)),
                                        cache_dir=args.data_dir)
 
-        ecr, adp, replacement = _draft_consensus(args.season, schedules, args.data_dir)
+        ecr, adp, replacement, adp_source = _draft_consensus(args.season, schedules, args.data_dir)
 
     latest_season = int(weekly["season"].max())
     latest_week = int(weekly[weekly["season"] == latest_season]["week"].max())
@@ -274,10 +301,15 @@ def main() -> None:
         payloads["weekly.json"] = build_weekly_projections(
             future, predictor, args.season, week, data_through)
     if args.draft:
-        payloads["draft.json"] = _attach_late_slots(build_draft_board(
+        board_payload = build_draft_board(
             weekly, schedules, predictor, args.season, data_through, prefit=True,
             sleeper_players=sleeper_players, draft_picks=draft_picks,
-            ecr=ecr, adp=adp, replacement_rank=replacement), args.season, args.data_dir)
+            ecr=ecr, adp=adp, replacement_rank=replacement)
+        # Provenance: which ADP source actually fed the board (sleeper_snapshot
+        # + its capture date, or the ffcalculator fallback) -- so the site can
+        # say honestly where its market overlay came from.
+        board_payload["adp_source"] = adp_source
+        payloads["draft.json"] = _attach_late_slots(board_payload, args.season, args.data_dir)
     backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
     payloads["about.json"] = build_about(backtests, data_through, site_model=predictor.name)
 

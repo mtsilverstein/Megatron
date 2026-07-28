@@ -274,7 +274,9 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     monkeypatch.setattr(gen_mod, "_load_consensus",
                         lambda s, sched, d: (ecr_df, {"match_rate": 1.0}))
     monkeypatch.setattr(gen_mod, "_load_adp",
-                        lambda s, d: pd.DataFrame({"player_id": ["00-0000001"], "adp": [1.0]}))
+                        lambda s, d: (pd.DataFrame({"player_id": ["00-0000001"], "adp": [1.0]}),
+                                     {"source": "sleeper_snapshot",
+                                      "snapshot_date": "2026-07-27"}))
     monkeypatch.setattr(gen_mod, "_late_slots",
                         lambda season, data_dir: {"K": [], "DST": []})
 
@@ -319,6 +321,9 @@ def test_draft_run_threads_sleeper_dump_into_board(monkeypatch, tmp_path):
     # main() actually attaches the late-slot block (stubbed empty by the helper)
     written = json.loads((tmp_path / "out" / "draft.json").read_text())
     assert written["late_slots"] == {"K": [], "DST": []}
+    # ...and the ADP provenance the stubbed _load_adp reported
+    assert written["adp_source"] == {"source": "sleeper_snapshot",
+                                     "snapshot_date": "2026-07-27"}
 
 
 def test_weekly_only_run_never_touches_sleeper(monkeypatch, tmp_path):
@@ -406,15 +411,18 @@ def test_draft_consensus_ecr_required_adp_best_effort(monkeypatch):
     # ADP fails -> swallowed, ecr still returned; replacement derived (tiny pool)
     monkeypatch.setattr(generate, "_load_adp",
                         lambda s, d: (_ for _ in ()).throw(RuntimeError("403")))
-    ecr, adp, replacement = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
+    ecr, adp, replacement, adp_source = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
     assert ecr == {"00-1": 1.0, "00-2": 2.0} and adp is None
+    assert adp_source is None   # no ADP -> no source to report, honestly
     assert set(replacement) == {"QB", "RB", "WR", "TE"}   # derived, all positions
 
-    # ADP ok -> mapped
+    # ADP ok -> mapped, and its source recorded
     adp_df = pd.DataFrame({"player_id": ["00-1"], "adp": [6.0]})
-    monkeypatch.setattr(generate, "_load_adp", lambda s, d: adp_df)
-    ecr, adp, replacement = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
+    monkeypatch.setattr(generate, "_load_adp",
+                        lambda s, d: (adp_df, {"source": "ffcalculator"}))
+    ecr, adp, replacement, adp_source = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
     assert adp == {"00-1": 6.0}
+    assert adp_source == {"source": "ffcalculator"}
 
 
 def test_draft_consensus_ecr_failure_propagates(monkeypatch):
@@ -425,6 +433,56 @@ def test_draft_consensus_ecr_failure_propagates(monkeypatch):
                             ValueError("no consensus scrape before kickoff")))
     with pytest.raises(ValueError, match="no consensus scrape"):
         generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
+
+
+def test_load_adp_uses_snapshot_when_present(monkeypatch, tmp_path):
+    """`_load_adp` must prefer the committed Sleeper snapshot over a live
+    FFCalculator call whenever the snapshot file exists -- and must NOT hit
+    FFCalculator at all in that case (a stubbed `pull_adp` that raises if
+    called proves it; this repo has a real prior incident where a missed
+    stub let a test hit fantasyfootballcalculator.com live)."""
+    from ffmodel.site import generate
+    import ffmodel.data.adp as adp_mod
+    import ffmodel.data.rankings as rankings_mod
+
+    snap = tmp_path / "fantasypros_adp_2026-07-27.csv"
+    snap.write_text(
+        "Rank,Player (Bye),POS,ESPN,Sleeper,CBS,NFL,RTSports,Fantrax,AVG,Real-Time\n"
+        "1,Some Guy   KC (10),WR1,1,1,1,—,—,—,1.0,1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(adp_mod, "SNAPSHOT_PATH", snap)
+    crosswalk = pd.DataFrame({"gsis_id": ["00-9"], "merge_name": ["some guy"]})
+    monkeypatch.setattr(rankings_mod, "pull_player_ids", lambda cache_dir=None: crosswalk)
+
+    def boom_ffcalculator(*a, **k):
+        raise AssertionError("must not hit FFCalculator when the snapshot is present")
+    monkeypatch.setattr(adp_mod, "pull_adp", boom_ffcalculator)
+
+    adp_df, source = generate._load_adp(2026, tmp_path)
+    assert list(adp_df["player_id"]) == ["00-9"]
+    assert source == {"source": "sleeper_snapshot", "path": snap.as_posix(),
+                      "snapshot_date": "2026-07-27"}
+
+
+def test_load_adp_falls_back_to_ffcalculator_when_snapshot_missing(monkeypatch, tmp_path):
+    """No snapshot file -> falls back to `pull_adp` (stubbed here so this
+    test cannot hit the network either)."""
+    from ffmodel.site import generate
+    import ffmodel.data.adp as adp_mod
+
+    monkeypatch.setattr(adp_mod, "SNAPSHOT_PATH", tmp_path / "does-not-exist.csv")
+    calls = {}
+
+    def fake_pull_adp(season, cache_dir=None):
+        calls["season"], calls["cache_dir"] = season, cache_dir
+        return pd.DataFrame({"player_id": ["00-1"], "adp": [3.0]})
+    monkeypatch.setattr(adp_mod, "pull_adp", fake_pull_adp)
+
+    adp_df, source = generate._load_adp(2026, tmp_path)
+    assert calls == {"season": 2026, "cache_dir": tmp_path}
+    assert list(adp_df["player_id"]) == ["00-1"]
+    assert source == {"source": "ffcalculator"}
 
 
 def test_draft_payload_carries_late_slots(monkeypatch, tmp_path):
