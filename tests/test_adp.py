@@ -188,10 +188,16 @@ def test_real_snapshot_has_zero_k_or_dst_rows():
     from ffmodel.data.adp import SNAPSHOT_PATH, parse_snapshot_csv
 
     out = parse_snapshot_csv(SNAPSHOT_PATH)
-    assert len(out) == 245, (
-        f"expected 245 Sleeper-ranked QB/RB/WR/TE rows in the committed "
-        f"snapshot, got {len(out)} -- the snapshot file changed; re-verify "
-        f"before trusting the K/DST-emptiness guarantee below"
+    # A FLOOR, not an exact count: the snapshot is meant to be re-exported
+    # before draft day, and ADP row counts drift as FantasyPros adds sources.
+    # Pinning 245 exactly would turn a routine refresh into a red CI run that
+    # looks like a bug. The floor still catches a truncated or wrong-column
+    # export (the failure this tripwire exists for), while the position-set
+    # assertion below carries the actual K/DST invariant.
+    assert len(out) >= 200, (
+        f"only {len(out)} Sleeper-ranked QB/RB/WR/TE rows in the committed "
+        f"snapshot (expected >=200; it was 245 on 2026-07-27) -- the export "
+        f"looks truncated or the Sleeper column moved"
     )
     assert set(out["position"]) == {"QB", "RB", "WR", "TE"}, (
         "the committed Sleeper-ADP snapshot unexpectedly contains a K or DST "
