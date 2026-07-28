@@ -111,21 +111,40 @@ Over a one-week horizon, the injury report is already public and the
 availability edge largely evaporates. Measured against **weekly** expert
 consensus (conditional on players who played), the model is a **statistical
 tie**: within-position rank correlation 0.594 vs 0.596, a paired 95% interval
-that includes zero. For a free model against a paid expert panel, parity is a
-genuine result — and it points at where the model's real value lives.
+of [−0.012, +0.008] that includes zero. For a free model against a paid expert
+panel, parity is a genuine result — and it points at where the model's real
+value lives.
+
+That tie is measured on **weeks 3–17** of 2023–25 (2024 starts at week 5), 172
+position-weeks over 12,182 player-weeks. Eleven of the 54 season-weeks have no
+expert ranking scraped inside the seven days before kickoff, and the leak guard
+skips such a week rather than reach past kickoff to fill it. The figures above
+were prose in this document before they were an artifact; they have since been
+reproduced exactly and committed.
 
 The model has one measurable **running-back weekly** edge, and it survives
 out-of-sample replication. It was found on 2023–25 (out-ranking weekly
-consensus 0.72 vs 0.70, winning all three seasons). The replication was
+consensus 0.7215 vs 0.6958, winning all three seasons). The replication was
 pre-registered *before* the earlier-fold models were trained, then run on the
 disjoint 2020–22 seasons — and it held: **0.666 vs 0.642, winning all three
 again, a pooled advantage of +0.024 with a paired 95% interval [+0.007, +0.044]
-that excludes zero.** The effect is RB-specific — quarterback actually *loses*
-(−0.063), tight end and receiver tie — which is the signature of a real signal
-rather than a scoring artifact: a global quirk would lift every position, but
-only the one whose value is workload-driven (carries, targets, snap share)
-benefits, and that is exactly what the model's usage features capture. It is
-the one place the model measurably out-ranks the expert panel.
+that excludes zero.** Both samples now exist side by side:
+
+| position | 2020–22 delta | 2023–25 delta |
+|---|---|---|
+| QB | −0.063 | −0.040 |
+| **RB** | **+0.024** | **+0.026** |
+| WR | +0.003 | +0.009 |
+| TE | −0.014 | −0.001 |
+
+Running back is the only position positive on both disjoint samples, and its
+paired interval excludes zero in each. Quarterback is a loss on both, and on
+2023–25 the interval excludes zero — a real deficit, not noise. That pattern is
+the signature of a real signal rather than a scoring artifact: a global quirk
+would lift every position, but only the one whose value is workload-driven
+(carries, targets, snap share) benefits, and that is exactly what the model's
+usage features capture. Running back is the one place the model measurably
+out-ranks the expert panel.
 
 ## 4. What didn't work — and why
 
@@ -149,6 +168,10 @@ mechanism is the useful part:
   established starters, which week-1 status cannot see.*
 - **Loss rebalancing** to fix the "starved" touchdown heads. **Retracted before
   training** — see §5.
+- **A dedicated conditional-mean head** for the eight count components, built to
+  fix quarterback. It improved *points* significantly and *ranking* not at all,
+  and was not promoted. The most useful negative result the project has produced
+  — the full record is in §7.
 
 ## 5. The discipline earning its keep
 
@@ -173,9 +196,35 @@ The safeguards above are not decoration; they changed outcomes.
   weighting moves it. The intuition had been imported from mean-squared error,
   where it holds, into quantile loss, where it does not. The experiment was
   cancelled before spending the compute.
+- An audit of the XGBoost baseline found the **rejected feature pack v2 had been
+  silently live** for it. Feature resolution was implicit-on-presence, so the
+  baseline picked up any v2 column that happened to be in the frame even though
+  the gate had turned that pack down. The measured impact was negligible — mean
+  OVERALL PPR MAE moves **+0.0014** across 2023–25, so v2 is marginally *worse*
+  and well inside noise — but the mechanism was real. The baseline's feature set
+  is now versioned, explicit, frozen at v1, and pinned by a test that fails if a
+  new column joins it. The audit then corrected **itself** twice. Its first
+  conclusion, that data vintage explained a disagreement between two committed
+  reports, was wrong; it is retained in the file as `conclusion_SUPERSEDED` and
+  was disproved by a single observation — `naive_last4` is byte-identical across
+  the two reports while `xgboost` differs on every row, so the data cannot have
+  moved if the model reading it did not. A second claim, that the report-to-report
+  gap was "an order of magnitude" larger than the feature effect, was walked back
+  as overstated (see §7).
+- The guard predicates enforcing all of this were **mutation-tested**: each was
+  deliberately broken to see whether the suite noticed. Thirteen of fifteen died
+  as they should, including every walk-forward split and lag-shift boundary.
+  Three genuine gaps were found and closed with tests — the most serious being
+  that *no* test asserted the weekly fail-safe leaves previously-published JSON
+  byte-unchanged; the two tests that looked like they covered it proved strictly
+  weaker properties. One apparent survivor on the train-side leak boundary turned
+  out to be an artifact of a git worktree resolving the package to a different
+  source tree. It was chased down and re-run before being written up, not after.
 
 Catching your own error before it costs anything is the entire point of the
-process, and it is a more honest portfolio signal than a leaderboard number.
+process, and it is a more honest portfolio signal than a leaderboard number. A
+superseded conclusion left visible in the record is worth more than a clean one
+that was never checked.
 
 ## 6. What the model is genuinely good for
 
@@ -204,13 +253,44 @@ process, and it is a more honest portfolio signal than a leaderboard number.
   role and scheme changes — the availability information the v1 scope guard
   deliberately excludes. Closing the gap to consensus is a data-scope decision,
   not a modeling tweak, and it is genuinely hard.
-- **Quarterback is the weakest position** across every cut, traceable to the
-  rushing-touchdown component of QB scoring living in a distribution the median
-  under-serves. The fix is a better point construction (an expectation or a
-  dedicated mean head), not more features — and it is an open thread.
-- **Three held-out seasons is a coarse ruler.** Expanding to a longer
-  walk-forward (≈10 folds) is the cheapest way to resolve the small effects this
-  project keeps running into, and is the natural next step.
+- **Quarterback is the weakest position** across every cut — pooled over nine
+  walk-forward folds, weekly within-position rank correlation is 0.471 for QB
+  against 0.630 for RB/WR/TE — traceable to the rushing-touchdown component of QB
+  scoring living in a distribution the median under-serves. This document used to
+  call the fix a better point construction (an expectation or a dedicated mean
+  head) and leave it as an open thread. **That thread is now closed, and the
+  answer was no.** A pre-registered experiment fitted Poisson conditional-mean
+  heads for the eight count components and ran 9 walk-forward folds × 3 seeds × 2
+  arms. Verdict: **not promoted.** The primary — pooled RB/WR/TE weekly
+  within-position Spearman against v1 — came back at **−0.0005, 95% CI [−0.0015,
+  +0.0004]**: flat. Quarterback itself moved +0.005 with an interval spanning
+  zero. The band guard also failed, on 2022 QB coverage of 0.861 against a 0.85
+  ceiling — though the record notes that the v1 baseline refits that same cell to
+  0.844, so the mean head pushed an already-marginal cell over rather than
+  breaking the bands. The second arm was significantly *worse* on the primary
+  (−0.0011, interval excluding zero), even though it was the arm that helped QB
+  (+0.015, interval excluding zero).
+
+  **The informative part is what did improve.** Pooled PPR MAE dropped
+  significantly: **4.404 vs 4.491, a delta of −0.087 with a 95% CI of [−0.112,
+  −0.059].** The conditional-mean head predicts *points* better and *ranking* not
+  at all. That is the sharpest confirmation yet of the through-line in §3: the
+  ranking ceiling is set by information absent from the box score, not by the
+  estimator applied to it. And this is a tight null rather than an underpowered
+  one — the pre-registration anticipated a standard error of 0.007–0.010, enough
+  to resolve an effect of about 0.02; the realized 95% interval on the primary has
+  a half-width of 0.00096.
+- **More held-out seasons is no longer the obvious next step.** This document
+  previously called a longer walk-forward (≈10 folds) the cheapest way to resolve
+  the small effects the project keeps meeting. The mean-head gate effectively ran
+  that, at nine folds. What the XGBoost audit then turned up is the reason to be
+  careful with the prescription: the baseline **subsamples**, and refitting it on
+  byte-identical data with seeds 0–3 spans ~0.012 OVERALL PPR MAE and up to
+  ~0.047 on the smallest per-position cell — comparable to or larger than several
+  effects this project has chased. More folds do not help when the estimator's own
+  seed jitter is the size of the effect being measured. Reports now record
+  `xgb_seed`, `xgb_feature_set`, and a `data_vintage` block carrying a sha256 per
+  source parquet, and two reports are compared only when all three match.
 
 *This document is regenerated as results change; every figure traces to a
 committed evaluation in [`models/`](../models/) and a script under
