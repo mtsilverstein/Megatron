@@ -1,0 +1,2638 @@
+{
+  "generated_at": "2026-07-28T14:30:23+00:00",
+  "experiment": "weekly-expert-consensus",
+  "verdict": "REPRODUCES",
+  "claim_under_test": {
+    "source": "docs/methodology.md section 3 ('Where it holds its own: weekly')",
+    "seasons": [
+      2023,
+      2024,
+      2025
+    ],
+    "sp_ours": 0.594,
+    "sp_consensus": 0.5958,
+    "claim": "statistical tie: within-position rank correlation 0.594 vs 0.596, a paired 95% interval that includes zero"
+  },
+  "summary": "REPRODUCES the documented weekly claim. Pooled within-position weekly Spearman over 172 (season, week, position) cells, conditional on players who played: ours 0.5940 vs weekly consensus 0.5958, delta -0.0018 with a paired 95% interval [-0.0123, +0.0083] that includes zero. By position, we out-rank consensus at RB, WR and lose at QB, TE: QB -0.0404; RB +0.0257; WR +0.0088; TE -0.0013.",
+  "measurement_not_a_gate": "Nothing is promoted or demoted by this result. No feature, hyperparameter, staleness window, position filter or scoring choice was changed in response to it; the specification was fixed from docs/methodology.md and rb_oos_weekly.json before the run. Tuning any of them to land on the documented figures would be p-hacking a public claim.",
+  "design": {
+    "question": "Conditional on a player suiting up, do we rank a week's players within position as well as the weekly expert consensus?",
+    "test_seasons": [
+      2023,
+      2024,
+      2025
+    ],
+    "consensus": "FantasyPros weekly ECR (ecr_type='wp', weekly positional pages), staleness-guarded to scrapes within 7 days of kickoff",
+    "metric": "within-position Spearman per (season, week, position) cell, pooled cell-weighted; scored through the sign-safe primitives in eval/weekly_rankings.py (goodness scores, one conversion point, assert_model_sane tripwire). scipy.stats.spearmanr is never called from this module.",
+    "scoring": "ppr",
+    "min_cell": 5,
+    "pooled_mean_weighting": "cell-weighted, NOT player-week-weighted: each (season, week, position) cell contributes one Spearman regardless of how many players it holds."
+  },
+  "leak_safety": {
+    "consensus_snapshot": "weekly_snapshot: the latest scrape STRICTLY before the week's FIRST kickoff and within 7 days. A week with no qualifying scrape is skipped, never back-filled with a post-kickoff or stale ranking. This repo has a documented incident (rankings.py, 2023 preseason) where a naive 'latest scrape' was one day AFTER week-1 kickoff.",
+    "kickoff_definition": "first REG game of the week, not each player's own game -- a ranking published after Thursday night could otherwise inform Sunday's players.",
+    "model": "artifact fold through{S-1} for test season S (trained and early-stopped on seasons <= S-1); split is eval.splits.walk_forward_splits (train season < S); lag features are strictly prior games. No random splits."
+  },
+  "conditioning": {
+    "population": "players who PLAYED and were ranked -- the inner join of the week's consensus snapshot with that week's realized stat lines.",
+    "why": "The season-long consensus edge is largely AVAILABILITY forecasting (methodology section 3: the >=8-game cut shrinks the season gap 0.123 -> 0.049). At a one-week horizon the injury report is public, so this asks the residual question: pure per-game ranking skill.",
+    "fairness": "The filter is applied identically to both entrants and both rank an IDENTICAL player set (inner join), so it cannot advantage either side. It IS outcome-selected and would be indefensible as a season-long headline -- see consensus.py's dnp_policy, which deliberately keeps zero-game players in the season pool for that reason."
+  },
+  "artifacts_evaluated": {
+    "ensemble_roots": [
+      "models/transformer/v1",
+      "models/transformer/v1_s43",
+      "models/transformer/v1_s44"
+    ],
+    "folds_used": [
+      "through2022",
+      "through2023",
+      "through2024"
+    ]
+  },
+  "run_parameters": {
+    "first_season": 2012,
+    "feature_rows": 80090,
+    "max_stale_days": 7,
+    "bootstrap_seed": 20260728,
+    "n_boot": 10000,
+    "replacement_rank": {
+      "QB": 13,
+      "RB": 25,
+      "WR": 25,
+      "TE": 13
+    },
+    "git_commit": "d801852"
+  },
+  "documented_comparison": {
+    "documented": {
+      "source": "docs/methodology.md section 3 ('Where it holds its own: weekly')",
+      "seasons": [
+        2023,
+        2024,
+        2025
+      ],
+      "sp_ours": 0.594,
+      "sp_consensus": 0.5958,
+      "claim": "statistical tie: within-position rank correlation 0.594 vs 0.596, a paired 95% interval that includes zero"
+    },
+    "tolerance": 0.01,
+    "measured_minus_documented": {
+      "sp_ours": 0.0,
+      "sp_consensus": 0.0
+    },
+    "point_estimates_within_tolerance": true,
+    "tie_claim_holds": true,
+    "reproduces": true,
+    "per_position_reference": {
+      "seasons": [
+        2020,
+        2021,
+        2022
+      ],
+      "source": "models/diagnostics/rb_oos_weekly.json -> context_all_positions",
+      "deltas": {
+        "QB": -0.0631,
+        "RB": 0.0243,
+        "TE": -0.0144,
+        "WR": 0.0027
+      },
+      "measured_deltas_this_run": {
+        "QB": -0.0404,
+        "RB": 0.0257,
+        "WR": 0.0088,
+        "TE": -0.0013
+      },
+      "note": "The reference deltas are the 2020-22 OUT-OF-SAMPLE run (rb_oos_weekly.json), not 2023-25. They are NOT expected to match this run's seasons exactly, and a difference is not evidence against either measurement -- it is a different sample. Reported because the site's prose presents them next to the 2023-25 tie without stating which seasons they came from."
+    }
+  },
+  "overall": {
+    "cells": 172,
+    "player_weeks": 12182,
+    "sp_ours": 0.594,
+    "sp_consensus": 0.5958,
+    "delta": -0.0018,
+    "paired_bootstrap_ci95": [
+      -0.0123,
+      0.0083
+    ],
+    "ci_excludes_zero": false,
+    "season_cluster_ci95": [
+      -0.0119,
+      0.0038
+    ],
+    "season_cluster_excludes_zero": false,
+    "cells_won_pct": 56.4,
+    "startsit_hit_rate_ours": 0.5857,
+    "startsit_hit_rate_consensus": 0.5933
+  },
+  "per_position": [
+    {
+      "position": "QB",
+      "cells": 43,
+      "player_weeks": 1250,
+      "sp_ours": 0.3755,
+      "sp_consensus": 0.4159,
+      "delta": -0.0404,
+      "paired_bootstrap_ci95": [
+        -0.0739,
+        -0.0075
+      ],
+      "ci_excludes_zero": true,
+      "season_cluster_ci95": [
+        -0.0616,
+        -0.0071
+      ],
+      "season_cluster_excludes_zero": true,
+      "cells_won_pct": 37.2,
+      "startsit_hit_rate_ours": 0.5957,
+      "startsit_hit_rate_consensus": 0.6118
+    },
+    {
+      "position": "RB",
+      "cells": 43,
+      "player_weeks": 3312,
+      "sp_ours": 0.7215,
+      "sp_consensus": 0.6958,
+      "delta": 0.0257,
+      "paired_bootstrap_ci95": [
+        0.0145,
+        0.0373
+      ],
+      "ci_excludes_zero": true,
+      "season_cluster_ci95": [
+        0.0069,
+        0.0524
+      ],
+      "season_cluster_excludes_zero": true,
+      "cells_won_pct": 74.4,
+      "startsit_hit_rate_ours": 0.6707,
+      "startsit_hit_rate_consensus": 0.666
+    },
+    {
+      "position": "WR",
+      "cells": 43,
+      "player_weeks": 5035,
+      "sp_ours": 0.6621,
+      "sp_consensus": 0.6534,
+      "delta": 0.0088,
+      "paired_bootstrap_ci95": [
+        -0.0011,
+        0.0191
+      ],
+      "ci_excludes_zero": false,
+      "season_cluster_ci95": [
+        0.0016,
+        0.022
+      ],
+      "season_cluster_excludes_zero": true,
+      "cells_won_pct": 58.1,
+      "startsit_hit_rate_ours": 0.5247,
+      "startsit_hit_rate_consensus": 0.5442
+    },
+    {
+      "position": "TE",
+      "cells": 43,
+      "player_weeks": 2585,
+      "sp_ours": 0.6167,
+      "sp_consensus": 0.6181,
+      "delta": -0.0013,
+      "paired_bootstrap_ci95": [
+        -0.014,
+        0.0112
+      ],
+      "ci_excludes_zero": false,
+      "season_cluster_ci95": [
+        -0.0114,
+        0.0052
+      ],
+      "season_cluster_excludes_zero": false,
+      "cells_won_pct": 55.8,
+      "startsit_hit_rate_ours": 0.5295,
+      "startsit_hit_rate_consensus": 0.5295
+    }
+  ],
+  "per_season": [
+    {
+      "season": 2023,
+      "cells": 60,
+      "player_weeks": 4242,
+      "sp_ours": 0.593,
+      "sp_consensus": 0.5893,
+      "delta": 0.0038,
+      "paired_bootstrap_ci95": [
+        -0.0159,
+        0.0219
+      ],
+      "ci_excludes_zero": false,
+      "season_cluster_ci95": null,
+      "season_cluster_excludes_zero": null,
+      "cells_won_pct": 61.7,
+      "startsit_hit_rate_ours": 0.5939,
+      "startsit_hit_rate_consensus": 0.6009
+    },
+    {
+      "season": 2024,
+      "cells": 52,
+      "player_weeks": 3605,
+      "sp_ours": 0.586,
+      "sp_consensus": 0.5826,
+      "delta": 0.0034,
+      "paired_bootstrap_ci95": [
+        -0.0162,
+        0.0219
+      ],
+      "ci_excludes_zero": false,
+      "season_cluster_ci95": null,
+      "season_cluster_excludes_zero": null,
+      "cells_won_pct": 55.8,
+      "startsit_hit_rate_ours": 0.6012,
+      "startsit_hit_rate_consensus": 0.5941
+    },
+    {
+      "season": 2025,
+      "cells": 60,
+      "player_weeks": 4335,
+      "sp_ours": 0.6018,
+      "sp_consensus": 0.6137,
+      "delta": -0.0119,
+      "paired_bootstrap_ci95": [
+        -0.0284,
+        0.0033
+      ],
+      "ci_excludes_zero": false,
+      "season_cluster_ci95": null,
+      "season_cluster_excludes_zero": null,
+      "cells_won_pct": 51.7,
+      "startsit_hit_rate_ours": 0.564,
+      "startsit_hit_rate_consensus": 0.5851
+    }
+  ],
+  "provenance": {
+    "2023": {
+      "weeks_used": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "weeks_skipped": [
+        {
+          "week": 1,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2023-09-07"
+        },
+        {
+          "week": 2,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2023-09-14"
+        },
+        {
+          "week": 18,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2024-01-06"
+        }
+      ],
+      "position_disagreements_vs_fantasypros": 31,
+      "weeks": {
+        "3": {
+          "kickoff": "2023-09-21",
+          "snapshot": "2023-09-15",
+          "lead_days": 6,
+          "ranked": 589,
+          "match_rate": 0.9966,
+          "compared": 329
+        },
+        "4": {
+          "kickoff": "2023-09-28",
+          "snapshot": "2023-09-22",
+          "lead_days": 6,
+          "ranked": 453,
+          "match_rate": 1.0,
+          "compared": 329
+        },
+        "5": {
+          "kickoff": "2023-10-05",
+          "snapshot": "2023-09-29",
+          "lead_days": 6,
+          "ranked": 429,
+          "match_rate": 1.0,
+          "compared": 286
+        },
+        "6": {
+          "kickoff": "2023-10-12",
+          "snapshot": "2023-10-06",
+          "lead_days": 6,
+          "ranked": 388,
+          "match_rate": 1.0,
+          "compared": 259
+        },
+        "7": {
+          "kickoff": "2023-10-19",
+          "snapshot": "2023-10-13",
+          "lead_days": 6,
+          "ranked": 436,
+          "match_rate": 1.0,
+          "compared": 242
+        },
+        "8": {
+          "kickoff": "2023-10-26",
+          "snapshot": "2023-10-20",
+          "lead_days": 6,
+          "ranked": 366,
+          "match_rate": 1.0,
+          "compared": 263
+        },
+        "9": {
+          "kickoff": "2023-11-02",
+          "snapshot": "2023-10-27",
+          "lead_days": 6,
+          "ranked": 428,
+          "match_rate": 0.9977,
+          "compared": 290
+        },
+        "10": {
+          "kickoff": "2023-11-09",
+          "snapshot": "2023-11-03",
+          "lead_days": 6,
+          "ranked": 375,
+          "match_rate": 0.9973,
+          "compared": 246
+        },
+        "11": {
+          "kickoff": "2023-11-16",
+          "snapshot": "2023-11-10",
+          "lead_days": 6,
+          "ranked": 381,
+          "match_rate": 0.9974,
+          "compared": 241
+        },
+        "12": {
+          "kickoff": "2023-11-23",
+          "snapshot": "2023-11-17",
+          "lead_days": 6,
+          "ranked": 403,
+          "match_rate": 1.0,
+          "compared": 286
+        },
+        "13": {
+          "kickoff": "2023-11-30",
+          "snapshot": "2023-11-24",
+          "lead_days": 6,
+          "ranked": 449,
+          "match_rate": 0.9978,
+          "compared": 273
+        },
+        "14": {
+          "kickoff": "2023-12-07",
+          "snapshot": "2023-12-01",
+          "lead_days": 6,
+          "ranked": 387,
+          "match_rate": 0.9974,
+          "compared": 242
+        },
+        "15": {
+          "kickoff": "2023-12-14",
+          "snapshot": "2023-12-08",
+          "lead_days": 6,
+          "ranked": 424,
+          "match_rate": 1.0,
+          "compared": 314
+        },
+        "16": {
+          "kickoff": "2023-12-21",
+          "snapshot": "2023-12-15",
+          "lead_days": 6,
+          "ranked": 449,
+          "match_rate": 0.9955,
+          "compared": 326
+        },
+        "17": {
+          "kickoff": "2023-12-28",
+          "snapshot": "2023-12-22",
+          "lead_days": 6,
+          "ranked": 439,
+          "match_rate": 0.9954,
+          "compared": 316
+        }
+      }
+    },
+    "2024": {
+      "weeks_used": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "weeks_skipped": [
+        {
+          "week": 1,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2024-09-05"
+        },
+        {
+          "week": 2,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2024-09-12"
+        },
+        {
+          "week": 3,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2024-09-19"
+        },
+        {
+          "week": 4,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2024-09-26"
+        },
+        {
+          "week": 18,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2025-01-04"
+        }
+      ],
+      "position_disagreements_vs_fantasypros": 12,
+      "weeks": {
+        "5": {
+          "kickoff": "2024-10-03",
+          "snapshot": "2024-09-27",
+          "lead_days": 6,
+          "ranked": 452,
+          "match_rate": 0.9956,
+          "compared": 269
+        },
+        "6": {
+          "kickoff": "2024-10-10",
+          "snapshot": "2024-10-04",
+          "lead_days": 6,
+          "ranked": 396,
+          "match_rate": 1.0,
+          "compared": 236
+        },
+        "7": {
+          "kickoff": "2024-10-17",
+          "snapshot": "2024-10-11",
+          "lead_days": 6,
+          "ranked": 394,
+          "match_rate": 0.9975,
+          "compared": 272
+        },
+        "8": {
+          "kickoff": "2024-10-24",
+          "snapshot": "2024-10-18",
+          "lead_days": 6,
+          "ranked": 419,
+          "match_rate": 0.9976,
+          "compared": 312
+        },
+        "9": {
+          "kickoff": "2024-10-31",
+          "snapshot": "2024-10-25",
+          "lead_days": 6,
+          "ranked": 441,
+          "match_rate": 1.0,
+          "compared": 302
+        },
+        "10": {
+          "kickoff": "2024-11-07",
+          "snapshot": "2024-11-01",
+          "lead_days": 6,
+          "ranked": 400,
+          "match_rate": 1.0,
+          "compared": 249
+        },
+        "11": {
+          "kickoff": "2024-11-14",
+          "snapshot": "2024-11-08",
+          "lead_days": 6,
+          "ranked": 391,
+          "match_rate": 1.0,
+          "compared": 256
+        },
+        "12": {
+          "kickoff": "2024-11-21",
+          "snapshot": "2024-11-15",
+          "lead_days": 6,
+          "ranked": 386,
+          "match_rate": 1.0,
+          "compared": 233
+        },
+        "13": {
+          "kickoff": "2024-11-28",
+          "snapshot": "2024-11-27",
+          "lead_days": 1,
+          "ranked": 402,
+          "match_rate": 1.0,
+          "compared": 321
+        },
+        "14": {
+          "kickoff": "2024-12-05",
+          "snapshot": "2024-11-29",
+          "lead_days": 6,
+          "ranked": 436,
+          "match_rate": 1.0,
+          "compared": 261
+        },
+        "15": {
+          "kickoff": "2024-12-12",
+          "snapshot": "2024-12-06",
+          "lead_days": 6,
+          "ranked": 364,
+          "match_rate": 1.0,
+          "compared": 256
+        },
+        "16": {
+          "kickoff": "2024-12-19",
+          "snapshot": "2024-12-13",
+          "lead_days": 6,
+          "ranked": 436,
+          "match_rate": 1.0,
+          "compared": 316
+        },
+        "17": {
+          "kickoff": "2024-12-25",
+          "snapshot": "2024-12-20",
+          "lead_days": 5,
+          "ranked": 422,
+          "match_rate": 1.0,
+          "compared": 322
+        }
+      }
+    },
+    "2025": {
+      "weeks_used": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "weeks_skipped": [
+        {
+          "week": 1,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2025-09-04"
+        },
+        {
+          "week": 2,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2025-09-11"
+        },
+        {
+          "week": 18,
+          "reason": "no consensus scrape in [kickoff-7d, kickoff)",
+          "kickoff": "2026-01-03"
+        }
+      ],
+      "position_disagreements_vs_fantasypros": 25,
+      "weeks": {
+        "3": {
+          "kickoff": "2025-09-18",
+          "snapshot": "2025-09-12",
+          "lead_days": 6,
+          "ranked": 581,
+          "match_rate": 0.9776,
+          "compared": 348
+        },
+        "4": {
+          "kickoff": "2025-09-25",
+          "snapshot": "2025-09-19",
+          "lead_days": 6,
+          "ranked": 435,
+          "match_rate": 0.9977,
+          "compared": 328
+        },
+        "5": {
+          "kickoff": "2025-10-02",
+          "snapshot": "2025-09-26",
+          "lead_days": 6,
+          "ranked": 450,
+          "match_rate": 0.9956,
+          "compared": 292
+        },
+        "6": {
+          "kickoff": "2025-10-09",
+          "snapshot": "2025-10-03",
+          "lead_days": 6,
+          "ranked": 387,
+          "match_rate": 1.0,
+          "compared": 260
+        },
+        "7": {
+          "kickoff": "2025-10-16",
+          "snapshot": "2025-10-10",
+          "lead_days": 6,
+          "ranked": 430,
+          "match_rate": 1.0,
+          "compared": 293
+        },
+        "8": {
+          "kickoff": "2025-10-23",
+          "snapshot": "2025-10-17",
+          "lead_days": 6,
+          "ranked": 406,
+          "match_rate": 1.0,
+          "compared": 241
+        },
+        "9": {
+          "kickoff": "2025-10-30",
+          "snapshot": "2025-10-24",
+          "lead_days": 6,
+          "ranked": 375,
+          "match_rate": 0.9973,
+          "compared": 231
+        },
+        "10": {
+          "kickoff": "2025-11-06",
+          "snapshot": "2025-10-31",
+          "lead_days": 6,
+          "ranked": 410,
+          "match_rate": 0.9976,
+          "compared": 249
+        },
+        "11": {
+          "kickoff": "2025-11-13",
+          "snapshot": "2025-11-07",
+          "lead_days": 6,
+          "ranked": 416,
+          "match_rate": 1.0,
+          "compared": 270
+        },
+        "12": {
+          "kickoff": "2025-11-20",
+          "snapshot": "2025-11-14",
+          "lead_days": 6,
+          "ranked": 443,
+          "match_rate": 1.0,
+          "compared": 268
+        },
+        "13": {
+          "kickoff": "2025-11-27",
+          "snapshot": "2025-11-21",
+          "lead_days": 6,
+          "ranked": 418,
+          "match_rate": 1.0,
+          "compared": 286
+        },
+        "14": {
+          "kickoff": "2025-12-04",
+          "snapshot": "2025-11-28",
+          "lead_days": 6,
+          "ranked": 468,
+          "match_rate": 0.9936,
+          "compared": 308
+        },
+        "15": {
+          "kickoff": "2025-12-11",
+          "snapshot": "2025-12-05",
+          "lead_days": 6,
+          "ranked": 446,
+          "match_rate": 1.0,
+          "compared": 290
+        },
+        "16": {
+          "kickoff": "2025-12-18",
+          "snapshot": "2025-12-12",
+          "lead_days": 6,
+          "ranked": 457,
+          "match_rate": 1.0,
+          "compared": 337
+        },
+        "17": {
+          "kickoff": "2025-12-25",
+          "snapshot": "2025-12-19",
+          "lead_days": 6,
+          "ranked": 481,
+          "match_rate": 1.0,
+          "compared": 334
+        }
+      }
+    },
+    "degenerate_cells_dropped": 0
+  },
+  "startsit_note": "startsit_hit_rate_* is a SECONDARY diagnostic: the share of a week's realized top-`slots` (REPLACEMENT_RANK per position, capped at cell size) that each entrant's own top-`slots` captured. The headline is Spearman.",
+  "cells": [
+    {
+      "season": 2023,
+      "week": 3,
+      "position": "QB",
+      "n": 39,
+      "sp_ours": 0.6146,
+      "sp_con": 0.6065,
+      "hit_ours": 7,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 3,
+      "position": "RB",
+      "n": 88,
+      "sp_ours": 0.6499,
+      "sp_con": 0.6348,
+      "hit_ours": 15,
+      "hit_con": 16,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 3,
+      "position": "WR",
+      "n": 136,
+      "sp_ours": 0.6906,
+      "sp_con": 0.6522,
+      "hit_ours": 14,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 3,
+      "position": "TE",
+      "n": 66,
+      "sp_ours": 0.5715,
+      "sp_con": 0.5213,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 4,
+      "position": "QB",
+      "n": 30,
+      "sp_ours": 0.2498,
+      "sp_con": 0.3135,
+      "hit_ours": 7,
+      "hit_con": 5,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 4,
+      "position": "RB",
+      "n": 90,
+      "sp_ours": 0.7087,
+      "sp_con": 0.639,
+      "hit_ours": 17,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 4,
+      "position": "WR",
+      "n": 137,
+      "sp_ours": 0.5833,
+      "sp_con": 0.598,
+      "hit_ours": 10,
+      "hit_con": 11,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 4,
+      "position": "TE",
+      "n": 72,
+      "sp_ours": 0.4995,
+      "sp_con": 0.5224,
+      "hit_ours": 5,
+      "hit_con": 5,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 5,
+      "position": "QB",
+      "n": 32,
+      "sp_ours": 0.4886,
+      "sp_con": 0.4622,
+      "hit_ours": 7,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 5,
+      "position": "RB",
+      "n": 72,
+      "sp_ours": 0.6376,
+      "sp_con": 0.5645,
+      "hit_ours": 14,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 5,
+      "position": "WR",
+      "n": 121,
+      "sp_ours": 0.6699,
+      "sp_con": 0.6733,
+      "hit_ours": 13,
+      "hit_con": 12,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 5,
+      "position": "TE",
+      "n": 61,
+      "sp_ours": 0.6842,
+      "sp_con": 0.7109,
+      "hit_ours": 8,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 6,
+      "position": "QB",
+      "n": 26,
+      "sp_ours": 0.3525,
+      "sp_con": 0.4824,
+      "hit_ours": 9,
+      "hit_con": 10,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 6,
+      "position": "RB",
+      "n": 70,
+      "sp_ours": 0.753,
+      "sp_con": 0.7506,
+      "hit_ours": 19,
+      "hit_con": 19,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 6,
+      "position": "WR",
+      "n": 113,
+      "sp_ours": 0.6884,
+      "sp_con": 0.7219,
+      "hit_ours": 14,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 6,
+      "position": "TE",
+      "n": 50,
+      "sp_ours": 0.4587,
+      "sp_con": 0.4875,
+      "hit_ours": 6,
+      "hit_con": 5,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 7,
+      "position": "QB",
+      "n": 25,
+      "sp_ours": 0.2385,
+      "sp_con": 0.4554,
+      "hit_ours": 6,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 7,
+      "position": "RB",
+      "n": 62,
+      "sp_ours": 0.6582,
+      "sp_con": 0.6466,
+      "hit_ours": 18,
+      "hit_con": 18,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 7,
+      "position": "WR",
+      "n": 104,
+      "sp_ours": 0.6882,
+      "sp_con": 0.7001,
+      "hit_ours": 16,
+      "hit_con": 16,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 7,
+      "position": "TE",
+      "n": 51,
+      "sp_ours": 0.7388,
+      "sp_con": 0.7427,
+      "hit_ours": 9,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 8,
+      "position": "QB",
+      "n": 26,
+      "sp_ours": 0.3976,
+      "sp_con": 0.4995,
+      "hit_ours": 8,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 8,
+      "position": "RB",
+      "n": 73,
+      "sp_ours": 0.7803,
+      "sp_con": 0.6983,
+      "hit_ours": 15,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 8,
+      "position": "WR",
+      "n": 114,
+      "sp_ours": 0.6842,
+      "sp_con": 0.624,
+      "hit_ours": 13,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 8,
+      "position": "TE",
+      "n": 50,
+      "sp_ours": 0.7816,
+      "sp_con": 0.7711,
+      "hit_ours": 9,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 9,
+      "position": "QB",
+      "n": 25,
+      "sp_ours": 0.3424,
+      "sp_con": 0.3866,
+      "hit_ours": 8,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 9,
+      "position": "RB",
+      "n": 76,
+      "sp_ours": 0.7018,
+      "sp_con": 0.6945,
+      "hit_ours": 18,
+      "hit_con": 18,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 9,
+      "position": "WR",
+      "n": 127,
+      "sp_ours": 0.5981,
+      "sp_con": 0.5816,
+      "hit_ours": 13,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 9,
+      "position": "TE",
+      "n": 62,
+      "sp_ours": 0.6204,
+      "sp_con": 0.6101,
+      "hit_ours": 6,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 10,
+      "position": "QB",
+      "n": 26,
+      "sp_ours": 0.4503,
+      "sp_con": 0.2909,
+      "hit_ours": 9,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 10,
+      "position": "RB",
+      "n": 64,
+      "sp_ours": 0.7023,
+      "sp_con": 0.6356,
+      "hit_ours": 18,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 10,
+      "position": "WR",
+      "n": 101,
+      "sp_ours": 0.6664,
+      "sp_con": 0.6184,
+      "hit_ours": 12,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 10,
+      "position": "TE",
+      "n": 55,
+      "sp_ours": 0.6832,
+      "sp_con": 0.6534,
+      "hit_ours": 9,
+      "hit_con": 10,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 11,
+      "position": "QB",
+      "n": 22,
+      "sp_ours": 0.1745,
+      "sp_con": 0.4015,
+      "hit_ours": 9,
+      "hit_con": 10,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 11,
+      "position": "RB",
+      "n": 65,
+      "sp_ours": 0.7357,
+      "sp_con": 0.6705,
+      "hit_ours": 19,
+      "hit_con": 19,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 11,
+      "position": "WR",
+      "n": 102,
+      "sp_ours": 0.7111,
+      "sp_con": 0.6914,
+      "hit_ours": 13,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 11,
+      "position": "TE",
+      "n": 52,
+      "sp_ours": 0.4811,
+      "sp_con": 0.5781,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 12,
+      "position": "QB",
+      "n": 28,
+      "sp_ours": 0.6141,
+      "sp_con": 0.5742,
+      "hit_ours": 10,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 12,
+      "position": "RB",
+      "n": 74,
+      "sp_ours": 0.7744,
+      "sp_con": 0.6806,
+      "hit_ours": 18,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 12,
+      "position": "WR",
+      "n": 126,
+      "sp_ours": 0.7313,
+      "sp_con": 0.7162,
+      "hit_ours": 14,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 12,
+      "position": "TE",
+      "n": 58,
+      "sp_ours": 0.621,
+      "sp_con": 0.6157,
+      "hit_ours": 9,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 13,
+      "position": "QB",
+      "n": 27,
+      "sp_ours": 0.5385,
+      "sp_con": 0.5599,
+      "hit_ours": 9,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 13,
+      "position": "RB",
+      "n": 73,
+      "sp_ours": 0.7816,
+      "sp_con": 0.7829,
+      "hit_ours": 18,
+      "hit_con": 18,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 13,
+      "position": "WR",
+      "n": 111,
+      "sp_ours": 0.6749,
+      "sp_con": 0.6525,
+      "hit_ours": 15,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 13,
+      "position": "TE",
+      "n": 62,
+      "sp_ours": 0.4826,
+      "sp_con": 0.5912,
+      "hit_ours": 8,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 14,
+      "position": "QB",
+      "n": 26,
+      "sp_ours": 0.0995,
+      "sp_con": -0.0263,
+      "hit_ours": 6,
+      "hit_con": 5,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 14,
+      "position": "RB",
+      "n": 65,
+      "sp_ours": 0.7933,
+      "sp_con": 0.7348,
+      "hit_ours": 19,
+      "hit_con": 19,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 14,
+      "position": "WR",
+      "n": 104,
+      "sp_ours": 0.716,
+      "sp_con": 0.63,
+      "hit_ours": 16,
+      "hit_con": 16,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 14,
+      "position": "TE",
+      "n": 47,
+      "sp_ours": 0.5943,
+      "sp_con": 0.6157,
+      "hit_ours": 8,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 15,
+      "position": "QB",
+      "n": 31,
+      "sp_ours": 0.3742,
+      "sp_con": 0.4496,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 15,
+      "position": "RB",
+      "n": 85,
+      "sp_ours": 0.6137,
+      "sp_con": 0.5097,
+      "hit_ours": 14,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 15,
+      "position": "WR",
+      "n": 132,
+      "sp_ours": 0.6617,
+      "sp_con": 0.6091,
+      "hit_ours": 11,
+      "hit_con": 11,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 15,
+      "position": "TE",
+      "n": 66,
+      "sp_ours": 0.6087,
+      "sp_con": 0.5886,
+      "hit_ours": 7,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 16,
+      "position": "QB",
+      "n": 30,
+      "sp_ours": 0.3241,
+      "sp_con": 0.3326,
+      "hit_ours": 7,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 16,
+      "position": "RB",
+      "n": 84,
+      "sp_ours": 0.7201,
+      "sp_con": 0.6765,
+      "hit_ours": 13,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 16,
+      "position": "WR",
+      "n": 143,
+      "sp_ours": 0.6416,
+      "sp_con": 0.6246,
+      "hit_ours": 14,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 16,
+      "position": "TE",
+      "n": 69,
+      "sp_ours": 0.6385,
+      "sp_con": 0.6019,
+      "hit_ours": 7,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 17,
+      "position": "QB",
+      "n": 34,
+      "sp_ours": 0.3888,
+      "sp_con": 0.5792,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2023,
+      "week": 17,
+      "position": "RB",
+      "n": 87,
+      "sp_ours": 0.7292,
+      "sp_con": 0.6353,
+      "hit_ours": 14,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 17,
+      "position": "WR",
+      "n": 129,
+      "sp_ours": 0.7567,
+      "sp_con": 0.7387,
+      "hit_ours": 13,
+      "hit_con": 12,
+      "slots": 25
+    },
+    {
+      "season": 2023,
+      "week": 17,
+      "position": "TE",
+      "n": 66,
+      "sp_ours": 0.568,
+      "sp_con": 0.5926,
+      "hit_ours": 6,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 5,
+      "position": "QB",
+      "n": 30,
+      "sp_ours": 0.5771,
+      "sp_con": 0.5854,
+      "hit_ours": 8,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 5,
+      "position": "RB",
+      "n": 76,
+      "sp_ours": 0.5881,
+      "sp_con": 0.5408,
+      "hit_ours": 15,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 5,
+      "position": "WR",
+      "n": 108,
+      "sp_ours": 0.6228,
+      "sp_con": 0.6328,
+      "hit_ours": 14,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 5,
+      "position": "TE",
+      "n": 55,
+      "sp_ours": 0.6213,
+      "sp_con": 0.6933,
+      "hit_ours": 6,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 6,
+      "position": "QB",
+      "n": 23,
+      "sp_ours": 0.1976,
+      "sp_con": 0.429,
+      "hit_ours": 8,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 6,
+      "position": "RB",
+      "n": 66,
+      "sp_ours": 0.469,
+      "sp_con": 0.493,
+      "hit_ours": 16,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 6,
+      "position": "WR",
+      "n": 99,
+      "sp_ours": 0.5916,
+      "sp_con": 0.5316,
+      "hit_ours": 16,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 6,
+      "position": "TE",
+      "n": 48,
+      "sp_ours": 0.7069,
+      "sp_con": 0.7041,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 7,
+      "position": "QB",
+      "n": 29,
+      "sp_ours": 0.4961,
+      "sp_con": 0.3719,
+      "hit_ours": 9,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 7,
+      "position": "RB",
+      "n": 77,
+      "sp_ours": 0.7594,
+      "sp_con": 0.6946,
+      "hit_ours": 18,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 7,
+      "position": "WR",
+      "n": 106,
+      "sp_ours": 0.4409,
+      "sp_con": 0.4654,
+      "hit_ours": 12,
+      "hit_con": 11,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 7,
+      "position": "TE",
+      "n": 60,
+      "sp_ours": 0.6751,
+      "sp_con": 0.6441,
+      "hit_ours": 8,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 8,
+      "position": "QB",
+      "n": 30,
+      "sp_ours": 0.3143,
+      "sp_con": 0.2467,
+      "hit_ours": 6,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 8,
+      "position": "RB",
+      "n": 88,
+      "sp_ours": 0.8057,
+      "sp_con": 0.7678,
+      "hit_ours": 18,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 8,
+      "position": "WR",
+      "n": 123,
+      "sp_ours": 0.615,
+      "sp_con": 0.6294,
+      "hit_ours": 11,
+      "hit_con": 12,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 8,
+      "position": "TE",
+      "n": 71,
+      "sp_ours": 0.7226,
+      "sp_con": 0.7627,
+      "hit_ours": 9,
+      "hit_con": 10,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 9,
+      "position": "QB",
+      "n": 30,
+      "sp_ours": 0.3459,
+      "sp_con": 0.2761,
+      "hit_ours": 7,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 9,
+      "position": "RB",
+      "n": 81,
+      "sp_ours": 0.7556,
+      "sp_con": 0.776,
+      "hit_ours": 16,
+      "hit_con": 18,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 9,
+      "position": "WR",
+      "n": 126,
+      "sp_ours": 0.7008,
+      "sp_con": 0.6576,
+      "hit_ours": 12,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 9,
+      "position": "TE",
+      "n": 65,
+      "sp_ours": 0.4511,
+      "sp_con": 0.4639,
+      "hit_ours": 6,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 10,
+      "position": "QB",
+      "n": 24,
+      "sp_ours": 0.3113,
+      "sp_con": 0.153,
+      "hit_ours": 8,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 10,
+      "position": "RB",
+      "n": 70,
+      "sp_ours": 0.7423,
+      "sp_con": 0.7255,
+      "hit_ours": 21,
+      "hit_con": 21,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 10,
+      "position": "WR",
+      "n": 103,
+      "sp_ours": 0.5359,
+      "sp_con": 0.5672,
+      "hit_ours": 11,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 10,
+      "position": "TE",
+      "n": 52,
+      "sp_ours": 0.6601,
+      "sp_con": 0.57,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 11,
+      "position": "QB",
+      "n": 24,
+      "sp_ours": 0.167,
+      "sp_con": 0.1304,
+      "hit_ours": 9,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 11,
+      "position": "RB",
+      "n": 72,
+      "sp_ours": 0.7975,
+      "sp_con": 0.7834,
+      "hit_ours": 20,
+      "hit_con": 21,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 11,
+      "position": "WR",
+      "n": 105,
+      "sp_ours": 0.6808,
+      "sp_con": 0.6729,
+      "hit_ours": 13,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 11,
+      "position": "TE",
+      "n": 55,
+      "sp_ours": 0.3505,
+      "sp_con": 0.3097,
+      "hit_ours": 4,
+      "hit_con": 4,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 12,
+      "position": "QB",
+      "n": 24,
+      "sp_ours": 0.5478,
+      "sp_con": 0.4452,
+      "hit_ours": 9,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 12,
+      "position": "RB",
+      "n": 63,
+      "sp_ours": 0.764,
+      "sp_con": 0.763,
+      "hit_ours": 20,
+      "hit_con": 19,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 12,
+      "position": "WR",
+      "n": 100,
+      "sp_ours": 0.7311,
+      "sp_con": 0.7081,
+      "hit_ours": 15,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 12,
+      "position": "TE",
+      "n": 46,
+      "sp_ours": 0.7215,
+      "sp_con": 0.6363,
+      "hit_ours": 8,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 13,
+      "position": "QB",
+      "n": 34,
+      "sp_ours": 0.0735,
+      "sp_con": 0.2376,
+      "hit_ours": 5,
+      "hit_con": 4,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 13,
+      "position": "RB",
+      "n": 89,
+      "sp_ours": 0.7122,
+      "sp_con": 0.6825,
+      "hit_ours": 15,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 13,
+      "position": "WR",
+      "n": 128,
+      "sp_ours": 0.7221,
+      "sp_con": 0.7635,
+      "hit_ours": 14,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 13,
+      "position": "TE",
+      "n": 70,
+      "sp_ours": 0.7044,
+      "sp_con": 0.6695,
+      "hit_ours": 7,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 14,
+      "position": "QB",
+      "n": 28,
+      "sp_ours": 0.6853,
+      "sp_con": 0.6831,
+      "hit_ours": 9,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 14,
+      "position": "RB",
+      "n": 67,
+      "sp_ours": 0.6113,
+      "sp_con": 0.6225,
+      "hit_ours": 18,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 14,
+      "position": "WR",
+      "n": 106,
+      "sp_ours": 0.7629,
+      "sp_con": 0.7668,
+      "hit_ours": 12,
+      "hit_con": 12,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 14,
+      "position": "TE",
+      "n": 60,
+      "sp_ours": 0.6205,
+      "sp_con": 0.6629,
+      "hit_ours": 9,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 15,
+      "position": "QB",
+      "n": 26,
+      "sp_ours": 0.2691,
+      "sp_con": 0.4236,
+      "hit_ours": 7,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 15,
+      "position": "RB",
+      "n": 67,
+      "sp_ours": 0.7301,
+      "sp_con": 0.7763,
+      "hit_ours": 16,
+      "hit_con": 18,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 15,
+      "position": "WR",
+      "n": 109,
+      "sp_ours": 0.7134,
+      "sp_con": 0.7264,
+      "hit_ours": 19,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 15,
+      "position": "TE",
+      "n": 54,
+      "sp_ours": 0.5681,
+      "sp_con": 0.65,
+      "hit_ours": 6,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 16,
+      "position": "QB",
+      "n": 29,
+      "sp_ours": 0.1692,
+      "sp_con": 0.3069,
+      "hit_ours": 8,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 16,
+      "position": "RB",
+      "n": 91,
+      "sp_ours": 0.7172,
+      "sp_con": 0.6385,
+      "hit_ours": 16,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 16,
+      "position": "WR",
+      "n": 129,
+      "sp_ours": 0.7464,
+      "sp_con": 0.7574,
+      "hit_ours": 13,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 16,
+      "position": "TE",
+      "n": 67,
+      "sp_ours": 0.6667,
+      "sp_con": 0.6784,
+      "hit_ours": 7,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 17,
+      "position": "QB",
+      "n": 29,
+      "sp_ours": 0.4557,
+      "sp_con": 0.4138,
+      "hit_ours": 10,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2024,
+      "week": 17,
+      "position": "RB",
+      "n": 87,
+      "sp_ours": 0.7251,
+      "sp_con": 0.6969,
+      "hit_ours": 17,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 17,
+      "position": "WR",
+      "n": 138,
+      "sp_ours": 0.7072,
+      "sp_con": 0.6715,
+      "hit_ours": 12,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2024,
+      "week": 17,
+      "position": "TE",
+      "n": 68,
+      "sp_ours": 0.6462,
+      "sp_con": 0.6353,
+      "hit_ours": 7,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 3,
+      "position": "QB",
+      "n": 42,
+      "sp_ours": 0.5533,
+      "sp_con": 0.5642,
+      "hit_ours": 7,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 3,
+      "position": "RB",
+      "n": 90,
+      "sp_ours": 0.7842,
+      "sp_con": 0.7751,
+      "hit_ours": 17,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 3,
+      "position": "WR",
+      "n": 146,
+      "sp_ours": 0.7248,
+      "sp_con": 0.6879,
+      "hit_ours": 9,
+      "hit_con": 11,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 3,
+      "position": "TE",
+      "n": 70,
+      "sp_ours": 0.5901,
+      "sp_con": 0.5874,
+      "hit_ours": 4,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 4,
+      "position": "QB",
+      "n": 33,
+      "sp_ours": 0.3185,
+      "sp_con": 0.377,
+      "hit_ours": 6,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 4,
+      "position": "RB",
+      "n": 89,
+      "sp_ours": 0.7618,
+      "sp_con": 0.7087,
+      "hit_ours": 15,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 4,
+      "position": "WR",
+      "n": 137,
+      "sp_ours": 0.6729,
+      "sp_con": 0.7156,
+      "hit_ours": 12,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 4,
+      "position": "TE",
+      "n": 69,
+      "sp_ours": 0.6733,
+      "sp_con": 0.6559,
+      "hit_ours": 6,
+      "hit_con": 4,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 5,
+      "position": "QB",
+      "n": 31,
+      "sp_ours": 0.4486,
+      "sp_con": 0.3147,
+      "hit_ours": 7,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 5,
+      "position": "RB",
+      "n": 80,
+      "sp_ours": 0.7459,
+      "sp_con": 0.7185,
+      "hit_ours": 17,
+      "hit_con": 19,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 5,
+      "position": "WR",
+      "n": 119,
+      "sp_ours": 0.72,
+      "sp_con": 0.7489,
+      "hit_ours": 16,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 5,
+      "position": "TE",
+      "n": 62,
+      "sp_ours": 0.6449,
+      "sp_con": 0.6377,
+      "hit_ours": 6,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 6,
+      "position": "QB",
+      "n": 26,
+      "sp_ours": 0.4824,
+      "sp_con": 0.5679,
+      "hit_ours": 9,
+      "hit_con": 10,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 6,
+      "position": "RB",
+      "n": 70,
+      "sp_ours": 0.6212,
+      "sp_con": 0.6524,
+      "hit_ours": 16,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 6,
+      "position": "WR",
+      "n": 107,
+      "sp_ours": 0.5512,
+      "sp_con": 0.5771,
+      "hit_ours": 10,
+      "hit_con": 11,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 6,
+      "position": "TE",
+      "n": 57,
+      "sp_ours": 0.6554,
+      "sp_con": 0.6665,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 7,
+      "position": "QB",
+      "n": 35,
+      "sp_ours": 0.6285,
+      "sp_con": 0.635,
+      "hit_ours": 9,
+      "hit_con": 9,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 7,
+      "position": "RB",
+      "n": 79,
+      "sp_ours": 0.8347,
+      "sp_con": 0.7711,
+      "hit_ours": 18,
+      "hit_con": 16,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 7,
+      "position": "WR",
+      "n": 116,
+      "sp_ours": 0.6928,
+      "sp_con": 0.6042,
+      "hit_ours": 15,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 7,
+      "position": "TE",
+      "n": 63,
+      "sp_ours": 0.5578,
+      "sp_con": 0.6011,
+      "hit_ours": 6,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 8,
+      "position": "QB",
+      "n": 26,
+      "sp_ours": 0.6191,
+      "sp_con": 0.5166,
+      "hit_ours": 10,
+      "hit_con": 10,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 8,
+      "position": "RB",
+      "n": 69,
+      "sp_ours": 0.6621,
+      "sp_con": 0.6636,
+      "hit_ours": 14,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 8,
+      "position": "WR",
+      "n": 97,
+      "sp_ours": 0.5881,
+      "sp_con": 0.5726,
+      "hit_ours": 14,
+      "hit_con": 13,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 8,
+      "position": "TE",
+      "n": 49,
+      "sp_ours": 0.7734,
+      "sp_con": 0.7478,
+      "hit_ours": 9,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 9,
+      "position": "QB",
+      "n": 22,
+      "sp_ours": 0.4421,
+      "sp_con": 0.5953,
+      "hit_ours": 10,
+      "hit_con": 11,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 9,
+      "position": "RB",
+      "n": 63,
+      "sp_ours": 0.6605,
+      "sp_con": 0.6891,
+      "hit_ours": 16,
+      "hit_con": 16,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 9,
+      "position": "WR",
+      "n": 97,
+      "sp_ours": 0.6972,
+      "sp_con": 0.6648,
+      "hit_ours": 16,
+      "hit_con": 16,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 9,
+      "position": "TE",
+      "n": 49,
+      "sp_ours": 0.6414,
+      "sp_con": 0.6177,
+      "hit_ours": 5,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 10,
+      "position": "QB",
+      "n": 26,
+      "sp_ours": 0.2178,
+      "sp_con": 0.3094,
+      "hit_ours": 7,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 10,
+      "position": "RB",
+      "n": 70,
+      "sp_ours": 0.8088,
+      "sp_con": 0.8077,
+      "hit_ours": 20,
+      "hit_con": 20,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 10,
+      "position": "WR",
+      "n": 98,
+      "sp_ours": 0.6191,
+      "sp_con": 0.6663,
+      "hit_ours": 12,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 10,
+      "position": "TE",
+      "n": 55,
+      "sp_ours": 0.47,
+      "sp_con": 0.5058,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 11,
+      "position": "QB",
+      "n": 31,
+      "sp_ours": 0.0528,
+      "sp_con": 0.3008,
+      "hit_ours": 6,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 11,
+      "position": "RB",
+      "n": 76,
+      "sp_ours": 0.7452,
+      "sp_con": 0.7652,
+      "hit_ours": 14,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 11,
+      "position": "WR",
+      "n": 109,
+      "sp_ours": 0.6063,
+      "sp_con": 0.6585,
+      "hit_ours": 11,
+      "hit_con": 12,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 11,
+      "position": "TE",
+      "n": 54,
+      "sp_ours": 0.5652,
+      "sp_con": 0.5751,
+      "hit_ours": 6,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 12,
+      "position": "QB",
+      "n": 28,
+      "sp_ours": 0.1702,
+      "sp_con": 0.214,
+      "hit_ours": 8,
+      "hit_con": 7,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 12,
+      "position": "RB",
+      "n": 70,
+      "sp_ours": 0.7872,
+      "sp_con": 0.7777,
+      "hit_ours": 19,
+      "hit_con": 19,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 12,
+      "position": "WR",
+      "n": 111,
+      "sp_ours": 0.6543,
+      "sp_con": 0.6488,
+      "hit_ours": 13,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 12,
+      "position": "TE",
+      "n": 59,
+      "sp_ours": 0.6022,
+      "sp_con": 0.5603,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 13,
+      "position": "QB",
+      "n": 31,
+      "sp_ours": 0.3778,
+      "sp_con": 0.5536,
+      "hit_ours": 7,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 13,
+      "position": "RB",
+      "n": 77,
+      "sp_ours": 0.6986,
+      "sp_con": 0.6854,
+      "hit_ours": 15,
+      "hit_con": 17,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 13,
+      "position": "WR",
+      "n": 117,
+      "sp_ours": 0.611,
+      "sp_con": 0.6047,
+      "hit_ours": 12,
+      "hit_con": 12,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 13,
+      "position": "TE",
+      "n": 61,
+      "sp_ours": 0.7236,
+      "sp_con": 0.7102,
+      "hit_ours": 8,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 14,
+      "position": "QB",
+      "n": 34,
+      "sp_ours": 0.3005,
+      "sp_con": 0.4249,
+      "hit_ours": 6,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 14,
+      "position": "RB",
+      "n": 86,
+      "sp_ours": 0.7853,
+      "sp_con": 0.7699,
+      "hit_ours": 18,
+      "hit_con": 18,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 14,
+      "position": "WR",
+      "n": 116,
+      "sp_ours": 0.6752,
+      "sp_con": 0.6715,
+      "hit_ours": 13,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 14,
+      "position": "TE",
+      "n": 72,
+      "sp_ours": 0.6583,
+      "sp_con": 0.6119,
+      "hit_ours": 5,
+      "hit_con": 5,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 15,
+      "position": "QB",
+      "n": 30,
+      "sp_ours": 0.3313,
+      "sp_con": 0.4505,
+      "hit_ours": 6,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 15,
+      "position": "RB",
+      "n": 86,
+      "sp_ours": 0.6691,
+      "sp_con": 0.6791,
+      "hit_ours": 17,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 15,
+      "position": "WR",
+      "n": 113,
+      "sp_ours": 0.7363,
+      "sp_con": 0.6946,
+      "hit_ours": 14,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 15,
+      "position": "TE",
+      "n": 61,
+      "sp_ours": 0.6871,
+      "sp_con": 0.6725,
+      "hit_ours": 6,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 16,
+      "position": "QB",
+      "n": 34,
+      "sp_ours": 0.4368,
+      "sp_con": 0.4157,
+      "hit_ours": 8,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 16,
+      "position": "RB",
+      "n": 90,
+      "sp_ours": 0.7758,
+      "sp_con": 0.7674,
+      "hit_ours": 13,
+      "hit_con": 14,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 16,
+      "position": "WR",
+      "n": 137,
+      "sp_ours": 0.6518,
+      "sp_con": 0.6655,
+      "hit_ours": 13,
+      "hit_con": 15,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 16,
+      "position": "TE",
+      "n": 76,
+      "sp_ours": 0.5312,
+      "sp_con": 0.5528,
+      "hit_ours": 7,
+      "hit_con": 6,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 17,
+      "position": "QB",
+      "n": 34,
+      "sp_ours": 0.5095,
+      "sp_con": 0.5734,
+      "hit_ours": 8,
+      "hit_con": 8,
+      "slots": 13
+    },
+    {
+      "season": 2025,
+      "week": 17,
+      "position": "RB",
+      "n": 95,
+      "sp_ours": 0.7672,
+      "sp_con": 0.7736,
+      "hit_ours": 17,
+      "hit_con": 16,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 17,
+      "position": "WR",
+      "n": 135,
+      "sp_ours": 0.5379,
+      "sp_con": 0.5319,
+      "hit_ours": 9,
+      "hit_con": 10,
+      "slots": 25
+    },
+    {
+      "season": 2025,
+      "week": 17,
+      "position": "TE",
+      "n": 70,
+      "sp_ours": 0.5984,
+      "sp_con": 0.5907,
+      "hit_ours": 5,
+      "hit_con": 5,
+      "slots": 13
+    }
+  ]
+}
