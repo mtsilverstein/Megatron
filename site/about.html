@@ -80,11 +80,12 @@
   and the draft board still defers to consensus for the reason given
   above.</p>
   <p class="lim">Scope of that number: 172 position-weeks and 12,182
-  player-weeks, restricted to <strong>weeks 3&ndash;17</strong>. Eleven of
-  54 season-weeks are missing because the expert feed carries no ranking
-  scraped in the seven days before kickoff, and we will not reach past
-  kickoff to fill a gap. The tie is a tie on weeks 3&ndash;17, not on a full
-  season. Numbers in models/diagnostics/weekly_consensus.json.</p>
+  player-weeks, covering <strong>weeks 3&ndash;17 in 2023 and 2025, and
+  weeks 5&ndash;17 in 2024</strong>. Eleven of 54 season-weeks are missing
+  because the expert feed carries no ranking scraped in the seven days
+  before kickoff, and we will not reach past kickoff to fill a gap. So the
+  tie is a tie on the middle of the season, not on a full one. Numbers in
+  models/diagnostics/weekly_consensus.json.</p>
   <p>One position breaks the tie. At running back, weekly within-position
   ranking beat weekly consensus on the 2023–2025 seasons where the effect
   was found (Spearman 0.7215 vs 0.6958, won 3 of 3 seasons, p=0.002). Finding
@@ -100,11 +101,14 @@
   zero.</p>
   <p class="lim">This is one position out of four, and it should be read that
   way. Run the identical test on the others and QB <em>loses</em> to weekly
-  consensus — −0.0631 on the 2020–2022 replication, and −0.0404 on
-  2023–2025 with an interval excluding zero, so it is a real loss on both
-  samples rather than noise. TE is flat (−0.0144 then −0.0013) and WR a
-  shade positive (+0.0027 then +0.0088), neither separable from zero on
-  2023–2025. RB is the only position that clears zero on both. The
+  consensus in both samples — −0.0631 on the 2020–2022 replication and
+  −0.0404 on 2023–2025, the latter with an interval excluding zero. TE is
+  flat (−0.0144 then −0.0013) and WR a shade positive (+0.0027 then
+  +0.0088); on 2023–2025 neither is separable from zero. RB is the only
+  position positive in both samples, and the only one we have measured an
+  interval for in each. The 2020–2022 per-position figures other than RB
+  are point estimates without intervals, so their signs replicate but their
+  significance is not established. The
   effect concentrates on the position most driven by workload — carries,
   targets, snap share — which the model's usage features encode directly;
   that specificity is why we treat it as a real signal rather than a scoring
