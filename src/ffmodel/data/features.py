@@ -21,6 +21,23 @@ OPTIONAL_LAG_STATS = ["air_share"]
 LAG_WINDOWS = (4, 8)
 CONTEXT_FEATURES = ["games_prior", "is_home", "rest_days", "week", "is_indoor"]
 
+# --- Versioned feature sets for tabular consumers (the XGBoost baseline) ---
+# Every column feature-pack v2 added, named explicitly. Order mirrors where
+# each one lands in `feature_columns` so removing them reproduces the
+# pre-v2 column list *and* its order exactly (XGBoost's colsample_bytree
+# makes column order part of the result, so this is load-bearing).
+V2_FEATURE_COLUMNS = [
+    f"lag{window}_{stat}" for stat in OPTIONAL_LAG_STATS for window in LAG_WINDOWS
+] + ["is_indoor", "team_pass_att_last4"]
+# Registry keyed by feature-set name -> the v2-pack columns that set admits
+# on top of v1, mirroring the transformer's `dataset.FEATURE_SETS`. v1 is
+# FROZEN: it is the set every committed baseline report was generated with.
+BASELINE_FEATURE_SETS = {
+    "v1": (),
+    "v2": tuple(V2_FEATURE_COLUMNS),
+}
+DEFAULT_BASELINE_FEATURE_SET = "v1"
+
 
 def build_features(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
     df = weekly.sort_values(["player_id", "season", "week"]).reset_index(drop=True)
@@ -37,12 +54,33 @@ def build_features(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFram
     return df
 
 
-def feature_columns(df: pd.DataFrame) -> list[str]:
-    lag_cols = [c for c in df.columns if c.startswith(("lag4_", "lag8_"))]
+def feature_columns(
+    df: pd.DataFrame, feature_set: str = DEFAULT_BASELINE_FEATURE_SET,
+) -> list[str]:
+    """Columns a tabular model may consume, for an explicitly named feature set.
+
+    Resolution is versioned, not implicit-on-presence. Before this was
+    versioned, any feature-pack column that happened to exist in the frame
+    was consumed silently, so adding a feature to `build_features` moved the
+    published XGBoost baseline with no note in the record -- and did exactly
+    that when feature-pack v2 landed (see
+    `models/diagnostics/xgb_feature_set_audit.json`). The default stays "v1",
+    the set every committed baseline report was generated with, so the
+    reported walk-forward comparisons keep meaning what they say; opting into
+    "v2" is a deliberate, recorded act.
+    """
+    if feature_set not in BASELINE_FEATURE_SETS:
+        raise ValueError(f"unknown feature_set {feature_set!r} "
+                         f"(known: {sorted(BASELINE_FEATURE_SETS)})")
+    excluded = set(V2_FEATURE_COLUMNS) - set(BASELINE_FEATURE_SETS[feature_set])
+    lag_cols = [c for c in df.columns
+                if c.startswith(("lag4_", "lag8_")) and c not in excluded]
     pos_cols = [c for c in df.columns if c.startswith("pos_")]
+    context = [c for c in CONTEXT_FEATURES if c not in excluded]
     extra = [c for c in ("opp_allowed_last4", "opp_allowed_season",
-                         "team_pass_att_last4") if c in df.columns]
-    return lag_cols + CONTEXT_FEATURES + extra + pos_cols
+                         "team_pass_att_last4")
+             if c in df.columns and c not in excluded]
+    return lag_cols + context + extra + pos_cols
 
 
 def _add_carry_share(df: pd.DataFrame) -> pd.DataFrame:

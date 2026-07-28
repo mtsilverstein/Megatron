@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-07-27",
+  "experiment": "xgboost-baseline-feature-set-audit",
+  "question": "Feature pack v2 was NOT promoted for the transformer (see feature_pack_v2_gate.json). But the XGBoost baseline resolved its features through feature_columns(df), which included any v2 column that happened to be present in the frame. Did the rejected v2 pack silently move the published baseline, and are the committed baseline numbers internally consistent?",
+  "verdict": "TWO FINDINGS. (1) The silent-promotion mechanism was REAL but its measured effect is NEGLIGIBLE: mean OVERALL PPR MAE delta of v2 minus v1 is +0.0014 across 2023-2025, i.e. v2 is marginally WORSE and well inside noise. (2) The committed reports' disagreement is NOT explained by the feature set -- neither feature set reproduces either report, and the residuals are an order of magnitude larger than the feature effect. Data vintage, not feature drift, dominates the inconsistency.",
+
+  "measured": {
+    "method": "Same walk-forward folds (train < S, test == S) through the existing eval harness, both entrants in ONE harness call so they see byte-identical rows. No tuning; nothing selected on these numbers.",
+    "test_seasons": [2023, 2024, 2025],
+    "feature_rows": 80090,
+    "overall_ppr_mae": {
+      "xgboost_v1_frozen": {"2023": 4.4296, "2024": 4.5240, "2025": 4.3920},
+      "xgboost_v2": {"2023": 4.4365, "2024": 4.5217, "2025": 4.3915}
+    },
+    "delta_mae_v2_minus_v1": {"2023": 0.0069, "2024": -0.0023, "2025": -0.0005, "mean": 0.0014},
+    "reading": "Sign flips across seasons and the mean is +0.0014 on a metric whose season-level SE in this project is ~0.028. The v2 columns did not meaningfully help or hurt the tabular baseline."
+  },
+
+  "committed_report_reconciliation": {
+    "note": "Neither feature set reproduces the committed OVERALL xgboost rows, and the two committed reports disagree with EACH OTHER on the same model/season/test-set.",
+    "baselines_json": {
+      "2023": {"committed": 4.4377, "v1_now": 4.4296, "v2_now": 4.4365},
+      "2024": {"committed": 4.5245, "v1_now": 4.5240, "v2_now": 4.5217},
+      "2025": {"committed": 4.4128, "v1_now": 4.3920, "v2_now": 4.3915}
+    },
+    "bakeoff_json": {
+      "2023": {"committed": 4.4208, "v1_now": 4.4296, "v2_now": 4.4365},
+      "2024": {"committed": 4.5254, "v1_now": 4.5240, "v2_now": 4.5217},
+      "2025": {"committed": 4.3974, "v1_now": 4.3920, "v2_now": 4.3915}
+    },
+    "conclusion": "Largest residual vs a committed number is 0.021 (baselines.json 2025), and bakeoff.json vs baselines.json differ by 0.017 on 2023 -- both larger than the entire v1-vs-v2 effect of 0.0014. The feature set is therefore NOT the main driver. The most likely cause is upstream nflverse data revision between report generations (this project has previously observed real nflverse drift, e.g. a 589-player board diff traced to a roster/position change upstream). This audit does not attempt to prove that cause; it establishes only that the feature set does not explain it."
+  },
+
+  "what_changed": {
+    "mechanism": "feature_columns(df, feature_set) is now versioned and explicit, mirroring how the transformer resolves feature_set per artifact. Registry: BASELINE_FEATURE_SETS = {v1: (), v2: (lag4/lag8_air_share, is_indoor, team_pass_att_last4)}.",
+    "default": "v1, FROZEN. Chosen because v1 is the set every committed baseline report was generated with, so the reported walk-forward comparisons keep meaning what they say. Opting into v2 is now a deliberate, recorded act.",
+    "entrant_naming": "XGBBaseline(feature_set='v2').name == 'xgboost_v2', so a non-default run can never land in a report under the baseline's own name.",
+    "pinned": "tests/test_features.py pins the v1 column list literally AND in order (colsample_bytree makes column order part of the fit), so a new column added to build_features cannot silently rejoin the baseline's inputs."
+  },
+
+  "scope": {
+    "does_not_re_litigate": "The feature-pack-v2 gate FAILED and stays failed (feature_pack_v2_gate.json). This audit fixes the baseline's feature resolution and the record; it is not a re-run of that experiment and selects nothing.",
+    "open": "The committed baselines.json / bakeoff.json numbers are left AS PUBLISHED rather than regenerated. Regenerating would make the record self-consistent but would also change already-published figures that other write-ups cite; that is a deliberate call to make explicitly, not a side effect of this audit. Any future regeneration should run the frozen v1 default and record the data vintage alongside."
+  }
+}

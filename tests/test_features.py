@@ -2,8 +2,42 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ffmodel.data.features import build_features, feature_columns
+from ffmodel.data.features import (
+    BASELINE_FEATURE_SETS,
+    DEFAULT_BASELINE_FEATURE_SET,
+    V2_FEATURE_COLUMNS,
+    build_features,
+    feature_columns,
+)
 from ffmodel.scoring import PREDICTED_STATS
+
+# The frozen v1 tabular feature set, in order. Every committed baseline
+# report (models/backtests/*.json) was generated from exactly this list, so
+# it is pinned literally rather than derived: a new column added to
+# build_features must NOT silently join the baseline's inputs and move the
+# published comparison. If this test fails, either put the new column in a
+# new feature set or change the record deliberately -- see
+# models/diagnostics/xgb_feature_set_audit.json.
+V1_FEATURE_COLUMNS = [
+    "lag4_passing_yards", "lag8_passing_yards",
+    "lag4_passing_tds", "lag8_passing_tds",
+    "lag4_passing_interceptions", "lag8_passing_interceptions",
+    "lag4_carries", "lag8_carries",
+    "lag4_rushing_yards", "lag8_rushing_yards",
+    "lag4_rushing_tds", "lag8_rushing_tds",
+    "lag4_targets", "lag8_targets",
+    "lag4_receptions", "lag8_receptions",
+    "lag4_receiving_yards", "lag8_receiving_yards",
+    "lag4_receiving_tds", "lag8_receiving_tds",
+    "lag4_fumbles_lost", "lag8_fumbles_lost",
+    "lag4_target_share", "lag8_target_share",
+    "lag4_carry_share", "lag8_carry_share",
+    "lag4_ppr_points", "lag8_ppr_points",
+    "lag4_snap_pct", "lag8_snap_pct",
+    "games_prior", "is_home", "rest_days", "week",
+    "opp_allowed_last4", "opp_allowed_season",
+    "pos_QB", "pos_RB", "pos_WR", "pos_TE",
+]
 
 
 def make_weekly(rows: list[dict]) -> pd.DataFrame:
@@ -81,13 +115,56 @@ def test_home_and_rest_days():
 
 def test_feature_columns_never_include_same_week_stats():
     out = build_features(make_weekly([{"week": 1}]), make_schedules())
-    cols = feature_columns(out)
-    assert not set(cols) & set(PREDICTED_STATS)
-    assert "ppr_points" not in cols
-    assert "fantasy_points_ppr" not in cols
-    assert not {"air_share", "attempts", "receiving_air_yards",
-                "passing_air_yards"} & set(cols)
-    assert "team_pass_att_last4" in cols and "is_indoor" in cols
+    for feature_set in sorted(BASELINE_FEATURE_SETS):
+        cols = feature_columns(out, feature_set)
+        assert not set(cols) & set(PREDICTED_STATS), feature_set
+        assert "ppr_points" not in cols, feature_set
+        assert "fantasy_points_ppr" not in cols, feature_set
+        assert not {"air_share", "attempts", "receiving_air_yards",
+                    "passing_air_yards"} & set(cols), feature_set
+    assert {"team_pass_att_last4", "is_indoor"} <= set(feature_columns(out, "v2"))
+
+
+def test_feature_columns_default_is_frozen_v1():
+    """The default is the set every committed baseline report used. Pinned
+    literally so a new build_features column cannot silently join it."""
+    assert DEFAULT_BASELINE_FEATURE_SET == "v1"
+    out = build_features(make_weekly([{"week": 1}, {"week": 2}]), make_schedules())
+    assert feature_columns(out) == V1_FEATURE_COLUMNS
+    assert feature_columns(out, "v1") == V1_FEATURE_COLUMNS
+
+
+def test_feature_columns_v2_adds_exactly_the_v2_pack_and_nothing_else():
+    weekly = make_weekly([{"week": 1, "receiving_air_yards": 10.0, "attempts": 20.0},
+                          {"week": 2, "receiving_air_yards": 5.0, "attempts": 30.0}])
+    out = build_features(weekly, make_schedules(roof="dome"))
+    v1, v2 = feature_columns(out, "v1"), feature_columns(out, "v2")
+    assert set(v2) - set(v1) == set(V2_FEATURE_COLUMNS)
+    assert set(v1) - set(v2) == set()
+    assert len(set(v2)) == len(v2)  # no duplicates
+
+
+def test_v1_columns_identical_with_and_without_v2_source_columns():
+    """The regression this pins: adding the v2 source columns to the weekly
+    frame must not change the v1 baseline's inputs -- same names AND same
+    order (XGBoost's colsample_bytree makes column order part of the fit)."""
+    rows = [{"week": 1, "receiving_air_yards": 10.0, "attempts": 20.0},
+            {"week": 2, "receiving_air_yards": 5.0, "attempts": 30.0}]
+    with_v2 = build_features(make_weekly(rows), make_schedules(roof="dome"))
+    without_v2 = build_features(
+        make_weekly(rows).drop(columns=["attempts", "receiving_air_yards",
+                                        "passing_air_yards"]),
+        make_schedules(roof="dome"),
+    )
+    assert feature_columns(with_v2) == feature_columns(without_v2)
+    assert "lag4_air_share" in with_v2.columns      # the column exists...
+    assert "lag4_air_share" not in feature_columns(with_v2)   # ...but is not fed
+
+
+def test_feature_columns_rejects_unknown_feature_set():
+    out = build_features(make_weekly([{"week": 1}]), make_schedules())
+    with pytest.raises(ValueError, match="unknown feature_set"):
+        feature_columns(out, "v3")
 
 
 def test_opponent_allowed_uses_only_prior_weeks():
@@ -181,7 +258,7 @@ def test_air_share_lagged_not_same_week_in_feature_columns():
         {"week": 2, "receiving_air_yards": 20.0},
     ])
     out = build_features(weekly, make_schedules())
-    cols = feature_columns(out)
+    cols = feature_columns(out, "v2")
     assert "lag4_air_share" in cols and "lag8_air_share" in cols
     assert "air_share" not in cols
     wk2 = out[out["week"] == 2].iloc[0]
@@ -222,7 +299,7 @@ def test_is_indoor_roof_values():
 def test_is_indoor_defaults_to_zero_without_roof_column():
     out = build_features(make_weekly([{"week": 1}]), make_schedules())
     assert out["is_indoor"].iloc[0] == 0
-    assert "is_indoor" in feature_columns(out)
+    assert "is_indoor" in feature_columns(out, "v2")
 
 
 def test_build_features_without_v2_source_columns_still_builds():
@@ -232,7 +309,7 @@ def test_build_features_without_v2_source_columns_still_builds():
     weekly = make_weekly([{"week": 1}, {"week": 2}]).drop(
         columns=["attempts", "receiving_air_yards", "passing_air_yards"])
     out = build_features(weekly, make_schedules())
-    cols = feature_columns(out)
+    cols = feature_columns(out, "v2")
     assert "lag4_air_share" not in cols
     assert "team_pass_att_last4" not in cols
     assert "is_indoor" in cols
