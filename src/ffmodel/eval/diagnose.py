@@ -11,9 +11,10 @@ data constants, only pure config (REPLACEMENT_RANK, PREDICTED_STATS, ...).
   count as 0 -- no survivorship bias). Pooled across the most recent `pairs`
   such pairs, per position.
 - `rate_decomposition` — splits a board's season-total miss into a games
-  piece (proj_games vs. actual_mean_games, benchmarked against
+  piece (scheduled_games/actual_mean_games, benchmarked against
   `availability_summary`'s expected_games) and a per-game rate piece
-  (proj_ppg vs. actual_ppg).
+  (proj_ppg vs. actual_ppg), where proj_ppg divides by expected games played
+  because the season p50 already integrates availability.
 - `weekly_residual_icc` — one-way random-effects ICC(1) of weekly PPR points
   within the same cohorts, i.e. how much of a player's week-to-week scoring
   is signal (persistent skill) vs. noise.
@@ -125,7 +126,20 @@ def rate_decomposition(board_players: list[dict], actuals: pd.DataFrame,
     member missing from `actuals` (bust/retirement) counts 0 points and 0
     games -- `actual_ppg` is an aggregate ratio (sum points / sum games) so
     those zero-game players don't produce a division by zero and played
-    games carry the rate."""
+    games carry the rate.
+
+    `proj_ppg` divides the pool's mean season p50 by `expected_games`
+    (`summary`'s `mean_games`), NOT by `scheduled_games`. `scheduled_games`
+    is the board player's `games` field, which is scheduled future weeks
+    (`build_draft_board` increments it once per remaining week on the
+    schedule, so it is 17 for any full-season player) -- reported here for
+    context only. `simulate_season` already samples a games-played count per
+    Monte-Carlo draw and sums only that many weeks, so `season_points.p50`
+    (the numerator) already nets out expected missed games; dividing by
+    `scheduled_games` instead of `expected_games` would double-count
+    availability and understate the rate. If `expected_games` is missing or
+    non-positive for a position, `proj_ppg` is `nan` -- never falls back to
+    `scheduled_games` and never divides by zero."""
     actual_points_by_id = dict(zip(actuals["player_id"], actuals["actual_points"]))
     actual_games_by_id = dict(zip(actuals["player_id"], actuals["games"]))
     expected_games_by_pos = dict(zip(summary["position"], summary["mean_games"]))
@@ -143,28 +157,34 @@ def rate_decomposition(board_players: list[dict], actuals: pd.DataFrame,
         )
         pool = ranked[:2 * rank]
 
-        proj_games = float(np.mean([p["games"] for p in pool]))
+        scheduled_games = float(np.mean([p["games"] for p in pool]))
         proj_p50 = float(np.mean([p["season_points"]["ppr"]["p50"] for p in pool]))
         actual_games = np.array(
             [float(actual_games_by_id.get(p["player_id"], 0.0)) for p in pool])
         actual_points = np.array(
             [float(actual_points_by_id.get(p["player_id"], 0.0)) for p in pool])
 
+        expected_games = float(expected_games_by_pos.get(pos, float("nan")))
         sum_games = float(actual_games.sum())
-        proj_ppg = proj_p50 / proj_games if proj_games else float("nan")
+        proj_ppg = (proj_p50 / expected_games
+                    if not np.isnan(expected_games) and expected_games > 0
+                    else float("nan"))
         actual_ppg = float(actual_points.sum()) / sum_games if sum_games else float("nan")
 
         rows.append({
             "position": pos,
-            "proj_games": proj_games,
-            "expected_games": float(expected_games_by_pos.get(pos, float("nan"))),
+            "scheduled_games": scheduled_games,
+            "expected_games": expected_games,
             "actual_mean_games": float(actual_games.mean()),
+            "proj_total": proj_p50,
+            "actual_mean_total": float(actual_points.mean()),
             "proj_ppg": proj_ppg,
             "actual_ppg": actual_ppg,
             "rate_bias": proj_ppg - actual_ppg,
         })
-    return pd.DataFrame(rows, columns=["position", "proj_games", "expected_games",
-                                        "actual_mean_games", "proj_ppg", "actual_ppg",
+    return pd.DataFrame(rows, columns=["position", "scheduled_games", "expected_games",
+                                        "actual_mean_games", "proj_total",
+                                        "actual_mean_total", "proj_ppg", "actual_ppg",
                                         "rate_bias"])
 
 
