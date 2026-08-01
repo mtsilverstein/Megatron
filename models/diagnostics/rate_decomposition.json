@@ -1,42 +1,259 @@
 {
-  "created": "2026-07-17T13:32:36+00:00",
-  "board_season": 2025,
-  "table": [
-    {
-      "position": "QB",
-      "proj_games": 17.0,
-      "expected_games": 12.320512820512821,
-      "actual_mean_games": 12.461538461538462,
-      "proj_ppg": 14.209276018099548,
-      "actual_ppg": 15.845925925925929,
-      "rate_bias": -1.6366499078263814
+  "created": "2026-08-01T21:59:07+00:00",
+  "experiment": "board-season-projection-rate-decomposition (walk-forward)",
+  "board_seasons": [
+    2023,
+    2024,
+    2025
+  ],
+  "scoring": "ppr",
+  "pool": "board's projected top 2 x REPLACEMENT_RANK[pos] by season p50 PPR (QB 26, RB 50, WR 50, TE 26); a pool member absent from actuals counts 0 points and 0 games",
+  "supersedes": "the single-season (2025) table created 2026-07-17, which divided the projected season total by SCHEDULED games (17) rather than by expected games played. Because simulate_season already samples a games-played count per draw, that denominator double-counted availability and inflated every apparent under-projection by ~1.37x. Fixed in commit ea5ecec; this report replaces those numbers.",
+  "verdict": "OPEN \u2014 a consistent under-projection is measured, but its magnitude is comparator-dependent and its cause is NOT established. No correction has been applied to the board, VORP, or the optimizer.",
+  "what_is_robust": [
+    "The board under-projects season totals for its own projected top pool in all three walk-forward seasons, under BOTH comparators.",
+    "RB is the most under-projected position under every comparison tried (total ratio 0.794 vs mean-actual, 0.835 vs median-actual) and its rate bias is negative in all three seasons under both definitions.",
+    "QB is the least under-projected under both comparators (1.036 / 0.923), so the RB-vs-QB spread runs somewhere between 9 and 24 percentage points.",
+    "Selection pushes the OTHER way: a pool chosen BY projection should see actuals regress downward, which would show as OVER-projection. It does not."
+  ],
+  "what_is_not_established": [
+    "The magnitude. Comparing the projected MEDIAN season total against the pool's MEAN actual and against its MEDIAN actual give materially different answers, and for QB they disagree even in sign of the ranking. actual_mean_total counts busts as 0 (2023 QBs played 10.69 games against 12.67 expected, dragging the mean far below the median); actual_median_total is a CROSS-SECTIONAL median across players, which is not the like-for-like partner of a mean-of-within-player-medians. Neither is a clean comparator.",
+    "The cause. Two hypotheses were tested and BOTH failed: (1) a positional rate bias concentrated in QB \u2014 refuted, QB's corrected bias is -0.08 vs mean-actual and its sign flips across seasons; (2) the whole effect being a median-vs-mean artifact of the right-skewed season distribution (phase_b_gates.simulated_mean_vs_median: QB +0.73, TE +2.84, WR +3.21, RB +6.39) \u2014 refuted, the gap survives a median-to-median comparison and QB's grows rather than shrinks."
+  ],
+  "why_it_could_matter": "VORP is a DIFFERENCE (player minus positional replacement), so a uniform multiplicative under-projection cancels and changes neither ordering nor relative value. Only a POSITIONAL spread distorts anything, because VORP and the VONA optimizer compare across positions. The measured spread would under-value RBs relative to QBs -- notable because RB is the one position where this model has a replicated ranking edge (rb_oos_weekly.json), so it would be ranking RBs well while pricing them low. The board's ORDER is ECR-anchored and therefore unaffected; only the value curve, tiers, cliff detection and VONA shortlist consume VORP.",
+  "decision": {
+    "applied": "none",
+    "rationale": "Two hypotheses have already failed, the magnitude moves with the choice of comparator, and the draft is imminent. Patching VORP now would be tuning against a number we do not yet understand, on held-out seasons, without a pre-registered gate -- the exact failure mode this project's eval discipline exists to prevent.",
+    "next_step": "Pre-register a proper investigation: emit the simulated MEAN alongside p50 from build_draft_board (simulate_season already returns it), so projected mean can be compared to actual mean like-for-like at the player level, and settle whether the residual is a genuine positional rate bias or an aggregation artifact. Only then decide whether VORP should be built on the simulated mean rather than the median -- a defensible design question on its own terms, since season value accumulates and expectation is the decision-relevant statistic."
+  },
+  "per_position_summary": {
+    "QB": {
+      "rate_bias_vs_mean_actual": [
+        0.165,
+        -0.954,
+        0.56
+      ],
+      "rate_bias_vs_median_actual": [
+        -4.685,
+        -0.648,
+        -0.803
+      ],
+      "mean_rate_bias_vs_mean_actual": -0.077,
+      "mean_rate_bias_vs_median_actual": -2.045,
+      "total_ratio_vs_mean_actual": 1.036,
+      "total_ratio_vs_median_actual": 0.923
     },
-    {
-      "position": "RB",
-      "proj_games": 17.0,
-      "expected_games": 12.426666666666666,
-      "actual_mean_games": 12.4,
-      "proj_ppg": 7.138823529411765,
-      "actual_ppg": 11.922225806451614,
-      "rate_bias": -4.783402277039849
+    "RB": {
+      "rate_bias_vs_mean_actual": [
+        -2.036,
+        -2.176,
+        -1.854
+      ],
+      "rate_bias_vs_median_actual": [
+        -2.325,
+        -1.412,
+        -0.714
+      ],
+      "mean_rate_bias_vs_mean_actual": -2.022,
+      "mean_rate_bias_vs_median_actual": -1.484,
+      "total_ratio_vs_mean_actual": 0.794,
+      "total_ratio_vs_median_actual": 0.835
     },
-    {
-      "position": "WR",
-      "proj_games": 17.0,
-      "expected_games": 13.423333333333334,
-      "actual_mean_games": 13.06,
-      "proj_ppg": 10.072941176470586,
-      "actual_ppg": 12.192159264931089,
-      "rate_bias": -2.119218088460503
+    "WR": {
+      "rate_bias_vs_mean_actual": [
+        -1.453,
+        -0.581,
+        0.401
+      ],
+      "rate_bias_vs_median_actual": [
+        -2.543,
+        -0.686,
+        -0.312
+      ],
+      "mean_rate_bias_vs_mean_actual": -0.544,
+      "mean_rate_bias_vs_median_actual": -1.18,
+      "total_ratio_vs_mean_actual": 0.932,
+      "total_ratio_vs_median_actual": 0.89
     },
-    {
-      "position": "TE",
-      "proj_games": 17.0,
-      "expected_games": 12.98076923076923,
-      "actual_mean_games": 14.23076923076923,
-      "proj_ppg": 7.280995475113122,
-      "actual_ppg": 9.494,
-      "rate_bias": -2.2130045248868777
+    "TE": {
+      "rate_bias_vs_mean_actual": [
+        -0.663,
+        -1.226,
+        0.004
+      ],
+      "rate_bias_vs_median_actual": [
+        -0.734,
+        -0.64,
+        0.771
+      ],
+      "mean_rate_bias_vs_mean_actual": -0.628,
+      "mean_rate_bias_vs_median_actual": -0.201,
+      "total_ratio_vs_mean_actual": 0.873,
+      "total_ratio_vs_median_actual": 0.916
     }
-  ]
+  },
+  "per_season_tables": {
+    "2023": [
+      {
+        "position": "QB",
+        "scheduled_games": 17.0,
+        "expected_games": 12.666666666666666,
+        "actual_mean_games": 10.692307692307692,
+        "proj_median_total": 209.24615384615387,
+        "actual_mean_total": 174.87,
+        "actual_median_total": 226.72,
+        "proj_ppg": 16.51943319838057,
+        "actual_ppg": 16.35474820143885,
+        "rate_bias": 0.16468499694171967,
+        "rate_bias_vs_median": -4.68459557859785
+      },
+      {
+        "position": "RB",
+        "scheduled_games": 17.0,
+        "expected_games": 11.44,
+        "actual_mean_games": 12.22,
+        "proj_median_total": 105.07600000000001,
+        "actual_mean_total": 137.12519999999998,
+        "actual_median_total": 140.65,
+        "proj_ppg": 9.184965034965035,
+        "actual_ppg": 11.221374795417347,
+        "rate_bias": -2.0364097604523117,
+        "rate_bias_vs_median": -2.32485493230174
+      },
+      {
+        "position": "WR",
+        "scheduled_games": 17.0,
+        "expected_games": 12.83,
+        "actual_mean_games": 14.2,
+        "proj_median_total": 146.72400000000002,
+        "actual_mean_total": 183.024,
+        "actual_median_total": 198.5,
+        "proj_ppg": 11.436009353078724,
+        "actual_ppg": 12.889014084507043,
+        "rate_bias": -1.4530047314283188,
+        "rate_bias_vs_median": -2.542863886357896
+      },
+      {
+        "position": "TE",
+        "scheduled_games": 17.0,
+        "expected_games": 12.147435897435898,
+        "actual_mean_games": 13.192307692307692,
+        "proj_median_total": 99.88076923076923,
+        "actual_mean_total": 117.22000000000001,
+        "actual_median_total": 118.15,
+        "proj_ppg": 8.222374670184696,
+        "actual_ppg": 8.885481049562683,
+        "rate_bias": -0.6631063793779877,
+        "rate_bias_vs_median": -0.7336020062001456
+      }
+    ],
+    "2024": [
+      {
+        "position": "QB",
+        "scheduled_games": 17.0,
+        "expected_games": 12.294871794871796,
+        "actual_mean_games": 13.076923076923077,
+        "proj_median_total": 196.50769230769234,
+        "actual_mean_total": 221.4823076923077,
+        "actual_median_total": 217.48000000000002,
+        "proj_ppg": 15.982898852971847,
+        "actual_ppg": 16.936882352941176,
+        "rate_bias": -0.9539834999693291,
+        "rate_bias_vs_median": -0.6479246764399207
+      },
+      {
+        "position": "RB",
+        "scheduled_games": 17.0,
+        "expected_games": 11.86,
+        "actual_mean_games": 12.68,
+        "proj_median_total": 120.42,
+        "actual_mean_total": 156.3364,
+        "actual_median_total": 146.65,
+        "proj_ppg": 10.15345699831366,
+        "actual_ppg": 12.329369085173502,
+        "rate_bias": -2.1759120868598423,
+        "rate_bias_vs_median": -1.4120004149355534
+      },
+      {
+        "position": "WR",
+        "scheduled_games": 17.0,
+        "expected_games": 13.243333333333334,
+        "actual_mean_games": 13.34,
+        "proj_median_total": 160.08,
+        "actual_mean_total": 169.00160000000002,
+        "actual_median_total": 170.4,
+        "proj_ppg": 12.087591240875913,
+        "actual_ppg": 12.668785607196405,
+        "rate_bias": -0.5811943663204922,
+        "rate_bias_vs_median": -0.686021952527387
+      },
+      {
+        "position": "TE",
+        "scheduled_games": 17.0,
+        "expected_games": 12.647435897435898,
+        "actual_mean_games": 12.961538461538462,
+        "proj_median_total": 110.31153846153846,
+        "actual_mean_total": 128.9476923076923,
+        "actual_median_total": 121.35000000000001,
+        "proj_ppg": 8.72204764318297,
+        "actual_ppg": 9.948486646884273,
+        "rate_bias": -1.2264390037013033,
+        "rate_bias_vs_median": -0.640266896876378
+      }
+    ],
+    "2025": [
+      {
+        "position": "QB",
+        "scheduled_games": 17.0,
+        "expected_games": 12.320512820512821,
+        "actual_mean_games": 12.461538461538462,
+        "proj_median_total": 202.12692307692308,
+        "actual_mean_total": 197.46461538461543,
+        "actual_median_total": 214.45,
+        "proj_ppg": 16.405723204994796,
+        "actual_ppg": 15.845925925925929,
+        "rate_bias": 0.5597972790688672,
+        "rate_bias_vs_median": -0.8032274122891536
+      },
+      {
+        "position": "RB",
+        "scheduled_games": 17.0,
+        "expected_games": 12.426666666666666,
+        "actual_mean_games": 12.4,
+        "proj_median_total": 125.11399999999999,
+        "actual_mean_total": 147.8356,
+        "actual_median_total": 133.7,
+        "proj_ppg": 10.06818669527897,
+        "actual_ppg": 11.922225806451614,
+        "rate_bias": -1.8540391111726446,
+        "rate_bias_vs_median": -0.7140713692371587
+      },
+      {
+        "position": "WR",
+        "scheduled_games": 17.0,
+        "expected_games": 13.423333333333334,
+        "actual_mean_games": 13.22,
+        "proj_median_total": 170.20000000000005,
+        "actual_mean_total": 162.32360000000003,
+        "actual_median_total": 171.74,
+        "proj_ppg": 12.679413955798363,
+        "actual_ppg": 12.278638426626326,
+        "rate_bias": 0.4007755291720372,
+        "rate_bias_vs_median": -0.3115088883771282
+      },
+      {
+        "position": "TE",
+        "scheduled_games": 17.0,
+        "expected_games": 12.98076923076923,
+        "actual_mean_games": 14.23076923076923,
+        "proj_median_total": 123.29615384615386,
+        "actual_mean_total": 135.1069230769231,
+        "actual_median_total": 124.2,
+        "proj_ppg": 9.498370370370372,
+        "actual_ppg": 9.494,
+        "rate_bias": 0.004370370370372356,
+        "rate_bias_vs_median": 0.7708028028028036
+      }
+    ]
+  }
 }
