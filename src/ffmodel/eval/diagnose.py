@@ -139,7 +139,19 @@ def rate_decomposition(board_players: list[dict], actuals: pd.DataFrame,
     `scheduled_games` instead of `expected_games` would double-count
     availability and understate the rate. If `expected_games` is missing or
     non-positive for a position, `proj_ppg` is `nan` -- never falls back to
-    `scheduled_games` and never divides by zero."""
+    `scheduled_games` and never divides by zero.
+
+    `proj_median_total` is a MEDIAN season total (the board's simulated
+    p50, chosen because the median is MAE-optimal), while `actual_mean_total`
+    is a MEAN over the same pool. Season fantasy totals are right-skewed, so
+    comparing a median projection to a mean actual overstates under-projection
+    by roughly the distribution's skew -- see `models/diagnostics/
+    phase_b_gates.json`'s `simulated_mean_vs_median` for the recorded
+    magnitude (mean exceeds median by ~0.7-6.4 pts/position on the 2025
+    board). `actual_median_total` and `rate_bias_vs_median` (computed against
+    `actual_median_total / actual_mean_games`) give the like-for-like
+    comparison; `rate_bias` and `actual_ppg` are unchanged and remain
+    mean-based."""
     actual_points_by_id = dict(zip(actuals["player_id"], actuals["actual_points"]))
     actual_games_by_id = dict(zip(actuals["player_id"], actuals["games"]))
     expected_games_by_pos = dict(zip(summary["position"], summary["mean_games"]))
@@ -166,26 +178,34 @@ def rate_decomposition(board_players: list[dict], actuals: pd.DataFrame,
 
         expected_games = float(expected_games_by_pos.get(pos, float("nan")))
         sum_games = float(actual_games.sum())
+        actual_mean_games = float(actual_games.mean())
         proj_ppg = (proj_p50 / expected_games
                     if not np.isnan(expected_games) and expected_games > 0
                     else float("nan"))
         actual_ppg = float(actual_points.sum()) / sum_games if sum_games else float("nan")
+        actual_median_total = float(np.median(actual_points))
+        actual_median_rate = (actual_median_total / actual_mean_games
+                              if actual_mean_games and not np.isnan(actual_mean_games)
+                              else float("nan"))
 
         rows.append({
             "position": pos,
             "scheduled_games": scheduled_games,
             "expected_games": expected_games,
-            "actual_mean_games": float(actual_games.mean()),
-            "proj_total": proj_p50,
+            "actual_mean_games": actual_mean_games,
+            "proj_median_total": proj_p50,
             "actual_mean_total": float(actual_points.mean()),
+            "actual_median_total": actual_median_total,
             "proj_ppg": proj_ppg,
             "actual_ppg": actual_ppg,
             "rate_bias": proj_ppg - actual_ppg,
+            "rate_bias_vs_median": proj_ppg - actual_median_rate,
         })
     return pd.DataFrame(rows, columns=["position", "scheduled_games", "expected_games",
-                                        "actual_mean_games", "proj_total",
-                                        "actual_mean_total", "proj_ppg", "actual_ppg",
-                                        "rate_bias"])
+                                        "actual_mean_games", "proj_median_total",
+                                        "actual_mean_total", "actual_median_total",
+                                        "proj_ppg", "actual_ppg", "rate_bias",
+                                        "rate_bias_vs_median"])
 
 
 def _icc1(groups: list[np.ndarray]) -> tuple[float, int, int]:
