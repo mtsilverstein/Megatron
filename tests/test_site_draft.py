@@ -459,6 +459,54 @@ def test_board_without_draft_picks_has_rookie_false_only():
     assert "rookie_prior" not in board["methodology"]
 
 
+def test_rookie_ecr_attaches_only_after_gsis_canonicalization():
+    """Regression for the live 2026-08-01 defect: nflverse's draft-picks feed
+    still carries a name-derived placeholder id for the current rookie class
+    (e.g. "LOV121782" for Jeremiyah Love) while the identity feed has since
+    been repaired upstream to the canonical GSIS id for the same player.
+    Rookie board rows take their `player_id` straight from draft-picks
+    `gsis_id` (draft.py:238-239); the ECR spine is keyed on the identity
+    feed's canonical id and joins via `_finalize_board`'s
+    `players["player_id"].map(ecr)`. Without canonicalizing draft-picks
+    first, the two never join and a rookie with a real consensus rank
+    publishes with no ECR at all.
+
+    Asserts BOTH directions on the SAME fixture, so this guard can never be
+    weakened into vacuity (precedent: the ADP-crosswalk regression test in
+    tests/test_generate.py, test_load_adp_backfills_rookie_gsis_from_draft_picks,
+    does the same)."""
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    weekly, picks = _rookie_world()
+    picks = picks.copy()
+    # _rookie_world()'s picks frame has no pfr_player_id column; add one here
+    # -- only the new rookie's id has a crosswalk entry below, so the 30
+    # historical picks (which seed the cohort prior) are provably untouched.
+    picks["pfr_player_id"] = [f"Hist{i:03d}" for i in range(30)] + ["NewRoo00"]
+
+    crosswalk = pd.DataFrame([{"pfr_id": "NewRoo00", "gsis_id": "00-0099999"}])
+    ecr = {"00-0099999": 5.0}   # ECR spine keyed on the identity feed's canonical id
+
+    canon_picks, n = canonicalize_draft_gsis(picks, crosswalk)
+    assert n == 1
+
+    board_with = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                                   2023, "2023-10-15", weeks=range(7, 9),
+                                   draft_picks=canon_picks, ecr=ecr)
+    rookie_with = next(p for p in board_with["players"] if p["rookie"])
+    assert rookie_with["player_id"] == "00-0099999"
+    assert rookie_with["ecr"] == pytest.approx(5.0)
+
+    # Same fixture, canonicalization skipped: the rookie row keeps the
+    # placeholder id and the SAME ecr dict silently fails to join.
+    board_without = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                                      2023, "2023-10-15", weeks=range(7, 9),
+                                      draft_picks=picks, ecr=ecr)
+    rookie_without = next(p for p in board_without["players"] if p["rookie"])
+    assert rookie_without["player_id"] == "DRAFT001"
+    assert rookie_without["ecr"] is None
+
+
 def test_rookie_dedupe_by_gsis_prefers_real_model():
     weekly, picks = _rookie_world()
     # draft p1 (who HAS 2023 weekly history) in the 2023 class:

@@ -143,6 +143,22 @@ def _load_consensus(season, schedules, data_dir, draft_picks=None):
     return consensus_for_season(season, schedules, data_dir, draft_picks=draft_picks)
 
 
+def _canonicalize_draft_picks(draft_picks, data_dir):
+    """Rewrite draft-picks placeholder gsis ids to the identity feed's
+    canonical id (`canonicalize_draft_gsis`), joined on PFR's stable id.
+
+    Called once, immediately after `pull_draft_picks`, before either the ECR
+    spine or the rookie board rows see the frame -- so both key off the same
+    id space instead of disagreeing on rookies whose draft-picks id is still
+    a name-derived placeholder while the identity feed has since been
+    repaired to the canonical id. Returns (draft_picks, n_rewritten).
+    """
+    from ffmodel.data.rankings import canonicalize_draft_gsis, pull_player_ids
+
+    crosswalk = pull_player_ids(data_dir)
+    return canonicalize_draft_gsis(draft_picks, crosswalk)
+
+
 def _load_adp(season, data_dir, draft_picks=None):
     """Sleeper-population ADP for the draft board (preferred): this
     project's actual league is a Sleeper keeper league, so the committed
@@ -295,6 +311,13 @@ def main() -> None:
 
         draft_picks = pull_draft_picks(list(range(2012, args.season + 1)),
                                        cache_dir=args.data_dir)
+        # Canonicalize BEFORE either consumer below sees the frame (see
+        # `_canonicalize_draft_picks`'s docstring) -- then let the existing
+        # `_backfill_draft_gsis` (inside `_load_consensus`/`_load_adp`) run as
+        # it does today; the two are then consistent, since anything still on
+        # a placeholder id is on that same placeholder id on both sides.
+        draft_picks, n_gsis_canonicalized = _canonicalize_draft_picks(
+            draft_picks, args.data_dir)
 
         ecr, adp, replacement, adp_source = _draft_consensus(
             args.season, schedules, args.data_dir, draft_picks=draft_picks)
@@ -329,6 +352,13 @@ def main() -> None:
         # + its capture date, or the ffcalculator fallback) -- so the site can
         # say honestly where its market overlay came from.
         board_payload["adp_source"] = adp_source
+        # Provenance next to adp_source's own gsis-repair count: a silent
+        # data repair is a bug in this project, so the rewrite count from
+        # the OTHER direction (draft-picks -> canonical, not the identity
+        # feed's blank-backfill) must be visible on the published artifact
+        # too, and unconditionally (adp_source itself can be None -- see
+        # `_draft_consensus` -- so this cannot live nested inside it).
+        board_payload["draft_gsis_canonicalized"] = n_gsis_canonicalized
         payloads["draft.json"] = _attach_late_slots(board_payload, args.season, args.data_dir)
     backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
     payloads["about.json"] = build_about(backtests, data_through, site_model=predictor.name)

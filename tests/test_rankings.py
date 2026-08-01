@@ -224,6 +224,117 @@ def test_backfill_draft_gsis_restores_only_blank_ids_by_exact_pfr_id():
     assert list(out["gsis_id"]) == ["ROO123456", "00-0001"]
 
 
+def test_canonicalize_draft_gsis_rewrites_a_placeholder():
+    """A draft-picks id absent from the identity crosswalk, whose PFR id
+    bridges to a canonical id there, is rewritten."""
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "LoveJe00", "gsis_id": "00-0041027"},
+    ])
+    draft_picks = pd.DataFrame([
+        {"pfr_player_id": "LoveJe00", "gsis_id": "LOV121782"},
+    ])
+
+    out, rewritten = canonicalize_draft_gsis(draft_picks, crosswalk)
+    assert rewritten == 1
+    assert list(out["gsis_id"]) == ["00-0041027"]
+
+
+def test_canonicalize_draft_gsis_leaves_an_already_canonical_row_alone():
+    """The historical-cohort no-op guarantee: a draft-picks id already
+    present in the crosswalk's known-id set must not be touched, even if a
+    PFR bridge to some other id also exists."""
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "VetXx00", "gsis_id": "00-0011111"},
+    ])
+    draft_picks = pd.DataFrame([
+        {"pfr_player_id": "VetXx00", "gsis_id": "00-0011111"},
+    ])
+
+    out, rewritten = canonicalize_draft_gsis(draft_picks, crosswalk)
+    assert rewritten == 0
+    assert list(out["gsis_id"]) == ["00-0011111"]
+
+
+def test_canonicalize_draft_gsis_leaves_a_row_with_no_pfr_bridge_alone():
+    """Placeholder id absent from the crosswalk, but its PFR id maps to
+    nothing there -> left untouched (not silently dropped or guessed)."""
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "SomeoneElse00", "gsis_id": "00-0099999"},
+    ])
+    draft_picks = pd.DataFrame([
+        {"pfr_player_id": "Unbridged00", "gsis_id": "PLACEHOLDER1"},
+    ])
+
+    out, rewritten = canonicalize_draft_gsis(draft_picks, crosswalk)
+    assert rewritten == 0
+    assert list(out["gsis_id"]) == ["PLACEHOLDER1"]
+
+
+def test_canonicalize_draft_gsis_leaves_a_null_gsis_id_alone():
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "Nully00", "gsis_id": "00-0055555"},
+    ])
+    draft_picks = pd.DataFrame([
+        {"pfr_player_id": "Nully00", "gsis_id": None},
+    ])
+
+    out, rewritten = canonicalize_draft_gsis(draft_picks, crosswalk)
+    assert rewritten == 0
+    assert out["gsis_id"].iloc[0] is None or pd.isna(out["gsis_id"].iloc[0])
+
+
+def test_canonicalize_draft_gsis_raises_on_conflicting_pfr_mapping():
+    """Mirrors `_backfill_draft_gsis`'s conflict discipline: a single PFR id
+    that maps to more than one canonical gsis id in the crosswalk must raise,
+    never guess."""
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "Ambig00", "gsis_id": "00-0011111"},
+        {"pfr_id": "Ambig00", "gsis_id": "00-0022222"},
+    ])
+    draft_picks = pd.DataFrame([
+        {"pfr_player_id": "Ambig00", "gsis_id": "PLACEHOLDER1"},
+    ])
+
+    with pytest.raises(ValueError, match="Ambig00"):
+        canonicalize_draft_gsis(draft_picks, crosswalk)
+
+
+def test_canonicalize_draft_gsis_does_not_mutate_the_callers_frame():
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "LoveJe00", "gsis_id": "00-0041027"},
+    ])
+    draft_picks = pd.DataFrame([
+        {"pfr_player_id": "LoveJe00", "gsis_id": "LOV121782"},
+    ])
+    original = draft_picks.copy()
+
+    canonicalize_draft_gsis(draft_picks, crosswalk)
+    pd.testing.assert_frame_equal(draft_picks, original)
+
+
+def test_canonicalize_draft_gsis_missing_required_columns_raises():
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    with pytest.raises(ValueError, match="pfr_player_id"):
+        canonicalize_draft_gsis(pd.DataFrame({"gsis_id": ["x"]}),
+                                pd.DataFrame({"pfr_id": ["y"], "gsis_id": ["z"]}))
+    with pytest.raises(ValueError, match="pfr_id"):
+        canonicalize_draft_gsis(pd.DataFrame({"pfr_player_id": ["y"], "gsis_id": ["z"]}),
+                                pd.DataFrame({"gsis_id": ["z"]}))
+
+
 def test_merge_name_fallback_survives_case_mismatch_between_feeds():
     """Regression (dead-code class): ff_rankings' `mergename` is Title-Case
     since 2022 while ff_playerids' `merge_name` is lowercase, so a raw
