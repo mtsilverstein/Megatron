@@ -247,6 +247,7 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
 
     import ffmodel.data.features as features_mod
     import ffmodel.data.pull as pull_mod
+    import ffmodel.data.rankings as rankings_mod
     import ffmodel.site.about as about_mod
     import ffmodel.site.draft as draft_mod
     import ffmodel.site.generate as gen_mod
@@ -270,6 +271,28 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
              "age": 21.0, "college": "State"}])
         pull_draft_picks = lambda *a, **k: draft_picks_frame
     monkeypatch.setattr(pull_mod, "pull_draft_picks", pull_draft_picks)
+
+    # `_canonicalize_draft_picks` (called on the --draft path, before either
+    # ECR or the board see draft_picks) does its own deferred
+    # `from ffmodel.data.rankings import ... pull_player_ids` -- stub it here
+    # too, on the module it's actually resolved from at call time, or a
+    # --draft test would escape every other stub in this helper and hit the
+    # live identity feed over the network (see test_load_adp_...snapshot's
+    # docstring for the prior real incident this project had with exactly
+    # that failure mode).
+    player_ids_frame = pd.DataFrame({"pfr_id": ["B0000001"], "gsis_id": ["00-0000001"]})
+    monkeypatch.setattr(rankings_mod, "pull_player_ids",
+                        lambda *a, **k: player_ids_frame)
+    # Belt-and-suspenders proof the stub above actually takes effect (rather
+    # than silently missing, e.g. because it targeted a re-exported alias
+    # instead of the module the deferred import resolves from): make the
+    # real network-hitting loader explode if anything still reaches it.
+    import nflreadpy
+    def boom_load_ff_playerids(*a, **k):
+        raise AssertionError(
+            "must not hit the live nflreadpy identity feed -- "
+            "pull_player_ids should have been stubbed")
+    monkeypatch.setattr(nflreadpy, "load_ff_playerids", boom_load_ff_playerids)
 
     ecr_df = pd.DataFrame({"player_id": ["00-0000001"], "pos": ["QB"], "ecr": [1.0]})
     def fake_consensus(s, sched, d, picks=None):
