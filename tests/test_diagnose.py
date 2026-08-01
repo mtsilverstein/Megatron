@@ -125,40 +125,52 @@ def test_rate_decomposition_hand_computed_with_missing_player():
     ])
     out = rate_decomposition(board_players, actuals, summary)
     assert list(out.columns) == ["position", "scheduled_games", "expected_games",
-                                 "actual_mean_games", "proj_total", "actual_mean_total",
-                                 "proj_ppg", "actual_ppg", "rate_bias"]
+                                 "actual_mean_games", "proj_median_total",
+                                 "actual_mean_total", "actual_median_total",
+                                 "proj_ppg", "actual_ppg", "rate_bias",
+                                 "rate_bias_vs_median"]
 
     qb = out[out["position"] == "QB"].iloc[0]
     # pool = both QBs (only 2 -- cap 2*13=26 doesn't bind).
     # scheduled_games = mean(16, 15) = 15.5 (board's "games" field, context only)
-    # proj_total = mean(300, 200) = 250
-    # proj_ppg = proj_total / expected_games = 250 / 15.5   (NOT / scheduled_games)
+    # proj_median_total = mean(300, 200) = 250
+    # proj_ppg = proj_median_total / expected_games = 250 / 15.5   (NOT / scheduled_games)
     # actual_mean_total = mean(280, 190) = 235
+    # actual_median_total = median(280, 190) = 235   (only 2 values -> same as mean)
     # actual_ppg = (280 + 190) / (16 + 15) = 470 / 31   (aggregate ratio)
+    # rate_bias_vs_median = proj_ppg - actual_median_total / actual_mean_games
+    #                     = 250/15.5 - 235/15.5
     assert qb["scheduled_games"] == pytest.approx(15.5)
     assert qb["expected_games"] == pytest.approx(15.5)
     assert qb["actual_mean_games"] == pytest.approx(15.5)
-    assert qb["proj_total"] == pytest.approx(250.0)
+    assert qb["proj_median_total"] == pytest.approx(250.0)
     assert qb["actual_mean_total"] == pytest.approx(235.0)
+    assert qb["actual_median_total"] == pytest.approx(235.0)
     assert qb["proj_ppg"] == pytest.approx(250 / 15.5)
     assert qb["actual_ppg"] == pytest.approx(470 / 31)
     assert qb["rate_bias"] == pytest.approx(250 / 15.5 - 470 / 31)
+    assert qb["rate_bias_vs_median"] == pytest.approx(250 / 15.5 - 235 / 15.5)
 
     rb = out[out["position"] == "RB"].iloc[0]
     # scheduled_games = mean(14, 10) = 12.0 (board's "games" field, context only)
     # actual_mean_games = mean(14, 0) = 7.0   (r2 missing -> 0, no survivorship)
-    # proj_total = mean(150, 50) = 100
-    # proj_ppg = proj_total / expected_games = 100 / 13.0   (NOT / scheduled_games)
+    # proj_median_total = mean(150, 50) = 100
+    # proj_ppg = proj_median_total / expected_games = 100 / 13.0   (NOT / scheduled_games)
     # actual_mean_total = mean(140, 0) = 70   (r2 missing -> 0, no survivorship)
+    # actual_median_total = median(140, 0) = 70   (only 2 values -> same as mean)
     # actual_ppg = (140 + 0) / (14 + 0) = 10.0   (r2 contributes 0/0, not NaN)
+    # rate_bias_vs_median = proj_ppg - actual_median_total / actual_mean_games
+    #                     = 100/13.0 - 70/7.0
     assert rb["scheduled_games"] == pytest.approx(12.0)
     assert rb["expected_games"] == pytest.approx(13.0)
     assert rb["actual_mean_games"] == pytest.approx(7.0)
-    assert rb["proj_total"] == pytest.approx(100.0)
+    assert rb["proj_median_total"] == pytest.approx(100.0)
     assert rb["actual_mean_total"] == pytest.approx(70.0)
+    assert rb["actual_median_total"] == pytest.approx(70.0)
     assert rb["proj_ppg"] == pytest.approx(100 / 13.0)
     assert rb["actual_ppg"] == pytest.approx(10.0)
     assert rb["rate_bias"] == pytest.approx(100 / 13.0 - 10.0)
+    assert rb["rate_bias_vs_median"] == pytest.approx(100 / 13.0 - 70 / 7.0)
 
 
 def test_rate_decomposition_ppg_uses_expected_not_scheduled_games():
@@ -226,7 +238,7 @@ def test_rate_decomposition_zero_expected_games_yields_nan_ppg():
     assert np.isnan(wr["proj_ppg"])
 
 
-def test_rate_decomposition_proj_total_and_actual_mean_total_are_pool_means():
+def test_rate_decomposition_proj_median_total_and_actual_mean_total_are_pool_means():
     board_players = [
         {"player_id": "t1", "position": "TE", "games": 17,
          "season_points": {"ppr": {"p50": 120.0}}},
@@ -243,8 +255,97 @@ def test_rate_decomposition_proj_total_and_actual_mean_total_are_pool_means():
     ])
     out = rate_decomposition(board_players, actuals, summary)
     te = out[out["position"] == "TE"].iloc[0]
-    assert te["proj_total"] == pytest.approx((120.0 + 80.0) / 2)
+    # proj_median_total still reports the mean of the pool's season p50 --
+    # the rename must not change what it holds.
+    assert te["proj_median_total"] == pytest.approx((120.0 + 80.0) / 2)
     assert te["actual_mean_total"] == pytest.approx((100.0 + 0.0) / 2)
+
+
+def test_rate_decomposition_actual_median_total_includes_busts_as_zero():
+    # Pool of 3 RBs: r1=100pts/10g, r2=20pts/10g, r3 is a bust (absent from
+    # actuals -> 0pts/0g, no survivorship). Chosen so dropping the bust would
+    # change the median: with the bust, sorted actuals = [0, 20, 100] ->
+    # median 20; WITHOUT it, sorted = [20, 100] -> median 60. If the bust were
+    # excluded from the median this test would see 60.0, not 20.0.
+    board_players = [
+        {"player_id": "r1", "position": "RB", "games": 17,
+         "season_points": {"ppr": {"p50": 150.0}}},
+        {"player_id": "r2", "position": "RB", "games": 17,
+         "season_points": {"ppr": {"p50": 90.0}}},
+        {"player_id": "r3", "position": "RB", "games": 17,
+         "season_points": {"ppr": {"p50": 60.0}}},
+    ]
+    actuals = pd.DataFrame([
+        {"player_id": "r1", "name": "r1", "position": "RB",
+         "actual_points": 100.0, "games": 10},
+        {"player_id": "r2", "name": "r2", "position": "RB",
+         "actual_points": 20.0, "games": 10},
+        # r3 intentionally absent -- bust, must count as 0/0.
+    ])
+    summary = pd.DataFrame([
+        {"position": "RB", "mean_games": 10.0, "std_games": 1.0, "n_player_seasons": 100},
+    ])
+    out = rate_decomposition(board_players, actuals, summary)
+    rb = out[out["position"] == "RB"].iloc[0]
+    assert rb["actual_median_total"] == pytest.approx(20.0)
+    assert rb["actual_mean_total"] == pytest.approx((100.0 + 20.0 + 0.0) / 3)
+
+
+def test_rate_decomposition_rate_bias_vs_median_hand_computed_and_differs():
+    # Same fixture as the median test above: proj_median_total = mean(150,90,60)
+    # = 100, expected_games = 10 -> proj_ppg = 10.0.
+    # actual_ppg (mean-based, aggregate ratio) = (100+20+0)/(10+10+0) = 120/20 = 6.0
+    #   -> rate_bias = 10.0 - 6.0 = 4.0
+    # actual_mean_games = mean(10, 10, 0) = 20/3
+    # actual_median_total = 20.0 (per above)
+    #   -> median-based actual rate = 20.0 / (20/3) = 3.0
+    #   -> rate_bias_vs_median = 10.0 - 3.0 = 7.0
+    # rate_bias (4.0) != rate_bias_vs_median (7.0): the two must not be conflated.
+    board_players = [
+        {"player_id": "r1", "position": "RB", "games": 17,
+         "season_points": {"ppr": {"p50": 150.0}}},
+        {"player_id": "r2", "position": "RB", "games": 17,
+         "season_points": {"ppr": {"p50": 90.0}}},
+        {"player_id": "r3", "position": "RB", "games": 17,
+         "season_points": {"ppr": {"p50": 60.0}}},
+    ]
+    actuals = pd.DataFrame([
+        {"player_id": "r1", "name": "r1", "position": "RB",
+         "actual_points": 100.0, "games": 10},
+        {"player_id": "r2", "name": "r2", "position": "RB",
+         "actual_points": 20.0, "games": 10},
+        # r3 intentionally absent -- bust, must count as 0/0.
+    ])
+    summary = pd.DataFrame([
+        {"position": "RB", "mean_games": 10.0, "std_games": 1.0, "n_player_seasons": 100},
+    ])
+    out = rate_decomposition(board_players, actuals, summary)
+    rb = out[out["position"] == "RB"].iloc[0]
+    assert rb["proj_ppg"] == pytest.approx(10.0)
+    assert rb["actual_ppg"] == pytest.approx(6.0)
+    assert rb["rate_bias"] == pytest.approx(4.0)
+    assert rb["rate_bias_vs_median"] == pytest.approx(10.0 - 20.0 / (20.0 / 3.0))
+    assert rb["rate_bias_vs_median"] == pytest.approx(7.0)
+    assert rb["rate_bias_vs_median"] != pytest.approx(rb["rate_bias"])
+
+
+def test_rate_decomposition_rate_bias_vs_median_nan_when_all_busts():
+    # Single WR pool member, entirely absent from actuals -- actual_mean_games
+    # is 0, so rate_bias_vs_median must be NaN (division by a zero actual
+    # games denominator) without raising.
+    board_players = [
+        {"player_id": "w1", "position": "WR", "games": 17,
+         "season_points": {"ppr": {"p50": 150.0}}},
+    ]
+    actuals = pd.DataFrame(columns=["player_id", "name", "position",
+                                    "actual_points", "games"])
+    summary = pd.DataFrame([
+        {"position": "WR", "mean_games": 14.0, "std_games": 1.0, "n_player_seasons": 100},
+    ])
+    out = rate_decomposition(board_players, actuals, summary)
+    wr = out[out["position"] == "WR"].iloc[0]
+    assert wr["actual_mean_games"] == pytest.approx(0.0)
+    assert np.isnan(wr["rate_bias_vs_median"])
 
 
 # --------------------------------------------------------------- weekly_residual_icc
