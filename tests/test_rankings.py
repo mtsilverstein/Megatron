@@ -159,7 +159,10 @@ def test_attach_gsis_falls_back_to_merge_name():
     snap = normalize_rankings(_raw_rankings([
         {"id": "9999", "mergename": "name only"},
     ]))
-    xwalk = _crosswalk([{"fantasypros_id": "1001", "gsis_id": "00-0022222",
+    # fantasypros_id is None here (not just non-matching): this crosswalk row
+    # legitimately has no id, so the id-join guard must not fire -- only the
+    # name fallback is under test.
+    xwalk = _crosswalk([{"fantasypros_id": None, "gsis_id": "00-0022222",
                          "merge_name": "name only"}])
     matched, stats = attach_gsis(snap, xwalk)
     assert matched["player_id"].iloc[0] == "00-0022222"
@@ -203,6 +206,125 @@ def test_attach_gsis_ignores_crosswalk_rows_missing_gsis():
     matched, stats = attach_gsis(snap, xwalk, min_match_rate=0.0)
     assert len(matched) == 0
     assert stats["unmatched"] == 1
+
+
+def test_attach_gsis_float_crosswalk_id_joins_to_string_snapshot_id():
+    """The core bug: ff_playerids' fantasypros_id arrives as float64
+    (22953.0) while the rankings snapshot's fp_id is a clean string
+    ("22953"). A naive `.astype(str)` join produced "22953.0" != "22953"
+    and matched zero rows; the id join must resolve after normalization."""
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([{"id": "22953"}]))
+    xwalk = _crosswalk([{"fantasypros_id": 22953.0, "gsis_id": "00-0036322"}])
+    matched, stats = attach_gsis(snap, xwalk)
+    assert matched["player_id"].iloc[0] == "00-0036322"
+    assert stats["matched_by_id"] == 1
+
+
+def test_attach_gsis_id_match_beats_name_collision_both_directions():
+    """Regression: the real Justin Jefferson (MIN, gsis 00-0036322) shares a
+    normalized name with a namesake (gsis 00-0041075). With the id join dead,
+    every ECR row resolved by name only, and because the namesake happens to
+    appear first in the crosswalk, name-based dedupe silently picked the
+    WRONG player -- the real Justin Jefferson was left with ecr=None on the
+    published board. The id join must win, and must resolve to the correct
+    id: asserting only "some id matched" would pass even if the id join
+    silently died again and the name join happened to cover for it, so this
+    asserts BOTH that the correct id was chosen AND that the namesake's id
+    was not."""
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": "22953", "mergename": "justin jefferson"},
+    ]))
+    xwalk = pd.DataFrame([
+        # a namesake sharing the normalized name key, listed FIRST so a
+        # broken id join (falling through to name-based dedupe) would pick
+        # this row via drop_duplicates(keep="first")
+        {"fantasypros_id": 99999.0, "gsis_id": "00-0041075",
+         "merge_name": "justin jefferson", "position": "WR"},
+        # the real Justin Jefferson: correct id, correct gsis
+        {"fantasypros_id": 22953.0, "gsis_id": "00-0036322",
+         "merge_name": "justin jefferson", "position": "WR"},
+    ])
+    matched, stats = attach_gsis(snap, xwalk)
+    assert matched["player_id"].iloc[0] == "00-0036322"      # id-matched, correct
+    assert matched["player_id"].iloc[0] != "00-0041075"      # not the name-matched namesake
+    assert stats["matched_by_id"] == 1
+    assert stats["matched_by_name"] == 0
+
+
+def test_attach_gsis_null_ids_do_not_collide():
+    """Nulls on both sides of the id join must never collapse into a shared
+    key (e.g. a literal "nan" string) that lets unrelated rows match each
+    other; a null/non-numeric fp_id must fall through to name matching."""
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": "", "mergename": "some guy"},   # empty/non-numeric fp_id
+    ]))
+    xwalk = _crosswalk([
+        {"fantasypros_id": None, "gsis_id": "00-0055555", "merge_name": "wrong guy"},
+        {"fantasypros_id": None, "gsis_id": "00-0066666", "merge_name": "some guy"},
+    ])
+    matched, stats = attach_gsis(snap, xwalk)
+    assert stats["matched_by_id"] == 0
+    assert matched["player_id"].iloc[0] == "00-0066666"   # resolved by name, not id
+    assert stats["matched_by_name"] == 1
+
+
+def test_attach_gsis_non_numeric_id_coerces_to_null_not_raise():
+    """A malformed FantasyPros id (non-numeric) must coerce to null and fall
+    through to name matching, exactly like an absent id -- pd.to_numeric
+    must not raise. A second, well-formed row keeps the id join alive
+    overall so this exercises the per-row fallback, not the id-join guard."""
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": "1001", "player": "Known", "mergename": "known guy"},
+        {"id": "ABC123", "player": "Bad Id", "mergename": "bad id guy"},
+    ]))
+    xwalk = pd.DataFrame([
+        {"fantasypros_id": "1001", "gsis_id": "00-0011111",
+         "merge_name": "known guy", "position": "WR"},
+        {"fantasypros_id": "2002", "gsis_id": "00-0022222",
+         "merge_name": "bad id guy", "position": "WR"},
+    ])
+    matched, stats = attach_gsis(snap, xwalk)
+    assert stats["matched_by_id"] == 1
+    assert stats["matched_by_name"] == 1
+    bad = matched[matched["player"] == "Bad Id"].iloc[0]
+    assert bad["player_id"] == "00-0022222"
+
+
+def test_attach_gsis_id_join_guard_raises_when_ids_present_but_zero_overlap():
+    """The id join has been silently dead before (matched_by_id stuck at 0
+    while nothing looked at it -- the exact bug this whole fix repairs). If
+    both the snapshot and the crosswalk carry FantasyPros ids and none
+    overlap, that is a structural key-format bug, not missing data: fail
+    loudly instead of quietly falling through to name matching."""
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([{"id": "11111", "mergename": "some guy"}]))
+    xwalk = _crosswalk([{"fantasypros_id": "99999", "gsis_id": "00-0011111",
+                         "merge_name": "some guy"}])
+    with pytest.raises(ValueError, match="key-format mismatch"):
+        attach_gsis(snap, xwalk)
+
+
+def test_attach_gsis_id_join_guard_does_not_fire_when_crosswalk_has_no_ids():
+    """A crosswalk that legitimately carries no FantasyPros ids at all (pure
+    name-only matching) must not trip the id-join guard."""
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([{"id": "1001", "mergename": "some guy"}]))
+    xwalk = _crosswalk([{"fantasypros_id": None, "gsis_id": "00-0011111",
+                         "merge_name": "some guy"}])
+    matched, stats = attach_gsis(snap, xwalk)
+    assert matched["player_id"].iloc[0] == "00-0011111"
+    assert stats["matched_by_id"] == 0
+    assert stats["matched_by_name"] == 1
 
 
 def test_backfill_draft_gsis_restores_only_blank_ids_by_exact_pfr_id():
@@ -345,7 +467,9 @@ def test_merge_name_fallback_survives_case_mismatch_between_feeds():
     snap = normalize_rankings(_raw_rankings([
         {"id": "9999", "mergename": "Christian McCaffrey"},   # feed casing
     ]))
-    xwalk = _crosswalk([{"fantasypros_id": "1001", "gsis_id": "00-0044444",
+    # fantasypros_id is None: this crosswalk row legitimately has no id, so
+    # the id-join guard must not fire -- only the name fallback is under test.
+    xwalk = _crosswalk([{"fantasypros_id": None, "gsis_id": "00-0044444",
                          "merge_name": "christian mccaffrey"}])  # crosswalk casing
     matched, stats = attach_gsis(snap, xwalk)
     assert stats["matched_by_name"] == 1
