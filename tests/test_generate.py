@@ -295,14 +295,24 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     monkeypatch.setattr(nflreadpy, "load_ff_playerids", boom_load_ff_playerids)
 
     ecr_df = pd.DataFrame({"player_id": ["00-0000001"], "pos": ["QB"], "ecr": [1.0]})
+    # Full, realistic stats dicts (the actual shape attach_gsis /
+    # normalize_snapshot_adp return) so tests can pin that specific counters
+    # -- matched_by_id in particular, whose silent loss is the bug this task
+    # fixes -- actually survive the trip into the published draft.json.
     def fake_consensus(s, sched, d, picks=None):
         capture["consensus_draft_picks"] = picks
-        return ecr_df, {"match_rate": 1.0}
+        return ecr_df, {"ranked": 1, "matched_by_id": 1, "matched_by_name": 0,
+                        "matched_by_name_position": 0, "matched_by_name_only": 0,
+                        "unmatched": 0, "unmatched_players": [], "gsis_collisions": 0,
+                        "match_rate": 1.0}
     monkeypatch.setattr(gen_mod, "_load_consensus", fake_consensus)
     monkeypatch.setattr(gen_mod, "_load_adp",
                         lambda s, d, **kw: (pd.DataFrame({"player_id": ["00-0000001"], "adp": [1.0]}),
                                      {"source": "sleeper_snapshot",
-                                      "snapshot_date": "2026-07-27"}))
+                                      "snapshot_date": "2026-07-27",
+                                      "ranked": 1, "matched_by_position": 1,
+                                      "matched_by_name": 0, "unmatched": 0,
+                                      "unmatched_players": [], "match_rate": 1.0}))
     monkeypatch.setattr(gen_mod, "_late_slots",
                         lambda season, data_dir: {"K": [], "DST": []})
 
@@ -350,7 +360,35 @@ def test_draft_run_threads_sleeper_dump_into_board(monkeypatch, tmp_path):
     assert written["late_slots"] == {"K": [], "DST": []}
     # ...and the ADP provenance the stubbed _load_adp reported
     assert written["adp_source"] == {"source": "sleeper_snapshot",
-                                     "snapshot_date": "2026-07-27"}
+                                     "snapshot_date": "2026-07-27",
+                                     "ranked": 1, "matched_by_position": 1,
+                                     "matched_by_name": 0, "unmatched": 0,
+                                     "unmatched_players": [], "match_rate": 1.0}
+
+
+def test_draft_json_carries_consensus_and_adp_match_stats(monkeypatch, tmp_path):
+    """Regression for the finding this task fixes: `_load_consensus`'s and
+    `_load_adp`'s match-provenance dicts were computed and then discarded in
+    `generate.py`, so `attach_gsis`'s `matched_by_id` silently sitting at 0
+    (the primary crosswalk join matching nothing) was invisible on the
+    published board. Both blocks must actually reach `draft.json`."""
+    import ffmodel.site.sleeper as sleeper_mod
+
+    dump = {"1": {"gsis_id": "00-0000001", "full_name": "A B", "position": "QB"}}
+    monkeypatch.setattr(sleeper_mod, "pull_sleeper_players", lambda **k: dump)
+    capture = {}
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
+
+    written = json.loads((tmp_path / "out" / "draft.json").read_text())
+
+    assert "consensus" in written
+    assert written["consensus"]["matched_by_id"] == 1
+    assert written["consensus"]["unmatched_players_truncated"] is False
+
+    assert "adp_source" in written
+    assert written["adp_source"]["matched_by_position"] == 1
+    assert written["adp_source"]["matched_by_name"] == 0
+    assert written["adp_source"]["unmatched"] == 0
 
 
 def test_weekly_only_run_never_touches_sleeper(monkeypatch, tmp_path):
@@ -427,6 +465,32 @@ def test_failed_pull_leaves_preseeded_published_json_byte_identical(monkeypatch,
     assert not list(out.glob("*.tmp"))
 
 
+def test_bounded_stats_passes_short_list_through_unmarked():
+    from ffmodel.site import generate
+
+    stats = {"unmatched": 2, "unmatched_players": ["A", "B"], "match_rate": 0.9}
+    out = generate._bounded_stats(stats)
+    assert out["unmatched_players"] == ["A", "B"]
+    assert out["unmatched_players_truncated"] is False
+    assert out["unmatched"] == 2   # the count itself is never touched
+
+
+def test_bounded_stats_truncates_long_unmatched_list_and_flags_it():
+    """A future badly-broken feed could dump an enormous unmatched-players
+    list into the payload; the published list is capped, but the cut must
+    be visible (`unmatched_players_truncated: True`), not silent, and the
+    `unmatched` count itself must stay the untruncated true count."""
+    from ffmodel.site import generate
+
+    names = [f"Player {i}" for i in range(generate.UNMATCHED_PLAYERS_LIMIT + 10)]
+    stats = {"unmatched": len(names), "unmatched_players": names, "match_rate": 0.5}
+    out = generate._bounded_stats(stats)
+    assert len(out["unmatched_players"]) == generate.UNMATCHED_PLAYERS_LIMIT
+    assert out["unmatched_players"] == names[:generate.UNMATCHED_PLAYERS_LIMIT]
+    assert out["unmatched_players_truncated"] is True
+    assert out["unmatched"] == len(names)   # count is the real signal, never capped
+
+
 def test_draft_consensus_ecr_required_adp_best_effort(monkeypatch):
     from ffmodel.site import generate
 
@@ -438,16 +502,21 @@ def test_draft_consensus_ecr_required_adp_best_effort(monkeypatch):
     # ADP fails -> swallowed, ecr still returned; replacement derived (tiny pool)
     monkeypatch.setattr(generate, "_load_adp",
                         lambda s, d, **kw: (_ for _ in ()).throw(RuntimeError("403")))
-    ecr, adp, replacement, adp_source = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
+    ecr, adp, replacement, adp_source, consensus_stats = generate._draft_consensus(
+        2026, pd.DataFrame(), "data/raw")
     assert ecr == {"00-1": 1.0, "00-2": 2.0} and adp is None
     assert adp_source is None   # no ADP -> no source to report, honestly
     assert set(replacement) == {"QB", "RB", "WR", "TE"}   # derived, all positions
+    # ECR is required, so its match stats always come back, bounded for
+    # publication even though this stub carries no unmatched_players list.
+    assert consensus_stats == {"match_rate": 1.0, "unmatched_players_truncated": False}
 
     # ADP ok -> mapped, and its source recorded
     adp_df = pd.DataFrame({"player_id": ["00-1"], "adp": [6.0]})
     monkeypatch.setattr(generate, "_load_adp",
                         lambda s, d, **kw: (adp_df, {"source": "ffcalculator"}))
-    ecr, adp, replacement, adp_source = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
+    ecr, adp, replacement, adp_source, consensus_stats = generate._draft_consensus(
+        2026, pd.DataFrame(), "data/raw")
     assert adp == {"00-1": 6.0}
     assert adp_source == {"source": "ffcalculator"}
 
@@ -479,7 +548,8 @@ def test_load_adp_uses_snapshot_when_present(monkeypatch, tmp_path):
         encoding="utf-8",
     )
     monkeypatch.setattr(adp_mod, "SNAPSHOT_PATH", snap)
-    crosswalk = pd.DataFrame({"gsis_id": ["00-9"], "merge_name": ["some guy"]})
+    crosswalk = pd.DataFrame({"gsis_id": ["00-9"], "merge_name": ["some guy"],
+                              "position": ["WR"]})
     monkeypatch.setattr(rankings_mod, "pull_player_ids", lambda cache_dir=None: crosswalk)
 
     def boom_ffcalculator(*a, **k):
@@ -492,7 +562,13 @@ def test_load_adp_uses_snapshot_when_present(monkeypatch, tmp_path):
                       "snapshot_date": "2026-07-27",
                       # no draft_picks passed -> nothing restored, reported as 0
                       # rather than omitted, so the field is always present
-                      "gsis_backfilled_from_draft_picks": 0}
+                      "gsis_backfilled_from_draft_picks": 0,
+                      # normalize_snapshot_adp's match-provenance counters,
+                      # folded into this same block so they reach draft.json
+                      # instead of being computed and thrown away
+                      "ranked": 1, "matched_by_position": 1, "matched_by_name": 0,
+                      "unmatched": 0, "unmatched_players": [], "match_rate": 1.0,
+                      "unmatched_players_truncated": False}
 
 
 def test_load_adp_falls_back_to_ffcalculator_when_snapshot_missing(monkeypatch, tmp_path):
@@ -586,10 +662,13 @@ def test_load_adp_backfills_rookie_gsis_from_draft_picks(monkeypatch):
     from ffmodel.data.adp import SNAPSHOT_PATH, parse_snapshot_csv
     from ffmodel.site import generate as gen
 
-    names = list(parse_snapshot_csv(SNAPSHOT_PATH)["name"])
+    snapshot_rows = parse_snapshot_csv(SNAPSHOT_PATH)
+    names = list(snapshot_rows["name"])
+    positions = list(snapshot_rows["position"])
     n_blank = 25                       # ~10%, matching the live incident
     crosswalk = pd.DataFrame({
         "merge_name": names,
+        "position": positions,         # same snapshot's own position per name
         "pfr_id": [f"Pfr{i:04d}" for i in range(len(names))],
         "gsis_id": [pd.NA if i < n_blank else f"00-00{i:05d}"
                     for i in range(len(names))],

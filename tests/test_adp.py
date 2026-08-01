@@ -82,6 +82,7 @@ def _snapshot_crosswalk():
     return pd.DataFrame({
         "gsis_id": ["00-1", "00-2", "00-3"],
         "merge_name": ["jahmyr gibbs", "stefon diggs", "marvin harrison"],
+        "position": ["RB", "WR", "WR"],
     })
 
 
@@ -131,7 +132,8 @@ def test_normalize_snapshot_adp_match_rate_guard_has_teeth():
         "adp": [2.0, 50.0, 51.0, 52.0],
     })
     # Only 1/4 = 25% will match -- well under the 0.95 floor.
-    crosswalk = pd.DataFrame({"gsis_id": ["00-1"], "merge_name": ["jahmyr gibbs"]})
+    crosswalk = pd.DataFrame({"gsis_id": ["00-1"], "merge_name": ["jahmyr gibbs"],
+                              "position": ["RB"]})
     with pytest.raises(ValueError, match="25.0%") as exc_info:
         normalize_snapshot_adp(raw, crosswalk)
     msg = str(exc_info.value)
@@ -148,11 +150,75 @@ def test_normalize_snapshot_adp_passes_with_a_good_crosswalk():
         "position": ["RB", "WR"],
         "adp": [2.0, 70.0],
     })
-    out = normalize_snapshot_adp(raw, _snapshot_crosswalk())
+    out, stats = normalize_snapshot_adp(raw, _snapshot_crosswalk())
     assert set(out["player_id"]) == {"00-1", "00-3"}   # suffix stripped by norm()
     assert set(out.columns) == {"player_id", "name", "position", "adp",
                                 "stdev", "times_drafted"}
     assert out["stdev"].isna().all() and out["times_drafted"].isna().all()
+    assert stats["matched_by_position"] == 2
+    assert stats["matched_by_name"] == 0
+
+
+def test_normalize_snapshot_adp_position_disambiguates_real_collision():
+    """The live regression, named: the nflverse crosswalk carries both an LB
+    (CLE) and the real WR (MIN) named Justin Jefferson. A snapshot row with
+    position WR must resolve to the WR's gsis -- asserted BOTH directions,
+    since a one-sided "some id matched" assertion would pass even if the fix
+    silently reverted to the old drop_duplicates-picks-an-arbitrary-row
+    behaviour."""
+    from ffmodel.data.adp import normalize_snapshot_adp
+
+    crosswalk = pd.DataFrame({
+        "gsis_id": ["00-0041075", "00-0036322"],
+        "merge_name": ["justin jefferson", "justin jefferson"],
+        "position": ["LB", "WR"],
+    })
+    raw = pd.DataFrame({
+        "name": ["Justin Jefferson"], "position": ["WR"], "adp": [11.0],
+    })
+    out, stats = normalize_snapshot_adp(raw, crosswalk)
+    assert out["player_id"].iloc[0] == "00-0036322"      # the real WR
+    assert out["player_id"].iloc[0] != "00-0041075"      # not the LB namesake
+    assert stats["matched_by_position"] == 1
+    assert stats["matched_by_name"] == 0
+
+
+def test_normalize_snapshot_adp_name_fallback_still_resolves_position_label_disagreement():
+    """The two feeds can legitimately disagree on a position label (RB/FB,
+    WR/TE tweeners). A snapshot row whose position has no exact crosswalk
+    match must still resolve by name, provided that crosswalk row is in
+    scope (QB/RB/WR/TE)."""
+    from ffmodel.data.adp import normalize_snapshot_adp
+
+    crosswalk = pd.DataFrame({
+        "gsis_id": ["00-1"], "merge_name": ["some tweener"], "position": ["TE"],
+    })
+    raw = pd.DataFrame({
+        "name": ["Some Tweener"], "position": ["WR"], "adp": [80.0],
+    })
+    out, stats = normalize_snapshot_adp(raw, crosswalk)
+    assert out["player_id"].iloc[0] == "00-1"
+    assert stats["matched_by_position"] == 0
+    assert stats["matched_by_name"] == 1
+
+
+def test_normalize_snapshot_adp_out_of_scope_only_match_does_not_resolve():
+    """If the ONLY crosswalk row for a name is a non-QB/RB/WR/TE player, the
+    snapshot row must not silently take it, even via the name-only
+    fallback."""
+    from ffmodel.data.adp import normalize_snapshot_adp
+
+    crosswalk = pd.DataFrame({
+        "gsis_id": ["00-1"], "merge_name": ["some player"], "position": ["LB"],
+    })
+    raw = pd.DataFrame({
+        "name": ["Some Player"], "position": ["WR"], "adp": [80.0],
+    })
+    out, stats = normalize_snapshot_adp(raw, crosswalk, min_match_rate=0.0)
+    assert out.empty
+    assert stats["matched_by_position"] == 0
+    assert stats["matched_by_name"] == 0
+    assert stats["unmatched"] == 1
 
 
 def test_snapshot_loader_scopes_out_k_and_dst_even_if_present(tmp_path):

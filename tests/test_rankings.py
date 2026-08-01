@@ -266,6 +266,39 @@ def test_attach_gsis_id_match_beats_name_collision_both_directions():
     assert stats["matched_by_name"] == 0
 
 
+def test_attach_gsis_name_fallback_position_disambiguates_real_collision():
+    """The name FALLBACK's identical latent weakness (the id join's version
+    of this bug was fixed in 4ad0871): the nflverse crosswalk carries both an
+    LB (CLE) and the real WR (MIN) named Justin Jefferson. The colliding row
+    gets NO usable fantasypros_id on either side, so the id join cannot mask
+    what's under test here -- resolution must come from the position-aware
+    name fallback. Asserts BOTH directions: the real WR's id was chosen AND
+    the LB namesake's id was not, since a one-sided "some id matched"
+    assertion would pass even if the fix silently reverted to a bare
+    name-only fallback."""
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": "", "mergename": "justin jefferson", "pos": "WR"},
+    ]))
+    xwalk = pd.DataFrame([
+        # a namesake sharing the normalized name key, listed FIRST so a
+        # position-blind fallback (drop_duplicates(keep="first")) would
+        # pick this row
+        {"fantasypros_id": None, "gsis_id": "00-0041075",
+         "merge_name": "justin jefferson", "position": "LB"},
+        # the real Justin Jefferson
+        {"fantasypros_id": None, "gsis_id": "00-0036322",
+         "merge_name": "justin jefferson", "position": "WR"},
+    ])
+    matched, stats = attach_gsis(snap, xwalk)
+    assert matched["player_id"].iloc[0] == "00-0036322"      # the real WR
+    assert matched["player_id"].iloc[0] != "00-0041075"      # not the LB namesake
+    assert stats["matched_by_id"] == 0
+    assert stats["matched_by_name_position"] == 1
+    assert stats["matched_by_name_only"] == 0
+
+
 def test_attach_gsis_null_ids_do_not_collide():
     """Nulls on both sides of the id join must never collapse into a shared
     key (e.g. a literal "nan" string) that lets unrelated rows match each

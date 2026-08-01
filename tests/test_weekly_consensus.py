@@ -66,7 +66,8 @@ def _rankings(dates_ecr):
 def _crosswalk(n=8):
     return pd.DataFrame({"fantasypros_id": [f"p{i}" for i in range(n)],
                          "gsis_id": [f"p{i}" for i in range(n)],
-                         "merge_name": [f"player p{i}" for i in range(n)]})
+                         "merge_name": [f"player p{i}" for i in range(n)],
+                         "position": ["RB"] * n})
 
 
 def _perfect_predictor(features):
