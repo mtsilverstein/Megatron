@@ -207,6 +207,68 @@ def _backfill_draft_gsis(crosswalk: pd.DataFrame,
     return out, filled
 
 
+def canonicalize_draft_gsis(draft_picks: pd.DataFrame,
+                            crosswalk: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Rewrite draft-picks placeholder gsis ids to the identity feed's canonical id.
+
+    Inverse of `_backfill_draft_gsis`. nflverse's draft-picks feed still
+    carries a name-derived placeholder id (e.g. "LOV121782") for the current
+    rookie class after the identity (player-id) feed has since been repaired
+    upstream to the canonical ``00-00XXXXX`` GSIS form for those same
+    players. Every downstream consumer of draft-picks (the ECR spine, the
+    ADP overlay, the rookie board rows) must share one key space, so this
+    rewrites draft-picks' `gsis_id` -- never the identity feed, which stays
+    authoritative -- joined on PFR's stable id, never a fuzzy name match.
+
+    A row is rewritten if and only if ALL of: its `gsis_id` is non-null; that
+    id is ABSENT from the set of non-null `gsis_id` values already in
+    `crosswalk` (i.e. it is provably not a real, known id); and its
+    `pfr_player_id` bridges to a non-null canonical `gsis_id` in `crosswalk`.
+    That second condition is load-bearing: it makes this a no-op for every
+    historical draft class (measured 2012-2025: zero rows qualify), so it
+    cannot silently move the prior `fit_rookie_cohorts` is fitted from.
+
+    The conflict check (a single PFR id mapping to >1 canonical gsis id --
+    never guessed, always raised) is scoped to the PFR ids this call actually
+    needs to look up, i.e. the ones on rows eligible for rewrite. `crosswalk`
+    is nflverse's full all-time, all-position identity feed (12k+ rows); it
+    carries real upstream `pfr_id` collisions between UNRELATED obscure
+    players who are never involved in any rewrite this function performs, and
+    those must not abort a run that never consults them. Any PFR id this
+    function does look up that is genuinely ambiguous still raises.
+    """
+    required_picks = {"pfr_player_id", "gsis_id"}
+    required_crosswalk = {"pfr_id", "gsis_id"}
+    missing_picks = required_picks - set(draft_picks.columns)
+    missing_crosswalk = required_crosswalk - set(crosswalk.columns)
+    if missing_picks or missing_crosswalk:
+        raise ValueError(
+            "cannot canonicalize draft gsis ids; missing draft-pick columns "
+            f"{sorted(missing_picks)} or crosswalk columns "
+            f"{sorted(missing_crosswalk)}"
+        )
+
+    known_gsis = set(crosswalk["gsis_id"].dropna())
+    out = draft_picks.copy()
+    placeholder = out["gsis_id"].notna() & ~out["gsis_id"].isin(known_gsis)
+
+    relevant_pfr = set(out.loc[placeholder, "pfr_player_id"].dropna())
+    cw = crosswalk[crosswalk["pfr_id"].isin(relevant_pfr)]
+    cw = cw.dropna(subset=["pfr_id", "gsis_id"])[["pfr_id", "gsis_id"]].copy()
+    conflicts = cw.groupby("pfr_id")["gsis_id"].nunique()
+    conflicts = conflicts[conflicts > 1]
+    if not conflicts.empty:
+        raise ValueError("identity crosswalk has conflicting gsis ids for "
+                         f"PFR ids {sorted(conflicts.index.tolist())}")
+    by_pfr = cw.drop_duplicates("pfr_id").set_index("pfr_id")["gsis_id"]
+
+    canonical = out.loc[placeholder, "pfr_player_id"].map(by_pfr)
+    rewritten = int(canonical.notna().sum())
+    out.loc[placeholder, "gsis_id"] = canonical.where(
+        canonical.notna(), out.loc[placeholder, "gsis_id"])
+    return out, rewritten
+
+
 def pull_rankings(cache_dir: Path | None = None) -> pd.DataFrame:
     """Historical FantasyPros consensus, normalized on every read path.
 
