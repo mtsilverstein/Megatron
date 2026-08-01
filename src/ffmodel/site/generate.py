@@ -143,7 +143,7 @@ def _load_consensus(season, schedules, data_dir, draft_picks=None):
     return consensus_for_season(season, schedules, data_dir, draft_picks=draft_picks)
 
 
-def _load_adp(season, data_dir):
+def _load_adp(season, data_dir, draft_picks=None):
     """Sleeper-population ADP for the draft board (preferred): this
     project's actual league is a Sleeper keeper league, so the committed
     FantasyPros/Sleeper snapshot (data_snapshots/) matches that population
@@ -159,15 +159,31 @@ def _load_adp(season, data_dir):
     regardless of which source ran. `_late_slots()` below stays pinned to
     FFCalculator's raw payload for K/DST specifically -- do not repoint it
     at this snapshot, it would silently go empty.
+
+    `draft_picks`: when supplied, blank `gsis_id` rows in the identity feed
+    are restored from the draft-picks source before matching, exactly as the
+    ECR spine does. This is load-bearing, not defensive. nflverse's
+    player-id feed temporarily omits `gsis_id` for the current rookie class;
+    on 2026-07-28 that dropped this crosswalk to 89.8% and the >=95% guard
+    correctly refused to publish a partial ADP overlay, so the live board
+    shipped with no ADP at all and the keeper gauge lost its market anchor.
+    The ECR path was repaired for the same drift in `4ad0871`; ADP reads the
+    same feed and needs the same repair, or the two disagree about who
+    exists.
     """
     from ffmodel.data.adp import SNAPSHOT_PATH, load_snapshot_adp, pull_adp, snapshot_date
-    from ffmodel.data.rankings import pull_player_ids
+    from ffmodel.data.rankings import _backfill_draft_gsis, pull_player_ids
 
     if SNAPSHOT_PATH.exists():
-        adp_df = load_snapshot_adp(SNAPSHOT_PATH, pull_player_ids(data_dir))
+        crosswalk = pull_player_ids(data_dir)
+        backfilled = 0
+        if draft_picks is not None:
+            crosswalk, backfilled = _backfill_draft_gsis(crosswalk, draft_picks)
+        adp_df = load_snapshot_adp(SNAPSHOT_PATH, crosswalk)
         return adp_df, {"source": "sleeper_snapshot",
                         "path": SNAPSHOT_PATH.as_posix(),
-                        "snapshot_date": snapshot_date(SNAPSHOT_PATH)}
+                        "snapshot_date": snapshot_date(SNAPSHOT_PATH),
+                        "gsis_backfilled_from_draft_picks": backfilled}
     return pull_adp(season, cache_dir=data_dir), {"source": "ffcalculator"}
 
 
@@ -215,7 +231,7 @@ def _draft_consensus(season, schedules, data_dir, *, draft_picks=None):
     pool = ecr_df.rename(columns={"pos": "position"})[["position", "ecr"]]
     replacement = flex_replacement_ranks(pool, LEAGUE_DEDICATED, LEAGUE_FLEX_SLOTS)
     try:
-        adp_df, adp_source = _load_adp(season, data_dir)
+        adp_df, adp_source = _load_adp(season, data_dir, draft_picks=draft_picks)
         adp = dict(zip(adp_df["player_id"], adp_df["adp"]))
     except Exception as exc:                     # noqa: BLE001 - overlay is optional
         print(f"ADP unavailable ({exc}); board builds without the market overlay")

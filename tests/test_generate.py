@@ -277,7 +277,7 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
         return ecr_df, {"match_rate": 1.0}
     monkeypatch.setattr(gen_mod, "_load_consensus", fake_consensus)
     monkeypatch.setattr(gen_mod, "_load_adp",
-                        lambda s, d: (pd.DataFrame({"player_id": ["00-0000001"], "adp": [1.0]}),
+                        lambda s, d, **kw: (pd.DataFrame({"player_id": ["00-0000001"], "adp": [1.0]}),
                                      {"source": "sleeper_snapshot",
                                       "snapshot_date": "2026-07-27"}))
     monkeypatch.setattr(gen_mod, "_late_slots",
@@ -414,7 +414,7 @@ def test_draft_consensus_ecr_required_adp_best_effort(monkeypatch):
 
     # ADP fails -> swallowed, ecr still returned; replacement derived (tiny pool)
     monkeypatch.setattr(generate, "_load_adp",
-                        lambda s, d: (_ for _ in ()).throw(RuntimeError("403")))
+                        lambda s, d, **kw: (_ for _ in ()).throw(RuntimeError("403")))
     ecr, adp, replacement, adp_source = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
     assert ecr == {"00-1": 1.0, "00-2": 2.0} and adp is None
     assert adp_source is None   # no ADP -> no source to report, honestly
@@ -423,7 +423,7 @@ def test_draft_consensus_ecr_required_adp_best_effort(monkeypatch):
     # ADP ok -> mapped, and its source recorded
     adp_df = pd.DataFrame({"player_id": ["00-1"], "adp": [6.0]})
     monkeypatch.setattr(generate, "_load_adp",
-                        lambda s, d: (adp_df, {"source": "ffcalculator"}))
+                        lambda s, d, **kw: (adp_df, {"source": "ffcalculator"}))
     ecr, adp, replacement, adp_source = generate._draft_consensus(2026, pd.DataFrame(), "data/raw")
     assert adp == {"00-1": 6.0}
     assert adp_source == {"source": "ffcalculator"}
@@ -466,7 +466,10 @@ def test_load_adp_uses_snapshot_when_present(monkeypatch, tmp_path):
     adp_df, source = generate._load_adp(2026, tmp_path)
     assert list(adp_df["player_id"]) == ["00-9"]
     assert source == {"source": "sleeper_snapshot", "path": snap.as_posix(),
-                      "snapshot_date": "2026-07-27"}
+                      "snapshot_date": "2026-07-27",
+                      # no draft_picks passed -> nothing restored, reported as 0
+                      # rather than omitted, so the field is always present
+                      "gsis_backfilled_from_draft_picks": 0}
 
 
 def test_load_adp_falls_back_to_ffcalculator_when_snapshot_missing(monkeypatch, tmp_path):
@@ -538,3 +541,48 @@ def test_data_through_stamp_is_derived_from_data_and_lands_in_json(monkeypatch, 
 
     written = json.loads((tmp_path / "out" / "weekly.json").read_text())
     assert written["data_through"] == "2023-wk6"
+
+
+def test_load_adp_backfills_rookie_gsis_from_draft_picks(monkeypatch):
+    """Regression for the 2026-07-28 live incident.
+
+    nflverse's player-id feed blanked `gsis_id` for the current rookie class.
+    The ECR spine was repaired for that drift (4ad0871) but ADP reads the SAME
+    feed and was not, so the snapshot crosswalk fell to 89.8%, the >=95% guard
+    correctly refused to publish a partial overlay, and the published board
+    shipped with zero ADP -- the keeper gauge lost its market anchor silently,
+    because the overlay is best-effort by design.
+
+    Asserts BOTH directions: without draft_picks the guard still fires (it must
+    not be weakened to paper over the drift), and with them the blanks are
+    restored from the draft-picks feed by exact PFR id.
+    """
+    import pandas as pd
+
+    from ffmodel.data import rankings as rankings_mod
+    from ffmodel.data.adp import SNAPSHOT_PATH, parse_snapshot_csv
+    from ffmodel.site import generate as gen
+
+    names = list(parse_snapshot_csv(SNAPSHOT_PATH)["name"])
+    n_blank = 25                       # ~10%, matching the live incident
+    crosswalk = pd.DataFrame({
+        "merge_name": names,
+        "pfr_id": [f"Pfr{i:04d}" for i in range(len(names))],
+        "gsis_id": [pd.NA if i < n_blank else f"00-00{i:05d}"
+                    for i in range(len(names))],
+    })
+    picks = pd.DataFrame({
+        "pfr_player_id": [f"Pfr{i:04d}" for i in range(n_blank)],
+        "gsis_id": [f"00-99{i:05d}" for i in range(n_blank)],
+    })
+    monkeypatch.setattr(rankings_mod, "pull_player_ids", lambda *a, **k: crosswalk)
+
+    # Without the draft-picks repair the guard must still fire.
+    with pytest.raises(ValueError, match="crosswalk matched only"):
+        gen._load_adp(2026, Path("data/raw"))
+
+    df, source = gen._load_adp(2026, Path("data/raw"), draft_picks=picks)
+    assert source["source"] == "sleeper_snapshot"
+    assert source["gsis_backfilled_from_draft_picks"] == n_blank
+    assert len(df) == len(names)
+    assert df["player_id"].notna().all()
