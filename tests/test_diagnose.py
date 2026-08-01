@@ -1,6 +1,7 @@
 """Diagnostics module: leak-free availability cohorts, rate decomposition,
 and weekly ICC -- all on hand-computable toy fixtures (Plan 4 Phase B,
 Task 3). CLI tests live at the bottom."""
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -123,33 +124,127 @@ def test_rate_decomposition_hand_computed_with_missing_player():
         {"position": "RB", "mean_games": 13.0, "std_games": 2.0, "n_player_seasons": 100},
     ])
     out = rate_decomposition(board_players, actuals, summary)
-    assert list(out.columns) == ["position", "proj_games", "expected_games",
-                                 "actual_mean_games", "proj_ppg", "actual_ppg",
-                                 "rate_bias"]
+    assert list(out.columns) == ["position", "scheduled_games", "expected_games",
+                                 "actual_mean_games", "proj_total", "actual_mean_total",
+                                 "proj_ppg", "actual_ppg", "rate_bias"]
 
     qb = out[out["position"] == "QB"].iloc[0]
     # pool = both QBs (only 2 -- cap 2*13=26 doesn't bind).
-    # proj_games = mean(16, 15) = 15.5
-    # proj_ppg = mean(300, 200) / 15.5 = 250 / 15.5
+    # scheduled_games = mean(16, 15) = 15.5 (board's "games" field, context only)
+    # proj_total = mean(300, 200) = 250
+    # proj_ppg = proj_total / expected_games = 250 / 15.5   (NOT / scheduled_games)
+    # actual_mean_total = mean(280, 190) = 235
     # actual_ppg = (280 + 190) / (16 + 15) = 470 / 31   (aggregate ratio)
-    assert qb["proj_games"] == pytest.approx(15.5)
+    assert qb["scheduled_games"] == pytest.approx(15.5)
     assert qb["expected_games"] == pytest.approx(15.5)
     assert qb["actual_mean_games"] == pytest.approx(15.5)
+    assert qb["proj_total"] == pytest.approx(250.0)
+    assert qb["actual_mean_total"] == pytest.approx(235.0)
     assert qb["proj_ppg"] == pytest.approx(250 / 15.5)
     assert qb["actual_ppg"] == pytest.approx(470 / 31)
     assert qb["rate_bias"] == pytest.approx(250 / 15.5 - 470 / 31)
 
     rb = out[out["position"] == "RB"].iloc[0]
-    # proj_games = mean(14, 10) = 12.0
+    # scheduled_games = mean(14, 10) = 12.0 (board's "games" field, context only)
     # actual_mean_games = mean(14, 0) = 7.0   (r2 missing -> 0, no survivorship)
-    # proj_ppg = mean(150, 50) / 12.0 = 100 / 12
+    # proj_total = mean(150, 50) = 100
+    # proj_ppg = proj_total / expected_games = 100 / 13.0   (NOT / scheduled_games)
+    # actual_mean_total = mean(140, 0) = 70   (r2 missing -> 0, no survivorship)
     # actual_ppg = (140 + 0) / (14 + 0) = 10.0   (r2 contributes 0/0, not NaN)
-    assert rb["proj_games"] == pytest.approx(12.0)
+    assert rb["scheduled_games"] == pytest.approx(12.0)
     assert rb["expected_games"] == pytest.approx(13.0)
     assert rb["actual_mean_games"] == pytest.approx(7.0)
-    assert rb["proj_ppg"] == pytest.approx(100 / 12)
+    assert rb["proj_total"] == pytest.approx(100.0)
+    assert rb["actual_mean_total"] == pytest.approx(70.0)
+    assert rb["proj_ppg"] == pytest.approx(100 / 13.0)
     assert rb["actual_ppg"] == pytest.approx(10.0)
-    assert rb["rate_bias"] == pytest.approx(100 / 12 - 10.0)
+    assert rb["rate_bias"] == pytest.approx(100 / 13.0 - 10.0)
+
+
+def test_rate_decomposition_ppg_uses_expected_not_scheduled_games():
+    # scheduled_games (board "games") = 17, expected_games (summary mean_games)
+    # = 12.0 -- deliberately different so a denominator regression is caught.
+    board_players = [
+        {"player_id": "r1", "position": "RB", "games": 17,
+         "season_points": {"ppr": {"p50": 200.0}}},
+        {"player_id": "r2", "position": "RB", "games": 17,
+         "season_points": {"ppr": {"p50": 100.0}}},
+    ]
+    actuals = pd.DataFrame([
+        {"player_id": "r1", "name": "r1", "position": "RB",
+         "actual_points": 180.0, "games": 15},
+        {"player_id": "r2", "name": "r2", "position": "RB",
+         "actual_points": 90.0, "games": 14},
+    ])
+    summary = pd.DataFrame([
+        {"position": "RB", "mean_games": 12.0, "std_games": 2.0, "n_player_seasons": 100},
+    ])
+    out = rate_decomposition(board_players, actuals, summary)
+    rb = out[out["position"] == "RB"].iloc[0]
+
+    proj_total = (200.0 + 100.0) / 2   # 150.0
+    assert rb["scheduled_games"] == pytest.approx(17.0)
+    assert rb["expected_games"] == pytest.approx(12.0)
+    assert rb["proj_ppg"] == pytest.approx(proj_total / 12.0)
+    assert rb["proj_ppg"] != pytest.approx(proj_total / 17.0)
+
+
+def test_rate_decomposition_missing_expected_games_yields_nan_ppg():
+    board_players = [
+        {"player_id": "w1", "position": "WR", "games": 17,
+         "season_points": {"ppr": {"p50": 150.0}}},
+    ]
+    actuals = pd.DataFrame([
+        {"player_id": "w1", "name": "w1", "position": "WR",
+         "actual_points": 140.0, "games": 16},
+    ])
+    # summary has no WR row at all -- expected_games missing for the position.
+    summary = pd.DataFrame([
+        {"position": "RB", "mean_games": 13.0, "std_games": 2.0, "n_player_seasons": 100},
+    ])
+    out = rate_decomposition(board_players, actuals, summary)
+    wr = out[out["position"] == "WR"].iloc[0]
+    assert np.isnan(wr["expected_games"])
+    assert np.isnan(wr["proj_ppg"])
+
+
+def test_rate_decomposition_zero_expected_games_yields_nan_ppg():
+    board_players = [
+        {"player_id": "w1", "position": "WR", "games": 17,
+         "season_points": {"ppr": {"p50": 150.0}}},
+    ]
+    actuals = pd.DataFrame([
+        {"player_id": "w1", "name": "w1", "position": "WR",
+         "actual_points": 140.0, "games": 16},
+    ])
+    summary = pd.DataFrame([
+        {"position": "WR", "mean_games": 0.0, "std_games": 0.0, "n_player_seasons": 0},
+    ])
+    out = rate_decomposition(board_players, actuals, summary)
+    wr = out[out["position"] == "WR"].iloc[0]
+    assert wr["expected_games"] == pytest.approx(0.0)
+    assert np.isnan(wr["proj_ppg"])
+
+
+def test_rate_decomposition_proj_total_and_actual_mean_total_are_pool_means():
+    board_players = [
+        {"player_id": "t1", "position": "TE", "games": 17,
+         "season_points": {"ppr": {"p50": 120.0}}},
+        {"player_id": "t2", "position": "TE", "games": 17,
+         "season_points": {"ppr": {"p50": 80.0}}},
+    ]
+    actuals = pd.DataFrame([
+        {"player_id": "t1", "name": "t1", "position": "TE",
+         "actual_points": 100.0, "games": 15},
+        # t2 intentionally absent -- bust, must count as 0 in actual_mean_total.
+    ])
+    summary = pd.DataFrame([
+        {"position": "TE", "mean_games": 14.0, "std_games": 1.0, "n_player_seasons": 100},
+    ])
+    out = rate_decomposition(board_players, actuals, summary)
+    te = out[out["position"] == "TE"].iloc[0]
+    assert te["proj_total"] == pytest.approx((120.0 + 80.0) / 2)
+    assert te["actual_mean_total"] == pytest.approx((100.0 + 0.0) / 2)
 
 
 # --------------------------------------------------------------- weekly_residual_icc
