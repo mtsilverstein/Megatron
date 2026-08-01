@@ -137,9 +137,21 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
     """Map consensus rows onto our `player_id` (gsis_id).
 
     Primary key is `fantasypros_id`; a normalized name is the fallback (the
-    same id-then-name pattern the Sleeper crosswalk uses). Rows that resolve
-    to no gsis_id are DROPPED and counted -- a silent drop would quietly bias
-    the consensus pool, so the caller gets the tally and the names.
+    same id-then-name pattern the Sleeper crosswalk uses). The id join stays
+    primary and untouched -- this only hardens the fallback beneath it.
+
+    The name fallback is itself position-aware: it first tries (normalized
+    name, position), which disambiguates real crosswalk collisions such as
+    "justin jefferson" (an LB in CLE vs the WR in MIN) or "lamar jackson" (a
+    CB in CAR vs the QB in BAL) -- a plain name-only join can silently hand
+    one player's rank to the other. Beneath that, a name-only fallback still
+    runs, but is built ONLY from in-scope (QB/RB/WR/TE) crosswalk rows, so it
+    can still add a match when the two feeds disagree on a position label
+    without ever letting an out-of-scope namesake win.
+
+    Rows that resolve to no gsis_id are DROPPED and counted -- a silent drop
+    would quietly bias the consensus pool, so the caller gets the tally and
+    the names.
     """
     x = crosswalk[crosswalk["gsis_id"].notna()].copy()
     x["fantasypros_id"] = _fp_key(x["fantasypros_id"])
@@ -147,7 +159,10 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
              .drop_duplicates(subset="fantasypros_id")
              .set_index("fantasypros_id")["gsis_id"])
     x["_key"] = _merge_key(x["merge_name"])
-    by_name = (x[x["merge_name"].notna()]
+    named = x[x["merge_name"].notna()]
+    by_name_pos = (named.drop_duplicates(subset=["_key", "position"])
+                   .set_index(["_key", "position"])["gsis_id"].to_dict())
+    by_name = (named[named["position"].isin(POSITIONS)]
                .drop_duplicates(subset="_key")
                .set_index("_key")["gsis_id"])
 
@@ -175,8 +190,16 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
             "not missing data"
         )
     need = out["player_id"].isna()
-    out.loc[need, "player_id"] = _merge_key(out.loc[need, "mergename"]).map(by_name)
+    key = _merge_key(out.loc[need, "mergename"])
+    key_pos = pd.Series(list(zip(key, out.loc[need, "pos"])), index=key.index)
+    out.loc[need, "player_id"] = key_pos.map(by_name_pos)
+    matched_by_name_position = int(out.loc[need, "player_id"].notna().sum())
+
+    still_need = out["player_id"].isna()
+    out.loc[still_need, "player_id"] = (
+        _merge_key(out.loc[still_need, "mergename"]).map(by_name))
     matched_by_name = int(out["player_id"].notna().sum()) - matched_by_id
+    matched_by_name_only = matched_by_name - matched_by_name_position
 
     unmatched = out[out["player_id"].isna()]
     matched = out[out["player_id"].notna()].reset_index(drop=True)
@@ -189,6 +212,8 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
         "ranked": int(len(out)),
         "matched_by_id": matched_by_id,
         "matched_by_name": matched_by_name,
+        "matched_by_name_position": matched_by_name_position,
+        "matched_by_name_only": matched_by_name_only,
         "unmatched": int(len(unmatched)),
         "unmatched_players": sorted(unmatched["player"].tolist()),
         # a gsis collision means ranked - unmatched != len(board); surface it

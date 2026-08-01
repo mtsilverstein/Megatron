@@ -140,7 +140,7 @@ def parse_snapshot_csv(path: Path) -> pd.DataFrame:
 
 def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
                            min_match_rate: float = MIN_SNAPSHOT_MATCH_RATE
-                           ) -> pd.DataFrame:
+                           ) -> tuple[pd.DataFrame, dict]:
     """Crosswalk `parse_snapshot_csv`'s output onto gsis ids, in `pull_adp`'s
     output shape (same columns, `stdev`/`times_drafted` filled as <NA> since
     this source doesn't carry them).
@@ -149,16 +149,46 @@ def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
     suffix-stripping logic, since both feeds hit the same nickname/Jr/Sr/II
     edge cases and `norm()` already strips them.
 
+    Matching is position-aware, same discipline as rankings.attach_gsis's
+    name fallback: primary key is (normalized name, position), which
+    disambiguates real crosswalk collisions -- e.g. "justin jefferson" is
+    both an LB (CLE) and the WR (MIN); "lamar jackson" is both a CB (CAR)
+    and the QB (BAL). A plain name-only join can silently hand the WR's/QB's
+    ADP to the wrong player. Beneath that, a name-only fallback still runs,
+    but built ONLY from in-scope (QB/RB/WR/TE) crosswalk rows, so it can add
+    a match when the two feeds disagree on a position label (RB/FB, WR/TE
+    tweeners) without ever letting an out-of-scope namesake (the LB, the CB)
+    win.
+
     Below `min_match_rate` this raises, naming every unmatched player (mirrors
     rankings.attach_gsis's MIN_MATCH_RATE guard) -- a silently-thinned ADP
     source would degrade the market overlay without anyone noticing.
+
+    Returns `(matched_df, stats)`; `stats` breaks the match out by which key
+    resolved it (`matched_by_position` vs `matched_by_name`) so a silent
+    crosswalk collision can never hide inside a single aggregate count.
     """
     x = crosswalk[crosswalk["gsis_id"].notna()].copy()
     x["_k"] = x["merge_name"].map(norm)
-    by_name = x.drop_duplicates("_k").set_index("_k")["gsis_id"]
+    by_name_pos = (x.drop_duplicates(subset=["_k", "position"])
+                   .set_index(["_k", "position"])["gsis_id"].to_dict())
+    in_scope = x[x["position"].isin(POSITIONS)]
+    by_name = in_scope.drop_duplicates("_k").set_index("_k")["gsis_id"]
 
     df = raw.copy()
-    df["player_id"] = df["name"].map(norm).map(by_name)
+    df["_k"] = df["name"].map(norm)
+    key_pos = pd.Series(list(zip(df["_k"], df["position"])), index=df.index)
+    # `.astype(object)`: see attach_gsis's identical comment -- when the
+    # first map is entirely unmatched (e.g. `by_name_pos` has no entries),
+    # pandas 3's default nullable-string dtype rejects the later
+    # `.loc[need, ...] = <gsis strings or NaN>` assignment instead of
+    # upcasting, even though both sides are legitimately all-missing.
+    df["player_id"] = key_pos.map(by_name_pos).astype(object)
+    matched_by_position = int(df["player_id"].notna().sum())
+    need = df["player_id"].isna()
+    df.loc[need, "player_id"] = df.loc[need, "_k"].map(by_name)
+    matched_by_name = int(df["player_id"].notna().sum()) - matched_by_position
+
     unmatched = df[df["player_id"].isna()]
     matched = (df.dropna(subset=["player_id"]).drop_duplicates("player_id")
                .reset_index(drop=True))
@@ -174,11 +204,21 @@ def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
         )
     for col in ("stdev", "times_drafted"):
         matched[col] = pd.NA
-    return matched[["player_id", "name", "position", "adp", "stdev", "times_drafted"]]
+    stats = {
+        "ranked": int(len(df)),
+        "matched_by_position": matched_by_position,
+        "matched_by_name": matched_by_name,
+        "unmatched": int(len(unmatched)),
+        "unmatched_players": sorted(unmatched["name"].tolist()),
+        "match_rate": match_rate,
+    }
+    return matched[["player_id", "name", "position", "adp", "stdev",
+                    "times_drafted"]], stats
 
 
 def load_snapshot_adp(path: Path, crosswalk: pd.DataFrame,
-                      min_match_rate: float = MIN_SNAPSHOT_MATCH_RATE) -> pd.DataFrame:
+                      min_match_rate: float = MIN_SNAPSHOT_MATCH_RATE
+                      ) -> tuple[pd.DataFrame, dict]:
     """Sleeper ADP from the committed snapshot at `path`, on gsis ids.
 
     Pure function of the file plus the crosswalk it's given -- no network,

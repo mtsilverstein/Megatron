@@ -195,7 +195,7 @@ def _load_adp(season, data_dir, draft_picks=None):
         backfilled = 0
         if draft_picks is not None:
             crosswalk, backfilled = _backfill_draft_gsis(crosswalk, draft_picks)
-        adp_df = load_snapshot_adp(SNAPSHOT_PATH, crosswalk)
+        adp_df, _stats = load_snapshot_adp(SNAPSHOT_PATH, crosswalk)
         return adp_df, {"source": "sleeper_snapshot",
                         "path": SNAPSHOT_PATH.as_posix(),
                         "snapshot_date": snapshot_date(SNAPSHOT_PATH),

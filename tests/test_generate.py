@@ -479,7 +479,8 @@ def test_load_adp_uses_snapshot_when_present(monkeypatch, tmp_path):
         encoding="utf-8",
     )
     monkeypatch.setattr(adp_mod, "SNAPSHOT_PATH", snap)
-    crosswalk = pd.DataFrame({"gsis_id": ["00-9"], "merge_name": ["some guy"]})
+    crosswalk = pd.DataFrame({"gsis_id": ["00-9"], "merge_name": ["some guy"],
+                              "position": ["WR"]})
     monkeypatch.setattr(rankings_mod, "pull_player_ids", lambda cache_dir=None: crosswalk)
 
     def boom_ffcalculator(*a, **k):
@@ -586,10 +587,13 @@ def test_load_adp_backfills_rookie_gsis_from_draft_picks(monkeypatch):
     from ffmodel.data.adp import SNAPSHOT_PATH, parse_snapshot_csv
     from ffmodel.site import generate as gen
 
-    names = list(parse_snapshot_csv(SNAPSHOT_PATH)["name"])
+    snapshot_rows = parse_snapshot_csv(SNAPSHOT_PATH)
+    names = list(snapshot_rows["name"])
+    positions = list(snapshot_rows["position"])
     n_blank = 25                       # ~10%, matching the live incident
     crosswalk = pd.DataFrame({
         "merge_name": names,
+        "position": positions,         # same snapshot's own position per name
         "pfr_id": [f"Pfr{i:04d}" for i in range(len(names))],
         "gsis_id": [pd.NA if i < n_blank else f"00-00{i:05d}"
                     for i in range(len(names))],
