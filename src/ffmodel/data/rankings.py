@@ -160,6 +160,12 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
     # widens a typed column on setitem.
     out["player_id"] = _fp_key(out["fp_id"]).map(by_id).astype(object)
     matched_by_id = int(out["player_id"].notna().sum())
+    # `len(by_id)`: count of crosswalk rows carrying BOTH a usable
+    # fantasypros_id AND a non-null gsis_id -- a crosswalk row without a
+    # gsis_id could never resolve a match regardless of its id, so it is
+    # correctly excluded from `by_id` and therefore cannot arm this guard.
+    # This is intentional, not an oversight: the guard only needs to know
+    # whether the crosswalk offers any id that could possibly have matched.
     if len(out) and len(by_id) and matched_by_id == 0:
         raise ValueError(
             "consensus crosswalk id join matched zero rows even though "

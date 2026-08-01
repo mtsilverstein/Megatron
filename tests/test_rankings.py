@@ -154,18 +154,29 @@ def test_attach_gsis_matches_by_fantasypros_id():
 
 
 def test_attach_gsis_falls_back_to_merge_name():
+    """The most-travelled fallback path in production (58 of 447 rows on a
+    live snapshot): a row with a PRESENT, numeric fp_id that finds no match
+    in the crosswalk's id map, occurring alongside another row that DOES
+    match by id, correctly falls through to name matching. A second,
+    id-matching pair is included so the id-join guard (which fires only when
+    ids are present on both sides and NOTHING matched) does not trip."""
     from ffmodel.data.rankings import attach_gsis, normalize_rankings
 
     snap = normalize_rankings(_raw_rankings([
-        {"id": "9999", "mergename": "name only"},
+        {"id": "1001", "player": "Id Match", "mergename": "id match"},
+        {"id": "9999", "player": "Name Only", "mergename": "name only"},
     ]))
-    # fantasypros_id is None here (not just non-matching): this crosswalk row
-    # legitimately has no id, so the id-join guard must not fire -- only the
-    # name fallback is under test.
-    xwalk = _crosswalk([{"fantasypros_id": None, "gsis_id": "00-0022222",
-                         "merge_name": "name only"}])
+    xwalk = _crosswalk([
+        {},  # default fantasypros_id "1001" -> matches "Id Match" row by id
+        {"fantasypros_id": "5555", "gsis_id": "00-0022222",
+         "merge_name": "name only"},  # present, numeric, NON-matching id
+    ])
     matched, stats = attach_gsis(snap, xwalk)
-    assert matched["player_id"].iloc[0] == "00-0022222"
+    id_row = matched[matched["player"] == "Id Match"].iloc[0]
+    name_row = matched[matched["player"] == "Name Only"].iloc[0]
+    assert id_row["player_id"] == "00-0011111"
+    assert name_row["player_id"] == "00-0022222"
+    assert stats["matched_by_id"] == 1
     assert stats["matched_by_name"] == 1
 
 
@@ -461,19 +472,30 @@ def test_merge_name_fallback_survives_case_mismatch_between_feeds():
     """Regression (dead-code class): ff_rankings' `mergename` is Title-Case
     since 2022 while ff_playerids' `merge_name` is lowercase, so a raw
     equality join matched 0% and the advertised fallback could never fire.
-    The original test compared two identical literals and passed vacuously."""
+    The original test compared two identical literals and passed vacuously.
+
+    The case-mismatch row carries a PRESENT, numeric, NON-matching fp_id (the
+    production shape of this fallback) alongside a second row that DOES
+    match by id, so the id-join guard does not trip."""
     from ffmodel.data.rankings import attach_gsis, normalize_rankings
 
     snap = normalize_rankings(_raw_rankings([
-        {"id": "9999", "mergename": "Christian McCaffrey"},   # feed casing
+        {"id": "1001", "player": "Id Match", "mergename": "id match"},
+        {"id": "9999", "player": "Case Mismatch",
+         "mergename": "Christian McCaffrey"},   # feed casing
     ]))
-    # fantasypros_id is None: this crosswalk row legitimately has no id, so
-    # the id-join guard must not fire -- only the name fallback is under test.
-    xwalk = _crosswalk([{"fantasypros_id": None, "gsis_id": "00-0044444",
-                         "merge_name": "christian mccaffrey"}])  # crosswalk casing
+    xwalk = _crosswalk([
+        {},  # default fantasypros_id "1001" -> matches "Id Match" row by id
+        {"fantasypros_id": "5555", "gsis_id": "00-0044444",
+         "merge_name": "christian mccaffrey"},  # crosswalk casing, non-matching id
+    ])
     matched, stats = attach_gsis(snap, xwalk)
+    id_row = matched[matched["player"] == "Id Match"].iloc[0]
+    cmc_row = matched[matched["player"] == "Case Mismatch"].iloc[0]
+    assert id_row["player_id"] == "00-0011111"
+    assert cmc_row["player_id"] == "00-0044444"
+    assert stats["matched_by_id"] == 1
     assert stats["matched_by_name"] == 1
-    assert matched["player_id"].iloc[0] == "00-0044444"
 
 
 def test_attach_gsis_raises_below_match_rate_floor():
