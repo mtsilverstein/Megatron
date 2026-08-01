@@ -58,6 +58,22 @@ def _merge_key(names: pd.Series) -> pd.Series:
     return names.astype(str).str.strip().str.lower()
 
 
+def _fp_key(s: pd.Series) -> pd.Series:
+    """Normalize a FantasyPros id to one canonical string key.
+
+    The feeds disagree on dtype: ff_playerids' crosswalk stores
+    `fantasypros_id` as float64 (`22953.0`) while the rankings snapshot's
+    `fp_id` is a clean string (`"22953"`), so a raw `.astype(str)` join
+    silently matched 0% and the id-primary join was dead code. Coercing
+    through numeric first makes `22953.0`, `"22953.0"`, `22953` and
+    `"22953"` all collapse to `"22953"`. Nulls stay null -- they are never
+    coerced to the literal string "nan", so two absent ids can never
+    collide with each other in the id map.
+    """
+    v = pd.to_numeric(s, errors="coerce")
+    return v.astype("Int64").astype(str).where(v.notna())
+
+
 def normalize_rankings(raw: pd.DataFrame) -> pd.DataFrame:
     """Reduce a raw `load_ff_rankings("all")` frame to the preseason redraft
     consensus for in-scope positions, with a whitelisted column set."""
@@ -126,7 +142,7 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
     the consensus pool, so the caller gets the tally and the names.
     """
     x = crosswalk[crosswalk["gsis_id"].notna()].copy()
-    x["fantasypros_id"] = x["fantasypros_id"].astype(str).str.strip()
+    x["fantasypros_id"] = _fp_key(x["fantasypros_id"])
     by_id = (x[x["fantasypros_id"].notna()]
              .drop_duplicates(subset="fantasypros_id")
              .set_index("fantasypros_id")["gsis_id"])
@@ -136,8 +152,28 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
                .set_index("_key")["gsis_id"])
 
     out = snapshot.copy()
-    out["player_id"] = out["fp_id"].map(by_id)
+    # `.astype(object)`: when `by_id` has zero entries (crosswalk carries no
+    # usable ids), `.map` degrades to a float64 all-NaN Series regardless of
+    # `by_id`'s own dtype (pandas 3.x). Left as float64, the later
+    # `out.loc[need, "player_id"] = <gsis strings>` assignment raises
+    # TypeError rather than upcasting, since pandas 3 no longer silently
+    # widens a typed column on setitem.
+    out["player_id"] = _fp_key(out["fp_id"]).map(by_id).astype(object)
     matched_by_id = int(out["player_id"].notna().sum())
+    # `len(by_id)`: count of crosswalk rows carrying BOTH a usable
+    # fantasypros_id AND a non-null gsis_id -- a crosswalk row without a
+    # gsis_id could never resolve a match regardless of its id, so it is
+    # correctly excluded from `by_id` and therefore cannot arm this guard.
+    # This is intentional, not an oversight: the guard only needs to know
+    # whether the crosswalk offers any id that could possibly have matched.
+    if len(out) and len(by_id) and matched_by_id == 0:
+        raise ValueError(
+            "consensus crosswalk id join matched zero rows even though "
+            f"both the snapshot ({len(out)} ranked players) and the "
+            f"crosswalk ({len(by_id)} ids) carry FantasyPros ids -- this "
+            "indicates a key-format mismatch (e.g. float-vs-string ids), "
+            "not missing data"
+        )
     need = out["player_id"].isna()
     out.loc[need, "player_id"] = _merge_key(out.loc[need, "mergename"]).map(by_name)
     matched_by_name = int(out["player_id"].notna().sum()) - matched_by_id
