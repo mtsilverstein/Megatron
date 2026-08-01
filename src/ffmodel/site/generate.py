@@ -143,6 +143,30 @@ def _load_consensus(season, schedules, data_dir, draft_picks=None):
     return consensus_for_season(season, schedules, data_dir, draft_picks=draft_picks)
 
 
+# A silent data repair is a bug in this project (see attach_gsis's docstring
+# on Justin Jefferson/Lamar Jackson): crosswalk match stats must reach the
+# published payload, not be computed and thrown away. `unmatched_players` is
+# a name list, though, and an unbounded one from a future badly-broken feed
+# could be huge -- cap it and say so explicitly rather than silently cutting
+# it off. `unmatched` (the count) is never truncated; it is the real signal.
+UNMATCHED_PLAYERS_LIMIT = 50
+
+
+def _bounded_stats(stats: dict) -> dict:
+    """Copy of `stats` safe to publish: `unmatched_players`, if present and
+    longer than `UNMATCHED_PLAYERS_LIMIT`, is truncated to a prefix and
+    `unmatched_players_truncated` is set True so the cut is visible rather
+    than silent. All other keys pass through unchanged."""
+    out = dict(stats)
+    names = out.get("unmatched_players")
+    if isinstance(names, list) and len(names) > UNMATCHED_PLAYERS_LIMIT:
+        out["unmatched_players"] = names[:UNMATCHED_PLAYERS_LIMIT]
+        out["unmatched_players_truncated"] = True
+    else:
+        out["unmatched_players_truncated"] = False
+    return out
+
+
 def _canonicalize_draft_picks(draft_picks, data_dir):
     """Rewrite draft-picks placeholder gsis ids to the identity feed's
     canonical id (`canonicalize_draft_gsis`), joined on PFR's stable id.
@@ -195,11 +219,17 @@ def _load_adp(season, data_dir, draft_picks=None):
         backfilled = 0
         if draft_picks is not None:
             crosswalk, backfilled = _backfill_draft_gsis(crosswalk, draft_picks)
-        adp_df, _stats = load_snapshot_adp(SNAPSHOT_PATH, crosswalk)
-        return adp_df, {"source": "sleeper_snapshot",
-                        "path": SNAPSHOT_PATH.as_posix(),
-                        "snapshot_date": snapshot_date(SNAPSHOT_PATH),
-                        "gsis_backfilled_from_draft_picks": backfilled}
+        adp_df, stats = load_snapshot_adp(SNAPSHOT_PATH, crosswalk)
+        source = {"source": "sleeper_snapshot",
+                 "path": SNAPSHOT_PATH.as_posix(),
+                 "snapshot_date": snapshot_date(SNAPSHOT_PATH),
+                 "gsis_backfilled_from_draft_picks": backfilled}
+        # Match provenance (matched_by_position/matched_by_name/unmatched/
+        # unmatched_players/match_rate): computed by normalize_snapshot_adp
+        # and previously discarded here -- fold it into the same provenance
+        # block so it actually reaches the published draft.json.
+        source.update(_bounded_stats(stats))
+        return adp_df, source
     return pull_adp(season, cache_dir=data_dir), {"source": "ffcalculator"}
 
 
@@ -234,15 +264,18 @@ def _draft_consensus(season, schedules, data_dir, *, draft_picks=None):
     best-effort overlay (failure -> None/None, board still builds). Replacement
     is derived from the ECR pool so the flex split is not a guess.
 
-    Returns (ecr, adp, replacement, adp_source); adp_source records which ADP
-    path actually produced `adp` (see `_load_adp`) so the published board can
-    say honestly which one it used -- None whenever `adp` itself is None."""
+    Returns (ecr, adp, replacement, adp_source, consensus_stats); adp_source
+    records which ADP path actually produced `adp` (see `_load_adp`) so the
+    published board can say honestly which one it used -- None whenever
+    `adp` itself is None. consensus_stats is attach_gsis's match-provenance
+    dict (matched_by_id, matched_by_name_position, unmatched, ...), bounded
+    for publication -- ECR is required, so this is never None."""
     from ffmodel.site.board_rank import flex_replacement_ranks
 
     if draft_picks is None:
-        ecr_df, _stats = _load_consensus(season, schedules, data_dir)
+        ecr_df, consensus_stats = _load_consensus(season, schedules, data_dir)
     else:
-        ecr_df, _stats = _load_consensus(season, schedules, data_dir, draft_picks)
+        ecr_df, consensus_stats = _load_consensus(season, schedules, data_dir, draft_picks)
     ecr = dict(zip(ecr_df["player_id"], ecr_df["ecr"]))
     pool = ecr_df.rename(columns={"pos": "position"})[["position", "ecr"]]
     replacement = flex_replacement_ranks(pool, LEAGUE_DEDICATED, LEAGUE_FLEX_SLOTS)
@@ -252,7 +285,7 @@ def _draft_consensus(season, schedules, data_dir, *, draft_picks=None):
     except Exception as exc:                     # noqa: BLE001 - overlay is optional
         print(f"ADP unavailable ({exc}); board builds without the market overlay")
         adp, adp_source = None, None
-    return ecr, adp, replacement, adp_source
+    return ecr, adp, replacement, adp_source, _bounded_stats(consensus_stats)
 
 
 def _make_predictor(args, features: pd.DataFrame):
@@ -319,7 +352,7 @@ def main() -> None:
         draft_picks, n_gsis_canonicalized = _canonicalize_draft_picks(
             draft_picks, args.data_dir)
 
-        ecr, adp, replacement, adp_source = _draft_consensus(
+        ecr, adp, replacement, adp_source, consensus_stats = _draft_consensus(
             args.season, schedules, args.data_dir, draft_picks=draft_picks)
 
     latest_season = int(weekly["season"].max())
@@ -359,6 +392,16 @@ def main() -> None:
         # too, and unconditionally (adp_source itself can be None -- see
         # `_draft_consensus` -- so this cannot live nested inside it).
         board_payload["draft_gsis_canonicalized"] = n_gsis_canonicalized
+        # Provenance: attach_gsis's ENTIRE match-stats dict (matched_by_id,
+        # matched_by_name_position, unmatched, unmatched_players, ...) was
+        # computed by consensus_for_season and discarded here for a long
+        # time -- long enough that matched_by_id silently sat at 0 (the
+        # primary id join matching nothing, every row falling through to the
+        # name-only path) with nobody noticing, because the counters were
+        # never on the published artifact to look at. Same rule as
+        # adp_source above: a silent data repair is a bug, so it must be
+        # inspectable.
+        board_payload["consensus"] = consensus_stats
         payloads["draft.json"] = _attach_late_slots(board_payload, args.season, args.data_dir)
     backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
     payloads["about.json"] = build_about(backtests, data_through, site_model=predictor.name)
