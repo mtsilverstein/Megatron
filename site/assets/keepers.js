@@ -1,10 +1,13 @@
 // site/assets/keepers.js
 /* Keeper-value gauge. Pure math + a manual panel; reads the board's ADP.
-   Rules (spec 2026-07-25): keep up to 2, cost = one round earlier than last
-   year's draft round, waiver pickups cost round 12, players drafted in rounds
-   1-2 are ineligible. Keeping is optional, so only players with POSITIVE
-   impact are ever recommended -- a zero/negative-impact player is worth at
-   least as much drafted fresh.
+   Rules (spec 2026-07-25, corrected per league restatement): keep up to 2,
+   cost drops one round per calendar year from the round he was drafted,
+   waiver pickups cost round 12. Once a player's computed cost would be R2
+   or lower he is ineligible and returns to the draft pool -- if re-drafted,
+   that new pick anchors a fresh ladder (see buildOriginalByPlayerId).
+   Keeping is optional, so only players with POSITIVE impact are ever
+   recommended -- a zero/negative-impact player is worth at least as much
+   drafted fresh.
 
    Value is priced in fantasy points, not rounds (rounds are not a linear
    value currency -- the old round-surplus ranking recommended replacement-
@@ -40,8 +43,11 @@
   }
 
   // Walk previous_league_id backward from `startLeagueId`, recording each
-  // player's EARLIEST draft (round, season) -> his original draft. Partial
-  // failures skip that hop and keep walking.
+  // player's MOST RECENT draft (round, season) as the ladder anchor. A
+  // player whose cost falls to R2 or below re-enters the draft pool (see
+  // `eligible`); if he's drafted again, that new pick starts a fresh ladder,
+  // so the latest draft -- not the earliest -- is the one that determines
+  // his current keeper cost. Partial failures skip that hop and keep walking.
   async function buildOriginalByPlayerId(startLeagueId) {
     const original = new Map();
     let lid = startLeagueId, hops = 0;
@@ -57,7 +63,7 @@
           for (const p of picks) {
             if (!p.player_id) continue;
             const prev = original.get(p.player_id);
-            if (!prev || season < prev.season) original.set(p.player_id, { round: p.round, season });
+            if (!prev || season > prev.season) original.set(p.player_id, { round: p.round, season });
           }
         }
       } catch (e) { /* skip this season's draft, keep walking */ }
@@ -67,14 +73,20 @@
     return original;
   }
 
-  // Cost escalates one round per year kept, anchored to the ORIGINAL draft
-  // round, floored at R1. Waiver pickups (never drafted) are R12 flat.
+  // Cost drops one round per calendar year from the round he was drafted,
+  // anchored to his MOST RECENT draft (see buildOriginalByPlayerId). No
+  // floor: once the computed cost is R2 or below he is ineligible (see
+  // `eligible`) and may legitimately compute to 0 or negative here -- that
+  // raw value is what tells the ineligible display how far the ladder has
+  // run out. Waiver pickups (never drafted) are R12 flat.
   function keeperCost(c, currentSeason) {
     if (c.isWaiver) return WAIVER_COST_ROUND;
-    return Math.max(1, c.originalRound - (currentSeason - c.originalYear));
+    return c.originalRound - (currentSeason - c.originalYear);
   }
-  function eligible(c) {
-    return c.isWaiver || c.originalRound > 2;   // "no keepers from rounds 1-2"
+  // Keepable iff the computed cost is R3 or higher. Once cost would be R2 or
+  // lower he returns to the draft pool instead.
+  function eligible(c, currentSeason) {
+    return c.isWaiver || keeperCost(c, currentSeason) >= 3;
   }
   function valueRound(adpRound, overallRank, teams = TEAMS) {
     if (adpRound != null) return adpRound;
@@ -114,7 +126,7 @@
     const maxKeepers = options.maxKeepers != null ? options.maxKeepers : MAX_KEEPERS;
     const depletion = options.depletion !== false;   // default ON
 
-    const valued = candidates.filter(eligible).filter(c => Number.isFinite(c.vorp));
+    const valued = candidates.filter(c => eligible(c, currentSeason)).filter(c => Number.isFinite(c.vorp));
 
     const withCost = valued.map(c => {
       const cost = keeperCost(c, currentSeason);
@@ -146,8 +158,8 @@
   // Eligible candidates with NO projection: surfaced but never valued. A
   // silent zero would be indistinguishable from a genuine replacement-level
   // player, so these are excluded from ranking/recommendation entirely.
-  function unvaluedKeepers(candidates) {
-    return candidates.filter(eligible).filter(c => !Number.isFinite(c.vorp));
+  function unvaluedKeepers(candidates, currentSeason) {
+    return candidates.filter(c => eligible(c, currentSeason)).filter(c => !Number.isFinite(c.vorp));
   }
 
   // Which players to actually keep: best up-to-maxKeepers with POSITIVE impact.
@@ -195,7 +207,7 @@
     function redraw() {
       const opts = { depletion: !depletionEl || depletionEl.checked };
       const ranked = rankKeepers(candidates, currentSeason, players, opts);
-      const unvalued = unvaluedKeepers(candidates);
+      const unvalued = unvaluedKeepers(candidates, currentSeason);
       const rec = recommendKeepers(candidates, currentSeason, players, opts);
       const recNames = new Set(rec.map(r => r.name));
       if (!candidates.length) {
@@ -213,13 +225,18 @@
           ? ` · slot-discounted (${c.slot === "flex" ? "flex" : "bench"})` : "";
         return `keep for R${c.cost} · worth R${c.val} · <strong>${pts}</strong>${discount}`;
       };
-      const ineligible = candidates.filter(c => !eligible(c));
+      const ineligible = candidates.filter(c => !eligible(c, currentSeason));
       outEl.innerHTML = ranked.map(c =>
           `<li class="${recNames.has(c.name) ? "keep-best" : ""}">${esc(c.name)} — ${detail(c)}</li>`)
         .concat(unvalued.map(c =>
           `<li class="keeper-unvalued">${esc(c.name)} — no projection — value unknown</li>`))
-        .concat(ineligible.map(c =>
-          `<li class="keeper-ineligible">${esc(c.name)} — ineligible (drafted R1–2)</li>`))
+        .concat(ineligible.map(c => {
+          const n = keeperCost(c, currentSeason);
+          const reason = n >= 1
+            ? `cost would be R${n}, so he goes back to the draft pool`
+            : `his keeper ladder has run out`;
+          return `<li class="keeper-ineligible">${esc(c.name)} — ineligible: ${reason}</li>`;
+        }))
         .join("");
     }
     // Exposed so the Sleeper loader (Task 3) can push a batch of candidates.
@@ -328,5 +345,5 @@
 
   return { init, keeperCost, eligible, valueRound, surplus, pickForRound,
            rankKeepers, unvaluedKeepers, recommendKeepers, buildKeeperCandidates,
-           TEAMS, MAX_KEEPERS };
+           buildOriginalByPlayerId, TEAMS, MAX_KEEPERS };
 });

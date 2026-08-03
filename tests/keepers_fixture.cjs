@@ -19,10 +19,12 @@ const waiver = (extra = {}) =>
 const boardRows = Array.from({ length: 250 }, (_, i) =>
   ({ name: `b${i + 1}`, position: "RB", vorp: Math.max(0, 90 - i) }));
 
-// cost escalates one round per year kept, from the original round, floored at R1
+// cost drops one round per calendar year kept, from the most recent draft
+// round. No floor -- a long-expired ladder computes negative (defect B fix).
 assert.strictEqual(K.keeperCost(drafted(10, 2025), S), 9);   // 1 year kept
 assert.strictEqual(K.keeperCost(drafted(10, 2024), S), 8);   // 2 years kept
-assert.strictEqual(K.keeperCost(drafted(3, 2021), S), 1);    // floored at R1 (3-5<1)
+assert.strictEqual(K.keeperCost(drafted(3, 2021), S), -2);   // no Math.max(1,...) floor: 3-5 = -2
+assert.strictEqual(K.eligible(drafted(3, 2021), S), false);  // negative cost -> ineligible, no exception thrown
 assert.strictEqual(K.keeperCost(waiver(), S), 12);           // waiver flat, any year
 
 // League rule: a drafted-then-dropped-then-reacquired player keeps his
@@ -35,10 +37,31 @@ assert.strictEqual(K.keeperCost(drafted(6, 2025, { isWaiver: false }), S), 5);
 // pure function must still be deterministic if it does.
 assert.strictEqual(K.keeperCost(waiver({ originalRound: 3 }), S), 12);
 
-// eligibility judged on the ORIGINAL round; waiver always eligible
-assert.strictEqual(K.eligible(drafted(2, 2025)), false);     // original R2 -> never keepable
-assert.strictEqual(K.eligible(drafted(3, 2025)), true);
-assert.strictEqual(K.eligible(waiver()), true);
+// Defect A fix: eligibility keys off the COMPUTED cost, not the original
+// round. Same original round (R5), opposite verdicts -- driven entirely by
+// how many years have elapsed since the (most recent) draft.
+assert.strictEqual(K.keeperCost(drafted(5, 2023), S), 2);
+assert.strictEqual(K.eligible(drafted(5, 2023), S), false);   // cost R2 -> ineligible
+assert.strictEqual(K.keeperCost(drafted(5, 2025), S), 4);
+assert.strictEqual(K.eligible(drafted(5, 2025), S), true);    // cost R4 -> eligible
+
+// Exact boundary: cost R3 is keepable, cost R2 is not -- asserted from both sides.
+assert.strictEqual(K.eligible(drafted(3, S), S), true);    // cost 3 - 0 = 3
+assert.strictEqual(K.eligible(drafted(2, S), S), false);   // cost 2 - 0 = 2
+
+assert.strictEqual(K.eligible(waiver(), S), true);         // waiver always eligible, any season
+
+// ===========================================================================
+// Worked example (re-draft ladder, end to end): drafted R4 in 2023 -> R3 in
+// 2024 -> R2 in 2025 (cost would be R2, so he falls out back to the draft
+// pool) -> re-drafted in 2025 at R8. Per buildOriginalByPlayerId's
+// most-recent-draft rule (defect C fix), his ladder anchor is now the
+// re-draft (R8, 2025), not the original 2023 R4 pick. Evaluated in 2026 that
+// must cost R7 and be eligible.
+// ===========================================================================
+const redraftPlayer = drafted(8, 2025, { name: "Redraft", adpRound: 6, overallRank: 70, vorp: 20 });
+assert.strictEqual(K.keeperCost(redraftPlayer, S), 7);
+assert.strictEqual(K.eligible(redraftPlayer, S), true);
 
 // value round: adp round if present, else board rank -> round
 assert.strictEqual(K.valueRound(3, 99), 3);
@@ -156,7 +179,7 @@ assert.ok(rbWrRanked.every(c => c.slot === "dedicated" && c.discounted === false
 const noProj = drafted(6, S, { name: "NoProj", position: "RB", adpRound: 5, overallRank: 61 });  // no vorp key
 const nullProj = drafted(6, S, { name: "NullProj", position: "WR", adpRound: 5, overallRank: 62, vorp: null });
 assert.strictEqual(noProj.vorp, undefined);
-const unvalued = K.unvaluedKeepers([noProj, nullProj]);
+const unvalued = K.unvaluedKeepers([noProj, nullProj], S);
 assert.deepStrictEqual(unvalued.map(c => c.name).sort(), ["NoProj", "NullProj"]);
 assert.deepStrictEqual(K.rankKeepers([noProj, nullProj], S, boardRows), []);
 assert.deepStrictEqual(K.recommendKeepers([noProj, nullProj], S, boardRows), []);
@@ -180,14 +203,14 @@ const rec = K.recommendKeepers([
   drafted(12, 2024, { name: "Best", position: "RB", adpRound: 3, vorp: 15 }),     // cost 10 -> par 0 -> impact 15
   drafted(10, 2025, { name: "Good", position: "WR", adpRound: 4, vorp: 8 }),      // cost 9  -> par 0 -> impact 8
   drafted(6, 2025, { name: "Neutral", position: "TE", adpRound: 5, vorp: 13 }),   // cost 5  -> par 13 -> impact 0 -> not kept
-  drafted(2, 2025, { name: "Elite", adpRound: 1, vorp: 999 }),                    // original R2 -> ineligible regardless of vorp
+  drafted(2, 2025, { name: "Elite", adpRound: 1, vorp: 999 }),                    // cost 1 -> ineligible (< R3) regardless of vorp
 ], S, boardRows);
 assert.deepStrictEqual(rec.map(r => r.name), ["Best", "Good"]);
 
 // keep NONE when nothing beats its cost
 const none = K.recommendKeepers([
   drafted(6, 2025, { name: "Zero", position: "RB", adpRound: 5, vorp: 13 }),   // cost 5 -> par 13 -> impact 0
-  drafted(3, 2025, { name: "Neg", position: "WR", adpRound: 6, vorp: 10 }),    // cost 2 -> par 49 -> impact -39
+  drafted(3, 2025, { name: "Neg", position: "WR", adpRound: 6, vorp: 10 }),    // cost 2 -> ineligible (< R3), excluded before impact is ever computed
 ], S, boardRows);
 assert.deepStrictEqual(none, []);
 
@@ -198,8 +221,10 @@ const board = new Map([
   ["s_puka",  { name: "Puka",  position: "WR", adpRound: 1, overallRank: 5, vorp: 75.0 }],
   ["s_waiverguy", { name: "WaiverGuy", position: "WR", adpRound: 9, overallRank: 110, vorp: 3.2 }],
 ]);
-// Bijan's earliest pick is 2024 (kept, so he ALSO appears escalated in 2025 —
-// earliest season must win); WaiverGuy is on no draft; s_kicker is off-board.
+// This `original` map is a pre-resolved anchor per player_id (as
+// buildOriginalByPlayerId would return it, see the dedicated test below for
+// its most-recent-draft-wins behavior); WaiverGuy is on no draft; s_kicker
+// is off-board.
 const original = new Map([
   ["s_bijan", { round: 4, season: 2024 }],
   ["s_puka",  { round: 6, season: 2025 }],
@@ -223,4 +248,46 @@ assert.strictEqual(byName.WaiverGuy.vorp, 3.2);
 // escalation end-to-end via Task 1: Bijan cost = 4 - (2026-2024) = 2, value R1 -> +1
 assert.strictEqual(K.surplus(byName.Bijan, 2026), 1);
 
-console.log("keepers_fixture: OK");
+// ===========================================================================
+// buildOriginalByPlayerId keeps the MOST RECENT draft per player_id across
+// the previous_league_id chain (defect C regression). This must fail against
+// the old `season < prev.season` condition, which would keep the earlier
+// {round: 4, season: 2023} record instead of the later re-draft.
+// ===========================================================================
+async function testBuildOriginalByPlayerId() {
+  const realFetch = global.fetch;
+  const responses = {
+    "https://api.sleeper.app/v1/league/league_2025": { previous_league_id: "league_2023" },
+    "https://api.sleeper.app/v1/league/league_2025/drafts": [
+      { status: "complete", draft_id: "draft_2025", season: "2025" },
+    ],
+    "https://api.sleeper.app/v1/draft/draft_2025/picks": [
+      { player_id: "p1", round: 8 },
+    ],
+    "https://api.sleeper.app/v1/league/league_2023": { previous_league_id: null },
+    "https://api.sleeper.app/v1/league/league_2023/drafts": [
+      { status: "complete", draft_id: "draft_2023", season: "2023" },
+    ],
+    "https://api.sleeper.app/v1/draft/draft_2023/picks": [
+      { player_id: "p1", round: 4 },
+    ],
+  };
+  global.fetch = async (url) => {
+    if (!(url in responses)) throw new Error(`unmocked url in test: ${url}`);
+    return { ok: true, json: async () => responses[url] };
+  };
+  try {
+    const original = await K.buildOriginalByPlayerId("league_2025");
+    assert.deepStrictEqual(original.get("p1"), { round: 8, season: 2025 });
+  } finally {
+    global.fetch = realFetch;
+  }
+}
+
+testBuildOriginalByPlayerId().then(() => {
+  console.log("keepers_fixture: OK");
+}).catch(e => {
+  console.error("keepers_fixture: FAILED");
+  console.error(e);
+  process.exit(1);
+});
