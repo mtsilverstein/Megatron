@@ -227,6 +227,21 @@
     panel._keeperReset = () => { candidates.length = 0; redraw(); };
     if (depletionEl) depletionEl.addEventListener("change", redraw);
 
+    // Checked = "never drafted in this league" -- mutually exclusive with
+    // supplying an original round/year, so disable+clear those inputs rather
+    // than silently letting the waiver flag override them.
+    const waiverEl = panel.querySelector(".keeper-waiver");
+    const roundEl = panel.querySelector(".keeper-round");
+    const yearEl = panel.querySelector(".keeper-year");
+    if (waiverEl) {
+      waiverEl.addEventListener("change", () => {
+        const on = waiverEl.checked;
+        roundEl.disabled = on;
+        yearEl.disabled = on;
+        if (on) { roundEl.value = ""; yearEl.value = ""; }
+      });
+    }
+
     panel.querySelector(".keeper-add").addEventListener("submit", e => {
       e.preventDefault();
       const name = panel.querySelector(".keeper-name").value.trim();

@@ -25,6 +25,16 @@ assert.strictEqual(K.keeperCost(drafted(10, 2024), S), 8);   // 2 years kept
 assert.strictEqual(K.keeperCost(drafted(3, 2021), S), 1);    // floored at R1 (3-5<1)
 assert.strictEqual(K.keeperCost(waiver(), S), 12);           // waiver flat, any year
 
+// League rule: a drafted-then-dropped-then-reacquired player keeps his
+// ORIGINAL round -- this is exactly how the Sleeper path represents such a
+// player (isWaiver: false, original record still present).
+assert.strictEqual(K.keeperCost(drafted(6, 2025, { isWaiver: false }), S), 5);
+
+// isWaiver is authoritative once set, even if an originalRound is also
+// supplied -- the UI now prevents this combination from arising, but the
+// pure function must still be deterministic if it does.
+assert.strictEqual(K.keeperCost(waiver({ originalRound: 3 }), S), 12);
+
 // eligibility judged on the ORIGINAL round; waiver always eligible
 assert.strictEqual(K.eligible(drafted(2, 2025)), false);     // original R2 -> never keepable
 assert.strictEqual(K.eligible(drafted(3, 2025)), true);
@@ -202,6 +212,11 @@ assert.deepStrictEqual(
   { r: byName.Bijan.originalRound, y: byName.Bijan.originalYear, w: byName.Bijan.isWaiver },
   { r: 4, y: 2024, w: false });
 assert.strictEqual(byName.WaiverGuy.isWaiver, true);          // not in any draft
+// League rule boundary: a WITH-record player (Bijan) is never-waiver, a
+// WITHOUT-record player (WaiverGuy) is waiver -- this is where the Sleeper
+// path decides isWaiver, independent of current ownership/drop history.
+assert.strictEqual(byName.Bijan.isWaiver, false);
+assert.strictEqual(byName.WaiverGuy.isWaiver, true);
 assert.strictEqual(byName.Puka.adpRound, 1);                  // board fields carried
 assert.strictEqual(byName.Bijan.vorp, 87.1);                  // vorp carried too (Task 5)
 assert.strictEqual(byName.WaiverGuy.vorp, 3.2);
