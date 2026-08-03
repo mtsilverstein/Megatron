@@ -58,14 +58,26 @@ window.FC = (() => {
     // rows: array of data objects; render(rows) redraws tbody.
     const sortBy = th => {
       const key = th.dataset.key;
-      const wasDesc = th.getAttribute("aria-sort") === "descending";
+      const ariaSort = th.getAttribute("aria-sort");
+      // Columns marked data-asc (lower-is-better: ECR, ADP, positional rank)
+      // start ascending on their first click; everything else starts
+      // descending, as before. Once a direction is set, clicks just toggle it.
+      const ascFirst = th.hasAttribute("data-asc");
+      const desc = ariaSort === "descending" ? false
+        : ariaSort === "ascending" ? true
+        : !ascFirst;
       table.querySelectorAll("thead th").forEach(o => o.removeAttribute("aria-sort"));
-      const desc = !wasDesc;                    // first click sorts descending
       th.setAttribute("aria-sort", desc ? "descending" : "ascending");
       const get = o => key.split(".").reduce((x, k) => (x ?? {})[k], o);
+      // Missing means "no data", not "worst possible" or "best possible" --
+      // nulls/undefined always sink to the bottom, in BOTH sort directions.
       rows.sort((a, b) => {
-        const av = get(a) ?? -Infinity;
-        const bv = get(b) ?? -Infinity;
+        const av = get(a), bv = get(b);
+        const an = av === null || av === undefined;
+        const bn = bv === null || bv === undefined;
+        if (an && bn) return 0;
+        if (an) return 1;
+        if (bn) return -1;
         return (av < bv ? -1 : av > bv ? 1 : 0) * (desc ? -1 : 1);
       });
       table.dataset.sortKey = key;
