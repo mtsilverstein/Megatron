@@ -26,3 +26,4 @@ jobs:
       - run: node tests/optimizer_fixture.cjs
       - run: node tests/draftmode_fixture.cjs
       - run: node tests/keepers_fixture.cjs
+      - run: node tests/sort_fixture.cjs

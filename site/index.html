@@ -60,9 +60,9 @@
         <th data-key="bye" class="num">Bye</th>
         <th data-key="season_points.ppr.p50" class="num" id="pts-header">Season pts (p50)</th>
         <th>Floor → ceiling</th>
-        <th data-key="position_rank" class="num">Pos rank</th>
-        <th data-key="ecr" class="num">ECR</th>
-        <th data-key="adp" class="num">ADP</th>
+        <th data-key="position_rank" class="num" data-asc>Pos rank</th>
+        <th data-key="ecr" class="num" data-asc>ECR</th>
+        <th data-key="adp" class="num" data-asc>ADP</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -89,9 +89,11 @@
     <ol class="keeper-out"></ol>
   </details>
 </main>
-<footer>Players are ranked by <strong>expert consensus (FantasyPros ECR)</strong>, the
-most accurate free ranking a drafter has — the model contributes the
-floor→ceiling <strong>bands</strong> and the VORP value curve, not the order.
+<footer>Within each position, players are ranked by <strong>expert consensus (FantasyPros
+ECR)</strong>, the most accurate free ranking a drafter has. Across positions the board
+is ordered by VORP, so positional scarcity — not raw consensus rank — decides who sits
+above whom. The model contributes the floor→ceiling <strong>bands</strong> and that
+value curve.
 ADP shows where your league-mates' market takes each player. VORP prices in
 positional scarcity; tier gaps mark real value cliffs. Bands show season floor
 (p10) to ceiling (p90) from a Monte-Carlo season simulation — games played
