@@ -2,16 +2,33 @@
 /* Keeper-value gauge. Pure math + a manual panel; reads the board's ADP.
    Rules (spec 2026-07-25): keep up to 2, cost = one round earlier than last
    year's draft round, waiver pickups cost round 12, players drafted in rounds
-   1-2 are ineligible. Surplus = keeper cost round - where he goes now. Keeping
-   is optional, so only players with POSITIVE surplus are ever recommended --
-   a zero/negative-surplus player is worth at least as much drafted fresh. */
+   1-2 are ineligible. Keeping is optional, so only players with POSITIVE
+   impact are ever recommended -- a zero/negative-impact player is worth at
+   least as much drafted fresh.
+
+   Value is priced in fantasy points, not rounds (rounds are not a linear
+   value currency -- the old round-surplus ranking recommended replacement-
+   level players over genuinely valuable ones):
+
+     impact = slotWeight * player.vorp - parVorp(board, effectivePick)
+
+   Both terms are season fantasy points over replacement, from the same VORP
+   curve the draft board uses (site/assets/optimizer.js). Round numbers are
+   kept only to LOCATE the surrendered pick and for display -- never
+   subtracted from each other as if they were value. */
 (function (root, factory) {
   const K = factory();
   if (typeof window !== "undefined") window.Keepers = K;
   if (typeof module !== "undefined" && module.exports) module.exports = K;
 })(this, function () {
+  const Optimizer = (typeof window !== "undefined" && window.Optimizer)
+    ? window.Optimizer
+    : (typeof require !== "undefined" ? require("./optimizer.js") : null);
+  if (!Optimizer) throw new Error("keepers.js requires optimizer.js to be loaded first");
+
   const WAIVER_COST_ROUND = 12;
   const MAX_KEEPERS = 2;
+  const TEAMS = 12;      // league size; also the shared default for valueRound
   const SLEEPER = "https://api.sleeper.app/v1";
   const CHAIN_CAP = 8;   // safety cap on previous_league_id hops
   let loadSeq = 0;       // generation token: a stale load can't overwrite a newer one
@@ -59,23 +76,85 @@
   function eligible(c) {
     return c.isWaiver || c.originalRound > 2;   // "no keepers from rounds 1-2"
   }
-  function valueRound(adpRound, overallRank, teams = 12) {
+  function valueRound(adpRound, overallRank, teams = TEAMS) {
     if (adpRound != null) return adpRound;
     return Math.ceil(overallRank / teams);
   }
+  // Round surplus. Display/diagnostic context ONLY -- rounds are not a linear
+  // value currency, so this must never again drive ranking or recommendation.
   function surplus(c, currentSeason) {
     return keeperCost(c, currentSeason) - valueRound(c.adpRound, c.overallRank);
   }
-  function rankKeepers(candidates, currentSeason) {
-    return candidates
-      .filter(eligible)
-      .map(c => Object.assign({}, c, { surplus: surplus(c, currentSeason) }))
-      .sort((a, b) => b.surplus - a.surplus);
+
+  // The overall pick a cost round corresponds to: that round's mid-pick.
+  function pickForRound(round, teams = TEAMS) {
+    return (round - 1) * teams + Math.ceil(teams / 2);
   }
-  // Which players to actually keep: best up-to-maxKeepers with POSITIVE surplus.
-  function recommendKeepers(candidates, currentSeason, maxKeepers = MAX_KEEPERS) {
-    return rankKeepers(candidates, currentSeason)
-      .filter(c => c.surplus > 0).slice(0, maxKeepers);
+
+  function slotWeight(slot) {
+    if (slot === "dedicated") return 1.0;
+    if (slot === "flex") return Optimizer.FLEX_WEIGHT;
+    return Optimizer.BENCH_WEIGHT;    // "none"
+  }
+
+  // Eligible candidates with a real projection, ranked by fantasy-point
+  // impact: what the player adds to the starting lineup versus what the
+  // surrendered pick would have returned.
+  //
+  //   impact = slotWeight * player.vorp - parVorp(boardPlayers, effectivePick)
+  //
+  // Slot weight depends on which players are already kept, so assignment is
+  // order dependent: a single greedy pass ranks by UNWEIGHTED impact first
+  // (weight 1.0, order-independent), then walks that fixed order assigning
+  // real roster slots via rosterSlots/openSlot, recomputing each candidate's
+  // impact with the weight he actually receives. The final list is then
+  // re-sorted by that weighted impact for display/recommendation.
+  function rankKeepers(candidates, currentSeason, boardPlayers, options = {}) {
+    const teams = options.teams != null ? options.teams : TEAMS;
+    const maxKeepers = options.maxKeepers != null ? options.maxKeepers : MAX_KEEPERS;
+    const depletion = options.depletion !== false;   // default ON
+
+    const valued = candidates.filter(eligible).filter(c => Number.isFinite(c.vorp));
+
+    const withCost = valued.map(c => {
+      const cost = keeperCost(c, currentSeason);
+      const val = valueRound(c.adpRound, c.overallRank, teams);
+      const pickNo = pickForRound(cost, teams);
+      // Every team's keepers leave the pool before the draft, so the pick at
+      // overall pickNo really returns a later board row -- approximated as a
+      // flat index offset (teams * maxKeepers players off the board).
+      const effectivePick = depletion ? pickNo + teams * maxKeepers : pickNo;
+      const par = Optimizer.parVorp(boardPlayers, effectivePick);
+      return Object.assign({}, c, { cost, val, pickNo, effectivePick, par,
+        unweightedImpact: c.vorp - par });
+    });
+    withCost.sort((a, b) => b.unweightedImpact - a.unweightedImpact);
+
+    const virtualRoster = [];
+    const ranked = withCost.map(c => {
+      const counts = Optimizer.rosterSlots(virtualRoster);
+      const slot = Optimizer.openSlot(c.position, counts);
+      const weight = slotWeight(slot);
+      const impact = weight * c.vorp - c.par;
+      virtualRoster.push({ position: c.position });
+      return Object.assign({}, c, { slot, weight, impact, discounted: weight < 1.0 });
+    });
+    ranked.sort((a, b) => b.impact - a.impact);
+    return ranked;
+  }
+
+  // Eligible candidates with NO projection: surfaced but never valued. A
+  // silent zero would be indistinguishable from a genuine replacement-level
+  // player, so these are excluded from ranking/recommendation entirely.
+  function unvaluedKeepers(candidates) {
+    return candidates.filter(eligible).filter(c => !Number.isFinite(c.vorp));
+  }
+
+  // Which players to actually keep: best up-to-maxKeepers with POSITIVE impact.
+  function recommendKeepers(candidates, currentSeason, boardPlayers, options = {}) {
+    const maxKeepers = options.maxKeepers != null ? options.maxKeepers : MAX_KEEPERS;
+    return rankKeepers(candidates, currentSeason, boardPlayers, options)
+      .filter(c => c.impact > 0).slice(0, maxKeepers);
   }
 
   // Map a Sleeper roster (player_ids) + original-draft history + the board into
@@ -88,7 +167,7 @@
       if (!b) { skipped.push(pid); continue; }
       const orig = originalByPlayerId.get(pid);
       const c = { name: b.name, position: b.position,
-                  adpRound: b.adpRound, overallRank: b.overallRank };
+                  adpRound: b.adpRound, overallRank: b.overallRank, vorp: b.vorp };
       if (orig) { c.originalRound = orig.round; c.originalYear = orig.season; c.isWaiver = false; }
       else { c.isWaiver = true; }          // on no draft in the chain -> waiver R12
       candidates.push(c);
@@ -101,7 +180,7 @@
     if (!panel) return;
     const esc = window.FC.esc;
     const rankByName = new Map(players.map((p, i) => [p.name, {
-      adpRound: p.adp_round, overallRank: i + 1, position: p.position,
+      adpRound: p.adp_round, overallRank: i + 1, position: p.position, vorp: p.vorp,
     }]));
     // Autocomplete: fill the datalist the name input references.
     let dl = document.getElementById("playerlist");
@@ -111,10 +190,13 @@
     const candidates = [];
     const recEl = panel.querySelector(".keeper-rec");
     const outEl = panel.querySelector(".keeper-out");
+    const depletionEl = panel.querySelector(".keeper-depletion-toggle");
 
     function redraw() {
-      const ranked = rankKeepers(candidates, currentSeason);
-      const rec = recommendKeepers(candidates, currentSeason);
+      const opts = { depletion: !depletionEl || depletionEl.checked };
+      const ranked = rankKeepers(candidates, currentSeason, players, opts);
+      const unvalued = unvaluedKeepers(candidates);
+      const rec = recommendKeepers(candidates, currentSeason, players, opts);
       const recNames = new Set(rec.map(r => r.name));
       if (!candidates.length) {
         recEl.innerHTML = "";
@@ -122,17 +204,20 @@
         recEl.innerHTML = "<strong>Keep none.</strong> No candidate is worth more than his keeper cost.";
       } else {
         recEl.innerHTML = "<strong>Keep:</strong> " + rec.map(r =>
-          `${esc(r.name)} (+${r.surplus} rd${r.surplus === 1 ? "" : "s"})`).join(", ");
+          `${esc(r.name)} (+${r.impact.toFixed(1)} pts)`).join(", ");
       }
       const detail = c => {
-        const cost = keeperCost(c, currentSeason);
-        const val = valueRound(c.adpRound, c.overallRank);
-        const s = c.surplus;
-        return `keep for R${cost} · worth R${val} · <strong>${s >= 0 ? "+" : ""}${s} rds</strong>`;
+        const pts = `${c.impact >= 0 ? "+" : ""}${c.impact.toFixed(1)} pts`;
+        // A silent discount reads as a bad projection, so say so explicitly.
+        const discount = c.discounted
+          ? ` · slot-discounted (${c.slot === "flex" ? "flex" : "bench"})` : "";
+        return `keep for R${c.cost} · worth R${c.val} · <strong>${pts}</strong>${discount}`;
       };
       const ineligible = candidates.filter(c => !eligible(c));
       outEl.innerHTML = ranked.map(c =>
           `<li class="${recNames.has(c.name) ? "keep-best" : ""}">${esc(c.name)} — ${detail(c)}</li>`)
+        .concat(unvalued.map(c =>
+          `<li class="keeper-unvalued">${esc(c.name)} — no projection — value unknown</li>`))
         .concat(ineligible.map(c =>
           `<li class="keeper-ineligible">${esc(c.name)} — ineligible (drafted R1–2)</li>`))
         .join("");
@@ -140,6 +225,7 @@
     // Exposed so the Sleeper loader (Task 3) can push a batch of candidates.
     panel._keeperAdd = (list) => { candidates.push(...list); redraw(); };
     panel._keeperReset = () => { candidates.length = 0; redraw(); };
+    if (depletionEl) depletionEl.addEventListener("change", redraw);
 
     panel.querySelector(".keeper-add").addEventListener("submit", e => {
       e.preventDefault();
@@ -152,7 +238,8 @@
       if (!meta) { panel.querySelector(".keeper-msg").textContent = "no board match for that name"; return; }
       panel.querySelector(".keeper-msg").textContent = "";
       candidates.push({ name, position: meta.position, originalRound, originalYear,
-                        isWaiver, adpRound: meta.adpRound, overallRank: meta.overallRank });
+                        isWaiver, adpRound: meta.adpRound, overallRank: meta.overallRank,
+                        vorp: meta.vorp });
       redraw();
     });
 
@@ -160,7 +247,8 @@
     const boardBySleeperId = new Map();
     players.forEach((p, i) => {
       if (p.sleeper_id) boardBySleeperId.set(p.sleeper_id,
-        { name: p.name, position: p.position, adpRound: p.adp_round, overallRank: i + 1 });
+        { name: p.name, position: p.position, adpRound: p.adp_round, overallRank: i + 1,
+          vorp: p.vorp });
     });
     const loadEls = {
       user: panel.querySelector(".keeper-user"),
@@ -223,6 +311,7 @@
     loadEls.btn.addEventListener("click", loadFromSleeper);
   }
 
-  return { init, keeperCost, eligible, valueRound, surplus, rankKeepers,
-           recommendKeepers, buildKeeperCandidates };
+  return { init, keeperCost, eligible, valueRound, surplus, pickForRound,
+           rankKeepers, unvaluedKeepers, recommendKeepers, buildKeeperCandidates,
+           TEAMS, MAX_KEEPERS };
 });
