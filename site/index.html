@@ -69,7 +69,8 @@
   </div>
   <details class="keeper-panel" id="keepers">
     <summary>Keeper value — which to keep</summary>
-    <p class="keeper-help">Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (cost drops one round per year kept). Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
+    <p class="keeper-help">Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (cost drops one round per year kept). A player keeps his original draft round even if he was dropped and later picked back up — only players never drafted in this league cost R12. Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
+    <label class="keeper-depletion"><input class="keeper-depletion-toggle" type="checkbox" checked /> assume 12 teams keep 2 each (24 players off the board)</label>
     <div class="keeper-load">
       <input class="keeper-user" placeholder="Sleeper username" autocomplete="off" />
       <button type="button" class="keeper-load-btn">Load from Sleeper</button>
@@ -81,7 +82,7 @@
       <input class="keeper-name" placeholder="Player (start typing)" list="playerlist" autocomplete="off" />
       <input class="keeper-round" type="number" min="1" max="20" placeholder="Original round" />
       <input class="keeper-year" type="number" min="2000" max="2100" placeholder="Year drafted" />
-      <label><input class="keeper-waiver" type="checkbox" /> waiver pickup (R12)</label>
+      <label><input class="keeper-waiver" type="checkbox" /> never drafted in this league (R12)</label>
       <button type="submit">Add</button>
       <span class="keeper-msg" role="alert"></span>
     </form>
