@@ -267,11 +267,11 @@ assert.strictEqual(K.surplus(byName.Bijan, 2026), 1);
 // filtered. Boundary asserted from both sides against the exported constant,
 // never a hard-coded literal -- and the label must not touch selection.
 // ===========================================================================
-assert.strictEqual(K.marginal({ impact: K.MARGINAL_POINTS - 0.1 }, S), true);   // just below -> marginal
-assert.strictEqual(K.marginal({ impact: K.MARGINAL_POINTS }, S), false);        // exactly at -> NOT marginal
-assert.strictEqual(K.marginal({ impact: 0 }, S), false);        // zero -> not marginal, just not kept
-assert.strictEqual(K.marginal({ impact: -5 }, S), false);       // negative -> not marginal
-assert.strictEqual(K.marginal({ impact: 500 }, S), false);      // large impact -> not marginal
+assert.strictEqual(K.marginal({ impact: K.MARGINAL_POINTS - 0.1 }), true);   // just below -> marginal
+assert.strictEqual(K.marginal({ impact: K.MARGINAL_POINTS }), false);        // exactly at -> NOT marginal
+assert.strictEqual(K.marginal({ impact: 0 }), false);        // zero -> not marginal, just not kept
+assert.strictEqual(K.marginal({ impact: -5 }), false);       // negative -> not marginal
+assert.strictEqual(K.marginal({ impact: 500 }), false);      // large impact -> not marginal
 
 // A marginal candidate with no better alternative is still recommended --
 // the label is presentational and must not quietly become a filter.
@@ -280,7 +280,7 @@ const marginalOnly = K.recommendKeepers([
 ], S, boardRows);
 assert.deepStrictEqual(marginalOnly.map(r => r.name), ["BarelyWorth"]);
 assert.ok(marginalOnly[0].impact > 0 && marginalOnly[0].impact < K.MARGINAL_POINTS);
-assert.strictEqual(K.marginal(marginalOnly[0], S), true);
+assert.strictEqual(K.marginal(marginalOnly[0]), true);
 
 // ===========================================================================
 // buildOriginalByPlayerId keeps the MOST RECENT draft per player_id across

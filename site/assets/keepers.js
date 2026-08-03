@@ -110,7 +110,7 @@
   // projection noise (see MARGINAL_POINTS). Impacts at or below 0 are already
   // excluded from recommendations elsewhere and are NOT marginal -- they are
   // simply not worth keeping. Presentational only: never used to filter.
-  function marginal(c, currentSeason) {
+  function marginal(c) {
     return c.impact > 0 && c.impact < MARGINAL_POINTS;
   }
   function valueRound(adpRound, overallRank, teams = TEAMS) {
@@ -242,9 +242,13 @@
       } else {
         // If every recommended player is marginal, the headline shouldn't read
         // as a confident instruction either.
-        const headline = rec.every(r => marginal(r, currentSeason)) ? "Keep (marginal):" : "Keep:";
+        // When they're ALL marginal the headline already says so; repeating it
+        // per player just adds noise.
+        const allMarginal = rec.every(marginal);
+        const headline = allMarginal ? "Keep (marginal):" : "Keep:";
         recEl.innerHTML = `<strong>${headline}</strong> ` + rec.map(r =>
-          `${esc(r.name)} (+${r.impact.toFixed(1)} pts)${marginal(r, currentSeason) ? " (marginal)" : ""}`).join(", ");
+          `${esc(r.name)} (+${r.impact.toFixed(1)} pts)`
+          + (!allMarginal && marginal(r) ? " (marginal)" : "")).join(", ");
       }
       const detail = c => {
         const pts = `${c.impact >= 0 ? "+" : ""}${c.impact.toFixed(1)} pts`;
@@ -252,7 +256,7 @@
         const discount = c.discounted
           ? ` · slot-discounted (${c.slot === "flex" ? "flex" : "bench"})` : "";
         // Same reasoning: a coin-flip edge shouldn't read like a confident pick.
-        const marginalNote = marginal(c, currentSeason) ? " · marginal" : "";
+        const marginalNote = marginal(c) ? " · marginal" : "";
         return `keep for R${c.cost} · worth R${c.val} · <strong>${pts}</strong>${discount}${marginalNote}`;
       };
       const ineligible = candidates.filter(c => !eligible(c, currentSeason));
