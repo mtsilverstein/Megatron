@@ -262,6 +262,27 @@ assert.strictEqual(byName.WaiverGuy.vorp, 3.2);
 assert.strictEqual(K.surplus(byName.Bijan, 2026), 1);
 
 // ===========================================================================
+// ===========================================================================
+// marginal(): a coin-flip edge (impact just above 0) should be labelled, not
+// filtered. Boundary asserted from both sides against the exported constant,
+// never a hard-coded literal -- and the label must not touch selection.
+// ===========================================================================
+assert.strictEqual(K.marginal({ impact: K.MARGINAL_POINTS - 0.1 }, S), true);   // just below -> marginal
+assert.strictEqual(K.marginal({ impact: K.MARGINAL_POINTS }, S), false);        // exactly at -> NOT marginal
+assert.strictEqual(K.marginal({ impact: 0 }, S), false);        // zero -> not marginal, just not kept
+assert.strictEqual(K.marginal({ impact: -5 }, S), false);       // negative -> not marginal
+assert.strictEqual(K.marginal({ impact: 500 }, S), false);      // large impact -> not marginal
+
+// A marginal candidate with no better alternative is still recommended --
+// the label is presentational and must not quietly become a filter.
+const marginalOnly = K.recommendKeepers([
+  drafted(10, 2025, { name: "BarelyWorth", position: "RB", adpRound: 9, vorp: 5 }),  // cost 9 -> par 0 -> impact 5 (marginal)
+], S, boardRows);
+assert.deepStrictEqual(marginalOnly.map(r => r.name), ["BarelyWorth"]);
+assert.ok(marginalOnly[0].impact > 0 && marginalOnly[0].impact < K.MARGINAL_POINTS);
+assert.strictEqual(K.marginal(marginalOnly[0], S), true);
+
+// ===========================================================================
 // buildOriginalByPlayerId keeps the MOST RECENT draft per player_id across
 // the previous_league_id chain (defect C regression). This must fail against
 // the old `season < prev.season` condition, which would keep the earlier

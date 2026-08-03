@@ -35,6 +35,13 @@
   const WAIVER_COST_ROUND = 12;
   const MAX_KEEPERS = 2;
   const TEAMS = 12;      // league size; also the shared default for valueRound
+  // Season-points surplus below which a keeper edge is not worth acting on.
+  // UN-TUNED DEFAULT, chosen by inspection like optimizer.js's W_STEAL / BYE_PEN --
+  // it encodes a priority, not a fitted parameter, and is deliberately NOT tuned
+  // against held-out seasons. ~10 season points is ~0.6 points per week, comfortably
+  // inside this model's own ~4.3 points/week MAE, so a surplus this small cannot be
+  // told apart from projection noise. Revise only by forward observation.
+  const MARGINAL_POINTS = 10;
   const SLEEPER = "https://api.sleeper.app/v1";
   const CHAIN_CAP = 8;   // safety cap on previous_league_id hops
   let loadSeq = 0;       // generation token: a stale load can't overwrite a newer one
@@ -98,6 +105,13 @@
   // waiver-ladder cost and drafted cost, since both come out of keeperCost.
   function eligible(c, currentSeason) {
     return keeperCost(c, currentSeason) >= 3;
+  }
+  // A recommended-or-not candidate whose edge is too small to tell apart from
+  // projection noise (see MARGINAL_POINTS). Impacts at or below 0 are already
+  // excluded from recommendations elsewhere and are NOT marginal -- they are
+  // simply not worth keeping. Presentational only: never used to filter.
+  function marginal(c, currentSeason) {
+    return c.impact > 0 && c.impact < MARGINAL_POINTS;
   }
   function valueRound(adpRound, overallRank, teams = TEAMS) {
     if (adpRound != null) return adpRound;
@@ -226,15 +240,20 @@
       } else if (!rec.length) {
         recEl.innerHTML = "<strong>Keep none.</strong> No candidate is worth more than his keeper cost.";
       } else {
-        recEl.innerHTML = "<strong>Keep:</strong> " + rec.map(r =>
-          `${esc(r.name)} (+${r.impact.toFixed(1)} pts)`).join(", ");
+        // If every recommended player is marginal, the headline shouldn't read
+        // as a confident instruction either.
+        const headline = rec.every(r => marginal(r, currentSeason)) ? "Keep (marginal):" : "Keep:";
+        recEl.innerHTML = `<strong>${headline}</strong> ` + rec.map(r =>
+          `${esc(r.name)} (+${r.impact.toFixed(1)} pts)${marginal(r, currentSeason) ? " (marginal)" : ""}`).join(", ");
       }
       const detail = c => {
         const pts = `${c.impact >= 0 ? "+" : ""}${c.impact.toFixed(1)} pts`;
         // A silent discount reads as a bad projection, so say so explicitly.
         const discount = c.discounted
           ? ` · slot-discounted (${c.slot === "flex" ? "flex" : "bench"})` : "";
-        return `keep for R${c.cost} · worth R${c.val} · <strong>${pts}</strong>${discount}`;
+        // Same reasoning: a coin-flip edge shouldn't read like a confident pick.
+        const marginalNote = marginal(c, currentSeason) ? " · marginal" : "";
+        return `keep for R${c.cost} · worth R${c.val} · <strong>${pts}</strong>${discount}${marginalNote}`;
       };
       const ineligible = candidates.filter(c => !eligible(c, currentSeason));
       outEl.innerHTML = ranked.map(c =>
@@ -370,7 +389,7 @@
     loadEls.btn.addEventListener("click", loadFromSleeper);
   }
 
-  return { init, keeperCost, eligible, valueRound, surplus, pickForRound,
+  return { init, keeperCost, eligible, marginal, valueRound, surplus, pickForRound,
            rankKeepers, unvaluedKeepers, recommendKeepers, buildKeeperCandidates,
-           buildOriginalByPlayerId, TEAMS, MAX_KEEPERS };
+           buildOriginalByPlayerId, TEAMS, MAX_KEEPERS, MARGINAL_POINTS };
 });
