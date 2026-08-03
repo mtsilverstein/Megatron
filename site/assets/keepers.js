@@ -1,8 +1,11 @@
 // site/assets/keepers.js
 /* Keeper-value gauge. Pure math + a manual panel; reads the board's ADP.
    Rules (spec 2026-07-25, corrected per league restatement): keep up to 2,
-   cost drops one round per calendar year from the round he was drafted,
-   waiver pickups cost round 12. Once a player's computed cost would be R2
+   cost drops one round per year KEPT. A drafted player's years-kept always
+   equals calendar years since his (most recent) draft, since skipping a
+   year sends him back to the pool. A waiver pickup (never drafted in this
+   league) starts the ladder at round 12 the first year he's kept, then
+   decays exactly the same way. Once a player's computed cost would be R2
    or lower he is ineligible and returns to the draft pool -- if re-drafted,
    that new pick anchors a fresh ladder (see buildOriginalByPlayerId).
    Keeping is optional, so only players with POSITIVE impact are ever
@@ -73,20 +76,28 @@
     return original;
   }
 
-  // Cost drops one round per calendar year from the round he was drafted,
-  // anchored to his MOST RECENT draft (see buildOriginalByPlayerId). No
-  // floor: once the computed cost is R2 or below he is ineligible (see
-  // `eligible`) and may legitimately compute to 0 or negative here -- that
-  // raw value is what tells the ineligible display how far the ladder has
-  // run out. Waiver pickups (never drafted) are R12 flat.
+  // Cost drops one round per year KEPT, anchored to his MOST RECENT draft
+  // (see buildOriginalByPlayerId). No floor: once the computed cost is R2 or
+  // below he is ineligible (see `eligible`) and may legitimately compute to 0
+  // or negative here -- that raw value is what tells the ineligible display
+  // how far the ladder has run out.
+  //
+  // Waiver pickups (never drafted in this league) start the ladder at R12
+  // the first year they're kept, then decay exactly like a drafted player:
+  // R11 the next year, R10 the year after, and so on. `firstKeptYear` blank
+  // means "this IS the first keep" (currentSeason).
   function keeperCost(c, currentSeason) {
-    if (c.isWaiver) return WAIVER_COST_ROUND;
+    if (c.isWaiver) {
+      const first = c.firstKeptYear != null ? c.firstKeptYear : currentSeason;
+      return WAIVER_COST_ROUND - (currentSeason - first);
+    }
     return c.originalRound - (currentSeason - c.originalYear);
   }
   // Keepable iff the computed cost is R3 or higher. Once cost would be R2 or
-  // lower he returns to the draft pool instead.
+  // lower he returns to the draft pool instead -- this applies identically to
+  // waiver-ladder cost and drafted cost, since both come out of keeperCost.
   function eligible(c, currentSeason) {
-    return c.isWaiver || keeperCost(c, currentSeason) >= 3;
+    return keeperCost(c, currentSeason) >= 3;
   }
   function valueRound(adpRound, overallRank, teams = TEAMS) {
     if (adpRound != null) return adpRound;
@@ -245,17 +256,20 @@
     if (depletionEl) depletionEl.addEventListener("change", redraw);
 
     // Checked = "never drafted in this league" -- mutually exclusive with
-    // supplying an original round/year, so disable+clear those inputs rather
-    // than silently letting the waiver flag override them.
+    // supplying an original round (fixed at R12), so disable+clear that input
+    // rather than silently letting the waiver flag override it. The year
+    // input stays enabled: a waiver player still needs the year he was FIRST
+    // KEPT, since he decays down the ladder from R12 just like anyone else.
     const waiverEl = panel.querySelector(".keeper-waiver");
     const roundEl = panel.querySelector(".keeper-round");
     const yearEl = panel.querySelector(".keeper-year");
     if (waiverEl) {
+      const yearPlaceholderDefault = yearEl.placeholder;
       waiverEl.addEventListener("change", () => {
         const on = waiverEl.checked;
         roundEl.disabled = on;
-        yearEl.disabled = on;
-        if (on) { roundEl.value = ""; yearEl.value = ""; }
+        if (on) roundEl.value = "";
+        yearEl.placeholder = on ? "Year first kept" : yearPlaceholderDefault;
       });
     }
 
@@ -264,14 +278,19 @@
       const name = panel.querySelector(".keeper-name").value.trim();
       const isWaiver = panel.querySelector(".keeper-waiver").checked;
       const originalRound = parseInt(panel.querySelector(".keeper-round").value, 10) || 0;
-      // blank year defaults to last season (a single-year keeper)
-      const originalYear = parseInt(panel.querySelector(".keeper-year").value, 10) || (currentSeason - 1);
+      const yearInput = parseInt(panel.querySelector(".keeper-year").value, 10);
+      // Blank year: for a waiver pickup this IS the first keep (currentSeason,
+      // cost R12); for a drafted player it defaults to last season (a
+      // single-year keeper), as before.
+      const originalYear = Number.isFinite(yearInput) ? yearInput : (currentSeason - 1);
       const meta = rankByName.get(name);
       if (!meta) { panel.querySelector(".keeper-msg").textContent = "no board match for that name"; return; }
       panel.querySelector(".keeper-msg").textContent = "";
-      candidates.push({ name, position: meta.position, originalRound, originalYear,
-                        isWaiver, adpRound: meta.adpRound, overallRank: meta.overallRank,
-                        vorp: meta.vorp });
+      const c = { name, position: meta.position, originalRound, originalYear,
+                  isWaiver, adpRound: meta.adpRound, overallRank: meta.overallRank,
+                  vorp: meta.vorp };
+      if (isWaiver) c.firstKeptYear = Number.isFinite(yearInput) ? yearInput : currentSeason;
+      candidates.push(c);
       redraw();
     });
 
@@ -334,8 +353,16 @@
         panel._keeperReset();
         panel._keeperAdd(candidates);
         setLoad(`loaded ${candidates.length} player(s)`);
-        loadEls.skip.textContent = skipped.length
-          ? ` · ${skipped.length} not on the board (K/DST/retired) — add manually if needed` : "";
+        // Sleeper has no way to tell us a waiver pickup's first-kept year, so
+        // buildKeeperCandidates can only default to "this is his first keep."
+        // That default is an assumption, and this project doesn't ship silent
+        // ones -- surface it alongside (not instead of) the off-board note.
+        const notes = [];
+        if (skipped.length) notes.push(`${skipped.length} not on the board (K/DST/retired) — add manually if needed`);
+        if (candidates.some(c => c.isWaiver)) {
+          notes.push(`waiver keepers assume this is their first keep (R12) — set "year first kept" manually if you kept one before`);
+        }
+        loadEls.skip.textContent = notes.length ? ` · ${notes.join(" · ")}` : "";
       } catch (e) {
         setLoad(`load failed: ${e.message} — enter keepers manually`);
       }

@@ -25,7 +25,7 @@ assert.strictEqual(K.keeperCost(drafted(10, 2025), S), 9);   // 1 year kept
 assert.strictEqual(K.keeperCost(drafted(10, 2024), S), 8);   // 2 years kept
 assert.strictEqual(K.keeperCost(drafted(3, 2021), S), -2);   // no Math.max(1,...) floor: 3-5 = -2
 assert.strictEqual(K.eligible(drafted(3, 2021), S), false);  // negative cost -> ineligible, no exception thrown
-assert.strictEqual(K.keeperCost(waiver(), S), 12);           // waiver flat, any year
+assert.strictEqual(K.keeperCost(waiver(), S), 12);           // no firstKeptYear -> this IS the first keep -> 12
 
 // League rule: a drafted-then-dropped-then-reacquired player keeps his
 // ORIGINAL round -- this is exactly how the Sleeper path represents such a
@@ -36,6 +36,19 @@ assert.strictEqual(K.keeperCost(drafted(6, 2025, { isWaiver: false }), S), 5);
 // supplied -- the UI now prevents this combination from arising, but the
 // pure function must still be deterministic if it does.
 assert.strictEqual(K.keeperCost(waiver({ originalRound: 3 }), S), 12);
+
+// ===========================================================================
+// Waiver ladder decay (this task's fix): a never-drafted player starts at
+// R12 the year he is FIRST kept, then decays exactly like a drafted player --
+// R11 the next year kept, R10 the year after. Must fail against the old
+// flat-12-forever code.
+// ===========================================================================
+assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S }), S), 12);      // 1. first keep, this season -> R12
+assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S - 1 }), S), 11);  // 2. kept once before -> R11
+assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S - 2 }), S), 10);  //    kept twice before -> R10
+assert.strictEqual(K.keeperCost(waiver(), S), 12);                          // 3. blank firstKeptYear -> defaults to currentSeason, no exception
+assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S - 10 }), S), 2);  // 4. far enough back, cost drops below 3
+assert.strictEqual(K.eligible(waiver({ firstKeptYear: S - 10 }), S), false); //    ...and is ineligible, same gate as drafted players
 
 // Defect A fix: eligibility keys off the COMPUTED cost, not the original
 // round. Same original round (R5), opposite verdicts -- driven entirely by
@@ -49,7 +62,7 @@ assert.strictEqual(K.eligible(drafted(5, 2025), S), true);    // cost R4 -> elig
 assert.strictEqual(K.eligible(drafted(3, S), S), true);    // cost 3 - 0 = 3
 assert.strictEqual(K.eligible(drafted(2, S), S), false);   // cost 2 - 0 = 2
 
-assert.strictEqual(K.eligible(waiver(), S), true);         // waiver always eligible, any season
+assert.strictEqual(K.eligible(waiver(), S), true);         // no firstKeptYear -> first keep -> R12 -> eligible
 
 // ===========================================================================
 // Worked example (re-draft ladder, end to end): drafted R4 in 2023 -> R3 in
