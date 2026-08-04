@@ -274,6 +274,43 @@ check("cost and waitCost are the same kind of number", () => {
   }
 });
 
+check("openSlots names what is still EMPTY, in lineupRole's vocabulary", () => {
+  // The counts line already says what you hold. This is the arithmetic nobody
+  // should be doing on the clock: QB 1 / RB 2 / WR 1 / TE 0 means WR2, TE and
+  // both flex spots are open.
+  assert.deepStrictEqual(O.openSlots([]),
+    ["QB", "RB1", "RB2", "WR1", "WR2", "TE", "FLEX", "FLEX"]);
+  assert.deepStrictEqual(
+    O.openSlots([P("q", "QB", 1), P("r1", "RB", 1), P("r2", "RB", 1),
+                 P("w1", "WR", 1)]),
+    ["WR2", "TE", "FLEX", "FLEX"]);
+});
+
+check("surplus at a flex position closes a FLEX slot, not an unfillable one", () => {
+  // A third running back cannot open an RB3 slot -- there isn't one. He fills
+  // flex, exactly as bestLineup would use him, so one flex spot closes.
+  const three = [P("a", "RB", 4), P("b", "RB", 3), P("c", "RB", 2)];
+  assert.deepStrictEqual(O.openSlots(three), ["QB", "WR1", "WR2", "TE", "FLEX"]);
+  // a fourth closes the other one
+  const four = three.concat([P("d", "RB", 1)]);
+  assert.deepStrictEqual(O.openSlots(four), ["QB", "WR1", "WR2", "TE"]);
+  // and the labels must be the ones lineupRole hands the panel, or the two
+  // halves of the UI disagree about the same slot
+  const roster = [P("q", "QB", 9), P("r1", "RB", 8), P("r2", "RB", 7),
+                  P("w1", "WR", 6), P("w2", "WR", 5), P("t", "TE", 4)];
+  assert.deepStrictEqual(O.openSlots(roster), ["FLEX", "FLEX"]);
+  assert.ok(O.bestLineup(roster, O.seasonValue).length === 6,
+    "six dedicated starters, two flex spots still to fill");
+});
+
+check("a full lineup reports nothing open", () => {
+  const full = [P("q", "QB", 9), P("r1", "RB", 8), P("r2", "RB", 7), P("r3", "RB", 6),
+                P("w1", "WR", 5), P("w2", "WR", 4), P("w3", "WR", 3), P("t", "TE", 2)];
+  assert.deepStrictEqual(O.openSlots(full), []);
+  // extra depth beyond a full lineup must not resurrect a slot
+  assert.deepStrictEqual(O.openSlots(full.concat([P("x", "RB", 1)])), []);
+});
+
 check("role names the lineup slot he actually fills", () => {
   const out = O.recommend({ available: flexBoard(), myPlayers: [],
                             pickNo: 1, futurePicks: [2, 3, 4, 5, 6, 7, 8, 9] });

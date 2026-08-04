@@ -200,6 +200,9 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 .pick-fell { color: var(--rb); }      /* bargain: he lasted past his ADP */
 .pick-reach { color: var(--qb); }     /* you would be paying ahead of market */
 .pick-bye { color: var(--te); }
+/* what is still empty in your lineup -- the one thing the counts don't say */
+.roster-open { color: var(--te); }
+.roster-set { color: var(--rb); }
 .draft-basis { margin: .5rem 0 0; font: 500 .74rem/1.5 "IBM Plex Mono", monospace;
   color: var(--chalk-dim); opacity: .85; }
 .draft-basis em { font-style: normal; color: var(--chalk); }

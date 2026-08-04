@@ -319,6 +319,29 @@
     return current;
   }
 
+  // The starting slots you have not filled yet, named the way `lineupRole`
+  // names them so the panel's two halves agree ("fills WR2" beside "still
+  // need: WR2"). Counts alone do not answer this: QB 1 · RB 2 · WR 1 · TE 0
+  // leaves a reader to work out that WR2, TE and both flex spots are open,
+  // and on the clock that is the one arithmetic nobody should be doing.
+  //
+  // Surplus at a flex-eligible position fills flex, so a fourth running back
+  // closes a FLEX slot rather than adding an unfillable RB one -- the same
+  // rule `bestLineup` uses, kept in step by construction.
+  function openSlots(myPlayers) {
+    const counts = rosterSlots(myPlayers);
+    const open = [];
+    for (const pos of POSITIONS) {
+      for (let i = counts[pos]; i < DEDICATED[pos]; i++) {
+        open.push(DEDICATED[pos] > 1 ? `${pos}${i + 1}` : pos);
+      }
+    }
+    const surplus = FLEX_POS.reduce(
+      (n, q) => n + Math.max(0, counts[q] - DEDICATED[q]), 0);
+    for (let i = Math.min(surplus, FLEX_SLOTS); i < FLEX_SLOTS; i++) open.push("FLEX");
+    return open;
+  }
+
   // Where a player lands in the lineup you would finish with -- the honest
   // answer to "what am I actually drafting him to do".
   function lineupRole(player, finished) {
@@ -461,7 +484,8 @@
 
   return { seasonValue, withValuePoints, perWeek, rosterSlots, openSlot,
            bestLineup, lineupTotal, lineupPoints, fieldTakes, finishRoster,
-           lineupRole, adpDelta, byeClash, nextAtPosition, recommend, parVorp,
+           openSlots, lineupRole, adpDelta, byeClash, nextAtPosition, recommend,
+           parVorp,
            valueLens, VALUE_LENS_ORDER,
            lateSlotTrigger,
            DEDICATED, FLEX_SLOTS, FLEX_POS, POSITIONS, SHORTLIST_N, WEEKS,

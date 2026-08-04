@@ -178,9 +178,15 @@ window.DraftMode = (() => {
         if (counts[pos] !== undefined) counts[pos]++; else counts.other++;
       }
       cfg.els.roster.hidden = false;
-      cfg.els.roster.textContent =
+      // Counts say what you hold; the panel's picks say what a player would
+      // fill. Neither says what is still EMPTY, which is the thing you act on.
+      const open = window.Optimizer ? window.Optimizer.openSlots(myBoardPlayers()) : [];
+      const held =
         `Your roster: QB ${counts.QB} · RB ${counts.RB} · WR ${counts.WR} · TE ${counts.TE}`
         + (counts.other ? ` · +${counts.other} other` : "");
+      cfg.els.roster.innerHTML = esc(held) + (open.length
+        ? ` · <span class="roster-open">still need ${esc(open.join(", "))}</span>`
+        : ` · <span class="roster-set">starters set</span>`);
     }
     updateAids(picks);
     setStatus(`connected — live`);
