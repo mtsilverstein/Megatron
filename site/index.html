@@ -59,7 +59,7 @@
         <th data-key="name">Player</th>
         <th>Team</th>
         <th data-key="bye" class="num">Bye</th>
-        <th data-key="season_points.ppr.p50" class="num" id="pts-header">Season pts (p50)</th>
+        <th data-key="season_points.league.p50" class="num" id="pts-header">Season pts (p50, my league)</th>
         <th>Floor → ceiling</th>
         <th data-key="position_rank" class="num" data-asc>Pos rank</th>
         <th data-key="ecr" class="num" data-asc>ECR</th>
@@ -111,7 +111,10 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 (async () => {
   const board = await FC.loadJSON("data/draft.json");
   FC.stampHeader(board);
-  let scoring = "ppr";
+  // Default to the league's own scoring: it is what VORP, the tiers and the
+  // draft order on this page are computed from, so showing PPR points beside a
+  // league-valued ranking would put two different rulesets in one table.
+  let scoring = "league";
   let pos = "ALL";
   let rows = board.players.slice();
 
@@ -119,10 +122,12 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   const isDrafted = p => !!(draftState && p.sleeper_id && draftState.drafted.has(p.sleeper_id));
   const isMine = p => !!(draftState && p.sleeper_id && draftState.mine.has(p.sleeper_id));
 
-  // Bars are pinned to the PPR p90 ceiling on purpose: a stable ruler across
-  // scoring toggles, so bars don't rescale when you switch PPR/half/standard.
+  // Bars are pinned to ONE lens's p90 ceiling on purpose: a stable ruler across
+  // scoring toggles, so bars don't rescale when you switch format. Pinned to the
+  // default lens so the bars and the ranking agree on arrival.
+  const RULER = board.players[0].season_points.league ? "league" : "ppr";
   const maxCeil = Math.max(...board.players.map(p =>
-    p.season_points.ppr.p90 ?? p.season_points.ppr.p50));
+    p.season_points[RULER].p90 ?? p.season_points[RULER].p50));
 
   const table = document.getElementById("board");
   const tbody = document.querySelector("#board tbody");
@@ -165,16 +170,22 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 
   FC.posFilter(document.getElementById("pos-filters"), p => { pos = p; render(rows); });
   const scWrap = document.getElementById("scoring-filters");
-  ["ppr", "half_ppr", "standard"].forEach(rn => {
+  // "league" first: this board is valued on it. The generic three stay so the
+  // page still reads for anyone who is not in this league.
+  const LENS_LABEL = { league: "MY LEAGUE", ppr: "PPR", half_ppr: "HALF-PPR",
+                       standard: "STANDARD" };
+  Object.keys(LENS_LABEL)
+    .filter(rn => board.players[0].season_points[rn])
+    .forEach(rn => {
     const b = document.createElement("button");
-    b.textContent = rn.replace("_", "-").toUpperCase();
-    b.setAttribute("aria-pressed", rn === "ppr" ? "true" : "false");
+    b.textContent = LENS_LABEL[rn];
+    b.setAttribute("aria-pressed", rn === scoring ? "true" : "false");
     b.addEventListener("click", () => {
       scWrap.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", "false"));
       b.setAttribute("aria-pressed", "true");
       scoring = rn;
       document.getElementById("pts-header").textContent =
-        `Season pts (p50, ${rn.replace("_", "-")})`;
+        `Season pts (p50, ${LENS_LABEL[rn].toLowerCase()})`;
       render(rows);
     });
     scWrap.appendChild(b);
