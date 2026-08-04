@@ -242,6 +242,38 @@ check("byeClash counts YOUR roster, not the simulated finish", () => {
   assert.strictEqual(out[0].byeClash, 2);
 });
 
+check("cost and waitCost are the same kind of number", () => {
+  // Both must go through the lineup objective. The tempting shortcut for
+  // waitCost -- subtracting the two players' season values -- answers a
+  // different question and disagrees: it ignores whether either man would
+  // START. On the live board that shipped a panel charging 9.5 points for
+  // Michael Pittman while reporting that waiting for Godwin cost nothing.
+  // Here every lineup slot is already filled, so the next receiver is pure
+  // bench depth and waiting can cost only what bye cover is worth -- far less
+  // than the 50-point raw gap between him and his replacement.
+  const mine = [P("qb", "QB", 300, { bye: 2 }),
+                P("rb1", "RB", 290, { bye: 3 }), P("rb2", "RB", 285, { bye: 4 }),
+                P("rb3", "RB", 280, { bye: 5 }), P("rb4", "RB", 275, { bye: 6 }),
+                P("wr1", "WR", 270, { bye: 7 }), P("wr2", "WR", 265, { bye: 8 }),
+                P("te", "TE", 260, { bye: 9 })];
+  const good = P("goodWR", "WR", 150, { adp: 50, bye: 10 });
+  const worse = P("worseWR", "WR", 100, { adp: 90, bye: 11 });
+  const filler = [];
+  for (let i = 0; i < 20; i++) filler.push(P(`f${i}`, "RB", 90 - i, { adp: 51 + i }));
+  const out = O.recommend({ available: [good, worse, ...filler], myPlayers: mine,
+                            pickNo: 60, futurePicks: [70] });
+  const g = out.find(r => r.player.name === "goodWR");
+  assert.ok(g, "the candidate must be scored");
+  const naive = O.seasonValue(good) - O.seasonValue(worse);
+  assert.strictEqual(naive, 50, "fixture must set up a large raw gap");
+  assert.ok(Math.abs(g.waitCost) < naive / 2,
+    `waitCost ${g.waitCost} must reflect the LINEUP, not the ${naive}-point raw gap`);
+  // and it must stay in the same units as cost: both are lineup points
+  for (const r of out) {
+    if (r.waitCost !== null) assert.ok(Number.isFinite(r.waitCost));
+  }
+});
+
 check("role names the lineup slot he actually fills", () => {
   const out = O.recommend({ available: flexBoard(), myPlayers: [],
                             pickNo: 1, futurePicks: [2, 3, 4, 5, 6, 7, 8, 9] });

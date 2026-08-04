@@ -378,8 +378,12 @@
      `points` is the projected lineup total if you take him. `cost` is what
      taking him gives up against the best option (0 for the top pick) -- the
      one number the decision turns on. `nextBest` is who is left at his
-     position at your next pick and `waitCost` is what dropping to that player
-     would cost you, so "take him now or wait" is answerable on its face. */
+     position at your next pick and `waitCost` is what settling for that player
+     would cost your finished lineup, so "take him now or wait" is answerable
+     on its face. `cost` and `waitCost` are the same kind of number, measured
+     the same way, and are directly comparable: a player worth 3 less than the
+     top pick but 20 more than his own replacement is a different decision from
+     one worth 3 less and 1 more. */
   function recommend(ctx) {
     const pool = (ctx.available || []).filter(
       p => POSITIONS.includes(p.position) && Number.isFinite(seasonValue(p)));
@@ -412,13 +416,26 @@
     const top = scored.length ? scored[0].points : 0;
     return scored.slice(0, SHORTLIST_N).map(entry => {
       const nextBest = nextAtPosition(entry.player, ranked, future, ctx.pickNo);
+      // What waiting costs, measured THE SAME WAY as `cost`: finish the draft
+      // with his positional survivor in his place and compare projected
+      // lineups. The obvious shortcut -- subtracting the two players' season
+      // values -- is a different question and gives a different answer,
+      // because it ignores whether either man would actually start. On the
+      // live board it produced a panel that charged 9.5 points for taking
+      // Michael Pittman while telling you waiting for Godwin cost nothing:
+      // two numbers side by side computed on different bases. Every number in
+      // the shortlist now goes through the lineup objective.
+      const alt = nextBest
+        ? finishRoster(mine.concat([nextBest]), ranked.filter(p => p !== nextBest),
+                       future, ctx.pickNo)
+        : null;
       return {
         player: entry.player,
         points: entry.points,
         cost: top - entry.points,
         role: lineupRole(entry.player, entry.roster),
         nextBest,
-        waitCost: nextBest ? seasonValue(entry.player) - seasonValue(nextBest) : null,
+        waitCost: alt ? entry.points - lineupPoints(alt) : null,
         adpDelta: adpDelta(entry.player, ctx.pickNo),
         byeClash: byeClash(entry.player, mine),
         roster: entry.roster,

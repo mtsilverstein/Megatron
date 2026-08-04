@@ -111,7 +111,7 @@ window.DraftMode = (() => {
     cfg.els.live.hidden = true;
     cfg.els.roster.hidden = true;
     cfg.els.ticker.hidden = true;
-    cfg.els.vona.hidden = true;
+    cfg.els.shortlist.hidden = true;
     if (cfg.els.late) cfg.els.late.hidden = true;   // else a stale K/DST banner survives
     cfg.els.note.hidden = true;
     cfg.els.hide.checked = false;
@@ -207,7 +207,7 @@ window.DraftMode = (() => {
   }
 
   function updateAids(picks) {
-    const t = cfg.els.ticker, v = cfg.els.vona, l = cfg.els.late;
+    const t = cfg.els.ticker, v = cfg.els.shortlist, l = cfg.els.late;
     if (picks.length) {
       const recent = picks.slice(-3).map(p => {
         const m = p.metadata || {};
@@ -249,9 +249,11 @@ window.DraftMode = (() => {
         ? `<p class="draft-basis"><em>These all project the same lineup.</em> Your `
           + `starters are set, so none of them changes your season total — take `
           + `whoever you like best; they are listed by value over replacement.</p>`
-        : `<p class="draft-basis">Projected points are your best STARTING LINEUP if `
-          + `you take him and draft on from here; the field is assumed to draft by `
-          + `ADP. <em>cost</em> is what taking him gives up against the top pick.</p>`);
+        : `<p class="draft-basis">Every number here is season points in your best `
+          + `STARTING LINEUP, if you take him and draft on from here with the field `
+          + `going by ADP. <em>−n</em> is what he gives up against the top pick; `
+          + `<em>wait →</em> is what you lose by passing and settling for the next `
+          + `man at his position.</p>`);
     v.hidden = false;
     renderLateSlots(picks, l);
   }
