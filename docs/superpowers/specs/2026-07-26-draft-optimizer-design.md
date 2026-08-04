@@ -1,7 +1,41 @@
 # Draft-mode pick-time optimizer (need-weighted VONA) — design
 
+> **SUPERSEDED 2026-08-03 by the v2 lookahead objective.** The scoring rule
+> below (`score = vona(X) + w_s·steal(X) − bye_penalty(X)`) shipped, was
+> measured against the live 2026 board, and failed. Simulating all 12 draft
+> slots for 8 rounds against an ADP field, it spent **42 of 96 picks on tight
+> ends** — you start one — and **zero on quarterbacks**. Three causes, each
+> traceable to a decision recorded in this document:
+>
+> 1. **§4's `replacement(pos, gap)` forecasts the field off our own board.**
+>    It removes the top `gap` players *by our VORP*, so a player we rate above
+>    consensus is assumed to be about to vanish and the score manufactures
+>    urgency to take him. At pick #30 it got 5 of the next 12 picks wrong and
+>    mispriced the surviving TE by 23.5 VORP points.
+> 2. **VORP is used to compare across positions.** It cannot: replacement
+>    level is per-position (TE 110, WR 122 PPR points on this board), so a TE
+>    outranked a WR who outscores him. This is fine for a dedicated slot and
+>    wrong for a flex slot, where you simply start whoever scores more.
+> 3. **§4's claim that `steal` is "measured against ECR/board rank, never
+>    ADP" is factually wrong in the shipped code**, because
+>    `board_rank.rank_board` sorts the board by VORP descending. `steal`
+>    therefore reduced to "more VORP than the Nth-best VORP" — VORP re-added
+>    under another name, carrying no market information, and paying a bonus
+>    for *reaching* (Loveland, ADP 41, drew +5.34 at pick 30).
+>
+> v2 replaces the whole additive score with a single objective: the projected
+> points of the best **starting lineup you can still finish** if you take a
+> player now and draft on. Roster completion, positional saturation, timing
+> and bye stacking all fall out of it rather than needing separate terms. The
+> field is modelled by ADP. Bands and market mispricing became indicators
+> instead of score terms. See the module header of `site/assets/optimizer.js`
+> for the current contract, and `tests/optimizer_fixture.cjs` for the
+> regression tests that pin each of the three failures above.
+>
+> The rest of this document is kept as the historical record of v1.
+
 **Date:** 2026-07-26
-**Status:** approved design, pre-implementation
+**Status:** SUPERSEDED (implemented as v1/v1.1; replaced by v2 on 2026-08-03)
 **Extends:** the live draft overlay shipped in `site/assets/draftmode.js` (which
 already computes roster-blind VONA "waiting costs") and the consensus-anchored
 board (`docs/superpowers/specs/2026-07-25-consensus-anchored-board-design.md`).

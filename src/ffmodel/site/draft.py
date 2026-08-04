@@ -305,6 +305,13 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
             "games": int(row["games"]),
             "bye": None if pd.isna(row["bye"]) else int(row["bye"]),
             "vorp": float(row["vorp"]),
+            # Absolute season points on the ECR-ordered value curve -- the same
+            # curve `vorp` is measured from, before this position's replacement
+            # level is subtracted. VORP is position-RELATIVE, so it cannot be
+            # compared across positions (a TE and a WR are measured against
+            # different baselines); the draft optimizer scores whole starting
+            # lineups and needs the absolute number to decide a flex slot.
+            "value_points": round(float(row["value_points"]), 1),
             "position_rank": int(row["position_rank"]),
             "tier": int(row["tier"]),
             "ecr": _opt(row["ecr"], float),

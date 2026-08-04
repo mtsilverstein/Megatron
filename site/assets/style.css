@@ -166,8 +166,47 @@ tr.mine td:nth-child(3) { text-decoration: none; }
   border: 1px solid var(--te); border-radius: 3px; color: var(--te);
 }
 
-/* Pick-time optimizer shortlist */
-.draft-shortlist { margin: .35rem 0 0; padding-left: 1.1rem; }
-.draft-shortlist li { line-height: 1.45; }
+/* Pick-time optimizer shortlist. Read top-down on the clock: chip for
+   position, name, what passing costs, then the reasoning. */
+.draft-shortlist { margin: .45rem 0 0; padding: 0; list-style: none; }
+.draft-shortlist .pick {
+  display: grid; gap: .1rem .5rem; align-items: baseline;
+  grid-template-columns: 2.6em 1fr auto;
+  padding: .3rem .45rem; border-left: 2px solid transparent; border-radius: 3px;
+}
+.draft-shortlist .pick + .pick { margin-top: .15rem; }
+/* The recommendation. Everything below it is an alternative, so only this row
+   gets weight -- a shortlist where all five rows shout says nothing. */
+.draft-shortlist .pick-top {
+  background: color-mix(in srgb, var(--te) 10%, transparent);
+  border-left-color: var(--te);
+}
+.pick-name { font: 600 .9rem/1.4 "Source Sans 3", sans-serif; color: var(--chalk); }
+.pick-top .pick-name { font-size: .97rem; }
+.pick-cost { font: 600 .8rem/1.4 "IBM Plex Mono", monospace; color: var(--chalk-dim);
+  text-align: right; font-variant-numeric: tabular-nums; }
+.pick-top .pick-cost { color: var(--te); letter-spacing: .05em; text-transform: uppercase;
+  font-size: .72rem; }
+.pick-role {
+  font: 600 .68rem/1.5 "Barlow Condensed", sans-serif; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--chalk); border: 1px solid var(--rule);
+  border-radius: 3px; padding: 0 .3rem;
+}
+.pick-why {
+  grid-column: 2 / -1; font: 500 .76rem/1.5 "IBM Plex Mono", monospace;
+  color: var(--chalk-dim); display: flex; flex-wrap: wrap; gap: .15rem .45rem;
+  align-items: baseline;
+}
+.pick-fell { color: var(--rb); }      /* bargain: he lasted past his ADP */
+.pick-reach { color: var(--qb); }     /* you would be paying ahead of market */
+.pick-bye { color: var(--te); }
+.draft-basis { margin: .5rem 0 0; font: 500 .74rem/1.5 "IBM Plex Mono", monospace;
+  color: var(--chalk-dim); opacity: .85; }
+.draft-basis em { font-style: normal; color: var(--chalk); }
 .draft-late { margin-top: .4rem; }
 .draft-late em { opacity: .75; }
+
+@media (max-width: 33rem) {
+  .draft-shortlist .pick { grid-template-columns: 2.6em 1fr; }
+  .pick-cost { grid-column: 2; text-align: left; }
+}

@@ -5,6 +5,11 @@ window.DraftMode = (() => {
   const API = "https://api.sleeper.app/v1";
   const STORE_KEY = "fc-draft-mode";
   const POLL_MS = 3000, MAX_BACKOFF_MS = 30000;
+  // Season-point spread across the whole shortlist below which the optimizer
+  // is telling you it cannot separate these players. One point over 18 weeks
+  // is far inside the model's own error, so presenting an order as a
+  // recommendation there would be false precision.
+  const INDIFFERENT_POINTS = 1.0;
 
   let cfg = null;       // {board, els, onUpdate}
   let session = null;   // {username, userId, draftId, totalPicks}
@@ -222,30 +227,97 @@ window.DraftMode = (() => {
     const next = nextPickNumber(session.slot, session.teams, session.rounds,
                                 session.reversalRound, picks.length, session.type);
     if (next === null) return;          // auction/unknown type or no pick left
-    const gap = gapToNextPick(session.slot, session.teams, session.rounds,
-                              session.reversalRound, picks.length, session.type);
     const until = next - picks.length - 1;   // full picks before yours
     const mine = myBoardPlayers();
-    const available = cfg.board.players
-      .filter(p => !(p.sleeper_id && state.drafted.has(p.sleeper_id))
-                   && Number.isFinite(p.vorp))
-      .slice()
-      .sort((a, b) => b.vorp - a.vorp);
-    const shortlist = window.Optimizer.rankShortlist({
-      counts: window.Optimizer.rosterSlots(mine),
-      available, gap: gap === null ? 0 : gap,
-      players: cfg.board.players, pickNo: picks.length + 1, myPlayers: mine,
+    const available = boardPlayers().filter(
+      p => !(p.sleeper_id && state.drafted.has(p.sleeper_id)));
+    const shortlist = window.Optimizer.recommend({
+      available, myPlayers: mine, pickNo: next,
+      futurePicks: remainingPicks(picks.length),
     });
+    if (!shortlist.length) return;
     const head = until <= 0
-      ? `ON THE CLOCK · pick #${picks.length + 1}`
-      : `pick #${picks.length + 1} · your turn in ${until + 1}`;
-    const rows = shortlist.map((r, i) =>
-      `<li>${i + 1}. ${esc(r.player.name)} (${esc(r.player.position)}) — ${esc(r.why)}</li>`)
-      .join("");
-    v.innerHTML = `<strong>${esc(head)}</strong><ol class="draft-shortlist">${rows}</ol>`;
-    v.title = "assumes the picks before yours take the best available by VORP";
+      ? `ON THE CLOCK · pick #${next}`
+      : `pick #${next} · your turn in ${until + 1}`;
+    // When no candidate changes the projected lineup -- typical once your
+    // starters are set -- say so rather than dressing a rounding difference up
+    // as a recommendation. The order below it is then just best-available.
+    const flat = shortlist[shortlist.length - 1].cost < INDIFFERENT_POINTS;
+    v.innerHTML = `<strong>${esc(head)}</strong>`
+      + `<ol class="draft-shortlist">${shortlist.map(renderPick).join("")}</ol>`
+      + (flat
+        ? `<p class="draft-basis"><em>These all project the same lineup.</em> Your `
+          + `starters are set, so none of them changes your season total — take `
+          + `whoever you like best; they are listed by value over replacement.</p>`
+        : `<p class="draft-basis">Projected points are your best STARTING LINEUP if `
+          + `you take him and draft on from here; the field is assumed to draft by `
+          + `ADP. <em>cost</em> is what taking him gives up against the top pick.</p>`);
     v.hidden = false;
     renderLateSlots(picks, l);
+  }
+
+  // One shortlist entry. Every number shown is one the optimizer actually
+  // used -- the panel exists so a recommendation can be checked, not trusted
+  // blind.
+  function renderPick(r, i) {
+    const p = r.player;
+    const bits = [];
+    if (r.nextBest) {
+      // The wait question, answered by name: who is left at his position if
+      // you pass. A negative cost means someone BETTER is projected to last.
+      const drop = r.waitCost;
+      bits.push(drop > 0
+        ? `wait → ${esc(r.nextBest.name)} (−${drop.toFixed(0)} pts)`
+        : `wait → ${esc(r.nextBest.name)} (no loss)`);
+    }
+    if (Number.isFinite(r.adpDelta) && Math.abs(r.adpDelta) >= 6) {
+      bits.push(r.adpDelta > 0
+        ? `<span class="pick-fell">fell ${Math.round(r.adpDelta)} past ADP</span>`
+        : `<span class="pick-reach">reach ${Math.round(-r.adpDelta)} early</span>`);
+    }
+    // One shared bye is normal and not worth a warning; two or more of your
+    // own players out in the same week is a hole you will have to cover.
+    if (r.byeClash >= 2) {
+      bits.push(`<span class="pick-bye">bye ${esc(String(p.bye))} — `
+        + `${r.byeClash} of yours are out that week</span>`);
+    }
+    const band = p.season_points && p.season_points.ppr;
+    if (band && Number.isFinite(band.p10) && Number.isFinite(band.p90)) {
+      bits.push(`floor ${Math.round(band.p10)} · ceiling ${Math.round(band.p90)}`);
+    }
+    return `<li class="pick${i === 0 ? " pick-top" : ""}">`
+      + `<span class="pos-chip pos-${esc(p.position.toLowerCase())}">${esc(p.position)}</span>`
+      + `<span class="pick-name">${esc(p.name)}</span>`
+      + `<span class="pick-cost">${i === 0 ? "best"
+          : r.cost < INDIFFERENT_POINTS ? "same" : "−" + r.cost.toFixed(1)}</span>`
+      + `<span class="pick-why"><span class="pick-role">${esc(String(r.role))}</span>`
+      + `<span class="pick-notes">${bits.join(" · ")}</span></span></li>`;
+  }
+
+  // Board rows the optimizer can score, with `value_points` filled in when the
+  // published payload predates that field.
+  let _scored = null;
+  function boardPlayers() {
+    if (!_scored) {
+      _scored = window.Optimizer.withValuePoints(cfg.board.players)
+        .filter(p => Number.isFinite(window.Optimizer.seasonValue(p)));
+    }
+    return _scored;
+  }
+
+  // Every overall pick number you have left AFTER the one on the clock.
+  function remainingPicks(picksMade) {
+    const out = [];
+    let at = nextPickNumber(session.slot, session.teams, session.rounds,
+                            session.reversalRound, picksMade, session.type);
+    if (at === null) return out;
+    for (;;) {
+      const nxt = nextPickNumber(session.slot, session.teams, session.rounds,
+                                 session.reversalRound, at, session.type);
+      if (nxt === null) return out;
+      out.push(nxt);
+      at = nxt;
+    }
   }
 
   function renderLateSlots(picks, l) {

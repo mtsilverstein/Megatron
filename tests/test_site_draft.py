@@ -240,6 +240,49 @@ def test_vorp_and_ordering():
     json.dumps(payload)
 
 
+def test_value_points_is_the_absolute_curve_vorp_is_measured_from():
+    """`value_points` is published so the draft optimizer can compare ACROSS
+    positions. VORP cannot do that -- it is measured from a per-position
+    replacement level, so a TE and a WR with equal VORP do not score equally.
+    The contract the JS depends on: within a position, value_points - vorp is a
+    single constant (that position's replacement level), and value_points is
+    the position's ppr_p50 curve sorted descending."""
+    ppr_p50 = list(range(300, 270, -1)) + list(range(400, 370, -1))
+    players = pd.DataFrame({
+        "player_id": [f"wr{i}" for i in range(30)] + [f"rb{i}" for i in range(30)],
+        "name": "x", "team": "AAA",
+        "position": ["WR"] * 30 + ["RB"] * 30,
+        "ppr_p50": ppr_p50, "ppr_p10": np.nan, "ppr_p90": np.nan,
+        "half_ppr_p50": ppr_p50, "half_ppr_p10": np.nan, "half_ppr_p90": np.nan,
+        "standard_p50": ppr_p50, "standard_p10": np.nan, "standard_p90": np.nan,
+        "games": 17, "bye": None,
+    })
+    from ffmodel.site.draft import _finalize_board
+
+    payload = _finalize_board(players, model="m", season=2026,
+                              data_through="2025-01-05", has_bands=False)
+    rows = payload["players"]
+    assert all(isinstance(p["value_points"], float) for p in rows)
+
+    for pos, expected_top in (("RB", 400.0), ("WR", 300.0)):
+        group = sorted((p for p in rows if p["position"] == pos),
+                       key=lambda p: p["position_rank"])
+        # the value curve is the position's p50s, sorted descending
+        assert [p["value_points"] for p in group] == pytest.approx(
+            sorted((p["value_points"] for p in group), reverse=True))
+        assert group[0]["value_points"] == pytest.approx(expected_top)
+        # and vorp is that curve minus ONE per-position constant
+        offsets = {round(p["value_points"] - p["vorp"], 6) for p in group}
+        assert len(offsets) == 1, f"{pos} replacement level must be a constant"
+
+    # The two positions sit on DIFFERENT baselines -- which is precisely why
+    # the optimizer cannot use vorp to fill a flex slot.
+    baseline = {pos: next(p["value_points"] - p["vorp"]
+                          for p in rows if p["position"] == pos)
+                for pos in ("RB", "WR")}
+    assert baseline["RB"] != pytest.approx(baseline["WR"])
+
+
 def test_tier_breaks_on_gaps():
     # 12 players, replacement_rank=5 -> draftable pool is the top 10.
     # Pool steps are a steady 2.0 except one real cliff (94 -> 60) inside the

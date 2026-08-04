@@ -2,104 +2,162 @@
 /* Pick-time draft optimizer — pure math only (no DOM, no network) so the node
    fixture can require it. Spec: docs/superpowers/specs/2026-07-26-draft-optimizer-design.md
 
-   Objective: maximize expected STARTING-LINEUP VORP. A player's score is his
-   marginal contribution to that objective:
+   ===========================================================================
+   v2 — LOOKAHEAD OBJECTIVE. This replaces v1.1's per-pick marginal score
+   (`vona + W_STEAL*steal - byePenalty`). That score was measured against the
+   real board and failed three ways at once; all three are gone because the
+   objective changed, not because a constant was retuned.
 
-     score = vona(X) + W_STEAL * steal(X) - byePenalty(X)
+     1. It forecast the field off OUR board. `survivor` dropped the top `gap`
+        players by our VORP and called the next one the fallback -- so a player
+        our model rated above consensus was assumed to be about to vanish, and
+        the score manufactured urgency to grab him. Measured at pick #30 it got
+        5 of the next 12 picks wrong, and mispriced the surviving TE by 23.5
+        VORP points. Here the field drafts the MARKET (`fieldTakes`, by ADP),
+        which is what the field actually does.
 
-   vona = roster-aware Value Over Next Available. It unifies value, need and
-   timing in one term: a player who fills a slot is worth what he beats the
-   survivor-at-his-position by (so a deep position scores ~0 = "wait", and a
-   cliff scores high = "take him now"); a player who'd ride the bench is worth
-   a fraction of his standalone value. There is deliberately no separate `need`
-   multiplier or urgency weight -- VORP already prices positional scarcity, so
-   adding one would double-count it.
+     2. It compared FLEX candidates on position-relative VORP. Replacement
+        level differs by position (TE 110, WR 122 PPR points on the 2026
+        board), so a TE beat a WR who outscored him:
+            Tucker Kraft  TE  vorp 26.3  ->  136.5 projected points
+            Rome Odunze   WR  vorp 16.4  ->  138.7 projected points
+        In a flex slot you start whoever SCORES more, so this scores whole
+        lineups in absolute points and VORP never enters the comparison.
 
-   ---------------------------------------------------------------------------
-   v1.1 closes the two gaps the design doc flagged in §11, both INSIDE `vona`.
-   Neither adds a scarcity signal: `vona` remains the single term that prices
-   value, need and timing, and both refinements only change how that one term
-   reads the slot and the player.
+     3. Its `steal` term carried no market information. `parVorp` reads a board
+        that `board_rank.rank_board` sorts by VORP descending (its old comment
+        claiming ECR order was simply wrong), so `steal` reduced to "more VORP
+        than the Nth-best VORP" -- VORP re-added under another name. It paid a
+        bonus for REACHING: Loveland, ADP 41, drew +5.34 at pick 30. Market
+        mispricing is now an INDICATOR (`adpDelta`), never a score term.
 
-   (A) Bands are priced, with the sign set by the slot (§11 "bands unused").
-       A player you must START is unhedgeable: you eat his whole distribution
-       every week, so his downside room (p50-p10) is a real cost. A player who
-       rides the BENCH is an option: you only promote him if he hits, and in a
-       keeper league a late hit becomes a cheap keeper and a trade asset, so his
-       upside room (p90-p50) is a real credit. Same appetite, opposite sign --
-       one constant, W_RISK.
-       Crucially the penalty is applied to BOTH sides of the starter comparison
-       (the player and the survivor he is measured against), so a uniform level
-       shift cancels and only the *differential* spread survives. Two starters
-       with equally wide bands score exactly as they do today; a safe starter
-       measured against a boom/bust fallback correctly gains.
-       Only band WIDTHS are used, never band LEVELS: `vorp` comes from the
-       ECR-ordered value curve (board_rank.order_and_value) while p10/p50/p90
-       are the player's own model distribution. The levels are not
-       interchangeable; the widths are, since both are PPR season points.
+   The objective
+   -------------
+   score(X) = the projected points of the best STARTING LINEUP you can still
+   finish, if you take X now and then draft greedily to the end.
 
-   (B) A flex opening is worth less than a dedicated one (§11 "flex replacement
-       is per-position"). Two independent reasons, both position-agnostic:
-         1. A dedicated slot can only ever be refilled from its own position; a
-            flex slot can be refilled from any flex-eligible position. So the
-            flex fallback is the best survivor ACROSS FLEX_POS, which is >= the
-            single-position survivor by construction. No position ordering is
-            hardcoded -- the max is taken over the live board.
-         2. A dedicated opening is an obligation (you must field 2 WRs); a flex
-            opening is discretionary and, with 2 flex slots and ~11 picks left,
-            gets filled by surplus you accumulate anyway. FLEX_WEIGHT scales the
-            edge accordingly, completing the ladder
-              bench BENCH_WEIGHT(0.2) < flex FLEX_WEIGHT(0.5) < dedicated (1.0).
-       Together these stop a greedy run from spending both flex slots on the
-       deepest position while a mandatory WR slot sits empty.
+   Everything the old score needed a separate rule for now falls out of it:
+     - roster completion: an unfilled QB slot contributes 0, so a roster with
+       no quarterback scores strictly lower. v1.1 took 0 QBs in 96 simulated
+       picks because a flat position never produced a "cliff"; it cannot
+       happen here without the lineup total paying for it.
+     - positional saturation: a 2nd TE only counts if he beats an RB/WR for a
+       FLEX slot, on absolute points. A 3rd counts for nothing at all.
+     - timing: taking X now vs. later is priced by simulating the rest of the
+       draft, not by a one-round `gap` heuristic.
+     - bye stacking: `lineupPoints` is summed WEEK BY WEEK, so three starters
+       sharing a bye lose real points in that week and gain them back only to
+       the extent the bench covers. No flat BYE_PEN constant.
 
-   Backward compatibility: with no bands present (`has_bands: false`, or any
-   player whose p10/p90 are null) `riskValue` returns `vorp` unchanged, so the
-   dedicated and bench branches are byte-identical to v1.0. No caller change is
-   required -- the bands are read off the board rows `draftmode.js` already
-   passes. The flex branch changes on purpose; that is (B). */
+   Deliberately NOT in the score
+   -----------------------------
+   Bands (p10/p90) and ADP mispricing are surfaced to the user as indicators
+   instead of being folded in. v1.1 charged W_RISK * band width inside the
+   score; measured, that charge ran 28-71% of a player's VORP, which is not
+   the "discriminator, never a driver" its comment claimed. A number the user
+   is asked to trust on the clock should be one quantity -- projected lineup
+   points -- with the risk and market context shown beside it, not blended in
+   at an un-tuned weight. */
 (function (root, factory) {
   const O = factory();
   if (typeof window !== "undefined") window.Optimizer = O;
   if (typeof module !== "undefined" && module.exports) module.exports = O;
 })(this, function () {
-  const W_STEAL = 0.5;        // steal is a different currency (trade value)
-  const BENCH_WEIGHT = 0.2;   // a benched player's share of standalone value
-  const BYE_PEN = 3.0;        // VORP points, marginal by design
-  const LATE_ROUNDS = 2;      // K/DST nudge window, in rounds remaining
-  const SHORTLIST_N = 5;
+  // --- league contract -------------------------------------------------------
   const DEDICATED = { QB: 1, RB: 2, WR: 2, TE: 1 };
   const FLEX_SLOTS = 2;
   const FLEX_POS = ["RB", "WR", "TE"];
   const POSITIONS = ["QB", "RB", "WR", "TE"];
-  const BYE_STACK_LIMIT = 3;  // penalize the 3rd+ starter sharing a bye
-  const CLIFF_MIN = 1.0;      // VORP points below which a "cliff" is just noise
+  const SHORTLIST_N = 5;
+  const WEEKS = 18;              // NFL regular season, 2026
+  const LATE_ROUNDS = 2;         // K/DST nudge window, in rounds remaining
 
-  // --- v1.1 constants: UN-TUNED DEFAULTS -------------------------------------
-  // Like W_STEAL / BENCH_WEIGHT / BYE_PEN these encode priorities, not fitted
-  // parameters. They were chosen by inspection and are deliberately NOT tuned
-  // against the held-out 2023-25 seasons (that would violate the walk-forward
-  // eval rule). Revise only by forward observation.
-
-  // Share of a band half-width that is priced in. One constant, applied with
-  // opposite signs (floor cost when he must start, ceiling credit when he sits)
-  // because there is no evidence to justify two different appetites. 0.25 keeps
-  // the term a discriminator, never a driver: on the starter side only the
-  // DIFFERENCE in downside room against the fallback survives, so a player
-  // whose floor room is 20 points tighter than his fallback's gains 5 VORP
-  // points -- enough to break a tie, not enough to invent a cliff.
-  const W_RISK = 0.25;
-
-  // A flex opening's share of a dedicated one. 0.5 sits between the bench share
-  // (0.2, a player who does not start at all) and a dedicated opening (1.0, a
-  // slot you are obligated to field), reflecting that a flex slot is real
-  // starting value but discretionary and usually filled from surplus.
+  // Slot weights. The lookahead does NOT use these -- it scores whole lineups,
+  // so a bench player is priced by what he actually contributes. They remain
+  // because keepers.js discounts a keeper by the slot he would occupy, a
+  // separate decision made before any draft exists to simulate.
   const FLEX_WEIGHT = 0.5;
+  const BENCH_WEIGHT = 0.2;
 
-  // The band ruleset must match the ruleset the value curve was built from:
-  // board_rank.order_and_value lays sorted `ppr_p50` onto ECR order, so `vorp`
-  // is in PPR season points and the PPR band is the only unit-compatible one.
-  const BAND_RULESET = "ppr";
+  // --- search bounds: cost control, not model choices ------------------------
+  // Candidates are drawn PER POSITION, never as a flat top-N by points. A flat
+  // cut is not position-neutral: replacement level differs by position (QB 190
+  // PPR points vs TE 110 on the 2026 board), so raw season points rank almost
+  // every startable QB above almost every TE. A flat top-40 at pick 19 came
+  // back as five interchangeable quarterbacks, having never looked at a wide
+  // receiver. Taking the best few at each position instead guarantees the
+  // lookahead compares like with like and lets the LINEUP decide, which is the
+  // whole point of scoring lineups. Both bounds are wide enough that doubling
+  // them does not change the shortlist on the live board.
+  const CANDIDATE_PER_POS = 10;  // scored at the live pick (<= 40 candidates)
+  const ROLLOUT_PER_POS = 6;     // considered at each simulated pick
+  const ROLLOUT_PICKS = 8;       // your own future picks simulated (= starters)
+
+  // Season-point resolution below which two candidates are the same pick. A
+  // twentieth of a point over 18 weeks is not a distinction this model can
+  // support -- treating it as one would let float noise order the shortlist.
+  const TIE_POINTS = 0.05;
+
+  // How many of a position can still be useful. Reached only in the late
+  // rounds, where every remaining player leaves the projected lineup unchanged
+  // and the objective is honestly indifferent -- this decides nothing that the
+  // projection could have decided. You start one QB and one TE, so a second is
+  // bye and injury cover and a third is a wasted pick; RB and WR fill the two
+  // flex slots as well, so depth there keeps its value much longer.
+  // This ONLY breaks ties. A player over the cap still wins outright whenever
+  // he genuinely improves the lineup.
+  const DEPTH_CAP = { QB: 2, RB: 6, WR: 6, TE: 2 };
+
+  // Best `perPos` at each position, merged and left in value order.
+  function topCandidates(ranked, perPos) {
+    const seen = { QB: 0, RB: 0, WR: 0, TE: 0 }, out = [];
+    for (const p of ranked) {
+      if (seen[p.position] === undefined || seen[p.position] >= perPos) continue;
+      seen[p.position]++;
+      out.push(p);
+    }
+    return out;
+  }
+
+  // Absolute season points on the board's ECR-ordered value curve -- the SAME
+  // curve `vorp` is measured from, before the position's replacement level is
+  // subtracted off. Published as `value_points`; the fallback reconstructs it
+  // exactly the way board_rank.order_and_value builds it (the position's
+  // `ppr_p50` values sorted descending, laid onto ECR order) so a board
+  // generated before this field existed still scores correctly.
+  function seasonValue(player) {
+    return Number.isFinite(player && player.value_points) ? player.value_points : NaN;
+  }
+
+  // Fill in `value_points` for a whole board when the payload predates it.
+  // Mutates nothing: returns a new array of shallow copies.
+  function withValuePoints(players) {
+    if ((players || []).every(p => Number.isFinite(p.value_points))) return players;
+    const curves = {};
+    for (const pos of POSITIONS) {
+      curves[pos] = players
+        .filter(p => p.position === pos && p.season_points && p.season_points.ppr)
+        .map(p => p.season_points.ppr.p50)
+        .filter(Number.isFinite)
+        .sort((a, b) => b - a);
+    }
+    return players.map(p => {
+      if (Number.isFinite(p.value_points)) return p;
+      const curve = curves[p.position];
+      const v = curve && Number.isFinite(p.position_rank) ? curve[p.position_rank - 1] : undefined;
+      return Object.assign({}, p, { value_points: Number.isFinite(v) ? v : NaN });
+    });
+  }
+
+  // Points a player contributes in each week he is active. His season value is
+  // earned over the weeks he actually plays, so dividing by that count and
+  // summing back over those weeks returns exactly his season value -- the
+  // weekly view adds bye resolution without inventing or destroying points.
+  function perWeek(player) {
+    const v = seasonValue(player);
+    if (!Number.isFinite(v)) return 0;
+    return v / (player.bye ? WEEKS - 1 : WEEKS);
+  }
 
   function rosterSlots(myPlayers) {
     const counts = { QB: 0, RB: 0, WR: 0, TE: 0 };
@@ -121,141 +179,241 @@
     return flexUsed < FLEX_SLOTS ? "flex" : "none";
   }
 
-  // The player's calibrated band, as ROOM either side of the median. Returns
-  // null whenever the band is absent or untrustworthy, which is the signal to
-  // fall back to v1.0 median-only behavior.
-  function bandGaps(player) {
-    const points = player && player.season_points;
-    const band = points && points[BAND_RULESET];
-    if (!band) return null;
-    const p10 = band.p10, p50 = band.p50, p90 = band.p90;
-    if (!Number.isFinite(p10) || !Number.isFinite(p50) || !Number.isFinite(p90)) {
-      return null;                       // has_bands: false publishes nulls here
+  // The best starting lineup available from `roster`, valued by `value`.
+  // Greedy is exact here: a dedicated slot can only be filled from its own
+  // position, so taking the best at each position is optimal, and the flex
+  // slots then take the best of what is left over.
+  function bestLineup(roster, value) {
+    const byPos = { QB: [], RB: [], WR: [], TE: [] };
+    for (const p of roster || []) {
+      if (byPos[p.position]) byPos[p.position].push(p);
     }
-    if (!(p10 <= p50 && p50 <= p90)) return null;   // crossed quantiles: distrust
-    return { p10, p50, p90, down: p50 - p10, up: p90 - p50 };
-  }
-
-  // Certainty-equivalent value, in the SAME units as `vorp` (PPR season points
-  // over replacement). `starts` picks the sign: a starter is unhedgeable so his
-  // downside room is charged; a bench player is an option so his upside room is
-  // credited. No band -> `vorp` unchanged, which is exactly v1.0.
-  function riskValue(player, starts) {
-    const gaps = bandGaps(player);
-    if (!gaps) return player.vorp;
-    return starts ? player.vorp - W_RISK * gaps.down
-                  : player.vorp + W_RISK * gaps.up;
-  }
-
-  // Best player at `pos` expected to survive `gap` picks, assuming the drafters
-  // between now and your next pick take the best available by VORP.
-  function survivor(available, pos, gap) {
-    return (available || []).slice(gap).find(p => p.position === pos) || null;
-  }
-
-  // Best VORP at `pos` expected to survive `gap` picks. Floored at 0: no
-  // survivor means replacement level, which is VORP 0 by construction.
-  function replacement(available, pos, gap) {
-    const found = survivor(available, pos, gap);
-    return found ? Math.max(0, found.vorp) : 0;
-  }
-
-  // The risk-adjusted value of whoever would take this slot if you pass on it.
-  // A dedicated slot can only be refilled from its own position; a FLEX slot
-  // can be refilled from any flex-eligible position, so its fallback is the
-  // best of those survivors -- necessarily >= the single-position one, which is
-  // why a flex opening is never more urgent than a dedicated one. The fallback
-  // is valued as a STARTER (it would occupy a starting slot) and floored at 0
-  // (replacement level), matching `replacement`.
-  function fallbackValue(available, pos, gap, slot) {
-    const sources = slot === "flex" ? FLEX_POS : [pos];
-    let best = 0;
-    for (const q of sources) {
-      const found = survivor(available, q, gap);
-      if (found) best = Math.max(best, riskValue(found, true));
+    const starters = [], leftovers = [];
+    for (const pos of POSITIONS) {
+      byPos[pos].sort((a, b) => value(b) - value(a));
+      starters.push(...byPos[pos].slice(0, DEDICATED[pos]));
+      if (FLEX_POS.includes(pos)) leftovers.push(...byPos[pos].slice(DEDICATED[pos]));
     }
-    return best;
+    leftovers.sort((a, b) => value(b) - value(a));
+    starters.push(...leftovers.slice(0, FLEX_SLOTS));
+    return starters;
   }
 
-  // The raw starting-slot edge before the flex discount: what this player beats
-  // his own fallback by. Shared by `vona` and the "why" label so the number the
-  // user reads is the number that was scored.
-  function slotEdge(player, available, gap, slot) {
-    return Math.max(0, riskValue(player, true)
-                       - fallbackValue(available, player.position, gap, slot));
+  // Season points of the best startable lineup, ignoring byes. The rollout's
+  // inner loop uses this because it runs thousands of times; the reported
+  // score uses `lineupPoints` below, which resolves byes.
+  function lineupTotal(roster) {
+    let total = 0;
+    for (const p of bestLineup(roster, seasonValue)) {
+      const v = seasonValue(p);
+      if (Number.isFinite(v)) total += v;
+    }
+    return total;
   }
 
-  function vona(player, counts, available, gap) {
-    const slot = openSlot(player.position, counts);
-    if (slot === "none") return BENCH_WEIGHT * riskValue(player, false);
-    const edge = slotEdge(player, available, gap, slot);
-    return slot === "flex" ? FLEX_WEIGHT * edge : edge;
+  // THE OBJECTIVE. Best lineup re-picked every week, so a week that three of
+  // your starters sit out is scored with whoever is actually left to play.
+  // With no bye collisions this equals `lineupTotal`; each collision costs the
+  // difference between the starter and his best available cover, which is
+  // exactly what a stacked bye costs you -- and it is also what gives a bench
+  // player a non-zero value, since covering a starter's bye is real points.
+  //
+  // Written out rather than calling `bestLineup` 18 times: this is the hot
+  // path (the rollout evaluates it thousands of times per pick), and sorting
+  // each position ONCE up front instead of once per week is the difference
+  // between a responsive panel and a stalled one. The result is identical --
+  // dropping players on bye preserves the sorted order of the rest.
+  function lineupPoints(roster) {
+    const byPos = { QB: [], RB: [], WR: [], TE: [] };
+    for (const p of roster || []) {
+      if (byPos[p.position]) byPos[p.position].push(p);
+    }
+    const w = new Map();
+    for (const pos of POSITIONS) {
+      for (const p of byPos[pos]) w.set(p, perWeek(p));
+      byPos[pos].sort((a, b) => w.get(b) - w.get(a));
+    }
+    let total = 0;
+    for (let week = 1; week <= WEEKS; week++) {
+      const leftovers = [];
+      for (const pos of POSITIONS) {
+        let filled = 0;
+        for (const p of byPos[pos]) {
+          if (p.bye === week) continue;
+          if (filled < DEDICATED[pos]) { total += w.get(p); filled++; }
+          else if (FLEX_POS.includes(pos)) leftovers.push(p);
+        }
+      }
+      leftovers.sort((a, b) => w.get(b) - w.get(a));
+      for (const p of leftovers.slice(0, FLEX_SLOTS)) total += w.get(p);
+    }
+    return total;
+  }
+
+  // Who the field takes over the next `n` picks. The market drafts the market:
+  // ADP order, not our board. Players with no ADP are not drafted here -- they
+  // are the undrafted depth tail, and treating them as safe is correct.
+  function fieldTakes(pool, n) {
+    if (n <= 0) return [];
+    return (pool || []).filter(p => Number.isFinite(p.adp))
+      .sort((a, b) => a.adp - b.adp).slice(0, n);
+  }
+
+  // Play the rest of your draft out: at each of your remaining picks, take
+  // whoever most improves your startable lineup, with the field taking the
+  // market's best available in between.
+  function finishRoster(roster, pool, futurePicks, fromPick) {
+    let current = (roster || []).slice();
+    let available = (pool || []).slice()
+      .sort((a, b) => (seasonValue(b) || 0) - (seasonValue(a) || 0));
+    let prev = fromPick;
+    for (const pick of (futurePicks || []).slice(0, ROLLOUT_PICKS)) {
+      const gone = new Set(fieldTakes(available, pick - prev - 1).map(p => p.player_id));
+      available = available.filter(p => !gone.has(p.player_id));
+      // Gain is measured with THE OBJECTIVE, not a cheaper proxy. Scoring the
+      // rollout on bye-blind season totals made every pick past a full lineup
+      // worth exactly 0, and the resulting tie fell to the highest raw season
+      // points -- which is always a quarterback, because QB replacement level
+      // is the highest of any position. Rollouts were ending in four backup
+      // QBs, and since that junk is what covers your starters' byes, it was
+      // the junk that decided the shortlist. Bye coverage is precisely what
+      // makes a bench player worth more than nothing, so measuring it here
+      // both removes the tie and prices depth for the right reason.
+      const base = lineupPoints(current);
+      let best = null, bestGain = -Infinity;
+      for (const cand of topCandidates(available, ROLLOUT_PER_POS)) {
+        const gain = lineupPoints(current.concat([cand])) - base;
+        if (gain > bestGain) { bestGain = gain; best = cand; }
+      }
+      // Once nothing on the board improves the projected lineup -- every slot
+      // filled and every bye already covered -- the rest of your picks are
+      // pure bench and cannot change the objective. Stop rather than draft
+      // them: continuing would re-open the gain tie that stockpiled backup
+      // QBs, and a rollout that ends in a plausible roster is one the user
+      // can actually check against their own judgement.
+      if (!best || bestGain <= 0) break;
+      current.push(best);
+      available = available.filter(p => p !== best);
+      prev = pick;
+    }
+    return current;
+  }
+
+  // Where a player lands in the lineup you would finish with -- the honest
+  // answer to "what am I actually drafting him to do".
+  function lineupRole(player, finished) {
+    const starters = bestLineup(finished, seasonValue);
+    if (!starters.includes(player)) return "bench";
+    const samePos = starters.filter(p => p.position === player.position)
+      .sort((a, b) => seasonValue(b) - seasonValue(a));
+    const idx = samePos.indexOf(player);
+    if (idx < DEDICATED[player.position]) {
+      return DEDICATED[player.position] > 1 ? `${player.position}${idx + 1}` : player.position;
+    }
+    return "FLEX";
+  }
+
+  // Market mispricing, in picks. Positive = he has fallen past his ADP and is
+  // a bargain here; negative = taking him now is a reach. An INDICATOR, never
+  // part of the score.
+  function adpDelta(player, pickNo) {
+    return Number.isFinite(player && player.adp) ? pickNo - player.adp : null;
+  }
+
+  // Players you ALREADY OWN who sit out the same week as `player`. Surfaced,
+  // not charged -- `lineupPoints` has already paid for the collision.
+  // Deliberately counted against your real roster rather than the simulated
+  // finish: a warning you cannot check against your own team is noise, and at
+  // pick 6 the rollout's hypothetical roster produced "bye 11 with 1" about a
+  // player the user had not drafted and never would.
+  function byeClash(player, myPlayers) {
+    if (!player.bye) return 0;
+    return (myPlayers || []).filter(p => p !== player && p.bye === player.bye).length;
+  }
+
+  // Who the market leaves at this position by your NEXT pick. This is the
+  // "should I wait?" answer in the form the question is actually asked: not a
+  // cliff score, but the name of the player you would settle for. Returns null
+  // when you have no pick left, or when the position is picked clean.
+  function nextAtPosition(player, pool, futurePicks, pickNo) {
+    const next = (futurePicks || [])[0];
+    if (!Number.isFinite(next)) return null;
+    const rest = (pool || []).filter(p => p !== player);
+    const gone = new Set(fieldTakes(rest, next - pickNo - 1).map(p => p.player_id));
+    return rest.filter(p => !gone.has(p.player_id) && p.position === player.position)
+      .sort((a, b) => seasonValue(b) - seasonValue(a))[0] || null;
+  }
+
+  /* Rank the live board.
+
+     ctx = { available, myPlayers, pickNo, futurePicks }
+       available   - board rows still undrafted (any order)
+       myPlayers   - board rows you already own
+       pickNo      - the overall pick on the clock (yours)
+       futurePicks - overall pick numbers of your remaining turns, ascending
+
+     Returns up to SHORTLIST_N entries, best first:
+       { player, points, cost, role, nextBest, waitCost, adpDelta, byeClash,
+         roster }
+     `points` is the projected lineup total if you take him. `cost` is what
+     taking him gives up against the best option (0 for the top pick) -- the
+     one number the decision turns on. `nextBest` is who is left at his
+     position at your next pick and `waitCost` is what dropping to that player
+     would cost you, so "take him now or wait" is answerable on its face. */
+  function recommend(ctx) {
+    const pool = (ctx.available || []).filter(
+      p => POSITIONS.includes(p.position) && Number.isFinite(seasonValue(p)));
+    const mine = ctx.myPlayers || [];
+    const future = ctx.futurePicks || [];
+    const ranked = pool.slice().sort((a, b) => seasonValue(b) - seasonValue(a));
+    const scored = topCandidates(ranked, CANDIDATE_PER_POS).map(player => {
+      const rest = ranked.filter(p => p !== player);
+      const finished = finishRoster(mine.concat([player]), rest, future, ctx.pickNo);
+      return { player, points: lineupPoints(finished), roster: finished };
+    });
+    // Ties are real and they are common late: once your lineup is full and the
+    // byes are covered, no available player changes the projection at all, so
+    // every candidate scores identically. What breaks the tie then decides the
+    // pick outright, and raw season points is the wrong answer -- it is not
+    // position-neutral (QB replacement level is the highest of any position),
+    // so it recommended backup quarterbacks for rounds 12-15. VORP is neutral
+    // by construction: points over what you could otherwise get AT THAT
+    // POSITION. It is the wrong yardstick for a lineup comparison, which is
+    // why the score does not use it, and the right one for "the objective is
+    // indifferent, so just take the best player left".
+    // Points are compared on a TIE_POINTS grid so the ordering stays a valid
+    // total order rather than an epsilon comparator that can sort unstably.
+    const held = rosterSlots(mine);
+    const grade = e => Math.round(e.points / TIE_POINTS);
+    const over = e => (held[e.player.position] >= DEPTH_CAP[e.player.position] ? 1 : 0);
+    scored.sort((a, b) => (grade(b) - grade(a))
+                       || (over(a) - over(b))
+                       || ((b.player.vorp || 0) - (a.player.vorp || 0)));
+    const top = scored.length ? scored[0].points : 0;
+    return scored.slice(0, SHORTLIST_N).map(entry => {
+      const nextBest = nextAtPosition(entry.player, ranked, future, ctx.pickNo);
+      return {
+        player: entry.player,
+        points: entry.points,
+        cost: top - entry.points,
+        role: lineupRole(entry.player, entry.roster),
+        nextBest,
+        waitCost: nextBest ? seasonValue(entry.player) - seasonValue(nextBest) : null,
+        adpDelta: adpDelta(entry.player, ctx.pickNo),
+        byeClash: byeClash(entry.player, mine),
+        roster: entry.roster,
+      };
+    });
   }
 
   // The value you'd "normally" get at this overall pick: the board row at that
-  // rank. Board rank encodes ECR order, so this is an ECR-anchored yardstick.
+  // rank. `board_rank.rank_board` sorts the board by VORP descending, so this
+  // is a VORP-anchored yardstick -- read it as "the Nth-best player left by our
+  // own valuation", not as a market price. Kept for keepers.js, which spends a
+  // draft pick and needs to know what that pick would otherwise have bought.
   function parVorp(players, pickNo) {
     const row = players[pickNo - 1];
     return row && Number.isFinite(row.vorp) ? Math.max(0, row.vorp) : 0;
-  }
-
-  // Deliberately NOT risk-adjusted. `steal` is trade/price value, a different
-  // currency from expected starting points: the market pays for the consensus
-  // median, not for your lineup's risk posture. Risk-adjusting it would also
-  // let one band move the same score twice.
-  function steal(player, players, pickNo) {
-    return Math.max(0, player.vorp - parVorp(players, pickNo));
-  }
-
-  // Only starters are penalized: a bench stash on a crowded bye costs nothing.
-  function byePenalty(player, myPlayers, counts) {
-    if (openSlot(player.position, counts) === "none") return 0;
-    if (!player.bye) return 0;
-    const shared = (myPlayers || []).filter(p => p.bye === player.bye).length;
-    return shared + 1 >= BYE_STACK_LIMIT ? BYE_PEN : 0;
-  }
-
-  function scorePlayer(player, ctx) {
-    return vona(player, ctx.counts, ctx.available, ctx.gap)
-      + W_STEAL * steal(player, ctx.players, ctx.pickNo)
-      - byePenalty(player, ctx.myPlayers, ctx.counts);
-  }
-
-  // One-line "why", from whichever term dominates. p10 is surfaced where p10
-  // priced him (a starting slot) and p90 where p90 priced him (the bench).
-  function whyLabel(player, ctx) {
-    const slot = openSlot(player.position, ctx.counts);
-    const v = vona(player, ctx.counts, ctx.available, ctx.gap);
-    const s = W_STEAL * steal(player, ctx.players, ctx.pickNo);
-    const bye = byePenalty(player, ctx.myPlayers, ctx.counts);
-    const gaps = bandGaps(player);
-    const parts = [];
-    if (s > v && s > 0) {
-      parts.push(`steal: ECR ${Math.round(player.ecr)}, here at ${ctx.pickNo}`);
-    } else if (slot !== "none") {
-      const cliff = slotEdge(player, ctx.available, ctx.gap, slot);
-      const where = slot === "flex" ? "flex" : `${player.position}${ctx.counts[player.position] + 1}`;
-      // Only call it a cliff when the drop is worth acting on -- a sub-point
-      // gap is noise, and reads as a false alarm.
-      parts.push(cliff >= CLIFF_MIN
-        ? `fills ${where} · cliff −${cliff.toFixed(1)} before your next pick`
-        : `fills ${where}`);
-      if (gaps) parts.push(`floor ${Math.round(gaps.p10)}`);
-    } else if (gaps && BENCH_WEIGHT * W_RISK * gaps.up >= CLIFF_MIN) {
-      parts.push(`upside dart · ceiling ${Math.round(gaps.p90)}`);
-    } else {
-      parts.push("depth · safe to wait");
-    }
-    if (bye) parts.push(`bye ${player.bye} stacked`);
-    return parts.join(" · ");
-  }
-
-  function rankShortlist(ctx) {
-    return (ctx.available || [])
-      .filter(p => POSITIONS.includes(p.position) && Number.isFinite(p.vorp))
-      .map(p => ({ player: p, score: scorePlayer(p, ctx), why: whyLabel(p, ctx) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, SHORTLIST_N);
   }
 
   // Remind about K/DST only in the last rounds, and only while a slot is open.
@@ -264,9 +422,11 @@
     return !haveK || !haveDst;
   }
 
-  return { rosterSlots, openSlot, bandGaps, riskValue, survivor, replacement,
-           fallbackValue, slotEdge, vona, parVorp, steal, byePenalty,
-           scorePlayer, whyLabel, rankShortlist, lateSlotTrigger,
-           W_STEAL, BENCH_WEIGHT, BYE_PEN, LATE_ROUNDS, SHORTLIST_N,
-           DEDICATED, FLEX_SLOTS, W_RISK, FLEX_WEIGHT, BAND_RULESET };
+  return { seasonValue, withValuePoints, perWeek, rosterSlots, openSlot,
+           bestLineup, lineupTotal, lineupPoints, fieldTakes, finishRoster,
+           lineupRole, adpDelta, byeClash, nextAtPosition, recommend, parVorp,
+           lateSlotTrigger,
+           DEDICATED, FLEX_SLOTS, FLEX_POS, POSITIONS, SHORTLIST_N, WEEKS,
+           LATE_ROUNDS, CANDIDATE_PER_POS, ROLLOUT_PER_POS, ROLLOUT_PICKS, TIE_POINTS, DEPTH_CAP, topCandidates,
+           FLEX_WEIGHT, BENCH_WEIGHT };
 });
