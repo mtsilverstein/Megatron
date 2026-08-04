@@ -5,6 +5,9 @@ window.DraftMode = (() => {
   const API = "https://api.sleeper.app/v1";
   const STORE_KEY = "fc-draft-mode";
   const POLL_MS = 3000, MAX_BACKOFF_MS = 30000;
+  // Four missed polls. Past this the board may be behind the draft, and on
+  // draft day a board you cannot trust is worse than one that admits it.
+  const STALE_AFTER_S = 12;
   // Season-point spread across the whole shortlist below which the optimizer
   // is telling you it cannot separate these players. One point over 18 weeks
   // is far inside the model's own error, so presenting an order as a
@@ -17,16 +20,51 @@ window.DraftMode = (() => {
   let pollSeq = 0;       // generation token: bumped to silently retire stale poll chains
   let lastPickCount = -1;   // render guard: picks are append-only
   let statusChecks = 0;     // draft-complete fallback when settings lack rounds/teams
+  // Freshness, shown in the status line. A tool that says "live" has to be able
+  // to prove it: this ticks on its own clock, so if the poll chain dies the age
+  // keeps climbing on screen instead of the label sitting at "live" forever.
+  let lastSyncAt = 0, syncNote = "", heartbeat = null;
   const state = { connected: false, drafted: new Set(), mine: new Set(),
                   hideDrafted: false };
 
-  async function api(path) {
-    const res = await fetch(`${API}${path}`);
+  // `fresh` defeats caching. Sleeper sends NO Cache-Control on these endpoints
+  // and sits behind a CDN that will happily serve an old copy — measured at
+  // Age: 22072 on a repeat request, the same cached entry both times. On a live
+  // draft that is a board several picks behind reporting itself as live, and
+  // re-requesting the same URL (what pressing Connect does) hits the same
+  // cached entry, so it never recovers. A unique query key misses the shared
+  // cache and reaches origin; no-store keeps Chrome's own HTTP cache out too,
+  // since a response with an ETag and no Cache-Control gets heuristic freshness.
+  async function api(path, fresh) {
+    const url = fresh
+      ? `${API}${path}${path.includes("?") ? "&" : "?"}_=${Date.now()}`
+      : `${API}${path}`;
+    const res = await fetch(url, fresh ? { cache: "no-store" } : undefined);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
 
   function emit() { cfg.onUpdate(state); }
+
+  // What the status line says, given a clock. Pure so the staleness threshold
+  // is pinned by a test rather than eyeballed on a live draft.
+  function syncLabel(nowMs, syncedAt, note) {
+    if (!syncedAt) return note || "connecting…";
+    const age = Math.max(0, Math.round((nowMs - syncedAt) / 1000));
+    const ago = `${age}s ago`;
+    if (note) return `${note} · last synced ${ago}`;
+    return age >= STALE_AFTER_S ? `NOT UPDATING — last synced ${ago}`
+                                : `live · synced ${ago}`;
+  }
+
+  function renderStatus() {
+    if (session) setStatus(syncLabel(Date.now(), lastSyncAt, syncNote));
+  }
+
+  function startHeartbeat() {
+    clearInterval(heartbeat);
+    heartbeat = setInterval(renderStatus, 1000);
+  }
   // DOM fallback: disable(reason) runs BEFORE init in the no-crosswalk case,
   // when cfg is still null.
   function setStatus(text) {
@@ -77,7 +115,7 @@ window.DraftMode = (() => {
   async function connect(username, userId, draftId) {
     try {
       setStatus("connecting…");
-      const draft = await api(`/draft/${draftId}`);
+      const draft = await api(`/draft/${draftId}`, true);
       if (!draft || !draft.draft_id) throw new Error("draft not found");
       const s = draft.settings || {};
       const order = draft.draft_order || {};
@@ -89,6 +127,9 @@ window.DraftMode = (() => {
                   type: draft.type || "snake" };
       lastPickCount = -1;
       statusChecks = 0;
+      lastSyncAt = 0;
+      syncNote = "";
+      startHeartbeat();
       localStorage.setItem(STORE_KEY, JSON.stringify({ username, userId, draftId }));
       state.connected = true;
       if (username) cfg.els.username.value = username;   // survives a reload
@@ -107,6 +148,8 @@ window.DraftMode = (() => {
   function disconnect() {
     pollSeq++;             // retire any in-flight/pending chain before it can touch state
     clearTimeout(timer);
+    clearInterval(heartbeat);
+    heartbeat = null;
     localStorage.removeItem(STORE_KEY);
     session = null;
     state.connected = false;
@@ -123,6 +166,8 @@ window.DraftMode = (() => {
     state.hideDrafted = false;
     lastPickCount = -1;
     statusChecks = 0;
+    lastSyncAt = 0;
+    syncNote = "";
     setStatus("— off");
     emit();
   }
@@ -146,33 +191,41 @@ window.DraftMode = (() => {
     // the instant you come back, so polling here costs little and the board is
     // current when you look at it.
     try {
-      const picks = await api(`/draft/${session.draftId}/picks`) || [];
+      const picks = await api(`/draft/${session.draftId}/picks`, true) || [];
       if (seq !== pollSeq || !session) return;
       backoff = POLL_MS;
+      lastSyncAt = Date.now();
+      syncNote = "";
       if (picks.length !== lastPickCount) {
         applyPicks(picks);                    // render guard: append-only picks
       }
       if (!session.totalPicks && ++statusChecks % 10 === 0) {
         // Sleeper omitted settings.rounds/teams: fall back to re-checking
         // the draft object's status every 10th poll so completion still stops us.
-        const d = await api(`/draft/${session.draftId}`);
+        const d = await api(`/draft/${session.draftId}`, true);
         if (seq !== pollSeq || !session) return;
-        if (d && d.status === "complete") {
-          setStatus(`draft complete — ${picks.length} picks`);
-          return;
-        }
+        if (d && d.status === "complete") return finish(picks.length);
       }
       if (session.totalPicks && picks.length >= session.totalPicks) {
-        setStatus(`draft complete — ${picks.length} picks`);
-        return;                                   // stop polling
+        return finish(picks.length);              // stop polling
       }
       timer = setTimeout(() => pollOnce(seq), POLL_MS);
     } catch (e) {
       if (seq !== pollSeq || !session) return;
-      setStatus(`reconnecting… (${e.message})`);
+      syncNote = `reconnecting… (${e.message})`;
+      renderStatus();
       backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
       timer = setTimeout(() => pollOnce(seq), backoff);
     }
+  }
+
+  // Draft over: stop the chain AND the heartbeat, so the line settles on a
+  // final statement instead of counting up a staleness that no longer means
+  // anything.
+  function finish(n) {
+    clearInterval(heartbeat);
+    heartbeat = null;
+    setStatus(`draft complete — ${n} picks`);
   }
 
   function applyPicks(picks) {
@@ -200,7 +253,7 @@ window.DraftMode = (() => {
         : ` · <span class="roster-set">starters set</span>`);
     }
     updateAids(picks);
-    setStatus(`connected — live`);
+    renderStatus();
     emit();
   }
 
@@ -507,5 +560,5 @@ window.DraftMode = (() => {
   }
 
   return { init, disable, nextPickNumber, gapToNextPick, seatFromPicks,
-           shortlistBlocker };
+           shortlistBlocker, syncLabel };
 })();

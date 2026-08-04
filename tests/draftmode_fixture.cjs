@@ -72,4 +72,25 @@ for (const missing of [{ teams: 0 }, { rounds: 0 }]) {
 assert.strictEqual(
   D.shortlistBlocker(seat({ userId: null, slot: null, teams: 0 }), []), noUser);
 
+// --- syncLabel: "live" has to be a claim the tool can back up -------------
+// Sleeper sends no Cache-Control and sits behind a CDN that served a repeat
+// request from a shared cache entry (Age: 22072). A board can therefore be
+// several picks behind while calling itself live, so the label carries the
+// age and turns loud once the poll chain has plainly stopped delivering.
+const T = 1_000_000;
+assert.strictEqual(D.syncLabel(T, 0, ""), "connecting…");     // nothing yet
+assert.strictEqual(D.syncLabel(T, 0, "boom"), "boom");        // error before first sync
+assert.strictEqual(D.syncLabel(T, T, ""), "live · synced 0s ago");
+assert.strictEqual(D.syncLabel(T + 3000, T, ""), "live · synced 3s ago");
+// 12s = four missed polls: the threshold, and it must fire ON it, not past it.
+assert.strictEqual(D.syncLabel(T + 11_000, T, ""), "live · synced 11s ago");
+assert.ok(/NOT UPDATING/.test(D.syncLabel(T + 12_000, T, "")));
+assert.ok(/60s ago/.test(D.syncLabel(T + 60_000, T, "")));
+// An error keeps the age visible rather than replacing it -- "reconnecting"
+// alone doesn't say whether the board is 3s or 5min out of date.
+assert.strictEqual(D.syncLabel(T + 9000, T, "reconnecting… (HTTP 500)"),
+                   "reconnecting… (HTTP 500) · last synced 9s ago");
+// A clock that jumps backwards (NTP, sleep/wake) must not print a negative age.
+assert.strictEqual(D.syncLabel(T - 5000, T, ""), "live · synced 0s ago");
+
 console.log("draftmode_fixture: OK");
