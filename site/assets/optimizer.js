@@ -69,6 +69,7 @@
   const FLEX_POS = ["RB", "WR", "TE"];
   const POSITIONS = ["QB", "RB", "WR", "TE"];
   const SHORTLIST_N = 5;
+  const SHORTLIST_PER_POS = 2;   // display spread; see shortlistSpread
   const WEEKS = 18;              // NFL regular season, 2026
   const LATE_ROUNDS = 2;         // K/DST nudge window, in rounds remaining
 
@@ -407,6 +408,35 @@
      the same way, and are directly comparable: a player worth 3 less than the
      top pick but 20 more than his own replacement is a different decision from
      one worth 3 less and 1 more. */
+  // At most `perPos` of a position in the displayed shortlist.
+  //
+  // A DISPLAY rule only: the objective, the ranking and every number are
+  // untouched, and entry 1 is still exactly what the objective picked. What it
+  // fixes is that the top five came back as five quarterbacks. Under this
+  // league's 6-point passing TDs the top QBs project 240-249 against 183 for
+  // the best receiver, so when QB is the right call the whole list is QBs --
+  // and four of them are not alternatives to the first. They are the same
+  // decision with a worse player, crowding out the comparison actually being
+  // made: take the quarterback, or take the best receiver and give up this
+  // much. (Measured in this league's own drafts, quarterbacks last 19 picks
+  // past their market position while tight ends go 11 early, so "QB is the
+  // call" is frequently correct here and this list is frequently all QBs.)
+  //
+  // Two, not one: the second-best at a position is a genuine fallback if the
+  // first goes while you wait -- which is what `wait →` prices. A third is not
+  // a distinct decision. Backfills past the cap when a position has genuinely
+  // run out, so a board down to its last few names still fills the list.
+  function shortlistSpread(scored, n, perPos) {
+    const shown = {}, out = [], spare = [];
+    for (const e of scored) {
+      const pos = e.player.position;
+      if ((shown[pos] || 0) < perPos) { shown[pos] = (shown[pos] || 0) + 1; out.push(e); }
+      else spare.push(e);
+      if (out.length === n) return out;
+    }
+    return out.concat(spare.slice(0, Math.max(0, n - out.length)));
+  }
+
   function recommend(ctx) {
     const pool = (ctx.available || []).filter(
       p => POSITIONS.includes(p.position) && Number.isFinite(seasonValue(p)));
@@ -436,8 +466,11 @@
     scored.sort((a, b) => (grade(b) - grade(a))
                        || (over(a) - over(b))
                        || ((b.player.vorp || 0) - (a.player.vorp || 0)));
+    // `top` comes from the full ranking, BEFORE the display spread, so `cost`
+    // stays measured against the genuinely best pick even when the spread has
+    // dropped the runner-up off the list.
     const top = scored.length ? scored[0].points : 0;
-    return scored.slice(0, SHORTLIST_N).map(entry => {
+    return shortlistSpread(scored, SHORTLIST_N, SHORTLIST_PER_POS).map(entry => {
       const nextBest = nextAtPosition(entry.player, ranked, future, ctx.pickNo);
       // What waiting costs, measured THE SAME WAY as `cost`: finish the draft
       // with his positional survivor in his place and compare projected
@@ -485,7 +518,7 @@
   return { seasonValue, withValuePoints, perWeek, rosterSlots, openSlot,
            bestLineup, lineupTotal, lineupPoints, fieldTakes, finishRoster,
            openSlots, lineupRole, adpDelta, byeClash, nextAtPosition, recommend,
-           parVorp,
+           parVorp, shortlistSpread, SHORTLIST_PER_POS,
            valueLens, VALUE_LENS_ORDER,
            lateSlotTrigger,
            DEDICATED, FLEX_SLOTS, FLEX_POS, POSITIONS, SHORTLIST_N, WEEKS,

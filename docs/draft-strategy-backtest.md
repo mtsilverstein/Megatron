@@ -270,6 +270,64 @@ calibration is kept as an eval tool with this negative result attached. It is
 deliberately NOT wired into the live board: it changes every published number
 and buys nothing measurable.
 
+## Tested and falsified: making the rollout defer abundant positions
+
+Reported from a live mock: the shortlist at a round-2/3 pick came back as four
+or five quarterbacks. The diagnosis looked airtight. `finishRoster` is greedy —
+at each simulated pick it takes the largest immediate gain in projected lineup
+points — and under this league's 6-point passing TDs the largest number is
+always a quarterback (top QBs project 240–249 against 183 for the best
+available receiver). Measured at pick #21 the rollout took Drake Maye, **ADP
+51**, with Allen (249), Lamar (247), Burrow (242) and Daniels (240) all still
+on the board at pick #45 in its own simulation. Taking a player 30 picks before
+the field would is the textbook definition of a wasted pick.
+
+The fix was the standard one: score each rollout pick by `gain now − gain still
+available at that position at my next pick`, so a pick is worth what you cannot
+get later rather than what is biggest now. It behaved exactly as intended — the
+QB stack vanished, and the simulated draft came out RB / WR / WR / WR / QB(R5)
+/ … / TE(R8), which reads like a sensible human draft.
+
+**It cost 41 points of edge.** Same seeds, same worlds, same measured field:
+
+| rollout | per-season edge | mean | 95% CI | beats the seat | finish |
+|---|---|---|---|---|---|
+| greedy (shipped) | +119, +196, +92, +57, +141 | **+120.8** | [+75, +167] | 73.7% | 4.06 |
+| defer-aware | +79, +142, +56, +72, +50 | +79.8 | [+47, +112] | 66.0% | 4.84 |
+
+Worse in four seasons of five, and the win rate and mean finish both moved the
+same way. Reverted.
+
+**Why the "obvious" fix was wrong.** ADP is not the objective — points are.
+Deferring is only free if the position's *value* survives, not merely some
+player at that position, and the one-step defer rule compounds: it re-asks "can
+this wait one more pick?" every pick, each answer is locally yes, and the sum
+of many small deferrals is one large one. It ended up starting Brock Purdy.
+
+**And in this league specifically, quarterbacks falling is the inefficiency,
+not a bug.** Across the four real drafts in this league (64 QB picks), by
+deviation from market position:
+
+| position | picks | mean deviation |
+|---|---|---|
+| **QB** | 64 | **+19.4** (fall) |
+| WR | 219 | +2.2 |
+| RB | 175 | −4.4 |
+| TE | 67 | −11.0 |
+
+Consistent in all four seasons (+18, +29, +17, +13). These managers leave elite
+quarterbacks on the board ~19 picks past where they belong *in a league that
+pays 6 points a passing TD*. Taking one early is the tool exploiting the one
+measured mispricing its own league offers.
+
+What was actually wrong was the **presentation**, not the objective: five
+quarterbacks is one decision shown five times, and it crowded out the
+comparison being made. `shortlistSpread` caps a position at two entries in the
+displayed list, leaving the ranking and every number untouched. The same pick
+now reads QB Maye 0.0 / QB Burrow 2.8 / **WR A.J. Brown 9.9** / WR Collins 15.6
+/ RB Henderson 22.4 — still "take the quarterback", but now you can see that
+going receiver instead costs 9.9 projected points.
+
 ## Open questions
 
 1. How much of the human field's two behaviours does a real league show? The

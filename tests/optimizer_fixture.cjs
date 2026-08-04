@@ -386,4 +386,82 @@ check("keepers.js's imports are all still exported", () => {
   }
 });
 
+// --- shortlistSpread: five quarterbacks is not five choices ----------------
+// Display-only. Measured in this league, QBs last 19 picks past their market
+// position, so "take the QB" is often right -- and the shortlist then came
+// back as five QBs, four of which are the same decision with a worse player.
+const ent = (name, position) => ({ player: { name, position } });
+const names = list => list.map(e => e.player.name).join(",");
+check("caps a position at two and lets the other choices through", () => {
+  // The reported panel: four QBs ahead of every other position.
+  const scored = [ent("qb1", "QB"), ent("qb2", "QB"), ent("qb3", "QB"),
+                  ent("qb4", "QB"), ent("wr1", "WR"), ent("wr2", "WR"),
+                  ent("rb1", "RB"), ent("te1", "TE")];
+  assert.strictEqual(names(O.shortlistSpread(scored, 5, 2)),
+                     "qb1,qb2,wr1,wr2,rb1");
+});
+
+check("backfill only fires when there is genuinely nothing else to show", () => {
+  // One WR and one RB on the whole board: a third QB is then the honest
+  // fifth entry, not a presentation failure. Capped entries return in their
+  // original cost order, after the uncapped ones.
+  const scored = [ent("qb1", "QB"), ent("qb2", "QB"), ent("qb3", "QB"),
+                  ent("qb4", "QB"), ent("wr1", "WR"), ent("rb1", "RB")];
+  assert.strictEqual(names(O.shortlistSpread(scored, 5, 2)),
+                     "qb1,qb2,wr1,rb1,qb3");
+});
+
+check("the objective's top pick is always entry 1", () => {
+  const scored = [ent("te1", "TE"), ent("te2", "TE"), ent("te3", "TE"),
+                  ent("wr1", "WR")];
+  assert.strictEqual(O.shortlistSpread(scored, 5, 2)[0].player.name, "te1");
+});
+
+check("order within the list is untouched -- it is still cost order", () => {
+  const scored = [ent("qb1", "QB"), ent("wr1", "WR"), ent("qb2", "QB"),
+                  ent("rb1", "RB"), ent("qb3", "QB"), ent("te1", "TE")];
+  assert.strictEqual(names(O.shortlistSpread(scored, 5, 2)),
+                     "qb1,wr1,qb2,rb1,te1");
+});
+
+check("backfills past the cap when a position has genuinely run out", () => {
+  // Only quarterbacks left on the board: five QBs is then the honest list,
+  // not a presentation failure.
+  const scored = ["a", "b", "c", "d", "e", "f"].map(x => ent(x, "QB"));
+  assert.strictEqual(names(O.shortlistSpread(scored, 5, 2)), "a,b,c,d,e");
+});
+
+check("backfill preserves cost order and never duplicates an entry", () => {
+  const scored = [ent("qb1", "QB"), ent("qb2", "QB"), ent("qb3", "QB"),
+                  ent("wr1", "WR"), ent("qb4", "QB")];
+  const out = O.shortlistSpread(scored, 5, 2);
+  assert.strictEqual(names(out), "qb1,qb2,wr1,qb3,qb4");
+  assert.strictEqual(new Set(out).size, out.length);
+});
+
+check("a short list is returned whole, and an empty one stays empty", () => {
+  assert.strictEqual(names(O.shortlistSpread([ent("a", "QB")], 5, 2)), "a");
+  assert.deepStrictEqual(O.shortlistSpread([], 5, 2), []);
+});
+
+check("recommend spans at least three positions on the real board shape", () => {
+  // Regression for the reported panel: QB-heavy scoring must not fill the
+  // shortlist with one position when other positions are available.
+  const mk = (nm, pos, pts, adp) => P(nm, pos, pts, { adp });
+  const pool = [];
+  for (let i = 0; i < 6; i++) pool.push(mk(`q${i}`, "QB", 250 - i, 50 + i));
+  for (let i = 0; i < 6; i++) pool.push(mk(`w${i}`, "WR", 180 - i, 20 + i));
+  for (let i = 0; i < 6; i++) pool.push(mk(`r${i}`, "RB", 150 - i, 25 + i));
+  for (let i = 0; i < 6; i++) pool.push(mk(`t${i}`, "TE", 140 - i, 40 + i));
+  const sl = O.recommend({ available: pool, myPlayers: [], pickNo: 10,
+                           futurePicks: [20, 30, 40] });
+  const posns = new Set(sl.map(e => e.player.position));
+  assert.ok(sl.length === 5, `expected 5 entries, got ${sl.length}`);
+  assert.ok(posns.size >= 3, `shortlist spans only ${[...posns].join(",")}`);
+  for (const pos of posns) {
+    assert.ok(sl.filter(e => e.player.position === pos).length <= 2,
+              `more than two ${pos} in the shortlist`);
+  }
+});
+
 console.log(`optimizer fixture: ${n} groups OK`);
