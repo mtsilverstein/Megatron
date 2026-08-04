@@ -1,0 +1,200 @@
+{
+ "created": "2026-08-04T03:51:32.384Z",
+ "method": {
+  "teams": 12,
+  "rounds": 15,
+  "seeds": 10,
+  "scoring": "ppr, best legal lineup re-picked from ACTUAL weekly points",
+  "regular_weeks": 14,
+  "full_weeks": 17,
+  "field_mode": "human",
+  "field": "market board jittered by N(0, 8) ranks, plus panic at unfilled QB/TE (rounds 9/10) and position runs (3 of the last 6), per-drafter propensity",
+  "counterfactual": "the SAME seat, same seed, same field, drafting the market instead",
+  "caveat": "no in-season management (waivers/trades/start-sit); field is a market-follower with noise, not a model of specific humans"
+ },
+ "per_season": {
+  "2021": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1682.9,
+    "market_same_seat_mean": 1630.5,
+    "field_mean": 1627.1,
+    "edge_mean": 52.4,
+    "edge_median": 50.8,
+    "edge_p10": -180.5,
+    "edge_p90": 357,
+    "win_rate_vs_same_seat": 0.617,
+    "mean_rank_of_12": 5.21,
+    "top3_rate": 0.342
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 2014.5,
+    "market_same_seat_mean": 1947,
+    "field_mean": 1942.9,
+    "edge_mean": 67.5,
+    "edge_median": 53.3,
+    "edge_p10": -232.4,
+    "edge_p90": 443.2,
+    "win_rate_vs_same_seat": 0.608,
+    "mean_rank_of_12": 5.18,
+    "top3_rate": 0.358
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  },
+  "2022": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1730.2,
+    "market_same_seat_mean": 1623.5,
+    "field_mean": 1617.3,
+    "edge_mean": 106.7,
+    "edge_median": 102,
+    "edge_p10": -158,
+    "edge_p90": 383.9,
+    "win_rate_vs_same_seat": 0.7,
+    "mean_rank_of_12": 4.34,
+    "top3_rate": 0.508
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 2054,
+    "market_same_seat_mean": 1962.3,
+    "field_mean": 1957.5,
+    "edge_mean": 91.7,
+    "edge_median": 85.7,
+    "edge_p10": -223.9,
+    "edge_p90": 403.6,
+    "win_rate_vs_same_seat": 0.625,
+    "mean_rank_of_12": 5.09,
+    "top3_rate": 0.458
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  },
+  "2023": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1674.1,
+    "market_same_seat_mean": 1601.6,
+    "field_mean": 1596.8,
+    "edge_mean": 72.5,
+    "edge_median": 83.7,
+    "edge_p10": -196.6,
+    "edge_p90": 351.4,
+    "win_rate_vs_same_seat": 0.633,
+    "mean_rank_of_12": 5.08,
+    "top3_rate": 0.408
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 2046.4,
+    "market_same_seat_mean": 1947.7,
+    "field_mean": 1940.2,
+    "edge_mean": 98.8,
+    "edge_median": 110.1,
+    "edge_p10": -257.5,
+    "edge_p90": 428.4,
+    "win_rate_vs_same_seat": 0.65,
+    "mean_rank_of_12": 4.88,
+    "top3_rate": 0.442
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  },
+  "2024": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1679.8,
+    "market_same_seat_mean": 1639.9,
+    "field_mean": 1642.5,
+    "edge_mean": 39.8,
+    "edge_median": 63,
+    "edge_p10": -166.6,
+    "edge_p90": 293.4,
+    "win_rate_vs_same_seat": 0.6,
+    "mean_rank_of_12": 5.56,
+    "top3_rate": 0.325
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 2063.5,
+    "market_same_seat_mean": 2002.6,
+    "field_mean": 2004.1,
+    "edge_mean": 60.9,
+    "edge_median": 67.2,
+    "edge_p10": -253.5,
+    "edge_p90": 374.9,
+    "win_rate_vs_same_seat": 0.592,
+    "mean_rank_of_12": 5.41,
+    "top3_rate": 0.358
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  },
+  "2025": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1644.5,
+    "market_same_seat_mean": 1581.8,
+    "field_mean": 1573.2,
+    "edge_mean": 62.7,
+    "edge_median": 56.9,
+    "edge_p10": -150.5,
+    "edge_p90": 333.8,
+    "win_rate_vs_same_seat": 0.6,
+    "mean_rank_of_12": 5.08,
+    "top3_rate": 0.392
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 2005.3,
+    "market_same_seat_mean": 1932.2,
+    "field_mean": 1924.4,
+    "edge_mean": 73.1,
+    "edge_median": 73.6,
+    "edge_p10": -186,
+    "edge_p90": 411.2,
+    "win_rate_vs_same_seat": 0.608,
+    "mean_rank_of_12": 5.13,
+    "top3_rate": 0.358
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  }
+ },
+ "overall": {
+  "reg": {
+   "n": 600,
+   "hero_mean": 1682.3,
+   "market_same_seat_mean": 1615.5,
+   "field_mean": 1611.4,
+   "edge_mean": 66.8,
+   "edge_median": 67.6,
+   "edge_p10": -177.3,
+   "edge_p90": 336.6,
+   "win_rate_vs_same_seat": 0.63,
+   "mean_rank_of_12": 5.05,
+   "top3_rate": 0.395
+  },
+  "full": {
+   "n": 600,
+   "hero_mean": 2036.7,
+   "market_same_seat_mean": 1958.4,
+   "field_mean": 1953.8,
+   "edge_mean": 78.4,
+   "edge_median": 74.8,
+   "edge_p10": -243.6,
+   "edge_p90": 396.9,
+   "win_rate_vs_same_seat": 0.617,
+   "mean_rank_of_12": 5.14,
+   "top3_rate": 0.395
+  }
+ },
+ "rows_omitted": {
+  "n": 1200,
+  "why": "reproducible from the seeds"
+ },
+ "verdict": "transformer board vs a field with realistic (asymmetric) draft error: edge is positive in all 5 seasons and the season-clustered 95% CI excludes zero. Both boards land at ~+67, so the edge is drafting discipline, not projection quality. See docs/draft-strategy-backtest.md"
+}

@@ -60,18 +60,80 @@ function marketOrder(players, rand) {
     .map(x => x.p);
 }
 
+const CAP = { QB: 2, RB: 6, WR: 6, TE: 2 };
+
 // A market drafter still has to field a legal lineup, so he takes the best
 // player on his own board who is not at an already-saturated position.
 function marketPick(order, taken, roster) {
   const counts = O.rosterSlots(roster);
-  const cap = { QB: 2, RB: 6, WR: 6, TE: 2 };
   let fallback = null;
   for (const p of order) {
     if (taken.has(p.player_id)) continue;
     if (!fallback) fallback = p;
-    if ((counts[p.position] || 0) < cap[p.position]) return p;
+    if ((counts[p.position] || 0) < CAP[p.position]) return p;
   }
   return fallback;
+}
+
+/* --- the human field -------------------------------------------------------
+
+   Gaussian jitter around ADP is UNEXPLOITABLE BY CONSTRUCTION. It is zero-mean,
+   so the field still drafts the consensus on average, and the board IS the
+   consensus -- there is nothing for a disciplined drafter to feed on. That may
+   be the whole reason the first backtest measured no edge.
+
+   Human draft error is not symmetric. Two behaviours below are systematic,
+   well-documented, need no data this project does not already have, and both
+   push good players DOWN the board where someone can pick them up:
+
+     * PANIC. A drafter with no starting quarterback or tight end late does not
+       keep taking best-available; he reaches. This is the single-slot positions
+       specifically, which is where real drafts visibly break.
+     * RUNS. When several players at a position go in quick succession, drafters
+       jump the position for fear of missing it.
+
+   Each drafter draws a `panic` propensity from the seed, so a league contains
+   both disciplined and jumpy managers rather than twelve identical ones.
+
+   HONEST FRAMING, up front: making the field worse MECHANICALLY raises our
+   measured edge. This does not show the tool is good. It sizes how much of the
+   tool's value comes from other people's mistakes, which is the thing a real
+   league actually contains. Read the two field modes side by side, never the
+   human number alone.
+*/
+// Round by which a drafter insists on filling a single-starter slot. UN-TUNED:
+// chosen from how real drafts look, not fitted to any result.
+const PANIC_ROUND = { QB: 9, TE: 10 };
+const RUN_WINDOW = 6;      // picks of recent history a drafter reacts to
+const RUN_TRIGGER = 3;     // that many at one position reads as a run
+
+function bestAt(order, taken, position) {
+  for (const p of order) {
+    if (!taken.has(p.player_id) && p.position === position) return p;
+  }
+  return null;
+}
+
+function humanPick(order, taken, roster, ctx) {
+  const counts = O.rosterSlots(roster);
+  const rand = ctx.rand;
+  // Panic: a mandatory single slot still empty, and it is getting late.
+  for (const pos of ["QB", "TE"]) {
+    if (counts[pos] === 0 && ctx.round >= PANIC_ROUND[pos] && rand() < ctx.panic) {
+      const pick = bestAt(order, taken, pos);
+      if (pick) return pick;
+    }
+  }
+  // Runs: react to what just happened, not to the board.
+  const recent = ctx.recent.slice(-RUN_WINDOW);
+  for (const pos of O.POSITIONS) {
+    const hot = recent.filter(r => r === pos).length;
+    if (hot >= RUN_TRIGGER && (counts[pos] || 0) < CAP[pos] && rand() < ctx.panic) {
+      const pick = bestAt(order, taken, pos);
+      if (pick) return pick;
+    }
+  }
+  return marketPick(order, taken, roster);
 }
 
 // --- snake math ----------------------------------------------------------
@@ -116,12 +178,20 @@ function actualPoints(roster, weeks, lastWeek) {
 // `heroSlot` is the seat our optimizer occupies; every other seat drafts the
 // market. Returns every roster so the hero can be ranked against the field it
 // actually played.
-function runDraft(players, heroSlot, seed) {
+function runDraft(players, heroSlot, seed, field = "consensus") {
   const rand = rng(seed);
   const orders = [];
-  for (let t = 1; t <= TEAMS; t++) orders.push(marketOrder(players, rand));
+  // Each drafter's private board AND his temperament come from the same seed,
+  // so a league is reproducible and contains a mix of disciplined and jumpy
+  // managers rather than twelve copies of one behaviour.
+  const panic = [];
+  for (let t = 1; t <= TEAMS; t++) {
+    orders.push(marketOrder(players, rand));
+    panic.push(rand());
+  }
   const rosters = Array.from({ length: TEAMS + 1 }, () => []);
   const taken = new Set();
+  const recent = [];
   const scoreable = players.filter(p => Number.isFinite(O.seasonValue(p)));
 
   for (let round = 1; round <= ROUNDS; round++) {
@@ -136,12 +206,16 @@ function runDraft(players, heroSlot, seed) {
         });
         choice = rec.length ? rec[0].player
                             : marketPick(orders[slot - 1], taken, rosters[slot]);
+      } else if (field === "human") {
+        choice = humanPick(orders[slot - 1], taken, rosters[slot],
+                           { round, recent, panic: panic[slot - 1], rand });
       } else {
         choice = marketPick(orders[slot - 1], taken, rosters[slot]);
       }
       if (!choice) continue;
       taken.add(choice.player_id);
       rosters[slot].push(choice);
+      recent.push(choice.position);
     }
   }
   return rosters;
@@ -182,7 +256,7 @@ function assertWorldUsable(world, players) {
   }
 }
 
-function evaluateSeason(world, seeds) {
+function evaluateSeason(world, seeds, field = "consensus") {
   const players = O.withValuePoints(world.players);
   assertWorldUsable(world, players);
   const weeks = world.actual_weeks;
@@ -193,8 +267,8 @@ function evaluateSeason(world, seeds) {
       // once with a market drafter in it. Identical field, identical draft
       // order, identical noise -- so the only difference is the strategy, and
       // the comparison is not contaminated by draft position or luck of order.
-      const withHero = runDraft(players, heroSlot, seed);
-      const allMarket = runDraft(players, 0, seed);
+      const withHero = runDraft(players, heroSlot, seed, field);
+      const allMarket = runDraft(players, 0, seed, field);
       for (const [lastWeek, label] of [[REGULAR_WEEKS, "reg"], [FULL_WEEKS, "full"]]) {
         const hero = actualPoints(withHero[heroSlot], weeks, lastWeek);
         const field = [];
@@ -244,15 +318,15 @@ function summarize(rows, window) {
 // one you would get drafting straight off the market? Both sides are measured
 // with the same projections, so this can only show internal consistency --
 // never whether the projections are right. Only `--worlds` can show that.
-function dryRun(board, seeds) {
+function dryRun(board, seeds, field = "consensus") {
   const players = O.withValuePoints(board.players)
     .filter(p => Number.isFinite(O.seasonValue(p)));
   assertMarketDepth(`${board.season} board`, players);
   const rows = [];
   for (let seed = 1; seed <= seeds; seed++) {
     for (let slot = 1; slot <= TEAMS; slot++) {
-      const hero = runDraft(players, slot, seed)[slot];
-      const market = runDraft(players, 0, seed)[slot];
+      const hero = runDraft(players, slot, seed, field)[slot];
+      const market = runDraft(players, 0, seed, field)[slot];
       const counts = O.rosterSlots(hero);
       rows.push({
         seed, slot,
@@ -285,7 +359,7 @@ function dryRun(board, seeds) {
 }
 
 function parseArgs(argv) {
-  const a = { worlds: null, board: null, seeds: 8, out: null, noise: null };
+  const a = { worlds: null, board: null, seeds: 8, out: null, noise: null, field: "consensus" };
   for (let i = 2; i < argv.length; i += 2) {
     const k = argv[i].replace(/^--/, ""), v = argv[i + 1];
     if (k in a) a[k] = (k === "seeds" || k === "noise") ? Number(v) : v;
@@ -299,7 +373,7 @@ function main() {
 
   if (args.board) {
     const board = JSON.parse(fs.readFileSync(args.board, "utf8"));
-    const { rows, summary } = dryRun(board, args.seeds);
+    const { rows, summary } = dryRun(board, args.seeds, args.field);
     console.log(`DRY RUN — ${board.season} board, ${summary.n} simulated drafts`);
     console.log(`  (no answer key: this season has not happened. Shows what the tool `
       + `DOES, not whether it is right.)\n`);
@@ -341,7 +415,7 @@ function main() {
   const perSeason = {};
   for (const w of worlds) {
     const t0 = Date.now();
-    const rows = evaluateSeason(w, args.seeds);
+    const rows = evaluateSeason(w, args.seeds, args.field);
     all.push(...rows);
     perSeason[w.season] = { reg: summarize(rows, "reg"), full: summarize(rows, "full"),
                             model: w.model, market_source: w.market_source };
@@ -357,7 +431,12 @@ function main() {
       teams: TEAMS, rounds: ROUNDS, seeds: args.seeds,
       scoring: "ppr, best legal lineup re-picked from ACTUAL weekly points",
       regular_weeks: REGULAR_WEEKS, full_weeks: FULL_WEEKS,
-      field: `market board (see market_source) jittered by N(0, ${adpNoise}) ranks per drafter`,
+      field_mode: args.field,
+      field: args.field === "human"
+        ? `market board jittered by N(0, ${adpNoise}) ranks, plus panic at unfilled `
+          + `QB/TE (rounds ${PANIC_ROUND.QB}/${PANIC_ROUND.TE}) and position runs `
+          + `(${RUN_TRIGGER} of the last ${RUN_WINDOW}), per-drafter propensity`
+        : `market board jittered by N(0, ${adpNoise}) ranks per drafter`,
       counterfactual: "the SAME seat, same seed, same field, drafting the market instead",
       caveat: "no in-season management (waivers/trades/start-sit); field is a "
             + "market-follower with noise, not a model of specific humans",
@@ -382,5 +461,6 @@ function main() {
 
 module.exports = { runDraft, actualPoints, marketOrder, marketPick, evaluateSeason, dryRun, assertMarketDepth,
                    assertWorldUsable,
-                   summarize, pickForRoundSlot, futurePicks, rng, ADP_NOISE_RANKS, setNoise };
+                   summarize, pickForRoundSlot, futurePicks, rng, ADP_NOISE_RANKS, setNoise,
+                   humanPick, bestAt, PANIC_ROUND, RUN_WINDOW, RUN_TRIGGER, CAP };
 if (require.main === module) main();

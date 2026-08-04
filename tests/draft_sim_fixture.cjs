@@ -99,6 +99,88 @@ check("players with no market position are never drafted by the field", () => {
                          ["ranked"]);
 });
 
+// --- the human field ---------------------------------------------------------
+// Symmetric jitter is unexploitable by construction: zero-mean deviation from
+// the consensus leaves the field drafting the consensus on average, and the
+// board IS the consensus. These behaviours are the asymmetric part.
+const always = { rand: () => 0, panic: 1 };     // always acts on the impulse
+const never = { rand: () => 1, panic: 0 };      // never does
+
+check("a drafter with no QB panics once it gets late", () => {
+  const order = [P("wr1", "WR", 1), P("wr2", "WR", 2), P("qb1", "QB", 40)];
+  const taken = new Set();
+  // early: still takes the best player on his board
+  assert.strictEqual(
+    S.humanPick(order, taken, [], { round: 3, recent: [], ...always }).player_id, "wr1");
+  // at the panic round with the slot empty: reaches for the quarterback
+  assert.strictEqual(
+    S.humanPick(order, taken, [], { round: S.PANIC_ROUND.QB, recent: [], ...always })
+      .player_id, "qb1");
+});
+
+check("panic does not fire once the slot is filled", () => {
+  const order = [P("wr1", "WR", 1), P("qb1", "QB", 40)];
+  const roster = [P("myqb", "QB", 5), P("myte", "TE", 6)];
+  assert.strictEqual(
+    S.humanPick(order, new Set(), roster,
+                { round: 14, recent: [], ...always }).player_id, "wr1");
+});
+
+check("a disciplined drafter never panics", () => {
+  const order = [P("wr1", "WR", 1), P("qb1", "QB", 40)];
+  assert.strictEqual(
+    S.humanPick(order, new Set(), [], { round: 14, recent: [], ...never }).player_id,
+    "wr1");
+});
+
+check("a run on a position pulls drafters into it", () => {
+  const order = [P("wr1", "WR", 1), P("rb1", "RB", 30)];
+  const run = Array(S.RUN_TRIGGER).fill("RB");
+  assert.strictEqual(
+    S.humanPick(order, new Set(), [], { round: 3, recent: run, ...always }).player_id,
+    "rb1");
+  // one short of the trigger is not a run
+  const notYet = Array(S.RUN_TRIGGER - 1).fill("RB");
+  assert.strictEqual(
+    S.humanPick(order, new Set(), [], { round: 3, recent: notYet, ...always }).player_id,
+    "wr1");
+});
+
+check("only the last RUN_WINDOW picks count as a run", () => {
+  const order = [P("wr1", "WR", 1), P("rb1", "RB", 30)];
+  // enough RBs, but all of them pushed out of the window by newer picks
+  const stale = Array(S.RUN_TRIGGER).fill("RB").concat(Array(S.RUN_WINDOW).fill("WR"));
+  assert.strictEqual(
+    S.humanPick(order, new Set(), [], { round: 3, recent: stale, ...always }).player_id,
+    "wr1");
+});
+
+check("a run never pushes a drafter past his position cap", () => {
+  const order = [P("wr1", "WR", 1), P("qb9", "QB", 30)];
+  const full = [P("q1", "QB", 1), P("q2", "QB", 2)];       // QB cap is 2
+  const run = Array(S.RUN_TRIGGER).fill("QB");
+  assert.strictEqual(
+    S.humanPick(order, new Set(), full, { round: 3, recent: run, ...always }).player_id,
+    "wr1");
+});
+
+check("the human field still drafts a legal, complete roster", () => {
+  const w = toyWorld();
+  const rosters = S.runDraft(w.players, 6, 3, "human");
+  for (let t = 1; t <= 12; t++) assert.strictEqual(rosters[t].length, 15);
+  const ids = rosters.slice(1).flat().map(p => p.player_id);
+  assert.strictEqual(new Set(ids).size, ids.length, "a player was drafted twice");
+});
+
+check("the human field is reproducible, and differs from the consensus field", () => {
+  const w = toyWorld();
+  const a = S.runDraft(w.players, 6, 3, "human").slice(1).flat().map(p => p.player_id);
+  const b = S.runDraft(w.players, 6, 3, "human").slice(1).flat().map(p => p.player_id);
+  assert.deepStrictEqual(a, b);
+  const c = S.runDraft(w.players, 6, 3, "consensus").slice(1).flat().map(p => p.player_id);
+  assert.notDeepStrictEqual(a, c, "the two field modes must actually behave differently");
+});
+
 // --- snake math -------------------------------------------------------------
 check("snake turns at the end of each round", () => {
   assert.strictEqual(S.pickForRoundSlot(1, 1), 1);

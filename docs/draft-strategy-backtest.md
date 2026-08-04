@@ -125,6 +125,57 @@ A single-digit-to-modest edge is therefore the *expected* size of the prize, not
 a surprise. Anyone reading this should not expect a consensus-anchored draft
 tool to produce a large edge over the consensus.
 
+## The field model was the whole story
+
+Symmetric jitter around ADP is **unexploitable by construction**. It is
+zero-mean, so the field still drafts the consensus on average — and the board
+*is* the consensus. There was nothing for a disciplined drafter to feed on.
+
+`--field human` adds the two asymmetric behaviours real drafts visibly contain,
+each with a per-drafter propensity drawn from the seed so a league holds both
+calm and jumpy managers:
+
+- **panic** — a drafter with no starting QB by round 9, or no TE by round 10,
+  stops taking best-available and reaches;
+- **runs** — three of the last six picks at one position pulls drafters into it.
+
+| board | field | per-season edge | mean | 95% CI | beats the seat |
+|---|---|---|---|---|---|
+| transformer | consensus | −7, +5, +42, −10, −13 | +3.3 | [−16, +23] | 50.5% |
+| **transformer** | **human** | **+52, +107, +72, +40, +63** | **+66.8** | **[+45, +89]** | **63.0%** |
+| xgboost | consensus | −18, +63, +52, −1, +92 | +37.7 | [−3, +78] | 59.5% |
+| xgboost | human | −16, +106, +59, +54, +134 | +67.8 | [+18, +118] | 63.5% |
+
+Against a field that errs the way people do, the tool is worth about **+67
+points over the fantasy regular season (~4.8 a week), it wins 63% of drafts,
+and it lifts mean finish from 6.4 to 5.05 of 12.** This is the first interval in
+the whole investigation that excludes zero, and it is positive in all five
+seasons rather than resting on two good ones.
+
+**The magnitude is not the evidence.** Making the field worse mechanically
+raises our measured edge; that much is circular and was flagged before the run.
+Two things that are *not* circular carry the finding:
+
+1. **Consistency.** 5 of 5 seasons positive, interval clear of zero. The
+   consensus-field arm never managed that.
+2. **The model barely matters.** Transformer +66.8, XGBoost +67.8 — the two
+   boards are indistinguishable once the field is realistic, despite very
+   different projections and value curves.
+
+Point 2 is the important one, and it reframes what this tool is:
+
+> **The edge is discipline, not prediction.** It comes from not panicking for a
+> quarterback in round 9, not chasing a run, always filling the lineup, and
+> comparing flex candidates on absolute points — none of which depend on the
+> projections being better than the market's. That is also why the value-curve
+> calibration below changed nothing, and why the earlier XGBoost-vs-transformer
+> gap was noise.
+
+Sanity-checked against a degenerate field: rosters stay normal in both modes
+(QB2/RB5/WR6/TE2, QB round 2–3, TE round 7–8) and the field's own mean score
+barely moves (1636 → 1646). The opponents are not collapsing; they are paying a
+diffuse cost that our seat collects concentrated.
+
 ## Tested and falsified: rescaling the value curve
 
 The compression above is real and measurable. Per-position OLS of actual season
@@ -161,18 +212,25 @@ and buys nothing measurable.
 
 ## Open questions
 
-1. What *does* explain the season-to-season swings? They are large (±60 points)
-   and they move under interventions that should not matter, which points at the
-   harness's field model rather than at the board.
-2. Would a larger edge exist against a *worse* field? Every opponent here drafts
-   the consensus competently. Real leagues contain drafters who do not.
+1. How much of the human field's two behaviours does a real league show? The
+   panic rounds (QB 9, TE 10) and run trigger (3 of 6) are behavioural priors,
+   not fitted — a Sleeper draft log would let them be measured instead of assumed.
+2. Does the same discipline finding hold WEEKLY? `weekly_consensus.json` already
+   shows our weekly ranking ties the market (delta −0.0018, interval includes
+   zero), so any weekly edge would have to come from the same place this one did
+   — bye and injury handling, and always fielding a legal best lineup — rather
+   than from better prediction.
 3. Is season-median the right lens for the value curve at all — the compression
    may originate in the availability simulation rather than the quantile head.
 
-**The tool ships on the transformer board, and on that board it remains
-indistinguishable from drafting the market.** That is the state of the evidence,
-and the draft-day case for the tool rests on roster construction and live
-bookkeeping, not on a demonstrated points edge.
+**Against a field that drafts the consensus perfectly, the tool is a coin flip;
+against a field that errs the way people do, it is worth ~+67 points and wins
+63% of drafts.** Both statements are true and neither is the whole picture. Your
+league is somewhere between the two, and closer to the second.
+
+The claim this evidence supports is *not* "our projections beat the market" —
+they do not, measurably. It is "acting on a consistent lineup-aware rule beats
+drafting by feel", which is what the tool actually enforces.
 
 ## Current-season dry run
 
