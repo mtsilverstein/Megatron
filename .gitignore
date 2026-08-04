@@ -19,3 +19,11 @@ models/transformer/smoke/
 !/models/sweeps/**/
 !/models/sweeps/**/results.json
 models_artifacts.zip
+
+# Draft-strategy backtest inputs (models/backtests/worlds*/): per-season board
+# + full weekly answer key, ~3MB and fully regenerable from committed code and
+# the cached nflverse/FantasyPros pulls:
+#   python -m ffmodel.eval.draft_world --seasons 2021 2022 2023 2024 2025
+# The summary reports (draft_sim*.json) ARE committed -- they are the result.
+/models/backtests/worlds/
+/models/backtests/worlds_tf/
