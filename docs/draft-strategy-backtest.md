@@ -56,15 +56,35 @@ max season — a 2023 board loads `through2022`.
 
 ## Findings
 
-600 drafts per model (5 seasons × 12 seats × 10 seeds), weeks 1–14:
+### How to count the sample (this changes the conclusion)
 
-| board | edge vs same seat drafting market | beats it | mean finish |
+The harness runs 600 drafts per model, but **600 is not the sample size.** All
+120 drafts within one season share the same player outcomes: if Bijan Robinson
+busts in 2024, he busts in every one of them. Draft-level spread measures how
+much the seat and the field's noise matter, not how much evidence there is
+about the strategy. The independent unit is the **season**, and there are five.
+
+Reported below as the mean of the per-season edges with a season-level standard
+error. An earlier version of this document quoted `n=600`, which overstated the
+precision considerably.
+
+### Does the tool beat drafting the market?
+
+| board | per-season edge (weeks 1–14) | mean | 95% CI |
 |---|---|---|---|
-| **transformer** (shipped) | **+3.3 pts** | 50.5% | 6.37 / 12 |
-| xgboost | +37.6 pts | 59.5% | 5.74 / 12 |
+| **transformer** (shipped) | −7, +5, +42, −10, −13 | **+3.3** | [−16, +23] |
+| xgboost | −18, +63, +52, −1, +92 | +37.7 | [−3, +78] |
 
-**On the board we actually ship, the draft tool is a coin flip.** That is the
-headline and it is not flattering.
+**Every interval crosses zero.** On the board we ship the tool is a coin flip
+(50.5% of drafts beat the same seat drafting the market). And the XGBoost
+"advantage" that looked large is **not statistically distinguishable from
+zero** either — it rests on two good seasons out of five.
+
+The honest summary is not "XGBoost drafts better". It is: **with five seasons,
+this harness cannot detect an edge of the size we are looking for.** At a
+season-level SE of ~20 points, only an edge above roughly +40 points would
+clear the noise. Preseason ECR does not exist in this project before 2020, so
+more seasons are not available to buy that power.
 
 ### Why: the transformer's value curve is compressed
 
@@ -105,18 +125,54 @@ A single-digit-to-modest edge is therefore the *expected* size of the prize, not
 a surprise. Anyone reading this should not expect a consensus-anchored draft
 tool to produce a large edge over the consensus.
 
+## Tested and falsified: rescaling the value curve
+
+The compression above is real and measurable. Per-position OLS of actual season
+points on projected value points (draftable pool, per season) gives slopes
+consistently above 1 for the transformer — **QB 2.1–4.3**, WR 1.2–2.0 — where
+XGBoost sits near 1.0. So the natural fix: stretch the curve back out.
+
+`ffmodel.eval.value_calibration` does this walk-forward — each season's board is
+rescaled by a fit taken **only on strictly earlier seasons** (2023 from 2021–22,
+2024 from 2021–23, 2025 from 2021–24), applied as `value' = max(0, a + b·v)`.
+The method was written down before the evaluation ran; there is no shrinkage
+parameter and no per-season override, so there is nothing to tune.
+
+Fitted slopes were large and stable: QB 3.87 / 2.87 / 2.68, RB ~1.6, WR ~1.6,
+TE ~1.1.
+
+**It did not work.**
+
+| transformer, 2023–25 | per-season edge | mean | 95% CI | beats the seat |
+|---|---|---|---|---|
+| uncalibrated | +42, −10, −13 | +6.1 | [−29, +41] | 49.7% |
+| calibrated | −27, −12, +65 | +9.0 | [−47, +65] | 48.3% |
+
+The mean moved +6.1 → +9.0, far inside the noise; the win rate went *down*; mean
+finish was unchanged (6.28 → 6.29 of 12). Per season it simply reshuffled which
+years were good — 2023 went +42 → −27, 2025 went −13 → +65. That is noise being
+redistributed, not an edge being unlocked.
+
+**Conclusion: the compression is a real property of the transformer's
+projections, but it is not what was costing the draft tool its edge.** The
+calibration is kept as an eval tool with this negative result attached. It is
+deliberately NOT wired into the live board: it changes every published number
+and buys nothing measurable.
+
 ## Open questions
 
-1. Is the transformer's compression a calibration artifact that can be undone
-   without hurting MAE? If the value curve is rescaled to match the realised
-   spread, does the draft edge appear?
-2. Should the board's value curve come from a different lens than the season
-   median — the compression may be coming from the availability simulation.
-3. Is the xgboost result real or noise? +37.6 with a p10 of −225 is a wide
-   distribution; the per-season edges range from −18 to +92.
+1. What *does* explain the season-to-season swings? They are large (±60 points)
+   and they move under interventions that should not matter, which points at the
+   harness's field model rather than at the board.
+2. Would a larger edge exist against a *worse* field? Every opponent here drafts
+   the consensus competently. Real leagues contain drafters who do not.
+3. Is season-median the right lens for the value curve at all — the compression
+   may originate in the availability simulation rather than the quantile head.
 
-None of these are answered here. **The tool ships on the transformer board, and
-on that board it is currently indistinguishable from drafting the market.**
+**The tool ships on the transformer board, and on that board it remains
+indistinguishable from drafting the market.** That is the state of the evidence,
+and the draft-day case for the tool rests on roster construction and live
+bookkeeping, not on a demonstrated points edge.
 
 ## Current-season dry run
 

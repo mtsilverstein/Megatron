@@ -27,3 +27,5 @@ models_artifacts.zip
 # The summary reports (draft_sim*.json) ARE committed -- they are the result.
 /models/backtests/worlds/
 /models/backtests/worlds_tf/
+/models/backtests/worlds_tf_cal/
+/models/backtests/worlds_tf_base/
