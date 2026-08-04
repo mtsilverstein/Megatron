@@ -10,7 +10,7 @@ from ffmodel.data.future import combined_future_features
 from ffmodel.model.simulate import games_probs_from_counts, rho_from_icc, simulate_season
 from ffmodel.scoring import fantasy_points, fantasy_points_quantiles
 from ffmodel.site.board_rank import _assign_tiers, rank_board
-from ffmodel.site.weekly import RULESETS
+from ffmodel.site.weekly import BOARD_RULESET, RULESETS
 
 # 12-team league: points above the player at this positional rank define
 # value over replacement (roughly the first waiver-tier player).
@@ -272,7 +272,11 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
                       else np.nan)
     players["adp"] = (players["player_id"].map(adp) if adp is not None
                       else np.nan)
-    board = rank_board(players, replacement_rank)
+    # The board is VALUED on the league's own scoring (points.md): 6-point
+    # passing TDs move the top 24 QBs by ~+48 points a season and reorder 4-8
+    # of the top twelve, so a PPR value curve ranks this league's
+    # quarterbacks wrongly, not merely on a different scale.
+    board = rank_board(players, replacement_rank, f"{BOARD_RULESET}_p50")
     consensus_anchored = ecr is not None
 
     def _band(value) -> float | None:
@@ -301,7 +305,7 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
             "season_points": {rn: {"p50": round(float(row[f"{rn}_p50"]), 1),
                                    "p10": _band(row[f"{rn}_p10"]),
                                    "p90": _band(row[f"{rn}_p90"])}
-                              for rn in ("ppr", "half_ppr", "standard")},
+                              for rn in RULESETS},
             "games": int(row["games"]),
             "bye": None if pd.isna(row["bye"]) else int(row["bye"]),
             "vorp": float(row["vorp"]),

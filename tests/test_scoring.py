@@ -144,3 +144,42 @@ def test_stat_weights_is_the_source_of_truth_for_scoring():
     for col, weight in w.items():
         got = fantasy_points(pd.DataFrame([{col: 1.0}]), PPR).iloc[0]
         assert got == pytest.approx(weight), col
+
+
+def test_league_scoring_is_ppr_with_six_point_passing_tds():
+    """This project's league (points.md) differs from PPR in exactly one weight.
+
+    It is not a cosmetic difference: measured on 2023-25 actuals the top 24
+    quarterbacks gain +46 to +50 points a season and 4-8 of the top TWELVE
+    change places, because the rule rewards touchdown-heavy passers over
+    yardage and rushing ones.
+    """
+    from dataclasses import asdict
+
+    from ffmodel.scoring import LEAGUE, PPR
+
+    differs = {k: (v, asdict(PPR)[k]) for k, v in asdict(LEAGUE).items()
+               if asdict(PPR)[k] != v}
+    assert differs == {"name": ("league", "ppr"), "pass_td": (6.0, 4.0)}
+
+
+def test_league_scoring_never_scores_below_ppr():
+    """Six-point passing TDs can only add. A player with no passing stats must
+    score identically under both, so the lens can never quietly move a receiver."""
+    import pandas as pd
+
+    from ffmodel.scoring import LEAGUE, PPR, fantasy_points
+
+    stats = pd.DataFrame({
+        "passing_yards": [300.0, 0.0], "passing_tds": [3.0, 0.0],
+        "passing_interceptions": [1.0, 0.0], "carries": [2.0, 12.0],
+        "rushing_yards": [10.0, 60.0], "rushing_tds": [0.0, 1.0],
+        "targets": [0.0, 8.0], "receptions": [0.0, 6.0],
+        "receiving_yards": [0.0, 70.0], "receiving_tds": [0.0, 1.0],
+        "fumbles_lost": [0.0, 0.0],
+    })
+    ppr = fantasy_points(stats, PPR)
+    league = fantasy_points(stats, LEAGUE)
+    assert (league >= ppr).all()
+    assert league.iloc[0] - ppr.iloc[0] == pytest.approx(6.0)   # 3 passing TDs x 2
+    assert league.iloc[1] == pytest.approx(ppr.iloc[1])         # no passing stats

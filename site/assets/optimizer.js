@@ -119,6 +119,25 @@
     return out;
   }
 
+  // The scoring lens the board's value curve is built from. Must match
+  // site.weekly.BOARD_RULESET: this project's league scores passing TDs at 6,
+  // not 4, which moves the top 24 QBs by ~+48 points a season and reorders 4-8
+  // of the top twelve. Reconstructing the curve from the wrong lens would rank
+  // quarterbacks wrongly on any board published before `value_points` existed.
+  // Ordered preference, not a single name. A board that carries the league
+  // lens was built on it; a board that predates it was built on ppr, so ppr is
+  // the CORRECT curve for that board rather than a degraded guess. Picking the
+  // lens the board actually used keeps the reconstruction self-consistent
+  // either way -- what would be wrong is reading a lens the curve was not
+  // built from, which for QBs is a reordering, not a rescale.
+  const VALUE_LENS_ORDER = ["league", "ppr"];
+  function valueLens(players) {
+    for (const lens of VALUE_LENS_ORDER) {
+      if (players.some(p => p.season_points && p.season_points[lens])) return lens;
+    }
+    return VALUE_LENS_ORDER[VALUE_LENS_ORDER.length - 1];
+  }
+
   // Absolute season points on the board's ECR-ordered value curve -- the SAME
   // curve `vorp` is measured from, before the position's replacement level is
   // subtracted off. Published as `value_points`; the fallback reconstructs it
@@ -134,10 +153,11 @@
   function withValuePoints(players) {
     if ((players || []).every(p => Number.isFinite(p.value_points))) return players;
     const curves = {};
+    const lens = valueLens(players);
     for (const pos of POSITIONS) {
       curves[pos] = players
-        .filter(p => p.position === pos && p.season_points && p.season_points.ppr)
-        .map(p => p.season_points.ppr.p50)
+        .filter(p => p.position === pos && p.season_points && p.season_points[lens])
+        .map(p => p.season_points[lens].p50)
         .filter(Number.isFinite)
         .sort((a, b) => b - a);
     }
@@ -425,6 +445,7 @@
   return { seasonValue, withValuePoints, perWeek, rosterSlots, openSlot,
            bestLineup, lineupTotal, lineupPoints, fieldTakes, finishRoster,
            lineupRole, adpDelta, byeClash, nextAtPosition, recommend, parVorp,
+           valueLens, VALUE_LENS_ORDER,
            lateSlotTrigger,
            DEDICATED, FLEX_SLOTS, FLEX_POS, POSITIONS, SHORTLIST_N, WEEKS,
            LATE_ROUNDS, CANDIDATE_PER_POS, ROLLOUT_PER_POS, ROLLOUT_PICKS, TIE_POINTS, DEPTH_CAP, topCandidates,

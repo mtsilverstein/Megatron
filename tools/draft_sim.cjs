@@ -102,10 +102,87 @@ function marketPick(order, taken, roster) {
    human number alone.
 */
 // Round by which a drafter insists on filling a single-starter slot. UN-TUNED:
-// chosen from how real drafts look, not fitted to any result.
+// chosen from how real drafts look, not fitted to any result. Superseded by
+// MEASURED below for this league -- kept so the two can be compared.
 const PANIC_ROUND = { QB: 9, TE: 10 };
 const RUN_WINDOW = 6;      // picks of recent history a drafter reacts to
 const RUN_TRIGGER = 3;     // that many at one position reads as a run
+
+/* --- the MEASURED field ----------------------------------------------------
+
+   Everything above is invented. Everything here is measured from this league's
+   own four completed Sleeper drafts (2022 10-team/16rd, 2023 12/16, 2024 12/15,
+   2025 12/15; 712 picks, 46 team-drafts, keepers excluded). All three invented
+   priors were wrong, and not all in the same direction:
+
+     deviation from the consensus board   assumed sd 8   ->  MEASURED sd 21
+       (n=525 matched picks; mean +0.4, median 0, so near-unbiased in level and
+       simply far wider than assumed. |dev| p50 9, p75 19, p90 34.)
+
+     round of a team's first QB           assumed 9      ->  MEASURED median 6
+     round of a team's first TE           assumed 10     ->  MEASURED median 6
+       (n=46 each, SE 0.42/0.44 rounds. Only 28% of teams are still without a
+       quarterback entering round 9, and 11% without a tight end -- this league
+       fills both far earlier than the invented panic rounds allowed. That
+       error flattered our tool: the simulated field left QBs and TEs on the
+       board for our seat to collect.)
+
+     positional runs                      assumed strong ->  MEASURED weak
+       (WR base 34.1% -> 42.1% after 3 of the last 6, lift 1.23x, n=278;
+        RB 27.6% -> 30.4%, lift 1.10x, n=181. QB n=15 and TE n=10 are far too
+        thin to measure, so runs are modelled for RB and WR only.)
+
+   The empirical first-QB / first-TE round distributions are used directly
+   rather than a fitted parametric shape -- with 46 observations the histogram
+   IS the estimate, and a distribution keeps the spread of styles a league
+   actually contains instead of collapsing every manager onto the median.
+
+   SCOPE: these numbers describe THIS league. They are not a general model of
+   fantasy drafters, and the edge measured against them is an edge against
+   these twelve opponents.
+*/
+const MEASURED = {
+  noiseRanks: 21,
+  runForce: { WR: 0.121, RB: 0.039 },   // P(jump to a hot position); see below
+  // Observed rounds of each team's first pick at the position, one entry per
+  // team-draft. Sampling from these reproduces the real spread of styles.
+  firstQb: [2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5,
+            6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10,
+            12, 12, 13],
+  firstTe: [1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6,
+            6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 10, 10,
+            11, 14, 16],
+};
+// runForce solves f + (1 - f) * base = hot for the measured base/hot rates, so
+// a forced jump at rate f reproduces the observed lift rather than guessing it.
+
+function sampleRound(list, rand) {
+  return list[Math.min(list.length - 1, Math.floor(rand() * list.length))];
+}
+
+function measuredPick(order, taken, roster, ctx) {
+  const counts = O.rosterSlots(roster);
+  const rand = ctx.rand;
+  // Fill the single-starter slots on this drafter's own schedule, drawn from
+  // the league's observed timing rather than one shared panic round.
+  for (const [pos, target] of [["QB", ctx.qbRound], ["TE", ctx.teRound]]) {
+    if (counts[pos] === 0 && ctx.round >= target) {
+      const pick = bestAt(order, taken, pos);
+      if (pick) return pick;
+    }
+  }
+  // Runs, at the measured strength, and only where they were measurable.
+  const recent = ctx.recent.slice(-RUN_WINDOW);
+  for (const pos of ["WR", "RB"]) {
+    const force = MEASURED.runForce[pos];
+    if (recent.filter(r => r === pos).length >= RUN_TRIGGER
+        && (counts[pos] || 0) < CAP[pos] && rand() < force) {
+      const pick = bestAt(order, taken, pos);
+      if (pick) return pick;
+    }
+  }
+  return marketPick(order, taken, roster);
+}
 
 function bestAt(order, taken, position) {
   for (const p of order) {
@@ -184,10 +261,12 @@ function runDraft(players, heroSlot, seed, field = "consensus") {
   // Each drafter's private board AND his temperament come from the same seed,
   // so a league is reproducible and contains a mix of disciplined and jumpy
   // managers rather than twelve copies of one behaviour.
-  const panic = [];
+  const panic = [], qbRound = [], teRound = [];
   for (let t = 1; t <= TEAMS; t++) {
     orders.push(marketOrder(players, rand));
     panic.push(rand());
+    qbRound.push(sampleRound(MEASURED.firstQb, rand));
+    teRound.push(sampleRound(MEASURED.firstTe, rand));
   }
   const rosters = Array.from({ length: TEAMS + 1 }, () => []);
   const taken = new Set();
@@ -206,6 +285,10 @@ function runDraft(players, heroSlot, seed, field = "consensus") {
         });
         choice = rec.length ? rec[0].player
                             : marketPick(orders[slot - 1], taken, rosters[slot]);
+      } else if (field === "measured") {
+        choice = measuredPick(orders[slot - 1], taken, rosters[slot],
+                              { round, recent, rand,
+                                qbRound: qbRound[slot - 1], teRound: teRound[slot - 1] });
       } else if (field === "human") {
         choice = humanPick(orders[slot - 1], taken, rosters[slot],
                            { round, recent, panic: panic[slot - 1], rand });
@@ -370,6 +453,7 @@ function parseArgs(argv) {
 function main() {
   const args = parseArgs(process.argv);
   if (args.noise !== null) setNoise(args.noise);
+  else if (args.field === "measured") setNoise(MEASURED.noiseRanks);
 
   if (args.board) {
     const board = JSON.parse(fs.readFileSync(args.board, "utf8"));
@@ -387,7 +471,7 @@ function main() {
     for (const [shape, k] of Object.entries(summary.roster_shapes).sort((a, b) => b[1] - a[1])) {
       console.log(`    ${shape}  ${k}`);
     }
-    const out = args.out || "models/backtests/draft_dryrun.json";
+    const out = args.out || "models/backtests/draft_strategy/draft_dryrun.json";
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, JSON.stringify({ created: new Date().toISOString(),
       season: board.season, data_through: board.data_through,
@@ -445,7 +529,7 @@ function main() {
     overall: { reg: summarize(all, "reg"), full: summarize(all, "full") },
     rows: all,
   };
-  const out = args.out || "models/backtests/draft_sim.json";
+  const out = args.out || "models/backtests/draft_strategy/draft_sim.json";
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, JSON.stringify(report, null, 1));
   const o = report.overall.reg;
@@ -462,5 +546,6 @@ function main() {
 module.exports = { runDraft, actualPoints, marketOrder, marketPick, evaluateSeason, dryRun, assertMarketDepth,
                    assertWorldUsable,
                    summarize, pickForRoundSlot, futurePicks, rng, ADP_NOISE_RANKS, setNoise,
-                   humanPick, bestAt, PANIC_ROUND, RUN_WINDOW, RUN_TRIGGER, CAP };
+                   humanPick, measuredPick, sampleRound, bestAt, MEASURED,
+                   PANIC_ROUND, RUN_WINDOW, RUN_TRIGGER, CAP };
 if (require.main === module) main();

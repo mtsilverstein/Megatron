@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from ffmodel.site.weekly import RULESETS
+
 from ffmodel.site.draft import (
     REPLACEMENT_RANK, _assign_tiers, build_draft_board, season_projection,
 )
@@ -225,6 +227,9 @@ def test_vorp_and_ordering():
         "ppr_p50": ppr_p50, "ppr_p10": np.nan, "ppr_p90": np.nan,
         "half_ppr_p50": ppr_p50, "half_ppr_p10": np.nan, "half_ppr_p90": np.nan,
         "standard_p50": ppr_p50, "standard_p10": np.nan, "standard_p90": np.nan,
+        # the board is valued on the league lens (6-pt passing TDs); these
+        # fixtures carry no passing stats, so it equals ppr here
+        "league_p50": ppr_p50, "league_p10": np.nan, "league_p90": np.nan,
         "games": 17, "bye": None,
     })
     from ffmodel.site.draft import _finalize_board
@@ -255,6 +260,9 @@ def test_value_points_is_the_absolute_curve_vorp_is_measured_from():
         "ppr_p50": ppr_p50, "ppr_p10": np.nan, "ppr_p90": np.nan,
         "half_ppr_p50": ppr_p50, "half_ppr_p10": np.nan, "half_ppr_p90": np.nan,
         "standard_p50": ppr_p50, "standard_p10": np.nan, "standard_p90": np.nan,
+        # the board is valued on the league lens (6-pt passing TDs); these
+        # fixtures carry no passing stats, so it equals ppr here
+        "league_p50": ppr_p50, "league_p10": np.nan, "league_p90": np.nan,
         "games": 17, "bye": None,
     })
     from ffmodel.site.draft import _finalize_board
@@ -340,8 +348,13 @@ def test_board_carries_games_bye_and_all_rulesets():
     top = board["players"][0]
     assert top["games"] == 2
     assert top["bye"] is None            # toy schedule has no bye in weeks 7-8
-    assert set(top["season_points"]) == {"ppr", "half_ppr", "standard"}
+    # every registered lens is published, including the league's own scoring
+    assert set(top["season_points"]) == set(RULESETS)
     assert top["season_points"]["standard"]["p50"] <= top["season_points"]["ppr"]["p50"]
+    # NB: each lens is simulated with its own Monte-Carlo draws, so league and
+    # ppr can differ by rounding on a fixture with no passing stats. The exact
+    # pointwise relationship is asserted in tests/test_scoring.py instead.
+    assert top["season_points"]["league"]["p50"] > 0
 
 
 def test_prefit_skips_internal_fit():
@@ -630,6 +643,7 @@ def test_finalize_board_consensus_orders_by_ecr():
         "ppr_p10": np.nan, "ppr_p90": np.nan,
         "half_ppr_p50": [300.0, 290.0, 280.0], "half_ppr_p10": np.nan, "half_ppr_p90": np.nan,
         "standard_p50": [300.0, 290.0, 280.0], "standard_p10": np.nan, "standard_p90": np.nan,
+        "league_p50": [300.0, 290.0, 280.0], "league_p10": np.nan, "league_p90": np.nan,
         "games": 17, "bye": None,
     })
     ecr = {"r1": 1.0, "r0": 2.0, "r2": 3.0}          # experts prefer r1
@@ -655,6 +669,7 @@ def test_finalize_board_without_ecr_matches_model_ordering():
         "position": ["RB"] * 30, "ppr_p50": ppr, "ppr_p10": np.nan, "ppr_p90": np.nan,
         "half_ppr_p50": ppr, "half_ppr_p10": np.nan, "half_ppr_p90": np.nan,
         "standard_p50": ppr, "standard_p10": np.nan, "standard_p90": np.nan,
+        "league_p50": ppr, "league_p10": np.nan, "league_p90": np.nan,
         "games": 17, "bye": None,
     })
     payload = _finalize_board(players, model="m", season=2026,

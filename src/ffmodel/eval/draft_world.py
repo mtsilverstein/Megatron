@@ -39,7 +39,7 @@ from pathlib import Path
 import pandas as pd
 
 from ffmodel.eval.board import board_world
-from ffmodel.scoring import PPR, PREDICTED_STATS, ScoringRules, fantasy_points
+from ffmodel.scoring import LEAGUE, PREDICTED_STATS, ScoringRules, fantasy_points
 
 # The fantasy regular season (weeks 1-14) decides who makes the playoffs; the
 # full 1-17 window is also reported so a reader can see the choice did not
@@ -67,7 +67,7 @@ def market_positions(ecr_df: pd.DataFrame) -> dict[str, float]:
 
 
 def weekly_actuals(weekly: pd.DataFrame, season: int,
-                   rules: ScoringRules = PPR) -> pd.DataFrame:
+                   rules: ScoringRules = LEAGUE) -> pd.DataFrame:
     """Per-player, per-week actual fantasy points for `season`.
 
     Scored over `PREDICTED_STATS` only -- the same convention as
@@ -96,7 +96,7 @@ def _weeks_by_player(actuals: pd.DataFrame) -> dict[str, dict[str, float]]:
 
 def build_season_world(weekly: pd.DataFrame, schedules: pd.DataFrame, season: int,
                        make_entrant, data_dir: Path, *, n_draws: int = 2000,
-                       seed: int = 0, rules: ScoringRules = PPR) -> dict:
+                       seed: int = 0, rules: ScoringRules = LEAGUE) -> dict:
     """One season's simulation world: the August board plus the answer key.
 
     `make_entrant(features)` returns a fresh, unfitted predictor, mirroring
@@ -139,6 +139,7 @@ def build_season_world(weekly: pd.DataFrame, schedules: pd.DataFrame, season: in
         # the same preseason consensus a drafter could have had. Recorded so a
         # report can never present this as an ADP result.
         "market_source": "preseason_ecr",
+        "scoring": rules.name,
         "consensus": {k: consensus_stats.get(k) for k in
                       ("matched_by_id", "matched_by_name_position", "unmatched")},
         "replacement_rank": replacement,
@@ -156,6 +157,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out-dir", type=Path, default=Path("models/backtests/worlds"))
     p.add_argument("--first-season", type=int, default=2012)
     p.add_argument("--n-draws", type=int, default=2000)
+    p.add_argument("--scoring", choices=["league", "ppr"], default="league",
+                   help="answer-key scoring; defaults to this league's own "
+                        "rules (points.md), not generic PPR")
     p.add_argument("--model", choices=["xgboost", "transformer"], default="xgboost")
     p.add_argument("--artifact-root", type=str, default=None,
                    help="comma-separated transformer roots (required for --model transformer)")
@@ -181,8 +185,10 @@ def main() -> None:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     for season in sorted(args.seasons):
+        from ffmodel.scoring import PPR
+        rules = LEAGUE if args.scoring == "league" else PPR
         world = build_season_world(weekly, schedules, season, make_entrant,
-                                   args.data_dir, n_draws=args.n_draws)
+                                   args.data_dir, n_draws=args.n_draws, rules=rules)
         path = args.out_dir / f"world_{season}.json"
         path.write_text(json.dumps(world), encoding="utf-8")
         print(f"{path}: {len(world['players'])} board players, "

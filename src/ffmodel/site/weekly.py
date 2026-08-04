@@ -7,13 +7,20 @@ import pandas as pd
 
 from ffmodel.scoring import (
     HALF_PPR,
+    LEAGUE,
     PPR,
     PREDICTED_STATS,
     STANDARD,
     fantasy_points_quantiles,
 )
 
-RULESETS = {"ppr": PPR, "half_ppr": HALF_PPR, "standard": STANDARD}
+# "league" is this project's actual league (points.md): full PPR with 6-point
+# passing TDs. It is the lens the draft board VALUES players on; the other
+# three remain published so the site stays readable for a general audience.
+RULESETS = {"ppr": PPR, "half_ppr": HALF_PPR, "standard": STANDARD,
+            "league": LEAGUE}
+# The ruleset the board's value curve, VORP and tiers are built from.
+BOARD_RULESET = "league"
 
 
 def _quantile_frames(future: pd.DataFrame, predictor) -> dict[str, pd.DataFrame | None]:

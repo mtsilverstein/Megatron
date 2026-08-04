@@ -56,6 +56,24 @@ PPR = ScoringRules(name="ppr", reception=1.0)
 HALF_PPR = ScoringRules(name="half_ppr", reception=0.5)
 STANDARD = ScoringRules(name="standard", reception=0.0)
 
+# The league this project is actually played in (see points.md): full PPR with
+# SIX-point passing touchdowns instead of four. Everything else matches PPR --
+# 0.04/passing yard, 0.1/rushing and receiving yard, 6 for rushing and
+# receiving TDs, -2 per interception, -2 per fumble lost.
+#
+# This is not a cosmetic difference. Measured on 2023-25 actuals, the top 24
+# quarterbacks gain +46 to +50 points a season (up to +92), RB/WR/TE gain
+# essentially nothing, and 4 to 8 of the top TWELVE quarterbacks change places
+# because the rule rewards touchdown-heavy passers over yardage and rushing
+# ones. A board built on 4-point passing TDs ranks this league's quarterbacks
+# in the wrong order, not merely on the wrong scale.
+#
+# NOT modelled, because no head predicts them (same standing limitation as
+# `SCORING_EXTRAS`): 50+ yard TD bonuses (+2), two-point conversions (+2), and
+# pick-sixes thrown (-3). All are small and none is position-distorting the way
+# the passing-TD weight is.
+LEAGUE = ScoringRules(name="league", reception=1.0, pass_td=6.0)
+
 
 def stat_weights(rules: ScoringRules = PPR) -> dict[str, float]:
     """Column -> point weight: the single source of truth that fantasy_points

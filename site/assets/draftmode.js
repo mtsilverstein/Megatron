@@ -281,7 +281,8 @@ window.DraftMode = (() => {
       bits.push(`<span class="pick-bye">bye ${esc(String(p.bye))} — `
         + `${r.byeClash} of yours are out that week</span>`);
     }
-    const band = p.season_points && p.season_points.ppr;
+    // the league's own lens, so floor/ceiling read in the points you actually score
+    const band = p.season_points && (p.season_points.league || p.season_points.ppr);
     if (band && Number.isFinite(band.p10) && Number.isFinite(band.p90)) {
       bits.push(`floor ${Math.round(band.p10)} · ceiling ${Math.round(band.p90)}`);
     }

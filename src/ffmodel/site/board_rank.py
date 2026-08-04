@@ -19,7 +19,7 @@ def adp_round(adp: float | None, teams: int = 12) -> int | None:
     return math.ceil(float(adp) / teams)
 
 
-def order_and_value(group: pd.DataFrame) -> pd.DataFrame:
+def order_and_value(group: pd.DataFrame, value_col: str = "ppr_p50") -> pd.DataFrame:
     """Order one position and assign a monotone value curve.
 
     Players with a finite `ecr` sort by it ascending; the ECR-less tail sorts
@@ -28,9 +28,9 @@ def order_and_value(group: pd.DataFrame) -> pd.DataFrame:
     monotonically while the ORDER is ECR's, not the model's."""
     has_ecr = group["ecr"].notna()
     ranked = group[has_ecr].sort_values("ecr", kind="mergesort")
-    tail = group[~has_ecr].sort_values("ppr_p50", ascending=False, kind="mergesort")
+    tail = group[~has_ecr].sort_values(value_col, ascending=False, kind="mergesort")
     ordered = pd.concat([ranked, tail]).reset_index(drop=True)
-    ordered["value_points"] = np.sort(group["ppr_p50"].to_numpy())[::-1]
+    ordered["value_points"] = np.sort(group[value_col].to_numpy())[::-1]
     return ordered
 
 
@@ -79,13 +79,14 @@ def flex_replacement_ranks(players: pd.DataFrame, dedicated: dict[str, int],
 
 
 def rank_board(players: pd.DataFrame,
-               replacement_rank: dict[str, int]) -> pd.DataFrame:
+               replacement_rank: dict[str, int],
+               value_col: str = "ppr_p50") -> pd.DataFrame:
     """Per-position order_and_value -> VORP -> position_rank -> tier, then the
     whole board sorted by VORP descending, with adp_round attached."""
     frames = []
     for _pos, group in players.groupby("position"):
         pos = group["position"].iloc[0]
-        ordered = order_and_value(group)
+        ordered = order_and_value(group, value_col)
         rank = replacement_rank.get(pos, 20)
         repl = ordered["value_points"].iloc[min(rank, len(ordered)) - 1]
         ordered["vorp"] = (ordered["value_points"] - repl).round(2)

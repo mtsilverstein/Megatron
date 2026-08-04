@@ -29,7 +29,7 @@ check("withValuePoints reconstructs the ECR-ordered curve when absent", () => {
   // board_rank.order_and_value lays the position's ppr_p50 values, sorted
   // descending, onto ECR order -- so position_rank 1 takes the HIGHEST p50
   // even when that p50 belongs to a different player.
-  const sp = v => ({ ppr: { p10: 0, p50: v, p90: 0 } });
+  const sp = v => ({ league: { p10: 0, p50: v, p90: 0 } });
   const raw = [
     { name: "a", position: "TE", position_rank: 1, season_points: sp(100) },
     { name: "b", position: "TE", position_rank: 2, season_points: sp(180) },
@@ -40,6 +40,17 @@ check("withValuePoints reconstructs the ECR-ordered curve when absent", () => {
   assert.strictEqual(out[1].value_points, 140);
   assert.strictEqual(out[2].value_points, 100);
   assert.strictEqual(raw[0].value_points, undefined, "must not mutate input");
+});
+
+check("the value curve is rebuilt from the lens the board was built on", () => {
+  // A board carrying the league lens was valued on it; a board predating it was
+  // valued on ppr, so ppr is that board's CORRECT curve, not a degraded guess.
+  // Reading the wrong lens reorders quarterbacks rather than merely rescaling.
+  const withLeague = [{ position: "QB", season_points: { ppr: { p50: 1 }, league: { p50: 2 } } }];
+  const ppromly = [{ position: "QB", season_points: { ppr: { p50: 1 } } }];
+  assert.strictEqual(O.valueLens(withLeague), "league");
+  assert.strictEqual(O.valueLens(ppromly), "ppr");
+  assert.strictEqual(O.valueLens([]), "ppr");
 });
 
 check("withValuePoints leaves a payload that already has the field alone", () => {

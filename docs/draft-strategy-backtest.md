@@ -238,4 +238,4 @@ drafting by feel", which is what the tool actually enforces.
 2026 draft from every seat. There is no answer key, so it can only show what the
 tool *does*, never whether it is right: 60 drafts, 51 of 60 finishing
 QB2/RB5/WR6/TE2, median first TE round 5, never leaving a lineup slot unfilled.
-Written to `models/backtests/draft_dryrun.json`.
+Written to `models/backtests/draft_strategy/draft_dryrun.json`.
