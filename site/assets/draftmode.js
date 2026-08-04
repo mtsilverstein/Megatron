@@ -91,7 +91,12 @@ window.DraftMode = (() => {
       statusChecks = 0;
       localStorage.setItem(STORE_KEY, JSON.stringify({ username, userId, draftId }));
       state.connected = true;
-      cfg.els.connect.hidden = true;
+      if (username) cfg.els.username.value = username;   // survives a reload
+      // Keep the connect row up when we don't know WHO you are — the shortlist
+      // is blocked until you supply a username, and mid-draft is the wrong
+      // moment to make someone disconnect first to fix that. The draft id is
+      // still in its box, so typing a name and hitting Connect resolves it.
+      cfg.els.connect.hidden = !!userId;
       cfg.els.list.innerHTML = "";
       cfg.els.live.hidden = false;
       unmatchedNote();
@@ -133,7 +138,13 @@ window.DraftMode = (() => {
 
   async function pollOnce(seq) {
     if (seq !== pollSeq || !session) return;
-    if (document.hidden) { timer = setTimeout(() => pollOnce(seq), POLL_MS); return; }
+    // NO document.hidden skip. During a real draft this tab is ALWAYS the
+    // background one -- you pick on Sleeper and glance here -- so skipping the
+    // fetch while hidden froze the board at whatever was struck when you left
+    // it, under a status still reading "connected — live". Chrome throttles
+    // background timers on its own, and visibilitychange forces a fresh poll
+    // the instant you come back, so polling here costs little and the board is
+    // current when you look at it.
     try {
       const picks = await api(`/draft/${session.draftId}/picks`) || [];
       if (seq !== pollSeq || !session) return;
@@ -228,20 +239,33 @@ window.DraftMode = (() => {
     }
     v.hidden = true;                    // default: render nothing, never wrong math
     if (l) l.hidden = true;
-    if (!window.Optimizer) return;
-    if (!session || !session.slot || !session.teams || !session.rounds) return;
-    const next = nextPickNumber(session.slot, session.teams, session.rounds,
-                                session.reversalRound, picks.length, session.type);
-    if (next === null) return;          // auction/unknown type or no pick left
+    if (!window.Optimizer || !session) return;
+    // Everything below needs to know WHICH SEAT IS YOURS. When we can't work
+    // that out, say so in the panel: rendering nothing under a status reading
+    // "connected — live" looks identical to the tool having no opinion, and
+    // that silence is what a mock draft actually produced.
+    const seat = mySeat(picks);
+    const blocked = shortlistBlocker(seat, picks);
+    if (blocked) { showBlocked(v, blocked); return; }
+    const next = nextPickNumber(seat.slot, seat.teams, seat.rounds,
+                                seat.reversalRound, picks.length, session.type);
+    if (next === null) {
+      showBlocked(v, "No pick left in this draft — the shortlist is done.");
+      return;
+    }
     const until = next - picks.length - 1;   // full picks before yours
     const mine = myBoardPlayers();
     const available = boardPlayers().filter(
       p => !(p.sleeper_id && state.drafted.has(p.sleeper_id)));
     const shortlist = window.Optimizer.recommend({
       available, myPlayers: mine, pickNo: next,
-      futurePicks: remainingPicks(picks.length),
+      futurePicks: remainingPicks(picks.length, seat),
     });
-    if (!shortlist.length) return;
+    if (!shortlist.length) {
+      showBlocked(v, "Every player this board projects is gone — you're into "
+        + "K/DST and deep bench, which v1 doesn't model.");
+      return;
+    }
     const head = until <= 0
       ? `ON THE CLOCK · pick #${next}`
       : `pick #${next} · your turn in ${until + 1}`;
@@ -315,18 +339,34 @@ window.DraftMode = (() => {
   }
 
   // Every overall pick number you have left AFTER the one on the clock.
-  function remainingPicks(picksMade) {
+  function remainingPicks(picksMade, seat) {
     const out = [];
-    let at = nextPickNumber(session.slot, session.teams, session.rounds,
-                            session.reversalRound, picksMade, session.type);
+    let at = nextPickNumber(seat.slot, seat.teams, seat.rounds,
+                            seat.reversalRound, picksMade, session.type);
     if (at === null) return out;
     for (;;) {
-      const nxt = nextPickNumber(session.slot, session.teams, session.rounds,
-                                 session.reversalRound, at, session.type);
+      const nxt = nextPickNumber(seat.slot, seat.teams, seat.rounds,
+                                 seat.reversalRound, at, session.type);
       if (nxt === null) return out;
       out.push(nxt);
       at = nxt;
     }
+  }
+
+  // Your seat, from the draft object where it publishes one and from the pick
+  // log where it doesn't. Mock drafts have no league behind them, so
+  // `draft_order` can be absent — but every pick carries `draft_slot`, so once
+  // you have made a single pick your seat is knowable regardless.
+  function mySeat(picks) {
+    const slot = session.slot
+      || seatFromPicks(picks, session.userId);
+    return { slot, teams: session.teams, rounds: session.rounds,
+             reversalRound: session.reversalRound, userId: session.userId };
+  }
+
+  function showBlocked(v, why) {
+    v.innerHTML = `<p class="draft-blocked">${esc(why)}</p>`;
+    v.hidden = false;
   }
 
   function renderLateSlots(picks, l) {
@@ -359,6 +399,43 @@ window.DraftMode = (() => {
   }
 
   // --- pure draft math (exported for fixture verification) -----------------
+
+  // Which seat is `userId` sitting in, read off the picks they have already
+  // made. Sleeper stamps every pick with its `draft_slot`, so this works on
+  // drafts that publish no `draft_order` at all (mocks). null until they pick.
+  function seatFromPicks(picks, userId) {
+    if (!userId || !Array.isArray(picks)) return null;
+    for (const p of picks) {
+      if (p && p.picked_by === userId && Number.isInteger(p.draft_slot)
+          && p.draft_slot > 0) return p.draft_slot;
+    }
+    return null;
+  }
+
+  // Why the shortlist cannot be computed, in the drafter's own terms — or null
+  // when nothing is in the way. Each branch names the ONE thing that would
+  // unblock it, because a panel that just goes quiet is indistinguishable from
+  // a panel with no opinion.
+  function shortlistBlocker(seat, picks) {
+    if (!seat.userId) {
+      return "Enter your Sleeper username above and reconnect — without it the "
+        + "board can't tell which seat is yours, and the shortlist is entirely "
+        + "about what falls to YOUR next pick. Picks still strike either way.";
+    }
+    if (!seat.slot) {
+      return picks && picks.length
+        ? "This draft doesn't publish a draft order, so your seat isn't known "
+          + "yet — the shortlist appears as soon as you make your first pick."
+        : "Waiting on the first pick to work out your seat — this draft "
+          + "doesn't publish a draft order.";
+    }
+    if (!seat.teams || !seat.rounds) {
+      return "This draft doesn't report its size (teams / rounds), so the board "
+        + "can't work out when your next pick comes round.";
+    }
+    return null;
+  }
+
   function pickForRoundSlot(r, slot, teams, reversalRound, type) {
     if (type === "linear") return (r - 1) * teams + slot;
     // Snake; Sleeper third-round-reversal flips direction parity from
@@ -429,5 +506,6 @@ window.DraftMode = (() => {
     if (body) body.querySelectorAll("input, button").forEach(el => { el.disabled = true; });
   }
 
-  return { init, disable, nextPickNumber, gapToNextPick };
+  return { init, disable, nextPickNumber, gapToNextPick, seatFromPicks,
+           shortlistBlocker };
 })();

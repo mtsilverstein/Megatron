@@ -206,6 +206,10 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 .draft-basis { margin: .5rem 0 0; font: 500 .74rem/1.5 "IBM Plex Mono", monospace;
   color: var(--chalk-dim); opacity: .85; }
 .draft-basis em { font-style: normal; color: var(--chalk); }
+/* Why there is no shortlist. Reads as a notice, not as a recommendation. */
+.draft-blocked { margin: 0; padding: .5rem .6rem; border-left: 2px solid var(--te);
+  background: rgba(255, 255, 255, .03); font: 500 .78rem/1.5 "IBM Plex Mono", monospace;
+  color: var(--chalk-dim); }
 .draft-late { margin-top: .4rem; }
 .draft-late em { opacity: .75; }
 
