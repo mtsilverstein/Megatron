@@ -1,0 +1,199 @@
+{
+ "created": "2026-08-04T15:29:14.770Z",
+ "method": {
+  "teams": 12,
+  "rounds": 15,
+  "seeds": 10,
+  "scoring": "ppr, best legal lineup re-picked from ACTUAL weekly points",
+  "regular_weeks": 14,
+  "full_weeks": 17,
+  "field_mode": "consensus",
+  "field": "market board jittered by N(0, 8) ranks per drafter",
+  "counterfactual": "the SAME seat, same seed, same field, drafting the market instead",
+  "caveat": "no in-season management (waivers/trades/start-sit); field is a market-follower with noise, not a model of specific humans"
+ },
+ "per_season": {
+  "2021": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1693.2,
+    "market_same_seat_mean": 1687.1,
+    "field_mean": 1689.2,
+    "edge_mean": 6.1,
+    "edge_median": 22.8,
+    "edge_p10": -273.9,
+    "edge_p90": 285.2,
+    "win_rate_vs_same_seat": 0.525,
+    "mean_rank_of_12": 6.49,
+    "top3_rate": 0.242
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 2017.5,
+    "market_same_seat_mean": 2012.5,
+    "field_mean": 2015.2,
+    "edge_mean": 4.9,
+    "edge_median": 24.9,
+    "edge_p10": -340.1,
+    "edge_p90": 315.4,
+    "win_rate_vs_same_seat": 0.525,
+    "mean_rank_of_12": 6.34,
+    "top3_rate": 0.275
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  },
+  "2022": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1768.3,
+    "market_same_seat_mean": 1678.2,
+    "field_mean": 1672.4,
+    "edge_mean": 90.2,
+    "edge_median": 94.4,
+    "edge_p10": -120.3,
+    "edge_p90": 303.1,
+    "win_rate_vs_same_seat": 0.725,
+    "mean_rank_of_12": 4.44,
+    "top3_rate": 0.408
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 2119.8,
+    "market_same_seat_mean": 2028.5,
+    "field_mean": 2022.9,
+    "edge_mean": 91.3,
+    "edge_median": 90.1,
+    "edge_p10": -136.2,
+    "edge_p90": 371.5,
+    "win_rate_vs_same_seat": 0.667,
+    "mean_rank_of_12": 4.79,
+    "top3_rate": 0.367
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  },
+  "2023": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1676.1,
+    "market_same_seat_mean": 1649.7,
+    "field_mean": 1652.3,
+    "edge_mean": 26.4,
+    "edge_median": 60.3,
+    "edge_p10": -263.6,
+    "edge_p90": 298,
+    "win_rate_vs_same_seat": 0.55,
+    "mean_rank_of_12": 6.11,
+    "top3_rate": 0.225
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 2056.9,
+    "market_same_seat_mean": 2006.4,
+    "field_mean": 2007.4,
+    "edge_mean": 50.6,
+    "edge_median": 51.9,
+    "edge_p10": -280.2,
+    "edge_p90": 380.8,
+    "win_rate_vs_same_seat": 0.558,
+    "mean_rank_of_12": 5.83,
+    "top3_rate": 0.292
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  },
+  "2024": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1682.5,
+    "market_same_seat_mean": 1696.9,
+    "field_mean": 1698.7,
+    "edge_mean": -14.4,
+    "edge_median": -12.9,
+    "edge_p10": -256.5,
+    "edge_p90": 252.1,
+    "win_rate_vs_same_seat": 0.458,
+    "mean_rank_of_12": 6.79,
+    "top3_rate": 0.192
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 2045.3,
+    "market_same_seat_mean": 2071.3,
+    "field_mean": 2074.9,
+    "edge_mean": -26,
+    "edge_median": -11,
+    "edge_p10": -347.7,
+    "edge_p90": 329.7,
+    "win_rate_vs_same_seat": 0.492,
+    "mean_rank_of_12": 7.02,
+    "top3_rate": 0.192
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  },
+  "2025": {
+   "reg": {
+    "n": 120,
+    "hero_mean": 1634.3,
+    "market_same_seat_mean": 1634.4,
+    "field_mean": 1635.6,
+    "edge_mean": -0.1,
+    "edge_median": 9.4,
+    "edge_p10": -225,
+    "edge_p90": 227.5,
+    "win_rate_vs_same_seat": 0.517,
+    "mean_rank_of_12": 6.45,
+    "top3_rate": 0.2
+   },
+   "full": {
+    "n": 120,
+    "hero_mean": 1971,
+    "market_same_seat_mean": 1998.7,
+    "field_mean": 2002.9,
+    "edge_mean": -27.7,
+    "edge_median": -22.5,
+    "edge_p10": -320.5,
+    "edge_p90": 283.9,
+    "win_rate_vs_same_seat": 0.45,
+    "mean_rank_of_12": 6.98,
+    "top3_rate": 0.117
+   },
+   "model": "transformer",
+   "market_source": "preseason_ecr"
+  }
+ },
+ "overall": {
+  "reg": {
+   "n": 600,
+   "hero_mean": 1690.9,
+   "market_same_seat_mean": 1669.2,
+   "field_mean": 1669.6,
+   "edge_mean": 21.7,
+   "edge_median": 31.8,
+   "edge_p10": -228.3,
+   "edge_p90": 272.5,
+   "win_rate_vs_same_seat": 0.555,
+   "mean_rank_of_12": 6.06,
+   "top3_rate": 0.253
+  },
+  "full": {
+   "n": 600,
+   "hero_mean": 2042.1,
+   "market_same_seat_mean": 2023.5,
+   "field_mean": 2024.7,
+   "edge_mean": 18.6,
+   "edge_median": 26.2,
+   "edge_p10": -300.1,
+   "edge_p90": 347.1,
+   "win_rate_vs_same_seat": 0.538,
+   "mean_rank_of_12": 6.19,
+   "top3_rate": 0.248
+  }
+ },
+ "rows_omitted": {
+  "n": 1200,
+  "why": "reproducible from the seeds"
+ }
+}

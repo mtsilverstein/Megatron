@@ -1,6 +1,6 @@
 # Draft-strategy backtest — method and findings
 
-**Date:** 2026-08-03
+**Date:** 2026-08-03, updated 2026-08-04 with league scoring and a measured field
 
 The board backtest (`ffmodel.eval.board`) asks *is the projection right?*. This
 one asks the question the draft tool actually makes a claim about: **does acting
@@ -124,6 +124,66 @@ slots, comparing flex candidates on absolute points, spreading byes, timing.
 A single-digit-to-modest edge is therefore the *expected* size of the prize, not
 a surprise. Anyone reading this should not expect a consensus-anchored draft
 tool to produce a large edge over the consensus.
+
+## RESULT (2026-08-04): league scoring + a field measured from real drafts
+
+Everything above this section was produced under generic PPR against an
+**invented** field. Both assumptions have since been replaced with this
+league's own data — its scoring (`points.md`: full PPR with **six-point passing
+touchdowns**) and its four completed Sleeper drafts — and the numbers moved a
+lot. These are the current results; the sections below are kept because the
+reasoning that got here is the point.
+
+Season-clustered, 2021–25, transformer board unless noted:
+
+| scoring | field | per-season edge | mean | 95% CI | wins | finish |
+|---|---|---|---|---|---|---|
+| ppr | consensus | −7, +5, +42, −10, −13 | +3.3 | [−16, +23] | 50.5% | 6.37 |
+| ppr | invented | +52, +107, +72, +40, +63 | +66.8 | [+45, +89] | 63.0% | 5.05 |
+| **league** | consensus | +6, +90, +26, −14, −0 | +21.6 | [−14, +58] | 55.5% | 6.06 |
+| **league** | **measured** | **+110, +189, +92, +60, +150** | **+120.1** | **[+76, +164]** | **74.2%** | **4.09** |
+| league | measured, xgboost | +64, +186, +68, +47, +194 | +111.5 | [+49, +174] | 71.2% | 4.28 |
+
+I predicted this would go DOWN, because the invented panic rounds had left QBs
+and TEs on the board for our seat to collect. It went up instead. Two effects,
+separable from the table:
+
+* **Scoring, ≈ +18** (+3.3 → +21.6 with the field held constant). Six-point
+  passing TDs make quarterbacks ~48 points a season more valuable, but ECR and
+  ADP are built for four-point leagues and do not reprice them. The tool values
+  QBs by this league's rules; the market it drafts against does not. That is a
+  real structural edge and it exists *only* because of the house rule.
+* **Field realism, ≈ +99.** Far larger, and this is where the caveat lives.
+
+### The caveat that governs the headline
+
+The edge is extremely sensitive to one measured parameter — how far real picks
+stray from the market board:
+
+| deviation sd | mean edge | 95% CI | wins |
+|---|---|---|---|
+| 8 (originally assumed) | +45.5 | [+26, +65] | 59.6% |
+| 14 | +106.2 | [+58, +154] | 69.2% |
+| **21 (measured)** | **+120.1** | **[+76, +164]** | **74.2%** |
+
+And **part of that measured 21 is not drafter behaviour at all.** Deviation was
+measured against *ECR-derived* market positions, because this project holds no
+historical ADP. Real drafters follow ADP, so wherever ECR and ADP disagree the
+gap is charged to the drafter as noise. That inflates the parameter, and the
+parameter inflates the edge.
+
+So the honest reading is a range, not a point:
+
+> **The edge is robustly positive across the entire plausible range** — +45 at
+> the conservative end, +120 at the measured one, interval excluding zero and
+> all five seasons positive at every setting. **Its size is genuinely
+> uncertain**, and the headline +120 should be discounted toward the low end
+> until the deviation can be measured against real ADP rather than an ECR proxy.
+
+Two things are settled regardless of where in that range the truth sits: the
+edge exists, and it is **discipline plus league-specific scoring**, not
+projection quality — the XGBoost board lands at +111.5 against the transformer's
++120.1, statistically indistinguishable.
 
 ## The field model was the whole story
 
