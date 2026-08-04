@@ -56,14 +56,17 @@ window.FC = (() => {
 
   function makeSortable(table, rows, render) {
     // rows: array of data objects; render(rows) redraws tbody.
-    const sortBy = th => {
+    // `keep` re-applies the CURRENT direction instead of toggling it -- used
+    // when the scoring lens changes under a column that is already sorted.
+    const sortBy = (th, keep) => {
       const key = th.dataset.key;
       const ariaSort = th.getAttribute("aria-sort");
       // Columns marked data-asc (lower-is-better: ECR, ADP, positional rank)
       // start ascending on their first click; everything else starts
       // descending, as before. Once a direction is set, clicks just toggle it.
       const ascFirst = th.hasAttribute("data-asc");
-      const desc = ariaSort === "descending" ? false
+      const desc = keep ? ariaSort !== "ascending"
+        : ariaSort === "descending" ? false
         : ariaSort === "ascending" ? true
         : !ascFirst;
       table.querySelectorAll("thead th").forEach(o => o.removeAttribute("aria-sort"));
@@ -96,6 +99,55 @@ window.FC = (() => {
         }
       });
     });
+    // Re-apply the active sort in place. Called when the scoring lens changes
+    // under an already-sorted column.
+    table._resort = () => {
+      const th = table.querySelector("thead th[aria-sort]");
+      if (th) sortBy(th, true);
+    };
+  }
+
+  /* Scoring-lens toggle, shared by the draft board and the weekly page.
+
+     The lenses genuinely DISAGREE: this project's league scores passing TDs at
+     six rather than four, which moves a quarterback's season by ~48 points. A
+     table that displays one lens while sorting by another therefore shows a
+     visibly wrong order, not a rounding difference -- so every lens-dependent
+     column carries `data-key-lens` (e.g. "points.{lens}.p50") and is retargeted
+     here, then the active sort is re-applied.
+
+     Buttons are built from the lenses the PAYLOAD actually carries, so a file
+     generated before a lens existed renders without a dead button. */
+  const LENS_LABEL = { league: "MY LEAGUE", ppr: "PPR", half_ppr: "HALF-PPR",
+                       standard: "STANDARD" };
+
+  function scoringFilter(wrap, present, onChange) {
+    const lenses = Object.keys(LENS_LABEL).filter(l => present.includes(l));
+    const initial = lenses[0];
+    const table = document.querySelector("table");
+    const apply = lens => {
+      document.querySelectorAll("thead th[data-key-lens]").forEach(th => {
+        th.dataset.key = th.dataset.keyLens.replace("{lens}", lens);
+      });
+      onChange(lens);
+      if (table && table._resort) table._resort();
+    };
+    lenses.forEach(lens => {
+      const b = document.createElement("button");
+      b.textContent = LENS_LABEL[lens];
+      b.setAttribute("aria-pressed", lens === initial ? "true" : "false");
+      b.addEventListener("click", () => {
+        wrap.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", "false"));
+        b.setAttribute("aria-pressed", "true");
+        apply(lens);
+      });
+      wrap.appendChild(b);
+    });
+    // Point the columns at the default lens before the first render.
+    document.querySelectorAll("thead th[data-key-lens]").forEach(th => {
+      th.dataset.key = th.dataset.keyLens.replace("{lens}", initial);
+    });
+    return initial;
   }
 
   const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -118,5 +170,6 @@ window.FC = (() => {
     });
   }
 
-  return { POS_CLASS, loadJSON, stampHeader, staleBanner, fmt, bandBar, makeSortable, posFilter, esc };
+  return { POS_CLASS, loadJSON, stampHeader, staleBanner, fmt, bandBar, makeSortable,
+           posFilter, esc, scoringFilter, LENS_LABEL };
 })();

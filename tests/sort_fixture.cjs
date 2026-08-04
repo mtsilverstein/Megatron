@@ -165,3 +165,84 @@ const ids = arr => arr.map(r => r.id);
 }
 
 console.log("sort_fixture: OK");
+
+// --- scoring lens: display and sort must agree -------------------------------
+// The lenses genuinely disagree -- this league scores passing TDs at six, not
+// four, which moves a quarterback's season by ~48 points. Before this, the
+// weekly page displayed the selected lens while its sort keys stayed pinned to
+// `points.ppr.*`, so switching lens showed a visibly wrong ORDER, not a
+// rounding difference.
+{
+  const th = makeTh("points.ppr.p50");
+  th.dataset.keyLens = "points.{lens}.p50";
+  th._ariaSort = "descending";
+  const table = makeTable(th);
+  // _resort finds the sorted column by selector; the shared stub predates it
+  table.querySelector = sel =>
+    (sel === "thead th[aria-sort]" ? (th._ariaSort ? th : null) : null);
+  // rows where the two lenses rank QBs in OPPOSITE orders
+  const rows = [
+    { name: "passer", points: { ppr: { p50: 100 }, league: { p50: 300 } } },
+    { name: "rusher", points: { ppr: { p50: 200 }, league: { p50: 210 } } },
+  ];
+  let rendered = null;
+  FC.makeSortable(table, rows, r => { rendered = r.map(x => x.name); });
+
+  const wrap = { _buttons: [], appendChild(b) { this._buttons.push(b); },
+                 querySelectorAll() { return this._buttons; } };
+  const made = [];
+  global.document = {
+    querySelector: () => table,
+    querySelectorAll: () => [th],
+    createElement: () => {
+      const b = { textContent: "", _attrs: {}, _click: null,
+                  setAttribute(k, v) { this._attrs[k] = v; },
+                  getAttribute(k) { return this._attrs[k]; },
+                  addEventListener(_e, fn) { this._click = fn; } };
+      made.push(b);
+      return b;
+    },
+  };
+
+  let active = null;
+  const initial = FC.scoringFilter(wrap, ["ppr", "league", "standard"], l => { active = l; });
+
+  // "league" leads the order and is therefore the default
+  assert.strictEqual(initial, "league");
+  assert.deepStrictEqual(made.map(b => b.textContent),
+    ["MY LEAGUE", "PPR", "STANDARD"], "buttons follow LENS_LABEL order");
+  assert.strictEqual(made[0].getAttribute("aria-pressed"), "true");
+
+  // a lens the payload does not carry gets no button
+  assert.ok(!made.some(b => b.textContent === "HALF-PPR"),
+    "a lens absent from the payload must not render a dead button");
+
+  // columns point at the default lens before the first render
+  assert.strictEqual(th.dataset.key, "points.league.p50");
+
+  // switching lens retargets the key AND re-applies the sort in the same
+  // direction -- this is the bug: display changed, order did not.
+  made.find(b => b.textContent === "PPR")._click();
+  assert.strictEqual(active, "ppr");
+  assert.strictEqual(th.dataset.key, "points.ppr.p50");
+  assert.deepStrictEqual(rendered, ["rusher", "passer"],
+    "after switching to PPR the order must follow PPR values");
+  assert.strictEqual(th._ariaSort, "descending", "direction must not flip");
+
+  made.find(b => b.textContent === "MY LEAGUE")._click();
+  assert.strictEqual(th.dataset.key, "points.league.p50");
+  assert.deepStrictEqual(rendered, ["passer", "rusher"],
+    "back on the league lens the order must follow league values");
+  assert.strictEqual(th._ariaSort, "descending");
+
+  // an ascending sort stays ascending across a lens change
+  th._ariaSort = "ascending";
+  table._resort();
+  assert.deepStrictEqual(rendered, ["rusher", "passer"]);
+  made.find(b => b.textContent === "PPR")._click();
+  assert.strictEqual(th._ariaSort, "ascending", "keep must preserve ascending too");
+  assert.deepStrictEqual(rendered, ["passer", "rusher"]);
+
+  delete global.document;
+}
+console.log("sort_fixture: scoring-lens group OK");

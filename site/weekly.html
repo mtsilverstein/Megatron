@@ -27,14 +27,14 @@
   <div class="table-wrap">
     <table id="slate">
       <thead><tr>
-        <th data-key="points.ppr.p50" class="num" aria-sort="descending" id="pts-header">Proj (p50)</th>
+        <th data-key-lens="points.{lens}.p50" class="num" aria-sort="descending" id="pts-header">Proj (p50)</th>
         <th>Pos</th>
         <th data-key="name">Player</th>
         <th>Team</th>
         <th>Opp</th>
         <th>Floor → ceiling</th>
-        <th data-key="points.ppr.p10" class="num">Floor</th>
-        <th data-key="points.ppr.p90" class="num">Ceiling</th>
+        <th data-key-lens="points.{lens}.p10" class="num">Floor</th>
+        <th data-key-lens="points.{lens}.p90" class="num">Ceiling</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -55,14 +55,17 @@ about page for the numbers.</footer>
   FC.stampHeader(payload);
   document.getElementById("week-eyebrow").textContent =
     `Week ${payload.week} · ${payload.season} · ${payload.model}`;
-  let scoring = "ppr";
+  // Default to the league's own scoring (see index.html for why).
+  let scoring = "league";
   let pos = "ALL";
   let rows = payload.players.slice();
 
   // Bars are pinned to the PPR p90 ceiling on purpose: a stable ruler across
-  // scoring toggles, so bars don't rescale when you switch PPR/half/standard.
+  // scoring toggles, so bars don't rescale when you switch format. Pinned to the
+  // default lens so bars and ranking agree on arrival.
+  const RULER = payload.players[0].points.league ? "league" : "ppr";
   const maxCeil = Math.max(...payload.players.map(p =>
-    p.points.ppr.p90 ?? p.points.ppr.p50));
+    p.points[RULER].p90 ?? p.points[RULER].p50));
 
   const tbody = document.querySelector("#slate tbody");
   function render(data) {
@@ -87,27 +90,28 @@ about page for the numbers.</footer>
 
   FC.posFilter(document.getElementById("pos-filters"), p => { pos = p; render(rows); });
   const scWrap = document.getElementById("scoring-filters");
-  ["ppr", "half_ppr", "standard"].forEach(rn => {
-    const b = document.createElement("button");
-    b.textContent = rn.replace("_", "-").toUpperCase();
-    b.setAttribute("aria-pressed", rn === "ppr" ? "true" : "false");
-    b.addEventListener("click", () => {
-      scWrap.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", "false"));
-      b.setAttribute("aria-pressed", "true");
-      scoring = rn;
-      // NOTE: sort keys stay pinned to points.ppr.* (data-key on the <th>s) even
-      // when scoring toggles away from PPR; re-rendering with the new `scoring`
-      // keeps the displayed numbers/order correct for v1, but a re-sort by the
-      // *currently displayed* ruleset's values is a follow-up, not done here.
-      render(rows);
-    });
-    scWrap.appendChild(b);
+  scoring = FC.scoringFilter(scWrap, Object.keys(payload.players[0].points), rn => {
+    scoring = rn;
+    document.getElementById("pts-header").textContent =
+      `Proj (p50, ${FC.LENS_LABEL[rn].toLowerCase()})`;
+    render(rows);
   });
+  document.getElementById("pts-header").textContent =
+    `Proj (p50, ${FC.LENS_LABEL[scoring].toLowerCase()})`;
   FC.makeSortable(document.getElementById("slate"), rows, render);
   render(rows);
 })().catch(e => {
-  document.querySelector(".stamp").textContent =
-    "weekly projections start with week 1 — see the draft board";
+  // A MISSING payload is the preseason state and is expected until week 1.
+  // Anything else is a real failure, and it must not wear the preseason
+  // message: in September that would report a broken page as "no data yet"
+  // and the breakage would go unnoticed for a week.
+  const stamp = document.querySelector(".stamp");
+  if (/HTTP 40[34]/.test(String(e && e.message))) {
+    stamp.textContent = "weekly projections start with week 1 — see the draft board";
+  } else {
+    stamp.textContent = "weekly projections failed to load — this is a bug, not the offseason";
+    console.error("weekly page failed to render:", e);
+  }
 });
 </script>
 </body>
