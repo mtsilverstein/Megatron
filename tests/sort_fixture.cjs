@@ -27,7 +27,14 @@ function makeTh(key, { asc = false } = {}) {
 }
 
 function makeTable(th) {
-  return { dataset: {}, querySelectorAll: () => [th] };
+  // querySelector is how makeSortable finds the column carrying the active
+  // sort, both on init and when the scoring lens changes.
+  return {
+    dataset: {},
+    querySelectorAll: () => [th],
+    querySelector: sel => (sel === "thead th[aria-sort]"
+      ? ([th].find(t => t.getAttribute("aria-sort")) || null) : null),
+  };
 }
 
 // Wires makeSortable to `th`/`rows` and returns a `click()` helper that
@@ -177,9 +184,6 @@ console.log("sort_fixture: OK");
   th.dataset.keyLens = "points.{lens}.p50";
   th._ariaSort = "descending";
   const table = makeTable(th);
-  // _resort finds the sorted column by selector; the shared stub predates it
-  table.querySelector = sel =>
-    (sel === "thead th[aria-sort]" ? (th._ariaSort ? th : null) : null);
   // rows where the two lenses rank QBs in OPPOSITE orders
   const rows = [
     { name: "passer", points: { ppr: { p50: 100 }, league: { p50: 300 } } },
@@ -246,3 +250,29 @@ console.log("sort_fixture: OK");
   delete global.document;
 }
 console.log("sort_fixture: scoring-lens group OK");
+
+// --- a sort declared in the markup must actually be applied ------------------
+// The weekly payload arrives sorted by one ruleset while the header declares a
+// descending sort on the displayed one, so without this the page opened showing
+// league points in PPR order.
+{
+  const th = makeTh("v");
+  th._ariaSort = "descending";
+  const table = makeTable(th);
+  const rows = [{ n: "a", v: 1 }, { n: "b", v: 3 }, { n: "c", v: 2 }];
+  let rendered = null;
+  FC.makeSortable(table, rows, r => { rendered = r.map(x => x.n); });
+  assert.deepStrictEqual(rendered, ["b", "c", "a"],
+    "a declared aria-sort must be applied on init, not just promised");
+  assert.strictEqual(th._ariaSort, "descending", "and must not flip direction");
+}
+{
+  // no declared sort -> payload order is left exactly as it arrived
+  const th = makeTh("v");
+  const table = makeTable(th);
+  const rows = [{ n: "a", v: 1 }, { n: "b", v: 3 }];
+  let rendered = null;
+  FC.makeSortable(table, rows, r => { rendered = r.map(x => x.n); });
+  assert.strictEqual(rendered, null, "no declared sort must not force a render");
+}
+console.log("sort_fixture: declared-sort group OK");

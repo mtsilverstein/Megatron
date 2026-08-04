@@ -105,6 +105,13 @@ window.FC = (() => {
       const th = table.querySelector("thead th[aria-sort]");
       if (th) sortBy(th, true);
     };
+    // Honour a sort DECLARED in the markup. A <th aria-sort="descending"> is a
+    // promise about the order; without applying it the rows keep whatever order
+    // the payload happened to arrive in, which is a different ruleset's. The
+    // weekly payload arrives PPR-sorted, so the page opened showing league
+    // points in PPR order -- the same wrong-order bug as the lens toggle, just
+    // at load rather than on click.
+    table._resort();
   }
 
   /* Scoring-lens toggle, shared by the draft board and the weekly page.
