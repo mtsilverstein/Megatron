@@ -29,6 +29,15 @@
   if (typeof window !== "undefined") window.Trade = T;
   if (typeof module !== "undefined" && module.exports) module.exports = T;
 })(this, function () {
+  const Optimizer = (typeof window !== "undefined" && window.Optimizer)
+    ? window.Optimizer
+    : (typeof require !== "undefined" ? require("./optimizer.js") : null);
+  const Keepers = (typeof window !== "undefined" && window.Keepers)
+    ? window.Keepers
+    : (typeof require !== "undefined" ? require("./keepers.js") : null);
+  if (!Optimizer || !Keepers) {
+    throw new Error("trade.js requires optimizer.js and keepers.js to be loaded first");
+  }
 
   // --- pick ownership --------------------------------------------------------
 
@@ -70,5 +79,73 @@
     return owned;
   }
 
-  return { defaultPicks, applyTradedPicks };
+  // --- derived keepers -------------------------------------------------------
+
+  // A board player + his league draft history, in the shape Keepers'
+  // cost/eligibility functions expect. No draft row in the chain means he was
+  // never drafted here, which is the waiver ladder (R12 on the first keep).
+  function candidate(player, ctx) {
+    const orig = ctx.originalByPlayerId.get(player.player_id);
+    const c = { name: player.name, position: player.position,
+                vorp: player.vorp, adpRound: player.adp_round,
+                overallRank: player.position_rank, player };
+    if (orig) {
+      c.originalRound = orig.round;
+      c.originalYear = orig.season;
+      c.isWaiver = false;
+    } else {
+      c.isWaiver = true;
+    }
+    return c;
+  }
+
+  // Which players a team would actually keep. DERIVED on both sides of every
+  // trade -- never an input, because pre-draft the keeper tag is moot and a
+  // manager may even designate one BECAUSE they intend to shop him.
+  //
+  // Selection reuses Keepers.recommendKeepers so the trade tool and the keeper
+  // panel agree on WHO to keep. (They still differ on what a keeper is WORTH:
+  // keepers.js scores `slotWeight * vorp - parVorp`, this file scores lineup
+  // points. Unifying them is a recorded follow-up, deliberately not done here
+  // -- see the spec's section 10.)
+  function chooseKeepers(roster, ctx) {
+    const cands = (roster || []).map(p => candidate(p, ctx))
+      .filter(c => Number.isFinite(c.vorp));
+    const rec = Keepers.recommendKeepers(cands, ctx.season, ctx.board,
+      { teams: ctx.teams, maxKeepers: ctx.maxKeepers });
+    return rec.map(r => ({ player: r.player, cost: r.cost }));
+  }
+
+  // --- state value -----------------------------------------------------------
+
+  // The board minus every keeper anyone has chosen. Players on a roster who
+  // are NOT kept go back into the draft, which is why this takes the states
+  // rather than the rosters.
+  function draftPool(ctx, ...states) {
+    const gone = new Set(ctx.keptElsewhere);
+    for (const s of states) {
+      for (const k of chooseKeepers(s.roster, ctx)) gone.add(k.player.player_id);
+    }
+    return ctx.board.filter(p => !gone.has(p.player_id));
+  }
+
+  // The best starting lineup this state could still finish, from THIS year's
+  // picks. Keepers occupy their cost rounds, so those picks are spent.
+  //
+  // Draft order is unset pre-draft, so each pick is valued at its round's
+  // MID-slot (Keepers.pickForRound) -- pretending to know the exact overall
+  // pick would be false precision. fromPick is 0: nothing has been drafted.
+  function currentDraftValue(state, pool, ctx) {
+    const kept = chooseKeepers(state.roster, ctx);
+    const spent = new Set(kept.map(k => k.cost));
+    const picks = (state.picks || [])
+      .filter(p => p.season === ctx.season && !spent.has(p.round))
+      .map(p => Keepers.pickForRound(p.round, ctx.teams))
+      .sort((a, b) => a - b);
+    return Optimizer.lineupPoints(
+      Optimizer.finishRoster(kept.map(k => k.player), pool, picks, 0));
+  }
+
+  return { defaultPicks, applyTradedPicks, candidate, chooseKeepers,
+           draftPool, currentDraftValue };
 });

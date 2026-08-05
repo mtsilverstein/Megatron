@@ -45,4 +45,137 @@ check("a traded pick for an unknown season or roster is ignored, not crashed", (
   assert.strictEqual(keys(owned.get(1)), "2026R1,2026R2", "nothing should have moved");
 });
 
+// --- state value ------------------------------------------------------------
+const O = require("../site/assets/optimizer.js");
+
+// A board row the optimizer will accept. value_points is the absolute season
+// projection the lineup objective reads; vorp is position-relative and only
+// feeds the keeper selection.
+let _id = 0;
+const P = (name, position, value_points, extra = {}) =>
+  Object.assign({ name, position, value_points, player_id: `p${++_id}`,
+                  vorp: value_points, bye: null, adp: null, adp_round: null,
+                  position_rank: 1, season_points: null }, extra);
+
+// A realistic filler board: 240 players, all four positions interleaved, value
+// descending 250 -> ~47, every row carrying an ADP. All three properties are
+// load-bearing. DESCENDING because Optimizer.parVorp reads "the board row at
+// this rank" and a shuffled board makes every keeper cost meaningless.
+// REALISTIC SCALE because if the filler is far weaker than the test players, a
+// draft pick buys nothing and the cost of keeping someone vanishes -- which
+// would let a broken implementation pass.
+//
+// ADP because it is the ONLY thing that makes an early pick differ from a late
+// one. Optimizer.finishRoster depletes the pool between your picks via
+// fieldTakes, which drafts strictly in ADP order and explicitly skips players
+// with no ADP ("the undrafted depth tail"). On an ADP-less board fieldTakes is
+// a permanent no-op: the pool never shrinks, every pick returns the same best
+// available, and the keeper ladder -- the entire thesis of this file -- moves
+// the objective by exactly 0.00. Five of the tests below measured precisely
+// that before this was added, and passed or tied without testing anything.
+const filler = [];
+for (let i = 0; i < 240; i++) {
+  filler.push(P(`${["QB", "RB", "WR", "TE"][i % 4]}f${i}`,
+                ["QB", "RB", "WR", "TE"][i % 4], 250 - i * 0.85,
+                { adp: i + 1, adp_round: Math.ceil((i + 1) / 12) }));
+}
+
+const CTX = (over = {}) => Object.assign({
+  season: 2026, teams: 12, rounds: 15, maxKeepers: 2, futureDiscount: 0.8,
+  board: filler, originalByPlayerId: new Map(), keptElsewhere: new Set(),
+}, over);
+
+// Drafted in `round` of `season` -> keeper cost decays one round per year.
+const withHistory = (ctx, player, round, season = 2025) => {
+  ctx.originalByPlayerId.set(player.player_id, { round, season });
+  return player;
+};
+const state = (roster, picks) => ({ roster, picks });
+const allPicks = (season = 2026, rounds = 15) =>
+  Array.from({ length: rounds }, (_, i) => ({ season, round: i + 1 }));
+
+check("an ineligible player is worth exactly zero pre-draft", () => {
+  // Cost = originalRound - yearsKept. A round-1 pick from last season computes
+  // to R0, so he returns to the draft pool for EVERYBODY and owning him first
+  // buys nothing. This is the counterintuitive one: your best player is often
+  // the one worth nothing to trade.
+  const ctx = CTX();
+  const star = withHistory(ctx, P("Star", "RB", 300), 1);
+  ctx.board = filler.concat([star]);
+  const picks = allPicks();
+  const empty = state([], picks);
+  const withStar = state([star], picks);
+  const pool = T.draftPool(ctx, withStar);
+  assert.strictEqual(T.chooseKeepers(withStar.roster, ctx).length, 0,
+    "an R1 keeper cost is R0 -> ineligible");
+  assert.ok(Math.abs(T.currentDraftValue(withStar, pool, ctx)
+                   - T.currentDraftValue(empty, T.draftPool(ctx, empty), ctx)) < 1e-6,
+    "holding an ineligible player must change nothing");
+});
+
+check("a cheap ladder outvalues a strictly better player", () => {
+  // The inversion the whole pre-draft market misses. `good` is strictly the
+  // better player but costs an early pick; `cheap` is worse and costs a late
+  // one. The cheap ladder must win.
+  const ctxA = CTX(), ctxB = CTX();
+  const good = withHistory(ctxA, P("Good", "WR", 220), 4);    // cost R3
+  const cheap = withHistory(ctxB, P("Cheap", "WR", 180), 12); // cost R11
+  ctxA.board = filler.concat([good]);
+  ctxB.board = filler.concat([cheap]);
+  const a = state([good], allPicks()), b = state([cheap], allPicks());
+  const va = T.currentDraftValue(a, T.draftPool(ctxA, a), ctxA);
+  const vb = T.currentDraftValue(b, T.draftPool(ctxB, b), ctxB);
+  assert.ok(vb > va,
+    `cheap ladder ${vb.toFixed(1)} must beat better-but-expensive ${va.toFixed(1)}`);
+});
+
+check("an acquired player competes for a slot, he does not add one", () => {
+  // Both keeper slots already hold better players, so a third star gains
+  // ~nothing. A design treating him as an extra keeper would overvalue every
+  // incoming star.
+  const ctx = CTX();
+  const k1 = withHistory(ctx, P("K1", "WR", 240), 10);
+  const k2 = withHistory(ctx, P("K2", "RB", 235), 10);
+  const third = withHistory(ctx, P("Third", "WR", 150), 10);
+  ctx.board = filler.concat([k1, k2, third]);
+  const before = state([k1, k2], allPicks());
+  const after = state([k1, k2, third], allPicks());
+  assert.strictEqual(T.chooseKeepers(after.roster, ctx).length, 2, "cap is 2");
+  const gain = T.currentDraftValue(after, T.draftPool(ctx, after), ctx)
+             - T.currentDraftValue(before, T.draftPool(ctx, before), ctx);
+  assert.ok(Math.abs(gain) < 5,
+    `a third keeper behind two better ones should gain ~0, got ${gain.toFixed(1)}`);
+});
+
+check("keeping a player spends the pick at his cost round", () => {
+  const ctx = CTX();
+  const k = withHistory(ctx, P("Keep", "RB", 200), 8);        // cost R7
+  ctx.board = filler.concat([k]);
+  const s = state([k], allPicks());
+  const kept = T.chooseKeepers(s.roster, ctx);
+  assert.strictEqual(kept.length, 1);
+  assert.strictEqual(kept[0].cost, 7, "8 drafted in 2025 -> R7 in 2026");
+});
+
+check("the draft pool excludes every kept player", () => {
+  const ctx = CTX();
+  const mine = withHistory(ctx, P("Mine", "RB", 200), 8);
+  const theirs = withHistory(ctx, P("Theirs", "WR", 200), 8);
+  ctx.board = filler.concat([mine, theirs]);
+  const pool = T.draftPool(ctx, state([mine], []), state([theirs], []));
+  const ids = new Set(pool.map(p => p.player_id));
+  assert.ok(!ids.has(mine.player_id) && !ids.has(theirs.player_id),
+    "a kept player is off the board for everyone");
+});
+
+check("a player with no draft history is on the waiver ladder", () => {
+  // Never drafted in this league -> R12 the first year he's kept.
+  const ctx = CTX();
+  const w = P("Waiver", "TE", 200);
+  ctx.board = filler.concat([w]);
+  const kept = T.chooseKeepers([w], ctx);
+  assert.strictEqual(kept.length, 1);
+  assert.strictEqual(kept[0].cost, 12);
+});
+
 console.log(`trade_fixture: ${n} groups OK`);
