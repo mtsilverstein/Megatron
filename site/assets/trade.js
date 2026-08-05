@@ -81,6 +81,23 @@
 
   // --- derived keepers -------------------------------------------------------
 
+  // `overallRank` means rank across the WHOLE board: keepers.js builds it as
+  // the board index in both places it produces one (`overallRank: i + 1`), and
+  // Keepers.valueRound divides it by the league size to get a round. It is NOT
+  // position_rank -- WR24 has position_rank 24 and a board index near 90, which
+  // would price him as a round-2 asset. Cached per board array because the
+  // suggester builds candidates thousands of times.
+  const rankCache = new WeakMap();
+  function boardRank(board, player) {
+    let byId = rankCache.get(board);
+    if (!byId) {
+      byId = new Map(board.map((p, i) => [p.player_id, i + 1]));
+      rankCache.set(board, byId);
+    }
+    const r = byId.get(player.player_id);
+    return r != null ? r : board.length + 1;   // off the board: past the last row
+  }
+
   // A board player + his league draft history, in the shape Keepers'
   // cost/eligibility functions expect. No draft row in the chain means he was
   // never drafted here, which is the waiver ladder (R12 on the first keep).
@@ -88,7 +105,7 @@
     const orig = ctx.originalByPlayerId.get(player.player_id);
     const c = { name: player.name, position: player.position,
                 vorp: player.vorp, adpRound: player.adp_round,
-                overallRank: player.position_rank, player };
+                overallRank: boardRank(ctx.board, player), player };
     if (orig) {
       c.originalRound = orig.round;
       c.originalYear = orig.season;
@@ -129,6 +146,28 @@
     return ctx.board.filter(p => !gone.has(p.player_id));
   }
 
+  // Two keepers can compute to the SAME cost round -- two waiver pickups are
+  // both R12, and multi-year ladders converge as they walk down one round a
+  // year. A team holds only ONE pick per round, so pricing both against that
+  // round hands it a free extra selection: measured at 40.8 points of phantom
+  // draft capital for a colliding pair inside the rollout window. Every number
+  // this tool shows is a difference of two state values, so a collision on one
+  // side of a trade and not the other reads as pure gain.
+  //
+  // Resolved the way a real draft must: cheapest keeper first, each taking the
+  // next unspent round at or after his cost. A round past the last one is
+  // still recorded -- it simply matches no pick the team holds, which is the
+  // correct outcome and needs no special case.
+  function spentRounds(kept, rounds) {
+    const spent = new Set();
+    for (const k of kept.slice().sort((a, b) => a.cost - b.cost)) {
+      let r = k.cost;
+      while (r <= rounds && spent.has(r)) r++;
+      spent.add(r);
+    }
+    return spent;
+  }
+
   // The best starting lineup this state could still finish, from THIS year's
   // picks. Keepers occupy their cost rounds, so those picks are spent.
   //
@@ -137,15 +176,20 @@
   // pick would be false precision. fromPick is 0: nothing has been drafted.
   function currentDraftValue(state, pool, ctx) {
     const kept = chooseKeepers(state.roster, ctx);
-    const spent = new Set(kept.map(k => k.cost));
+    const spent = spentRounds(kept, ctx.rounds);
     const picks = (state.picks || [])
       .filter(p => p.season === ctx.season && !spent.has(p.round))
       .map(p => Keepers.pickForRound(p.round, ctx.teams))
       .sort((a, b) => a - b);
+    // Idempotent against the caller's pool: a keeper must not also be
+    // draftable. Callers build pools per state and it is easy to reuse a stale
+    // one, which silently drafts the same player twice.
+    const keptIds = new Set(kept.map(k => k.player.player_id));
+    const usable = pool.filter(p => !keptIds.has(p.player_id));
     return Optimizer.lineupPoints(
-      Optimizer.finishRoster(kept.map(k => k.player), pool, picks, 0));
+      Optimizer.finishRoster(kept.map(k => k.player), usable, picks, 0));
   }
 
   return { defaultPicks, applyTradedPicks, candidate, chooseKeepers,
-           draftPool, currentDraftValue };
+           draftPool, currentDraftValue, boardRank };
 });

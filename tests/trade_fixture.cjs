@@ -133,18 +133,31 @@ check("an acquired player competes for a slot, he does not add one", () => {
   // Both keeper slots already hold better players, so a third star gains
   // ~nothing. A design treating him as an extra keeper would overvalue every
   // incoming star.
+  //
+  // All three are stronger than any filler row and their cost rounds are
+  // distinct, so the ~0 below cannot be an artifact of a player too weak to
+  // matter -- the cap=3 counterfactual at the bottom proves the same roster
+  // DOES move by 47.6 points the moment a third slot exists.
   const ctx = CTX();
-  const k1 = withHistory(ctx, P("K1", "WR", 240), 10);
-  const k2 = withHistory(ctx, P("K2", "RB", 235), 10);
-  const third = withHistory(ctx, P("Third", "WR", 150), 10);
+  const k1 = withHistory(ctx, P("K1", "WR", 300), 10);      // cost R9
+  const k2 = withHistory(ctx, P("K2", "RB", 290), 11);      // cost R10
+  const third = withHistory(ctx, P("Third", "WR", 260), 12); // cost R11
   ctx.board = filler.concat([k1, k2, third]);
   const before = state([k1, k2], allPicks());
   const after = state([k1, k2, third], allPicks());
   assert.strictEqual(T.chooseKeepers(after.roster, ctx).length, 2, "cap is 2");
-  const gain = T.currentDraftValue(after, T.draftPool(ctx, after), ctx)
-             - T.currentDraftValue(before, T.draftPool(ctx, before), ctx);
+  const value = (s, c) => T.currentDraftValue(s, T.draftPool(c, s), c);
+  const gain = value(after, ctx) - value(before, ctx);
   assert.ok(Math.abs(gain) < 5,
     `a third keeper behind two better ones should gain ~0, got ${gain.toFixed(1)}`);
+  // TEETH. Same rosters, same board, one more keeper slot. If this did not
+  // move, the assertion above would be measuring a fixture that cannot move
+  // rather than the cap actually binding.
+  const ctx3 = Object.assign({}, ctx, { maxKeepers: 3 });
+  assert.strictEqual(T.chooseKeepers(after.roster, ctx3).length, 3);
+  const gain3 = value(after, ctx3) - value(before, ctx3);
+  assert.ok(gain3 > 20,
+    `with a third slot the same player must be worth real points, got ${gain3.toFixed(1)}`);
 });
 
 check("keeping a player spends the pick at his cost round", () => {
@@ -166,6 +179,14 @@ check("the draft pool excludes every kept player", () => {
   const ids = new Set(pool.map(p => p.player_id));
   assert.ok(!ids.has(mine.player_id) && !ids.has(theirs.player_id),
     "a kept player is off the board for everyone");
+  // keptElsewhere is the ten uninvolved teams' keepers. Without this the
+  // parameter could be dropped entirely and every test would still pass.
+  const elsewhere = filler[0];
+  const ctx2 = CTX({ board: ctx.board, originalByPlayerId: ctx.originalByPlayerId,
+                     keptElsewhere: new Set([elsewhere.player_id]) });
+  const pool2 = T.draftPool(ctx2, state([mine], []), state([theirs], []));
+  assert.ok(!pool2.some(p => p.player_id === elsewhere.player_id),
+    "a player kept by an uninvolved team is off the board too");
 });
 
 check("a player with no draft history is on the waiver ladder", () => {
@@ -176,6 +197,27 @@ check("a player with no draft history is on the waiver ladder", () => {
   const kept = T.chooseKeepers([w], ctx);
   assert.strictEqual(kept.length, 1);
   assert.strictEqual(kept[0].cost, 12);
+});
+
+check("two keepers at the same cost round cannot share one pick", () => {
+  // A team holds ONE pick per round. Two waiver pickups both cost R12 and
+  // multi-year ladders converge, so this collides in real rosters -- and a
+  // Set of cost rounds priced both against a single pick, worth 40.8 points
+  // of draft capital the team does not have.
+  const ctx = CTX();
+  const a = withHistory(ctx, P("Col1", "RB", 240), 4);   // cost R3
+  const b = withHistory(ctx, P("Col2", "RB", 239), 4);   // cost R3 too
+  const c = withHistory(ctx, P("Dis1", "RB", 240), 4);   // cost R3
+  const d = withHistory(ctx, P("Dis2", "RB", 239), 5);   // cost R4
+  ctx.board = filler.concat([a, b, c, d]);
+  const collide = state([a, b], allPicks());
+  const distinct = state([c, d], allPicks());
+  assert.strictEqual(T.chooseKeepers(collide.roster, ctx).length, 2);
+  const vc = T.currentDraftValue(collide, T.draftPool(ctx, collide), ctx);
+  const vd = T.currentDraftValue(distinct, T.draftPool(ctx, distinct), ctx);
+  assert.ok(Math.abs(vc - vd) < 1e-6,
+    `a colliding pair must cost the same two picks as a distinct pair; ` +
+    `got ${vc.toFixed(2)} vs ${vd.toFixed(2)}`);
 });
 
 console.log(`trade_fixture: ${n} groups OK`);
