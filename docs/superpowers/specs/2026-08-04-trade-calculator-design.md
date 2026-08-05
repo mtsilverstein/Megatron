@@ -204,14 +204,30 @@ player more than the market does" would be selling ourselves the worse signal.
 
 The defensible edges, all of which this design uses:
 
-1. **Roster-shape math.** Your surplus RB is worth ~0 to you and a lot to an
-   RB-poor team. Measured at +120 points of draft edge in the backtest.
-2. **Keeper-cost arbitrage.** The cost ladder is league-specific and routinely
-   misjudged by managers; `keepers.js` computes it exactly, and
-   `buildOriginalByPlayerId` gives it for *every* player in the league. This is
-   the largest and most reliable edge available pre-draft: §3.1c shows live
-   surpluses of +7 and +8 rounds sitting on other teams' rosters, and nothing
-   about exploiting them requires predicting a single football outcome.
+1. **Keeper-cost arbitrage — pre-draft this is very nearly the whole thing.**
+   The cost ladder is league-specific and routinely misjudged; `keepers.js`
+   computes it exactly and `buildOriginalByPlayerId` gives it for *every*
+   player in the league. §3.1c shows live surpluses of +7 and +8 rounds sitting
+   on other teams' rosters, and exploiting them requires predicting no football
+   whatsoever.
+
+   **Measured against the shipped optimizer:** holding the same player at a R11
+   keeper cost instead of R3 is worth **+51.0 projected lineup points**.
+
+2. **Roster-shape math — NOT a pre-draft edge.** *Corrected 2026-08-05 while
+   writing the implementation plan; the first draft of this section had it
+   first, which was wrong.* Shape is what earns the +120 in the draft backtest
+   and it will matter in-season, when a roster is 15 players. **Pre-draft a
+   roster is at most two keepers**, and `finishRoster` drafts everything else,
+   so shape has almost nothing to bite on. Measured the same way: keeping two
+   RBs instead of an RB and a WR moves the finishable lineup by **0.8 points**
+   — sixty times smaller than the cost effect above, and inside the noise floor
+   `MIN_GAIN` already rejects.
+
+   The consequence for the design is concrete: a pre-draft trade is worth
+   making because of the *ladder* a player sits on, not because of the *hole*
+   he fills. The UI must lead with cost surplus, and §9's first test changes
+   accordingly.
 3. **The QB mispricing.** This league leaves QBs on the board +19.4 picks past
    market position, consistently across all four measured drafts, in a
    6-point-passing-TD league.
@@ -311,8 +327,11 @@ The project rule holds: degrade loudly, never silently.
 `tests/trade_fixture.cjs`, node, pure math — the same gate style as
 `optimizer_fixture.cjs`:
 
-1. **The premise.** A surplus RB scores ~0 for a team with 4 RBs and high for a
-   team with 1. If this fails the whole feature is an additive value chart.
+1. **The premise.** The same player on a cheap keeper ladder is worth
+   materially more than on an expensive one — measured at +51 lineup points for
+   R11 against R3. If this fails the whole feature is an additive value chart.
+   (This test replaced a roster-shape assertion, which measured 0.8 points
+   pre-draft and would have pinned nothing — see §4.1(2).)
 2. Acquiring a player who displaces an incumbent keeper spends his
    **inherited** cost round, and frees the displaced player's.
 3. Trading away a player who was a keeper returns his cost round to the pool
