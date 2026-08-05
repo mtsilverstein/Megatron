@@ -166,6 +166,16 @@ tr.mine td:nth-child(3) { text-decoration: none; }
   border: 1px solid var(--te); border-radius: 3px; color: var(--te);
 }
 
+/* Returning from a season-ending injury. Deliberately louder than the rookie
+   chip: it is the one mark on this board that says a number BELOW is lower on
+   purpose, and an unexplained low floor reads as a bad projection. */
+.returning-chip {
+  display: inline-block; margin-left: .35rem; padding: 0 .3rem;
+  font: 600 .7rem/1.5 "Barlow Condensed", sans-serif; letter-spacing: .06em;
+  border: 1px solid var(--rb); border-radius: 3px; color: var(--rb);
+  background: rgba(255, 255, 255, .04);
+}
+
 /* Pick-time optimizer shortlist. Read top-down on the clock: chip for
    position, name, what passing costs, then the reasoning. */
 .draft-shortlist { margin: .45rem 0 0; padding: 0; list-style: none; }

@@ -24,7 +24,8 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       n_draws: int = 2000, seed: int = 0,
                       games_dist: dict[str, np.ndarray] | None = None,
                       diagnostics: dict | None = None,
-                      rho_by_position: dict[str, float] | None = None) -> pd.DataFrame:
+                      rho_by_position: dict[str, float] | None = None,
+                      returning: set[str] | None = None) -> pd.DataFrame:
     """All weeks seeded from the same pre-season history (spec §7).
 
     For a quantile predictor, the season p10/p50/p90 come from a Monte-Carlo
@@ -115,7 +116,27 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
     if has_quantiles and totals:
         # Deferred import: ffmodel.eval.diagnose imports REPLACEMENT_RANK
         # from THIS module, so a top-level import here would be circular.
-        from ffmodel.eval.diagnose import availability_table, weekly_residual_icc
+        from ffmodel.eval.diagnose import (RETURNING_POS, availability_table,
+                                           returning_table, weekly_residual_icc)
+
+        # Players named as coming off a season-ending injury draw games-played
+        # from the measured RETURNING distribution instead of their healthy
+        # position cohort. Measured leak-free on the same `weekly` history:
+        # 9.4 expected games against 13.6 for a healthy WR, and P(<=8 games)
+        # 0.41 against 0.13. Without this a torn ACL is invisible to the board
+        # -- the model has no injury feature, and sequences are built from
+        # games PLAYED, so a missed season leaves no rows and therefore no
+        # trace at all. See `returning_table`.
+        returning_probs = None
+        if returning:
+            try:
+                returning_probs = games_probs_from_counts(
+                    returning_table(weekly, through_season=int(weekly["season"].max()))
+                ).get(RETURNING_POS)
+                if returning_probs is not None and not np.isclose(returning_probs.sum(), 1.0):
+                    returning_probs = None      # empty cohort: fall through to healthy
+            except ValueError:
+                returning_probs = None          # short world, same fallback as below
 
         if games_dist is not None:
             dist_by_position, fallback_full_availability = games_dist, False
@@ -160,6 +181,12 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                 # global `fallback_full_availability` case above.
                 probs = np.zeros(_MAX_GAMES + 1, dtype=float)
                 probs[min(entry["games"], _MAX_GAMES)] = 1.0
+            # After the degenerate fallback, so a named returner still gets the
+            # measured distribution in a world where his position's cohort is
+            # empty -- that is exactly when the healthy default is least
+            # trustworthy.
+            if returning_probs is not None and pid in returning:
+                probs = returning_probs
             rho = rho_map.get(position, 0.0)
             for rn in RULESETS:
                 week_bands = np.array(bands_by_player[pid][rn], dtype=float)
@@ -322,6 +349,12 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
             "adp": _opt(row["adp"], float),
             "adp_round": _opt(row["adp_round"], int),
             "rookie": bool(row["rookie"]) if "rookie" in row.index else False,
+            # Named in the returning-player list, so his band was simulated
+            # from the measured post-injury availability rather than his
+            # healthy position cohort. Published so the site can SAY why his
+            # floor is low -- an unexplained low floor reads as a bad
+            # projection, which is the thing this is meant to fix.
+            "returning": bool(row["returning"]) if "returning" in row.index else False,
         } for _, row in board.iterrows()],
     }
     if rookie_prior is not None:
@@ -338,10 +371,11 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       draft_picks: pd.DataFrame | None = None,
                       rookie_min_n: int | None = None,
                       ecr: dict | None = None, adp: dict | None = None,
-                      replacement_rank: dict = REPLACEMENT_RANK) -> dict:
+                      replacement_rank: dict = REPLACEMENT_RANK,
+                      returning: set[str] | None = None) -> dict:
     players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit,
                                 n_draws=n_draws, seed=seed, games_dist=games_dist,
-                                diagnostics=diagnostics)
+                                diagnostics=diagnostics, returning=returning)
     if players.empty:
         raise RuntimeError(
             f"no future games found for season {season} weeks {list(weeks)} — "
@@ -368,6 +402,10 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
         return int(missing[0]) if len(missing) == 1 else None
 
     players["bye"] = players["team"].map(_bye)
+    # Rookies are appended after season_projection, so flag AFTER the concat --
+    # a returning rookie (redshirt year) would otherwise silently lose the mark.
+    players["returning"] = (players["player_id"].isin(returning) if returning
+                            else False)
     has_bands = hasattr(predictor, "predict_quantiles")
     payload = _finalize_board(players, predictor.name, season, data_through, has_bands,
                               n_draws, rookie_prior=rookie_prior_meta,

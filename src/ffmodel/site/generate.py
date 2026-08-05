@@ -47,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--season", type=int, required=True)
     parser.add_argument("--week", type=str, default=None)
     parser.add_argument("--draft", action="store_true")
+    parser.add_argument("--returning", default=str(RETURNING_CONFIG),
+                        help="YAML list of players returning from a "
+                             "season-ending injury (--draft only)")
     parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
     parser.add_argument("--first-season", type=int, default=2012)
     return parser
@@ -259,6 +262,63 @@ def _attach_late_slots(payload, season, data_dir):
     return payload
 
 
+RETURNING_CONFIG = Path("configs/returning_players.yaml")
+
+
+def _load_returning(path: Path, weekly: pd.DataFrame, season: int) -> set[str]:
+    """Resolve the hand-maintained returning-from-injury list to player_ids.
+
+    A name that matches nobody RAISES rather than being skipped -- a typo'd
+    star would otherwise leave his floor quietly wrong, which is the exact bug
+    the list exists to fix.
+
+    The season stamp is checked ASYMMETRICALLY, because the two mismatches mean
+    opposite things. A list OLDER than the board is stale -- someone forgot to
+    update it, and last year's injuries silently discounting this year's board
+    is worse than no list at all -- so that raises. A list NEWER than the board
+    just means the board predates it, which is the normal state of a historical
+    or backtest run (`--season 2023` against a 2026 list); that skips with a
+    notice, because crashing an unrelated backtest on this file would be a
+    footgun with no safety value.
+
+    A missing file is NOT an error: a season with nobody returning is a real
+    state, and requiring an empty file to express it invites a stale one."""
+    if not path.exists():
+        return set()
+    import yaml
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    stamped = doc.get("season")
+    if stamped is not None and int(stamped) != int(season):
+        if int(stamped) < int(season):
+            raise ValueError(
+                f"{path} is stamped season {stamped} but the board is {season} — "
+                f"refusing to apply a stale returning-player list. Update the file."
+            )
+        print(f"{path} is stamped season {stamped}; board is {season} — "
+              f"returning-player list NOT applied (board predates the list)")
+        return set()
+    names = [str(n).strip() for n in (doc.get("players") or []) if str(n).strip()]
+    if not names:
+        return set()
+    # Most recent appearance wins: a player who missed ALL of last season is
+    # absent from it entirely, so his id has to come from an earlier one.
+    hist = weekly.sort_values("season")
+    by_name = dict(zip(hist["player_display_name"], hist["player_id"]))
+    resolved, missing = set(), []
+    for n in names:
+        pid = by_name.get(n)
+        if pid is None:
+            missing.append(n)
+        else:
+            resolved.add(pid)
+    if missing:
+        raise ValueError(
+            f"{path}: no player history matches {missing} — names must match the "
+            f"board exactly. Fix the spelling or remove the entry."
+        )
+    return resolved
+
+
 def _draft_consensus(season, schedules, data_dir, *, draft_picks=None):
     """ECR is the required spine (raise -> abort the run, fail-safe); ADP is a
     best-effort overlay (failure -> None/None, board still builds). Replacement
@@ -377,10 +437,15 @@ def main() -> None:
         payloads["weekly.json"] = build_weekly_projections(
             future, predictor, args.season, week, data_through)
     if args.draft:
+        returning = _load_returning(Path(args.returning), weekly, args.season)
+        if returning:
+            print(f"returning-from-injury: {len(returning)} player(s) "
+                  f"({args.returning}) — bands use the measured post-injury "
+                  f"availability, not their healthy cohort")
         board_payload = build_draft_board(
             weekly, schedules, predictor, args.season, data_through, prefit=True,
             sleeper_players=sleeper_players, draft_picks=draft_picks,
-            ecr=ecr, adp=adp, replacement_rank=replacement)
+            ecr=ecr, adp=adp, replacement_rank=replacement, returning=returning)
         # Provenance: which ADP source actually fed the board (sleeper_snapshot
         # + its capture date, or the ffcalculator fallback) -- so the site can
         # say honestly where its market overlay came from.

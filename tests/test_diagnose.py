@@ -479,3 +479,72 @@ def test_diagnose_board_season_with_transformer_root_does_not_raise():
     ])
     assert args.board_season == 2025
     assert len(args.transformer_root) == 1
+
+
+# --- returning_table: injury vs attrition ----------------------------------
+def _returning_weekly():
+    """Two established players, both losing season 2 to a short year, one still
+    productive per game and one not. Season 3 is the outcome."""
+    import pandas as pd
+    rows = []
+
+    from ffmodel.scoring import PREDICTED_STATS
+
+    def add(pid, name, pos, season, weeks, rec_yds, rec=5.0, td=1.0):
+        for w in weeks:
+            row = {s: 0.0 for s in PREDICTED_STATS}
+            row.update({"player_id": pid, "player_display_name": name,
+                        "position": pos, "season": season, "week": w,
+                        "receiving_yards": rec_yds, "receptions": rec,
+                        "receiving_tds": td})
+            rows.append(row)
+    # established in S-1
+    add("hurt", "Hurt Guy", "WR", 1, range(1, 16), 90)
+    add("done", "Done Guy", "WR", 1, range(1, 16), 90)
+    add("well", "Well Guy", "WR", 1, range(1, 16), 90)
+    # S: both lose the season; "hurt" still productive per game, "done" is not
+    add("hurt", "Hurt Guy", "WR", 2, range(1, 5), 90)                 # 20 ppg -> productive
+    add("done", "Done Guy", "WR", 2, range(1, 5), 5, rec=1.0, td=0.0)  # 1.5 ppg -> not
+    add("well", "Well Guy", "WR", 2, range(1, 17), 90)
+    # S+1: the outcome
+    add("hurt", "Hurt Guy", "WR", 3, range(1, 10), 90)    # 9 games
+    add("well", "Well Guy", "WR", 3, range(1, 17), 90)
+    # "done" records nothing in S+1 -> 0 games, and must NOT be counted
+    return pd.DataFrame(rows)
+
+
+def test_returning_table_counts_only_the_productive_returner():
+    from ffmodel.eval.diagnose import returning_table
+    t = returning_table(_returning_weekly(), through_season=2)
+    counted = t[t["count"] > 0]
+    assert list(counted["games"]) == [9], t[t["count"] > 0].to_dict("records")
+    assert int(t["count"].sum()) == 1, "the attrition case must be excluded"
+
+
+def test_returning_table_is_pooled_across_positions():
+    from ffmodel.eval.diagnose import RETURNING_POS, returning_table
+    t = returning_table(_returning_weekly(), through_season=2)
+    assert set(t["position"]) == {RETURNING_POS}
+    assert list(t["games"]) == list(range(19)), "complete 0..18 axis"
+
+
+def test_returning_table_counts_a_vanished_player_as_zero_games():
+    """No survivorship: a productive returner who never plays again is the
+    worst outcome the distribution has to represent, not a dropped row."""
+    import pandas as pd
+    from ffmodel.eval.diagnose import returning_table
+    w = _returning_weekly()
+    w = w[~((w.player_id == "hurt") & (w.season == 3))]     # he never returns
+    # keep season 3 alive via the healthy player
+    t = returning_table(w, through_season=2)
+    assert int(t.loc[t["games"] == 0, "count"].iloc[0]) == 1
+
+
+def test_returning_table_raises_without_a_usable_season_pair():
+    import pandas as pd
+    import pytest
+    from ffmodel.eval.diagnose import returning_table
+    single = _returning_weekly()
+    single = single[single.season == 1]
+    with pytest.raises(ValueError):
+        returning_table(single, through_season=1)

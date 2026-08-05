@@ -153,7 +153,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       tr.innerHTML = `
         <td class="num">${FC.fmt(p.vorp)}</td>
         <td><span class="pos-chip ${FC.POS_CLASS[p.position]}">${p.position}</span></td>
-        <td>${FC.esc(p.name)}${p.rookie ? ' <span class="rookie-chip" title="rookie — draft-capital cohort prior">R</span>' : ""}</td>
+        <td>${FC.esc(p.name)}${p.rookie ? ' <span class="rookie-chip" title="rookie — draft-capital cohort prior">R</span>' : ""}${p.returning ? ' <span class="returning-chip" title="returning from a season-ending injury — his floor is simulated from the measured post-injury availability (9.4 expected games vs 13.6 healthy), not his position\'s healthy cohort. His RANK is expert consensus, which already knows.">INJ</span>' : ""}</td>
         <td>${FC.esc(p.team)}</td>
         <td class="num">${p.bye ?? "—"}</td>
         <td class="num">${FC.fmt(s.p50)}</td>

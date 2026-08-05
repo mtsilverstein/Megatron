@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-04T14:35:40+00:00",
+  "generated_at": "2026-08-05T03:24:33+00:00",
   "data_through": "2025-wk18",
   "season": 2026,
   "model": "transformer",
@@ -89,6 +89,7 @@
       "adp": 1.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9509"
     },
     {
@@ -128,6 +129,7 @@
       "adp": 3.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7564"
     },
     {
@@ -167,6 +169,7 @@
       "adp": 2.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9221"
     },
     {
@@ -206,6 +209,7 @@
       "adp": 6.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4034"
     },
     {
@@ -245,6 +249,7 @@
       "adp": 4.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9493"
     },
     {
@@ -284,6 +289,7 @@
       "adp": 7.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6813"
     },
     {
@@ -323,6 +329,7 @@
       "adp": 5.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9488"
     },
     {
@@ -362,6 +369,7 @@
       "adp": 16.0,
       "adp_round": 2,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8130"
     },
     {
@@ -401,6 +409,7 @@
       "adp": 10.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7547"
     },
     {
@@ -440,6 +449,7 @@
       "adp": 9.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6786"
     },
     {
@@ -479,6 +489,7 @@
       "adp": 14.0,
       "adp_round": 2,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12527"
     },
     {
@@ -518,6 +529,7 @@
       "adp": 11.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6794"
     },
     {
@@ -557,6 +569,7 @@
       "adp": 15.0,
       "adp_round": 2,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9226"
     },
     {
@@ -596,6 +609,7 @@
       "adp": 12.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8112"
     },
     {
@@ -635,6 +649,7 @@
       "adp": 22.0,
       "adp_round": 2,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7569"
     },
     {
@@ -666,54 +681,16 @@
       },
       "games": 17,
       "bye": 10,
-      "vorp": 59.17,
-      "value_points": 182.8,
+      "vorp": 56.1,
+      "value_points": 179.7,
       "position_rank": 9,
-      "tier": 5,
+      "tier": 6,
       "ecr": 15.38,
       "adp": 29.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5859"
-    },
-    {
-      "player_id": "00-0037247",
-      "name": "George Pickens",
-      "team": "DAL",
-      "position": "WR",
-      "season_points": {
-        "ppr": {
-          "p50": 177.7,
-          "p10": 81.3,
-          "p90": 288.9
-        },
-        "half_ppr": {
-          "p50": 146.2,
-          "p10": 62.0,
-          "p90": 238.7
-        },
-        "standard": {
-          "p50": 110.4,
-          "p10": 48.6,
-          "p90": 187.0
-        },
-        "league": {
-          "p50": 179.7,
-          "p10": 78.8,
-          "p90": 290.2
-        }
-      },
-      "games": 17,
-      "bye": 14,
-      "vorp": 56.1,
-      "value_points": 179.7,
-      "position_rank": 10,
-      "tier": 5,
-      "ecr": 18.23,
-      "adp": 24.0,
-      "adp_round": 2,
-      "rookie": false,
-      "sleeper_id": "8137"
     },
     {
       "player_id": "00-0037248",
@@ -752,46 +729,48 @@
       "adp": 8.0,
       "adp_round": 1,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8138"
     },
     {
-      "player_id": "00-0037239",
-      "name": "Chris Olave",
-      "team": "NO",
+      "player_id": "00-0037247",
+      "name": "George Pickens",
+      "team": "DAL",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 190.2,
-          "p10": 87.3,
-          "p90": 305.3
+          "p50": 177.7,
+          "p10": 81.3,
+          "p90": 288.9
         },
         "half_ppr": {
-          "p50": 153.7,
-          "p10": 66.6,
-          "p90": 249.6
+          "p50": 146.2,
+          "p10": 62.0,
+          "p90": 238.7
         },
         "standard": {
-          "p50": 114.3,
-          "p10": 46.9,
-          "p90": 195.3
+          "p50": 110.4,
+          "p10": 48.6,
+          "p90": 187.0
         },
         "league": {
-          "p50": 189.9,
-          "p10": 92.5,
-          "p90": 302.9
+          "p50": 179.7,
+          "p10": 78.8,
+          "p90": 290.2
         }
       },
       "games": 17,
-      "bye": 8,
+      "bye": 14,
       "vorp": 54.61,
       "value_points": 178.2,
-      "position_rank": 11,
-      "tier": 5,
-      "ecr": 20.07,
-      "adp": 26.0,
-      "adp_round": 3,
+      "position_rank": 10,
+      "tier": 6,
+      "ecr": 18.23,
+      "adp": 24.0,
+      "adp_round": 2,
       "rookie": false,
-      "sleeper_id": "8144"
+      "returning": false,
+      "sleeper_id": "8137"
     },
     {
       "player_id": "00-0039338",
@@ -830,6 +809,7 @@
       "adp": 21.0,
       "adp_round": 2,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11604"
     },
     {
@@ -869,6 +849,7 @@
       "adp": 41.0,
       "adp_round": 4,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12517"
     },
     {
@@ -908,7 +889,48 @@
       "adp": 23.0,
       "adp_round": 2,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9224"
+    },
+    {
+      "player_id": "00-0037239",
+      "name": "Chris Olave",
+      "team": "NO",
+      "position": "WR",
+      "season_points": {
+        "ppr": {
+          "p50": 190.2,
+          "p10": 87.3,
+          "p90": 305.3
+        },
+        "half_ppr": {
+          "p50": 153.7,
+          "p10": 66.6,
+          "p90": 249.6
+        },
+        "standard": {
+          "p50": 114.3,
+          "p10": 46.9,
+          "p90": 195.3
+        },
+        "league": {
+          "p50": 189.9,
+          "p10": 92.5,
+          "p90": 302.9
+        }
+      },
+      "games": 17,
+      "bye": 8,
+      "vorp": 47.04,
+      "value_points": 170.6,
+      "position_rank": 11,
+      "tier": 7,
+      "ecr": 20.07,
+      "adp": 26.0,
+      "adp_round": 3,
+      "rookie": false,
+      "returning": false,
+      "sleeper_id": "8144"
     },
     {
       "player_id": "00-0039067",
@@ -939,54 +961,16 @@
       },
       "games": 17,
       "bye": 5,
-      "vorp": 47.04,
+      "vorp": 46.98,
       "value_points": 170.6,
       "position_rank": 12,
-      "tier": 6,
+      "tier": 7,
       "ecr": 22.2,
       "adp": 33.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10229"
-    },
-    {
-      "player_id": "00-0036912",
-      "name": "DeVonta Smith",
-      "team": "PHI",
-      "position": "WR",
-      "season_points": {
-        "ppr": {
-          "p50": 125.2,
-          "p10": 48.4,
-          "p90": 216.0
-        },
-        "half_ppr": {
-          "p50": 102.2,
-          "p10": 41.5,
-          "p90": 177.9
-        },
-        "standard": {
-          "p50": 77.1,
-          "p10": 27.5,
-          "p90": 139.9
-        },
-        "league": {
-          "p50": 127.7,
-          "p10": 50.3,
-          "p90": 219.0
-        }
-      },
-      "games": 17,
-      "bye": 10,
-      "vorp": 46.98,
-      "value_points": 170.6,
-      "position_rank": 13,
-      "tier": 6,
-      "ecr": 25.77,
-      "adp": 44.0,
-      "adp_round": 4,
-      "rookie": false,
-      "sleeper_id": "7525"
     },
     {
       "player_id": "00-0040666",
@@ -1025,6 +1009,7 @@
       "adp": 17.0,
       "adp_round": 2,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12507"
     },
     {
@@ -1064,7 +1049,48 @@
       "adp": 19.0,
       "adp_round": 2,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4866"
+    },
+    {
+      "player_id": "00-0036912",
+      "name": "DeVonta Smith",
+      "team": "PHI",
+      "position": "WR",
+      "season_points": {
+        "ppr": {
+          "p50": 125.2,
+          "p10": 48.4,
+          "p90": 216.0
+        },
+        "half_ppr": {
+          "p50": 102.2,
+          "p10": 41.5,
+          "p90": 177.9
+        },
+        "standard": {
+          "p50": 77.1,
+          "p10": 27.5,
+          "p90": 139.9
+        },
+        "league": {
+          "p50": 127.7,
+          "p10": 50.3,
+          "p90": 219.0
+        }
+      },
+      "games": 17,
+      "bye": 10,
+      "vorp": 40.76,
+      "value_points": 164.4,
+      "position_rank": 13,
+      "tier": 8,
+      "ecr": 25.77,
+      "adp": 44.0,
+      "adp_round": 4,
+      "rookie": false,
+      "returning": false,
+      "sleeper_id": "7525"
     },
     {
       "player_id": "00-0040124",
@@ -1095,54 +1121,16 @@
       },
       "games": 17,
       "bye": 5,
-      "vorp": 40.76,
-      "value_points": 164.4,
+      "vorp": 38.98,
+      "value_points": 162.6,
       "position_rank": 14,
-      "tier": 7,
+      "tier": 8,
       "ecr": 29.53,
       "adp": 36.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12526"
-    },
-    {
-      "player_id": "00-0037740",
-      "name": "Garrett Wilson",
-      "team": "NYJ",
-      "position": "WR",
-      "season_points": {
-        "ppr": {
-          "p50": 160.7,
-          "p10": 75.5,
-          "p90": 261.8
-        },
-        "half_ppr": {
-          "p50": 128.0,
-          "p10": 56.4,
-          "p90": 219.4
-        },
-        "standard": {
-          "p50": 94.7,
-          "p10": 36.5,
-          "p90": 169.3
-        },
-        "league": {
-          "p50": 156.5,
-          "p10": 64.5,
-          "p90": 262.0
-        }
-      },
-      "games": 17,
-      "bye": 13,
-      "vorp": 38.98,
-      "value_points": 162.6,
-      "position_rank": 15,
-      "tier": 7,
-      "ecr": 29.95,
-      "adp": 39.0,
-      "adp_round": 4,
-      "rookie": false,
-      "sleeper_id": "8146"
     },
     {
       "player_id": "00-0038134",
@@ -1181,6 +1169,7 @@
       "adp": 13.0,
       "adp_round": 2,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8151"
     },
     {
@@ -1220,46 +1209,48 @@
       "adp": 20.0,
       "adp_round": 2,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13287"
     },
     {
-      "player_id": "00-0039064",
-      "name": "Zay Flowers",
-      "team": "BAL",
+      "player_id": "00-0037740",
+      "name": "Garrett Wilson",
+      "team": "NYJ",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 165.4,
-          "p10": 70.2,
-          "p90": 274.8
+          "p50": 160.7,
+          "p10": 75.5,
+          "p90": 261.8
         },
         "half_ppr": {
-          "p50": 129.8,
-          "p10": 54.4,
-          "p90": 222.5
+          "p50": 128.0,
+          "p10": 56.4,
+          "p90": 219.4
         },
         "standard": {
-          "p50": 102.6,
-          "p10": 38.0,
-          "p90": 179.2
+          "p50": 94.7,
+          "p10": 36.5,
+          "p90": 169.3
         },
         "league": {
-          "p50": 170.6,
-          "p10": 73.9,
-          "p90": 277.0
+          "p50": 156.5,
+          "p10": 64.5,
+          "p90": 262.0
         }
       },
       "games": 17,
       "bye": 13,
       "vorp": 34.49,
       "value_points": 158.1,
-      "position_rank": 16,
-      "tier": 8,
-      "ecr": 32.3,
-      "adp": 43.0,
+      "position_rank": 15,
+      "tier": 9,
+      "ecr": 29.95,
+      "adp": 39.0,
       "adp_round": 4,
       "rookie": false,
-      "sleeper_id": "9997"
+      "returning": false,
+      "sleeper_id": "8146"
     },
     {
       "player_id": "00-0032764",
@@ -1298,6 +1289,7 @@
       "adp": 25.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3198"
     },
     {
@@ -1337,6 +1329,7 @@
       "adp": 32.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8155"
     },
     {
@@ -1376,7 +1369,48 @@
       "adp": 50.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12518"
+    },
+    {
+      "player_id": "00-0039064",
+      "name": "Zay Flowers",
+      "team": "BAL",
+      "position": "WR",
+      "season_points": {
+        "ppr": {
+          "p50": 165.4,
+          "p10": 70.2,
+          "p90": 274.8
+        },
+        "half_ppr": {
+          "p50": 129.8,
+          "p10": 54.4,
+          "p90": 222.5
+        },
+        "standard": {
+          "p50": 102.6,
+          "p10": 38.0,
+          "p90": 179.2
+        },
+        "league": {
+          "p50": 170.6,
+          "p10": 73.9,
+          "p90": 277.0
+        }
+      },
+      "games": 17,
+      "bye": 13,
+      "vorp": 32.87,
+      "value_points": 156.5,
+      "position_rank": 16,
+      "tier": 9,
+      "ecr": 32.3,
+      "adp": 43.0,
+      "adp_round": 4,
+      "rookie": false,
+      "returning": false,
+      "sleeper_id": "9997"
     },
     {
       "player_id": "00-0036410",
@@ -1407,14 +1441,15 @@
       },
       "games": 17,
       "bye": 6,
-      "vorp": 32.87,
-      "value_points": 156.5,
+      "vorp": 30.36,
+      "value_points": 154.0,
       "position_rank": 17,
-      "tier": 8,
+      "tier": 9,
       "ecr": 32.36,
       "adp": 34.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6801"
     },
     {
@@ -1446,54 +1481,16 @@
       },
       "games": 17,
       "bye": 7,
-      "vorp": 30.36,
-      "value_points": 154.0,
+      "vorp": 29.74,
+      "value_points": 153.4,
       "position_rank": 18,
-      "tier": 8,
+      "tier": 9,
       "ecr": 35.55,
       "adp": 42.0,
       "adp_round": 4,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11635"
-    },
-    {
-      "player_id": "00-0039337",
-      "name": "Malik Nabers",
-      "team": "NYG",
-      "position": "WR",
-      "season_points": {
-        "ppr": {
-          "p50": 180.4,
-          "p10": 82.6,
-          "p90": 293.2
-        },
-        "half_ppr": {
-          "p50": 146.7,
-          "p10": 63.4,
-          "p90": 246.7
-        },
-        "standard": {
-          "p50": 110.2,
-          "p10": 46.5,
-          "p90": 193.2
-        },
-        "league": {
-          "p50": 182.8,
-          "p10": 80.8,
-          "p90": 294.8
-        }
-      },
-      "games": 17,
-      "bye": 8,
-      "vorp": 29.74,
-      "value_points": 153.4,
-      "position_rank": 19,
-      "tier": 8,
-      "ecr": 36.59,
-      "adp": 18.0,
-      "adp_round": 2,
-      "rookie": false,
-      "sleeper_id": "11632"
     },
     {
       "player_id": "00-0037840",
@@ -1532,6 +1529,7 @@
       "adp": 31.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8150"
     },
     {
@@ -1571,46 +1569,48 @@
       "adp": 27.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5850"
     },
     {
-      "player_id": "00-0036613",
-      "name": "Jaylen Waddle",
-      "team": "MIA",
+      "player_id": "00-0039337",
+      "name": "Malik Nabers",
+      "team": "NYG",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 115.7,
-          "p10": 42.8,
-          "p90": 200.7
+          "p50": 129.4,
+          "p10": 0.0,
+          "p90": 261.9
         },
         "half_ppr": {
-          "p50": 93.5,
-          "p10": 35.4,
-          "p90": 169.2
+          "p50": 100.8,
+          "p10": 0.0,
+          "p90": 219.3
         },
         "standard": {
-          "p50": 71.3,
-          "p10": 26.4,
-          "p90": 135.5
+          "p50": 77.9,
+          "p10": 0.0,
+          "p90": 172.1
         },
         "league": {
-          "p50": 112.3,
-          "p10": 44.1,
-          "p90": 198.0
+          "p50": 129.8,
+          "p10": 0.0,
+          "p90": 263.6
         }
       },
       "games": 17,
-      "bye": 6,
+      "bye": 8,
       "vorp": 26.3,
       "value_points": 149.9,
-      "position_rank": 20,
-      "tier": 8,
-      "ecr": 39.04,
-      "adp": 46.0,
-      "adp_round": 4,
+      "position_rank": 19,
+      "tier": 9,
+      "ecr": 36.59,
+      "adp": 18.0,
+      "adp_round": 2,
       "rookie": false,
-      "sleeper_id": "7526"
+      "returning": true,
+      "sleeper_id": "11632"
     },
     {
       "player_id": "00-0036997",
@@ -1649,6 +1649,7 @@
       "adp": 38.0,
       "adp_round": 4,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7588"
     },
     {
@@ -1688,6 +1689,7 @@
       "adp": 66.0,
       "adp_round": 6,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9484"
     },
     {
@@ -1727,6 +1729,7 @@
       "adp": 35.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7543"
     },
     {
@@ -1766,46 +1769,48 @@
       "adp": 49.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12481"
     },
     {
-      "player_id": "00-0040129",
-      "name": "Emeka Egbuka",
-      "team": "TB",
+      "player_id": "00-0036613",
+      "name": "Jaylen Waddle",
+      "team": "MIA",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 137.3,
-          "p10": 55.7,
-          "p90": 232.2
+          "p50": 115.7,
+          "p10": 42.8,
+          "p90": 200.7
         },
         "half_ppr": {
-          "p50": 108.4,
-          "p10": 43.6,
-          "p90": 192.3
+          "p50": 93.5,
+          "p10": 35.4,
+          "p90": 169.2
         },
         "standard": {
-          "p50": 86.1,
-          "p10": 33.2,
-          "p90": 157.5
+          "p50": 71.3,
+          "p10": 26.4,
+          "p90": 135.5
         },
         "league": {
-          "p50": 133.8,
-          "p10": 54.7,
-          "p90": 234.9
+          "p50": 112.3,
+          "p10": 44.1,
+          "p90": 198.0
         }
       },
       "games": 17,
-      "bye": 10,
+      "bye": 6,
       "vorp": 23.86,
       "value_points": 147.5,
-      "position_rank": 21,
-      "tier": 8,
-      "ecr": 40.73,
-      "adp": 45.0,
+      "position_rank": 20,
+      "tier": 9,
+      "ecr": 39.04,
+      "adp": 46.0,
       "adp_round": 4,
       "rookie": false,
-      "sleeper_id": "12514"
+      "returning": false,
+      "sleeper_id": "7526"
     },
     {
       "player_id": "00-0039361",
@@ -1844,6 +1849,7 @@
       "adp": 30.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11584"
     },
     {
@@ -1883,6 +1889,7 @@
       "adp": 61.0,
       "adp_round": 6,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12506"
     },
     {
@@ -1922,46 +1929,48 @@
       "adp": 28.0,
       "adp_round": 3,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4984"
     },
     {
-      "player_id": "00-0035659",
-      "name": "Terry McLaurin",
-      "team": "WAS",
+      "player_id": "00-0040129",
+      "name": "Emeka Egbuka",
+      "team": "TB",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 137.9,
-          "p10": 55.0,
-          "p90": 233.7
+          "p50": 137.3,
+          "p10": 55.7,
+          "p90": 232.2
         },
         "half_ppr": {
-          "p50": 112.2,
-          "p10": 43.3,
-          "p90": 198.0
+          "p50": 108.4,
+          "p10": 43.6,
+          "p90": 192.3
         },
         "standard": {
-          "p50": 85.2,
-          "p10": 32.1,
-          "p90": 153.4
+          "p50": 86.1,
+          "p10": 33.2,
+          "p90": 157.5
         },
         "league": {
-          "p50": 136.5,
-          "p10": 56.0,
-          "p90": 232.7
+          "p50": 133.8,
+          "p10": 54.7,
+          "p90": 234.9
         }
       },
       "games": 17,
-      "bye": 7,
+      "bye": 10,
       "vorp": 22.59,
       "value_points": 146.2,
-      "position_rank": 22,
-      "tier": 8,
-      "ecr": 43.18,
-      "adp": 55.0,
-      "adp_round": 5,
+      "position_rank": 21,
+      "tier": 9,
+      "ecr": 40.73,
+      "adp": 45.0,
+      "adp_round": 4,
       "rookie": false,
-      "sleeper_id": "5927"
+      "returning": false,
+      "sleeper_id": "12514"
     },
     {
       "player_id": "00-0040734",
@@ -2000,6 +2009,7 @@
       "adp": 48.0,
       "adp_round": 4,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12529"
     },
     {
@@ -2039,46 +2049,48 @@
       "adp": 37.0,
       "adp_round": 4,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4881"
     },
     {
-      "player_id": "00-0040735",
-      "name": "Luther Burden III",
-      "team": "CHI",
+      "player_id": "00-0035659",
+      "name": "Terry McLaurin",
+      "team": "WAS",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 112.9,
-          "p10": 41.6,
-          "p90": 197.8
+          "p50": 137.9,
+          "p10": 55.0,
+          "p90": 233.7
         },
         "half_ppr": {
-          "p50": 89.5,
-          "p10": 32.2,
-          "p90": 169.5
+          "p50": 112.2,
+          "p10": 43.3,
+          "p90": 198.0
         },
         "standard": {
-          "p50": 68.8,
-          "p10": 23.7,
-          "p90": 135.0
+          "p50": 85.2,
+          "p10": 32.1,
+          "p90": 153.4
         },
         "league": {
-          "p50": 114.3,
-          "p10": 42.8,
-          "p90": 201.8
+          "p50": 136.5,
+          "p10": 56.0,
+          "p90": 232.7
         }
       },
       "games": 17,
-      "bye": 10,
+      "bye": 7,
       "vorp": 20.28,
       "value_points": 143.9,
-      "position_rank": 23,
-      "tier": 8,
-      "ecr": 44.72,
-      "adp": 40.0,
-      "adp_round": 4,
+      "position_rank": 22,
+      "tier": 9,
+      "ecr": 43.18,
+      "adp": 55.0,
+      "adp_round": 5,
       "rookie": false,
-      "sleeper_id": "12519"
+      "returning": false,
+      "sleeper_id": "5927"
     },
     {
       "player_id": "00-0040784",
@@ -2117,6 +2129,7 @@
       "adp": 53.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12512"
     },
     {
@@ -2156,46 +2169,48 @@
       "adp": 71.0,
       "adp_round": 6,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7553"
     },
     {
-      "player_id": "00-0031381",
-      "name": "Davante Adams",
-      "team": "LA",
+      "player_id": "00-0040735",
+      "name": "Luther Burden III",
+      "team": "CHI",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 154.6,
-          "p10": 66.2,
-          "p90": 255.8
+          "p50": 112.9,
+          "p10": 41.6,
+          "p90": 197.8
         },
         "half_ppr": {
-          "p50": 125.0,
-          "p10": 51.7,
-          "p90": 206.1
+          "p50": 89.5,
+          "p10": 32.2,
+          "p90": 169.5
         },
         "standard": {
-          "p50": 93.0,
-          "p10": 37.3,
-          "p90": 166.5
+          "p50": 68.8,
+          "p10": 23.7,
+          "p90": 135.0
         },
         "league": {
-          "p50": 153.4,
-          "p10": 66.3,
-          "p90": 256.1
+          "p50": 114.3,
+          "p10": 42.8,
+          "p90": 201.8
         }
       },
       "games": 17,
-      "bye": 11,
+      "bye": 10,
       "vorp": 19.17,
       "value_points": 142.8,
-      "position_rank": 24,
-      "tier": 8,
-      "ecr": 48.53,
-      "adp": 47.0,
+      "position_rank": 23,
+      "tier": 9,
+      "ecr": 44.72,
+      "adp": 40.0,
       "adp_round": 4,
       "rookie": false,
-      "sleeper_id": "2133"
+      "returning": false,
+      "sleeper_id": "12519"
     },
     {
       "player_id": "00-0039851",
@@ -2234,7 +2249,48 @@
       "adp": 51.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11564"
+    },
+    {
+      "player_id": "00-0031381",
+      "name": "Davante Adams",
+      "team": "LA",
+      "position": "WR",
+      "season_points": {
+        "ppr": {
+          "p50": 154.6,
+          "p10": 66.2,
+          "p90": 255.8
+        },
+        "half_ppr": {
+          "p50": 125.0,
+          "p10": 51.7,
+          "p90": 206.1
+        },
+        "standard": {
+          "p50": 93.0,
+          "p10": 37.3,
+          "p90": 166.5
+        },
+        "league": {
+          "p50": 153.4,
+          "p10": 66.3,
+          "p90": 256.1
+        }
+      },
+      "games": 17,
+      "bye": 11,
+      "vorp": 18.67,
+      "value_points": 142.3,
+      "position_rank": 24,
+      "tier": 9,
+      "ecr": 48.53,
+      "adp": 47.0,
+      "adp_round": 4,
+      "rookie": false,
+      "returning": false,
+      "sleeper_id": "2133"
     },
     {
       "player_id": "00-0034827",
@@ -2265,14 +2321,15 @@
       },
       "games": 17,
       "bye": 10,
-      "vorp": 18.67,
-      "value_points": 142.3,
+      "vorp": 17.88,
+      "value_points": 141.5,
       "position_rank": 25,
-      "tier": 8,
+      "tier": 9,
       "ecr": 52.31,
       "adp": 58.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4983"
     },
     {
@@ -2304,14 +2361,15 @@
       },
       "games": 17,
       "bye": 6,
-      "vorp": 17.88,
-      "value_points": 141.5,
+      "vorp": 16.82,
+      "value_points": 140.4,
       "position_rank": 26,
-      "tier": 8,
+      "tier": 9,
       "ecr": 53.69,
       "adp": 52.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8148"
     },
     {
@@ -2343,14 +2401,15 @@
       },
       "games": 17,
       "bye": 10,
-      "vorp": 16.82,
-      "value_points": 140.4,
+      "vorp": 16.61,
+      "value_points": 140.2,
       "position_rank": 27,
-      "tier": 8,
+      "tier": 9,
       "ecr": 54.2,
       "adp": 57.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2216"
     },
     {
@@ -2382,54 +2441,16 @@
       },
       "games": 17,
       "bye": 11,
-      "vorp": 16.61,
-      "value_points": 140.2,
+      "vorp": 16.5,
+      "value_points": 140.1,
       "position_rank": 28,
-      "tier": 8,
+      "tier": 9,
       "ecr": 58.55,
       "adp": 68.0,
       "adp_round": 6,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8167"
-    },
-    {
-      "player_id": "00-0039919",
-      "name": "Rome Odunze",
-      "team": "CHI",
-      "position": "WR",
-      "season_points": {
-        "ppr": {
-          "p50": 132.8,
-          "p10": 53.9,
-          "p90": 229.8
-        },
-        "half_ppr": {
-          "p50": 109.1,
-          "p10": 41.5,
-          "p90": 195.4
-        },
-        "standard": {
-          "p50": 85.5,
-          "p10": 32.5,
-          "p90": 150.8
-        },
-        "league": {
-          "p50": 137.9,
-          "p10": 55.8,
-          "p90": 236.5
-        }
-      },
-      "games": 17,
-      "bye": 10,
-      "vorp": 16.5,
-      "value_points": 140.1,
-      "position_rank": 29,
-      "tier": 8,
-      "ecr": 59.82,
-      "adp": 63.0,
-      "adp_round": 6,
-      "rookie": false,
-      "sleeper_id": "11620"
     },
     {
       "player_id": "00-0036442",
@@ -2468,6 +2489,7 @@
       "adp": 56.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6770"
     },
     {
@@ -2507,46 +2529,48 @@
       "adp": 76.0,
       "adp_round": 7,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10859"
     },
     {
-      "player_id": "TAT143045",
-      "name": "Carnell Tate",
-      "team": "TEN",
+      "player_id": "00-0039919",
+      "name": "Rome Odunze",
+      "team": "CHI",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 137.5,
-          "p10": 25.4,
-          "p90": 259.1
+          "p50": 132.8,
+          "p10": 53.9,
+          "p90": 229.8
         },
         "half_ppr": {
-          "p50": 117.1,
-          "p10": 26.3,
-          "p90": 217.0
+          "p50": 109.1,
+          "p10": 41.5,
+          "p90": 195.4
         },
         "standard": {
-          "p50": 86.7,
-          "p10": 14.1,
-          "p90": 179.1
+          "p50": 85.5,
+          "p10": 32.5,
+          "p90": 150.8
         },
         "league": {
-          "p50": 138.7,
-          "p10": 21.8,
-          "p90": 260.8
+          "p50": 137.9,
+          "p10": 55.8,
+          "p90": 236.5
         }
       },
       "games": 17,
-      "bye": 9,
+      "bye": 10,
       "vorp": 15.13,
       "value_points": 138.7,
-      "position_rank": 30,
-      "tier": 8,
-      "ecr": 63.46,
-      "adp": 62.0,
+      "position_rank": 29,
+      "tier": 9,
+      "ecr": 59.82,
+      "adp": 63.0,
       "adp_round": 6,
-      "rookie": true,
-      "sleeper_id": "13279"
+      "rookie": false,
+      "returning": false,
+      "sleeper_id": "11620"
     },
     {
       "player_id": "00-0036275",
@@ -2585,46 +2609,48 @@
       "adp": 64.0,
       "adp_round": 6,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6790"
     },
     {
-      "player_id": "00-0039849",
-      "name": "Marvin Harrison Jr.",
-      "team": "ARI",
+      "player_id": "TAT143045",
+      "name": "Carnell Tate",
+      "team": "TEN",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 104.1,
-          "p10": 38.5,
-          "p90": 191.2
+          "p50": 137.5,
+          "p10": 25.4,
+          "p90": 259.1
         },
         "half_ppr": {
-          "p50": 84.4,
-          "p10": 30.0,
-          "p90": 160.0
+          "p50": 117.1,
+          "p10": 26.3,
+          "p90": 217.0
         },
         "standard": {
-          "p50": 67.7,
-          "p10": 23.8,
-          "p90": 130.3
+          "p50": 86.7,
+          "p10": 14.1,
+          "p90": 179.1
         },
         "league": {
-          "p50": 105.3,
-          "p10": 38.6,
-          "p90": 188.8
+          "p50": 138.7,
+          "p10": 21.8,
+          "p90": 260.8
         }
       },
       "games": 17,
-      "bye": 14,
+      "bye": 9,
       "vorp": 14.3,
       "value_points": 137.9,
-      "position_rank": 31,
-      "tier": 8,
-      "ecr": 68.3,
-      "adp": 75.0,
-      "adp_round": 7,
-      "rookie": false,
-      "sleeper_id": "11628"
+      "position_rank": 30,
+      "tier": 9,
+      "ecr": 63.46,
+      "adp": 62.0,
+      "adp_round": 6,
+      "rookie": true,
+      "returning": false,
+      "sleeper_id": "13279"
     },
     {
       "player_id": "00-0035685",
@@ -2663,46 +2689,48 @@
       "adp": 54.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5892"
     },
     {
-      "player_id": "00-0037664",
-      "name": "Alec Pierce",
-      "team": "IND",
+      "player_id": "00-0039849",
+      "name": "Marvin Harrison Jr.",
+      "team": "ARI",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 117.9,
-          "p10": 47.6,
-          "p90": 206.3
+          "p50": 104.1,
+          "p10": 38.5,
+          "p90": 191.2
         },
         "half_ppr": {
-          "p50": 95.2,
-          "p10": 35.6,
-          "p90": 173.4
+          "p50": 84.4,
+          "p10": 30.0,
+          "p90": 160.0
         },
         "standard": {
-          "p50": 74.4,
-          "p10": 26.4,
-          "p90": 144.4
+          "p50": 67.7,
+          "p10": 23.8,
+          "p90": 130.3
         },
         "league": {
-          "p50": 117.4,
-          "p10": 44.1,
-          "p90": 206.0
+          "p50": 105.3,
+          "p10": 38.6,
+          "p90": 188.8
         }
       },
       "games": 17,
-      "bye": 13,
+      "bye": 14,
       "vorp": 13.84,
       "value_points": 137.4,
-      "position_rank": 32,
-      "tier": 8,
-      "ecr": 75.49,
-      "adp": 84.0,
+      "position_rank": 31,
+      "tier": 9,
+      "ecr": 68.3,
+      "adp": 75.0,
       "adp_round": 7,
       "rookie": false,
-      "sleeper_id": "8142"
+      "returning": false,
+      "sleeper_id": "11628"
     },
     {
       "player_id": "00-0039910",
@@ -2741,6 +2769,7 @@
       "adp": 60.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11566"
     },
     {
@@ -2780,6 +2809,7 @@
       "adp": 109.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1466"
     },
     {
@@ -2819,6 +2849,7 @@
       "adp": 106.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8110"
     },
     {
@@ -2858,7 +2889,48 @@
       "adp": 73.0,
       "adp_round": 7,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8228"
+    },
+    {
+      "player_id": "00-0037664",
+      "name": "Alec Pierce",
+      "team": "IND",
+      "position": "WR",
+      "season_points": {
+        "ppr": {
+          "p50": 117.9,
+          "p10": 47.6,
+          "p90": 206.3
+        },
+        "half_ppr": {
+          "p50": 95.2,
+          "p10": 35.6,
+          "p90": 173.4
+        },
+        "standard": {
+          "p50": 74.4,
+          "p10": 26.4,
+          "p90": 144.4
+        },
+        "league": {
+          "p50": 117.4,
+          "p10": 44.1,
+          "p90": 206.0
+        }
+      },
+      "games": 17,
+      "bye": 13,
+      "vorp": 12.91,
+      "value_points": 136.5,
+      "position_rank": 32,
+      "tier": 9,
+      "ecr": 75.49,
+      "adp": 84.0,
+      "adp_round": 7,
+      "rookie": false,
+      "returning": false,
+      "sleeper_id": "8142"
     },
     {
       "player_id": "00-0035640",
@@ -2889,54 +2961,16 @@
       },
       "games": 17,
       "bye": 9,
-      "vorp": 12.91,
-      "value_points": 136.5,
+      "vorp": 12.14,
+      "value_points": 135.7,
       "position_rank": 33,
-      "tier": 8,
+      "tier": 9,
       "ecr": 75.68,
       "adp": 72.0,
       "adp_round": 6,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5846"
-    },
-    {
-      "player_id": "00-0034348",
-      "name": "Courtland Sutton",
-      "team": "DEN",
-      "position": "WR",
-      "season_points": {
-        "ppr": {
-          "p50": 123.8,
-          "p10": 50.7,
-          "p90": 213.1
-        },
-        "half_ppr": {
-          "p50": 98.0,
-          "p10": 38.4,
-          "p90": 175.9
-        },
-        "standard": {
-          "p50": 74.1,
-          "p10": 27.0,
-          "p90": 136.5
-        },
-        "league": {
-          "p50": 121.5,
-          "p10": 47.6,
-          "p90": 213.9
-        }
-      },
-      "games": 17,
-      "bye": 10,
-      "vorp": 12.14,
-      "value_points": 135.7,
-      "position_rank": 34,
-      "tier": 8,
-      "ecr": 76.84,
-      "adp": 78.0,
-      "adp_round": 7,
-      "rookie": false,
-      "sleeper_id": "5045"
     },
     {
       "player_id": "00-0033288",
@@ -2975,6 +3009,7 @@
       "adp": 97.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4217"
     },
     {
@@ -3014,46 +3049,48 @@
       "adp": 65.0,
       "adp_round": 6,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6904"
     },
     {
-      "player_id": "00-0039893",
-      "name": "Brian Thomas Jr.",
-      "team": "JAX",
+      "player_id": "00-0034348",
+      "name": "Courtland Sutton",
+      "team": "DEN",
       "position": "WR",
       "season_points": {
         "ppr": {
-          "p50": 120.3,
-          "p10": 46.0,
-          "p90": 208.7
+          "p50": 123.8,
+          "p10": 50.7,
+          "p90": 213.1
         },
         "half_ppr": {
-          "p50": 98.3,
-          "p10": 40.1,
-          "p90": 179.8
+          "p50": 98.0,
+          "p10": 38.4,
+          "p90": 175.9
         },
         "standard": {
-          "p50": 76.8,
-          "p10": 28.3,
-          "p90": 144.5
+          "p50": 74.1,
+          "p10": 27.0,
+          "p90": 136.5
         },
         "league": {
-          "p50": 115.8,
-          "p10": 43.8,
-          "p90": 211.2
+          "p50": 121.5,
+          "p10": 47.6,
+          "p90": 213.9
         }
       },
       "games": 17,
-      "bye": 7,
+      "bye": 10,
       "vorp": 10.17,
       "value_points": 133.8,
-      "position_rank": 35,
-      "tier": 8,
-      "ecr": 81.22,
-      "adp": 70.0,
-      "adp_round": 6,
+      "position_rank": 34,
+      "tier": 9,
+      "ecr": 76.84,
+      "adp": 78.0,
+      "adp_round": 7,
       "rookie": false,
-      "sleeper_id": "11631"
+      "returning": false,
+      "sleeper_id": "5045"
     },
     {
       "player_id": "00-0040719",
@@ -3092,6 +3129,7 @@
       "adp": 59.0,
       "adp_round": 5,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12490"
     },
     {
@@ -3131,6 +3169,7 @@
       "adp": 80.0,
       "adp_round": 7,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13286"
     },
     {
@@ -3170,6 +3209,7 @@
       "adp": 82.0,
       "adp_round": 7,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7611"
     },
     {
@@ -3209,6 +3249,7 @@
       "adp": 83.0,
       "adp_round": 7,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11560"
     },
     {
@@ -3248,7 +3289,48 @@
       "adp": 85.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6797"
+    },
+    {
+      "player_id": "00-0039893",
+      "name": "Brian Thomas Jr.",
+      "team": "JAX",
+      "position": "WR",
+      "season_points": {
+        "ppr": {
+          "p50": 120.3,
+          "p10": 46.0,
+          "p90": 208.7
+        },
+        "half_ppr": {
+          "p50": 98.3,
+          "p10": 40.1,
+          "p90": 179.8
+        },
+        "standard": {
+          "p50": 76.8,
+          "p10": 28.3,
+          "p90": 144.5
+        },
+        "league": {
+          "p50": 115.8,
+          "p10": 43.8,
+          "p90": 211.2
+        }
+      },
+      "games": 17,
+      "bye": 7,
+      "vorp": 6.17,
+      "value_points": 129.8,
+      "position_rank": 35,
+      "tier": 10,
+      "ecr": 81.22,
+      "adp": 70.0,
+      "adp_round": 6,
+      "rookie": false,
+      "returning": false,
+      "sleeper_id": "11631"
     },
     {
       "player_id": "00-0036971",
@@ -3287,6 +3369,7 @@
       "adp": 92.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7523"
     },
     {
@@ -3321,11 +3404,12 @@
       "vorp": 4.76,
       "value_points": 128.4,
       "position_rank": 36,
-      "tier": 9,
+      "tier": 10,
       "ecr": 82.72,
       "adp": 94.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4037"
     },
     {
@@ -3360,11 +3444,12 @@
       "vorp": 4.31,
       "value_points": 127.9,
       "position_rank": 37,
-      "tier": 9,
+      "tier": 10,
       "ecr": 84.64,
       "adp": 103.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6819"
     },
     {
@@ -3404,6 +3489,7 @@
       "adp": 91.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3294"
     },
     {
@@ -3438,11 +3524,12 @@
       "vorp": 4.11,
       "value_points": 127.7,
       "position_rank": 38,
-      "tier": 9,
+      "tier": 10,
       "ecr": 85.99,
       "adp": 69.0,
       "adp_round": 6,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13281"
     },
     {
@@ -3482,6 +3569,7 @@
       "adp": 96.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10236"
     },
     {
@@ -3521,6 +3609,7 @@
       "adp": 81.0,
       "adp_round": 7,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12508"
     },
     {
@@ -3560,6 +3649,7 @@
       "adp": 74.0,
       "adp_round": 7,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7594"
     },
     {
@@ -3594,11 +3684,12 @@
       "vorp": 2.42,
       "value_points": 126.0,
       "position_rank": 39,
-      "tier": 9,
+      "tier": 10,
       "ecr": 87.14,
       "adp": 104.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8126"
     },
     {
@@ -3638,6 +3729,7 @@
       "adp": 86.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5967"
     },
     {
@@ -3677,6 +3769,7 @@
       "adp": 67.0,
       "adp_round": 6,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12489"
     },
     {
@@ -3711,11 +3804,12 @@
       "vorp": 1.27,
       "value_points": 124.9,
       "position_rank": 40,
-      "tier": 9,
+      "tier": 10,
       "ecr": 88.47,
       "adp": 79.0,
       "adp_round": 7,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10232"
     },
     {
@@ -3755,6 +3849,7 @@
       "adp": 88.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7021"
     },
     {
@@ -3794,6 +3889,7 @@
       "adp": 105.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8183"
     },
     {
@@ -3833,6 +3929,7 @@
       "adp": 100.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4046"
     },
     {
@@ -3872,6 +3969,7 @@
       "adp": 90.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12534"
     },
     {
@@ -3911,6 +4009,7 @@
       "adp": 117.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8131"
     },
     {
@@ -3945,11 +4044,12 @@
       "vorp": 0.0,
       "value_points": 123.6,
       "position_rank": 41,
-      "tier": 9,
+      "tier": 10,
       "ecr": 89.73,
       "adp": 89.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9487"
     },
     {
@@ -3989,6 +4089,7 @@
       "adp": 108.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7567"
     },
     {
@@ -4028,6 +4129,7 @@
       "adp": 111.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5022"
     },
     {
@@ -4067,6 +4169,7 @@
       "adp": 112.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5012"
     },
     {
@@ -4106,6 +4209,7 @@
       "adp": 93.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6806"
     },
     {
@@ -4145,6 +4249,7 @@
       "adp": 119.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11563"
     },
     {
@@ -4184,6 +4289,7 @@
       "adp": 134.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7002"
     },
     {
@@ -4218,11 +4324,12 @@
       "vorp": -2.12,
       "value_points": 121.5,
       "position_rank": 42,
-      "tier": 9,
+      "tier": 10,
       "ecr": 94.35,
       "adp": 87.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5947"
     },
     {
@@ -4262,6 +4369,7 @@
       "adp": 114.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "421"
     },
     {
@@ -4301,6 +4409,7 @@
       "adp": 110.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4199"
     },
     {
@@ -4340,6 +4449,7 @@
       "adp": 127.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9480"
     },
     {
@@ -4379,6 +4489,7 @@
       "adp": 98.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11586"
     },
     {
@@ -4413,11 +4524,12 @@
       "vorp": -4.94,
       "value_points": 118.7,
       "position_rank": 43,
-      "tier": 9,
+      "tier": 10,
       "ecr": 95.8,
       "adp": 77.0,
       "adp_round": 7,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13294"
     },
     {
@@ -4457,6 +4569,7 @@
       "adp": 126.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8136"
     },
     {
@@ -4496,6 +4609,7 @@
       "adp": 113.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12533"
     },
     {
@@ -4535,6 +4649,7 @@
       "adp": 148.0,
       "adp_round": 13,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8210"
     },
     {
@@ -4569,11 +4684,12 @@
       "vorp": -6.22,
       "value_points": 117.4,
       "position_rank": 44,
-      "tier": 9,
+      "tier": 10,
       "ecr": 96.59,
       "adp": 123.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9500"
     },
     {
@@ -4613,6 +4729,7 @@
       "adp": 120.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3163"
     },
     {
@@ -4652,6 +4769,7 @@
       "adp": 107.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3214"
     },
     {
@@ -4686,11 +4804,12 @@
       "vorp": -7.81,
       "value_points": 115.8,
       "position_rank": 45,
-      "tier": 9,
+      "tier": 10,
       "ecr": 101.08,
       "adp": 99.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11638"
     },
     {
@@ -4730,6 +4849,7 @@
       "adp": 95.0,
       "adp_round": 8,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12493"
     },
     {
@@ -4769,6 +4889,7 @@
       "adp": 136.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5001"
     },
     {
@@ -4803,11 +4924,12 @@
       "vorp": -8.24,
       "value_points": 115.4,
       "position_rank": 46,
-      "tier": 9,
+      "tier": 10,
       "ecr": 104.54,
       "adp": 102.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9754"
     },
     {
@@ -4847,6 +4969,7 @@
       "adp": 143.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5849"
     },
     {
@@ -4881,11 +5004,12 @@
       "vorp": -9.32,
       "value_points": 114.3,
       "position_rank": 47,
-      "tier": 9,
+      "tier": 10,
       "ecr": 107.07,
       "adp": 101.0,
       "adp_round": 9,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9756"
     },
     {
@@ -4925,6 +5049,7 @@
       "adp": 141.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5844"
     },
     {
@@ -4964,6 +5089,7 @@
       "adp": 122.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6804"
     },
     {
@@ -4998,11 +5124,12 @@
       "vorp": -10.1,
       "value_points": 113.5,
       "position_rank": 48,
-      "tier": 9,
+      "tier": 10,
       "ecr": 110.99,
       "adp": 116.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10222"
     },
     {
@@ -5037,11 +5164,12 @@
       "vorp": -11.31,
       "value_points": 112.3,
       "position_rank": 49,
-      "tier": 9,
+      "tier": 10,
       "ecr": 118.69,
       "adp": 131.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8134"
     },
     {
@@ -5076,11 +5204,12 @@
       "vorp": -11.71,
       "value_points": 111.9,
       "position_rank": 50,
-      "tier": 9,
+      "tier": 10,
       "ecr": 122.85,
       "adp": 129.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12484"
     },
     {
@@ -5120,6 +5249,7 @@
       "adp": 153.0,
       "adp_round": 13,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11603"
     },
     {
@@ -5159,6 +5289,7 @@
       "adp": 139.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4892"
     },
     {
@@ -5198,6 +5329,7 @@
       "adp": 128.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8408"
     },
     {
@@ -5237,6 +5369,7 @@
       "adp": 145.0,
       "adp_round": 13,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12545"
     },
     {
@@ -5271,11 +5404,12 @@
       "vorp": -13.58,
       "value_points": 110.0,
       "position_rank": 51,
-      "tier": 9,
+      "tier": 10,
       "ecr": 123.28,
       "adp": 133.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11624"
     },
     {
@@ -5315,6 +5449,7 @@
       "adp": 147.0,
       "adp_round": 13,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11655"
     },
     {
@@ -5349,11 +5484,12 @@
       "vorp": -16.69,
       "value_points": 106.9,
       "position_rank": 52,
-      "tier": 9,
+      "tier": 10,
       "ecr": 129.01,
       "adp": 144.0,
       "adp_round": 12,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13298"
     },
     {
@@ -5393,6 +5529,7 @@
       "adp": 140.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12474"
     },
     {
@@ -5427,11 +5564,12 @@
       "vorp": -17.29,
       "value_points": 106.3,
       "position_rank": 53,
-      "tier": 9,
+      "tier": 10,
       "ecr": 130.54,
       "adp": 115.0,
       "adp_round": 10,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8121"
     },
     {
@@ -5471,6 +5609,7 @@
       "adp": 137.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8161"
     },
     {
@@ -5510,6 +5649,7 @@
       "adp": 118.0,
       "adp_round": 10,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13330"
     },
     {
@@ -5544,11 +5684,12 @@
       "vorp": -18.32,
       "value_points": 105.3,
       "position_rank": 54,
-      "tier": 9,
+      "tier": 10,
       "ecr": 135.76,
       "adp": 135.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11646"
     },
     {
@@ -5583,11 +5724,12 @@
       "vorp": -18.39,
       "value_points": 105.2,
       "position_rank": 55,
-      "tier": 9,
+      "tier": 10,
       "ecr": 138.46,
       "adp": 132.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12501"
     },
     {
@@ -5627,6 +5769,7 @@
       "adp": 197.0,
       "adp_round": 17,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12502"
     },
     {
@@ -5666,6 +5809,7 @@
       "adp": 130.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8132"
     },
     {
@@ -5705,6 +5849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8172"
     },
     {
@@ -5744,6 +5889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7600"
     },
     {
@@ -5778,11 +5924,12 @@
       "vorp": -20.49,
       "value_points": 103.1,
       "position_rank": 56,
-      "tier": 9,
+      "tier": 10,
       "ecr": 152.16,
       "adp": 156.0,
       "adp_round": 13,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8676"
     },
     {
@@ -5822,6 +5969,7 @@
       "adp": 160.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8111"
     },
     {
@@ -5861,6 +6009,7 @@
       "adp": 172.0,
       "adp_round": 15,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4033"
     },
     {
@@ -5895,11 +6044,12 @@
       "vorp": -21.45,
       "value_points": 102.2,
       "position_rank": 57,
-      "tier": 9,
+      "tier": 10,
       "ecr": 153.67,
       "adp": 149.0,
       "adp_round": 13,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7049"
     },
     {
@@ -5934,11 +6084,12 @@
       "vorp": -21.47,
       "value_points": 102.1,
       "position_rank": 58,
-      "tier": 9,
+      "tier": 10,
       "ecr": 155.65,
       "adp": 151.0,
       "adp_round": 13,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13276"
     },
     {
@@ -5978,6 +6129,7 @@
       "adp": 158.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12487"
     },
     {
@@ -6012,11 +6164,12 @@
       "vorp": -21.81,
       "value_points": 101.8,
       "position_rank": 59,
-      "tier": 9,
+      "tier": 10,
       "ecr": 156.57,
       "adp": 150.0,
       "adp_round": 13,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13346"
     },
     {
@@ -6056,6 +6209,7 @@
       "adp": 196.0,
       "adp_round": 17,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6865"
     },
     {
@@ -6095,6 +6249,7 @@
       "adp": 124.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9753"
     },
     {
@@ -6134,6 +6289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4066"
     },
     {
@@ -6173,6 +6329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4993"
     },
     {
@@ -6212,6 +6369,7 @@
       "adp": 174.0,
       "adp_round": 15,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13349"
     },
     {
@@ -6251,6 +6409,7 @@
       "adp": 161.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9758"
     },
     {
@@ -6290,6 +6449,7 @@
       "adp": 218.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12498"
     },
     {
@@ -6329,6 +6489,7 @@
       "adp": 230.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11597"
     },
     {
@@ -6363,11 +6524,12 @@
       "vorp": -25.26,
       "value_points": 98.4,
       "position_rank": 60,
-      "tier": 9,
+      "tier": 10,
       "ecr": 157.81,
       "adp": 173.0,
       "adp_round": 15,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6783"
     },
     {
@@ -6407,6 +6569,7 @@
       "adp": 188.0,
       "adp_round": 16,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8698"
     },
     {
@@ -6441,11 +6604,12 @@
       "vorp": -25.86,
       "value_points": 97.7,
       "position_rank": 61,
-      "tier": 9,
+      "tier": 10,
       "ecr": 162.56,
       "adp": 125.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2449"
     },
     {
@@ -6485,6 +6649,7 @@
       "adp": 165.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4943"
     },
     {
@@ -6524,6 +6689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9479"
     },
     {
@@ -6563,6 +6729,7 @@
       "adp": 166.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12522"
     },
     {
@@ -6602,6 +6769,7 @@
       "adp": 142.0,
       "adp_round": 12,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10219"
     },
     {
@@ -6636,11 +6804,12 @@
       "vorp": -27.76,
       "value_points": 95.8,
       "position_rank": 62,
-      "tier": 9,
+      "tier": 10,
       "ecr": 168.07,
       "adp": 162.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11618"
     },
     {
@@ -6680,6 +6849,7 @@
       "adp": 154.0,
       "adp_round": 13,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9508"
     },
     {
@@ -6719,6 +6889,7 @@
       "adp": 167.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12469"
     },
     {
@@ -6753,11 +6924,12 @@
       "vorp": -28.12,
       "value_points": 95.5,
       "position_rank": 63,
-      "tier": 9,
+      "tier": 10,
       "ecr": 174.22,
       "adp": 178.0,
       "adp_round": 15,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11625"
     },
     {
@@ -6797,6 +6969,7 @@
       "adp": 244.0,
       "adp_round": 21,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13278"
     },
     {
@@ -6831,11 +7004,12 @@
       "vorp": -28.53,
       "value_points": 95.1,
       "position_rank": 64,
-      "tier": 9,
+      "tier": 10,
       "ecr": 175.65,
       "adp": 203.0,
       "adp_round": 17,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10213"
     },
     {
@@ -6875,6 +7049,7 @@
       "adp": 169.0,
       "adp_round": 15,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8205"
     },
     {
@@ -6914,6 +7089,7 @@
       "adp": 157.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4035"
     },
     {
@@ -6953,6 +7129,7 @@
       "adp": 146.0,
       "adp_round": 13,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13345"
     },
     {
@@ -6992,6 +7169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9482"
     },
     {
@@ -7031,6 +7209,7 @@
       "adp": 164.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9511"
     },
     {
@@ -7070,6 +7249,7 @@
       "adp": 176.0,
       "adp_round": 15,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11576"
     },
     {
@@ -7104,11 +7284,12 @@
       "vorp": -31.82,
       "value_points": 91.8,
       "position_rank": 65,
-      "tier": 9,
+      "tier": 10,
       "ecr": 183.27,
       "adp": 191.0,
       "adp_round": 16,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12509"
     },
     {
@@ -7143,11 +7324,12 @@
       "vorp": -31.95,
       "value_points": 91.7,
       "position_rank": 66,
-      "tier": 9,
+      "tier": 10,
       "ecr": 186.03,
       "adp": 163.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5872"
     },
     {
@@ -7182,11 +7364,12 @@
       "vorp": -31.99,
       "value_points": 91.6,
       "position_rank": 67,
-      "tier": 9,
+      "tier": 10,
       "ecr": 189.3,
       "adp": 222.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11783"
     },
     {
@@ -7221,11 +7404,12 @@
       "vorp": -32.0,
       "value_points": 91.6,
       "position_rank": 68,
-      "tier": 9,
+      "tier": 10,
       "ecr": 190.35,
       "adp": 185.0,
       "adp_round": 16,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11627"
     },
     {
@@ -7265,6 +7449,7 @@
       "adp": 192.0,
       "adp_round": 16,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5870"
     },
     {
@@ -7299,11 +7484,12 @@
       "vorp": -33.73,
       "value_points": 89.9,
       "position_rank": 69,
-      "tier": 9,
+      "tier": 10,
       "ecr": 192.77,
       "adp": 179.0,
       "adp_round": 15,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9504"
     },
     {
@@ -7338,11 +7524,12 @@
       "vorp": -33.74,
       "value_points": 89.9,
       "position_rank": 70,
-      "tier": 9,
+      "tier": 10,
       "ecr": 194.1,
       "adp": 170.0,
       "adp_round": 15,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13301"
     },
     {
@@ -7382,6 +7569,7 @@
       "adp": 121.0,
       "adp_round": 11,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8154"
     },
     {
@@ -7421,6 +7609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3271"
     },
     {
@@ -7460,6 +7649,7 @@
       "adp": 190.0,
       "adp_round": 16,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9228"
     },
     {
@@ -7494,11 +7684,12 @@
       "vorp": -34.76,
       "value_points": 88.9,
       "position_rank": 71,
-      "tier": 9,
+      "tier": 10,
       "ecr": 196.36,
       "adp": 207.0,
       "adp_round": 18,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12536"
     },
     {
@@ -7533,11 +7724,12 @@
       "vorp": -34.78,
       "value_points": 88.8,
       "position_rank": 72,
-      "tier": 9,
+      "tier": 10,
       "ecr": 202.96,
       "adp": 223.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4981"
     },
     {
@@ -7572,11 +7764,12 @@
       "vorp": -36.09,
       "value_points": 87.5,
       "position_rank": 73,
-      "tier": 9,
+      "tier": 10,
       "ecr": 203.28,
       "adp": 168.0,
       "adp_round": 14,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8180"
     },
     {
@@ -7611,11 +7804,12 @@
       "vorp": -36.22,
       "value_points": 87.4,
       "position_rank": 74,
-      "tier": 9,
+      "tier": 10,
       "ecr": 203.3,
       "adp": 194.0,
       "adp_round": 17,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12535"
     },
     {
@@ -7650,11 +7844,12 @@
       "vorp": -37.2,
       "value_points": 86.4,
       "position_rank": 75,
-      "tier": 9,
+      "tier": 10,
       "ecr": 208.32,
       "adp": 213.0,
       "adp_round": 18,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7090"
     },
     {
@@ -7694,6 +7889,7 @@
       "adp": 186.0,
       "adp_round": 16,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9225"
     },
     {
@@ -7733,6 +7929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11600"
     },
     {
@@ -7772,6 +7969,7 @@
       "adp": 155.0,
       "adp_round": 13,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4137"
     },
     {
@@ -7811,6 +8009,7 @@
       "adp": 152.0,
       "adp_round": 13,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13337"
     },
     {
@@ -7845,11 +8044,12 @@
       "vorp": -39.57,
       "value_points": 84.0,
       "position_rank": 76,
-      "tier": 9,
+      "tier": 10,
       "ecr": 212.15,
       "adp": 215.0,
       "adp_round": 18,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12492"
     },
     {
@@ -7884,11 +8084,12 @@
       "vorp": -40.32,
       "value_points": 83.3,
       "position_rank": 77,
-      "tier": 9,
+      "tier": 10,
       "ecr": 214.41,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11610"
     },
     {
@@ -7923,11 +8124,12 @@
       "vorp": -40.72,
       "value_points": 82.9,
       "position_rank": 78,
-      "tier": 9,
+      "tier": 10,
       "ecr": 216.32,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9486"
     },
     {
@@ -7962,11 +8164,12 @@
       "vorp": -41.04,
       "value_points": 82.6,
       "position_rank": 79,
-      "tier": 9,
+      "tier": 10,
       "ecr": 225.59,
       "adp": 227.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12540"
     },
     {
@@ -8006,6 +8209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12521"
     },
     {
@@ -8045,6 +8249,7 @@
       "adp": 200.0,
       "adp_round": 17,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11435"
     },
     {
@@ -8084,6 +8289,7 @@
       "adp": 198.0,
       "adp_round": 17,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3257"
     },
     {
@@ -8123,6 +8329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4144"
     },
     {
@@ -8162,6 +8369,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5906"
     },
     {
@@ -8201,6 +8409,7 @@
       "adp": 182.0,
       "adp_round": 16,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11647"
     },
     {
@@ -8240,6 +8449,7 @@
       "adp": 204.0,
       "adp_round": 17,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11575"
     },
     {
@@ -8274,11 +8484,12 @@
       "vorp": -43.59,
       "value_points": 80.0,
       "position_rank": 80,
-      "tier": 9,
+      "tier": 10,
       "ecr": 227.19,
       "adp": 175.0,
       "adp_round": 15,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3321"
     },
     {
@@ -8313,11 +8524,12 @@
       "vorp": -43.6,
       "value_points": 80.0,
       "position_rank": 81,
-      "tier": 9,
+      "tier": 10,
       "ecr": 228.39,
       "adp": 212.0,
       "adp_round": 18,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13274"
     },
     {
@@ -8357,6 +8569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6826"
     },
     {
@@ -8396,6 +8609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "96"
     },
     {
@@ -8430,11 +8644,12 @@
       "vorp": -44.73,
       "value_points": 78.9,
       "position_rank": 82,
-      "tier": 9,
+      "tier": 10,
       "ecr": 229.38,
       "adp": 234.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4039"
     },
     {
@@ -8474,6 +8689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7828"
     },
     {
@@ -8513,6 +8729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7716"
     },
     {
@@ -8547,11 +8764,12 @@
       "vorp": -45.13,
       "value_points": 78.5,
       "position_rank": 83,
-      "tier": 9,
+      "tier": 10,
       "ecr": 235.89,
       "adp": 229.0,
       "adp_round": 20,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13311"
     },
     {
@@ -8586,11 +8804,12 @@
       "vorp": -45.16,
       "value_points": 78.5,
       "position_rank": 84,
-      "tier": 9,
+      "tier": 10,
       "ecr": 236.33,
       "adp": 231.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7571"
     },
     {
@@ -8630,6 +8849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13400"
     },
     {
@@ -8664,11 +8884,12 @@
       "vorp": -45.47,
       "value_points": 78.1,
       "position_rank": 85,
-      "tier": 9,
+      "tier": 10,
       "ecr": 239.46,
       "adp": 181.0,
       "adp_round": 16,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13320"
     },
     {
@@ -8703,11 +8924,12 @@
       "vorp": -46.46,
       "value_points": 77.2,
       "position_rank": 86,
-      "tier": 9,
+      "tier": 10,
       "ecr": 242.1,
       "adp": 195.0,
       "adp_round": 17,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12499"
     },
     {
@@ -8747,6 +8969,7 @@
       "adp": 189.0,
       "adp_round": 16,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9506"
     },
     {
@@ -8786,6 +9009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1339"
     },
     {
@@ -8820,11 +9044,12 @@
       "vorp": -47.29,
       "value_points": 76.3,
       "position_rank": 87,
-      "tier": 9,
+      "tier": 10,
       "ecr": 244.2,
       "adp": 238.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12483"
     },
     {
@@ -8864,6 +9089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5008"
     },
     {
@@ -8903,6 +9129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5857"
     },
     {
@@ -8937,11 +9164,12 @@
       "vorp": -48.58,
       "value_points": 75.0,
       "position_rank": 88,
-      "tier": 9,
+      "tier": 10,
       "ecr": 248.67,
       "adp": 233.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11637"
     },
     {
@@ -8981,6 +9209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7694"
     },
     {
@@ -9015,11 +9244,12 @@
       "vorp": -48.97,
       "value_points": 74.6,
       "position_rank": 89,
-      "tier": 9,
+      "tier": 10,
       "ecr": 249.54,
       "adp": 226.0,
       "adp_round": 19,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13268"
     },
     {
@@ -9059,6 +9289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1373"
     },
     {
@@ -9098,6 +9329,7 @@
       "adp": 183.0,
       "adp_round": 16,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13405"
     },
     {
@@ -9132,11 +9364,12 @@
       "vorp": -50.38,
       "value_points": 73.2,
       "position_rank": 90,
-      "tier": 9,
+      "tier": 10,
       "ecr": 251.84,
       "adp": 241.0,
       "adp_round": 21,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4950"
     },
     {
@@ -9176,6 +9409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3202"
     },
     {
@@ -9215,6 +9449,7 @@
       "adp": 208.0,
       "adp_round": 18,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11643"
     },
     {
@@ -9254,6 +9489,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5995"
     },
     {
@@ -9293,6 +9529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12495"
     },
     {
@@ -9332,6 +9569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13421"
     },
     {
@@ -9366,11 +9604,12 @@
       "vorp": -51.94,
       "value_points": 71.7,
       "position_rank": 91,
-      "tier": 9,
+      "tier": 10,
       "ecr": 252.02,
       "adp": 243.0,
       "adp_round": 21,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13285"
     },
     {
@@ -9405,11 +9644,12 @@
       "vorp": -51.98,
       "value_points": 71.6,
       "position_rank": 92,
-      "tier": 9,
+      "tier": 10,
       "ecr": 255.2,
       "adp": 216.0,
       "adp_round": 18,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13317"
     },
     {
@@ -9444,11 +9684,12 @@
       "vorp": -52.68,
       "value_points": 70.9,
       "position_rank": 93,
-      "tier": 9,
+      "tier": 10,
       "ecr": 255.5,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3200"
     },
     {
@@ -9483,11 +9724,12 @@
       "vorp": -52.83,
       "value_points": 70.8,
       "position_rank": 94,
-      "tier": 9,
+      "tier": 10,
       "ecr": 257.08,
       "adp": 211.0,
       "adp_round": 18,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9494"
     },
     {
@@ -9527,6 +9769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6039"
     },
     {
@@ -9561,11 +9804,12 @@
       "vorp": -52.98,
       "value_points": 70.6,
       "position_rank": 95,
-      "tier": 9,
+      "tier": 10,
       "ecr": 259.0,
       "adp": 228.0,
       "adp_round": 19,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13353"
     },
     {
@@ -9600,11 +9844,12 @@
       "vorp": -53.11,
       "value_points": 70.5,
       "position_rank": 96,
-      "tier": 9,
+      "tier": 10,
       "ecr": 259.77,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11626"
     },
     {
@@ -9644,6 +9889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13322"
     },
     {
@@ -9678,11 +9924,12 @@
       "vorp": -53.21,
       "value_points": 70.4,
       "position_rank": 97,
-      "tier": 9,
+      "tier": 10,
       "ecr": 261.56,
       "adp": 225.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12497"
     },
     {
@@ -9717,11 +9964,12 @@
       "vorp": -53.55,
       "value_points": 70.1,
       "position_rank": 98,
-      "tier": 9,
+      "tier": 10,
       "ecr": 264.15,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6149"
     },
     {
@@ -9756,11 +10004,12 @@
       "vorp": -53.57,
       "value_points": 70.0,
       "position_rank": 99,
-      "tier": 9,
+      "tier": 10,
       "ecr": 267.6,
       "adp": 232.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1479"
     },
     {
@@ -9795,11 +10044,12 @@
       "vorp": -53.7,
       "value_points": 69.9,
       "position_rank": 100,
-      "tier": 9,
+      "tier": 10,
       "ecr": 270.21,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10226"
     },
     {
@@ -9834,11 +10084,12 @@
       "vorp": -53.72,
       "value_points": 69.9,
       "position_rank": 101,
-      "tier": 9,
+      "tier": 10,
       "ecr": 270.55,
       "adp": 239.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11834"
     },
     {
@@ -9873,11 +10124,12 @@
       "vorp": -54.3,
       "value_points": 69.3,
       "position_rank": 102,
-      "tier": 9,
+      "tier": 10,
       "ecr": 270.57,
       "adp": 214.0,
       "adp_round": 18,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -9912,11 +10164,12 @@
       "vorp": -54.41,
       "value_points": 69.2,
       "position_rank": 103,
-      "tier": 9,
+      "tier": 10,
       "ecr": 272.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8200"
     },
     {
@@ -9951,11 +10204,12 @@
       "vorp": -54.46,
       "value_points": 69.1,
       "position_rank": 104,
-      "tier": 9,
+      "tier": 10,
       "ecr": 272.68,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8188"
     },
     {
@@ -9995,6 +10249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5409"
     },
     {
@@ -10034,6 +10289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13307"
     },
     {
@@ -10068,11 +10324,12 @@
       "vorp": -55.26,
       "value_points": 68.3,
       "position_rank": 105,
-      "tier": 9,
+      "tier": 10,
       "ecr": 276.47,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4177"
     },
     {
@@ -10112,6 +10369,7 @@
       "adp": 210.0,
       "adp_round": 18,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13347"
     },
     {
@@ -10151,6 +10409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13299"
     },
     {
@@ -10190,6 +10449,7 @@
       "adp": 184.0,
       "adp_round": 16,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11589"
     },
     {
@@ -10224,11 +10484,12 @@
       "vorp": -56.52,
       "value_points": 67.1,
       "position_rank": 106,
-      "tier": 9,
+      "tier": 10,
       "ecr": 278.04,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13402"
     },
     {
@@ -10268,6 +10529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9481"
     },
     {
@@ -10307,6 +10569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11571"
     },
     {
@@ -10346,6 +10609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6001"
     },
     {
@@ -10385,6 +10649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5973"
     },
     {
@@ -10424,6 +10689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8225"
     },
     {
@@ -10463,6 +10729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8127"
     },
     {
@@ -10502,6 +10769,7 @@
       "adp": 236.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12457"
     },
     {
@@ -10541,6 +10809,7 @@
       "adp": 205.0,
       "adp_round": 18,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12476"
     },
     {
@@ -10575,11 +10844,12 @@
       "vorp": -58.57,
       "value_points": 65.0,
       "position_rank": 107,
-      "tier": 9,
+      "tier": 10,
       "ecr": 281.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7596"
     },
     {
@@ -10614,11 +10884,12 @@
       "vorp": -58.87,
       "value_points": 64.7,
       "position_rank": 108,
-      "tier": 9,
+      "tier": 10,
       "ecr": 281.31,
       "adp": 193.0,
       "adp_round": 17,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13293"
     },
     {
@@ -10653,11 +10924,12 @@
       "vorp": -59.23,
       "value_points": 64.4,
       "position_rank": 109,
-      "tier": 9,
+      "tier": 10,
       "ecr": 281.33,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1426"
     },
     {
@@ -10697,6 +10969,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12471"
     },
     {
@@ -10736,6 +11009,7 @@
       "adp": 171.0,
       "adp_round": 15,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13269"
     },
     {
@@ -10775,6 +11049,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11370"
     },
     {
@@ -10814,6 +11089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6869"
     },
     {
@@ -10848,11 +11124,12 @@
       "vorp": -59.75,
       "value_points": 63.9,
       "position_rank": 110,
-      "tier": 9,
+      "tier": 10,
       "ecr": 283.28,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5848"
     },
     {
@@ -10892,6 +11169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11596"
     },
     {
@@ -10931,6 +11209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7891"
     },
     {
@@ -10970,6 +11249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2505"
     },
     {
@@ -11009,6 +11289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10871"
     },
     {
@@ -11048,6 +11329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12544"
     },
     {
@@ -11082,11 +11364,12 @@
       "vorp": -60.75,
       "value_points": 62.9,
       "position_rank": 111,
-      "tier": 9,
+      "tier": 10,
       "ecr": 288.75,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8119"
     },
     {
@@ -11126,6 +11409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4054"
     },
     {
@@ -11165,6 +11449,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10231"
     },
     {
@@ -11199,11 +11484,12 @@
       "vorp": -62.58,
       "value_points": 61.0,
       "position_rank": 112,
-      "tier": 9,
+      "tier": 10,
       "ecr": 290.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2374"
     },
     {
@@ -11243,6 +11529,7 @@
       "adp": 209.0,
       "adp_round": 18,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12504"
     },
     {
@@ -11277,11 +11564,12 @@
       "vorp": -63.51,
       "value_points": 60.1,
       "position_rank": 113,
-      "tier": 9,
+      "tier": 10,
       "ecr": 290.5,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4351"
     },
     {
@@ -11321,6 +11609,7 @@
       "adp": 235.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6768"
     },
     {
@@ -11360,6 +11649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4381"
     },
     {
@@ -11399,6 +11689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12473"
     },
     {
@@ -11438,6 +11729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11595"
     },
     {
@@ -11477,6 +11769,7 @@
       "adp": 224.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11559"
     },
     {
@@ -11516,6 +11809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5094"
     },
     {
@@ -11550,11 +11844,12 @@
       "vorp": -64.42,
       "value_points": 59.2,
       "position_rank": 114,
-      "tier": 9,
+      "tier": 10,
       "ecr": 291.61,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13296"
     },
     {
@@ -11589,11 +11884,12 @@
       "vorp": -64.51,
       "value_points": 59.1,
       "position_rank": 115,
-      "tier": 9,
+      "tier": 10,
       "ecr": 294.59,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12718"
     },
     {
@@ -11628,11 +11924,12 @@
       "vorp": -64.53,
       "value_points": 59.1,
       "position_rank": 116,
-      "tier": 9,
+      "tier": 10,
       "ecr": 295.36,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -11667,11 +11964,12 @@
       "vorp": -64.53,
       "value_points": 59.1,
       "position_rank": 117,
-      "tier": 9,
+      "tier": 10,
       "ecr": 296.27,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12503"
     },
     {
@@ -11711,6 +12009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12048"
     },
     {
@@ -11745,11 +12044,12 @@
       "vorp": -64.77,
       "value_points": 58.8,
       "position_rank": 118,
-      "tier": 9,
+      "tier": 10,
       "ecr": 297.04,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8117"
     },
     {
@@ -11789,6 +12089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12658"
     },
     {
@@ -11823,11 +12124,12 @@
       "vorp": -65.48,
       "value_points": 58.1,
       "position_rank": 119,
-      "tier": 9,
+      "tier": 10,
       "ecr": 297.9,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4454"
     },
     {
@@ -11867,6 +12169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12715"
     },
     {
@@ -11906,6 +12209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4147"
     },
     {
@@ -11940,11 +12244,12 @@
       "vorp": -65.82,
       "value_points": 57.8,
       "position_rank": 120,
-      "tier": 9,
+      "tier": 10,
       "ecr": 300.23,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8917"
     },
     {
@@ -11984,6 +12289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8800"
     },
     {
@@ -12018,11 +12324,12 @@
       "vorp": -66.28,
       "value_points": 57.3,
       "position_rank": 121,
-      "tier": 9,
+      "tier": 10,
       "ecr": 301.89,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6271"
     },
     {
@@ -12057,11 +12364,12 @@
       "vorp": -66.38,
       "value_points": 57.2,
       "position_rank": 122,
-      "tier": 9,
+      "tier": 10,
       "ecr": 303.19,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12485"
     },
     {
@@ -12101,6 +12409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1379"
     },
     {
@@ -12135,11 +12444,12 @@
       "vorp": -66.64,
       "value_points": 57.0,
       "position_rank": 123,
-      "tier": 9,
+      "tier": 10,
       "ecr": 305.53,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10444"
     },
     {
@@ -12174,11 +12484,12 @@
       "vorp": -66.65,
       "value_points": 57.0,
       "position_rank": 124,
-      "tier": 9,
+      "tier": 10,
       "ecr": 306.17,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13420"
     },
     {
@@ -12218,6 +12529,7 @@
       "adp": 221.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12455"
     },
     {
@@ -12252,11 +12564,12 @@
       "vorp": -66.94,
       "value_points": 56.7,
       "position_rank": 125,
-      "tier": 9,
+      "tier": 10,
       "ecr": 306.57,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11629"
     },
     {
@@ -12296,6 +12609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6843"
     },
     {
@@ -12330,11 +12644,12 @@
       "vorp": -67.29,
       "value_points": 56.3,
       "position_rank": 126,
-      "tier": 9,
+      "tier": 10,
       "ecr": 309.21,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11650"
     },
     {
@@ -12374,6 +12689,7 @@
       "adp": 220.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12524"
     },
     {
@@ -12408,11 +12724,12 @@
       "vorp": -67.64,
       "value_points": 56.0,
       "position_rank": 127,
-      "tier": 9,
+      "tier": 10,
       "ecr": 310.8,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8125"
     },
     {
@@ -12452,6 +12769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13414"
     },
     {
@@ -12491,6 +12809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8219"
     },
     {
@@ -12525,11 +12844,12 @@
       "vorp": -68.34,
       "value_points": 55.3,
       "position_rank": 128,
-      "tier": 9,
+      "tier": 10,
       "ecr": 311.74,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12505"
     },
     {
@@ -12569,6 +12889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11599"
     },
     {
@@ -12608,6 +12929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7535"
     },
     {
@@ -12647,6 +12969,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13210"
     },
     {
@@ -12686,6 +13009,7 @@
       "adp": 206.0,
       "adp_round": 18,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7528"
     },
     {
@@ -12720,11 +13044,12 @@
       "vorp": -69.38,
       "value_points": 54.2,
       "position_rank": 129,
-      "tier": 9,
+      "tier": 10,
       "ecr": 312.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6853"
     },
     {
@@ -12764,6 +13089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5010"
     },
     {
@@ -12803,6 +13129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1166"
     },
     {
@@ -12842,6 +13169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10214"
     },
     {
@@ -12881,6 +13209,7 @@
       "adp": 219.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9757"
     },
     {
@@ -12915,11 +13244,12 @@
       "vorp": -70.02,
       "value_points": 53.6,
       "position_rank": 130,
-      "tier": 9,
+      "tier": 10,
       "ecr": 312.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8135"
     },
     {
@@ -12959,6 +13289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8041"
     },
     {
@@ -12998,6 +13329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8145"
     },
     {
@@ -13032,11 +13364,12 @@
       "vorp": -70.17,
       "value_points": 53.4,
       "position_rank": 131,
-      "tier": 9,
+      "tier": 10,
       "ecr": 312.69,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3634"
     },
     {
@@ -13076,6 +13409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8143"
     },
     {
@@ -13115,6 +13449,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11199"
     },
     {
@@ -13149,11 +13484,12 @@
       "vorp": -70.42,
       "value_points": 53.2,
       "position_rank": 132,
-      "tier": 9,
+      "tier": 10,
       "ecr": 314.35,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13380"
     },
     {
@@ -13193,6 +13529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12765"
     },
     {
@@ -13232,6 +13569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11439"
     },
     {
@@ -13266,11 +13604,12 @@
       "vorp": -70.61,
       "value_points": 53.0,
       "position_rank": 133,
-      "tier": 9,
+      "tier": 10,
       "ecr": 316.67,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7496"
     },
     {
@@ -13310,6 +13649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13424"
     },
     {
@@ -13344,11 +13684,12 @@
       "vorp": -70.66,
       "value_points": 52.9,
       "position_rank": 134,
-      "tier": 9,
+      "tier": 10,
       "ecr": 318.5,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5086"
     },
     {
@@ -13383,11 +13724,12 @@
       "vorp": -70.7,
       "value_points": 52.9,
       "position_rank": 135,
-      "tier": 9,
+      "tier": 10,
       "ecr": 320.56,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5970"
     },
     {
@@ -13427,6 +13769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13302"
     },
     {
@@ -13466,6 +13809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6130"
     },
     {
@@ -13505,6 +13849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4435"
     },
     {
@@ -13544,6 +13889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8249"
     },
     {
@@ -13578,11 +13924,12 @@
       "vorp": -71.49,
       "value_points": 52.1,
       "position_rank": 136,
-      "tier": 9,
+      "tier": 10,
       "ecr": 320.8,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6427"
     },
     {
@@ -13617,11 +13964,12 @@
       "vorp": -71.92,
       "value_points": 51.7,
       "position_rank": 137,
-      "tier": 9,
+      "tier": 10,
       "ecr": 321.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11168"
     },
     {
@@ -13661,6 +14009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10212"
     },
     {
@@ -13700,6 +14049,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12480"
     },
     {
@@ -13739,6 +14089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7608"
     },
     {
@@ -13778,6 +14129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11371"
     },
     {
@@ -13812,11 +14164,12 @@
       "vorp": -72.48,
       "value_points": 51.1,
       "position_rank": 138,
-      "tier": 9,
+      "tier": 10,
       "ecr": 321.2,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7562"
     },
     {
@@ -13856,6 +14209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8089"
     },
     {
@@ -13895,6 +14249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11651"
     },
     {
@@ -13934,6 +14289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7602"
     },
     {
@@ -13973,6 +14329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8583"
     },
     {
@@ -14012,6 +14369,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8849"
     },
     {
@@ -14046,11 +14404,12 @@
       "vorp": -74.25,
       "value_points": 49.4,
       "position_rank": 139,
-      "tier": 9,
+      "tier": 10,
       "ecr": 323.29,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9501"
     },
     {
@@ -14085,11 +14444,12 @@
       "vorp": -74.35,
       "value_points": 49.3,
       "position_rank": 140,
-      "tier": 9,
+      "tier": 10,
       "ecr": 324.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -14124,11 +14484,12 @@
       "vorp": -74.37,
       "value_points": 49.2,
       "position_rank": 141,
-      "tier": 9,
+      "tier": 10,
       "ecr": 325.7,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10218"
     },
     {
@@ -14168,6 +14529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12543"
     },
     {
@@ -14207,6 +14569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11570"
     },
     {
@@ -14246,6 +14609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6828"
     },
     {
@@ -14285,6 +14649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12531"
     },
     {
@@ -14324,6 +14689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12374"
     },
     {
@@ -14358,11 +14724,12 @@
       "vorp": -75.36,
       "value_points": 48.3,
       "position_rank": 142,
-      "tier": 9,
+      "tier": 10,
       "ecr": 327.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12541"
     },
     {
@@ -14402,6 +14769,7 @@
       "adp": 237.0,
       "adp_round": 20,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11579"
     },
     {
@@ -14441,6 +14809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -14480,6 +14849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8177"
     },
     {
@@ -14519,6 +14889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -14558,6 +14929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4219"
     },
     {
@@ -14597,6 +14969,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5985"
     },
     {
@@ -14636,6 +15009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11729"
     },
     {
@@ -14675,6 +15049,7 @@
       "adp": 217.0,
       "adp_round": 19,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11565"
     },
     {
@@ -14714,6 +15089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11082"
     },
     {
@@ -14753,6 +15129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13319"
     },
     {
@@ -14787,11 +15164,12 @@
       "vorp": -77.45,
       "value_points": 46.2,
       "position_rank": 143,
-      "tier": 9,
+      "tier": 10,
       "ecr": 329.27,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13411"
     },
     {
@@ -14831,6 +15209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4995"
     },
     {
@@ -14865,11 +15244,12 @@
       "vorp": -77.54,
       "value_points": 46.1,
       "position_rank": 144,
-      "tier": 9,
+      "tier": 10,
       "ecr": 333.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7587"
     },
     {
@@ -14904,11 +15284,12 @@
       "vorp": -77.81,
       "value_points": 45.8,
       "position_rank": 145,
-      "tier": 9,
+      "tier": 10,
       "ecr": 333.93,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13338"
     },
     {
@@ -14943,11 +15324,12 @@
       "vorp": -77.85,
       "value_points": 45.8,
       "position_rank": 146,
-      "tier": 9,
+      "tier": 10,
       "ecr": 337.53,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12482"
     },
     {
@@ -14987,6 +15369,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11577"
     },
     {
@@ -15026,6 +15409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2749"
     },
     {
@@ -15060,11 +15444,12 @@
       "vorp": -77.91,
       "value_points": 45.7,
       "position_rank": 147,
-      "tier": 9,
+      "tier": 10,
       "ecr": 339.25,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13079"
     },
     {
@@ -15104,6 +15489,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11588"
     },
     {
@@ -15143,6 +15529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13434"
     },
     {
@@ -15177,11 +15564,12 @@
       "vorp": -78.48,
       "value_points": 45.1,
       "position_rank": 148,
-      "tier": 9,
+      "tier": 10,
       "ecr": 341.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8147"
     },
     {
@@ -15221,6 +15609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10220"
     },
     {
@@ -15260,6 +15649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7075"
     },
     {
@@ -15294,11 +15684,12 @@
       "vorp": -78.83,
       "value_points": 44.8,
       "position_rank": 149,
-      "tier": 9,
+      "tier": 10,
       "ecr": 341.41,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12641"
     },
     {
@@ -15333,11 +15724,12 @@
       "vorp": -78.93,
       "value_points": 44.7,
       "position_rank": 150,
-      "tier": 9,
+      "tier": 10,
       "ecr": 346.5,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6290"
     },
     {
@@ -15372,11 +15764,12 @@
       "vorp": -78.99,
       "value_points": 44.6,
       "position_rank": 151,
-      "tier": 9,
+      "tier": 10,
       "ecr": 349.9,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11623"
     },
     {
@@ -15411,11 +15804,12 @@
       "vorp": -79.45,
       "value_points": 44.2,
       "position_rank": 152,
-      "tier": 9,
+      "tier": 10,
       "ecr": 351.75,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13270"
     },
     {
@@ -15455,6 +15849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4098"
     },
     {
@@ -15489,11 +15884,12 @@
       "vorp": -79.68,
       "value_points": 43.9,
       "position_rank": 153,
-      "tier": 9,
+      "tier": 10,
       "ecr": 353.5,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13413"
     },
     {
@@ -15533,6 +15929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4314"
     },
     {
@@ -15572,6 +15969,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11433"
     },
     {
@@ -15611,6 +16009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8500"
     },
     {
@@ -15650,6 +16049,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6850"
     },
     {
@@ -15689,6 +16089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11574"
     },
     {
@@ -15728,6 +16129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11299"
     },
     {
@@ -15767,6 +16169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12738"
     },
     {
@@ -15806,6 +16209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8170"
     },
     {
@@ -15845,6 +16249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4988"
     },
     {
@@ -15884,6 +16289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6151"
     },
     {
@@ -15918,11 +16324,12 @@
       "vorp": -80.89,
       "value_points": 42.7,
       "position_rank": 154,
-      "tier": 9,
+      "tier": 10,
       "ecr": 358.33,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13297"
     },
     {
@@ -15962,6 +16369,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7537"
     },
     {
@@ -16001,6 +16409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12472"
     },
     {
@@ -16040,6 +16449,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7607"
     },
     {
@@ -16074,11 +16484,12 @@
       "vorp": -81.9,
       "value_points": 41.7,
       "position_rank": 155,
-      "tier": 9,
+      "tier": 10,
       "ecr": 359.33,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12496"
     },
     {
@@ -16113,11 +16524,12 @@
       "vorp": -82.36,
       "value_points": 41.2,
       "position_rank": 156,
-      "tier": 9,
+      "tier": 10,
       "ecr": 361.5,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5917"
     },
     {
@@ -16157,6 +16569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8799"
     },
     {
@@ -16196,6 +16609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4663"
     },
     {
@@ -16235,6 +16649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11593"
     },
     {
@@ -16269,11 +16684,12 @@
       "vorp": -82.63,
       "value_points": 41.0,
       "position_rank": 157,
-      "tier": 9,
+      "tier": 10,
       "ecr": 365.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11630"
     },
     {
@@ -16313,6 +16729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7842"
     },
     {
@@ -16347,11 +16764,12 @@
       "vorp": -82.73,
       "value_points": 40.9,
       "position_rank": 158,
-      "tier": 9,
+      "tier": 10,
       "ecr": 365.33,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3286"
     },
     {
@@ -16386,11 +16804,12 @@
       "vorp": -82.96,
       "value_points": 40.6,
       "position_rank": 159,
-      "tier": 9,
+      "tier": 10,
       "ecr": 374.0,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11762"
     },
     {
@@ -16430,6 +16849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11716"
     },
     {
@@ -16469,6 +16889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8230"
     },
     {
@@ -16508,6 +16929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12062"
     },
     {
@@ -16547,6 +16969,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5285"
     },
     {
@@ -16581,11 +17004,12 @@
       "vorp": -83.68,
       "value_points": 39.9,
       "position_rank": 160,
-      "tier": 9,
+      "tier": 10,
       "ecr": 376.2,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13329"
     },
     {
@@ -16620,11 +17044,12 @@
       "vorp": -84.05,
       "value_points": 39.6,
       "position_rank": 161,
-      "tier": 9,
+      "tier": 10,
       "ecr": 377.5,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8168"
     },
     {
@@ -16659,11 +17084,12 @@
       "vorp": -84.05,
       "value_points": 39.6,
       "position_rank": 162,
-      "tier": 9,
+      "tier": 10,
       "ecr": 385.5,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13394"
     },
     {
@@ -16698,11 +17124,12 @@
       "vorp": -84.15,
       "value_points": 39.5,
       "position_rank": 163,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13417"
     },
     {
@@ -16742,6 +17169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7536"
     },
     {
@@ -16781,6 +17209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8227"
     },
     {
@@ -16815,11 +17244,12 @@
       "vorp": -84.36,
       "value_points": 39.2,
       "position_rank": 164,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4171"
     },
     {
@@ -16854,11 +17284,12 @@
       "vorp": -84.58,
       "value_points": 39.0,
       "position_rank": 165,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6943"
     },
     {
@@ -16893,11 +17324,12 @@
       "vorp": -84.89,
       "value_points": 38.7,
       "position_rank": 166,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12860"
     },
     {
@@ -16937,6 +17369,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12357"
     },
     {
@@ -16971,11 +17404,12 @@
       "vorp": -85.25,
       "value_points": 38.4,
       "position_rank": 167,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11377"
     },
     {
@@ -17010,11 +17444,12 @@
       "vorp": -85.36,
       "value_points": 38.2,
       "position_rank": 168,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2197"
     },
     {
@@ -17049,11 +17484,12 @@
       "vorp": -85.6,
       "value_points": 38.0,
       "position_rank": 169,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4992"
     },
     {
@@ -17088,11 +17524,12 @@
       "vorp": -85.63,
       "value_points": 38.0,
       "position_rank": 170,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13150"
     },
     {
@@ -17132,6 +17569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8195"
     },
     {
@@ -17166,11 +17604,12 @@
       "vorp": -85.92,
       "value_points": 37.7,
       "position_rank": 171,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1689"
     },
     {
@@ -17210,6 +17649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7946"
     },
     {
@@ -17249,6 +17689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4602"
     },
     {
@@ -17288,6 +17729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13403"
     },
     {
@@ -17327,6 +17769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11820"
     },
     {
@@ -17366,6 +17809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4189"
     },
     {
@@ -17405,6 +17849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13121"
     },
     {
@@ -17444,6 +17889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11201"
     },
     {
@@ -17483,6 +17929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8885"
     },
     {
@@ -17517,11 +17964,12 @@
       "vorp": -87.54,
       "value_points": 36.1,
       "position_rank": 172,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5938"
     },
     {
@@ -17561,6 +18009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13122"
     },
     {
@@ -17595,11 +18044,12 @@
       "vorp": -88.31,
       "value_points": 35.3,
       "position_rank": 173,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6920"
     },
     {
@@ -17639,6 +18089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -17673,11 +18124,12 @@
       "vorp": -88.45,
       "value_points": 35.2,
       "position_rank": 174,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12935"
     },
     {
@@ -17717,6 +18169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11304"
     },
     {
@@ -17756,6 +18209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10227"
     },
     {
@@ -17795,6 +18249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11381"
     },
     {
@@ -17829,11 +18284,12 @@
       "vorp": -89.63,
       "value_points": 34.0,
       "position_rank": 175,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4234"
     },
     {
@@ -17873,6 +18329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6945"
     },
     {
@@ -17912,6 +18369,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -17951,6 +18409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8129"
     },
     {
@@ -17990,6 +18449,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4443"
     },
     {
@@ -18029,6 +18489,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12389"
     },
     {
@@ -18063,11 +18524,12 @@
       "vorp": -90.38,
       "value_points": 33.2,
       "position_rank": 176,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6154"
     },
     {
@@ -18107,6 +18569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12412"
     },
     {
@@ -18146,6 +18609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13308"
     },
     {
@@ -18180,11 +18644,12 @@
       "vorp": -90.46,
       "value_points": 33.1,
       "position_rank": 177,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6699"
     },
     {
@@ -18224,6 +18689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7050"
     },
     {
@@ -18263,6 +18729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10235"
     },
     {
@@ -18302,6 +18769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13047"
     },
     {
@@ -18341,6 +18809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13516"
     },
     {
@@ -18380,6 +18849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13433"
     },
     {
@@ -18414,11 +18884,12 @@
       "vorp": -91.16,
       "value_points": 32.4,
       "position_rank": 178,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4040"
     },
     {
@@ -18458,6 +18929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13408"
     },
     {
@@ -18492,11 +18964,12 @@
       "vorp": -91.35,
       "value_points": 32.3,
       "position_rank": 179,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11608"
     },
     {
@@ -18536,6 +19009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11237"
     },
     {
@@ -18575,6 +19049,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6938"
     },
     {
@@ -18614,6 +19089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -18653,6 +19129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8208"
     },
     {
@@ -18692,6 +19169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13429"
     },
     {
@@ -18726,11 +19204,12 @@
       "vorp": -91.7,
       "value_points": 31.9,
       "position_rank": 180,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5955"
     },
     {
@@ -18770,6 +19249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13282"
     },
     {
@@ -18809,6 +19289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -18848,6 +19329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13422"
     },
     {
@@ -18882,11 +19364,12 @@
       "vorp": -92.22,
       "value_points": 31.4,
       "position_rank": 181,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6960"
     },
     {
@@ -18926,6 +19409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13151"
     },
     {
@@ -18965,6 +19449,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7561"
     },
     {
@@ -18999,11 +19484,12 @@
       "vorp": -92.31,
       "value_points": 31.3,
       "position_rank": 182,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11895"
     },
     {
@@ -19043,6 +19529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12171"
     },
     {
@@ -19082,6 +19569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11942"
     },
     {
@@ -19121,6 +19609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13435"
     },
     {
@@ -19155,11 +19644,12 @@
       "vorp": -92.66,
       "value_points": 30.9,
       "position_rank": 183,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11617"
     },
     {
@@ -19194,11 +19684,12 @@
       "vorp": -92.66,
       "value_points": 30.9,
       "position_rank": 184,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4082"
     },
     {
@@ -19238,6 +19729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8107"
     },
     {
@@ -19277,6 +19769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8139"
     },
     {
@@ -19316,6 +19809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13577"
     },
     {
@@ -19355,6 +19849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13580"
     },
     {
@@ -19394,6 +19889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7527"
     },
     {
@@ -19433,6 +19929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11508"
     },
     {
@@ -19467,11 +19964,12 @@
       "vorp": -93.2,
       "value_points": 30.4,
       "position_rank": 185,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4080"
     },
     {
@@ -19506,11 +20004,12 @@
       "vorp": -93.42,
       "value_points": 30.2,
       "position_rank": 186,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10221"
     },
     {
@@ -19550,6 +20049,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13273"
     },
     {
@@ -19589,6 +20089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "111"
     },
     {
@@ -19628,6 +20129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8484"
     },
     {
@@ -19667,6 +20169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3048"
     },
     {
@@ -19706,6 +20209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13305"
     },
     {
@@ -19745,6 +20249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12491"
     },
     {
@@ -19784,6 +20289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2359"
     },
     {
@@ -19823,6 +20329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13288"
     },
     {
@@ -19857,11 +20364,12 @@
       "vorp": -94.69,
       "value_points": 28.9,
       "position_rank": 187,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11821"
     },
     {
@@ -19901,6 +20409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10210"
     },
     {
@@ -19940,6 +20449,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6820"
     },
     {
@@ -19979,6 +20489,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7531"
     },
     {
@@ -20013,11 +20524,12 @@
       "vorp": -95.85,
       "value_points": 27.8,
       "position_rank": 188,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11056"
     },
     {
@@ -20057,6 +20569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12928"
     },
     {
@@ -20091,11 +20604,12 @@
       "vorp": -95.93,
       "value_points": 27.7,
       "position_rank": 189,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3423"
     },
     {
@@ -20135,6 +20649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10224"
     },
     {
@@ -20174,6 +20689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -20213,6 +20729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6694"
     },
     {
@@ -20252,6 +20769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7720"
     },
     {
@@ -20286,11 +20804,12 @@
       "vorp": -96.44,
       "value_points": 27.2,
       "position_rank": 190,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5113"
     },
     {
@@ -20325,11 +20844,12 @@
       "vorp": -96.68,
       "value_points": 26.9,
       "position_rank": 191,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5096"
     },
     {
@@ -20369,6 +20889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5980"
     },
     {
@@ -20403,11 +20924,12 @@
       "vorp": -97.11,
       "value_points": 26.5,
       "position_rank": 192,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12520"
     },
     {
@@ -20442,11 +20964,12 @@
       "vorp": -97.74,
       "value_points": 25.9,
       "position_rank": 193,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8235"
     },
     {
@@ -20486,6 +21009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7591"
     },
     {
@@ -20520,11 +21044,12 @@
       "vorp": -97.86,
       "value_points": 25.7,
       "position_rank": 194,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3269"
     },
     {
@@ -20564,6 +21089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12787"
     },
     {
@@ -20598,11 +21124,12 @@
       "vorp": -98.1,
       "value_points": 25.5,
       "position_rank": 195,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5374"
     },
     {
@@ -20642,6 +21169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11649"
     },
     {
@@ -20676,11 +21204,12 @@
       "vorp": -98.38,
       "value_points": 25.2,
       "position_rank": 196,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -20715,11 +21244,12 @@
       "vorp": -99.0,
       "value_points": 24.6,
       "position_rank": 197,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12523"
     },
     {
@@ -20754,11 +21284,12 @@
       "vorp": -99.08,
       "value_points": 24.5,
       "position_rank": 198,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11633"
     },
     {
@@ -20793,11 +21324,12 @@
       "vorp": -99.26,
       "value_points": 24.3,
       "position_rank": 199,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11921"
     },
     {
@@ -20832,11 +21364,12 @@
       "vorp": -99.35,
       "value_points": 24.3,
       "position_rank": 200,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11806"
     },
     {
@@ -20871,11 +21404,12 @@
       "vorp": -99.43,
       "value_points": 24.2,
       "position_rank": 201,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8414"
     },
     {
@@ -20915,6 +21449,7 @@
       "adp": 242.0,
       "adp_round": 21,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13275"
     },
     {
@@ -20949,11 +21484,12 @@
       "vorp": -99.68,
       "value_points": 23.9,
       "position_rank": 202,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8250"
     },
     {
@@ -20993,6 +21529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8423"
     },
     {
@@ -21027,11 +21564,12 @@
       "vorp": -99.81,
       "value_points": 23.8,
       "position_rank": 203,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12670"
     },
     {
@@ -21066,11 +21604,12 @@
       "vorp": -100.09,
       "value_points": 23.5,
       "position_rank": 204,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4854"
     },
     {
@@ -21110,6 +21649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5000"
     },
     {
@@ -21149,6 +21689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9220"
     },
     {
@@ -21183,11 +21724,12 @@
       "vorp": -100.73,
       "value_points": 22.9,
       "position_rank": 205,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6957"
     },
     {
@@ -21227,6 +21769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6144"
     },
     {
@@ -21261,11 +21804,12 @@
       "vorp": -101.19,
       "value_points": 22.4,
       "position_rank": 206,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12542"
     },
     {
@@ -21300,11 +21844,12 @@
       "vorp": -101.25,
       "value_points": 22.4,
       "position_rank": 207,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10225"
     },
     {
@@ -21339,11 +21884,12 @@
       "vorp": -101.7,
       "value_points": 21.9,
       "position_rank": 208,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5185"
     },
     {
@@ -21378,11 +21924,12 @@
       "vorp": -101.72,
       "value_points": 21.9,
       "position_rank": 209,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12889"
     },
     {
@@ -21417,11 +21964,12 @@
       "vorp": -101.74,
       "value_points": 21.9,
       "position_rank": 210,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12907"
     },
     {
@@ -21456,11 +22004,12 @@
       "vorp": -101.75,
       "value_points": 21.9,
       "position_rank": 211,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11157"
     },
     {
@@ -21495,11 +22044,12 @@
       "vorp": -101.77,
       "value_points": 21.8,
       "position_rank": 212,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9497"
     },
     {
@@ -21534,11 +22084,12 @@
       "vorp": -101.86,
       "value_points": 21.8,
       "position_rank": 213,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11210"
     },
     {
@@ -21578,6 +22129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11378"
     },
     {
@@ -21612,11 +22164,12 @@
       "vorp": -102.39,
       "value_points": 21.2,
       "position_rank": 214,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8076"
     },
     {
@@ -21651,11 +22204,12 @@
       "vorp": -102.44,
       "value_points": 21.2,
       "position_rank": 215,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13541"
     },
     {
@@ -21690,11 +22244,12 @@
       "vorp": -102.59,
       "value_points": 21.0,
       "position_rank": 216,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7039"
     },
     {
@@ -21729,11 +22284,12 @@
       "vorp": -102.65,
       "value_points": 21.0,
       "position_rank": 217,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12634"
     },
     {
@@ -21768,11 +22324,12 @@
       "vorp": -102.87,
       "value_points": 20.7,
       "position_rank": 218,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11257"
     },
     {
@@ -21807,11 +22364,12 @@
       "vorp": -102.9,
       "value_points": 20.7,
       "position_rank": 219,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11474"
     },
     {
@@ -21846,11 +22404,12 @@
       "vorp": -103.37,
       "value_points": 20.2,
       "position_rank": 220,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4274"
     },
     {
@@ -21890,6 +22449,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12826"
     },
     {
@@ -21924,11 +22484,12 @@
       "vorp": -103.52,
       "value_points": 20.1,
       "position_rank": 221,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7746"
     },
     {
@@ -21968,6 +22529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9229"
     },
     {
@@ -22002,11 +22564,12 @@
       "vorp": -103.66,
       "value_points": 19.9,
       "position_rank": 222,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13313"
     },
     {
@@ -22046,6 +22609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6109"
     },
     {
@@ -22080,11 +22644,12 @@
       "vorp": -103.77,
       "value_points": 19.8,
       "position_rank": 223,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11034"
     },
     {
@@ -22119,11 +22684,12 @@
       "vorp": -103.8,
       "value_points": 19.8,
       "position_rank": 224,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12539"
     },
     {
@@ -22163,6 +22729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7529"
     },
     {
@@ -22197,11 +22764,12 @@
       "vorp": -104.14,
       "value_points": 19.5,
       "position_rank": 225,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10234"
     },
     {
@@ -22241,6 +22809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4718"
     },
     {
@@ -22280,6 +22849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11384"
     },
     {
@@ -22314,11 +22884,12 @@
       "vorp": -104.72,
       "value_points": 18.9,
       "position_rank": 226,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13333"
     },
     {
@@ -22353,11 +22924,12 @@
       "vorp": -104.84,
       "value_points": 18.8,
       "position_rank": 227,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5880"
     },
     {
@@ -22392,11 +22964,12 @@
       "vorp": -104.92,
       "value_points": 18.7,
       "position_rank": 228,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13554"
     },
     {
@@ -22431,11 +23004,12 @@
       "vorp": -105.04,
       "value_points": 18.6,
       "position_rank": 229,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13477"
     },
     {
@@ -22475,6 +23049,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -22514,6 +23089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8123"
     },
     {
@@ -22553,6 +23129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6323"
     },
     {
@@ -22592,6 +23169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7593"
     },
     {
@@ -22631,6 +23209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4353"
     },
     {
@@ -22670,6 +23249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6659"
     },
     {
@@ -22704,11 +23284,12 @@
       "vorp": -105.96,
       "value_points": 17.6,
       "position_rank": 230,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13582"
     },
     {
@@ -22748,6 +23329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8207"
     },
     {
@@ -22782,11 +23364,12 @@
       "vorp": -106.2,
       "value_points": 17.4,
       "position_rank": 231,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13533"
     },
     {
@@ -22821,11 +23404,12 @@
       "vorp": -106.94,
       "value_points": 16.7,
       "position_rank": 232,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7989"
     },
     {
@@ -22860,11 +23444,12 @@
       "vorp": -106.97,
       "value_points": 16.6,
       "position_rank": 233,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13491"
     },
     {
@@ -22904,6 +23489,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9510"
     },
     {
@@ -22938,11 +23524,12 @@
       "vorp": -107.38,
       "value_points": 16.2,
       "position_rank": 234,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8223"
     },
     {
@@ -22977,11 +23564,12 @@
       "vorp": -107.83,
       "value_points": 15.8,
       "position_rank": 235,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7233"
     },
     {
@@ -23021,6 +23609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12516"
     },
     {
@@ -23055,11 +23644,12 @@
       "vorp": -107.94,
       "value_points": 15.7,
       "position_rank": 236,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13412"
     },
     {
@@ -23094,11 +23684,12 @@
       "vorp": -108.07,
       "value_points": 15.5,
       "position_rank": 237,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10867"
     },
     {
@@ -23138,6 +23729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10223"
     },
     {
@@ -23172,11 +23764,12 @@
       "vorp": -108.11,
       "value_points": 15.5,
       "position_rank": 238,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5154"
     },
     {
@@ -23216,6 +23809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -23250,11 +23844,12 @@
       "vorp": -108.14,
       "value_points": 15.5,
       "position_rank": 239,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7595"
     },
     {
@@ -23294,6 +23889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7204"
     },
     {
@@ -23328,11 +23924,12 @@
       "vorp": -108.72,
       "value_points": 14.9,
       "position_rank": 240,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6588"
     },
     {
@@ -23367,11 +23964,12 @@
       "vorp": -108.87,
       "value_points": 14.7,
       "position_rank": 241,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5773"
     },
     {
@@ -23406,11 +24004,12 @@
       "vorp": -108.92,
       "value_points": 14.7,
       "position_rank": 242,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13101"
     },
     {
@@ -23450,6 +24049,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5347"
     },
     {
@@ -23489,6 +24089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -23523,11 +24124,12 @@
       "vorp": -109.5,
       "value_points": 14.1,
       "position_rank": 243,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7436"
     },
     {
@@ -23567,6 +24169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3832"
     },
     {
@@ -23606,6 +24209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6931"
     },
     {
@@ -23645,6 +24249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6202"
     },
     {
@@ -23679,11 +24284,12 @@
       "vorp": -109.57,
       "value_points": 14.0,
       "position_rank": 244,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7812"
     },
     {
@@ -23718,11 +24324,12 @@
       "vorp": -109.67,
       "value_points": 13.9,
       "position_rank": 245,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5121"
     },
     {
@@ -23762,6 +24369,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12656"
     },
     {
@@ -23796,11 +24404,12 @@
       "vorp": -109.84,
       "value_points": 13.8,
       "position_rank": 246,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8013"
     },
     {
@@ -23835,11 +24444,12 @@
       "vorp": -109.93,
       "value_points": 13.7,
       "position_rank": 247,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12829"
     },
     {
@@ -23874,11 +24484,12 @@
       "vorp": -110.05,
       "value_points": 13.6,
       "position_rank": 248,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11911"
     },
     {
@@ -23913,11 +24524,12 @@
       "vorp": -110.07,
       "value_points": 13.5,
       "position_rank": 249,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5781"
     },
     {
@@ -23957,6 +24569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6012"
     },
     {
@@ -23996,6 +24609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11557"
     },
     {
@@ -24030,11 +24644,12 @@
       "vorp": -110.42,
       "value_points": 13.2,
       "position_rank": 250,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7521"
     },
     {
@@ -24069,11 +24684,12 @@
       "vorp": -110.51,
       "value_points": 13.1,
       "position_rank": 251,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3155"
     },
     {
@@ -24113,6 +24729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8254"
     },
     {
@@ -24147,11 +24764,12 @@
       "vorp": -110.92,
       "value_points": 12.7,
       "position_rank": 252,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11959"
     },
     {
@@ -24186,11 +24804,12 @@
       "vorp": -110.94,
       "value_points": 12.7,
       "position_rank": 253,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11421"
     },
     {
@@ -24230,6 +24849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": null
     },
     {
@@ -24269,6 +24889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7809"
     },
     {
@@ -24303,11 +24924,12 @@
       "vorp": -111.31,
       "value_points": 12.3,
       "position_rank": 254,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12888"
     },
     {
@@ -24342,11 +24964,12 @@
       "vorp": -111.42,
       "value_points": 12.2,
       "position_rank": 255,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8527"
     },
     {
@@ -24381,11 +25004,12 @@
       "vorp": -111.72,
       "value_points": 11.9,
       "position_rank": 256,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7612"
     },
     {
@@ -24420,11 +25044,12 @@
       "vorp": -111.97,
       "value_points": 11.6,
       "position_rank": 257,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8253"
     },
     {
@@ -24459,11 +25084,12 @@
       "vorp": -111.97,
       "value_points": 11.6,
       "position_rank": 258,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11994"
     },
     {
@@ -24498,11 +25124,12 @@
       "vorp": -112.02,
       "value_points": 11.6,
       "position_rank": 259,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10860"
     },
     {
@@ -24537,11 +25164,12 @@
       "vorp": -112.13,
       "value_points": 11.5,
       "position_rank": 260,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12971"
     },
     {
@@ -24576,11 +25204,12 @@
       "vorp": -112.15,
       "value_points": 11.5,
       "position_rank": 261,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11320"
     },
     {
@@ -24615,11 +25244,12 @@
       "vorp": -112.19,
       "value_points": 11.4,
       "position_rank": 262,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12699"
     },
     {
@@ -24654,11 +25284,12 @@
       "vorp": -112.29,
       "value_points": 11.3,
       "position_rank": 263,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6386"
     },
     {
@@ -24693,11 +25324,12 @@
       "vorp": -112.32,
       "value_points": 11.3,
       "position_rank": 264,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11311"
     },
     {
@@ -24732,11 +25364,12 @@
       "vorp": -112.44,
       "value_points": 11.2,
       "position_rank": 265,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11306"
     },
     {
@@ -24771,11 +25404,12 @@
       "vorp": -112.54,
       "value_points": 11.1,
       "position_rank": 266,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7757"
     },
     {
@@ -24810,11 +25444,12 @@
       "vorp": -112.8,
       "value_points": 10.8,
       "position_rank": 267,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12732"
     },
     {
@@ -24849,11 +25484,12 @@
       "vorp": -112.98,
       "value_points": 10.6,
       "position_rank": 268,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11506"
     },
     {
@@ -24888,11 +25524,12 @@
       "vorp": -113.15,
       "value_points": 10.5,
       "position_rank": 269,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6847"
     },
     {
@@ -24927,11 +25564,12 @@
       "vorp": -113.33,
       "value_points": 10.3,
       "position_rank": 270,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13202"
     },
     {
@@ -24966,11 +25604,12 @@
       "vorp": -113.71,
       "value_points": 9.9,
       "position_rank": 271,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8755"
     },
     {
@@ -25005,11 +25644,12 @@
       "vorp": -113.89,
       "value_points": 9.7,
       "position_rank": 272,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6402"
     },
     {
@@ -25044,11 +25684,12 @@
       "vorp": -113.92,
       "value_points": 9.7,
       "position_rank": 273,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "13075"
     },
     {
@@ -25083,11 +25724,12 @@
       "vorp": -114.13,
       "value_points": 9.5,
       "position_rank": 274,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4198"
     },
     {
@@ -25122,11 +25764,12 @@
       "vorp": -114.23,
       "value_points": 9.4,
       "position_rank": 275,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2750"
     },
     {
@@ -25161,11 +25804,12 @@
       "vorp": -114.25,
       "value_points": 9.4,
       "position_rank": 276,
-      "tier": 10,
+      "tier": 11,
       "ecr": null,
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10228"
     },
     {
@@ -25205,6 +25849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13303"
     },
     {
@@ -25244,6 +25889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2307"
     },
     {
@@ -25283,6 +25929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6011"
     },
     {
@@ -25322,6 +25969,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2306"
     },
     {
@@ -25361,6 +26009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "19"
     },
     {
@@ -25400,6 +26049,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12470"
     },
     {
@@ -25439,6 +26089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12500"
     },
     {
@@ -25478,6 +26129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "331"
     },
     {
@@ -25517,6 +26169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3161"
     },
     {
@@ -25556,6 +26209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "829"
     },
     {
@@ -25595,6 +26249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7083"
     },
     {
@@ -25634,6 +26289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1234"
     },
     {
@@ -25673,6 +26329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7610"
     },
     {
@@ -25712,6 +26369,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "9230"
     },
     {
@@ -25751,6 +26409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10866"
     },
     {
@@ -25790,6 +26449,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3976"
     },
     {
@@ -25829,6 +26489,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12538"
     },
     {
@@ -25868,6 +26529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13272"
     },
     {
@@ -25907,6 +26569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11562"
     },
     {
@@ -25946,6 +26609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "260"
     },
     {
@@ -25985,6 +26649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13289"
     },
     {
@@ -26024,6 +26689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "827"
     },
     {
@@ -26063,6 +26729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "2152"
     },
     {
@@ -26102,6 +26769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8002"
     },
     {
@@ -26141,6 +26809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4574"
     },
     {
@@ -26180,6 +26849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6111"
     },
     {
@@ -26219,6 +26889,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7585"
     },
     {
@@ -26258,6 +26929,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8413"
     },
     {
@@ -26297,6 +26969,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "1837"
     },
     {
@@ -26336,6 +27009,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4179"
     },
     {
@@ -26375,6 +27049,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12486"
     },
     {
@@ -26414,6 +27089,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "3357"
     },
     {
@@ -26453,6 +27129,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "10217"
     },
     {
@@ -26492,6 +27169,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12775"
     },
     {
@@ -26531,6 +27209,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6037"
     },
     {
@@ -26570,6 +27249,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4972"
     },
     {
@@ -26609,6 +27289,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "4464"
     },
     {
@@ -26648,6 +27329,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "6136"
     },
     {
@@ -26687,6 +27369,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11256"
     },
     {
@@ -26726,6 +27409,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "7538"
     },
     {
@@ -26765,6 +27449,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "8160"
     },
     {
@@ -26804,6 +27489,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5854"
     },
     {
@@ -26843,6 +27529,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11065"
     },
     {
@@ -26882,6 +27569,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "11648"
     },
     {
@@ -26921,6 +27609,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "5127"
     },
     {
@@ -26960,6 +27649,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": false,
+      "returning": false,
       "sleeper_id": "12510"
     },
     {
@@ -26999,6 +27689,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13335"
     },
     {
@@ -27038,6 +27729,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13306"
     },
     {
@@ -27077,6 +27769,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13557"
     },
     {
@@ -27116,6 +27809,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13295"
     },
     {
@@ -27155,6 +27849,7 @@
       "adp": null,
       "adp_round": null,
       "rookie": true,
+      "returning": false,
       "sleeper_id": "13404"
     }
   ],

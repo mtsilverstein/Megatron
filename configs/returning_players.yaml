@@ -1,0 +1,34 @@
+# Players returning from a season-ending injury.
+#
+# WHY THIS FILE IS HAND-MAINTAINED. The model has no injury signal, by design
+# (v1 scope guard). It is worse than that: sequences are built from games
+# PLAYED, so a missed season leaves no rows and the absence is structurally
+# invisible -- `rest_days` is the team's schedule gap, not the player's. And
+# the season bands sample games-played from a cohort keyed on position and
+# prior production, so a torn ACL inherits a healthy player's availability.
+# Expert consensus (ECR) does know, and it sets the board's ORDER, so the
+# RANKING is already injury-aware. The BAND is not. This file fixes the band.
+#
+# WHAT NAMING A PLAYER DOES. His season p10/p50/p90 are simulated from the
+# measured returning-player games distribution (`eval.diagnose.returning_table`)
+# instead of his healthy position cohort: 9.4 expected games against 13.6 for a
+# healthy WR, and P(<=8 games) 0.41 against 0.13. It does NOT move him on the
+# board -- ECR sets that, and the experts have already discounted him.
+#
+# WHO BELONGS HERE. Players who missed most of last season to injury and are
+# expected back. NOT: players with a minor knock, players who were benched or
+# lost their job, or anyone whose season ended for non-injury reasons. The
+# measured distribution was fitted on players who were still PRODUCTIVE PER
+# GAME in the season they lost, so it describes was-good-then-got-hurt. Using
+# it for a declining veteran applies the wrong curve.
+#
+# Names must match the board exactly (the same string the draft board shows).
+# An unmatched name is a loud failure at board build, never a silent skip.
+
+season: 2026
+
+players:
+  # 2025: 4 games (weeks 1-4), then a torn ACL. 2024 was a genuine WR1 rookie
+  # season -- 170 targets, 1204 yards -- which is exactly what the model is
+  # projecting off, and exactly why his floor needed this.
+  - Malik Nabers

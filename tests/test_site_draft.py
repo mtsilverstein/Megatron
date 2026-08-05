@@ -678,3 +678,74 @@ def test_finalize_board_without_ecr_matches_model_ordering():
     assert top["position_rank"] == 1 and top["vorp"] == pytest.approx(24.0)
     assert top["ecr"] is None and top["adp"] is None and top["adp_round"] is None
     json.dumps(payload, allow_nan=False)
+
+
+# --- returning-from-injury list --------------------------------------------
+def _returning_yaml(tmp_path, body):
+    p = tmp_path / "returning.yaml"
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+def _hist():
+    import pandas as pd
+    return pd.DataFrame({
+        "player_display_name": ["Malik Nabers", "Alec Pierce", "Malik Nabers"],
+        "player_id": ["00-NAB", "00-PIE", "00-NAB"],
+        "season": [2024, 2025, 2025],
+    })
+
+
+def test_load_returning_resolves_names_to_player_ids(tmp_path):
+    from ffmodel.site.generate import _load_returning
+    p = _returning_yaml(tmp_path, "season: 2026\nplayers:\n  - Malik Nabers\n")
+    assert _load_returning(p, _hist(), 2026) == {"00-NAB"}
+
+
+def test_load_returning_raises_on_a_name_that_matches_nobody(tmp_path):
+    """A typo'd star would otherwise leave his floor quietly wrong — which is
+    the exact bug the list exists to fix."""
+    import pytest
+    from ffmodel.site.generate import _load_returning
+    p = _returning_yaml(tmp_path, "season: 2026\nplayers:\n  - Malik Nabbers\n")
+    with pytest.raises(ValueError, match="Malik Nabbers"):
+        _load_returning(p, _hist(), 2026)
+
+
+def test_load_returning_refuses_a_list_stamped_for_another_season(tmp_path):
+    import pytest
+    from ffmodel.site.generate import _load_returning
+    p = _returning_yaml(tmp_path, "season: 2025\nplayers:\n  - Malik Nabers\n")
+    with pytest.raises(ValueError, match="stale"):
+        _load_returning(p, _hist(), 2026)
+
+
+def test_load_returning_treats_a_missing_file_as_nobody_returning(tmp_path):
+    from ffmodel.site.generate import _load_returning
+    assert _load_returning(tmp_path / "nope.yaml", _hist(), 2026) == set()
+
+
+def test_load_returning_handles_an_empty_list(tmp_path):
+    from ffmodel.site.generate import _load_returning
+    p = _returning_yaml(tmp_path, "season: 2026\nplayers: []\n")
+    assert _load_returning(p, _hist(), 2026) == set()
+
+
+def test_returning_player_gets_a_lower_floor_than_an_identical_healthy_one():
+    """End-to-end through simulate_season: two players with IDENTICAL weekly
+    bands must differ only because one draws from the post-injury games
+    distribution. This is the whole feature in one assertion."""
+    import numpy as np
+    from ffmodel.model.simulate import simulate_season
+
+    triple = np.array([[6.0, 12.0, 20.0]] * 17)
+    healthy = np.zeros(19); healthy[16] = 1.0            # reliably 16 games
+    # measured shape: a real chance of a lost season, a real chance of a full one
+    hurt = np.zeros(19)
+    hurt[0], hurt[8], hurt[16] = 0.2, 0.3, 0.5
+    a = simulate_season(triple, healthy, 4000, np.random.default_rng(1))
+    b = simulate_season(triple, hurt, 4000, np.random.default_rng(1))
+    assert b["p10"] < a["p10"], (a, b)
+    assert b["p50"] < a["p50"], "fewer expected games must lower the median too"
+    # The ceiling should survive: the upside case is that he comes back whole.
+    assert b["p90"] > 0.7 * a["p90"], (a["p90"], b["p90"])
