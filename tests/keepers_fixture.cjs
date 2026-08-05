@@ -306,9 +306,13 @@ async function testBuildOriginalByPlayerId() {
       { player_id: "p1", round: 4 },
     ],
   };
+  // sapi now delegates to Sleeper.get (see sleeper.js), which appends a
+  // cache-busting `_=...` query param to every request -- match on the path,
+  // ignoring that param, rather than the exact URL.
   global.fetch = async (url) => {
-    if (!(url in responses)) throw new Error(`unmocked url in test: ${url}`);
-    return { ok: true, json: async () => responses[url] };
+    const base = url.split("?")[0];
+    if (!(base in responses)) throw new Error(`unmocked url in test: ${url}`);
+    return { ok: true, json: async () => responses[base] };
   };
   try {
     const original = await K.buildOriginalByPlayerId("league_2025");

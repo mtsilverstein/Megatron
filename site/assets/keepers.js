@@ -31,6 +31,10 @@
     ? window.Optimizer
     : (typeof require !== "undefined" ? require("./optimizer.js") : null);
   if (!Optimizer) throw new Error("keepers.js requires optimizer.js to be loaded first");
+  const Sleeper = (typeof window !== "undefined" && window.Sleeper)
+    ? window.Sleeper
+    : (typeof require !== "undefined" ? require("./sleeper.js") : null);
+  if (!Sleeper) throw new Error("keepers.js requires sleeper.js to be loaded first");
 
   const WAIVER_COST_ROUND = 12;
   const MAX_KEEPERS = 2;
@@ -43,15 +47,13 @@
   // inside this model's own ~4.3 points/week MAE, so a surplus this small cannot be
   // told apart from projection noise. Revise only by forward observation.
   const MARGINAL_POINTS = 10;
-  const SLEEPER = "https://api.sleeper.app/v1";
   const CHAIN_CAP = 8;   // safety cap on previous_league_id hops
   let loadSeq = 0;       // generation token: a stale load can't overwrite a newer one
 
-  async function sapi(path) {
-    const res = await fetch(`${SLEEPER}${path}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
+  // Delegates so there is ONE cache-busting implementation (see sleeper.js).
+  // This path was previously unprotected: the keeper panel could read a
+  // six-hour-old roster and price keepers against players who had moved.
+  const sapi = path => Sleeper.get(path);
 
   // Walk previous_league_id backward from `startLeagueId`, recording each
   // player's MOST RECENT draft (round, season) as the ladder anchor. A

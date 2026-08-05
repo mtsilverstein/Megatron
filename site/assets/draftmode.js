@@ -2,7 +2,9 @@
    (api.sleeper.app), no auth, no backend. Strictly additive: every failure
    here degrades the panel, never the board. */
 window.DraftMode = (() => {
-  const API = "https://api.sleeper.app/v1";
+  const Sleeper = (typeof window !== "undefined" && window.Sleeper)
+    ? window.Sleeper
+    : (typeof require !== "undefined" ? require("./sleeper.js") : null);
   const STORE_KEY = "fc-draft-mode";
   const POLL_MS = 3000, MAX_BACKOFF_MS = 30000;
   // Four missed polls. Past this the board may be behind the draft, and on
@@ -27,22 +29,9 @@ window.DraftMode = (() => {
   const state = { connected: false, drafted: new Set(), mine: new Set(),
                   hideDrafted: false };
 
-  // `fresh` defeats caching. Sleeper sends NO Cache-Control on these endpoints
-  // and sits behind a CDN that will happily serve an old copy — measured at
-  // Age: 22072 on a repeat request, the same cached entry both times. On a live
-  // draft that is a board several picks behind reporting itself as live, and
-  // re-requesting the same URL (what pressing Connect does) hits the same
-  // cached entry, so it never recovers. A unique query key misses the shared
-  // cache and reaches origin; no-store keeps Chrome's own HTTP cache out too,
-  // since a response with an ETag and no Cache-Control gets heuristic freshness.
-  async function api(path, fresh) {
-    const url = fresh
-      ? `${API}${path}${path.includes("?") ? "&" : "?"}_=${Date.now()}`
-      : `${API}${path}`;
-    const res = await fetch(url, fresh ? { cache: "no-store" } : undefined);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
+  // `fresh` is now the only mode -- see sleeper.js for why both defences are
+  // required. The parameter is kept at the call sites' existing arity.
+  const api = path => Sleeper.get(path);
 
   function emit() { cfg.onUpdate(state); }
 
@@ -115,7 +104,7 @@ window.DraftMode = (() => {
   async function connect(username, userId, draftId) {
     try {
       setStatus("connecting…");
-      const draft = await api(`/draft/${draftId}`, true);
+      const draft = await api(`/draft/${draftId}`);
       if (!draft || !draft.draft_id) throw new Error("draft not found");
       const s = draft.settings || {};
       const order = draft.draft_order || {};
@@ -191,7 +180,7 @@ window.DraftMode = (() => {
     // the instant you come back, so polling here costs little and the board is
     // current when you look at it.
     try {
-      const picks = await api(`/draft/${session.draftId}/picks`, true) || [];
+      const picks = await api(`/draft/${session.draftId}/picks`) || [];
       if (seq !== pollSeq || !session) return;
       backoff = POLL_MS;
       lastSyncAt = Date.now();
@@ -202,7 +191,7 @@ window.DraftMode = (() => {
       if (!session.totalPicks && ++statusChecks % 10 === 0) {
         // Sleeper omitted settings.rounds/teams: fall back to re-checking
         // the draft object's status every 10th poll so completion still stops us.
-        const d = await api(`/draft/${session.draftId}`, true);
+        const d = await api(`/draft/${session.draftId}`);
         if (seq !== pollSeq || !session) return;
         if (d && d.status === "complete") return finish(picks.length);
       }
