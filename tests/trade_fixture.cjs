@@ -218,13 +218,21 @@ check("two keepers at the same cost round cannot share one pick", () => {
   assert.ok(Math.abs(vc - vd) < 1e-6,
     `a colliding pair must cost the same two picks as a distinct pair; ` +
     `got ${vc.toFixed(2)} vs ${vd.toFixed(2)}`);
-  // Equality alone cannot tell an upward bump from a downward one -- both
-  // remove exactly two picks. Take R4 away: the colliding pair must get
-  // strictly worse, which is only true if R4 is the pick the bump was
-  // spending.
+  // A colliding pair must still RESPOND to losing a pick -- an implementation
+  // that quietly charged nothing would sit flat here.
+  //
+  // This does NOT pin which direction the collision bumps (up to R4, or down
+  // to R2). That was tried and does not work: Optimizer.finishRoster simulates
+  // only its first ROLLOUT_PICKS (8) picks, so removing R4 costs the team one
+  // pick inside that window either way, and the assertion holds under a
+  // downward bump too -- verified by flipping the search and watching the
+  // suite stay green. Direction is a league rule nobody has written down, and
+  // both directions spend two real picks, so no value is invented either way.
+  // Saying so here beats an assertion whose message claims a guarantee it
+  // does not provide.
   const noR4 = state([a, b], allPicks().filter(p => p.round !== 4));
   assert.ok(T.currentDraftValue(noR4, T.draftPool(ctx, noR4), ctx) < vc - 1e-6,
-    `bumping must go UP to R4, not down to R2; got ${
+    `a colliding pair must still lose value when a pick is taken away; got ${
       T.currentDraftValue(noR4, T.draftPool(ctx, noR4), ctx).toFixed(2)} vs ${vc.toFixed(2)}`);
 });
 
