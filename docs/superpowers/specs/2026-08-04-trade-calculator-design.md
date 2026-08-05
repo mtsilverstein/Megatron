@@ -4,8 +4,14 @@
 separate spec written after the draft (deadline for that half is week 1, not
 Aug 20).
 
-**Goal:** grade a proposed pre-draft trade — keepers, players, current-year and
-future draft picks — in one honest currency, and suggest trades worth offering.
+**Goal:** grade a proposed pre-draft trade — players and draft picks, current
+and future — in one honest currency, and suggest trades worth offering.
+
+**There are exactly two asset classes: players and picks.** A keeper is not a
+tradeable thing. Pre-draft a player is just a player; keeper designation
+happens afterwards, and whoever owns him then sets their own keepers. Every
+keeper consequence in this design is therefore *derived* from ownership, never
+traded directly.
 
 **Architecture:** a trade is a different draft. Value it by simulating the rest
 of the draft from the post-trade state and reporting the best starting lineup
@@ -60,39 +66,58 @@ A team's pre-draft state is:
   picks:  [{season, round}, ...] }   // current-year and future, post-trade ownership
 ```
 
-**Keepers are chosen, not given.** A team's `keepers` are derived from `roster`
-by taking the best `MAX_KEEPERS` eligible players by their own impact — the
-same greedy selection `Keepers.recommendKeepers` already performs — recomputed
-on BOTH sides of every trade. This matters: acquiring a star does not add a
-keeper slot, it *competes* for one, so a trade can be worth far less than the
-player's raw value if it displaces a keeper you were already going to use. A
-design that treated the acquired player as an automatic extra keeper would
+**Keepers are derived, never traded.** A team's keepers are computed from
+`roster` by taking the best `MAX_KEEPERS` eligible players by impact — the same
+greedy selection `Keepers.recommendKeepers` already performs — recomputed on
+BOTH sides of every trade. Two consequences, and the whole valuation turns on
+them:
+
+**(a) An acquired player competes for a slot, he does not add one.** Trading
+for a star when both slots are already filled by better players gains close to
+nothing. A design that treated him as an automatic extra keeper would
 systematically overvalue every incoming star.
+
+**(b) A keeper-INELIGIBLE player has zero pre-draft trade value.** If his
+computed cost is R2 or lower he returns to the draft pool for everybody
+(`Keepers.eligible`), so owning him before the draft confers nothing — you
+would have to draft him like anyone else. Since cost is
+`originalRound − yearsKept`, this means **last year's first- and
+second-round picks are not tradeable assets at all**, and neither is anyone
+whose ladder has run out. The tradeable player universe pre-draft is only those
+with cost ≥ R3, which is far smaller than "every rostered player" and is
+strongly counterintuitive — the best players on a roster are frequently the
+ones worth nothing to trade. The UI must state this outright on any ineligible
+player rather than showing a quiet zero.
 
 ### 3.2 Value
 
 ```
-stateValue(state) = lineupPoints(finishRoster(
-                       state.keepers,
-                       pool,                       // board minus every team's keepers
-                       currentYearPickNumbers(state),
-                       0))                         // pre-draft: nothing has happened
+kept   = chooseKeepers(state.roster)          // §3.1 — derived, never traded
+pool   = board minus every team's chosen keepers
+picks  = currentYearPickNumbers(state.picks) minus the rounds `kept` consumes
+
+stateValue(state) = lineupPoints(finishRoster(kept, pool, picks, 0))
+                                                            // 0: nothing drafted yet
 ```
 
 `currentYearPickNumbers` maps each current-season pick to its **mid-round
-overall pick** (`Keepers.pickForRound`), then **removes the rounds consumed by
-this team's keepers** — keeping a player at R6 spends the R6 pick. Draft order
-is not set pre-draft, so mid-round is the honest slot; pretending to know the
+overall pick** (`Keepers.pickForRound`); keeping a player at R6 spends the R6
+pick. Draft order is not set pre-draft, so mid-round is the honest slot;
+pretending to know the
 exact pick would be false precision.
 
 Everything the trade tool needs falls out of this one function:
 
 | asset moves | how it enters `stateValue` |
 |---|---|
-| player you'd keep, traded away | leaves `keepers`; his cost round returns to `picks` |
-| player acquired | joins `keepers` (if eligible and you'd keep him); his **inherited** cost round leaves `picks` |
+| player traded away | leaves `roster`; keepers are re-derived, so if he *was* one, his cost round returns to the pick pool and the next-best eligible player may take the slot |
+| player acquired | joins `roster`; keepers are re-derived, so he takes a slot only if he beats the incumbents, and if he does, his **inherited** cost round is spent |
 | current-year pick | added to / removed from `picks` |
 | future pick | see §3.3 |
+
+Nothing in this table special-cases a keeper. Both sides run the same
+derivation on their new roster, which is what makes the model match the league:
+you trade players, then set keepers.
 
 ### 3.3 Future picks
 
@@ -255,8 +280,10 @@ The project rule holds: degrade loudly, never silently.
 
 1. **The premise.** A surplus RB scores ~0 for a team with 4 RBs and high for a
    team with 1. If this fails the whole feature is an additive value chart.
-2. Acquiring a keeper removes the pick at his **inherited** cost round.
-3. Trading a keeper away returns his cost round to the pick pool.
+2. Acquiring a player who displaces an incumbent keeper spends his
+   **inherited** cost round, and frees the displaced player's.
+3. Trading away a player who was a keeper returns his cost round to the pool
+   AND promotes the next-best eligible player into the slot.
 4. `FUTURE_DISCOUNT` compounds per season and 0 seasons ahead is a no-op.
 5. A pick past `ROLLOUT_PICKS` grades ~0 on lineup but nonzero on market —
    the documented gap of §3.3.
@@ -265,8 +292,10 @@ The project rule holds: degrade loudly, never silently.
 8. `marketDelta` uses ADP where present and a LABELLED board-rank fallback where
    not.
 9. **Keeper competition.** Acquiring a star when both keeper slots are already
-   filled by better players gains ~0, not his full value (§3.1). The one
+   filled by better players gains ~0, not his full value (§3.1a). The one
    assertion that catches the most likely overvaluation bug.
+9b. **Ineligibility.** A player whose cost is R2 or lower grades at exactly 0
+    pre-draft, however good he is (§3.1b) — last year's first-rounder included.
 10. `FC.sleeper` cache-busts: two calls to the same path produce different URLs
     and carry `cache: "no-store"` (mirrors the assertion already made against
     `draftmode.js`).
