@@ -318,6 +318,32 @@ async function testBuildOriginalByPlayerId() {
   }
 }
 
+// --- valueLabel: never name a round the draft does not have ----------------
+// Reported live: "Taysom Hill — keep for R13 · worth R25". The league drafts
+// 15 rounds. Hill sits at board slot 290 with NO adp, so the fallback divided
+// 290 by 12 and printed a round that cannot be bought.
+const vl = (adpRound, overallRank) => K.valueLabel({ adpRound, overallRank });
+assert.strictEqual(vl(null, 290), "goes undrafted");        // the reported case
+assert.strictEqual(vl(null, 695), "goes undrafted");        // bottom of the board
+assert.strictEqual(vl(21, 250), "goes undrafted");          // real ADP past R15 too
+// The boundary is the last round the league actually drafts, inclusive.
+assert.strictEqual(vl(15, 200), "worth R15 (ADP)");
+assert.strictEqual(vl(16, 200), "goes undrafted");
+assert.strictEqual(vl(null, 180), "worth R15 (our rank)");  // ceil(180/12) = 15
+assert.strictEqual(vl(null, 181), "goes undrafted");        // ceil(181/12) = 16
+// The two branches are different currencies and must say which one they are:
+// with ADP it is the MARKET's round, without it is our board rank.
+assert.strictEqual(vl(3, 99), "worth R3 (ADP)");
+assert.strictEqual(vl(null, 30), "worth R3 (our rank)");
+assert.notStrictEqual(vl(3, 99), vl(null, 30), "same round, different source");
+// Overridable for a league that is not 12x15, same as valueRound's teams arg.
+assert.strictEqual(K.valueLabel({ adpRound: 18, overallRank: 1 }, 20), "worth R18 (ADP)");
+assert.strictEqual(K.valueLabel({ adpRound: null, overallRank: 21 }, 15, 10),
+                   "worth R3 (our rank)");
+// valueRound itself is unchanged -- this is a display layer over it, and the
+// impact math must keep using parVorp, never a round.
+assert.strictEqual(K.valueRound(null, 290), 25);
+
 testBuildOriginalByPlayerId().then(() => {
   console.log("keepers_fixture: OK");
 }).catch(e => {

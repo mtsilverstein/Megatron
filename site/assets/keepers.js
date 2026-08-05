@@ -35,6 +35,7 @@
   const WAIVER_COST_ROUND = 12;
   const MAX_KEEPERS = 2;
   const TEAMS = 12;      // league size; also the shared default for valueRound
+  const DRAFT_ROUNDS = 15;  // QB/RB2/WR2/TE/2FLEX/K/DST + 5 bench
   // Season-points surplus below which a keeper edge is not worth acting on.
   // UN-TUNED DEFAULT, chosen by inspection like optimizer.js's W_STEAL / BYE_PEN --
   // it encodes a priority, not a fitted parameter, and is deliberately NOT tuned
@@ -116,6 +117,27 @@
   function valueRound(adpRound, overallRank, teams = TEAMS) {
     if (adpRound != null) return adpRound;
     return Math.ceil(overallRank / teams);
+  }
+
+  // What `valueRound` means, said out loud. The raw number cannot be shown on
+  // its own for two reasons, both visible on the live 2026 board:
+  //
+  //   1. It routinely names a round this league does not have. The fallback
+  //      divides a 695-player board by 12, so it reaches R58; even real ADP
+  //      reaches R21 because it comes from drafts that run deeper than ours.
+  //      "worth R25" in a 15-round draft is not a price -- Taysom Hill, board
+  //      slot 290 with no ADP at all, displayed exactly that. Past the last
+  //      round the honest statement is that nobody spends a pick on him, which
+  //      is also the fact that decides the keeper call.
+  //   2. The two branches are different currencies wearing the same label.
+  //      With an ADP it is the MARKET's round (235 players); without one it is
+  //      OUR board rank in round clothing (460 players) -- and those are
+  //      exactly the players the market does not draft. Naming the source
+  //      keeps a model opinion from reading as a market fact.
+  function valueLabel(c, rounds = DRAFT_ROUNDS, teams = TEAMS) {
+    const r = valueRound(c.adpRound, c.overallRank, teams);
+    if (r > rounds) return "goes undrafted";
+    return c.adpRound != null ? `worth R${r} (ADP)` : `worth R${r} (our rank)`;
   }
   // Round surplus. Display/diagnostic context ONLY -- rounds are not a linear
   // value currency, so this must never again drive ranking or recommendation.
@@ -257,7 +279,8 @@
           ? ` · slot-discounted (${c.slot === "flex" ? "flex" : "bench"})` : "";
         // Same reasoning: a coin-flip edge shouldn't read like a confident pick.
         const marginalNote = marginal(c) ? " · marginal" : "";
-        return `keep for R${c.cost} · worth R${c.val} · <strong>${pts}</strong>${discount}${marginalNote}`;
+        return `keep for R${c.cost} · ${valueLabel(c)} · <strong>${pts}</strong>`
+          + `${discount}${marginalNote}`;
       };
       const ineligible = candidates.filter(c => !eligible(c, currentSeason));
       outEl.innerHTML = ranked.map(c =>
@@ -393,7 +416,8 @@
     loadEls.btn.addEventListener("click", loadFromSleeper);
   }
 
-  return { init, keeperCost, eligible, marginal, valueRound, surplus, pickForRound,
-           rankKeepers, unvaluedKeepers, recommendKeepers, buildKeeperCandidates,
-           buildOriginalByPlayerId, TEAMS, MAX_KEEPERS, MARGINAL_POINTS };
+  return { init, keeperCost, eligible, marginal, valueRound, valueLabel, surplus,
+           pickForRound, rankKeepers, unvaluedKeepers, recommendKeepers,
+           buildKeeperCandidates, buildOriginalByPlayerId, TEAMS, MAX_KEEPERS,
+           MARGINAL_POINTS, DRAFT_ROUNDS };
 });
