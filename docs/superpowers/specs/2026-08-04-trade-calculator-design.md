@@ -34,7 +34,7 @@ Sleeper's league settings**, which are demonstrably unmaintained in this league
 | teams | 12 | `Keepers.TEAMS` |
 | draft rounds | 15 | `Keepers.DRAFT_ROUNDS` |
 | starters | QB, RB×2, WR×2, TE, FLEX×2 (+K, DST unmodelled) | `Optimizer.DEDICATED`, `FLEX_SLOTS` |
-| keepers | up to 2 | `Keepers.MAX_KEEPERS` |
+| keepers | up to 2 (one team took 2 in the 2025 draft) | `Keepers.MAX_KEEPERS` |
 | keeper cost | `originalRound − (season − originalYear)`; waiver ladder starts R12 | `Keepers.keeperCost` |
 | keeper eligibility | cost ≥ R3, else back to the pool | `Keepers.eligible` |
 | **keeper cost on trade** | **follows the player** — new owner inherits the round and the years-kept clock | league restatement, 2026-08-04 |
@@ -88,6 +88,36 @@ with cost ≥ R3, which is far smaller than "every rostered player" and is
 strongly counterintuitive — the best players on a roster are frequently the
 ones worth nothing to trade. The UI must state this outright on any ineligible
 player rather than showing a quiet zero.
+
+**(c) The asset is the SURPLUS, not the player.** What a player is worth
+pre-draft is the gap between what he costs to keep and what the market charges
+for him. Measured on the live board against the real 2025 draft:
+
+| player | 2026 keeper cost | ADP | surplus |
+|---|---|---|---|
+| Jaxon Smith-Njigba | R8 | pick 5 (R1) | **+7 rounds** |
+| Bucky Irving | R11 | pick 30 (R3) | +8 rounds |
+| Drake Maye | R12 | pick 51 (R5) | +7 rounds |
+| Cam Skattebo | R8 | pick 49 (R5) | +3 rounds |
+
+This is not a separate term to add — it is exactly what `stateValue` already
+prices, because keeping Smith-Njigba spends only the R8 pick while delivering a
+first-round player, and `finishRoster` then drafts on from a much stronger
+position. It is called out because it inverts the intuition the UI has to
+serve: a mid-round pick from two years ago can be a more valuable trade asset
+than a better player drafted in round one, and the numbers must make that
+legible rather than merely correct.
+
+### 3.1.1 Sleeper's `keepers` field is not read
+
+A manager may designate a keeper precisely *because* they intend to shop him,
+and the tag carries no commitment before the draft. Keeper status is derived
+from rosters plus draft history only. (It is also empty in practice — every
+roster in the league returns `keepers: null`.)
+
+`MAX_KEEPERS = 2` is confirmed by evidence, not recollection: Sleeper's league
+settings claim `max_keepers: 1`, but one team took two keeper picks in the 2025
+draft. Sleeper's settings are unmaintained here (§1), our config is right.
 
 ### 3.2 Value
 
@@ -178,7 +208,10 @@ The defensible edges, all of which this design uses:
    RB-poor team. Measured at +120 points of draft edge in the backtest.
 2. **Keeper-cost arbitrage.** The cost ladder is league-specific and routinely
    misjudged by managers; `keepers.js` computes it exactly, and
-   `buildOriginalByPlayerId` gives it for *every* player in the league.
+   `buildOriginalByPlayerId` gives it for *every* player in the league. This is
+   the largest and most reliable edge available pre-draft: §3.1c shows live
+   surpluses of +7 and +8 rounds sitting on other teams' rosters, and nothing
+   about exploiting them requires predicting a single football outcome.
 3. **The QB mispricing.** This league leaves QBs on the board +19.4 picks past
    market position, consistently across all four measured drafts, in a
    6-point-passing-TD league.
@@ -296,6 +329,9 @@ The project rule holds: degrade loudly, never silently.
    assertion that catches the most likely overvaluation bug.
 9b. **Ineligibility.** A player whose cost is R2 or lower grades at exactly 0
     pre-draft, however good he is (§3.1b) — last year's first-rounder included.
+9c. **Surplus beats talent.** A worse player on a cheap keeper ladder grades
+    ABOVE a better player on an expensive one (§3.1c). Pins the inversion the
+    whole pre-draft market misses.
 10. `FC.sleeper` cache-busts: two calls to the same path produce different URLs
     and carry `cache: "no-store"` (mirrors the assertion already made against
     `draftmode.js`).
