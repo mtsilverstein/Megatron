@@ -86,7 +86,9 @@
   // Keepers.valueRound divides it by the league size to get a round. It is NOT
   // position_rank -- WR24 has position_rank 24 and a board index near 90, which
   // would price him as a round-2 asset. Cached per board array because the
-  // suggester builds candidates thousands of times.
+  // suggester builds candidates thousands of times. Callers must REPLACE
+  // ctx.board with a new array rather than mutate it in place -- the cache is
+  // keyed on array identity, so an in-place edit serves stale ranks silently.
   const rankCache = new WeakMap();
   function boardRank(board, player) {
     let byId = rankCache.get(board);
@@ -146,26 +148,43 @@
     return ctx.board.filter(p => !gone.has(p.player_id));
   }
 
-  // Two keepers can compute to the SAME cost round -- two waiver pickups are
-  // both R12, and multi-year ladders converge as they walk down one round a
-  // year. A team holds only ONE pick per round, so pricing both against that
-  // round hands it a free extra selection: measured at 40.8 points of phantom
-  // draft capital for a colliding pair inside the rollout window. Every number
-  // this tool shows is a difference of two state values, so a collision on one
-  // side of a trade and not the other reads as pure gain.
+  // Which of this season's picks are left after the keepers are paid for.
   //
-  // Resolved the way a real draft must: cheapest keeper first, each taking the
-  // next unspent round at or after his cost. A round past the last one is
-  // still recorded -- it simply matches no pick the team holds, which is the
-  // correct outcome and needs no special case.
-  function spentRounds(kept, rounds) {
-    const spent = new Set();
+  // A keeper is paid for with a pick the team ACTUALLY HOLDS, and each keeper
+  // consumes exactly one. Three things go wrong the moment that is relaxed
+  // into "a set of cost rounds", and all three are the same error:
+  //
+  //   - Two keepers can compute to the SAME cost round -- two waiver pickups
+  //     are both R12, and multi-year ladders converge as they walk down one
+  //     round a year -- and a team holds one pick per round, so pricing both
+  //     against it handed the team a free extra selection. Measured at 40.8
+  //     points of phantom draft capital for a colliding pair.
+  //   - A round the team traded away charged nothing, so trading away the very
+  //     pick your keeper costs came out free.
+  //   - A team holding two of the same round (Sleeper allows it; a traded pick
+  //     keeps its original round) lost both to one keeper.
+  //
+  // Every number this tool displays is a difference of two state values, so a
+  // keeper that is free on one side of a trade and not the other reads as pure
+  // gain -- and the suggester will hunt for exactly that. Hence: real picks.
+  //
+  // Most expensive keeper first -- the LOWEST round number, the one giving up
+  // the earliest pick -- each taking the earliest held pick at or after his
+  // cost. That is the standard greedy assignment, so the result depends only
+  // on the multiset of costs and not on the order recommendKeepers happened to
+  // return. If the ladder has run past every pick the team holds he takes the
+  // last one instead, because a keeper the team can barely pay for must never
+  // come out cheaper than one it can pay for comfortably. A team holding no
+  // picks at all is charged nothing: there is nothing left to charge.
+  function unspentPicks(kept, picks) {
+    const left = picks.slice().sort((a, b) => a.round - b.round);
     for (const k of kept.slice().sort((a, b) => a.cost - b.cost)) {
-      let r = k.cost;
-      while (r <= rounds && spent.has(r)) r++;
-      spent.add(r);
+      if (!left.length) break;
+      let i = left.findIndex(p => p.round >= k.cost);
+      if (i === -1) i = left.length - 1;
+      left.splice(i, 1);
     }
-    return spent;
+    return left;
   }
 
   // The best starting lineup this state could still finish, from THIS year's
@@ -176,16 +195,15 @@
   // pick would be false precision. fromPick is 0: nothing has been drafted.
   function currentDraftValue(state, pool, ctx) {
     const kept = chooseKeepers(state.roster, ctx);
-    const spent = spentRounds(kept, ctx.rounds);
-    const picks = (state.picks || [])
-      .filter(p => p.season === ctx.season && !spent.has(p.round))
+    const mine = (state.picks || []).filter(p => p.season === ctx.season);
+    const picks = unspentPicks(kept, mine)
       .map(p => Keepers.pickForRound(p.round, ctx.teams))
       .sort((a, b) => a - b);
     // Idempotent against the caller's pool: a keeper must not also be
-    // draftable. Callers build pools per state and it is easy to reuse a stale
-    // one, which silently drafts the same player twice.
+    // draftable. This guards THIS state's keepers only -- the caller still
+    // owns excluding every other side's, which is what draftPool is for.
     const keptIds = new Set(kept.map(k => k.player.player_id));
-    const usable = pool.filter(p => !keptIds.has(p.player_id));
+    const usable = (pool || []).filter(p => !keptIds.has(p.player_id));
     return Optimizer.lineupPoints(
       Optimizer.finishRoster(kept.map(k => k.player), usable, picks, 0));
   }

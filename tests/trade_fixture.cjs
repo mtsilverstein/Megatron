@@ -218,6 +218,46 @@ check("two keepers at the same cost round cannot share one pick", () => {
   assert.ok(Math.abs(vc - vd) < 1e-6,
     `a colliding pair must cost the same two picks as a distinct pair; ` +
     `got ${vc.toFixed(2)} vs ${vd.toFixed(2)}`);
+  // Equality alone cannot tell an upward bump from a downward one -- both
+  // remove exactly two picks. Take R4 away: the colliding pair must get
+  // strictly worse, which is only true if R4 is the pick the bump was
+  // spending.
+  const noR4 = state([a, b], allPicks().filter(p => p.round !== 4));
+  assert.ok(T.currentDraftValue(noR4, T.draftPool(ctx, noR4), ctx) < vc - 1e-6,
+    `bumping must go UP to R4, not down to R2; got ${
+      T.currentDraftValue(noR4, T.draftPool(ctx, noR4), ctx).toFixed(2)} vs ${vc.toFixed(2)}`);
+});
+
+check("a keeper must be paid for with a pick the team actually holds", () => {
+  // Trading away the exact round your keeper costs used to be free: the cost
+  // was charged against an abstract 1..15 range rather than the picks in hand.
+  // That is the same error as the collision -- a keeper not charged a real
+  // pick -- and it is worse here, because Task 2 exists precisely to make
+  // traded picks matter and the suggester would price "send them the R3 I was
+  // surrendering anyway" as pure profit.
+  const ctx = CTX();
+  const k = withHistory(ctx, P("Payer", "RB", 240), 4);   // cost R3
+  ctx.board = filler.concat([k]);
+  const all = state([k], allPicks());
+  const noR3 = state([k], allPicks().filter(p => p.round !== 3));
+  const vAll = T.currentDraftValue(all, T.draftPool(ctx, all), ctx);
+  const vNo = T.currentDraftValue(noR3, T.draftPool(ctx, noR3), ctx);
+  assert.ok(vNo < vAll - 1e-6,
+    `giving up the R3 must still cost a real pick; got ${vNo.toFixed(2)} vs ${vAll.toFixed(2)}`);
+});
+
+check("two picks of the same round are not both consumed by one keeper", () => {
+  // Sleeper lets a team hold two picks of the same round -- a traded pick
+  // keeps its original round -- and filtering by round number took both.
+  const ctx = CTX();
+  const k = withHistory(ctx, P("Dup", "RB", 240), 4);     // cost R3
+  ctx.board = filler.concat([k]);
+  const one = state([k], allPicks());
+  const two = state([k], allPicks().concat([{ season: 2026, round: 3 }]));
+  const vOne = T.currentDraftValue(one, T.draftPool(ctx, one), ctx);
+  const vTwo = T.currentDraftValue(two, T.draftPool(ctx, two), ctx);
+  assert.ok(vTwo > vOne + 1e-6,
+    `the second R3 must survive the keeper; got ${vTwo.toFixed(2)} vs ${vOne.toFixed(2)}`);
 });
 
 console.log(`trade_fixture: ${n} groups OK`);
