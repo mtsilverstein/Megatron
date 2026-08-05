@@ -37,7 +37,9 @@ Python (PyTorch, `nflreadpy` — not the deprecated `nfl_data_py`, XGBoost, pyte
   - *Transcription-style implementers* (the plan/brief already contains the code; the job is apply-and-test) → `sonnet`. Single-file mechanical fixes → `sonnet`.
   - *Task reviewers* → `sonnet`, scaled up only for genuinely subtle diffs (concurrency, numerics, leak surfaces).
   - *Final whole-branch review* and *architecture/design work* → `opus`.
-  - Turn count beats token price: a model that needs 3× the turns costs more than the tier it saved. Don't reach below `sonnet` for anything multi-step.
+  - *Pure transcription* (the task brief contains the complete code; the job is create-the-file, run-the-test, commit, with no design decisions and no debugging expected) → `haiku`.
+  - Turn count beats token price: a model that needs 3× the turns costs more than the tier it saved. Reach for `haiku` only when the brief is genuinely complete and self-contained; the moment a task needs judgment, integration across files, or a test that might not pass first time, start at `sonnet`.
+  - *Under-specified tasks* — where the plan describes behaviour in prose rather than giving the code — go to `opus` regardless of apparent size. Prose-specified work is where an implementer has to make design calls, and that is the most capable model's job.
 - **Dispatch in parallel only when the work is genuinely independent** (non-overlapping files); anything sharing a file or an interface runs sequentially.
 - Hand subagents artifacts as **files** (task brief, report path, review package), not pasted text — pasted context stays resident for the whole session.
 - **Verify a plan's factual premises before writing them down.** Two real failures to learn from: a plan asserted an external API's field label without checking it (would have shipped a permanently-empty list), and a plan told an implementer to append to a test file that didn't exist. Check the API, the file, and the function signature first.
