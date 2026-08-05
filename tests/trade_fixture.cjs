@@ -204,36 +204,55 @@ check("two keepers at the same cost round cannot share one pick", () => {
   // multi-year ladders converge, so this collides in real rosters -- and a
   // Set of cost rounds priced both against a single pick, worth 40.8 points
   // of draft capital the team does not have.
-  const ctx = CTX();
-  const a = withHistory(ctx, P("Col1", "RB", 240), 4);   // cost R3
-  const b = withHistory(ctx, P("Col2", "RB", 239), 4);   // cost R3 too
-  const c = withHistory(ctx, P("Dis1", "RB", 240), 4);   // cost R3
-  const d = withHistory(ctx, P("Dis2", "RB", 239), 5);   // cost R4
-  ctx.board = filler.concat([a, b, c, d]);
+  // SEPARATE ctx and board per scenario, like the cheap-ladder group above.
+  // With one shared board, each scenario's draftPool excludes only its OWN
+  // keepers, so the other scenario's players stay in the pool -- and they
+  // carry no ADP, so Optimizer.fieldTakes never removes them and both rollouts
+  // draft an equivalent free bonus RB. That ties the two states for ANY
+  // implementation, including a broken one, and makes the assertion below
+  // measure nothing. Measured: shared board 1720.80 vs 1720.80; isolated
+  // 1692.55 vs 1712.95, the 20.4-point gap the rule is actually worth.
+  const ctxC = CTX(), ctxD = CTX();
+  const a = withHistory(ctxC, P("Col1", "RB", 240), 4);   // cost R3
+  const b = withHistory(ctxC, P("Col2", "RB", 239), 4);   // cost R3 too
+  const c = withHistory(ctxD, P("Dis1", "RB", 240), 4);   // cost R3
+  const d = withHistory(ctxD, P("Dis2", "RB", 239), 5);   // cost R4
+  ctxC.board = filler.concat([a, b]);
+  ctxD.board = filler.concat([c, d]);
   const collide = state([a, b], allPicks());
   const distinct = state([c, d], allPicks());
-  assert.strictEqual(T.chooseKeepers(collide.roster, ctx).length, 2);
-  const vc = T.currentDraftValue(collide, T.draftPool(ctx, collide), ctx);
-  const vd = T.currentDraftValue(distinct, T.draftPool(ctx, distinct), ctx);
-  assert.ok(Math.abs(vc - vd) < 1e-6,
-    `a colliding pair must cost the same two picks as a distinct pair; ` +
+  assert.strictEqual(T.chooseKeepers(collide.roster, ctxC).length, 2);
+  const vc = T.currentDraftValue(collide, T.draftPool(ctxC, collide), ctxC);
+  const vd = T.currentDraftValue(distinct, T.draftPool(ctxD, distinct), ctxD);
+  // One assertion, three implementations told apart. Two keepers at the same
+  // cost round consume TWO picks, and in this league the second bumps DOWN --
+  // R5 and R4, not R5 and R6 -- so the colliding pair pays R2 where the
+  // distinct pair pays R4 and must come out strictly DEARER.
+  //   - the original bug charged one pick for both, so collide was worth MORE
+  //     than distinct and this inequality is reversed;
+  //   - an upward bump makes the two exactly equal;
+  //   - only a downward bump spending two real picks passes.
+  assert.ok(vc < vd - 1e-6,
+    `a colliding pair bumps DOWN and must cost more than a distinct pair; ` +
     `got ${vc.toFixed(2)} vs ${vd.toFixed(2)}`);
-  // A colliding pair must still RESPOND to losing a pick -- an implementation
-  // that quietly charged nothing would sit flat here.
+  // A weaker companion check: the value function must respond to state.picks at
+  // all. Nearly any implementation that reads them does, so this is close to a
+  // tautology -- the assertion above is the one with teeth.
   //
   // This does NOT pin which direction the collision bumps (up to R4, or down
   // to R2). That was tried and does not work: Optimizer.finishRoster simulates
   // only its first ROLLOUT_PICKS (8) picks, so removing R4 costs the team one
   // pick inside that window either way, and the assertion holds under a
   // downward bump too -- verified by flipping the search and watching the
-  // suite stay green. Direction is a league rule nobody has written down, and
-  // both directions spend two real picks, so no value is invented either way.
-  // Saying so here beats an assertion whose message claims a guarantee it
-  // does not provide.
+  // suite stay green. Direction is pinned now, by the `vc < vd` assertion
+  // above rather than this one, and recorded in the spec's rules table (§1);
+  // both directions here still spend two real picks, so this weaker check
+  // alone invents no value either way. Saying so here beats an assertion
+  // whose message claims a guarantee it does not provide.
   const noR4 = state([a, b], allPicks().filter(p => p.round !== 4));
-  assert.ok(T.currentDraftValue(noR4, T.draftPool(ctx, noR4), ctx) < vc - 1e-6,
+  assert.ok(T.currentDraftValue(noR4, T.draftPool(ctxC, noR4), ctxC) < vc - 1e-6,
     `a colliding pair must still lose value when a pick is taken away; got ${
-      T.currentDraftValue(noR4, T.draftPool(ctx, noR4), ctx).toFixed(2)} vs ${vc.toFixed(2)}`);
+      T.currentDraftValue(noR4, T.draftPool(ctxC, noR4), ctxC).toFixed(2)} vs ${vc.toFixed(2)}`);
 });
 
 check("a keeper must be paid for with a pick the team actually holds", () => {
@@ -266,6 +285,22 @@ check("two picks of the same round are not both consumed by one keeper", () => {
   const vTwo = T.currentDraftValue(two, T.draftPool(ctx, two), ctx);
   assert.ok(vTwo > vOne + 1e-6,
     `the second R3 must survive the keeper; got ${vTwo.toFixed(2)} vs ${vOne.toFixed(2)}`);
+});
+
+check("a ctx missing a silent-failure field throws instead of valuing zero", () => {
+  // Without ctx.season every state values at exactly 0.00 and every trade
+  // grades "even" -- no keeper is eligible and no pick matches the season
+  // filter. A tool that reports "even" for everything, with no error, is worse
+  // than one that stops.
+  const ctx = CTX();
+  ctx.board = filler;
+  const s = state([], allPicks());
+  for (const field of ["season", "board", "originalByPlayerId", "keptElsewhere"]) {
+    const broken = Object.assign({}, ctx);
+    delete broken[field];
+    assert.throws(() => T.currentDraftValue(s, filler, broken), /ctx\./, field);
+    assert.throws(() => T.chooseKeepers([], broken), /ctx\./, field);
+  }
 });
 
 console.log(`trade_fixture: ${n} groups OK`);

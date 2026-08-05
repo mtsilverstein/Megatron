@@ -39,6 +39,24 @@
     throw new Error("trade.js requires optimizer.js and keepers.js to be loaded first");
   }
 
+  // Every field here fails SILENTLY rather than loudly if it is missing, so it
+  // is checked at the door. ctx.season is the worst of them: without it
+  // Keepers.keeperCost returns NaN so no player is ever keepable, AND the
+  // current-season pick filter matches nothing, so every state values at
+  // exactly 0.00 and every trade grades "even" with no error anywhere.
+  // keptElsewhere is the quiet one -- `new Set(undefined)` is an empty set,
+  // which silently asserts that the other ten teams keep nobody.
+  //
+  // ctx.teams and ctx.maxKeepers are deliberately NOT required: Keepers
+  // defaults them to this league's own 12 and 2, so omitting them is correct
+  // rather than broken. ctx.board throws loudly on its own.
+  const CTX_REQUIRED = ["season", "board", "originalByPlayerId", "keptElsewhere"];
+  function requireCtx(ctx) {
+    for (const k of CTX_REQUIRED) {
+      if (ctx == null || ctx[k] == null) throw new Error(`trade.js: ctx.${k} is required`);
+    }
+  }
+
   // --- pick ownership --------------------------------------------------------
 
   // Every team starts holding every round of every modelled season; traded
@@ -128,6 +146,7 @@
   // points. Unifying them is a recorded follow-up, deliberately not done here
   // -- see the spec's section 10.)
   function chooseKeepers(roster, ctx) {
+    requireCtx(ctx);
     const cands = (roster || []).map(p => candidate(p, ctx))
       .filter(c => Number.isFinite(c.vorp));
     const rec = Keepers.recommendKeepers(cands, ctx.season, ctx.board,
@@ -141,6 +160,7 @@
   // are NOT kept go back into the draft, which is why this takes the states
   // rather than the rosters.
   function draftPool(ctx, ...states) {
+    requireCtx(ctx);
     const gone = new Set(ctx.keptElsewhere);
     for (const s of states) {
       for (const k of chooseKeepers(s.roster, ctx)) gone.add(k.player.player_id);
@@ -169,19 +189,29 @@
   // gain -- and the suggester will hunt for exactly that. Hence: real picks.
   //
   // Most expensive keeper first -- the LOWEST round number, the one giving up
-  // the earliest pick -- each taking the earliest held pick at or after his
-  // cost. That is the standard greedy assignment, so the result depends only
-  // on the multiset of costs and not on the order recommendKeepers happened to
-  // return. If the ladder has run past every pick the team holds he takes the
-  // last one instead, because a keeper the team can barely pay for must never
-  // come out cheaper than one it can pay for comfortably. A team holding no
-  // picks at all is charged nothing: there is nothing left to charge.
+  // the earliest pick -- each taking the LATEST held pick at or before his
+  // cost. Downward is this league's actual rule, confirmed by the commissioner:
+  // two keepers that both decay to R5 cost R5 and R4, not R5 and R6. It is also
+  // the dearer of the two readings, worth 20.4 points on an early collision,
+  // and it is the safe one to be wrong about -- upward would quietly discount
+  // every pair of keepers that happens to land on the same round, and the
+  // suggester would learn to stack them there.
+  //
+  // The result depends only on the multiset of costs, not on the order
+  // recommendKeepers returned them in, because the function sorts its own
+  // input. If the ladder has run below every pick the team holds he takes the
+  // cheapest one instead: a keeper the team can barely pay for must never come
+  // out cheaper than one it can pay for comfortably. A team holding no picks at
+  // all is charged nothing -- there is nothing left to charge.
   function unspentPicks(kept, picks) {
     const left = picks.slice().sort((a, b) => a.round - b.round);
     for (const k of kept.slice().sort((a, b) => a.cost - b.cost)) {
       if (!left.length) break;
-      let i = left.findIndex(p => p.round >= k.cost);
-      if (i === -1) i = left.length - 1;
+      // The LATEST held pick at or before his cost round. `left` is sorted
+      // ascending, so the last index that still qualifies is the one.
+      let i = -1;
+      for (let j = 0; j < left.length && left[j].round <= k.cost; j++) i = j;
+      if (i === -1) i = 0;   // nothing at or below: the cheapest pick he can pay with
       left.splice(i, 1);
     }
     return left;
@@ -194,6 +224,7 @@
   // MID-slot (Keepers.pickForRound) -- pretending to know the exact overall
   // pick would be false precision. fromPick is 0: nothing has been drafted.
   function currentDraftValue(state, pool, ctx) {
+    requireCtx(ctx);
     const kept = chooseKeepers(state.roster, ctx);
     const mine = (state.picks || []).filter(p => p.season === ctx.season);
     const picks = unspentPicks(kept, mine)

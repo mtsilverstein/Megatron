@@ -38,6 +38,7 @@ Sleeper's league settings**, which are demonstrably unmaintained in this league
 | keeper cost | `originalRound − (season − originalYear)`; waiver ladder starts R12 | `Keepers.keeperCost` |
 | keeper eligibility | cost ≥ R3, else back to the pool | `Keepers.eligible` |
 | **keeper cost on trade** | **follows the player** — new owner inherits the round and the years-kept clock | league restatement, 2026-08-04 |
+| **keeper cost collision** | bumps **downward** — two keepers computing to the same cost round: the second pays the next EARLIER pick (two R5s cost R5 and R4, not R5 and R6); worth 20.4 pts on an early collision, 0 on a late one (`Optimizer.ROLLOUT_PICKS` = 8) | league restatement, 2026-08-05 |
 | scoring | full PPR, 6-point passing TDs | `ffmodel.scoring.LEAGUE` |
 
 The keeper-follows-the-player rule is what `keepers.js` already assumes:
