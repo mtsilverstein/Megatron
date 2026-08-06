@@ -300,7 +300,159 @@ check("a ctx missing a silent-failure field throws instead of valuing zero", () 
     delete broken[field];
     assert.throws(() => T.currentDraftValue(s, filler, broken), /ctx\./, field);
     assert.throws(() => T.chooseKeepers([], broken), /ctx\./, field);
+    // Task 4's entry points have the same quiet failure mode: an empty
+    // future-picks list or an empty trade side returns 0/no-op without ever
+    // reading ctx downstream, so each validates its OWN ctx up front rather
+    // than trusting a callee to do it first.
+    assert.throws(() => T.futurePicksValue(
+      state([], allPicks().concat([{ season: 2027, round: 3 }])), filler, broken), /ctx\./, field);
+    assert.throws(() => T.stateValue(s, filler, broken), /ctx\./, field);
+    assert.throws(() => T.marketValue(filler[0], broken), /ctx\./, field);
+    assert.throws(() => T.marketDelta(
+      { players: [filler[0]], picks: [] }, { players: [], picks: [] }, broken), /ctx\./, field);
+    assert.throws(() => T.gradeTrade({ me: s, them: s },
+      { toMe: { players: [], picks: [] }, toThem: { players: [], picks: [] } }, broken), /ctx\./, field);
   }
+});
+
+// --- future picks, market value, grading ------------------------------------
+
+check("the future discount compounds per season and is a no-op at zero", () => {
+  const ctx = CTX();
+  ctx.board = filler;
+  const base = state([], allPicks());
+  const pool = T.draftPool(ctx, base);
+  const now = T.futurePicksValue(state([], [{ season: 2026, round: 3 }]), pool, ctx);
+  assert.strictEqual(now, 0, "a CURRENT-year pick is not a future pick");
+  const one = T.futurePicksValue(state([], [{ season: 2027, round: 3 }]), pool, ctx);
+  const two = T.futurePicksValue(state([], [{ season: 2028, round: 3 }]), pool, ctx);
+  assert.ok(one > 0, "a future 3rd must be worth something");
+  assert.ok(Math.abs(two - one * ctx.futureDiscount) < 1e-6,
+    `0.8 per season: expected ${(one * 0.8).toFixed(3)}, got ${two.toFixed(3)}`);
+});
+
+check("a pick past the rollout horizon grades ~0 on lineup but >0 on market", () => {
+  // Documented and intended (spec section 3.3): a 15th-rounder will not change
+  // a starting lineup, and saying so is the honest answer. The gap against its
+  // market value is itself the tradeable signal.
+  //
+  // The state must hold its normal complement of current-year picks (task-4-
+  // resolutions.md Resolution 2). Measured against a state holding ONLY the
+  // future R15 -- the brief's original test -- the same pick grades 82.36:
+  // correctly, because then it is the team's one and only selection. What is
+  // worthless is a 15th-rounder ON TOP OF a full draft, which is the case the
+  // spec is talking about.
+  const ctx = CTX();
+  ctx.board = filler;
+  const base = state([], allPicks());
+  const pool = T.draftPool(ctx, base);
+  const late = T.futurePicksValue(
+    state([], allPicks().concat([{ season: 2027, round: 15 }])), pool, ctx);
+  assert.ok(late < 1, `a future R15 should be ~0 on lineup, got ${late.toFixed(2)}`);
+  // Teeth: the same full state with an EARLY future pick moves materially, so
+  // the ~0 above is the rollout horizon and not a state that cannot move.
+  const early = T.futurePicksValue(
+    state([], allPicks().concat([{ season: 2027, round: 3 }])), pool, ctx);
+  assert.ok(early > 20,
+    `an early future pick must still be worth real points, got ${early.toFixed(2)}`);
+  assert.ok(T.marketValue({ season: 2027, round: 15 }, ctx) >= 0);
+});
+
+check("market value uses ADP when present and the board rank when not", () => {
+  const ctx = CTX();
+  ctx.board = filler;
+  const withAdp = P("HasAdp", "WR", 100, { adp: 12, adp_round: 1 });
+  const noAdp = P("NoAdp", "WR", 100);
+  assert.ok(T.marketValue(withAdp, ctx) > 0);
+  assert.ok(T.marketValue(noAdp, ctx) >= 0, "no ADP must not produce NaN");
+  assert.ok(Number.isFinite(T.marketValue({ season: 2026, round: 5 }, ctx)));
+});
+
+check("a straight swap of equals grades near zero for both sides", () => {
+  const ctx = CTX();
+  const a = withHistory(ctx, P("A", "WR", 200), 10);
+  const b = withHistory(ctx, P("B", "WR", 200), 10);
+  ctx.board = filler.concat([a, b]);
+  const me = state([a], allPicks()), them = state([b], allPicks());
+  const g = T.gradeTrade({ me, them },
+    { toMe: { players: [b], picks: [] }, toThem: { players: [a], picks: [] } }, ctx);
+  assert.ok(Math.abs(g.myGain) < 5, `expected ~0, got ${g.myGain.toFixed(1)}`);
+  assert.ok(Math.abs(g.theirGain) < 5, `expected ~0, got ${g.theirGain.toFixed(1)}`);
+});
+
+check("THE PREMISE: trading up the keeper ladder is what pays", () => {
+  // Pre-draft a roster is at most two keepers and finishRoster drafts all the
+  // rest, so ROSTER SHAPE is worth ~0.8 points and the LADDER is worth ~51.
+  // (An earlier draft of this plan asserted the shape version. Measured
+  //  against the shipped optimizer it moved 0.8 points -- it would have pinned
+  //  nothing. See the spec's section 4.1(2).)
+  //
+  // Same player on both sides. All that differs is what keeping him costs.
+  // Rounds are 5/13 (cost R4/R12), not 4/12 (cost R3/R11) -- task-4-
+  // resolutions.md Resolution 3: at cost R3 the keeper's impact is negative,
+  // so recommendKeepers drops him and the "dear" side keeps NOBODY, which
+  // measures "a cheap keeper vs no keeper" rather than the ladder. Measured:
+  // rounds 4/12 give 25.65 with chooseKeepers(a) empty (passes, wrong reason);
+  // rounds 5/13 give 40.80 with both sides actually keeping.
+  const ctx = CTX();
+  const dear = withHistory(ctx, P("Dear", "RB", 200), 5);        // cost R4
+  const cheapGuy = withHistory(ctx, P("Cheap", "RB", 200), 13);  // cost R12
+  ctx.board = filler.concat([dear, cheapGuy]);
+  const a = state([dear], allPicks()), b = state([cheapGuy], allPicks());
+  assert.strictEqual(T.chooseKeepers(a.roster, ctx).length, 1,
+    "the expensive side must actually keep him -- otherwise this measures " +
+    "'a cheap keeper vs no keeper', not the ladder");
+  assert.strictEqual(T.chooseKeepers(b.roster, ctx).length, 1);
+  const va = T.currentDraftValue(a, T.draftPool(ctx, a), ctx);
+  const vb = T.currentDraftValue(b, T.draftPool(ctx, b), ctx);
+  assert.ok(vb - va > 25,
+    `the cheap ladder must pay a large, obvious premium; got ${(vb - va).toFixed(1)}`);
+});
+
+check("roster shape barely moves a PRE-DRAFT state, and that is correct", () => {
+  // Pinned so nobody 'fixes' it later by reintroducing an additive shape term:
+  // with two keepers there is almost no shape to have.
+  //
+  // SEPARATE ctx/board per state (task-4-resolutions.md Resolution 5):
+  // [rb1,rb2] and [rb1,wr1] are DIFFERENT rosters, so one shared board would
+  // leak each state's extra player into the other's pool as a free, ADP-less
+  // bonus starter -- Optimizer.fieldTakes only removes players who carry an
+  // ADP, so a leaked player never gets drafted away on the "wrong" side, and
+  // that cancels the very difference this test measures. Measured: shared
+  // board delta 6.25; isolated (below) delta 0.85, which is the 0.8 the spec
+  // quotes from the live 695-row board (section 4.1(2)), arrived at
+  // independently -- so the isolated fixture and the live board agree and
+  // only the shared-board fixture was wrong (Resolution 4, withdrawn).
+  //
+  // Bound is MIN_GAIN, deliberately: MIN_GAIN is the noise floor for a TRADE
+  // GAIN and was never measured as a bound on THIS quantity, but it is ~6x
+  // the real 0.85 and what this test exists to catch -- someone reintroducing
+  // an additive roster-shape term -- would move this by a starter's worth
+  // (100+ points in this fixture), so the bound has enormous headroom either
+  // way.
+  const ctxA = CTX(), ctxB = CTX();
+  const rb1a = withHistory(ctxA, P("RB1", "RB", 220), 10);
+  const rb2a = withHistory(ctxA, P("RB2", "RB", 218), 10);
+  const rb1b = withHistory(ctxB, P("RB1", "RB", 220), 10);
+  const wr1b = withHistory(ctxB, P("WR1", "WR", 218), 10);
+  ctxA.board = filler.concat([rb1a, rb2a]);
+  ctxB.board = filler.concat([rb1b, wr1b]);
+  const twoRb = state([rb1a, rb2a], allPicks());
+  const mixed = state([rb1b, wr1b], allPicks());
+  const d = Math.abs(T.currentDraftValue(mixed, T.draftPool(ctxB, mixed), ctxB)
+                   - T.currentDraftValue(twoRb, T.draftPool(ctxA, twoRb), ctxA));
+  assert.ok(d < T.MIN_GAIN,
+    `pre-draft shape must sit inside the noise floor; got ${d.toFixed(1)}`);
+});
+
+check("marketDelta is positive when they receive more market value", () => {
+  const ctx = CTX();
+  const mine = P("Mine", "WR", 200, { adp: 10, adp_round: 1 });
+  const theirs = P("Theirs", "WR", 100, { adp: 120, adp_round: 10 });
+  ctx.board = filler.concat([mine, theirs]);
+  const d = T.marketDelta({ players: [mine], picks: [] },
+                          { players: [theirs], picks: [] }, ctx);
+  assert.ok(d > 0, "giving up the earlier-ADP player looks generous to them");
 });
 
 console.log(`trade_fixture: ${n} groups OK`);

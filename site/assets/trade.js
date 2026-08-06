@@ -239,6 +239,132 @@
       Optimizer.finishRoster(kept.map(k => k.player), usable, picks, 0));
   }
 
+  // --- future picks ----------------------------------------------------------
+
+  // Season points below which a trade gain is not worth acting on -- same
+  // reasoning as Keepers.MARGINAL_POINTS: ~5 season points is ~0.3/week,
+  // comfortably inside this model's own per-week MAE, so a gain that small
+  // cannot be told apart from projection noise. Documented in the plan's
+  // Global Constraints (`MIN_GAIN = 5` season points) and spec section 5.2
+  // ("default 5 season points, ~0.3/week"). Defined here, not in the
+  // suggester (Task 5), because the roster-shape regression test below
+  // already needs it as a noise floor -- Task 5 should reuse this constant
+  // rather than redeclare it.
+  const MIN_GAIN = 5;
+
+  // A 2027 pick has no slot in THIS draft, so finishRoster cannot place it. It
+  // is valued in the same currency by asking what the equivalent current-year
+  // pick would add, then discounting per season ahead.
+  //
+  // Picks are valued MARGINALLY and summed, which slightly overstates a large
+  // haul (each is measured against the state without any of them, so
+  // diminishing returns are not compounded). With the handful of picks a real
+  // trade moves the error is small, and the alternative -- inserting them all
+  // and re-solving -- would hide which pick contributed what.
+  function futurePicksValue(state, pool, ctx) {
+    requireCtx(ctx);
+    const future = (state.picks || []).filter(p => p.season > ctx.season);
+    if (!future.length) return 0;
+    const base = currentDraftValue(state, pool, ctx);
+    let total = 0;
+    for (const p of future) {
+      const asCurrent = Object.assign({}, state, {
+        picks: (state.picks || []).concat([{ season: ctx.season, round: p.round }]),
+      });
+      const marginal = currentDraftValue(asCurrent, pool, ctx) - base;
+      total += Math.max(0, marginal) * Math.pow(ctx.futureDiscount, p.season - ctx.season);
+    }
+    return total;
+  }
+
+  function stateValue(state, pool, ctx) {
+    requireCtx(ctx);
+    return currentDraftValue(state, pool, ctx) + futurePicksValue(state, pool, ctx);
+  }
+
+  // --- market value: what the OTHER manager sees -----------------------------
+
+  // Used ONLY for the acceptability filter, never as a verdict. The
+  // counterparty will judge an offer on the market's numbers, not ours, and
+  // the edge lives in that gap.
+  //
+  // A player with no ADP falls back to his board rank. 460 of 695 players on
+  // the live board have no ADP, so the fallback is the common case and the UI
+  // must LABEL which one it used -- a model opinion reading as a market fact
+  // is the bug Keepers.valueLabel was added to fix.
+  //
+  // The fallback reads `boardRank`, NOT `position_rank`: position_rank is
+  // rank WITHIN a position (WR24 has position_rank 24 and a board index near
+  // 90), so using it here would price most of the board as first-round
+  // assets. Measured on a no-ADP row whose true board position is 241st: a
+  // position_rank-based fallback yields round 1, boardRank yields round 21.
+  function marketValue(asset, ctx) {
+    requireCtx(ctx);
+    if (asset && asset.season && asset.round) {
+      const v = Optimizer.parVorp(ctx.board, Keepers.pickForRound(asset.round, ctx.teams));
+      return v * Math.pow(ctx.futureDiscount, Math.max(0, asset.season - ctx.season));
+    }
+    const round = asset.adp_round != null
+      ? asset.adp_round
+      : Math.ceil(boardRank(ctx.board, asset) / ctx.teams);
+    return Optimizer.parVorp(ctx.board, Keepers.pickForRound(round, ctx.teams));
+  }
+
+  const sideMarket = (side, ctx) =>
+    (side.players || []).reduce((n, p) => n + marketValue(p, ctx), 0)
+    + (side.picks || []).reduce((n, p) => n + marketValue(p, ctx), 0);
+
+  // Positive = they receive more market value than they give, i.e. the offer
+  // looks fair-or-better on the numbers they will actually use.
+  function marketDelta(toThem, toMe, ctx) {
+    requireCtx(ctx);
+    return sideMarket(toThem, ctx) - sideMarket(toMe, ctx);
+  }
+
+  // --- grading ---------------------------------------------------------------
+
+  const without = (list, gone) => {
+    const ids = new Set(gone.map(p => p.player_id));
+    return list.filter(p => !ids.has(p.player_id));
+  };
+  const withoutPicks = (list, gone) => {
+    const keys = new Set(gone.map(p => `${p.season}R${p.round}`));
+    const out = [];
+    for (const p of list) {
+      const k = `${p.season}R${p.round}`;
+      if (keys.has(k)) { keys.delete(k); continue; }   // remove ONE per matching key
+      out.push(p);
+    }
+    return out;
+  };
+
+  function applyTrade(me, them, toMe, toThem) {
+    return {
+      me: { roster: without(me.roster, toThem.players || []).concat(toMe.players || []),
+            picks: withoutPicks(me.picks, toThem.picks || []).concat(toMe.picks || []) },
+      them: { roster: without(them.roster, toMe.players || []).concat(toThem.players || []),
+              picks: withoutPicks(them.picks, toMe.picks || []).concat(toThem.picks || []) },
+    };
+  }
+
+  // The three numbers of the spec's section 4, all displayed together:
+  // myGain/theirGain in OUR currency (projected lineup points), marketDelta in
+  // THEIRS. A trade is worth offering when myGain is real AND marketDelta >= 0.
+  function gradeTrade(before, moves, ctx) {
+    requireCtx(ctx);
+    const after = applyTrade(before.me, before.them, moves.toMe, moves.toThem);
+    const poolB = draftPool(ctx, before.me, before.them);
+    const poolA = draftPool(ctx, after.me, after.them);
+    return {
+      myGain: stateValue(after.me, poolA, ctx) - stateValue(before.me, poolB, ctx),
+      theirGain: stateValue(after.them, poolA, ctx) - stateValue(before.them, poolB, ctx),
+      marketDelta: marketDelta(moves.toThem, moves.toMe, ctx),
+      myAfter: after.me, themAfter: after.them,
+    };
+  }
+
   return { defaultPicks, applyTradedPicks, candidate, chooseKeepers,
-           draftPool, currentDraftValue, boardRank };
+           draftPool, currentDraftValue, boardRank,
+           futurePicksValue, stateValue, marketValue, marketDelta,
+           applyTrade, gradeTrade, MIN_GAIN };
 });
