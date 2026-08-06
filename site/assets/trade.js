@@ -426,8 +426,122 @@
     };
   }
 
+  // --- the suggester ---------------------------------------------------------
+
+  // MIN_GAIN is declared above (next to futurePicksValue) and reused here --
+  // it is NOT redeclared: a second `const MIN_GAIN` in this module scope is a
+  // SyntaxError, and Task 4's own comment already anticipates this ("Task 5
+  // should reuse this constant rather than redeclare it").
+  const SUGGEST_PER_TEAM = 40;   // scored honestly per opponent, after prefilter
+  const FUTURE_DISCOUNT = 0.8;
+  const MAX_PER_SIDE = 2;        // 1-for-1, 2-for-1, 1-for-2, 2-for-2
+
+  // What each side should even consider moving. Mine: players I can lose for
+  // less than MIN_GAIN (surplus), plus my picks. Theirs: players who would
+  // gain me at least MIN_GAIN, plus their picks. A player I need is not an
+  // asset I am shopping, and a player who does not help me is not one I want.
+  //
+  // An INELIGIBLE player is excluded from both sides: his keeper cost is R2 or
+  // lower so he returns to the draft pool for everybody, and acquiring him
+  // pre-draft buys literally nothing.
+  function offerable(me, them, ctx) {
+    requireCtx(ctx);
+    const poolMe = draftPool(ctx, me, them);
+    const base = stateValue(me, poolMe, ctx);
+    const keepable = p => {
+      const c = candidate(p, ctx);
+      return Number.isFinite(c.vorp) && Keepers.eligible(c, ctx.season);
+    };
+    const mine = (me.roster || []).filter(keepable).filter(p => {
+      const s = { roster: without(me.roster, [p]), picks: me.picks };
+      return base - stateValue(s, draftPool(ctx, s, them), ctx) < MIN_GAIN;
+    });
+    const theirs = (them.roster || []).filter(keepable).filter(p => {
+      const s = { roster: (me.roster || []).concat([p]), picks: me.picks };
+      return stateValue(s, draftPool(ctx, s, them), ctx) - base >= MIN_GAIN;
+    });
+    return { mine: mine.concat(me.picks || []),
+             theirs: theirs.concat(them.picks || []) };
+  }
+
+  const packages = (assets, max) => {
+    const out = assets.map(a => [a]);
+    if (max >= 2) {
+      for (let i = 0; i < assets.length; i++) {
+        for (let j = i + 1; j < assets.length; j++) out.push([assets[i], assets[j]]);
+      }
+    }
+    return out;
+  };
+  const split = list => ({
+    players: list.filter(a => a.player_id !== undefined),
+    picks: list.filter(a => a.player_id === undefined),
+  });
+
+  // Two-team trades only. The additive prefilter is a SEARCH heuristic and its
+  // numbers are never shown: it exists so the honest lineup objective only has
+  // to run on plausible packages, the same topCandidates -> finishRoster
+  // pattern the draft optimizer uses.
+  function suggestTrades(me, others, ctx, opts = {}) {
+    requireCtx(ctx);
+    const minGain = opts.minGain != null ? opts.minGain : MIN_GAIN;
+    const perTeam = opts.perTeam != null ? opts.perTeam : SUGGEST_PER_TEAM;
+    const out = [];
+    for (const other of others) {
+      const them = other.state;
+      const { mine, theirs } = offerable(me, them, ctx);
+      if (!mine.length || !theirs.length) continue;
+      const cands = [];
+      for (const give of packages(mine, MAX_PER_SIDE)) {
+        for (const get of packages(theirs, MAX_PER_SIDE)) {
+          const toThem = split(give), toMe = split(get);
+          // Prefilter: keep packages that look fair-or-generous to them, since
+          // anything else will simply be declined.
+          const md = marketDelta(toThem, toMe, ctx);
+          if (md < 0) continue;
+          cands.push({ toMe, toThem, md });
+        }
+      }
+      cands.sort((a, b) => a.md - b.md);        // least overpay first
+      // PERFORMANCE: hoisted out of the per-candidate loop below, not part of
+      // the brief's given code. Measured on the live 695-row board with a
+      // realistic 12-team setup: suggestTrades cost 144.25s as gradeTrade
+      // gives it (SUGGEST_PER_TEAM=40 x 11 opponents honest gradeTrade calls),
+      // 14x the plan's ~10s budget. gradeTrade recomputes, on EVERY one of
+      // those calls, `poolB = draftPool(ctx, before.me, before.them)` and
+      // `stateValue(before.me, poolB, ctx)` / `stateValue(before.them, poolB,
+      // ctx)` -- but before.me/before.them are `me`/`them`, fixed for this
+      // whole opponent, for every one of the (up to perTeam) candidates
+      // scored below. Only `moves` (and therefore `after`/`poolA`) varies per
+      // candidate. Computing the "before" half once per opponent instead of
+      // once per candidate is EXACT, not approximate: it is the identical
+      // pure computation gradeTrade would otherwise redo from scratch each
+      // time, proven byte-identical against calling gradeTrade in a loop, on
+      // the same live-board input, before this change shipped (see the task
+      // report). `c.md` is reused the same way immediately below --
+      // `marketDelta(toThem, toMe, ctx)` was already computed once per
+      // candidate by the prefilter above; gradeTrade would have computed the
+      // exact same call a second time.
+      const poolB = draftPool(ctx, me, them);
+      const beforeMe = stateValue(me, poolB, ctx);
+      const beforeThem = stateValue(them, poolB, ctx);
+      for (const c of cands.slice(0, perTeam)) {
+        const after = applyTrade(me, them, c.toMe, c.toThem);
+        const poolA = draftPool(ctx, after.me, after.them);
+        const myGain = stateValue(after.me, poolA, ctx) - beforeMe;
+        const theirGain = stateValue(after.them, poolA, ctx) - beforeThem;
+        if (myGain < minGain || c.md < 0) continue;
+        out.push({ teamId: other.teamId, toMe: c.toMe, toThem: c.toThem,
+                   myGain, theirGain, marketDelta: c.md });
+      }
+    }
+    out.sort((a, b) => b.myGain - a.myGain);
+    return out;
+  }
+
   return { defaultPicks, applyTradedPicks, candidate, chooseKeepers,
            draftPool, currentDraftValue, boardRank,
            futurePicksValue, stateValue, marketValue, marketDelta,
-           applyTrade, gradeTrade, MIN_GAIN };
+           applyTrade, gradeTrade, offerable, suggestTrades,
+           MIN_GAIN, SUGGEST_PER_TEAM, FUTURE_DISCOUNT, MAX_PER_SIDE };
 });

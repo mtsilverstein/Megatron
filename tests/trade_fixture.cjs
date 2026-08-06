@@ -312,6 +312,17 @@ check("a ctx missing a silent-failure field throws instead of valuing zero", () 
       { players: [filler[0]], picks: [] }, { players: [], picks: [] }, broken), /ctx\./, field);
     assert.throws(() => T.gradeTrade({ me: s, them: s },
       { toMe: { players: [], picks: [] }, toThem: { players: [], picks: [] } }, broken), /ctx\./, field);
+    // Task 5's two entry points have the same quiet-failure shape one level
+    // up. offerable() calls draftPool as its very first line regardless of
+    // input, so it already throws here without any extra guard -- but
+    // suggestTrades(me, [], ctx) does NOT: an empty `others` list makes the
+    // whole loop body (the only place ctx is ever touched) a no-op, so it
+    // would silently return [] instead of throwing. Both get an explicit
+    // requireCtx(ctx) as their first line, matching every other entry point
+    // in this file, and this asserts the fix rather than just the (already
+    // ctx-safe-by-construction) happy path of offerable.
+    assert.throws(() => T.offerable(s, s, broken), /ctx\./, field);
+    assert.throws(() => T.suggestTrades(s, [], broken), /ctx\./, field);
   }
 });
 
@@ -612,6 +623,121 @@ check("marketDelta is positive when they receive more market value", () => {
   const d = T.marketDelta({ players: [mine], picks: [] },
                           { players: [theirs], picks: [] }, ctx);
   assert.ok(d > 0, "giving up the earlier-ADP player looks generous to them");
+});
+
+// --- the suggester ----------------------------------------------------------
+
+// FIXTURE DEFECT FOUND AND FIXED (all four groups below): the brief's Step 1
+// code built every new test player with `P(name, pos, value)` -- no adp. That
+// is the SAME "every board row needs an adp" trap the controller's notes
+// name for `fieldTakes`, but it bites here through a different mechanism:
+// `offerable()`'s per-player check removes a player from a roster copy while
+// he stays on `ctx.board`, and with no adp `fieldTakes` can never sweep him
+// out of the pool -- `finishRoster` just drafts him right back for free, so
+// EVERY "without X" delta measured exactly 0.00 regardless of which player X
+// was, including the roster's best player. Measured directly on "only offers
+// players I do not need..." below, brief's literal numbers (RB1..RB4 =
+// 210-i*2, no adp): losing RB1 cost 0.00, same as losing RB4 -- an exact tie
+// across four differently-valued removals, the same "itself a strong signal
+// something structural is going on" smell task-3-report.md flagged for the
+// identical symptom. Fix: give every new board row a real adp (as the rest of
+// this file already does for `filler`), AND -- separately, discovered while
+// verifying the fix -- give RB1 a real margin over RB2-4, not just a distinct
+// number: with adp added but still only a 2-point RB1/RB2 gap, RB1's measured
+// loss was 4.00, under MIN_GAIN(5), because RB3 (204) is nearly as good and
+// simply replaces him in the keeper slot. Calibrated numbers (RB1 clear of a
+// 202-206 fungible tier): RB1 lost=26.00, RB2=2.00, RB3=0.00, RB4=0.00, WR1
+// gain=8.80 -- all with comfortable margin around MIN_GAIN=5, verified with a
+// standalone script against the real offerable()/suggestTrades before being
+// written here, not guessed.
+check("never proposes a trade that lowers my own lineup", () => {
+  const ctx = CTX();
+  const mVals = [230, 206, 204], mAdps = [10, 24, 28];
+  const mine = [1, 2, 3].map(i => withHistory(ctx,
+    P(`M${i}`, "RB", mVals[i - 1], { adp: mAdps[i - 1], adp_round: Math.ceil(mAdps[i - 1] / 12) }),
+    10));
+  const tVals = [240, 150], tAdps = [5, 150];
+  const theirs = [1, 2].map(i => withHistory(ctx,
+    P(`T${i}`, "WR", tVals[i - 1], { adp: tAdps[i - 1], adp_round: Math.ceil(tAdps[i - 1] / 12) }),
+    10));
+  ctx.board = filler.concat(mine).concat(theirs);
+  const me = state(mine, allPicks());
+  const out = T.suggestTrades(me, [{ teamId: 2, state: state(theirs, allPicks()) }], ctx);
+  // TEETH: with the brief's literal (no-adp) numbers this scenario produces
+  // ZERO suggestions and the loop below passes vacuously, checking nothing.
+  // Calibrated, it produces 24 real suggestions to check the invariant against.
+  assert.ok(out.length > 0, "a real scenario should actually produce suggestions to check");
+  for (const s of out) {
+    assert.ok(s.myGain > 0, `suggested a losing trade: ${s.myGain}`);
+    assert.ok(s.myGain >= T.MIN_GAIN, `below the noise floor: ${s.myGain}`);
+  }
+});
+
+check("only offers players I do not need, and asks for ones I do", () => {
+  const ctx = CTX();
+  // Four RBs -- RB1 clearly the best, RB2-4 a fungible surplus tier -- and no
+  // WR at all. RB1 needs both a real adp (see the group above this one) AND a
+  // real margin over RB2-4 (see the same note) to register as genuinely
+  // costly to lose.
+  const rbVals = [230, 206, 204, 202], rbAdps = [10, 24, 28, 32];
+  const rbs = [1, 2, 3, 4].map(i => withHistory(ctx,
+    P(`RB${i}`, "RB", rbVals[i - 1], { adp: rbAdps[i - 1], adp_round: Math.ceil(rbAdps[i - 1] / 12) }),
+    10));
+  const theirWr = withHistory(ctx, P("WR1", "WR", 208, { adp: 20, adp_round: 2 }), 10);
+  ctx.board = filler.concat(rbs).concat([theirWr]);
+  const me = state(rbs, allPicks()), them = state([theirWr], allPicks());
+  const { mine, theirs } = T.offerable(me, them, ctx);
+  const names = a => a.filter(x => x.name).map(x => x.name);
+  assert.ok(names(mine).includes("RB4"), "my surplus RB must be offerable");
+  assert.ok(!names(mine).includes("RB1"), "my best RB is not surplus");
+  assert.ok(names(theirs).includes("WR1"), "the WR I need must be sought");
+});
+
+check("suggestions are ranked by my gain and carry all three numbers", () => {
+  const ctx = CTX();
+  // Same RB calibration as "only offers..." above -- with the brief's literal
+  // no-adp/210-i*2 numbers this scenario produced ZERO suggestions (offerable()
+  // found no real surplus/need on either side), which fails `out.length > 0`
+  // outright rather than exercising "ranked and complete".
+  const rbVals = [230, 206, 204, 202], rbAdps = [10, 24, 28, 32];
+  const rbs = [1, 2, 3, 4].map(i => withHistory(ctx,
+    P(`RB${i}`, "RB", rbVals[i - 1], { adp: rbAdps[i - 1], adp_round: Math.ceil(rbAdps[i - 1] / 12) }),
+    10));
+  const theirs = [
+    withHistory(ctx, P("BigWR", "WR", 240, { adp: 5, adp_round: 1 }), 10),
+    withHistory(ctx, P("SmallWR", "WR", 150, { adp: 150, adp_round: 13 }), 10),
+  ];
+  ctx.board = filler.concat(rbs).concat(theirs);
+  const out = T.suggestTrades(state(rbs, allPicks()),
+    [{ teamId: 7, state: state(theirs, allPicks()) }], ctx);
+  assert.ok(out.length > 0, "an obvious shape mismatch must produce a suggestion");
+  for (let i = 1; i < out.length; i++) {
+    assert.ok(out[i - 1].myGain >= out[i].myGain, "must be sorted by my gain");
+  }
+  for (const s of out) {
+    for (const k of ["teamId", "toMe", "toThem", "myGain", "theirGain", "marketDelta"]) {
+      assert.ok(k in s, `suggestion missing ${k}`);
+    }
+  }
+});
+
+check("an ineligible player is never suggested as an asset", () => {
+  // He returns to the draft pool for everybody, so trading for him is worth 0.
+  // adp added on both rows for consistency with the "every board row needs an
+  // adp" rule (see the groups above); verified it changes nothing here --
+  // eligibility is decided by keeper cost alone (R1Star's cost is R0
+  // regardless of adp), so this scenario was never exposed to the redraft
+  // trap the other three groups were.
+  const ctx = CTX();
+  const star = withHistory(ctx, P("R1Star", "WR", 300, { adp: 1, adp_round: 1 }), 1);   // cost R0 -> ineligible
+  const mineRb = withHistory(ctx, P("MyRB", "RB", 200, { adp: 100, adp_round: 9 }), 10);
+  ctx.board = filler.concat([star, mineRb]);
+  const out = T.suggestTrades(state([mineRb], allPicks()),
+    [{ teamId: 3, state: state([star], allPicks()) }], ctx);
+  for (const s of out) {
+    assert.ok(!(s.toMe.players || []).some(p => p.name === "R1Star"),
+      "an ineligible player has no pre-draft value and must not be sought");
+  }
 });
 
 console.log(`trade_fixture: ${n} groups OK`);
