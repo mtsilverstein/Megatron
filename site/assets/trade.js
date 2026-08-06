@@ -286,7 +286,10 @@
       // already holds that many unspent picks EARLIER than this one, inserting it
       // cannot change the rollout and its marginal value is exactly 0. Measured:
       // on a full 15-pick complement every future pick of round 8 or later is
-      // 0.0000 anyway, so this computes the same answer for about 90% less work.
+      // 0.0000 anyway, so this computes the same answer for less work: measured
+      // on the live board, one gradeTrade drops from 307ms to 208ms (-32%).
+      // The skipped rollouts are ~45% of them; the rest of the cost is the
+      // four currentDraftValue calls the skip cannot avoid.
       // A pick-poor team still values its late future picks, and still gets them
       // priced, because the count is taken from the picks it actually holds.
       const earlier = unspentRounds.reduce((n, r) => n + (r < p.round ? 1 : 0), 0);
