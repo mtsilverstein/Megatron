@@ -45,12 +45,20 @@
   // current-season pick filter matches nothing, so every state values at
   // exactly 0.00 and every trade grades "even" with no error anywhere.
   // keptElsewhere is the quiet one -- `new Set(undefined)` is an empty set,
-  // which silently asserts that the other ten teams keep nobody.
+  // which silently asserts that the other ten teams keep nobody. futureDiscount
+  // is the same failure shape one level up: without it, every future-pick
+  // Math.pow(...) is NaN, so gradeTrade returns {myGain: NaN, theirGain: NaN,
+  // marketDelta: NaN} for any trade touching a future pick -- no throw, just a
+  // verdict of NaN.
   //
   // ctx.teams and ctx.maxKeepers are deliberately NOT required: Keepers
   // defaults them to this league's own 12 and 2, so omitting them is correct
-  // rather than broken. ctx.board throws loudly on its own.
-  const CTX_REQUIRED = ["season", "board", "originalByPlayerId", "keptElsewhere"];
+  // rather than broken. That default is only free where ctx.teams flows into
+  // a function with its own `teams = TEAMS` parameter default -- marketValue's
+  // no-ADP fallback divides by it directly, so it carries an explicit local
+  // default of its own to keep this promise true rather than reaching NaN.
+  // ctx.board throws loudly on its own.
+  const CTX_REQUIRED = ["season", "board", "originalByPlayerId", "keptElsewhere", "futureDiscount"];
   function requireCtx(ctx) {
     for (const k of CTX_REQUIRED) {
       if (ctx == null || ctx[k] == null) throw new Error(`trade.js: ctx.${k} is required`);
@@ -266,8 +274,23 @@
     const future = (state.picks || []).filter(p => p.season > ctx.season);
     if (!future.length) return 0;
     const base = currentDraftValue(state, pool, ctx);
+    // Hoisted out of the loop: neither depends on which future pick is being
+    // priced, only on this state's roster and its CURRENT-season picks.
+    const kept = chooseKeepers(state.roster, ctx);
+    const mine = (state.picks || []).filter(p => p.season === ctx.season);
+    const unspentRounds = unspentPicks(kept, mine).map(p => p.round);
     let total = 0;
     for (const p of future) {
+      // Exact skip, not an approximation: currentDraftValue simulates only the
+      // first Optimizer.ROLLOUT_PICKS picks in pick-number order, so if the state
+      // already holds that many unspent picks EARLIER than this one, inserting it
+      // cannot change the rollout and its marginal value is exactly 0. Measured:
+      // on a full 15-pick complement every future pick of round 8 or later is
+      // 0.0000 anyway, so this computes the same answer for about 90% less work.
+      // A pick-poor team still values its late future picks, and still gets them
+      // priced, because the count is taken from the picks it actually holds.
+      const earlier = unspentRounds.reduce((n, r) => n + (r < p.round ? 1 : 0), 0);
+      if (earlier >= Optimizer.ROLLOUT_PICKS) continue;
       const asCurrent = Object.assign({}, state, {
         picks: (state.picks || []).concat([{ season: ctx.season, round: p.round }]),
       });
@@ -298,16 +321,31 @@
   // 90), so using it here would price most of the board as first-round
   // assets. Measured on a no-ADP row whose true board position is 241st: a
   // position_rank-based fallback yields round 1, boardRank yields round 21.
+  //
+  // ZERO IS A REAL, COMMON ANSWER, not a bug: parVorp clamps to 0 once the
+  // board row at that pick sits at or below positional replacement, which is
+  // true for 599 of the 695 live rows -- every no-ADP player (parVorp's fallback
+  // prices him off a board rank that deep too) and every pick from round 9 on.
+  // A caller that prints that 0 as if it were a price is showing an empty
+  // currency as a real one; the honest label is "no market value (replacement
+  // level)", the same rule Keepers.valueLabel exists to enforce for the
+  // keeper panel's own round numbers. Task 6 must not render this bare.
   function marketValue(asset, ctx) {
     requireCtx(ctx);
+    // ctx.teams is documented above as safe to omit, and IS safe everywhere it
+    // passes through Keepers.pickForRound's own `teams = TEAMS` default -- but
+    // the no-ADP fallback below divides by it directly, and undefined/12 is
+    // NaN, not 12. Default it locally so the omission stays safe throughout
+    // this function rather than by accident at three of four call sites.
+    const teams = ctx.teams != null ? ctx.teams : Keepers.TEAMS;
     if (asset && asset.season && asset.round) {
-      const v = Optimizer.parVorp(ctx.board, Keepers.pickForRound(asset.round, ctx.teams));
+      const v = Optimizer.parVorp(ctx.board, Keepers.pickForRound(asset.round, teams));
       return v * Math.pow(ctx.futureDiscount, Math.max(0, asset.season - ctx.season));
     }
     const round = asset.adp_round != null
       ? asset.adp_round
-      : Math.ceil(boardRank(ctx.board, asset) / ctx.teams);
-    return Optimizer.parVorp(ctx.board, Keepers.pickForRound(round, ctx.teams));
+      : Math.ceil(boardRank(ctx.board, asset) / teams);
+    return Optimizer.parVorp(ctx.board, Keepers.pickForRound(round, teams));
   }
 
   const sideMarket = (side, ctx) =>
@@ -338,7 +376,29 @@
     return out;
   };
 
+  // A trade may only move what the two sides actually hold. Without this, a
+  // caller that names a player nobody owns gets a fully-formed verdict computed
+  // from a fictional roster -- measured at +68.0 points for a 300-point ghost.
+  // Same rule applyTradedPicks already states: fabricating an asset silently
+  // hands a team something it does not own. Task 5 enumerates moves in a loop,
+  // which is exactly where a typo becomes a recommendation.
+  function assertHolds(state, side, who) {
+    for (const p of side.players || []) {
+      if (!(state.roster || []).some(r => r.player_id === p.player_id)) {
+        throw new Error(`trade.js: ${who} does not hold player ${p.name || p.player_id}`);
+      }
+    }
+    const held = (state.picks || []).map(p => `${p.season}R${p.round}`);
+    for (const p of side.picks || []) {
+      const i = held.indexOf(`${p.season}R${p.round}`);
+      if (i === -1) throw new Error(`trade.js: ${who} does not hold pick ${p.season}R${p.round}`);
+      held.splice(i, 1);   // one per held copy, so two of a round need two held
+    }
+  }
+
   function applyTrade(me, them, toMe, toThem) {
+    assertHolds(me, toThem, "you");
+    assertHolds(them, toMe, "they");
     return {
       me: { roster: without(me.roster, toThem.players || []).concat(toMe.players || []),
             picks: withoutPicks(me.picks, toThem.picks || []).concat(toMe.picks || []) },

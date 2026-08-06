@@ -170,9 +170,12 @@ against.
 **Known and intended consequence:** picks past the rollout horizon
 (`ROLLOUT_PICKS = 8`) evaluate to ~0 lineup impact, so the tool will say your
 R12 is worth nothing to your lineup. That is the objective's honest answer — a
-12th-round pick rarely changes a starting lineup. The market column (§4) will
-still show it has trade value, and that gap is itself a tradeable edge:
-*the market pays for this pick and it will not change my lineup.*
+12th-round pick rarely changes a starting lineup. Past round 8 the market
+column (§4) is 0 too, measured: every board row past rank 96 sits at or below
+positional replacement, so a pick that buys a replacement-level player is
+worth nothing in either currency — there is no gap here to trade on. *The
+tradeable edge this model surfaces lives in players whose ADP sits well
+adrift of our board, not in late picks.*
 
 ## 4. Grading a trade
 

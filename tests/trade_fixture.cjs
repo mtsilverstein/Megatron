@@ -295,7 +295,7 @@ check("a ctx missing a silent-failure field throws instead of valuing zero", () 
   const ctx = CTX();
   ctx.board = filler;
   const s = state([], allPicks());
-  for (const field of ["season", "board", "originalByPlayerId", "keptElsewhere"]) {
+  for (const field of ["season", "board", "originalByPlayerId", "keptElsewhere", "futureDiscount"]) {
     const broken = Object.assign({}, ctx);
     delete broken[field];
     assert.throws(() => T.currentDraftValue(s, filler, broken), /ctx\./, field);
@@ -331,10 +331,12 @@ check("the future discount compounds per season and is a no-op at zero", () => {
     `0.8 per season: expected ${(one * 0.8).toFixed(3)}, got ${two.toFixed(3)}`);
 });
 
-check("a pick past the rollout horizon grades ~0 on lineup but >0 on market", () => {
+check("a pick past the rollout horizon grades ~0 on lineup, and ~0 on market too", () => {
   // Documented and intended (spec section 3.3): a 15th-rounder will not change
-  // a starting lineup, and saying so is the honest answer. The gap against its
-  // market value is itself the tradeable signal.
+  // a starting lineup, and saying so is the honest answer. Past round 8 the
+  // market column is ~0 too (measured below) -- the tradeable edge this model
+  // surfaces lives in players whose ADP sits well adrift of our board, not in
+  // late picks.
   //
   // The state must hold its normal complement of current-year picks (task-4-
   // resolutions.md Resolution 2). Measured against a state holding ONLY the
@@ -355,7 +357,18 @@ check("a pick past the rollout horizon grades ~0 on lineup but >0 on market", ()
     state([], allPicks().concat([{ season: 2027, round: 3 }])), pool, ctx);
   assert.ok(early > 20,
     `an early future pick must still be worth real points, got ${early.toFixed(2)}`);
-  assert.ok(T.marketValue({ season: 2027, round: 15 }, ctx) >= 0);
+  // On the LIVE board this is 0.00, and that is the honest answer rather than a
+  // gap in the model: Optimizer.parVorp is points above positional replacement,
+  // every board row past rank 96 is at or below replacement, and a 15th-round
+  // pick buys exactly such a player. The synthetic filler board here has
+  // positive VORP all the way down (250 - i*0.85), so it CANNOT reproduce the
+  // clamp -- which is why this asserts the ordering that holds on both boards
+  // rather than a magnitude that holds on neither.
+  const earlyMkt = T.marketValue({ season: 2027, round: 1 }, ctx);
+  const lateMkt = T.marketValue({ season: 2027, round: 15 }, ctx);
+  assert.ok(Number.isFinite(lateMkt) && lateMkt >= 0);
+  assert.ok(earlyMkt > lateMkt,
+    `an early pick must out-price a late one on the market; got ${earlyMkt.toFixed(2)} vs ${lateMkt.toFixed(2)}`);
 });
 
 check("market value uses ADP when present and the board rank when not", () => {
@@ -366,6 +379,45 @@ check("market value uses ADP when present and the board rank when not", () => {
   assert.ok(T.marketValue(withAdp, ctx) > 0);
   assert.ok(T.marketValue(noAdp, ctx) >= 0, "no ADP must not produce NaN");
   assert.ok(Number.isFinite(T.marketValue({ season: 2026, round: 5 }, ctx)));
+  // The three assertions above pin nothing: `noAdp` is never put ON `ctx.board`,
+  // so boardRank falls off the end (board.length + 1) and BOTH the boardRank
+  // branch and the position_rank branch this replaced satisfy `>= 0` -- the
+  // regression Resolution 1 fixed passes here either way.
+  //
+  // ON the board, at a known index, so the two branches give different answers.
+  // Board rank 201 -> round ceil(201/12) = 17 -> pickForRound(17,12) = 198 ->
+  // filler[197] = 82.55. The position_rank branch this replaced would divide
+  // position_rank (1) by 12 -> round 1 -> pick 6 -> 245.75. Asserting the value
+  // pins WHICH quantity is being divided; asserting `>= 0`, as this did before,
+  // is satisfied by both and pins nothing.
+  const onBoard = P("NoAdpOnBoard", "WR", 100);
+  const ctxR = CTX({ board: filler.slice(0, 200).concat([onBoard]).concat(filler.slice(200)) });
+  const got = T.marketValue(onBoard, ctxR);
+  assert.ok(Math.abs(got - 82.55) < 0.5,
+    `a no-ADP player must be priced at his BOARD rank, not his position rank; ` +
+    `got ${got.toFixed(2)} (position_rank would give ~245.75)`);
+});
+
+check("marketValue's no-ADP fallback still works when ctx.teams is omitted", () => {
+  // ctx.teams is documented as safe to omit (Keepers defaults it), and that
+  // is true almost everywhere -- but Resolution 1's boardRank fallback
+  // divides by it directly, so Math.ceil(boardRank(...) / undefined) is NaN,
+  // not a graceful fallback to the league's real team count. NaN then flows
+  // into pickForRound and parVorp quietly returns 0.00 for what should be a
+  // real, positive price. Reusing the same rank-201 setup as the boardRank
+  // regression above, just with ctx.teams deleted instead of set to 12.
+  const onBoard = P("NoAdpNoTeams", "WR", 100);
+  const board = filler.slice(0, 200).concat([onBoard]).concat(filler.slice(200));
+  const withTeams = CTX({ board });
+  const omitted = Object.assign({}, withTeams);
+  delete omitted.teams;
+  const got = T.marketValue(onBoard, omitted);
+  const expected = T.marketValue(onBoard, withTeams);
+  assert.ok(Number.isFinite(got) && got > 0,
+    `omitting ctx.teams must not produce NaN or 0; got ${got}`);
+  assert.ok(Math.abs(got - expected) < 1e-9,
+    `omitting ctx.teams must default to the same answer as teams=12 explicitly; ` +
+    `got ${got} vs ${expected}`);
 });
 
 check("a straight swap of equals grades near zero for both sides", () => {
@@ -378,6 +430,113 @@ check("a straight swap of equals grades near zero for both sides", () => {
     { toMe: { players: [b], picks: [] }, toThem: { players: [a], picks: [] } }, ctx);
   assert.ok(Math.abs(g.myGain) < 5, `expected ~0, got ${g.myGain.toFixed(1)}`);
   assert.ok(Math.abs(g.theirGain) < 5, `expected ~0, got ${g.theirGain.toFixed(1)}`);
+});
+
+check("an asymmetric trade moves both sides' value in opposite directions", () => {
+  // The only group that pins the verdict function -- gradeTrade/applyTrade are
+  // otherwise untested by anything that isn't symmetric. Everything here is
+  // deliberately lopsided: a cheap-ladder star for a dud, plus a future first
+  // going the other way, so myGain, theirGain and marketDelta all have to be
+  // non-zero and to disagree with each other.
+  //
+  // SpareWeak/SpareB stay on my roster through the whole trade -- neither
+  // moves. Two things had to be true simultaneously to give `poolA = poolB`
+  // something real to break, and both were measured, not guessed:
+  //
+  //   1. The pool must actually DIFFER before/after. With only Star/Dud
+  //      swapping (each side holding exactly one roster player), a lone
+  //      player's keeper status never depends on which team holds him, so
+  //      the excluded set is IDENTICAL before and after by construction --
+  //      measured, poolA and poolB were the same set (both excluded exactly
+  //      Star) and the mutation was a silent no-op. SpareWeak+SpareB already
+  //      fill my 2 keeper slots before the trade, so Star's arrival forces a
+  //      real bump: SpareWeak (the weaker of the two BY IMPACT) is pushed
+  //      back into the pool.
+  //   2. The freed player must be good enough to actually get DRAFTED once
+  //      back in the pool, or his presence there is academic. This is the
+  //      one that cost the most measurement: with SpareWeak's vorp in the
+  //      150-225 range, chooseKeepers bumped him exactly as designed but
+  //      currentDraftValue came out byte-identical with or without him in the
+  //      pool, because the 240-player filler board always had a same-or-
+  //      better filler candidate at every one of the 8 rollout picks --
+  //      being freed is not the same as being chosen. SpareWeak's vorp (250)
+  //      is set to comfortably beat the filler board's best same-position
+  //      alternative actually selected in this rollout (measured: RBf5,
+  //      245.75), and SpareB's cost (R14) is set deep enough that his own
+  //      impact ceiling stays far above SpareWeak's, so it is SpareWeak who
+  //      is always the one bumped, not SpareB.
+  //
+  // `them` holds TWO 2027 R1 picks (an earlier, separate acquisition) and
+  // this trade moves only one. A correct withoutPicks leaves them holding the
+  // other; a "remove every matching key" bug strips both.
+  //
+  // A no-op applyTrade, a shared pool, a theirGain computed from my own
+  // states, or a withoutPicks that removes every matching key instead of one
+  // each break at least one assertion below (verified by mutation --
+  // task-4-report.md's "Review fixes" section has the results).
+  //
+  // Measured against the real filler board: myGain 96.5, theirGain -118.8,
+  // marketDelta -339.4. Every threshold below keeps better than 2x margin off
+  // the measured value -- tight enough to mean something, loose enough not to
+  // be noise-flaky.
+  const ctx = CTX();
+  const spareWeak = withHistory(ctx, P("SpareWeak", "RB", 250), 4);   // cost R3
+  const spareB = withHistory(ctx, P("SpareB", "WR", 200), 15);        // cost R14
+  const star = withHistory(ctx, P("Star", "RB", 260, { adp: 8, adp_round: 1 }), 13);  // cost R12
+  const dud = withHistory(ctx, P("Dud", "WR", 60, { adp: 200, adp_round: 15 }), 13);  // cost R12
+  ctx.board = filler.concat([spareWeak, spareB, star, dud]);
+  const me = state([dud, spareWeak, spareB], allPicks());
+  const them = state([star],
+    allPicks().concat([{ season: 2027, round: 1 }, { season: 2027, round: 1 }]));
+  const g = T.gradeTrade({ me, them },
+    { toMe:   { players: [star], picks: [{ season: 2027, round: 1 }] },
+      toThem: { players: [dud],  picks: [] } }, ctx);
+  assert.ok(g.myGain > 40, `I must gain materially; got ${g.myGain.toFixed(1)}`);
+  assert.ok(g.theirGain < -40, `they must lose materially; got ${g.theirGain.toFixed(1)}`);
+  assert.ok(g.marketDelta < -100,
+    `taking their star AND their first must look bad to them; got ${g.marketDelta.toFixed(1)}`);
+  // A tight, EXACT pin on top of the loose thresholds above: recompute both
+  // gains from the public draftPool/stateValue building blocks (each pinned
+  // independently elsewhere in this file) and require gradeTrade's numbers to
+  // match to the cent. This is what actually catches `poolA = poolB` --
+  // SpareWeak returning to the pool is worth only ~6-9 points here (measured),
+  // real but far smaller than any myGain/theirGain threshold loose enough to
+  // not be flaky on its own. An exact-recompute check has no such floor.
+  const poolBCheck = T.draftPool(ctx, me, them);
+  const poolACheck = T.draftPool(ctx, g.myAfter, g.themAfter);
+  const expectMyGain = T.stateValue(g.myAfter, poolACheck, ctx) - T.stateValue(me, poolBCheck, ctx);
+  const expectTheirGain = T.stateValue(g.themAfter, poolACheck, ctx) - T.stateValue(them, poolBCheck, ctx);
+  assert.ok(Math.abs(g.myGain - expectMyGain) < 0.01,
+    `myGain must match the same formula recomputed independently; got ${g.myGain.toFixed(2)} vs expected ${expectMyGain.toFixed(2)}`);
+  assert.ok(Math.abs(g.theirGain - expectTheirGain) < 0.01,
+    `theirGain must match the same formula recomputed independently; got ${g.theirGain.toFixed(2)} vs expected ${expectTheirGain.toFixed(2)}`);
+  // The post-trade states are part of the contract -- Task 6 renders them.
+  assert.ok(g.myAfter.roster.some(p => p.name === "Star"), "the star must land on my roster");
+  assert.ok(!g.myAfter.roster.some(p => p.name === "Dud"), "the dud must leave my roster");
+  assert.ok(g.themAfter.roster.some(p => p.name === "Dud"));
+  const myR1 = g.myAfter.picks.filter(p => p.season === 2027 && p.round === 1).length;
+  const themR1 = g.themAfter.picks.filter(p => p.season === 2027 && p.round === 1).length;
+  assert.strictEqual(myR1, 1, "exactly one future first must move to me");
+  assert.strictEqual(themR1, 1,
+    "they held TWO 2027 R1s and gave up only one -- withoutPicks removing every " +
+    "matching key instead of one would leave zero");
+});
+
+check("a trade can only move what each side actually holds", () => {
+  // Measured: without this, a team with an empty roster "giving" me a
+  // 300-point player produces a fully-formed +68.0 verdict computed from a
+  // fictional roster -- the same failure mode applyTradedPicks already
+  // guards against for traded picks. applyTrade takes no ctx, so nothing
+  // here needs a board.
+  const ghost = P("Ghost", "RB", 300);
+  const me = state([], []), them = state([], []);
+  assert.throws(
+    () => T.applyTrade(me, them, { players: [ghost], picks: [] }, { players: [], picks: [] }),
+    /does not hold player/, "they cannot give a player their roster doesn't hold");
+  assert.throws(
+    () => T.applyTrade(me, them,
+      { players: [], picks: [] }, { players: [], picks: [{ season: 2029, round: 1 }] }),
+    /does not hold pick/, "you cannot give a pick you don't hold");
 });
 
 check("THE PREMISE: trading up the keeper ladder is what pays", () => {
