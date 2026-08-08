@@ -208,9 +208,13 @@
   // The result depends only on the multiset of costs, not on the order
   // recommendKeepers returned them in, because the function sorts its own
   // input. If the ladder has run below every pick the team holds he takes the
-  // cheapest one instead: a keeper the team can barely pay for must never come
-  // out cheaper than one it can pay for comfortably. A team holding no picks at
-  // all is charged nothing -- there is nothing left to charge.
+  // EARLIEST one instead -- which is the DEAREST pick it holds, not the
+  // cheapest: `left` is sorted ascending by round and the fallback takes
+  // `left[0]`. That is the intent the next clause states -- a keeper the team
+  // can barely pay for must never come out cheaper than one it can pay for
+  // comfortably -- and this comment said "cheapest", which is the opposite
+  // reading of the same line. A team holding no picks at all is charged
+  // nothing -- there is nothing left to charge.
   function unspentPicks(kept, picks) {
     const left = picks.slice().sort((a, b) => a.round - b.round);
     for (const k of kept.slice().sort((a, b) => a.cost - b.cost)) {
@@ -219,7 +223,7 @@
       // ascending, so the last index that still qualifies is the one.
       let i = -1;
       for (let j = 0; j < left.length && left[j].round <= k.cost; j++) i = j;
-      if (i === -1) i = 0;   // nothing at or below: the cheapest pick he can pay with
+      if (i === -1) i = 0;   // nothing at or below: the EARLIEST (dearest) pick he holds
       left.splice(i, 1);
     }
     return left;
@@ -264,41 +268,72 @@
   // is valued in the same currency by asking what the equivalent current-year
   // pick would add, then discounting per season ahead.
   //
-  // Picks are valued MARGINALLY and summed, which slightly overstates a large
-  // haul (each is measured against the state without any of them, so
-  // diminishing returns are not compounded). With the handful of picks a real
-  // trade moves the error is small, and the alternative -- inserting them all
-  // and re-solving -- would hide which pick contributed what.
+  // CUMULATIVE, not independent-and-summed. Each pick's marginal is measured
+  // against a state that ALREADY CONTAINS the picks credited before it, so a
+  // large haul shows diminishing returns instead of N independent full-freight
+  // valuations. Pricing every future pick against the same base state was a
+  // sign inversion in the headline number, not a small overstatement: at the
+  // shipped horizon (trademode.PICK_SEASONS_AHEAD = 2) every state holds 30
+  // future picks, so removing a current-season pick lifted all 30 marginals at
+  // once and 30x that lift swamped what the surrendered pick was worth.
+  // Measured on the live board, one team giving away its 2026 R2 FOR NOTHING,
+  // varying only how many future picks both sides hold --
+  //   independent-and-summed:  0 future picks -66.6, 15 picks -13.0, 30 +29.9
+  //   cumulative (this code):   0 future picks -66.6, 15 picks -48.6, 30 -35.6
+  // -- so at the horizon the page actually ships, the old pricing displayed
+  // surrendering a pick for nothing as a GAIN. On a state whose keepers cost
+  // early rounds it read as high as +129.7 for the 2026 R2 and +249.4 for the
+  // 2026 R5. The old comment here claimed the error was "small for the handful
+  // of picks a real trade moves": that is true of the picks that MOVE and
+  // irrelevant, because the error is driven by the picks each side already
+  // HOLDS.
+  //
+  // Cumulative also restores the telescoping that makes the sum meaningful:
+  // undiscounted and unclamped the marginals sum to (state + all future picks
+  // credited) - (state), so the total can never exceed what those picks are
+  // jointly worth.
   function futurePicksValue(state, pool, ctx) {
     requireCtx(ctx);
     const future = (state.picks || []).filter(p => p.season > ctx.season);
     if (!future.length) return 0;
-    const base = currentDraftValue(state, pool, ctx);
-    // Hoisted out of the loop: neither depends on which future pick is being
-    // priced, only on this state's roster and its CURRENT-season picks.
-    const kept = chooseKeepers(state.roster, ctx);
-    const mine = (state.picks || []).filter(p => p.season === ctx.season);
-    const unspentRounds = unspentPicks(kept, mine).map(p => p.round);
+    // ROUND ascending, then SEASON ascending. The rollout keys on pick NUMBER,
+    // which derives from the round (Keepers.pickForRound at the round's
+    // mid-slot), so crediting the best rounds first prices the picks a team
+    // would actually use at their full worth and pushes the diminishing tail
+    // onto the late ones. Season is only the tie-break among equal rounds, and
+    // it runs NEAREST-FIRST: the earlier a copy is credited the larger its
+    // marginal tends to be, and the nearest season carries the smallest
+    // discount, so pairing them that way is the reading that does not
+    // systematically under-price two same-round picks in consecutive years.
+    const sorted = future.slice().sort((a, b) => a.round - b.round || a.season - b.season);
+    // NO EARLY EXIT, AND THAT IS DELIBERATE. The round-counting skip this
+    // replaces ("the state already holds ROLLOUT_PICKS unspent picks earlier
+    // than this one, so it cannot enter the rollout") cannot survive cumulative
+    // pricing: that count moves every iteration. The obvious replacement --
+    // stop at the first non-positive marginal, since with rounds ascending they
+    // should be non-increasing -- was TESTED THE WAY THE OLD SKIP WAS, by
+    // recomputing the full 30-entry contribution vector with the exit removed,
+    // and it is NOT exact. Counterexample, measured on the live board and
+    // reproduced on the synthetic one: a state whose keepers cost more than any
+    // pick it holds (here, no current-season picks at all) spends the first
+    // credited picks paying for those keepers, so the marginal vector opens
+    // 0.00, 0.00, 248.90, 206.50, ... -- an exit on the leading zero returned
+    // 0.00 against a true 863.34. Marginals are not monotone in general, so
+    // every future pick is priced. See final-fixes-wave1-report.md for the cost.
+    //
+    // `acc` carries this state's OTHER picks too, including the future ones:
+    // currentDraftValue filters to `p.season === ctx.season`, so a future pick
+    // sitting in the list is inert there, and starting from the full list keeps
+    // `prev` and `next` computed from exactly the same shape.
+    let acc = (state.picks || []).slice();
+    let prev = currentDraftValue(state, pool, ctx);
     let total = 0;
-    for (const p of future) {
-      // Exact skip, not an approximation: currentDraftValue simulates only the
-      // first Optimizer.ROLLOUT_PICKS picks in pick-number order, so if the state
-      // already holds that many unspent picks EARLIER than this one, inserting it
-      // cannot change the rollout and its marginal value is exactly 0. Measured:
-      // on a full 15-pick complement every future pick of round 8 or later is
-      // 0.0000 anyway, so this computes the same answer for less work: measured
-      // on the live board, one gradeTrade drops from 307ms to 208ms (-32%).
-      // The skipped rollouts are ~45% of them; the rest of the cost is the
-      // four currentDraftValue calls the skip cannot avoid.
-      // A pick-poor team still values its late future picks, and still gets them
-      // priced, because the count is taken from the picks it actually holds.
-      const earlier = unspentRounds.reduce((n, r) => n + (r < p.round ? 1 : 0), 0);
-      if (earlier >= Optimizer.ROLLOUT_PICKS) continue;
-      const asCurrent = Object.assign({}, state, {
-        picks: (state.picks || []).concat([{ season: ctx.season, round: p.round }]),
-      });
-      const marginal = currentDraftValue(asCurrent, pool, ctx) - base;
+    for (const p of sorted) {
+      acc = acc.concat([{ season: ctx.season, round: p.round }]);
+      const next = currentDraftValue(Object.assign({}, state, { picks: acc }), pool, ctx);
+      const marginal = next - prev;
       total += Math.max(0, marginal) * Math.pow(ctx.futureDiscount, p.season - ctx.season);
+      prev = next;
     }
     return total;
   }
@@ -368,12 +403,26 @@
     const ids = new Set(gone.map(p => p.player_id));
     return list.filter(p => !ids.has(p.player_id));
   };
+  // One removal per COPY GIVEN, not one per distinct key. `new Set(gone.map(...))`
+  // collapsed two identical `season R round` keys into a single entry, so a team
+  // giving away both of its two R3s lost one and kept the other -- the giver
+  // keeps a pick it gave away, and the receiver is credited both. Same
+  // Set-collapse shape as the 40.8-point keeper collision `unspentPicks`
+  // documents, and reachable from the UI (a team holding two of a round shows
+  // two clickable rows) as well as from the suggester's `packages()`, which
+  // enumerates pairs. Counted rather than spliced so this stays O(n);
+  // `assertHolds` below states the same one-per-copy rule with an array.
   const withoutPicks = (list, gone) => {
-    const keys = new Set(gone.map(p => `${p.season}R${p.round}`));
-    const out = [];
-    for (const p of list) {
+    const owed = new Map();
+    for (const p of gone || []) {
       const k = `${p.season}R${p.round}`;
-      if (keys.has(k)) { keys.delete(k); continue; }   // remove ONE per matching key
+      owed.set(k, (owed.get(k) || 0) + 1);
+    }
+    const out = [];
+    for (const p of list || []) {
+      const k = `${p.season}R${p.round}`;
+      const c = owed.get(k) || 0;
+      if (c > 0) { owed.set(k, c - 1); continue; }
       out.push(p);
     }
     return out;

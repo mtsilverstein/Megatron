@@ -255,6 +255,71 @@ check("two keepers at the same cost round cannot share one pick", () => {
       T.currentDraftValue(noR4, T.draftPool(ctxC, noR4), ctxC).toFixed(2)} vs ${vc.toFixed(2)}`);
 });
 
+check("a keeper whose ladder ran below every held pick pays the EARLIEST one", () => {
+  // `unspentPicks`' fallback: when the team holds nothing at or before the
+  // keeper's cost round, he takes `left[0]` -- and `left` is sorted ASCENDING
+  // by round, so that is the team's EARLIEST, dearest pick. Unpinned, changing
+  // `i = 0` to `i = left.length - 1` (the cheapest pick, which is what the
+  // comment used to claim) survived the whole suite.
+  //
+  // The discriminator is a state holding one early and one late pick. Correct,
+  // the keeper eats the R5 and the team is left with an R15; reversed, he eats
+  // the R15 and the team keeps the R5, which is worth far more. Comparing
+  // against a state holding TWO R15s makes that an EQUALITY rather than an
+  // inequality: two R15s leave an R15 under either reading, so the two states
+  // tie only when the fallback takes the earliest pick.
+  //
+  // Same roster on both sides of every comparison, so `draftPool` excludes the
+  // same keeper each time and no player leaks into the other state's pool.
+  const ctx = CTX();
+  const k = withHistory(ctx, P("Broke", "RB", 240, { adp: 9.5, adp_round: 1 }), 4); // cost R3
+  ctx.board = filler.concat([k]);
+  assert.strictEqual(T.chooseKeepers([k], ctx).length, 1, "he must actually be kept");
+  const v = s => T.currentDraftValue(s, T.draftPool(ctx, s), ctx);
+  const early = () => ({ season: 2026, round: 5 });
+  const late = () => ({ season: 2026, round: 15 });
+  const mixed = state([k], [early(), late()]);
+  const twoLate = state([k], [late(), late()]);
+  const twoEarly = state([k], [early(), early()]);
+  // TEETH: the surviving pick's round has to matter at all, or the equality
+  // below is satisfied by any implementation.
+  assert.ok(v(twoEarly) > v(twoLate) + 1e-6,
+    `an R5 must outvalue an R15 on this board; got ${v(twoEarly).toFixed(2)} vs ${v(twoLate).toFixed(2)}`);
+  assert.ok(Math.abs(v(mixed) - v(twoLate)) < 1e-6,
+    `the fallback must spend the EARLIEST pick, leaving the R15: got ${
+      v(mixed).toFixed(2)}, expected the two-R15 value ${v(twoLate).toFixed(2)} ` +
+    `(spending the cheapest instead leaves the R5 and reads ${v(twoEarly).toFixed(2)})`);
+});
+
+check("currentDraftValue reads THIS season's picks and no others", () => {
+  // The module header names this as a silent-failure surface, and it was
+  // unpinned: replacing `state.picks.filter(p => p.season === ctx.season)` with
+  // `state.picks` survived all 40 groups while inflating a live-board state by
+  // +236 points -- it feeds the rollout duplicated pick NUMBERS (6,6,6 /
+  // 18,18,18), because every season's round 1 prices at the same mid-slot.
+  //
+  // Pinned on currentDraftValue SPECIFICALLY, not stateValue: stateValue adds
+  // futurePicksValue, which is supposed to price those future picks, so the
+  // same assertion there would be false by design.
+  const ctx = CTX();
+  ctx.board = filler;
+  const now = state([], allPicks());
+  const alsoFuture = state([], allPicks()
+    .concat(allPicks(2027, 15)).concat(allPicks(2028, 15)));
+  const pool = T.draftPool(ctx, now);
+  const vNow = T.currentDraftValue(now, pool, ctx);
+  const vFuture = T.currentDraftValue(alsoFuture, pool, ctx);
+  assert.strictEqual(alsoFuture.picks.length, 45, "the future picks must really be there");
+  assert.ok(vNow > 0, "a full complement of picks must be worth something");
+  assert.ok(Math.abs(vFuture - vNow) < 1e-9,
+    `future picks must not enter THIS draft; got ${vFuture.toFixed(2)} vs ${vNow.toFixed(2)}`);
+  // TEETH: currentDraftValue does respond to the current-season pick list, so
+  // the equality above is not the equality of two constants.
+  const fewer = state([], allPicks().filter(p => p.round !== 1));
+  assert.ok(T.currentDraftValue(fewer, pool, ctx) < vNow - 1e-6,
+    "removing this season's R1 must lower the value");
+});
+
 check("a keeper must be paid for with a pick the team actually holds", () => {
   // Trading away the exact round your keeper costs used to be free: the cost
   // was charged against an abstract 1..15 range rather than the picks in hand.
@@ -548,6 +613,41 @@ check("a trade can only move what each side actually holds", () => {
     () => T.applyTrade(me, them,
       { players: [], picks: [] }, { players: [], picks: [{ season: 2029, round: 1 }] }),
     /does not hold pick/, "you cannot give a pick you don't hold");
+  // assertHolds matches ONE HELD COPY PER PICK GIVEN -- `held.splice(i, 1)`.
+  // Deleting that splice left only the empty-holdings case covered, so a team
+  // holding ONE R3 could "give" TWO and the trade went through. This is the
+  // reachable half of the same defect withoutPicks had.
+  const oneR3 = state([], [{ season: 2026, round: 3 }]);
+  assert.doesNotThrow(() => T.applyTrade(oneR3, them,
+    { players: [], picks: [] }, { players: [], picks: [{ season: 2026, round: 3 }] }),
+    "giving the one R3 it holds is legal");
+  assert.throws(() => T.applyTrade(oneR3, them,
+    { players: [], picks: [] },
+    { players: [], picks: [{ season: 2026, round: 3 }, { season: 2026, round: 3 }] }),
+    /does not hold pick 2026R3/,
+    "holding ONE of a round and giving TWO must be rejected, not silently allowed");
+});
+
+check("giving away two picks of the same round moves both, not one", () => {
+  // withoutPicks used `new Set(gone.map(...))`, which collapses two identical
+  // `season R round` keys into one entry: the giver lost ONE of its two R3s and
+  // kept the other while the receiver was credited both, so a pick was
+  // FABRICATED. Same Set-collapse shape as the 40.8-point keeper collision, one
+  // function away, and reachable from the UI (two clickable rows) and from the
+  // suggester's packages(), which enumerates exactly these pairs.
+  const me = state([], allPicks().concat([{ season: 2026, round: 3 }]));   // two R3s
+  const them = state([], allPicks());
+  const both = [{ season: 2026, round: 3 }, { season: 2026, round: 3 }];
+  const after = T.applyTrade(me, them, { players: [], picks: [] }, { players: [], picks: both });
+  const count = (s, r) => s.picks.filter(p => p.season === 2026 && p.round === r).length;
+  assert.strictEqual(count(me, 3), 2, "I started with two R3s");
+  assert.strictEqual(count(after.me, 3), 0,
+    "both R3s must leave; a Set of keys removes only one and I keep a pick I gave away");
+  assert.strictEqual(count(after.them, 3), 3, "they started with one and receive two");
+  assert.strictEqual(after.me.picks.length, me.picks.length - 2,
+    "my pick count must drop by exactly two");
+  assert.strictEqual(after.them.picks.length, them.picks.length + 2,
+    "their pick count must rise by exactly two");
 });
 
 check("THE PREMISE: trading up the keeper ladder is what pays", () => {
@@ -721,23 +821,175 @@ check("suggestions are ranked by my gain and carry all three numbers", () => {
   }
 });
 
-check("an ineligible player is never suggested as an asset", () => {
-  // He returns to the draft pool for everybody, so trading for him is worth 0.
-  // adp added on both rows for consistency with the "every board row needs an
-  // adp" rule (see the groups above); verified it changes nothing here --
-  // eligibility is decided by keeper cost alone (R1Star's cost is R0
-  // regardless of adp), so this scenario was never exposed to the redraft
-  // trap the other three groups were.
+check("an ineligible player is never suggested as an asset, on EITHER side", () => {
+  // He returns to the draft pool for everybody, so trading FOR him is worth 0
+  // and shopping him is worth 0 -- `offerable`'s `keepable` predicate excludes
+  // ineligible players from BOTH sides for that reason.
+  //
+  // THE OLD VERSION OF THIS GROUP ASSERTED NOTHING. Its scenario (one RB
+  // against one ineligible star) produced zero suggestions, so the
+  // `for (const s of out)` body never ran and deleting
+  // `Keepers.eligible(c, ctx.season)` from `keepable` survived the whole suite.
+  // Two things were missing: the explicit `out.length > 0` TEETH line the two
+  // neighbouring groups already carry, and a scenario that actually produces
+  // suggestions.
+  //
+  // MY side is the half with real teeth. An ineligible player THEY hold is
+  // already screened out by offerable's own MIN_GAIN test -- acquiring him
+  // gains nothing, because he sits in the draft pool either way -- so the
+  // eligibility check is belt-and-braces there. An ineligible player on MY
+  // roster is the opposite case: losing him costs 0, and costing < MIN_GAIN is
+  // precisely what marks a player as surplus, so without `eligible` he becomes
+  // the tool's favourite thing to offer -- a 300-point name that is worth
+  // literally nothing to the manager receiving it.
+  //
+  // Scenario is the calibrated "suggestions are ranked" one (which does produce
+  // suggestions) plus an ineligible star on each roster.
   const ctx = CTX();
-  const star = withHistory(ctx, P("R1Star", "WR", 300, { adp: 1, adp_round: 1 }), 1);   // cost R0 -> ineligible
-  const mineRb = withHistory(ctx, P("MyRB", "RB", 200, { adp: 100, adp_round: 9 }), 10);
-  ctx.board = filler.concat([star, mineRb]);
-  const out = T.suggestTrades(state([mineRb], allPicks()),
-    [{ teamId: 3, state: state([star], allPicks()) }], ctx);
+  const rbVals = [230, 206, 204, 202], rbAdps = [10, 24, 28, 32];
+  const rbs = [1, 2, 3, 4].map(i => withHistory(ctx,
+    P(`RB${i}`, "RB", rbVals[i - 1], { adp: rbAdps[i - 1], adp_round: Math.ceil(rbAdps[i - 1] / 12) }),
+    10));
+  const myStar = withHistory(ctx, P("MyR1Star", "TE", 300, { adp: 2, adp_round: 1 }), 1);   // cost R0
+  const theirStar = withHistory(ctx, P("R1Star", "WR", 300, { adp: 1, adp_round: 1 }), 1);  // cost R0
+  const theirs = [
+    withHistory(ctx, P("BigWR", "WR", 240, { adp: 5, adp_round: 1 }), 10),
+    withHistory(ctx, P("SmallWR", "WR", 150, { adp: 150, adp_round: 13 }), 10),
+    theirStar,
+  ];
+  ctx.board = filler.concat(rbs).concat([myStar]).concat(theirs);
+  assert.strictEqual(T.chooseKeepers([myStar], ctx).length, 0, "an R1 keeper cost is R0");
+  assert.strictEqual(T.chooseKeepers([theirStar], ctx).length, 0);
+  const me = state(rbs.concat([myStar]), allPicks());
+  const them = state(theirs, allPicks());
+  // `offerable` is the function actually under test, so check it directly as
+  // well as through the suggestions -- a scenario that later stops producing
+  // trades then cannot quietly turn this group vacuous a second time.
+  const { mine, theirs: sought } = T.offerable(me, them, ctx);
+  const names = a => a.filter(x => x.name).map(x => x.name);
+  assert.ok(names(mine).length > 0, "TEETH: I must have something to offer at all");
+  assert.ok(names(sought).length > 0, "TEETH: and something to want");
+  assert.ok(!names(mine).includes("MyR1Star"),
+    "an ineligible player of mine is worth 0 to a partner and must not be shopped");
+  assert.ok(!names(sought).includes("R1Star"),
+    "an ineligible player of theirs is worth 0 to me and must not be sought");
+  const out = T.suggestTrades(me, [{ teamId: 3, state: them }], ctx);
+  assert.ok(out.length > 0, "TEETH: the scenario must produce suggestions to check");
   for (const s of out) {
     assert.ok(!(s.toMe.players || []).some(p => p.name === "R1Star"),
       "an ineligible player has no pre-draft value and must not be sought");
+    assert.ok(!(s.toThem.players || []).some(p => p.name === "MyR1Star"),
+      "an ineligible player has no pre-draft value and must not be offered");
   }
+});
+
+// --- monotonicity: a state is never worth more WITHOUT an asset -------------
+
+// The invariant nothing else in this file states. Every other group compares
+// two constructed scenarios; these two assert a property of THE VALUE FUNCTION
+// ITSELF -- removing any single asset must not RAISE Trade.stateValue. Four
+// rounds of increasingly sharp scenario tests all missed a sign inversion that
+// made surrendering a 2026 R2 for nothing read as a +183.4 GAIN.
+//
+// One state, built once and read (never mutated) by both groups: every removal
+// below constructs a fresh state object off the same roster/pick arrays.
+// Eight roster players with a spread of keeper costs -- two of them ineligible
+// (cost <= R2, so they return to the pool for everybody) -- all 15 of this
+// season's picks, and two further seasons of 15, which is exactly what
+// trademode.js hands the page (PICK_SEASONS_AHEAD = 2, so 30 future picks).
+//
+// Every row carries an `adp`, for the reason `filler` documents above:
+// Optimizer.fieldTakes skips players without one, so on an ADP-less board the
+// pool never depletes, a removed player is simply re-drafted back for free,
+// and every delta in this sweep would measure exactly 0.00 while passing.
+// The adps are fractional so they interleave with filler's 1..240 rather than
+// tying with them.
+const monoCtx = CTX();
+const monoRoster = [
+  ["MonoA", "RB", 262, 6.5, 1],     // cost R0  -- ineligible
+  ["MonoB", "WR", 244, 14.5, 3],    // cost R2  -- ineligible
+  ["MonoC", "QB", 236, 26.5, 5],    // cost R4
+  ["MonoD", "TE", 228, 38.5, 7],    // cost R6
+  ["MonoE", "RB", 214, 54.5, 9],    // cost R8
+  ["MonoF", "WR", 202, 78.5, 11],   // cost R10
+  ["MonoG", "RB", 188, 110.5, 13],  // cost R12
+  ["MonoH", "WR", 176, 150.5, 15],  // cost R14
+].map(([name, pos, val, adp, round]) => withHistory(monoCtx,
+  P(name, pos, val, { adp, adp_round: Math.ceil(adp / 12) }), round));
+monoCtx.board = filler.concat(monoRoster);
+const monoPicks = [2026, 2027, 2028].reduce((a, s) => a.concat(allPicks(s, 15)), []);
+const monoState = state(monoRoster, monoPicks);
+const monoValue = s => T.stateValue(s, T.draftPool(monoCtx, s), monoCtx);
+const monoBase = monoValue(monoState);
+
+// Runs a list of {label, without} removals and returns the ones that RAISED
+// the value. A bare "assertion failed" here would waste whoever hits it next,
+// so each failure carries the asset and both values.
+function monoSweep(removals) {
+  const bad = [];
+  for (const r of removals) {
+    const v = monoValue(r.without);
+    if (v > monoBase + 1e-6) {
+      bad.push(`  ${r.label}: without ${v.toFixed(2)} > with ${monoBase.toFixed(2)}` +
+               `  (+${(v - monoBase).toFixed(2)})`);
+    }
+  }
+  return bad;
+}
+const monoDropPick = (season, round) => {
+  let dropped = false;
+  return state(monoRoster, monoPicks.filter(p => {
+    if (!dropped && p.season === season && p.round === round) { dropped = true; return false; }
+    return true;
+  }));
+};
+
+check("MONOTONICITY (picks): no pick is worth less than nothing", () => {
+  // All 15 current rounds, plus rounds 1, 2, 3, 8 and 15 of each future season.
+  // The future half is SAMPLED, not exhaustive, and the sample is deliberate:
+  // rounds 1-3 are the ones a trade actually moves, 8 is Optimizer.ROLLOUT_PICKS
+  // (the horizon past which a pick stops changing the simulated lineup), and 15
+  // is the far tail. Saying so because a silent cap reads as full coverage.
+  // Measured before reducing it: the exhaustive version (all 45 picks, 30 of
+  // them future) reports 0 failures too and costs 2596ms against the sample's
+  // 1444ms, so the sample finds everything the full sweep does for 55% of the
+  // time. The CURRENT season is swept in full -- that is where every step-1
+  // failure lived.
+  const removals = [];
+  for (let r = 1; r <= 15; r++) {
+    removals.push({ label: `2026 R${r}`, without: monoDropPick(2026, r) });
+  }
+  for (const season of [2027, 2028]) {
+    for (const r of [1, 2, 3, 8, 15]) {
+      removals.push({ label: `${season} R${r}`, without: monoDropPick(season, r) });
+    }
+  }
+  const bad = monoSweep(removals);
+  assert.strictEqual(bad.length, 0,
+    `giving these picks away for NOTHING raised the state's value:\n${bad.join("\n")}`);
+});
+
+check("MONOTONICITY (roster): no player is worth less than nothing", () => {
+  // Removing a player leaves him ON ctx.board, which is the model: a player
+  // nobody keeps returns to the draft pool. So a non-kept roster player is a
+  // no-op by construction and only the keeper slots can move this.
+  //
+  // THIS GROUP IS NOT FULL COVERAGE OF THE ROSTER HALF, and it must not be read
+  // as one. Both of its step-1 failures (MonoG +70.54, MonoH +87.70) were the
+  // future-pick defect, not keeper selection, so fixing futurePicksValue turned
+  // it green -- but a wider scan on the LIVE board (12 random 10-man rosters,
+  // 120 single-player removals, run after that fix) still finds 12 states where
+  // dropping a player RAISES the value, by up to +46.52 points. That residue is
+  // in chooseKeepers/recommendKeepers and is explicitly wave 2's; this state
+  // simply does not happen to reach it. When wave 2 lands, widen this group
+  // rather than trusting it as it stands.
+  const K = require("../site/assets/keepers.js");
+  const bad = monoSweep(monoRoster.map(p => ({
+    label: `${p.name} (cost R${K.keeperCost(T.candidate(p, monoCtx), monoCtx.season)})`,
+    without: state(monoRoster.filter(x => x !== p), monoPicks),
+  })));
+  assert.strictEqual(bad.length, 0,
+    `giving these players away for NOTHING raised the state's value:\n${bad.join("\n")}`);
 });
 
 console.log(`trade_fixture: ${n} groups OK`);
