@@ -117,9 +117,21 @@ check("a cheap ladder outvalues a strictly better player", () => {
   // The inversion the whole pre-draft market misses. `good` is strictly the
   // better player but costs an early pick; `cheap` is worse and costs a late
   // one. The cheap ladder must win.
+  //
+  // Both must actually BE KEPT, or this measures "a cheap keeper vs no keeper"
+  // instead of the ladder -- the same defect task-4 Resolution 3 found in "THE
+  // PREMISE" below. At 220/180 it did not: wave 2 made chooseKeepers choose by
+  // the lineup objective, which is STRICTER than the `slotWeight * vorp -
+  // parVorp` ranking it replaced (measured on this board, a constant ~20.4
+  // points stricter -- a 200-point player at cost R6 ranks +25.65 there and is
+  // worth +5.25 here), so `good` at 220 was declined and the comparison
+  // collapsed to two DIFFERENT boards with no keeper on either: 1683.55 vs
+  // 1680.95, i.e. reversed, for the wrong reason. Values raised by 20 apiece,
+  // which is the whole change: both sides keep, `good` is still strictly the
+  // better player, and the gap comes back to the SAME 11.00 wave 1 measured.
   const ctxA = CTX(), ctxB = CTX();
-  const good = withHistory(ctxA, P("Good", "WR", 220), 4);    // cost R3
-  const cheap = withHistory(ctxB, P("Cheap", "WR", 180), 12); // cost R11
+  const good = withHistory(ctxA, P("Good", "WR", 240), 4);    // cost R3
+  const cheap = withHistory(ctxB, P("Cheap", "WR", 200), 12); // cost R11
   ctxA.board = filler.concat([good]);
   ctxB.board = filler.concat([cheap]);
   const a = state([good], allPicks()), b = state([cheap], allPicks());
@@ -212,11 +224,19 @@ check("two keepers at the same cost round cannot share one pick", () => {
   // implementation, including a broken one, and makes the assertion below
   // measure nothing. Measured: shared board 1720.80 vs 1720.80; isolated
   // 1692.55 vs 1712.95, the 20.4-point gap the rule is actually worth.
+  //
+  // Values are 260/259, not the 240/239 this started with, for the reason the
+  // cheap-ladder group above documents: wave 2's objective-based chooseKeepers
+  // is ~20.4 points stricter than the ranking it replaced, and at 240/239 the
+  // COLLIDING pair (which pays R3 + R2) stopped keeping both -- measured,
+  // chooseKeepers(collide) returned 0 keepers while the distinct pair returned
+  // 2, so the two sides were no longer comparable at all. At 260/259 both sides
+  // keep two, and the gap is the SAME 20.40 this comment already quotes.
   const ctxC = CTX(), ctxD = CTX();
-  const a = withHistory(ctxC, P("Col1", "RB", 240), 4);   // cost R3
-  const b = withHistory(ctxC, P("Col2", "RB", 239), 4);   // cost R3 too
-  const c = withHistory(ctxD, P("Dis1", "RB", 240), 4);   // cost R3
-  const d = withHistory(ctxD, P("Dis2", "RB", 239), 5);   // cost R4
+  const a = withHistory(ctxC, P("Col1", "RB", 260), 4);   // cost R3
+  const b = withHistory(ctxC, P("Col2", "RB", 259), 4);   // cost R3 too
+  const c = withHistory(ctxD, P("Dis1", "RB", 260), 4);   // cost R3
+  const d = withHistory(ctxD, P("Dis2", "RB", 259), 5);   // cost R4
   ctxC.board = filler.concat([a, b]);
   ctxD.board = filler.concat([c, d]);
   const collide = state([a, b], allPicks());
@@ -664,9 +684,18 @@ check("THE PREMISE: trading up the keeper ladder is what pays", () => {
   // measures "a cheap keeper vs no keeper" rather than the ladder. Measured:
   // rounds 4/12 give 25.65 with chooseKeepers(a) empty (passes, wrong reason);
   // rounds 5/13 give 40.80 with both sides actually keeping.
+  //
+  // Wave 2 hit the SAME wall one notch further along: choosing keepers by the
+  // lineup objective is ~20.4 points stricter than the `slotWeight * vorp -
+  // parVorp` ranking it replaced, so at 200 points the dear side stopped
+  // keeping and the TEETH assertion below caught it -- exactly as designed.
+  // Measured at 200: keeping at cost R4 or R5 is declined, R6 keeps and the gap
+  // falls to 20.40, R7 to 10.20. Raising both players to 240 restores a keeper
+  // on the dear side at the ORIGINAL rounds 5/13, and the gap comes back to the
+  // SAME 40.80. So the fixture moved and the measurement did not.
   const ctx = CTX();
-  const dear = withHistory(ctx, P("Dear", "RB", 200), 5);        // cost R4
-  const cheapGuy = withHistory(ctx, P("Cheap", "RB", 200), 13);  // cost R12
+  const dear = withHistory(ctx, P("Dear", "RB", 240), 5);        // cost R4
+  const cheapGuy = withHistory(ctx, P("Cheap", "RB", 240), 13);  // cost R12
   ctx.board = filler.concat([dear, cheapGuy]);
   const a = state([dear], allPicks()), b = state([cheapGuy], allPicks());
   assert.strictEqual(T.chooseKeepers(a.roster, ctx).length, 1,
@@ -969,20 +998,156 @@ check("MONOTONICITY (picks): no pick is worth less than nothing", () => {
     `giving these picks away for NOTHING raised the state's value:\n${bad.join("\n")}`);
 });
 
+// --- the widened roster sweep ----------------------------------------------
+
+// Wave 1 left the roster group covering ONE state, with a comment saying so:
+// after its fix a live-board scan (12 ten-man rosters, 120 single-player
+// removals) still found 12 removals that RAISED their own team's value, worst
+// +51.45, and this state did not reach any of them. That residue was
+// `chooseKeepers` delegating the CHOICE to `Keepers.recommendKeepers`, which
+// ranks by `slotWeight * vorp - parVorp` while this file's currency is lineup
+// points. Wave 2 made the choice maximise the lineup objective, and this is the
+// coverage that keeps it that way.
+//
+// Each shape gets its OWN ctx and board -- two states with different rosters
+// must never share one, because `draftPool(ctx, s)` excludes only THAT state's
+// keepers, so the other shape's players stay in the pool as free ADP-carrying
+// extras and cancel the very effect under test (the same trap the collision and
+// roster-shape groups above document).
+function shapeState(label, rows) {
+  const ctx = CTX();
+  const roster = rows.map(([name, pos, val, adp, round]) => withHistory(ctx,
+    P(name, pos, val, { adp, adp_round: Math.ceil(adp / 12) }), round));
+  ctx.board = filler.concat(roster);
+  // CURRENT-season picks only, and that is a deliberate boundary rather than a
+  // convenience. On a state holding only this season's picks, `stateValue` IS
+  // `currentDraftValue`, which is EXACTLY monotone in the roster once keepers
+  // are chosen by the objective: every keeper set open to the smaller roster
+  // was already open to the larger one, so its maximum cannot be beaten.
+  // Measured on the live board, 12 rosters x 10 players: 0 of 120 removals
+  // raise `currentDraftValue`, against 12 of 120 before wave 2.
+  //
+  // `futurePicksValue` does NOT inherit that guarantee -- it sums CLAMPED,
+  // DISCOUNTED marginals of a monotone function, which is not itself monotone,
+  // and it prices 31 different pick lists against one keeper choice. Measured:
+  // 6 of the same 120 removals still raise the full 45-pick `stateValue`, worst
+  // +14.41 (down from 12 and +51.45). The 45-pick `monoState` above is the
+  // guard for that half, and the wave-2 report carries the residue; asserting
+  // exact monotonicity over future picks here would be asserting something
+  // measured to be false.
+  return { label, ctx, roster, picks: allPicks() };
+}
+function shapeSweep(s) {
+  const KK = require("../site/assets/keepers.js");
+  const value = r => {
+    const st = state(r, s.picks);
+    return T.stateValue(st, T.draftPool(s.ctx, st), s.ctx);
+  };
+  const base = value(s.roster);
+  const bad = [];
+  for (const p of s.roster) {
+    const v = value(s.roster.filter(x => x !== p));
+    if (v > base + 1e-6) {
+      bad.push(`  ${s.label} without ${p.name} `
+        + `(cost R${KK.keeperCost(T.candidate(p, s.ctx), s.ctx.season)}): `
+        + `${v.toFixed(2)} > ${base.toFixed(2)}  (+${(v - base).toFixed(2)})`);
+    }
+  }
+  return bad;
+}
+
+// THREE REAL COUNTEREXAMPLES, not invented ones: found by sweeping randomly
+// generated shapes against the PRE-wave-2 code and written out longhand,
+// smallest first. Each line records what the old selection did, so a
+// regression is recognisable rather than just red. All three are outside the
+// generated sweep's seed range below, which contains 13 more of its own.
+const NAMED_SHAPES = [
+  // Old: keeps S73_0@R4 + S73_5@R12. Giving S73_5 away for nothing read
+  // +25.20, and giving S73_0 away read +13.65. The objective keeps
+  // S73_0@R4 + S73_3@R6 and is worth 1801.25 from the FULL roster.
+  shapeState("shape 73", [
+    ["S73_0", "TE", 289, 178.3, 5],   // cost R4
+    ["S73_1", "QB", 189, 192.6, 4],   // cost R3
+    ["S73_2", "RB", 176, 92.1, 9],    // cost R8
+    ["S73_3", "RB", 239, 12.5, 7],    // cost R6
+    ["S73_4", "RB", 168, 187.8, 5],   // cost R4
+    ["S73_5", "RB", 197, 117.6, 13],  // cost R12
+    ["S73_6", "TE", 169, 106.3, 13],  // cost R12
+  ]),
+  // Old: keeps S62_1@R13 + S62_5@R3 for 1860.30; dropping S62_5 for nothing
+  // read +30.60. The objective keeps S62_1@R13 + S62_3@R8 and reads 1901.10
+  // from the same roster -- 40.80 points the old choice left on the table.
+  shapeState("shape 62", [
+    ["S62_0", "QB", 183, 11.2, 8],    // cost R7
+    ["S62_1", "RB", 266, 167.3, 14],  // cost R13
+    ["S62_2", "RB", 240, 57.4, 7],    // cost R6
+    ["S62_3", "QB", 215, 124.4, 9],   // cost R8
+    ["S62_4", "TE", 201, 44.6, 5],    // cost R4
+    ["S62_5", "TE", 278, 151.6, 4],   // cost R3
+    ["S62_6", "QB", 265, 198.2, 3],   // cost R2
+  ]),
+  // The worst of the three, and the closest to the review's own example: old
+  // keeps S119_3@R11 + S119_0@R13, and giving S119_0 (a 200-point WR) away for
+  // NOTHING read +35.70, because losing him forced the better set
+  // S119_3@R11 + S119_1@R7 -- exactly "the team gets richer by getting
+  // smaller". The objective picks that better set from the full roster.
+  shapeState("shape 119", [
+    ["S119_0", "WR", 200, 76.2, 14],  // cost R13
+    ["S119_1", "TE", 251, 106.3, 8],  // cost R7
+    ["S119_2", "RB", 194, 102.2, 7],  // cost R6
+    ["S119_3", "QB", 241, 171.1, 12], // cost R11
+    ["S119_4", "TE", 171, 18.6, 12],  // cost R11
+    ["S119_5", "RB", 163, 117.6, 12], // cost R11
+    ["S119_6", "RB", 260, 146.9, 3],  // cost R2
+  ]),
+];
+
+// BREADTH on top of those three. Deterministic (a seeded mulberry32, no
+// Math.random -- a flaky monotonicity test is worse than none), 40 shapes of
+// 5-7 players spanning positions, values 160-290, keeper costs R2-R13 and a
+// spread of ADPs. TEETH, measured rather than assumed: running this whole group
+// against the pre-wave-2 selection reports 18 of 260 removals across 16 of the
+// 43 shapes (all 3 named ones, plus g4 g10 g11 g12 g16 g18 g19 g20 g22 g25 g34
+// g35 g38), so a regression fails it sixteen times over rather than hanging on
+// one lucky scenario. Under the shipped selection all 43 are clean. 40 seeds
+// rather than 120 (where 29 fail) is a runtime call: 40 costs ~7s, 120 ~21s.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const GENERATED_SHAPES = [];
+for (let seed = 1; seed <= 40; seed++) {
+  const rnd = mulberry32(seed);
+  const rows = [];
+  const n = 5 + Math.floor(rnd() * 3);
+  for (let i = 0; i < n; i++) {
+    // Draw order is load-bearing: it is what makes these the same 40 shapes
+    // the pre-wave-2 sweep found 13 failures in.
+    const pos = ["QB", "RB", "WR", "TE"][Math.floor(rnd() * 4)];
+    const val = Math.round(160 + rnd() * 130);
+    const round = 3 + Math.floor(rnd() * 12);          // cost R2..R13
+    const adp = +(2 + rnd() * 200).toFixed(1);
+    rows.push([`G${seed}_${i}`, pos, val, adp, round]);
+  }
+  GENERATED_SHAPES.push(shapeState(`shape g${seed}`, rows));
+}
+
 check("MONOTONICITY (roster): no player is worth less than nothing", () => {
   // Removing a player leaves him ON ctx.board, which is the model: a player
   // nobody keeps returns to the draft pool. So a non-kept roster player is a
   // no-op by construction and only the keeper slots can move this.
   //
-  // THIS GROUP IS NOT FULL COVERAGE OF THE ROSTER HALF, and it must not be read
-  // as one. Both of its step-1 failures (MonoG +70.54, MonoH +87.70) were the
-  // future-pick defect, not keeper selection, so fixing futurePicksValue turned
-  // it green -- but a wider scan on the LIVE board (12 random 10-man rosters,
-  // 120 single-player removals, run after that fix) still finds 12 states where
-  // dropping a player RAISES the value, by up to +46.52 points. That residue is
-  // in chooseKeepers/recommendKeepers and is explicitly wave 2's; this state
-  // simply does not happen to reach it. When wave 2 lands, widen this group
-  // rather than trusting it as it stands.
+  // Wave 1's version of this group tested ONE state and said in a comment that
+  // it was not coverage. It now sweeps 44 shapes as well (see NAMED_SHAPES /
+  // GENERATED_SHAPES above), and the caveat has been narrowed rather than
+  // deleted, because it is still true of ONE half: `monoState` holds 30 future
+  // picks and `futurePicksValue` is measurably NOT exactly monotone (6 of 120
+  // live-board removals, worst +14.41). What IS now covered, and exactly, is
+  // keeper selection -- the whole of wave 2's defect.
   const K = require("../site/assets/keepers.js");
   const bad = monoSweep(monoRoster.map(p => ({
     label: `${p.name} (cost R${K.keeperCost(T.candidate(p, monoCtx), monoCtx.season)})`,
@@ -990,6 +1155,19 @@ check("MONOTONICITY (roster): no player is worth less than nothing", () => {
   })));
   assert.strictEqual(bad.length, 0,
     `giving these players away for NOTHING raised the state's value:\n${bad.join("\n")}`);
+
+  const shapes = NAMED_SHAPES.concat(GENERATED_SHAPES);
+  let swept = 0;
+  const wide = [];
+  for (const s of shapes) { swept += s.roster.length; wide.push(...shapeSweep(s)); }
+  // TEETH on the sweep itself: a shape family that silently stopped producing
+  // rosters would make this group pass while checking nothing, which is the
+  // exact failure mode wave 1's suggester groups were rebuilt to close.
+  assert.ok(shapes.length === 43 && swept > 250,
+    `the sweep must actually sweep: ${shapes.length} shapes, ${swept} removals`);
+  assert.strictEqual(wide.length, 0,
+    `keeper selection made a team richer by making it SMALLER `
+    + `(${wide.length} of ${swept} removals):\n${wide.join("\n")}`);
 });
 
 console.log(`trade_fixture: ${n} groups OK`);

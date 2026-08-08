@@ -68,10 +68,13 @@ A team's pre-draft state is:
 ```
 
 **Keepers are derived, never traded.** A team's keepers are computed from
-`roster` by taking the best `MAX_KEEPERS` eligible players by impact — the same
-greedy selection `Keepers.recommendKeepers` already performs — recomputed on
-BOTH sides of every trade. Two consequences, and the whole valuation turns on
-them:
+`roster` by taking the eligible set of up to `MAX_KEEPERS` players that
+maximises the SAME lineup objective §3.2 values the state with, recomputed on
+BOTH sides of every trade. Eligibility and cost come from `Keepers.eligible` /
+`Keepers.keeperCost`; only the choice among eligible candidates is made here.
+This originally delegated the choice to `Keepers.recommendKeepers`' greedy
+impact ranking — see §10.1 for why that had to change and what it cost. Two
+consequences, and the whole valuation turns on them:
 
 **(a) An acquired player competes for a slot, he does not add one.** Trading
 for a star when both slots are already filled by better players gains close to
@@ -359,16 +362,57 @@ The project rule holds: degrade loudly, never silently.
     and carry `cache: "no-store"` (mirrors the assertion already made against
     `draftmode.js`).
 
-## 10. Known inconsistency, deliberately not fixed here
+## 10. The two currencies: what was closed, and what remains
 
 `keepers.js` scores a keeper as `slotWeight * vorp − parVorp(effectivePick)`.
 That is a different currency from lineup points, so the trade tool and the
 keeper panel will report different numbers for the same player.
 
-This is recorded rather than silently absorbed. Unifying `keepers.js` onto the
-lineup objective is the right end state and is a **follow-up spec**, not part of
-this one: it changes a shipped, browser-verified tool 15 days before the draft,
-and the trade calculator does not require it.
+### 10.1 Closed: which keepers the trade tool picks
+
+This was originally recorded here as deliberately not fixed. It could not stay
+that way, because it turned out to be **load-bearing rather than cosmetic**.
+`Trade.chooseKeepers` delegated the CHOICE to `Keepers.recommendKeepers`, so the
+trade tool selected a keeper set that was not the best one *by the number the
+page prints* — and removing a player could force the better set. That made
+`Trade.stateValue` non-monotone in the roster: a team could be worth MORE after
+giving a player away for nothing. Measured on the live board, 12 of 120
+single-player removals raised their own team's value, worst **+51.45**; the
+worst case the review traced was a 1.3-point margin in `recommendKeepers`'
+currency costing **151.7** points in lineup points.
+
+`Trade.chooseKeepers` now **maximises the lineup objective directly**: it
+enumerates every eligible subset of size 0..`maxKeepers` and values each with
+the same `finishRoster → lineupPoints` the rest of the file uses. Monotonicity
+then holds by construction for the current draft — every set open to a smaller
+roster was already open to the larger one — and is measured: **0 of 120**
+live-board removals raise `currentDraftValue`, against 12 before.
+
+`Keepers.keeperCost` and `Keepers.eligible` remain authoritative: the ladder and
+who is even keepable did not change, only the choice among eligible candidates.
+Where the objective is indifferent, `recommendKeepers`' ordering still decides,
+so the two tools continue to agree wherever the difference does not matter.
+
+### 10.2 Still open, and now the recorded follow-up
+
+Two things:
+
+1. **The keeper panel still ranks by `slotWeight * vorp − parVorp`.** The two
+   tools can therefore still name different keepers for the same roster, and the
+   panel's "+N pts" is still a different currency from the trade page's.
+   Unifying `keepers.js` onto the lineup objective remains the right end state
+   and remains a **follow-up spec**: it changes a shipped, browser-verified tool
+   close to the draft, and the trade calculator no longer requires it.
+2. **`futurePicksValue` is not exactly monotone.** It sums clamped, discounted
+   marginals of a monotone function, which is not itself monotone, and it prices
+   31 different pick lists against one keeper choice (the choice is memoised on
+   the roster, which is what makes the exact selection affordable at all).
+   Measured: **6 of 120** live-board removals still raise the full 45-pick
+   `stateValue`, worst **+14.41** — down from 12 and +51.45, and confined to the
+   future-pick half. Letting the keeper choice see each state's real picks was
+   measured too: it cuts that to 4 of 120, worst +1.57, for **16×** the runtime
+   (a `gradeTrade` of ~6.5 s), so it is not shipped. See
+   `.superpowers/sdd/final-fixes-wave2-report.md` for the full table.
 
 ## 11. Out of scope
 

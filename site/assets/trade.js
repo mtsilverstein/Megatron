@@ -148,18 +148,185 @@
   // trade -- never an input, because pre-draft the keeper tag is moot and a
   // manager may even designate one BECAUSE they intend to shop him.
   //
-  // Selection reuses Keepers.recommendKeepers so the trade tool and the keeper
-  // panel agree on WHO to keep. (They still differ on what a keeper is WORTH:
-  // keepers.js scores `slotWeight * vorp - parVorp`, this file scores lineup
-  // points. Unifying them is a recorded follow-up, deliberately not done here
-  // -- see the spec's section 10.)
-  function chooseKeepers(roster, ctx) {
-    requireCtx(ctx);
+  // CHOSEN BY THE OBJECTIVE THIS FILE DISPLAYS, not by the keeper panel's
+  // ranking. This used to delegate the choice to Keepers.recommendKeepers,
+  // which ranks by `slotWeight * vorp - parVorp`; this branch's currency is
+  // projected starting-lineup points. Where the two disagree, the delegated
+  // choice is not the best set BY THE NUMBER THE PAGE PRINTS -- and that made
+  // the value function NON-MONOTONE IN THE ROSTER: giving a player away for
+  // nothing could force the better keeper set and leave the team worth MORE.
+  // Measured on the live board before this change, 12 of 120 single-player
+  // removals raised their own team's value, worst +51.45 (the review's own
+  // scan: 12 of 120, worst +46.52; the worst single case it traced was a team
+  // whose recommendKeepers preferred a 10.3-impact receiver over a 9.0-impact
+  // quarterback -- a 1.3-point margin in ITS currency that cost 151.7 points
+  // in lineup points).
+  //
+  // Maximising the displayed objective removes that by construction, not by
+  // tuning: every keeper set available to a smaller roster was already
+  // available to the larger one, so the larger roster's maximum is at least
+  // the smaller one's. No approximation gives that guarantee, so every
+  // eligible subset of size 0..maxKeepers is enumerated (see KEEPER_TOPK).
+  //
+  // Keepers.keeperCost and Keepers.eligible stay AUTHORITATIVE -- the cost
+  // ladder and who is even keepable are unchanged, and both arrive here via
+  // Keepers.rankKeepers. Only the choice among eligible candidates moved.
+  //
+  // The keeper PANEL (keepers.js) still ranks by `slotWeight * vorp - parVorp`,
+  // so the two tools can still name different keepers. That divergence is the
+  // remaining follow-up -- see the spec's section 10.
+
+  // Enumerate EVERY eligible subset. The top-K variants (restrict the
+  // enumeration to the K best by Keepers.rankKeepers) are cheaper but NOT
+  // guaranteed monotone -- removing a player can reshuffle which candidates
+  // are in the top K -- so they are measured in
+  // .superpowers/sdd/final-fixes-wave2-report.md rather than shipped.
+  // Infinity is the exact setting and the one that ships.
+  const KEEPER_TOPK = Infinity;
+
+  // Index combinations of size 0..max over 0..n-1, size-ascending then
+  // lexicographic. Deterministic, which is what makes the tie-break below a
+  // rule rather than an accident of enumeration order.
+  function indexSubsets(n, max) {
+    const out = [[]];
+    let level = [[]];
+    for (let size = 1; size <= max; size++) {
+      const next = [];
+      for (const c of level) {
+        for (let i = (c.length ? c[c.length - 1] + 1 : 0); i < n; i++) next.push(c.concat([i]));
+      }
+      for (const c of next) out.push(c);
+      level = next;
+    }
+    return out;
+  }
+
+  // MEMOIZED, and that is what makes an exact selection affordable at all --
+  // NOT a micro-optimisation. COUNTED, not assumed, on a live-board 15-man
+  // roster at the shipped horizon (trademode.PICK_SEASONS_AHEAD = 2, so 30
+  // future picks): `chooseKeepers` runs 33 times per `stateValue` and 132 times
+  // per `gradeTrade` -- the plan said 23 and ~92, which undercounts, because
+  // `futurePicksValue` calls `currentDraftValue` once per future pick and
+  // `draftPool` calls it once per state on top. Every one of those calls is on
+  // the SAME roster array reference (`futurePicksValue` rebuilds its states
+  // with `Object.assign({}, state, {picks})`, so `roster` is identity-stable),
+  // so the memo collapses them to 1 selection per `stateValue` and 3 per
+  // `gradeTrade` -- measured.
+  //
+  // That collapse is the whole budget. A selection is now 1 + n + C(n,2)
+  // finishRoster rollouts for n eligible candidates -- 106 on a 14-eligible
+  // roster, against ONE cheap ranking before. Measured end to end on the live
+  // board, `suggestTrades` for one opponent: 18.1 s memoized against 338.6 s
+  // unmemoized, byte-identical output. Do not remove this as pointless: wave 1
+  // measured the OLD implementation at 0.03 ms against `currentDraftValue`'s
+  // 2.55 ms, so memoizing THAT saved ~1% and the whole-branch review's claim
+  // that memoization would "fund" this fix was wrong about the old code. It
+  // funds the NEW code, by 18.7x.
+  //
+  // Keyed per ctx AND on the ctx fields the answer depends on, not per ctx
+  // alone: trademode.js REASSIGNS `world.ctx.keptElsewhere` on every partner
+  // change and `world.ctx.futureDiscount` on every discount edit, on the same
+  // ctx object. keptElsewhere changes the pool a candidate set is valued
+  // against, so a cache keyed on ctx identity alone would serve the previous
+  // partner's answers silently. A nested WeakMap<ctx, WeakMap<roster>> plus an
+  // explicit generation check on those fields is the cheap way to say so; a
+  // changed field drops that ctx's roster cache rather than returning stale.
+  // (futureDiscount is deliberately NOT in the signature -- it only prices
+  // FUTURE picks, which never reach a keeper decision.)
+  const keeperCache = new WeakMap();
+  const keeperSig = ctx => [ctx.season, ctx.board, ctx.originalByPlayerId,
+                            ctx.keptElsewhere, ctx.teams, ctx.maxKeepers, ctx.rounds];
+  function keeperCacheFor(ctx) {
+    const sig = keeperSig(ctx);
+    let e = keeperCache.get(ctx);
+    if (!e || e.sig.some((v, i) => v !== sig[i])) {
+      e = { sig, byRoster: new WeakMap() };
+      keeperCache.set(ctx, e);
+    }
+    return e.byRoster;
+  }
+
+  function selectKeepers(roster, ctx) {
     const cands = (roster || []).map(p => candidate(p, ctx))
       .filter(c => Number.isFinite(c.vorp));
-    const rec = Keepers.recommendKeepers(cands, ctx.season, ctx.board,
-      { teams: ctx.teams, maxKeepers: ctx.maxKeepers });
-    return rec.map(r => ({ player: r.player, cost: r.cost }));
+    const opts = { teams: ctx.teams, maxKeepers: ctx.maxKeepers };
+    // rankKeepers is the single source of eligibility (Keepers.eligible), cost
+    // (Keepers.keeperCost) and the panel's ordering, all three at once.
+    const ranked = Keepers.rankKeepers(cands, ctx.season, ctx.board, opts);
+    if (!ranked.length) return [];
+    const maxKeepers = ctx.maxKeepers != null ? ctx.maxKeepers : Keepers.MAX_KEEPERS;
+    const rounds = ctx.rounds != null ? ctx.rounds : Keepers.DRAFT_ROUNDS;
+
+    // A candidate set is valued exactly the way currentDraftValue values the
+    // state it produces: the set is the roster, the rest of the draft is played
+    // out from the picks the set leaves UNSPENT, and the pool is the board
+    // minus everyone already off it. So a set that costs more than it is worth
+    // scores below the empty set on its own -- the cost is not counted twice,
+    // and "keep nobody" needs no special case beyond being in the enumeration.
+    //
+    // Two deliberate reference choices, both of which keep this a pure function
+    // of (roster, ctx) and therefore memoizable on the roster:
+    //
+    //   PICKS: a FULL complement of this season's rounds, not `state.picks`.
+    //   chooseKeepers is handed a roster, never a state -- and it must stay
+    //   that way, because `futurePicksValue` values 31 pick lists against one
+    //   identity-stable roster, so keying the cache on picks would drop the hit
+    //   rate to zero and put the exact selection out of budget. The cost of the
+    //   approximation is that a team which has traded its early picks away is
+    //   still asked "what would you keep in a normal draft".
+    //
+    //   POOL: the board minus ctx.keptElsewhere only. It cannot also exclude
+    //   the OTHER side's keepers the way `draftPool` does, because those are
+    //   chosen by this same function -- that is circular. On a single state
+    //   (which is what the monotonicity sweep measures) the two agree exactly;
+    //   inside gradeTrade each side's keepers are chosen against a pool very
+    //   slightly richer than the one its value is finally computed on.
+    const spend = [];
+    for (let r = 1; r <= rounds; r++) spend.push({ season: ctx.season, round: r });
+    const goneElsewhere = new Set(ctx.keptElsewhere);
+    const basePool = ctx.board.filter(p => !goneElsewhere.has(p.player_id));
+    const scoreSet = set => {
+      const ids = new Set(set.map(c => c.player.player_id));
+      const picks = unspentPicks(set, spend)
+        .map(p => Keepers.pickForRound(p.round, ctx.teams))
+        .sort((a, b) => a - b);
+      return Optimizer.lineupPoints(Optimizer.finishRoster(
+        set.map(c => c.player), basePool.filter(p => !ids.has(p.player_id)), picks, 0));
+    };
+
+    // TIE-BREAK: wherever the objective is INDIFFERENT, keep what the keeper
+    // panel would have said, so the two tools still agree everywhere the change
+    // does not actually matter. Implemented by making recommendKeepers' own
+    // answer the incumbent and replacing it only on a STRICT improvement; every
+    // other tie then falls to indexSubsets' fixed order. This cannot affect the
+    // VALUE -- ties are equal by definition -- only which of two equal sets is
+    // named.
+    const recIds = new Set(Keepers.recommendKeepers(cands, ctx.season, ctx.board, opts)
+      .map(r => r.player.player_id));
+    const setKey = set => set.map(c => c.player.player_id).sort().join("|");
+    let best = ranked.filter(c => recIds.has(c.player.player_id));
+    let bestVal = scoreSet(best);
+    const bestKey = setKey(best);
+    const pool = ranked.slice(0, KEEPER_TOPK);
+    for (const combo of indexSubsets(pool.length, maxKeepers)) {
+      const set = combo.map(i => pool[i]);
+      if (setKey(set) === bestKey) continue;      // the incumbent, already scored
+      const v = scoreSet(set);
+      if (v > bestVal) { bestVal = v; best = set; }
+    }
+    return best.map(c => ({ player: c.player, cost: c.cost }));
+  }
+
+  // The returned array is SHARED with every other caller holding the same
+  // roster reference (see the memo above) -- read it, never mutate it.
+  // `unspentPicks` already copies before sorting, which is why it is safe.
+  function chooseKeepers(roster, ctx) {
+    requireCtx(ctx);
+    if (roster == null || typeof roster !== "object") return selectKeepers(roster, ctx);
+    const byRoster = keeperCacheFor(ctx);
+    let hit = byRoster.get(roster);
+    if (!hit) { hit = selectKeepers(roster, ctx); byRoster.set(roster, hit); }
+    return hit;
   }
 
   // --- state value -----------------------------------------------------------
@@ -206,8 +373,9 @@
   // suggester would learn to stack them there.
   //
   // The result depends only on the multiset of costs, not on the order
-  // recommendKeepers returned them in, because the function sorts its own
-  // input. If the ladder has run below every pick the team holds he takes the
+  // chooseKeepers returned them in, because the function sorts its own input --
+  // which is also why `selectKeepers` can call it on a raw candidate subset.
+  // If the ladder has run below every pick the team holds he takes the
   // EARLIEST one instead -- which is the DEAREST pick it holds, not the
   // cheapest: `left` is sorted ascending by round and the fallback takes
   // `left[0]`. That is the intent the next clause states -- a keeper the team
