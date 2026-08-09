@@ -7,6 +7,29 @@
   --rule: #39424B;
   --qb: #D64545; --rb: #3FA46A; --wr: #4A90D9; --te: #E8A33D;
   --band-track: #2E363E;
+
+  /* Elevation — these values were previously inlined per rule. */
+  --sunken: #161C22;
+  --hairline: #1E262D;
+  --accent: var(--te);
+
+  /* Spacing step. */
+  --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1.1rem; --s5: 1.75rem;
+
+  /* Type scale. Every value below is copied VERBATIM from a declaration that
+     already ships, so adopting a token is a pure refactor with no visual
+     change. Do not "round" them to a prettier ramp -- see Step 3. */
+  --t-display:  700 1.6rem/1 "Barlow Condensed", sans-serif;   /* .wordmark        */
+  --t-nav:      600 .95rem/1 "Barlow Condensed", sans-serif;   /* masthead nav     */
+  --t-chip:     600 .85rem/1 "Barlow Condensed", sans-serif;   /* filter buttons   */
+  --t-micro:    600 .7rem/1.5 "Barlow Condensed", sans-serif;  /* small captions   */
+  --t-num:      500 .92rem/1.4 "IBM Plex Mono", monospace;     /* td.num, th.num   */
+  --t-mono-sm:  500 .78rem/1.2 "IBM Plex Mono", monospace;     /* stamps           */
+
+  /* New surfaces only -- no existing declaration matches these. */
+  --t-name:     600 1rem/1.15 "Barlow Condensed", sans-serif;
+  --t-label:    600 .62rem/1 "IBM Plex Mono", monospace;
+  --t-edge:     500 .58rem/1 "IBM Plex Mono", monospace;
 }
 
 * { box-sizing: border-box; }
@@ -24,20 +47,20 @@ a { color: var(--chalk); }
   padding: 1.1rem 1.25rem .9rem; border-bottom: 1px solid var(--rule);
 }
 .wordmark {
-  font: 700 1.6rem/1 "Barlow Condensed", sans-serif;
+  font: var(--t-display);
   letter-spacing: .04em; text-transform: uppercase; margin: 0;
 }
 .wordmark .amp { color: var(--chalk-dim); }
 .wordmark .logo { height: 1.05em; width: auto; vertical-align: -0.16em; margin-right: .35rem; }
 .masthead nav { display: flex; gap: 1rem; margin-left: auto; }
 .masthead nav a {
-  font: 600 .95rem/1 "Barlow Condensed", sans-serif; letter-spacing: .09em;
+  font: var(--t-nav); letter-spacing: .09em;
   text-transform: uppercase; text-decoration: none; color: var(--chalk-dim);
   padding: .3rem 0; border-bottom: 2px solid transparent;
 }
 .masthead nav a[aria-current="page"] { color: var(--chalk); border-bottom-color: var(--chalk); }
 .stamp {
-  width: 100%; font: 500 .78rem/1.2 "IBM Plex Mono", monospace;
+  width: 100%; font: var(--t-mono-sm);
   color: var(--chalk-dim); letter-spacing: .02em;
 }
 .stale {
@@ -76,7 +99,7 @@ thead th[aria-sort="descending"]::after { content: " ▾"; }
 thead th[aria-sort="ascending"]::after { content: " ▴"; }
 tbody tr { border-bottom: 1px solid color-mix(in srgb, var(--rule) 45%, transparent); }
 tbody tr:hover { background: var(--board-raised); }
-td.num, th.num { text-align: right; font: 500 .92rem/1.4 "IBM Plex Mono", monospace;
+td.num, th.num { text-align: right; font: var(--t-num);
   font-variant-numeric: tabular-nums; }
 
 /* -- signature: the range band ------------------------------------------- */
@@ -105,7 +128,7 @@ td.num, th.num { text-align: right; font: 500 .92rem/1.4 "IBM Plex Mono", monosp
 .filters { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0 0 1rem; }
 .filters button {
   background: none; border: 1px solid var(--rule); color: var(--chalk-dim);
-  font: 600 .85rem/1 "Barlow Condensed", sans-serif; letter-spacing: .08em;
+  font: var(--t-chip); letter-spacing: .08em;
   text-transform: uppercase; padding: .45rem .8rem; border-radius: 4px; cursor: pointer;
 }
 .filters button[aria-pressed="true"] { color: var(--chalk); border-color: var(--chalk); }
@@ -128,12 +151,12 @@ footer { max-width: 1080px; margin: 2rem auto 0; padding: 1rem 1.25rem 2rem;
 .draft-panel { border: 1px solid var(--rule); border-radius: 6px; margin: 0 0 1rem; }
 .draft-panel summary {
   cursor: pointer; padding: .55rem .9rem;
-  font: 600 .95rem/1 "Barlow Condensed", sans-serif; letter-spacing: .09em;
+  font: var(--t-nav); letter-spacing: .09em;
   text-transform: uppercase; color: var(--chalk-dim);
 }
 .draft-panel[open] summary { color: var(--chalk); border-bottom: 1px solid var(--rule); }
 .draft-status {
-  margin-left: .6rem; font: 500 .78rem/1.2 "IBM Plex Mono", monospace;
+  margin-left: .6rem; font: var(--t-mono-sm);
   text-transform: none; letter-spacing: .02em;
 }
 .draft-body { padding: .8rem .9rem; display: grid; gap: .6rem; }
@@ -145,7 +168,7 @@ footer { max-width: 1080px; margin: 2rem auto 0; padding: 1rem 1.25rem 2rem;
 }
 .draft-row button {
   background: none; border: 1px solid var(--rule); color: var(--chalk-dim);
-  font: 600 .85rem/1 "Barlow Condensed", sans-serif; letter-spacing: .08em;
+  font: var(--t-chip); letter-spacing: .08em;
   text-transform: uppercase; padding: .45rem .8rem; border-radius: 4px; cursor: pointer;
 }
 .draft-row button:hover { color: var(--chalk); border-color: var(--chalk); }
@@ -162,7 +185,7 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 /* -- rookie chip ---------------------------------------------------------- */
 .rookie-chip {
   display: inline-block; margin-left: .35rem; padding: 0 .3rem;
-  font: 600 .7rem/1.5 "Barlow Condensed", sans-serif; letter-spacing: .06em;
+  font: var(--t-micro); letter-spacing: .06em;
   border: 1px solid var(--te); border-radius: 3px; color: var(--te);
 }
 
@@ -171,7 +194,7 @@ tr.mine td:nth-child(3) { text-decoration: none; }
    purpose, and an unexplained low floor reads as a bad projection. */
 .returning-chip {
   display: inline-block; margin-left: .35rem; padding: 0 .3rem;
-  font: 600 .7rem/1.5 "Barlow Condensed", sans-serif; letter-spacing: .06em;
+  font: var(--t-micro); letter-spacing: .06em;
   border: 1px solid var(--rb); border-radius: 3px; color: var(--rb);
   background: rgba(255, 255, 255, .04);
 }
@@ -288,3 +311,41 @@ tr.mine td:nth-child(3) { text-decoration: none; }
    el.hidden was true, i.e. the trade page opened showing an empty partner
    dropdown and two empty asset columns before a league was ever loaded. */
 [hidden] { display: none !important; }
+
+/* -- keeper panel ------------------------------------------------------ */
+.keeper-panel {
+  background: var(--sunken); border: 1px solid var(--rule);
+  padding: var(--s3) var(--s4); margin: var(--s4) 0;
+}
+.keeper-panel > summary {
+  font: var(--t-label); letter-spacing: .13em; text-transform: uppercase;
+  color: var(--chalk-dim); cursor: pointer;
+}
+.keeper-panel > summary::marker { color: var(--rule); }
+.keeper-help, .keeper-depletion {
+  font: 400 .8rem/1.5 "Source Sans 3", system-ui, sans-serif;
+  color: var(--chalk-dim); margin: var(--s2) 0 0;
+}
+.keeper-load, .keeper-add { display: flex; gap: var(--s2); margin-top: var(--s3); flex-wrap: wrap; }
+.keeper-load input, .keeper-add input, .keeper-load select, .keeper-add select {
+  background: var(--board); color: var(--chalk);
+  border: 1px solid var(--rule); padding: var(--s1) var(--s2);
+  font: var(--t-num);
+}
+.keeper-load button, .keeper-add button {
+  background: var(--board-raised); color: var(--chalk);
+  border: 1px solid var(--rule); padding: var(--s1) var(--s3);
+  font: var(--t-label); letter-spacing: .1em; text-transform: uppercase;
+  cursor: pointer;
+}
+.keeper-load button:hover, .keeper-add button:hover { border-color: var(--chalk-dim); }
+/* These print CHANGING values (keepers.js:274,278) in the proportional body
+   font, so their digits reflow as numbers update. This is the one surface on
+   the site that genuinely needed tabular figures -- the board and weekly
+   tables already declare them (style.css `td.num, th.num`). */
+.keeper-rec, .keeper-out {
+  font: var(--t-num); font-variant-numeric: tabular-nums;
+  display: block; padding: var(--s1) 0;
+}
+.keeper-rec { color: var(--rb); }
+.keeper-out { color: var(--chalk-dim); }
