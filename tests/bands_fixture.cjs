@@ -47,6 +47,20 @@ check("the ridge touches exactly the three known points", () => {
   assert.ok(!/[CSQTA]/.test(g.path), "path must be piecewise-linear: no curves");
 });
 
+// The apex must sit at the MEDIAN, not at the midpoint of the band. The
+// symmetric check above cannot tell those apart -- with lo=.25 and hi=.75 the
+// midpoint IS the median -- so a mutation moving the apex to (lo+hi)/2 passes
+// it unchanged. These quantiles are deliberately lopsided: median at .375 of
+// the domain against a band midpoint of .625.
+check("the ridge apex sits at the median, not the band midpoint", () => {
+  const g = B.quantileGeometry(100, 150, 400, { min: 0, max: 400 });
+  const apexX = Number(g.path.split(" L ")[1].split(" ")[0]);
+  const midX = ((g.lo + g.hi) / 2) * 100;
+  near(apexX, g.med * 100);
+  assert.ok(Math.abs(apexX - midX) > 20,
+    `apex ${apexX} must be far from band midpoint ${midX}`);
+});
+
 check("zero-width band renders a tick and no fill", () => {
   const g = B.quantileGeometry(200, 200, 200, D);
   near(g.width, 0);
@@ -96,6 +110,13 @@ check("boardDomain pins to the league lens, ignoring other lenses", () => {
     { season_points: { league: { p90: 250 }, ppr: { p90: 998 },
                        half_ppr: { p90: 20 } } },
   ];
+  assert.strictEqual(B.boardDomain(players).max, 300);
+});
+
+// `league` deliberately NOT first: object insertion order must not be what
+// makes this pass, or the RULER_LENSES pinning could be silently dropped.
+check("boardDomain pins to league even when ppr is listed first", () => {
+  const players = [{ season_points: { ppr: { p90: 999 }, league: { p90: 300 } } }];
   assert.strictEqual(B.boardDomain(players).max, 300);
 });
 
