@@ -104,6 +104,7 @@ sampled from historical availability, weeks linked by a measured correlation;
 the tick is the simulated median, and VORP is built from that same median.
 When your tier empties, don't chase. Rookies (marked R) carry draft-capital
 cohort priors — wide bands on purpose; see the about page.</footer>
+<script src="assets/bands.js"></script>
 <script src="assets/app.js"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/optimizer.js"></script>
@@ -124,15 +125,46 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   const isDrafted = p => !!(draftState && p.sleeper_id && draftState.drafted.has(p.sleeper_id));
   const isMine = p => !!(draftState && p.sleeper_id && draftState.mine.has(p.sleeper_id));
 
-  // Bars are pinned to ONE lens's p90 ceiling on purpose: a stable ruler across
-  // scoring toggles, so bars don't rescale when you switch format. Pinned to the
-  // default lens so the bars and the ranking agree on arrival.
-  const RULER = board.players[0].season_points.league ? "league" : "ppr";
-  const maxCeil = Math.max(...board.players.map(p =>
-    p.season_points[RULER].p90 ?? p.season_points[RULER].p50));
+  // The ruler is pinned to one lens and shared across every row -- both
+  // properties now live in bands.js where the fixture can see them.
+  const domain = Bands.boardDomain(board.players);
 
   const table = document.getElementById("board");
   const tbody = document.querySelector("#board tbody");
+
+  const POS_COLOR = { QB: "--qb", RB: "--rb", WR: "--wr", TE: "--te" };
+
+  function bandCell(sp, position) {
+    const g = Bands.quantileGeometry(sp.p10, sp.p50, sp.p90, domain);
+    const wrap = document.createElement("div");
+    wrap.className = "band";
+    const pct = x => `${(x * 100).toFixed(3)}%`;
+
+    if (g.ok) {
+      const fill = document.createElement("div");
+      fill.className = "fill";
+      fill.style.left = pct(g.lo);
+      fill.style.width = pct(g.width);
+      fill.style.background = `var(${POS_COLOR[position] || "--chalk"})`;
+      wrap.appendChild(fill);
+
+      const lo = document.createElement("span");
+      lo.className = "edge lo";
+      lo.textContent = FC.fmt(sp.p10, 0);
+      const hi = document.createElement("span");
+      hi.className = "edge hi";
+      hi.textContent = FC.fmt(sp.p90, 0);
+      wrap.append(lo, hi);
+    }
+    if (g.med !== null) {
+      const tick = document.createElement("div");
+      tick.className = "tick" + (g.medianOutside ? " outside" : "");
+      tick.style.left = pct(g.med);
+      wrap.appendChild(tick);
+    }
+    return wrap;
+  }
+
   function render(data) {
     tbody.innerHTML = "";
     let lastTier = null;
@@ -163,7 +195,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
         <td class="num">${p.position_rank}</td>
         <td class="num">${p.ecr == null ? "—" : p.ecr.toFixed(1)}</td>
         <td class="num" title="${p.adp == null ? "no ADP" : "avg overall pick " + p.adp.toFixed(1)}">${p.adp == null ? "—" : p.adp.toFixed(1) + " · R" + p.adp_round}</td>`;
-      tr.children[6].appendChild(FC.bandBar(s.p10, s.p50, s.p90, maxCeil, p.position));
+      tr.children[6].appendChild(bandCell(s, p.position));
       if (isDrafted(p)) tr.classList.add("drafted");
       if (isMine(p)) tr.classList.add("mine");
       tbody.appendChild(tr);
