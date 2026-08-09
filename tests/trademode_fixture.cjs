@@ -234,36 +234,79 @@ acheck("team names come from the team name, then the display name, then the id",
 
 // --- keptElsewhere ----------------------------------------------------------
 
+// Both groups below give the non-excluded team THREE players on a DEPLETED
+// current-season complement (2026 R1-R8 traded away, R9-R15 held), not one --
+// a one-player roster keeps that player for any pick list at all, which is
+// the seventh instance on this branch of a fixture that cannot fail
+// regardless of what the code under test does (see final-fixes-wave7.md item
+// 3). Anchor (cost R10) is kept on both complements; the second slot is a
+// genuine decision the pick list resolves: Decoy (cost R3, value 160) beats
+// Never (cost R14, value 40) on a full complement, where his cost round costs
+// only a mid-round pick -- but on the depleted one, his cost round has been
+// traded away, so `unspentPicks` charges him the team's single dearest
+// remaining pick (R9) instead, and that premium flips the decision to Never.
+// Confirmed by direct computation before being pinned here, and by mutation:
+// reverting trademode.js:226 to score a complement that ignores the traded
+// picks keeps Decoy on BOTH worlds, same as the pre-fix code did.
 acheck("keptElsewhere holds every OTHER team's keepers and neither trader's", async () => {
   const b = board();
-  const mineP = b.players[0], theirP = b.players[1], otherP = b.players[2];
+  const mineP = b.players[0], theirP = b.players[1];
+  const anchor = P("Anchor", "RB", 200), decoy = P("Decoy", "WR", 160), never = P("Never", "TE", 40);
+  b.players.push(anchor, decoy, never);
   const lg = league({ prev: "L0",
-    rosters: teamsOf([1, 2, 3],
-      [[mineP.sleeper_id], [theirP.sleeper_id], [otherP.sleeper_id]]),
-    // All three drafted in R12 last season -> cost R11, comfortably keepable.
-    drafted: [mineP, theirP, otherP].map(p => ({ player_id: p.sleeper_id, round: 12 })) });
+    rosters: teamsOf([1, 2, 3, 4],
+      [[mineP.sleeper_id], [theirP.sleeper_id],
+       [anchor.sleeper_id, decoy.sleeper_id, never.sleeper_id], []]),
+    drafted: [
+      { player_id: mineP.sleeper_id, round: 12 },
+      { player_id: theirP.sleeper_id, round: 12 },
+      { player_id: anchor.sleeper_id, round: 11 },   // cost R10
+      { player_id: decoy.sleeper_id, round: 4 },     // cost R3 -- in the traded-away range
+      { player_id: never.sleeper_id, round: 15 },    // cost R14 -- untouched by the trade
+    ],
+    // Team 3's 2026 R1-R8 move to team 4, leaving it R9-R15 only this season.
+    traded: Array.from({ length: 8 }, (_, i) =>
+      ({ season: "2026", round: i + 1, roster_id: 3, owner_id: 4 })) });
   const w = await TM.leagueWorld(lg, b);
 
   const gone = TM.keptElsewhere(w.teams, w.ctx, [1, 2]);
-  assert.ok(gone.has(otherP.player_id), "team 3 keeps its man, so he leaves the pool");
+  assert.ok(gone.has(anchor.player_id), "team 3 keeps its anchor regardless of the complement");
+  assert.ok(gone.has(never.player_id) && !gone.has(decoy.player_id),
+    "on the depleted complement Decoy's early cost round eats the team's best " +
+    "remaining pick and loses to the nearly-free Never -- this is the decision " +
+    "trademode.js:226 must make against the picks the state ACTUALLY holds");
   assert.ok(!gone.has(mineP.player_id), "my keepers are derived inside the trade");
   assert.ok(!gone.has(theirP.player_id), "so are the partner's");
   // ...and it really is a function of the exclusion list, i.e. it MUST be
   // recomputed when the partner changes.
   const swapped = TM.keptElsewhere(w.teams, w.ctx, [1, 3]);
-  assert.ok(swapped.has(theirP.player_id) && !swapped.has(otherP.player_id),
+  assert.ok(swapped.has(theirP.player_id) && !swapped.has(anchor.player_id)
+    && !swapped.has(decoy.player_id) && !swapped.has(never.player_id),
     "changing the partner changes who is off the pool");
 });
 
 acheck("keptElsewhere does not depend on what ctx.keptElsewhere already held", async () => {
   const b = board();
-  const p1 = b.players[0], p2 = b.players[1];
+  const p1 = b.players[0];
+  const anchor = P("Anchor", "RB", 200), decoy = P("Decoy", "WR", 160), never = P("Never", "TE", 40);
+  b.players.push(anchor, decoy, never);
   const lg = league({ prev: "L0",
-    rosters: teamsOf([1, 2], [[p1.sleeper_id], [p2.sleeper_id]]),
-    drafted: [p1, p2].map(p => ({ player_id: p.sleeper_id, round: 12 })) });
+    rosters: teamsOf([1, 2, 3],
+      [[p1.sleeper_id], [anchor.sleeper_id, decoy.sleeper_id, never.sleeper_id], []]),
+    drafted: [
+      { player_id: p1.sleeper_id, round: 12 },
+      { player_id: anchor.sleeper_id, round: 11 },
+      { player_id: decoy.sleeper_id, round: 4 },
+      { player_id: never.sleeper_id, round: 15 },
+    ],
+    traded: Array.from({ length: 8 }, (_, i) =>
+      ({ season: "2026", round: i + 1, roster_id: 2, owner_id: 3 })) });
   const w = await TM.leagueWorld(lg, b);
   const clean = TM.keptElsewhere(w.teams, w.ctx, [1]);
-  w.ctx.keptElsewhere = new Set([p2.player_id]);
+  // Pinned, not just "unchanged" -- otherwise this measures idempotence in a
+  // value nobody checked, the same defect as the one-player version.
+  assert.deepStrictEqual(Array.from(clean).sort(), [anchor.player_id, never.player_id].sort());
+  w.ctx.keptElsewhere = new Set([decoy.player_id]);
   const after = TM.keptElsewhere(w.teams, w.ctx, [1]);
   assert.deepStrictEqual(Array.from(after).sort(), Array.from(clean).sort());
 });
