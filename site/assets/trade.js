@@ -695,61 +695,108 @@
     picks: list.filter(a => a.player_id === undefined),
   });
 
-  // Two-team trades only. The additive prefilter is a SEARCH heuristic and its
+  // THE CHEAP HALF. The additive prefilter is a SEARCH heuristic and its
   // numbers are never shown: it exists so the honest lineup objective only has
   // to run on plausible packages, the same topCandidates -> finishRoster
   // pattern the draft optimizer uses.
-  function suggestTrades(me, others, ctx, opts = {}) {
+  //
+  // Split out from suggestTrades so a caller can drive the EXPENSIVE half
+  // (scoreCandidate, one honest gradeTrade apiece at ~0.55-0.8 s) one candidate
+  // at a time, yielding the main thread between them -- see trademode.js's
+  // batched scorer. This function returns exactly the list the old inline loop
+  // consumed: already sorted least-overpay-first, already truncated to perTeam.
+  // Array#sort is stable in V8 and in the spec since ES2019, so the order is
+  // the same order the single-call version produced.
+  function suggestCandidates(me, them, ctx, opts = {}) {
+    requireCtx(ctx);
+    const perTeam = opts.perTeam != null ? opts.perTeam : SUGGEST_PER_TEAM;
+    const { mine, theirs } = offerable(me, them, ctx);
+    if (!mine.length || !theirs.length) return [];
+    const cands = [];
+    for (const give of packages(mine, MAX_PER_SIDE)) {
+      for (const get of packages(theirs, MAX_PER_SIDE)) {
+        const toThem = split(give), toMe = split(get);
+        // Prefilter: keep packages that look fair-or-generous to them, since
+        // anything else will simply be declined.
+        const md = marketDelta(toThem, toMe, ctx);
+        if (md < 0) continue;
+        cands.push({ toMe, toThem, md });
+      }
+    }
+    cands.sort((a, b) => a.md - b.md);        // least overpay first
+    return cands.slice(0, perTeam);
+  }
+
+  // The "before" half of every candidate's grade, memoized per (me, them, ctx).
+  //
+  // PERFORMANCE, and EXACT rather than approximate -- it is the identical pure
+  // computation gradeTrade would otherwise redo from scratch for every
+  // candidate. Measured on the live 695-row board with a realistic 12-team
+  // setup: suggestTrades cost 144.25s as gradeTrade gives it
+  // (SUGGEST_PER_TEAM=40 x 11 opponents honest gradeTrade calls), 14x the
+  // plan's ~10s budget. gradeTrade recomputes, on EVERY one of those calls,
+  // `poolB = draftPool(ctx, before.me, before.them)` and `stateValue(before.me,
+  // poolB, ctx)` / `stateValue(before.them, poolB, ctx)` -- but
+  // before.me/before.them are `me`/`them`, fixed for the whole opponent, for
+  // every one of the (up to perTeam) candidates scored. Only `moves` (and
+  // therefore `after`/`poolA`) varies per candidate.
+  //
+  // This used to be three plain hoisted locals inside suggestTrades' loop. It
+  // became a memo when the scoring loop moved out to the caller: a standalone
+  // scoreCandidate has nowhere to hoist to, and recomputing the before half per
+  // candidate would have doubled the runtime the split exists to make bearable.
+  // Keyed the way chooseKeepers' memo is -- on ctx, plus a generation signature
+  // over every field the answer depends on -- because trademode.js REASSIGNS
+  // ctx.keptElsewhere on every partner change and ctx.futureDiscount on every
+  // discount edit, on the same ctx object. futureDiscount IS in this signature
+  // (unlike the keeper memo's), because stateValue prices future picks with it.
+  const beforeCache = new WeakMap();
+  const beforeSig = (me, them, ctx) => [me, them, ctx.season, ctx.board,
+    ctx.originalByPlayerId, ctx.keptElsewhere, ctx.teams, ctx.maxKeepers,
+    ctx.rounds, ctx.futureDiscount];
+  function tradeBefore(me, them, ctx) {
+    const sig = beforeSig(me, them, ctx);
+    let e = beforeCache.get(ctx);
+    if (!e || e.sig.some((v, i) => v !== sig[i])) {
+      const poolB = draftPool(ctx, me, them);
+      e = { sig, myValue: stateValue(me, poolB, ctx),
+            themValue: stateValue(them, poolB, ctx) };
+      beforeCache.set(ctx, e);
+    }
+    return e;
+  }
+
+  // THE EXPENSIVE HALF: one honest gradeTrade for one candidate, returning null
+  // when it fails either bar -- exactly what the old inline loop body did with
+  // `continue`. `cand.md` is reused rather than recomputed: the prefilter
+  // already called marketDelta(toThem, toMe, ctx) once for this candidate, and
+  // gradeTrade would make the identical call a second time.
+  function scoreCandidate(me, them, cand, ctx, opts = {}) {
     requireCtx(ctx);
     const minGain = opts.minGain != null ? opts.minGain : MIN_GAIN;
-    const perTeam = opts.perTeam != null ? opts.perTeam : SUGGEST_PER_TEAM;
+    const before = tradeBefore(me, them, ctx);
+    const after = applyTrade(me, them, cand.toMe, cand.toThem);
+    const poolA = draftPool(ctx, after.me, after.them);
+    const myGain = stateValue(after.me, poolA, ctx) - before.myValue;
+    const theirGain = stateValue(after.them, poolA, ctx) - before.themValue;
+    if (myGain < minGain || cand.md < 0) return null;
+    return { toMe: cand.toMe, toThem: cand.toThem,
+             myGain, theirGain, marketDelta: cand.md };
+  }
+
+  // Two-team trades only. A thin wrapper over the two halves above, with the
+  // signature and return value it has always had -- for the node fixture and
+  // for any caller that does not need to yield. Proven byte-identical to the
+  // single-function version on the live board, all eleven opponents (see
+  // final-fixes-wave3-report.md).
+  function suggestTrades(me, others, ctx, opts = {}) {
+    requireCtx(ctx);
     const out = [];
     for (const other of others) {
       const them = other.state;
-      const { mine, theirs } = offerable(me, them, ctx);
-      if (!mine.length || !theirs.length) continue;
-      const cands = [];
-      for (const give of packages(mine, MAX_PER_SIDE)) {
-        for (const get of packages(theirs, MAX_PER_SIDE)) {
-          const toThem = split(give), toMe = split(get);
-          // Prefilter: keep packages that look fair-or-generous to them, since
-          // anything else will simply be declined.
-          const md = marketDelta(toThem, toMe, ctx);
-          if (md < 0) continue;
-          cands.push({ toMe, toThem, md });
-        }
-      }
-      cands.sort((a, b) => a.md - b.md);        // least overpay first
-      // PERFORMANCE: hoisted out of the per-candidate loop below, not part of
-      // the brief's given code. Measured on the live 695-row board with a
-      // realistic 12-team setup: suggestTrades cost 144.25s as gradeTrade
-      // gives it (SUGGEST_PER_TEAM=40 x 11 opponents honest gradeTrade calls),
-      // 14x the plan's ~10s budget. gradeTrade recomputes, on EVERY one of
-      // those calls, `poolB = draftPool(ctx, before.me, before.them)` and
-      // `stateValue(before.me, poolB, ctx)` / `stateValue(before.them, poolB,
-      // ctx)` -- but before.me/before.them are `me`/`them`, fixed for this
-      // whole opponent, for every one of the (up to perTeam) candidates
-      // scored below. Only `moves` (and therefore `after`/`poolA`) varies per
-      // candidate. Computing the "before" half once per opponent instead of
-      // once per candidate is EXACT, not approximate: it is the identical
-      // pure computation gradeTrade would otherwise redo from scratch each
-      // time, proven byte-identical against calling gradeTrade in a loop, on
-      // the same live-board input, before this change shipped (see the task
-      // report). `c.md` is reused the same way immediately below --
-      // `marketDelta(toThem, toMe, ctx)` was already computed once per
-      // candidate by the prefilter above; gradeTrade would have computed the
-      // exact same call a second time.
-      const poolB = draftPool(ctx, me, them);
-      const beforeMe = stateValue(me, poolB, ctx);
-      const beforeThem = stateValue(them, poolB, ctx);
-      for (const c of cands.slice(0, perTeam)) {
-        const after = applyTrade(me, them, c.toMe, c.toThem);
-        const poolA = draftPool(ctx, after.me, after.them);
-        const myGain = stateValue(after.me, poolA, ctx) - beforeMe;
-        const theirGain = stateValue(after.them, poolA, ctx) - beforeThem;
-        if (myGain < minGain || c.md < 0) continue;
-        out.push({ teamId: other.teamId, toMe: c.toMe, toThem: c.toThem,
-                   myGain, theirGain, marketDelta: c.md });
+      for (const c of suggestCandidates(me, them, ctx, opts)) {
+        const s = scoreCandidate(me, them, c, ctx, opts);
+        if (s) out.push(Object.assign({ teamId: other.teamId }, s));
       }
     }
     out.sort((a, b) => b.myGain - a.myGain);
@@ -759,6 +806,7 @@
   return { defaultPicks, applyTradedPicks, candidate, chooseKeepers,
            draftPool, currentDraftValue, boardRank,
            futurePicksValue, stateValue, marketValue, marketDelta,
-           applyTrade, gradeTrade, offerable, suggestTrades,
+           applyTrade, gradeTrade, offerable,
+           suggestCandidates, scoreCandidate, suggestTrades,
            MIN_GAIN, SUGGEST_PER_TEAM, FUTURE_DISCOUNT, MAX_PER_SIDE };
 });

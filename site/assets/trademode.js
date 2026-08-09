@@ -50,7 +50,7 @@
 
   // How many seasons of draft picks are tradeable. Sleeper keeps picks further
   // out than that; three seasons is already ~45 pick-assets per team, which is
-  // what sets the suggester's runtime (see SUGGEST_SECONDS).
+  // what sets the suggester's runtime (see PREFILTER_SECONDS below).
   const PICK_SEASONS_AHEAD = 2;
   // Below this a market value is not a price, it is the absence of one. See
   // Trade.marketValue's comment: parVorp clamps to 0 at or below positional
@@ -58,11 +58,30 @@
   // 9 down, so `.toFixed(1)` would render "0.0" as if it were a valuation.
   const MARKET_EPS = 0.05;
   const SUGGEST_SHOW = 10;
-  // Measured on the live 695-player board, single opponent, three differently
-  // shaped rosters: 7.19s, 8.24s, 8.42s. Stated so the frozen page is expected
-  // rather than alarming. Not a progress bar: there is no honest fraction to
-  // report from inside suggestTrades.
-  const SUGGEST_SECONDS = 8;
+  // The search has TWO phases that behave completely differently, so the single
+  // "about 8 seconds" this replaces was both stale (4.4x understated after wave
+  // 2) and the wrong shape. Everything below is measured on the live 695-player
+  // board, 15-man rosters, all eleven opponents -- see
+  // .superpowers/sdd/final-fixes-wave3-report.md.
+  //
+  //   PREFILTER -- Trade.suggestCandidates: one stateValue per player on either
+  //   roster. It is NOT interruptible, so this half really does freeze the
+  //   page: 5.7-6.7 s under node, median 6.2 s; 6.2 s observed in Chrome. That
+  //   is what PREFILTER_SECONDS states, and it is the ONLY freeze left.
+  //
+  //   SCORING -- Trade.scoreCandidate, one honest grade apiece: 347-631 ms
+  //   under node, median 443 ms, x SUGGEST_PER_TEAM (40) candidates, i.e.
+  //   14-20 s more. The scorer runs ONE per turn of the event loop and renders
+  //   each surviving offer as it is found, so this half is neither a freeze nor
+  //   a progress bar with an invented fraction: the panel reports scored-so-far
+  //   out of a total that is known exactly, and Stop keeps what has been found.
+  //   Time to the FIRST rendered offer, on the six opponents that produce any
+  //   at all: 7.8, 14.3, 17.0, 17.0, 17.0, 18.0 s under node. Chrome runs the
+  //   same work about a quarter faster throughout -- the one run driven end to
+  //   end in the browser took 5.7 s to its first offer and 18.5 s in total
+  //   against node's 7.8 s and 26.2 s for the same opponent -- so every node
+  //   figure here is the pessimistic one.
+  const PREFILTER_SECONDS = 6;
 
   // ---------------------------------------------------------------------------
   // Assembly: the one non-trivial pure-ish step, exported for the fixture.
@@ -162,6 +181,37 @@
     return { teams, ctx, warnings };
   }
 
+  // The ctx `keptElsewhere` derives its answers against, HOISTED into a memo
+  // keyed on the real ctx. Not a micro-optimisation: Trade.chooseKeepers caches
+  // per ctx OBJECT and per ctx.keptElsewhere IDENTITY, so building
+  // `Object.assign({}, ctx, {keptElsewhere: new Set()})` fresh on every call --
+  // two new objects each time -- guaranteed a cold cache on every partner
+  // change, and every change paid the full 10-team selection (measured: 1.85 s,
+  // 1.71 s, 1.77 s, 1.79 s, 1.71 s for five successive changes). With the base
+  // hoisted, only the newly-uninvolved team is a miss.
+  //
+  // The empty `keptElsewhere` is REBUILT ONLY when a field the keeper choice
+  // depends on changes, so its identity is stable and the memo survives -- but
+  // it is still an empty Set that is never read from ctx, which is what keeps
+  // the documented promise that this function's result cannot depend on what
+  // ctx.keptElsewhere happened to hold (the fixture asserts exactly that).
+  // futureDiscount is copied across on every call instead of invalidating,
+  // because it is not in the keeper memo's signature -- it prices only future
+  // picks, which never reach a keeper decision.
+  const baseCtxCache = new WeakMap();
+  function keptElsewhereCtx(ctx) {
+    let base = baseCtxCache.get(ctx);
+    if (!base || base.season !== ctx.season || base.board !== ctx.board
+        || base.originalByPlayerId !== ctx.originalByPlayerId
+        || base.teams !== ctx.teams || base.maxKeepers !== ctx.maxKeepers
+        || base.rounds !== ctx.rounds) {
+      base = Object.assign({}, ctx, { keptElsewhere: new Set() });
+      baseCtxCache.set(ctx, base);
+    }
+    base.futureDiscount = ctx.futureDiscount;
+    return base;
+  }
+
   // Every player the OTHER teams -- the ones not in this trade -- would keep,
   // and so take off the draft pool. Recomputed whenever the partner changes,
   // because the partner's keepers are derived inside the trade, not here.
@@ -169,7 +219,7 @@
   // the result never depends on what happened to be in ctx when it was called.
   function keptElsewhere(teams, ctx, exclude) {
     const skip = new Set(exclude || []);
-    const base = Object.assign({}, ctx, { keptElsewhere: new Set() });
+    const base = keptElsewhereCtx(ctx);
     const gone = new Set();
     for (const t of teams) {
       if (skip.has(t.rosterId)) continue;
@@ -328,6 +378,11 @@
       return;
     }
     if (v === world.ctx.futureDiscount) { setNote(""); return; }
+    // Supersede any scoring in flight BEFORE ctx changes under it: the
+    // candidates it is working through were prefiltered at the old discount,
+    // and its next turn would grade them at the new one and render the mix as
+    // if it were one answer.
+    cancelSuggest();
     world.ctx.futureDiscount = v;
     setNote("");
     staleSuggestions("the future-pick discount changed");
@@ -337,6 +392,9 @@
   }
 
   function onPartnerChange() {
+    // Same reason as onDiscount: a run in flight is scoring the OLD partner's
+    // packages, and both `partner` and ctx.keptElsewhere are about to move.
+    cancelSuggest();
     partner = world.teams.find(t => String(t.rosterId) === els.partner.value)
       || world.teams.find(t => t.rosterId !== me.rosterId);
     if (!partner) { setStatus("this league has only one team — nobody to trade with"); return; }
@@ -460,8 +518,12 @@
         + `row is worth nothing to trade and says why.</p>`;
       return;
     }
-    // ~0.3s of maths per grade on the live board, and the picked highlight has
-    // not painted yet at this point, so hand the frame back first.
+    // ~0.4 s of maths per grade, measured in Chrome on the live board -- 0.67 s
+    // for the first grade after a partner change, whose keeper memo is cold
+    // (0.54 s / 0.86 s for the same two under node). The "~0.3s" this replaces
+    // predates wave 2's exact keeper selection and was measured against the
+    // delegating one. The picked highlight has not painted yet at this point,
+    // so hand the frame back first.
     const seq = ++gradeSeq;
     els.grade.innerHTML = `<p class="draft-blocked">grading…</p>`;
     setTimeout(() => {
@@ -516,37 +578,116 @@
     els.suggestions.hidden = false;
   }
 
+  // The run in flight, or null. `seq` is a generation token in the same shape
+  // as loadSeq/gradeSeq: pressing Suggest again, changing partner or editing
+  // the discount supersedes a run, and the superseded run's next turn simply
+  // returns instead of writing into a panel that has moved on.
+  let suggestSeq = 0, run = null;
+
+  // Ends the run WITHOUT rendering: the button goes back to being pressable and
+  // `run` stops existing, which is also what removes the progress line and the
+  // Stop control from the next render.
+  function endRun() {
+    if (!run) return;
+    els.suggest.disabled = false;
+    els.suggest.textContent = run.label;
+    run = null;
+  }
+  // Anything that invalidates the numbers a run is producing must supersede it,
+  // or its next turn will score the OLD partner's candidates against the NEW
+  // ctx and render the result as if it were current.
+  function cancelSuggest() {
+    if (!run) return;
+    suggestSeq++;
+    endRun();
+  }
+
   function suggest() {
     if (!world || !partner) return;
+    const seq = ++suggestSeq;
+    endRun();
+    run = { seq, label: els.suggest.textContent, cands: null, i: 0, stopped: false };
     els.suggest.disabled = true;
-    const label = els.suggest.textContent;
     els.suggest.textContent = "Searching…";
-    setStatus(`scoring trades with ${partner.name} — about ${SUGGEST_SECONDS} seconds…`);
+    lastSuggestions = [];
+    setStatus(`searching for trades with ${partner.name}…`);
     els.suggestions.hidden = false;
-    els.suggestions.innerHTML = `<p class="draft-blocked">Scoring every 1-for-1, `
-      + `2-for-1 and 2-for-2 worth trying with ${esc(partner.name)}. The page is `
-      + `frozen while it runs — about ${SUGGEST_SECONDS} seconds.</p>`;
-    // setTimeout so the disabled button and that label actually paint before
-    // the main thread is taken for ~8s.
+    els.suggestions.innerHTML = `<p class="draft-blocked">Looking for the `
+      + `1-for-1, 2-for-1 and 2-for-2 packages worth scoring with `
+      + `${esc(partner.name)}. This first step values every player on both `
+      + `rosters and cannot be interrupted — about ${PREFILTER_SECONDS} seconds, `
+      + `and the page really is frozen for them. Scoring afterwards is not: `
+      + `offers appear as they are found, and you can stop at any point.</p>`;
+    // setTimeout so the disabled button, its label and that message actually
+    // paint before the prefilter takes the thread.
     setTimeout(() => {
+      if (!run || run.seq !== seq) return;
       try {
-        // ONE opponent, not all eleven: measured, all eleven takes 78s against
-        // a ~3s budget, and the search is quadratic in assets per side. The
-        // partner dropdown is the natural unit of work and this loses nothing
-        // for the team actually being considered.
-        lastSuggestions = Trade.suggestTrades(
-          me.state, [{ teamId: partner.rosterId, state: partner.state }], world.ctx);
-        renderSuggestions();
-        setStatus(`${lastSuggestions.length} offer(s) cleared both bars with ${partner.name}`);
-      } catch (e) {
-        els.suggestions.innerHTML = `<p class="draft-blocked">search failed: ${esc(e.message)}</p>`;
-        setStatus(`search failed: ${e.message}`);
-        throw e;
-      } finally {
-        els.suggest.disabled = false;
-        els.suggest.textContent = label;
-      }
+        run.cands = Trade.suggestCandidates(me.state, partner.state, world.ctx);
+      } catch (e) { failRun(e); throw e; }
+      renderSuggestions();
+      step(seq);
     }, 0);
+  }
+
+  // ONE candidate per turn, and that is the largest honest batch rather than a
+  // timid one: a single honest grade is ~0.45 s (measured 347-631 ms), so a
+  // batch of two doubles the longest stretch the page is unavailable -- and
+  // that stretch is already the whole budget. It is also the SMALLEST unit of
+  // work that exists here: scoreCandidate cannot be subdivided
+  // without changing what it computes. setTimeout(0) rather than a tighter
+  // yield for the same reason: at that much work per turn the ~4 ms clamp is
+  // noise, and it is the same scheduling primitive renderGrade already uses.
+  function step(seq) {
+    if (!run || run.seq !== seq) return;
+    if (run.stopped || run.i >= run.cands.length) { finishRun(); return; }
+    let s = null;
+    try {
+      s = Trade.scoreCandidate(me.state, partner.state, run.cands[run.i], world.ctx);
+    } catch (e) { failRun(e); throw e; }
+    run.i++;
+    if (s) {
+      lastSuggestions.push(Object.assign({ teamId: partner.rosterId }, s));
+      // Best-first at every moment, not only at the end -- the prefilter's
+      // least-overpay-first order is NOT most-gain-first, so a late candidate
+      // can outrank everything already on screen. Same comparator
+      // Trade.suggestTrades finishes with.
+      lastSuggestions.sort((a, b) => b.myGain - a.myGain);
+      renderSuggestions();
+    } else if (!renderProgress()) {
+      // No new offer: update the counter in place, which leaves the Stop
+      // button and any keyboard focus on it alone. Only if the line is not
+      // there (the very first turn) does the whole panel get rebuilt.
+      renderSuggestions();
+    }
+    setTimeout(() => step(seq), 0);
+  }
+
+  function failRun(e) {
+    els.suggestions.innerHTML = `<p class="draft-blocked">search failed: ${esc(e.message)}</p>`;
+    setStatus(`search failed: ${e.message}`);
+    endRun();
+  }
+
+  function finishRun() {
+    const stopped = run.stopped, scored = run.i, total = run.cands.length;
+    endRun();                       // before the render, so no progress line
+    renderSuggestions();
+    setStatus(`${lastSuggestions.length} offer(s) cleared both bars with ${partner.name}`
+      + (stopped ? ` — stopped after ${scored} of ${total} package(s)` : ""));
+  }
+
+  // Honest progress: what has actually been scored, out of a total that is
+  // known exactly, and how many offers survived so far. Not a percentage of
+  // anything, and not an ETA.
+  const progressText = () => `scored ${run.i} of ${run.cands.length} package(s)`
+    + ` · ${lastSuggestions.length} offer(s) so far`;
+
+  function renderProgress() {
+    const el = run && run.cands ? document.getElementById("trade-progress") : null;
+    if (!el) return false;
+    el.textContent = progressText();
+    return true;
   }
 
   function renderSuggestions() {
@@ -554,11 +695,20 @@
     const hide = els.hideGenerous.checked;
     const shown = (hide ? raw.filter(s => !(s.theirGain > s.myGain)) : raw)
       .slice(0, SUGGEST_SHOW);
+    const running = !!(run && run.cands);
+    const head = running
+      ? `<p class="draft-blocked"><span id="trade-progress">${esc(progressText())}</span>`
+        + ` <button type="button" class="trade-stop">Stop</button></p>`
+      : "";
     els.suggestions.hidden = false;
     if (!shown.length) {
       // An empty list must say WHICH bar nothing cleared, or it is
-      // indistinguishable from a broken panel.
-      const why = raw.length
+      // indistinguishable from a broken panel. While a run is still going,
+      // "nothing cleared the bars" would be a claim about packages that have
+      // not been scored yet, so it says what is actually true instead.
+      const why = running
+        ? `Nothing has cleared both bars yet — offers appear here as they are found.`
+        : raw.length
         ? `All ${raw.length} offer(s) that work help ${esc(partner.name)} more than they `
           + `help you. Untick “hide trades that help them more” to see them — a trade `
           + `they gain more from is still one you gain from.`
@@ -568,10 +718,12 @@
           + `sought, only players you can spare are offered, and keeper-ineligible `
           + `players are excluded from both sides because they return to the draft `
           + `pool for everybody.`;
-      els.suggestions.innerHTML = `<p class="draft-blocked">${why}</p>`;
+      els.suggestions.innerHTML = head + `<p class="draft-blocked">${why}</p>`;
+      bindSuggestionButtons(shown);
       return;
     }
-    els.suggestions.innerHTML = `<strong>Best offers to ${esc(partner.name)}</strong>`
+    els.suggestions.innerHTML = head
+      + `<strong>Best offers to ${esc(partner.name)}</strong>`
       + `<ol class="trade-suggestions">`
       + shown.map((s, i) => {
         const give = listOf(s.toThem) || "nothing";
@@ -585,7 +737,16 @@
       }).join("")
       + `</ol><p class="draft-basis">Scored against ${esc(partner.name)} only — the `
       + `search is quadratic in assets per side, so all eleven opponents at once takes `
-      + `78 seconds. Pick another team above and search again.</p>`;
+      + `about four minutes. Pick another team above and search again.</p>`;
+    bindSuggestionButtons(shown);
+  }
+
+  function bindSuggestionButtons(shown) {
+    const stop = els.suggestions.querySelector(".trade-stop");
+    // Stop ENDS the scoring and keeps what was found: the flag is read at the
+    // top of the next turn, so the grade already in flight finishes rather
+    // than being thrown away half-computed.
+    if (stop) stop.addEventListener("click", () => { if (run) run.stopped = true; });
     els.suggestions.querySelectorAll(".trade-load").forEach(b => {
       b.addEventListener("click", () => loadOffer(shown[Number(b.dataset.i)]));
     });
@@ -626,8 +787,9 @@
     els.load.addEventListener("click", load);
     els.user.addEventListener("keydown", e => { if (e.key === "Enter") load(); });
     els.partner.addEventListener("change", onPartnerChange);
-    // `change`, not `input`: each re-grade is ~0.3s of maths on the main
-    // thread, and a re-grade per keystroke would make the field unusable.
+    // `change`, not `input`: each re-grade is ~0.4 s of maths on the main thread
+    // (measured; the same stale "~0.3s" renderGrade carried), and a re-grade
+    // per keystroke would make the field unusable.
     els.discount.addEventListener("change", onDiscount);
     els.hideGenerous.addEventListener("change", () => { if (lastSuggestions) renderSuggestions(); });
     els.suggest.addEventListener("click", suggest);
