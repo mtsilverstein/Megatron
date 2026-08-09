@@ -329,7 +329,7 @@ Create `site/assets/bands.js`:
 - [ ] **Step 4: Run the fixture to verify it passes**
 
 Run: `node tests/bands_fixture.cjs`
-Expected: `bands_fixture: 14 groups OK`
+Expected: `bands_fixture: 16 groups OK`
 
 - [ ] **Step 5: Confirm nothing else broke**
 
