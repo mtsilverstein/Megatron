@@ -744,18 +744,26 @@ Player names and teams come from an external feed, so every dynamic value is set
     dist.appendChild(cap);
 
     // Spec section 5 requires a sentence that READS the distribution, not just
-    // labels it -- this is the editorial "B moment" the whole redesign is for.
-    // Skew decides the wording: a median below the interval's midpoint means
-    // the upside tail is longer than the downside.
-    if (g.ok && g.width > 0) {
-      const skew = (g.med - g.lo) / (g.hi - g.lo);   // 0.5 = symmetric
-      const shape = skew < 0.45 ? "his upside tail is the long one"
-                  : skew > 0.55 ? "his downside tail is the long one"
-                  : "his range is roughly symmetric";
+    // labels it -- the editorial "B moment" the whole redesign is for.
+    //
+    // REPORT THE RATIO, DO NOT BUCKET THE SKEW. An earlier draft classified
+    // players as upside-skewed / symmetric / downside-skewed at 0.45 and 0.55.
+    // Measured on the live board that puts 578 of 695 players (83.2%) in ONE
+    // bucket and 2 in another -- fantasy scoring is bounded at zero and
+    // unbounded above, so right skew is the norm, not news. A sentence that
+    // says the same thing about 83% of the board is noise dressed as insight.
+    // The upside/downside RATIO varies usefully instead: whole board p5 1.03,
+    // median 1.43, p95 3.19, max 5.53; across the top 40 by VORP, 1.01 to 1.35.
+    //
+    // Guard `p50 > p10`: 6 of 695 rows have a median at or below their floor,
+    // which would divide by zero or flip the sign.
+    if (g.ok && g.width > 0 && sp.p50 > sp.p10) {
+      const ratio = (sp.p90 - sp.p50) / (sp.p50 - sp.p10);
       dist.appendChild(el("p", "detail-note",
         `A 1-in-10 season here is ${FC.fmt(sp.p10, 1)}. The same 1-in-10 the `
         + `other way is ${FC.fmt(sp.p90, 1)}, against a median of `
-        + `${FC.fmt(sp.p50, 1)} — ${shape}.`));
+        + `${FC.fmt(sp.p50, 1)} — his upside runs ${ratio.toFixed(1)}× `
+        + `his downside.`));
     }
 
     // --- 2. market vs your rank ----------------------------------------
