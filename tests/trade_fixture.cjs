@@ -425,6 +425,23 @@ check("the future discount compounds per season and is a no-op at zero", () => {
   assert.ok(one > 0, "a future 3rd must be worth something");
   assert.ok(Math.abs(two - one * ctx.futureDiscount) < 1e-6,
     `0.8 per season: expected ${(one * 0.8).toFixed(3)}, got ${two.toFixed(3)}`);
+
+  // TEETH. The ratio check above is invariant to an off-by-one-season
+  // exponent -- multiply every rung's discount by one extra factor of `d`
+  // and `one`/`two` both shrink by that same factor, so their ratio still
+  // reads 0.8 (final-fixes-wave7.md item 4). Pin the ABSOLUTE magnitude
+  // instead: a pick one season out (2027, offset 1) must be worth exactly
+  // `d^1` times what the SAME round is worth as a current-season pick this
+  // year -- not `d^2`. "Worth as a current-season pick" is measured directly
+  // via currentDraftValue, holding nothing but that one pick, against the
+  // same empty baseline futurePicksValue itself uses (an empty picks list).
+  const emptyCDV = T.currentDraftValue(state([], []), pool, ctx);
+  const oneR3CDV = T.currentDraftValue(state([], [{ season: 2026, round: 3 }]), pool, ctx);
+  const currentSeasonEquivalent = oneR3CDV - emptyCDV;
+  assert.ok(Math.abs(one - currentSeasonEquivalent * ctx.futureDiscount) < 1e-6,
+    `a season-2027 (offset 1) pick must equal its current-season value times ` +
+    `d^1 = ${(currentSeasonEquivalent * ctx.futureDiscount).toFixed(3)}, got ${one.toFixed(3)} ` +
+    `-- pins the exponent's BASE, not just the ratio between two future picks`);
 });
 
 check("a pick past the rollout horizon grades ~0 on lineup, and ~0 on market too", () => {
