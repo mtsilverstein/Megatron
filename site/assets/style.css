@@ -357,3 +357,18 @@ tr.mine td:nth-child(3) { text-decoration: none; }
   margin: var(--s2) 0 0; padding-left: var(--s5); color: var(--chalk-dim);
 }
 .keeper-out li { padding: var(--s1) 0; }
+
+tr.detail > td { background: var(--sunken); border-bottom: 1px solid var(--rule); padding: var(--s4); }
+.detail-grid { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: var(--s5); align-items: start; }
+.detail-grid .label { font: var(--t-label); letter-spacing: .14em; text-transform: uppercase; color: var(--chalk-dim); margin-bottom: var(--s2); }
+.ridge { width: 100%; height: 54px; display: block; }
+.ridge-cap { display: flex; justify-content: space-between; font: 500 .6rem/1 "IBM Plex Mono", monospace; color: var(--chalk-dim); font-variant-numeric: tabular-nums; }
+.ridge-cap b { color: var(--chalk); }
+.detail-grid .kv { display: flex; justify-content: space-between; padding: var(--s1) 0; border-bottom: 1px solid var(--hairline); font: var(--t-num); font-variant-numeric: tabular-nums; }
+.detail-grid .kv b { color: var(--chalk); }
+.detail-grid .kv b.good { color: var(--rb); }
+.detail-grid .kv b.warn { color: var(--te); }
+.detail-grid .big { font: 700 1.5rem/1 "Barlow Condensed", sans-serif; color: var(--chalk); font-variant-numeric: tabular-nums; }
+.detail-grid .big .unit { font-size: 1rem; color: var(--chalk-dim); }
+.detail-note, .detail-none { font: 400 .72rem/1.5 "Source Sans 3", system-ui, sans-serif; color: var(--chalk-dim); margin: var(--s2) 0 0; }
+@media (max-width: 800px) { .detail-grid { grid-template-columns: 1fr; gap: var(--s3); } }

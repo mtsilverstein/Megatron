@@ -125,6 +125,11 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   const isDrafted = p => !!(draftState && p.sleeper_id && draftState.drafted.has(p.sleeper_id));
   const isMine = p => !!(draftState && p.sleeper_id && draftState.mine.has(p.sleeper_id));
 
+  // Keyed by player_id and re-applied after every render, because render()
+  // destroys the tbody -- on each 3s draft-mode poll, and on every sort,
+  // filter and lens change. DOM-held state would not survive any of them.
+  const expanded = new Set();
+
   // The ruler is pinned to one lens and shared across every row -- both
   // properties now live in bands.js where the fixture can see them.
   const domain = Bands.boardDomain(board.players);
@@ -166,6 +171,14 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   }
 
   function render(data) {
+    // render() destroys every row, including the focused one. Remember who
+    // had focus so it can be restored below -- null when focus was outside
+    // the table, in which case we must NOT steal it back on a poll.
+    const active = document.activeElement;
+    const focusedRow = active && active.closest
+      ? active.closest("tr[data-player-id]") : null;
+    const focusedId = focusedRow ? focusedRow.dataset.playerId : null;
+
     tbody.innerHTML = "";
     let lastTier = null;
     // Tier shelves only make sense in VORP-descending order (their whole point
@@ -198,8 +211,190 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       tr.children[6].appendChild(bandCell(s, p.position));
       if (isDrafted(p)) tr.classList.add("drafted");
       if (isMine(p)) tr.classList.add("mine");
+      tr.dataset.playerId = p.player_id;
+      tr.tabIndex = 0;
+      tr.setAttribute("aria-expanded", String(expanded.has(p.player_id)));
       tbody.appendChild(tr);
+      if (expanded.has(p.player_id)) tbody.appendChild(detailRow(p));
     }
+
+    if (focusedId) {
+      const back = tbody.querySelector(
+        `tr[data-player-id="${CSS.escape(focusedId)}"]`);
+      // preventScroll is REQUIRED, not tidiness. A <tr tabindex="0"> takes
+      // focus on click, so without it: click a row, scroll down the 695-row
+      // board, and every 3s poll yanks the viewport back to that row -- on
+      // the live-draft surface this whole feature exists for.
+      if (back) back.focus({ preventScroll: true });
+    }
+  }
+
+  const toggleRow = id => {
+    if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
+    render(rows);   // focus is restored inside render, see above
+  };
+  tbody.addEventListener("click", e => {
+    const tr = e.target.closest("tr[data-player-id]");
+    if (tr) toggleRow(tr.dataset.playerId);
+  });
+  tbody.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const tr = e.target.closest("tr[data-player-id]");
+    if (!tr) return;
+    e.preventDefault();
+    toggleRow(tr.dataset.playerId);
+  });
+
+  // el("div", "cls", "text") -> element. Keeps the builder below readable
+  // without ever turning feed data into HTML.
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  function kv(label, value) {
+    const row = el("div", "kv");
+    row.append(el("span", null, label), el("b", null, value));
+    return row;
+  }
+
+  function detailRow(p) {
+    const sp = p.season_points[scoring];
+    const g = Bands.quantileGeometry(sp.p10, sp.p50, sp.p90, domain);
+
+    const tr = el("tr", "detail");
+    const td = document.createElement("td");
+    td.colSpan = 10;
+    const grid = el("div", "detail-grid");
+
+    // --- 1. the distribution -------------------------------------------
+    const dist = el("div");
+    dist.appendChild(el("div", "label", "Season outcome"));
+    if (g.path) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "ridge");
+      svg.setAttribute("viewBox", "0 0 100 100");
+      svg.setAttribute("preserveAspectRatio", "none");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", g.path);
+      path.setAttribute("fill", `var(${POS_COLOR[p.position] || "--chalk"})`);
+      path.setAttribute("fill-opacity", ".45");
+      svg.appendChild(path);
+      dist.appendChild(svg);
+    } else {
+      dist.appendChild(el("p", "detail-none", "No band for this player."));
+    }
+    const cap = el("div", "ridge-cap");
+    cap.append(el("span", null, `FLOOR ${FC.fmt(sp.p10, 0)}`),
+               el("b", null, `MED ${FC.fmt(sp.p50, 0)}`),
+               el("span", null, `CEILING ${FC.fmt(sp.p90, 0)}`));
+    dist.appendChild(cap);
+
+    // Spec section 5 requires a sentence that READS the distribution, not just
+    // labels it -- the editorial "B moment" the whole redesign is for.
+    //
+    // REPORT THE RATIO, DO NOT BUCKET THE SKEW. An earlier draft classified
+    // players as upside-skewed / symmetric / downside-skewed at 0.45 and 0.55.
+    // Measured on the live board that puts 578 of 695 players (83.2%) in ONE
+    // bucket and 2 in another -- fantasy scoring is bounded at zero and
+    // unbounded above, so right skew is the norm, not news. A sentence that
+    // says the same thing about 83% of the board is noise dressed as insight.
+    // The upside/downside RATIO varies usefully instead: whole board p5 1.03,
+    // median 1.43, p95 3.19, max 5.53; across the top 40 by VORP, 1.01 to 1.35.
+    //
+    // Guard `p50 > p10`: 6 of 695 rows have a median at or below their floor,
+    // which would divide by zero or flip the sign.
+    if (g.ok && g.width > 0 && sp.p50 > sp.p10) {
+      const ratio = (sp.p90 - sp.p50) / (sp.p50 - sp.p10);
+      dist.appendChild(el("p", "detail-note",
+        `A 1-in-10 season here is ${FC.fmt(sp.p10, 1)}. The same 1-in-10 the `
+        + `other way is ${FC.fmt(sp.p90, 1)}, against a median of `
+        + `${FC.fmt(sp.p50, 1)} — his upside runs ${ratio.toFixed(1)}× `
+        + `his downside.`));
+    }
+
+    // --- 2. market vs your rank ----------------------------------------
+    // 462 of 695 rows have no ADP. Say so in words -- never print a
+    // comparison against a value that does not exist.
+    const market = el("div");
+    market.appendChild(el("div", "label", "Where he goes vs what he's worth"));
+    if (p.adp == null) {
+      market.appendChild(el("p", "detail-none",
+        "No market price — he is undrafted in the ADP sample, so there is "
+        + "nothing to compare your rank against."));
+    } else {
+      // The edge must compare LIKE UNITS. ADP is an overall pick number, so it
+      // pairs with OVERALL board rank -- never with position_rank, which counts
+      // within a position and would make "ADP 28 vs rank 3" look like a
+      // 25-pick edge for a WR3. (The trade calculator learned this same lesson:
+      // its boardRank is a board index, not position_rank.)
+      const mine = overallRank.get(p.player_id);
+      const edge = p.adp - mine;
+      const edgeRow = kv("Edge",
+        `${edge > 0 ? "+" : ""}${edge.toFixed(1)} picks`);
+      edgeRow.lastChild.className = edge > 0 ? "good" : edge < 0 ? "warn" : "";
+      market.append(kv("Market ADP", p.adp.toFixed(1)),
+                    kv("Your overall rank", String(mine)),
+                    edgeRow,
+                    kv("Tier", String(p.tier)));
+
+      // A pick delta is only meaningful INSIDE the draft. ADP covers 233 of
+      // 695 rows and tops out near 300, while board rank runs 1..695, so the
+      // raw difference goes nonsense past the last pick: 26 rows exceed +/-50
+      // and 5 exceed +/-100, worst being Ty Simpson at ADP 281 vs rank 543 --
+      // "reach about 262 picks" in a draft that is only 180 picks long. Keep
+      // the number in the table, but say the honest thing in the sentence.
+      const draftLen = Keepers.TEAMS * Keepers.DRAFT_ROUNDS;   // 12 x 15 = 180
+      market.appendChild(el("p", "detail-note",
+        (p.adp > draftLen || mine > draftLen)
+          ? "Both of you have him outside the drafted range, so the gap between "
+            + "these two numbers is not a real pick difference."
+        : edge > 0
+          ? `The field lets him fall about ${Math.abs(edge).toFixed(0)} picks past where you have him.`
+        : edge < 0
+          ? `You would have to reach about ${Math.abs(edge).toFixed(0)} picks to get him.`
+        : "The field prices him exactly where you do."));
+    }
+
+    // --- 3. the cost of passing ----------------------------------------
+    const pass = el("div");
+    pass.appendChild(el("div", "label", "If you pass"));
+    const next = nextAtPosition(p);
+    if (next) {
+      const big = el("div", "big", FC.fmt(p.vorp - next.vorp));
+      big.appendChild(el("span", "unit", " VORP"));
+      const note = el("p", "detail-note");
+      note.append(`Next ${p.position} is `, el("b", null, next.name),
+                  ` at ${FC.fmt(next.vorp)}.`);
+      pass.append(big, note);
+    } else {
+      pass.appendChild(el("p", "detail-none",
+        `Last ${p.position} on the board — nothing behind him.`));
+    }
+
+    grid.append(dist, market, pass);
+    td.appendChild(grid);
+    tr.appendChild(td);
+    return tr;
+  }
+
+  // Overall board rank, 1-based, from the ORDER THE BOARD ARRIVED IN (VORP
+  // descending). Built from `board.players`, not `rows` -- makeSortable sorts
+  // `rows` in place, so a user who sorts by ADP would otherwise redefine
+  // "your rank" to mean "your position in the ADP sort", and the edge would
+  // collapse to ~0 for every player.
+  const overallRank = new Map(board.players.map((p, i) => [p.player_id, i + 1]));
+
+  // `rows` is the full board; the next player at a position is the next one
+  // down in VORP order, which is what passing on him actually costs.
+  function nextAtPosition(p) {
+    const same = rows.filter(q => q.position === p.position)
+      .sort((a, b) => b.vorp - a.vorp);
+    const i = same.findIndex(q => q.player_id === p.player_id);
+    return (i >= 0 && i + 1 < same.length) ? same[i + 1] : null;
   }
 
   FC.posFilter(document.getElementById("pos-filters"), p => { pos = p; render(rows); });
