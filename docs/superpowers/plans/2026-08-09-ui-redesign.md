@@ -91,7 +91,7 @@ git commit -m "fix: link the trade calculator from every page"
 - Create: `site/assets/bands.js`
 - Create: `tests/bands_fixture.cjs`
 
-**Why this is a module and not page code.** Two properties make bands comparable at all: the domain is shared across rows, and it is pinned to one scoring lens. Both currently live inline in `site/index.html:128-132`. A refactor that switched either one would break commented, intentional behaviour that **no test can see**. Moving them here makes them testable.
+**Why this is a module and not page code.** Two properties make bands comparable at all: the domain is shared across rows, and it is pinned to one scoring lens. Both currently live inline in `site/index.html:126-131` (and again in `site/weekly.html:63-68`). A refactor that switched either one would break commented, intentional behaviour that **no test can see**. Moving them here makes them testable.
 
 - [ ] **Step 1: Write the failing fixture**
 
@@ -204,6 +204,18 @@ check("boardDomain falls back to ppr when there is no league lens", () => {
   assert.strictEqual(B.boardDomain(players).max, 275);
 });
 
+// weekly.html holds its quantiles under `points`, not `season_points`, and
+// pins its own ruler the same way (weekly.html:66). Without this parameter a
+// caller would have to reach for sharedDomain and hardcode a lens, silently
+// dropping the pinning on that page.
+check("boardDomain reads an alternate key and still pins the lens", () => {
+  const players = [
+    { points: { league: { p90: 40 }, ppr: { p90: 900 } } },
+    { points: { league: { p90: 55 }, ppr: { p90: 800 } } },
+  ];
+  assert.strictEqual(B.boardDomain(players, "points").max, 55);
+});
+
 console.log(`bands_fixture: ${n} groups OK`);
 ```
 
@@ -296,12 +308,14 @@ Create `site/assets/bands.js`:
     return { min: 0, max };
   }
 
-  // The board's ruler. Pinned lens, chosen once from the data -- NOT the
-  // user's active scoring toggle.
-  function boardDomain(players) {
-    const first = players && players[0] && players[0].season_points;
+  // The page's ruler. Pinned lens, chosen once from the data -- NOT the
+  // user's active scoring toggle. `key` exists because the draft board nests
+  // quantiles under `season_points` and the weekly page under `points`; both
+  // must keep their pinning, so neither caller hardcodes a lens.
+  function boardDomain(players, key = "season_points") {
+    const first = players && players[0] && players[0][key];
     const lens = RULER_LENSES.find(k => first && first[k]) || "ppr";
-    return sharedDomain(players, p => p.season_points[lens]);
+    return sharedDomain(players, p => p[key][lens]);
   }
 
   return { quantileGeometry, sharedDomain, boardDomain, RULER_LENSES };
@@ -452,7 +466,7 @@ In `site/index.html`, add before `<script src="assets/app.js"></script>`:
 
 - [ ] **Step 2: Replace the inline domain derivation**
 
-`site/index.html:128-132` currently computes `RULER` and `maxCeil` inline. Replace those lines with:
+`site/index.html:126-131` is a three-line comment followed by `const RULER` and `const maxCeil`. Replace that whole block with:
 
 ```js
   // The ruler is pinned to one lens and shared across every row -- both
@@ -765,7 +779,10 @@ Add `<script src="assets/bands.js"></script>` before `assets/app.js`.
 Replace the inline `RULER`/`maxCeil` block (`site/weekly.html:63-68`) with:
 
 ```js
-  const domain = Bands.sharedDomain(payload.players, p => p.points.ppr);
+  // "points", not "season_points" -- weekly nests its quantiles differently.
+  // boardDomain keeps the lens pinning this page already had (weekly.html:66
+  // picks `league` when present); do NOT hardcode a lens here.
+  const domain = Bands.boardDomain(payload.players, "points");
 ```
 
 Replace the `FC.bandBar(...)` call at `site/weekly.html:86` with a gauge built exactly like Task 4's `bandCell`, but **omitting** the two `.edge` elements, since Floor and Ceiling are already columns.
