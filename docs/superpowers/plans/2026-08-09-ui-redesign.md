@@ -39,6 +39,8 @@ Every task's requirements implicitly include these.
 | `site/about.html` | Calibration chart + bake-off chart. |
 | `site/assets/app.js` | `bandBar` retired in favour of `bands.js` once all callers move. |
 
+**Deliberately deferred:** spec §4 lists "trade columns" as a gauge caller, but `trade.html` shows keeper costs and market prices, not p10/p90 — there is no quantile column there today and no task adds one. Recorded here so a later reviewer reads it as a decision, not a miss.
+
 ---
 
 ### Task 1: Fix the shipped nav bug
@@ -84,14 +86,14 @@ git commit -m "fix: link the trade calculator from every page"
 ### Task 2: `bands.js` — pure quantile geometry
 
 **Interfaces:**
-- Produces: `window.Bands` / `module.exports` with `quantileGeometry(p10, p50, p90, domain)`, `sharedDomain(rows, pick)`, `boardDomain(players)`, `RULER_LENSES`.
+- Produces: `window.Bands` / `module.exports` with `quantileGeometry(p10, p50, p90, domain)`, `sharedDomain(rows, pick)`, `boardDomain(players, key = "season_points")`, `RULER_LENSES`.
 - Consumed by: Tasks 4, 5, 6.
 
 **Files:**
 - Create: `site/assets/bands.js`
 - Create: `tests/bands_fixture.cjs`
 
-**Why this is a module and not page code.** Two properties make bands comparable at all: the domain is shared across rows, and it is pinned to one scoring lens. Both currently live inline in `site/index.html:126-131` (and again in `site/weekly.html:63-68`). A refactor that switched either one would break commented, intentional behaviour that **no test can see**. Moving them here makes them testable.
+**Why this is a module and not page code.** Two properties make bands comparable at all: the domain is shared across rows, and it is pinned to one scoring lens. Both currently live inline in `site/index.html:127-132` (and again in `site/weekly.html:63-68`). A refactor that switched either one would break commented, intentional behaviour that **no test can see**. Moving them here makes them testable.
 
 - [ ] **Step 1: Write the failing fixture**
 
@@ -424,21 +426,38 @@ Replace the `:root` block at `site/assets/style.css:2-10` with:
 .keeper-out { color: var(--chalk-dim); }
 ```
 
-- [ ] **Step 3: Verify in a browser**
+- [ ] **Step 3: Apply the ramp to the existing components**
+
+Spec §3 asks for "a defined ramp **rather than** per-component font declarations." Defining the tokens is not enough — if the existing `font:` declarations survive untouched, the chassis lands only on surfaces this plan happens to add, and the rest of the site is unchanged.
+
+Find every `font:` declaration in `style.css` and replace it with the matching token where one fits (`--t-display` for the wordmark, `--t-label` for uppercase micro-labels and nav, `--t-num` for numeric cells and stamps). Leave a declaration alone when no token matches; do **not** invent new tokens to force a match.
+
+Then tighten the row rhythm, as §3 asks: reduce the table cell padding one step and set row borders to `--hairline` instead of `--rule`.
+
+**Density is the guard on this step.** Before you start, load the board and record:
+
+```js
+document.querySelectorAll("#board tbody tr").length   // total rows
+window.innerHeight                                     // viewport
+```
+
+and count rows visible without scrolling. After the change, the visible count must be **greater than or equal to** the before count. If tightening makes it worse, revert the rhythm change and keep only the token migration — then say so in your report.
+
+- [ ] **Step 4: Verify in a browser**
 
 ```bash
 cd site && python -m http.server 8899
 ```
-Open `http://localhost:8899/index.html`, expand the keeper panel. Expected: panel matches the board's dark chassis — no default white form controls. Console clean.
+Open `http://localhost:8899/index.html`, expand the keeper panel. Expected: panel matches the board's dark chassis — no default white form controls. Check all four pages for unintended type changes. Console clean.
 
-- [ ] **Step 4: Confirm no regressions**
+- [ ] **Step 5: Confirm no regressions**
 
 ```bash
 for f in tests/*_fixture.cjs; do node "$f" | tail -1; done && python -m pytest -q | tail -3
 ```
 Expected: all fixtures OK, pytest no failures.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add site/assets/style.css
@@ -466,7 +485,13 @@ In `site/index.html`, add before `<script src="assets/app.js"></script>`:
 
 - [ ] **Step 2: Replace the inline domain derivation**
 
-`site/index.html:126-131` is a three-line comment followed by `const RULER` and `const maxCeil`. Replace that whole block with:
+**Replace `site/index.html:127-132` exactly.** That is the three-line comment (127-129), `const RULER` (130), and `const maxCeil` — which is a **two-line statement spanning 131-132**. Stopping at 131 leaves line 132 orphaned:
+
+```js
+    p.season_points[RULER].p90 ?? p.season_points[RULER].p50));
+```
+
+which is a **SyntaxError that kills the whole async IIFE — the board renders blank.** Delete through 132. Replace with:
 
 ```js
   // The ruler is pinned to one lens and shared across every row -- both
@@ -521,25 +546,39 @@ Add this helper next to `render`. It builds nodes rather than markup — player-
 
 The floor and ceiling numbers become **visible text**, not a `title` tooltip — that is the point of §2 of the spec. Hover text is unavailable on touch and absent from screenshots.
 
-- [ ] **Step 4: Style it**
+- [ ] **Step 4: Style it — REPLACE, do not append**
 
-Append to `site/assets/style.css`:
+There is already a `.band` block at `site/assets/style.css:83-92`. Appending would leave both in force and three things break:
+
+- old `.band { width: 170px }` still wins, and a new `min-width` would defeat `@media (max-width: 560px) { .band { width: 110px } }` at `:123` — the rule that keeps the 10-column board off a horizontal scrollbar on a phone, which Task 9 Step 3 explicitly checks;
+- old `.band .fill` carries `transform-origin: var(--p50x)` and `animation: unfold`. The new fill never sets `--p50x` (only the retired `bandBar` did), so the origin silently falls back to centre **and every fill re-animates on each 3-second poll, sort and filter**;
+- `.band .track` becomes dead code — the new markup draws the track with `::before`.
+
+**Replace lines 83-92 entirely** with:
 
 ```css
-.band { position: relative; height: 15px; min-width: 150px; }
+.band { position: relative; width: 170px; height: 15px; }
 .band::before {
   content: ""; position: absolute; top: 7px; left: 0; right: 0;
-  height: 2px; background: var(--band-track);
+  height: 2px; background: var(--band-track); border-radius: 2px;
 }
-.band .fill { position: absolute; top: 6px; height: 4px; }
+.band .fill { position: absolute; top: 6px; height: 4px; border-radius: 2px; opacity: .9; }
 .band .tick { position: absolute; top: 1px; width: 1px; height: 13px; background: var(--chalk); }
 /* An out-of-range median is a real upstream defect; make it unmissable. */
 .band .tick.outside { background: var(--qb); width: 2px; }
 .band .edge {
-  position: absolute; top: -2px; font: 500 .58rem/1 "IBM Plex Mono", monospace;
+  position: absolute; top: -3px; font: 500 .58rem/1 "IBM Plex Mono", monospace;
   color: var(--chalk-dim); font-variant-numeric: tabular-nums;
 }
 .band .edge.lo { left: 0; } .band .edge.hi { right: 0; }
+```
+
+Keep `width: 170px` (not `min-width`) so the `:123` mobile override still applies. The `@keyframes unfold` at `:91` and the `prefers-reduced-motion` guard at `:92` become unused — delete both; `grep -n "unfold" site/assets/style.css` must return nothing afterwards.
+
+At 110px wide on mobile the two `.edge` labels would collide. Add to the existing `@media (max-width: 560px)` block at `:122`:
+
+```css
+  .band .edge { display: none; }
 ```
 
 - [ ] **Step 5: Verify density did not regress**
@@ -572,6 +611,10 @@ The board is **not** a static table. Draft mode polls Sleeper every 3 seconds (`
 - Modify: `site/index.html`
 - Modify: `site/assets/style.css`
 
+**Interfaces:**
+- Consumes from Task 4, in the same `index.html` IIFE: `domain` and the `POS_COLOR` map. Consumes Task 3's `--sunken`, `--hairline`, `--s1`/`--s2`/`--s4`/`--s5`, `--t-num`, `--t-label`.
+- **Must run after Task 4** — both edit `index.html`, so they cannot be dispatched in parallel.
+
 - [ ] **Step 1: Hold expansion state outside the DOM**
 
 Near the other page state in `site/index.html`, add:
@@ -585,7 +628,9 @@ Near the other page state in `site/index.html`, add:
 
 - [ ] **Step 2: Re-apply it inside `render`**
 
-In `render()`, immediately after `tbody.appendChild(tr);`, add:
+`tbody.appendChild(tr);` appears **twice** in `render()`: at `site/index.html:150` (the tier-shelf separator row) and `:169` (the player row). Use **`:169`, the player row** — the one preceded by `if (isDrafted(p)) tr.classList.add("drafted");`.
+
+Picking the wrong one does not throw, because `p` is in scope at both — it silently appends a **duplicate detail row above every expanded player** whenever a position filter is active. Add after `:169`:
 
 ```js
       if (expanded.has(p.player_id)) tbody.appendChild(detailRow(p));
@@ -601,12 +646,36 @@ On the player `<tr>`, before appending, add:
       tr.setAttribute("aria-expanded", String(expanded.has(p.player_id)));
 ```
 
-Bind once, after `render` is defined — delegation on the tbody survives its rebuilds:
+**Preserve focus across every rebuild first.** `render()` clears the tbody, which destroys the focused `<tr>` and drops focus to `<body>`. Without this, Step 7's keyboard check cannot pass — the focus ring disappears and a second Enter does nothing — and the 3-second draft poll silently yanks focus out of the table mid-draft. Fixing it in `render` covers the toggle, the poll, sorting, filtering and the lens change in one place.
+
+At the very top of `render(data)`, before the tbody is cleared:
+
+```js
+    // render() destroys every row, including the focused one. Remember who
+    // had focus so it can be restored below -- null when focus was outside
+    // the table, in which case we must NOT steal it back on a poll.
+    const active = document.activeElement;
+    const focusedRow = active && active.closest
+      ? active.closest("tr[data-player-id]") : null;
+    const focusedId = focusedRow ? focusedRow.dataset.playerId : null;
+```
+
+And as the last statement in `render`, after the loop:
+
+```js
+    if (focusedId) {
+      const back = tbody.querySelector(
+        `tr[data-player-id="${CSS.escape(focusedId)}"]`);
+      if (back) back.focus();
+    }
+```
+
+Then bind once, after `render` is defined — delegation on the tbody survives its rebuilds:
 
 ```js
   const toggleRow = id => {
     if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
-    render(rows);
+    render(rows);   // focus is restored inside render, see above
   };
   tbody.addEventListener("click", e => {
     const tr = e.target.closest("tr[data-player-id]");
@@ -674,6 +743,21 @@ Player names and teams come from an external feed, so every dynamic value is set
                el("span", null, `CEILING ${FC.fmt(sp.p90, 0)}`));
     dist.appendChild(cap);
 
+    // Spec section 5 requires a sentence that READS the distribution, not just
+    // labels it -- this is the editorial "B moment" the whole redesign is for.
+    // Skew decides the wording: a median below the interval's midpoint means
+    // the upside tail is longer than the downside.
+    if (g.ok && g.width > 0) {
+      const skew = (g.med - g.lo) / (g.hi - g.lo);   // 0.5 = symmetric
+      const shape = skew < 0.45 ? "his upside tail is the long one"
+                  : skew > 0.55 ? "his downside tail is the long one"
+                  : "his range is roughly symmetric";
+      dist.appendChild(el("p", "detail-note",
+        `A 1-in-10 season here is ${FC.fmt(sp.p10, 1)}. The same 1-in-10 the `
+        + `other way is ${FC.fmt(sp.p90, 1)}, against a median of `
+        + `${FC.fmt(sp.p50, 1)} — ${shape}.`));
+    }
+
     // --- 2. market vs your rank ----------------------------------------
     // 462 of 695 rows have no ADP. Say so in words -- never print a
     // comparison against a value that does not exist.
@@ -684,9 +768,25 @@ Player names and teams come from an external feed, so every dynamic value is set
         "No market price — he is undrafted in the ADP sample, so there is "
         + "nothing to compare your rank against."));
     } else {
+      // The edge must compare LIKE UNITS. ADP is an overall pick number, so it
+      // pairs with OVERALL board rank -- never with position_rank, which counts
+      // within a position and would make "ADP 28 vs rank 3" look like a
+      // 25-pick edge for a WR3. (The trade calculator learned this same lesson:
+      // its boardRank is a board index, not position_rank.)
+      const mine = overallRank.get(p.player_id);
+      const edge = p.adp - mine;
+      const edgeRow = kv("Edge",
+        `${edge > 0 ? "+" : ""}${edge.toFixed(1)} picks`);
+      edgeRow.lastChild.className = edge > 0 ? "good" : edge < 0 ? "warn" : "";
       market.append(kv("Market ADP", p.adp.toFixed(1)),
-                    kv("Your rank", `${p.position_rank} at ${p.position}`),
+                    kv("Your overall rank", String(mine)),
+                    edgeRow,
                     kv("Tier", String(p.tier)));
+      market.appendChild(el("p", "detail-note", edge > 0
+        ? `The field lets him fall about ${Math.abs(edge).toFixed(0)} picks past where you have him.`
+        : edge < 0
+        ? `You would have to reach about ${Math.abs(edge).toFixed(0)} picks to get him.`
+        : "The field prices him exactly where you do."));
     }
 
     // --- 3. the cost of passing ----------------------------------------
@@ -711,6 +811,13 @@ Player names and teams come from an external feed, so every dynamic value is set
     return tr;
   }
 
+  // Overall board rank, 1-based, from the ORDER THE BOARD ARRIVED IN (VORP
+  // descending). Built from `board.players`, not `rows` -- makeSortable sorts
+  // `rows` in place, so a user who sorts by ADP would otherwise redefine
+  // "your rank" to mean "your position in the ADP sort", and the edge would
+  // collapse to ~0 for every player.
+  const overallRank = new Map(board.players.map((p, i) => [p.player_id, i + 1]));
+
   // `rows` is the full board; the next player at a position is the next one
   // down in VORP order, which is what passing on him actually costs.
   function nextAtPosition(p) {
@@ -732,6 +839,8 @@ tr.detail > td { background: var(--sunken); border-bottom: 1px solid var(--rule)
 .ridge-cap b { color: var(--chalk); }
 .detail-grid .kv { display: flex; justify-content: space-between; padding: var(--s1) 0; border-bottom: 1px solid var(--hairline); font: var(--t-num); font-variant-numeric: tabular-nums; }
 .detail-grid .kv b { color: var(--chalk); }
+.detail-grid .kv b.good { color: var(--rb); }
+.detail-grid .kv b.warn { color: var(--te); }
 .detail-grid .big { font: 700 1.5rem/1 "Barlow Condensed", sans-serif; color: var(--chalk); font-variant-numeric: tabular-nums; }
 .detail-grid .big .unit { font-size: 1rem; color: var(--chalk-dim); }
 .detail-note, .detail-none { font: 400 .72rem/1.5 "Source Sans 3", system-ui, sans-serif; color: var(--chalk-dim); margin: var(--s2) 0 0; }
@@ -751,7 +860,11 @@ Expected in all four: the panel remains open and its numbers update with the len
 
 - [ ] **Step 7: Verify keyboard operation**
 
-Tab to a player row, press Enter. Expected: expands, `aria-expanded="true"`, focus ring visible.
+Tab to a player row, press Enter. Expected: expands, `aria-expanded="true"`, and **the focus ring is still on that row** — this is what Step 3's focus-restoration code exists for. Press Enter again: it must collapse, proving focus really returned to the row rather than falling to `<body>`.
+
+Then leave a row focused and wait out two draft-mode polls (>6s). Focus must stay put.
+
+Note: `tr.tabIndex = 0` puts one tab stop on every board row — ~695 of them ahead of anything below the table. That is the accepted cost of the spec's keyboard requirement, not an oversight; record it in your report so a later reviewer does not read it as a defect.
 
 - [ ] **Step 8: Run fixtures and commit**
 
@@ -785,13 +898,27 @@ Replace the inline `RULER`/`maxCeil` block (`site/weekly.html:63-68`) with:
   const domain = Bands.boardDomain(payload.players, "points");
 ```
 
-Replace the `FC.bandBar(...)` call at `site/weekly.html:86` with a gauge built exactly like Task 4's `bandCell`, but **omitting** the two `.edge` elements, since Floor and Ceiling are already columns.
+- [ ] **Step 3: Add the gauge helper to this page**
 
-- [ ] **Step 3: Verify**
+Task 4's `bandCell` and `POS_COLOR` live inside **`index.html`'s** IIFE and are not visible here — referencing them directly throws `POS_COLOR is not defined` on first render. `weekly.html` needs its own copy. Paste Task 4 Step 3's `POS_COLOR` map and `bandCell` helper into this page's script, then **delete the two `.edge` elements** from it (Floor and Ceiling are already columns here, `weekly.html:36-37`).
 
-Serve and open `weekly.html`. Expected: bands render, no duplicated floor/ceiling numbers, console clean.
+Then replace the `FC.bandBar(...)` call at `site/weekly.html:86` with:
 
-- [ ] **Step 4: Commit**
+```js
+      tr.children[5].appendChild(bandCell(pts, p.position));
+```
+
+Note `children[5]`, not `[6]` — the weekly table has a different column order.
+
+- [ ] **Step 4: Apply the chassis**
+
+The File Structure table assigns this page "chassis + band". Confirm the page picks up Task 3's tokens: any per-component `font:` declarations unique to `weekly.html`'s markup should use `--t-num` / `--t-label`, and its table rows should match the board's rhythm. If the page already inherits everything from shared selectors, say so and change nothing.
+
+- [ ] **Step 5: Verify**
+
+Serve and open `weekly.html`. Expected: bands render, **no duplicated floor/ceiling numbers**, console clean, no horizontal scroll at 560px.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add site/weekly.html
@@ -843,14 +970,36 @@ git commit -m "feat: give the trade verdict real hierarchy"
 
 ### Task 8: About page — lead with calibration
 
+> **Dispatch this task to `opus`.** Per CLAUDE.md, work described in prose rather than given as code goes to the most capable model regardless of size — this task specifies charts by their contract, not line by line, and the implementer must make real presentation decisions.
+
 **Files:**
 - Modify: `site/about.html`
+
+**Select the report by `source`, never by index.** `about.json.reports` is a **list of two**, and both contain the same three model names:
+
+| `source` | rows | has `coverage_p10_p90` | has `mae` |
+|---|---|---|---|
+| `bakeoff.json` | 45 | yes (transformer only) | yes |
+| `baselines.json` | 30 | **no** | yes |
+
+`reports[0]` happens to be `bakeoff.json` today, so index-based access works **by luck of ordering**. Taking `baselines.json` by mistake yields a plausible-looking but wrong MAE chart with no way to notice. Select explicitly:
+
+```js
+  const bakeoff = payload.reports.find(r => r.source === "bakeoff.json");
+  if (!bakeoff) { /* state the absence; do not render an empty chart */ }
+```
+
+Build both charts with `document.createElementNS` and `textContent`, consistent with Task 5 — no markup interpolation. Each chart gets its own CSS in `style.css`, using Task 3's tokens.
 
 **Coverage is a transformer-only series.** In `site/data/about.json`, `coverage_p10_p90` is populated on the 15 `transformer` rows and **null** on all 15 `xgboost` and 15 `naive_last4` rows — baselines are point predictors with no interval to measure. The calibration chart plots **one** model against the target line. It must not render three series with two empty.
 
 - [ ] **Step 1: Add the calibration section above the prose**
 
-Insert directly after the page `<h1>` an inline-SVG bar chart built from `about.json`: for each `transformer` row with `position === "OVERALL"`, one bar for measured coverage against a reference line at **0.80**. Label each bar with its season and value. Current data yields `2023 0.819`, `2024 0.792`, `2025 0.795`.
+`about.html` has **two `<h1>` elements** — the masthead wordmark at `:18` and the content heading at `:28`. Insert after the one **inside `<main>`** (`:28`).
+
+An inline-SVG bar chart built from `about.json`: for each `transformer` row with `position === "OVERALL"`, one bar for measured coverage against a reference line at **0.80**. Label each bar with its season and value. Current data yields `2023 0.819`, `2024 0.792`, `2025 0.795`.
+
+Filter explicitly — `r.model === "transformer" && r.position === "OVERALL" && r.coverage_p10_p90 != null` — and sort by `test_season` ascending; do not rely on row order.
 
 Read the values from the payload — **do not hardcode them**; they change when the model is retrained. Build the chart with `document.createElementNS` and `textContent`, consistent with Task 5.
 
