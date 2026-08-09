@@ -1374,8 +1374,12 @@ function shapeState(label, rows) {
   // was what let item 1 survive a full wave -- see the COMPLEMENTS note above.
   return { label, ctx, roster };
 }
-// CURRENT-SEASON PICKS ONLY, and that is a deliberate boundary rather than a
-// convenience. On a state holding only this season's picks, `stateValue` IS
+// CURRENT-SEASON PICKS ONLY BY DEFAULT (`extra` omitted), and for those calls
+// it is still a deliberate boundary rather than a convenience -- wave 6 gave
+// this function an `extra` parameter (see below) so it could ALSO run the
+// "MONOTONICITY (roster, holding future picks)" group, but every other caller
+// still passes none, and the argument in this paragraph is about THOSE calls.
+// On a state holding only this season's picks, `stateValue` IS
 // `currentDraftValue`, which is EXACTLY monotone in the roster once keepers are
 // chosen by the objective AND against the picks the state actually holds: every
 // keeper set open to the smaller roster was already open to the larger one, so
@@ -1386,9 +1390,14 @@ function shapeState(label, rows) {
 // 15 players x these same three complements: 0 of 540 removals raise
 // `currentDraftValue`, against 0 / 9 / 14 of 180 before wave 5.
 //
-// `futurePicksValue` is swept by the `monoState` groups above, which hold all
-// 30 future picks; keeping it out here is what makes THIS sweep an exact
-// statement about keeper selection rather than a mixed one.
+// WITH `extra` (30 future picks, the other caller): the exact argument above
+// does not apply -- `stateValue` now runs the whole ladder, which carries its
+// own, smaller residue (see `stateValue`'s own comment). That call sweeps only
+// 3 of the 43 shapes against all three complements, not the full family,
+// because each candidate keeper set costs three rollouts instead of one at 30
+// future picks (final-fixes-wave6-report.md section 7: ~6s for three shapes,
+// ~90s for the whole family). It is a regression guard on those three shapes,
+// not the exact statement the current-season-only calls make.
 function shapeSweep(s, extra) {
   const KK = require("../site/assets/keepers.js");
   const bad = [];

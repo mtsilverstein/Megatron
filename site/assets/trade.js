@@ -599,9 +599,14 @@
   // WHAT THE FUTURE PICKS ARE WORTH: the state's value minus the value of the
   // same state holding only this season's picks. Both halves are maxima over
   // keeper sets (see currentDraftValue), so this is a difference of two exact
-  // numbers rather than a sum of marginals, and it is >= 0 by construction --
-  // every rung's pick list contains X0, and the set that maximises the
-  // restricted problem is available to the full one.
+  // numbers rather than a sum of marginals. NOT ">= 0 by construction" -- that
+  // needs `finishRoster` monotone in its pick list, and it is not: 118 of 4000
+  // pointwise-dominating pick-list pairs score the better list lower (the same
+  // greedy-rollout interleaving artifact `stateValue`'s own comment names).
+  // Measured non-negative across 36 states instead (12 live-board rosters x 3
+  // pick complements, each holding its full 30-future-pick horizon): 0
+  // negative. Not a proof; a measurement, and the greedy artifact above is
+  // exactly the kind of thing that could someday make it a small negative one.
   //
   // THE 30-ROLLOUT CHAIN THIS REPLACES IS IN `pickLadder`, and so is the
   // telescoping identity that makes the two the same computation. What used to
@@ -625,6 +630,17 @@
   // NOT USED BY `stateValue`, which computes the whole ladder in one pass. This
   // is the decomposition, for the fixture and for anyone who wants the two
   // halves separately, and it costs a second keeper selection to get them.
+  //
+  // ONE `pool` ARGUMENT, HANDED TO TWO CALLS THAT CHOOSE DIFFERENT KEEPER SETS
+  // (`stateValue` picks against the whole ladder, `currentDraftValue` against
+  // the current-season rung alone) -- the same state-vs-pool mismatch the
+  // final-fixes-wave6-report.md methodology note says invalidated wave 5's
+  // harness (measuring 2/360 and 3/180 phantom violations, worst +5.20, none
+  // of them real). Harmless here ONLY because this function has no shipped
+  // caller today -- `stateValue` never goes through it -- so the mismatched
+  // pool is never actually read by two different keeper selections at once in
+  // production. Any future caller that passes a pool built from a different
+  // state than the one being valued would reintroduce exactly that defect.
   function futurePicksValue(state, pool, ctx) {
     requireCtx(ctx);
     if (!(state.picks || []).some(p => p.season > ctx.season)) return 0;
@@ -650,7 +666,7 @@
   //     the weights are non-negative.
   // Verified rather than asserted -- final-fixes-wave6-report.md sweeps 12
   // live-board rosters x 45 picks x 3 pick complements. Current-season picks
-  // 0 of 540, roster players 0 of 540, and the same for currentDraftValue.
+  // 0 of 396, roster players 0 of 540, and the same for currentDraftValue.
   //
   // THE ONE RESIDUE, AND IT IS NOT IN THIS FILE. Future-pick removals are 8 of
   // 1080, worst +4.61 on a ~1557-point state value (0.3%), every one of them
@@ -667,8 +683,14 @@
   // The first list is a strict superset of the second in value (three R2-slot
   // picks against two, everything else equal), 8 selections and 27 field-takes
   // either way, and it scores 7.20 LOWER. Nothing about keepers, the ladder or
-  // the discount is involved -- proved by re-running the sweep with the keeper
-  // set frozen, which leaves the violations exactly where they were.
+  // the discount is involved -- confirmed by re-running the sweep with the
+  // keeper set frozen: the worst case is identical (+4.6080), pinning the cause
+  // to `finishRoster` rather than the selection, but the violations do not sit
+  // exactly where they were -- frozen is 4 of 1080 against live's 8 of 1080,
+  // so freezing the keeper set removes about half of them even though it does
+  // not touch the worst one. (The frozen harness also swaps `draftPool` for a
+  // plain board filter, so it is not quite the same pool either -- a second
+  // reason the two counts should not be expected to match.)
   //
   // It only surfaces on FUTURE-pick removals because that is the only place
   // the ladder produces duplicate pick NUMBERS: rung X2 holds the same round
