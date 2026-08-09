@@ -784,11 +784,83 @@
              myGain, theirGain, marketDelta: cand.md };
   }
 
+  // --- dedup: collapse offers that differ only by a worthless pick -----------
+  //
+  // packages() enumerates every 1- and 2-asset combination, so one real move
+  // appears once alone and once again for every worthless pick that can ride
+  // along -- a pick past the rollout horizon prices at marketValue 0 (see
+  // marketValue's own comment: parVorp clamps to 0 at or below replacement,
+  // true of most of the live board and every pick from round 9 down), so
+  // adding one changes myGain and marketDelta by ~nothing. Those padded
+  // variants grade almost identically, which is exactly why a manager reading
+  // the panel cannot tell them apart -- measured on the live board, 108
+  // suggestions across six opponents are 8 real ones (final-fixes-wave4.md).
+  //
+  // SUBSTANCE = players (by id) + picks whose marketValue is nonzero. A pick
+  // priced at 0 is padding by definition.
+  //
+  // Runs on the FULL, already-honestly-scored list, never before scoring: the
+  // prefilter (suggestCandidates' marketDelta check) is a SEARCH heuristic and
+  // must not be allowed to discard a package before gradeTrade has judged it.
+  // This only ever drops an offer that has an ALREADY-SCORED duplicate sitting
+  // next to it with an equal-or-better myGain.
+  //
+  // GROUPING KEY includes teamId: an identical asset list offered to a
+  // DIFFERENT opponent is a different trade (their roster, their gain), not a
+  // duplicate, so two opponents never collapse into each other.
+  //
+  // THE ALL-PADDING CASE. If every asset on a side prices at 0 (a pick-only
+  // side where every pick is worthless), that side's substance list is empty,
+  // and two UNRELATED all-padding offers would otherwise both key to "" and
+  // wrongly collapse into one. Fallback: an empty substance list keys on the
+  // side's full raw pick list instead (still sorted), so it only collapses
+  // with another offer built from the exact same picks, never an unrelated
+  // one -- the "~" prefix keeps this fallback bucket disjoint from the normal
+  // "players|picks" key space (a real key never starts with "~" because a
+  // sorted player-id list never begins with the character "~").
+  function offerSideKey(side, ctx) {
+    const players = (side.players || []).map(p => p.player_id).sort();
+    const substancePicks = (side.picks || [])
+      .filter(p => marketValue(p, ctx) > 0)
+      .map(p => `${p.season}R${p.round}`).sort();
+    if (!players.length && !substancePicks.length) {
+      const raw = (side.picks || []).map(p => `${p.season}R${p.round}`).sort();
+      return `~${raw.join(",")}`;
+    }
+    return `${players.join(",")}|${substancePicks.join(",")}`;
+  }
+
+  function offerAssetCount(o) {
+    return (o.toThem.players || []).length + (o.toThem.picks || []).length
+         + (o.toMe.players || []).length + (o.toMe.picks || []).length;
+  }
+
+  // Keeps the best myGain per (teamId, give-substance, get-substance) group.
+  // On an exact tie, keeps the offer with fewer total assets -- a clean 1-for-1
+  // is a better offer to SEND than the same trade with a late-rounder stapled
+  // on, even when the padding is free in both currencies.
+  function dedupOffers(offers, ctx) {
+    requireCtx(ctx);
+    const best = new Map();
+    for (const o of offers) {
+      const key = `${o.teamId}::${offerSideKey(o.toThem, ctx)}=>${offerSideKey(o.toMe, ctx)}`;
+      const assets = offerAssetCount(o);
+      const prior = best.get(key);
+      if (!prior || o.myGain > prior.offer.myGain
+          || (o.myGain === prior.offer.myGain && assets < prior.assets)) {
+        best.set(key, { offer: o, assets });
+      }
+    }
+    return Array.from(best.values(), e => e.offer);
+  }
+
   // Two-team trades only. A thin wrapper over the two halves above, with the
   // signature and return value it has always had -- for the node fixture and
   // for any caller that does not need to yield. Proven byte-identical to the
   // single-function version on the live board, all eleven opponents (see
-  // final-fixes-wave3-report.md).
+  // final-fixes-wave3-report.md), MODULO dedup (final-fixes-wave4.md): the raw
+  // scored list is now deduped before the sort, so the return shape and sort
+  // order are unchanged but padded duplicates are gone.
   function suggestTrades(me, others, ctx, opts = {}) {
     requireCtx(ctx);
     const out = [];
@@ -799,14 +871,15 @@
         if (s) out.push(Object.assign({ teamId: other.teamId }, s));
       }
     }
-    out.sort((a, b) => b.myGain - a.myGain);
-    return out;
+    const deduped = dedupOffers(out, ctx);
+    deduped.sort((a, b) => b.myGain - a.myGain);
+    return deduped;
   }
 
   return { defaultPicks, applyTradedPicks, candidate, chooseKeepers,
            draftPool, currentDraftValue, boardRank,
            futurePicksValue, stateValue, marketValue, marketDelta,
            applyTrade, gradeTrade, offerable,
-           suggestCandidates, scoreCandidate, suggestTrades,
+           suggestCandidates, scoreCandidate, suggestTrades, dedupOffers,
            MIN_GAIN, SUGGEST_PER_TEAM, FUTURE_DISCOUNT, MAX_PER_SIDE };
 });

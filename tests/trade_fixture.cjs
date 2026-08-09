@@ -912,6 +912,140 @@ check("an ineligible player is never suggested as an asset, on EITHER side", () 
   }
 });
 
+// --- dedup: one offer per real offer -----------------------------------------
+
+// Wave 4 (final-fixes-wave4.md): packages() enumerates every 1- and 2-asset
+// combination, so a real move appears once alone and once again for every
+// worthless pick that can ride along -- measured on the live board, 108
+// suggestions across six opponents were 8 real ones. Both groups below share
+// one scenario (same ctx/board -- there is only ONE roster pairing here, not
+// two states being compared, so the "separate ctx.board per state" rule does
+// not apply) because it is what naturally produces BOTH shapes at once: some
+// padded-duplicate groups to collapse, and -- at the SAME myGain, so a dedup
+// that keys on myGain instead of substance cannot pass by accident -- a
+// second real trade that must NOT collapse with the first.
+function dedupScenario() {
+  const ctx = CTX();
+  const rbVals = [230, 206, 204, 202], rbAdps = [10, 24, 28, 32];
+  const rbs = [1, 2, 3, 4].map(i => withHistory(ctx,
+    P(`RB${i}`, "RB", rbVals[i - 1], { adp: rbAdps[i - 1], adp_round: Math.ceil(rbAdps[i - 1] / 12) }),
+    10));
+  const theirs = [
+    withHistory(ctx, P("BigWR", "WR", 240, { adp: 5, adp_round: 1 }), 10),
+    withHistory(ctx, P("SmallWR", "WR", 150, { adp: 150, adp_round: 13 }), 10),
+  ];
+  ctx.board = filler.concat(rbs).concat(theirs);
+  // worthless1/2: pickForRound(30/31, 12) is 354/366, past the end of this
+  // 246-row board, so Optimizer.parVorp indexes off the end and marketValue
+  // is exactly 0 -- padding by the brief's own definition. realPick (R3) is
+  // squarely on the board and prices well above 0, so a package built with it
+  // is a genuinely different offer, not a padded copy of a smaller one.
+  const worthless1 = { season: 2026, round: 30 };
+  const worthless2 = { season: 2026, round: 31 };
+  const realPick = { season: 2026, round: 3 };
+  assert.strictEqual(T.marketValue(worthless1, ctx), 0);
+  assert.strictEqual(T.marketValue(worthless2, ctx), 0);
+  assert.ok(T.marketValue(realPick, ctx) > 0,
+    "the pick used for the negative case below must carry real market value");
+  const me = state(rbs, [worthless1, worthless2, realPick]);
+  const them = state(theirs, allPicks());
+  return { ctx, rbs, theirs, me, them };
+}
+const giveNames = o => (o.toThem.players || []).map(p => p.name).sort().join(",");
+const givePicks = o => (o.toThem.picks || []).map(p => `${p.season}R${p.round}`).sort().join(",");
+const getNames = o => (o.toMe.players || []).map(p => p.name).sort().join(",");
+const getPicks = o => (o.toMe.picks || []).map(p => `${p.season}R${p.round}`).sort().join(",");
+
+check("suggestTrades collapses offers that differ only by a worthless pick, keeping the best myGain", () => {
+  const { ctx, me, them } = dedupScenario();
+
+  // Reconstruct the RAW pre-dedup scored list the same way suggestTrades
+  // computes it internally (suggestCandidates -> scoreCandidate, the "thin
+  // wrapper" the comment above suggestTrades describes), so this test checks
+  // against the real distribution rather than a hardcoded number.
+  const raw = [];
+  for (const c of T.suggestCandidates(me, them, ctx)) {
+    const s = T.scoreCandidate(me, them, c, ctx);
+    if (s) raw.push(s);
+  }
+  const group = raw.filter(o =>
+    giveNames(o) === "RB3" && getNames(o) === "" && getPicks(o) === "2026R14,2026R15");
+  // TEETH: if this is not >= 2, the scenario does not actually exercise
+  // padding and the assertions below pass vacuously.
+  assert.ok(group.length >= 2,
+    `scenario must produce padded duplicates to dedup, got ${group.length}`);
+  assert.ok(group.some(o => givePicks(o) === ""),
+    "the un-padded 1-for-2 offer must be among the raw candidates");
+  assert.ok(group.some(o => givePicks(o) === "2026R30" || givePicks(o) === "2026R31"),
+    "a padded variant (worthless pick riding along) must be among the raw candidates");
+  const bestRaw = Math.max(...group.map(o => o.myGain));
+
+  const out = T.suggestTrades(me, [{ teamId: 7, state: them }], ctx);
+  const deduped = out.filter(o =>
+    giveNames(o) === "RB3" && getNames(o) === "" && getPicks(o) === "2026R14,2026R15");
+  assert.strictEqual(deduped.length, 1,
+    `padded duplicates must collapse to one offer, got ${deduped.length}`);
+  assert.strictEqual(deduped[0].myGain, bestRaw,
+    "the surviving offer must carry the best myGain seen in the group");
+  assert.strictEqual(givePicks(deduped[0]), "",
+    "on an exact tie the fewer-assets offer (no padding pick attached) must survive");
+});
+
+check("offers that differ by a pick carrying real market value do not collapse", () => {
+  // Direct construction via scoreCandidate + dedupOffers, rather than fishing
+  // two offers out of suggestTrades' full package search: candA and candB
+  // differ ONLY by whether my real 2026 R3 (confirmed nonzero market value
+  // below) rides along -- the exact "same trade, one extra asset" shape
+  // padding produces, but with a SUBSTANTIVE asset instead of a worthless
+  // one. The group above (worthless picks) cannot catch a dedup that treats
+  // EVERY pick as padding regardless of value: it never puts a priced pick in
+  // the key at all. This one does, and it caught exactly that bug when tried
+  // (a `.filter(p => false)` mutation of the substance check passed the group
+  // above and collapsed this one to a single offer).
+  const ctx = CTX();
+  const rbVals = [230, 206, 204, 202], rbAdps = [10, 24, 28, 32];
+  const rbs = [1, 2, 3, 4].map(i => withHistory(ctx,
+    P(`RB${i}`, "RB", rbVals[i - 1], { adp: rbAdps[i - 1], adp_round: Math.ceil(rbAdps[i - 1] / 12) }),
+    10));
+  const theirs = [
+    withHistory(ctx, P("BigWR", "WR", 240, { adp: 5, adp_round: 1 }), 10),
+    withHistory(ctx, P("SmallWR", "WR", 150, { adp: 150, adp_round: 13 }), 10),
+  ];
+  ctx.board = filler.concat(rbs).concat(theirs);
+  const realPick = { season: 2026, round: 3 };
+  assert.ok(T.marketValue(realPick, ctx) > 0, "the pick used here must carry real market value");
+
+  const me = state(rbs, [realPick]);
+  const them = state(theirs, allPicks());
+  const RB3 = rbs[2], SmallWR = theirs[1];
+
+  // minGain is lowered to -Infinity: this pair's shared myGain (measured
+  // below, not assumed) sits under the suggester's own MIN_GAIN=5 noise
+  // floor, which is irrelevant to what this group tests (dedup's substance
+  // key, not the gain bar) -- scoreCandidate's opts.minGain exists precisely
+  // to let a caller move that bar.
+  const opts = { minGain: -Infinity };
+  const candA = { toThem: { players: [RB3], picks: [] }, toMe: { players: [SmallWR], picks: [] } };
+  candA.md = T.marketDelta(candA.toThem, candA.toMe, ctx);
+  const candB = { toThem: { players: [RB3], picks: [realPick] }, toMe: { players: [SmallWR], picks: [] } };
+  candB.md = T.marketDelta(candB.toThem, candB.toMe, ctx);
+  const sA = T.scoreCandidate(me, them, candA, ctx, opts);
+  const sB = T.scoreCandidate(me, them, candB, ctx, opts);
+  assert.ok(sA && sB, "TEETH: both candidates must score to compare them");
+  // TEETH for the "dedup keys on myGain" failure mode specifically: giving
+  // away the extra pick does not cost me anything in THIS scenario, so a
+  // dedup that used myGain as (part of) its identity would see no difference
+  // between these two offers at all.
+  assert.strictEqual(sA.myGain, sB.myGain,
+    "the scenario must tie on myGain, or this test does not exercise the risk it targets");
+
+  const offerA = Object.assign({ teamId: 7 }, sA);
+  const offerB = Object.assign({ teamId: 7 }, sB);
+  const deduped = T.dedupOffers([offerA, offerB], ctx);
+  assert.strictEqual(deduped.length, 2,
+    "a real, non-zero-priced pick makes this a DIFFERENT offer, not padding -- both must survive");
+});
+
 // --- monotonicity: a state is never worth more WITHOUT an asset -------------
 
 // The invariant nothing else in this file states. Every other group compares

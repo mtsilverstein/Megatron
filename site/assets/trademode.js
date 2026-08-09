@@ -691,7 +691,17 @@
   }
 
   function renderSuggestions() {
-    const raw = lastSuggestions || [];
+    // lastSuggestions stays RAW (see its own comment) so the hide-generous
+    // toggle stays free; dedup runs here instead, fresh from the full
+    // accumulator on every render, so a later-arriving duplicate with a
+    // better myGain is never shadowed by an earlier one already on screen.
+    // This is display-time collapsing of the SAME padded-duplicate shape
+    // trade.js's suggestTrades now dedups -- packages() pairs every real move
+    // with every worthless pick that can ride along, and this panel is the
+    // thing that made that visible (final-fixes-wave4.md): ten rows for one
+    // real offer. The page does not know what a duplicate IS; it just calls
+    // Trade.dedupOffers.
+    const raw = Trade.dedupOffers(lastSuggestions || [], world.ctx);
     const hide = els.hideGenerous.checked;
     const shown = (hide ? raw.filter(s => !(s.theirGain > s.myGain)) : raw)
       .slice(0, SUGGEST_SHOW);
