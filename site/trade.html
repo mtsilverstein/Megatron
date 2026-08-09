@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231B2127'/%3E%3Cline x1='9' y1='8' x2='55' y2='8' stroke='%23E8A33D' stroke-width='4.5' stroke-linecap='round'/%3E%3Cline x1='9' y1='56' x2='55' y2='56' stroke='%23B3BCC4' stroke-width='4.5' stroke-linecap='round'/%3E%3Cpolyline points='13 54 13 17 32 44 51 17 51 54' stroke='%23E9E4D8' stroke-width='7' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+<title>Trade calculator — Floor &amp; Ceiling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="masthead">
+  <h1 class="wordmark"><svg class="logo" viewBox="0 0 64 64" fill="none" aria-hidden="true"><line x1="9" y1="8" x2="55" y2="8" stroke="#E8A33D" stroke-width="4.5" stroke-linecap="round"/><line x1="9" y1="56" x2="55" y2="56" stroke="#B3BCC4" stroke-width="4.5" stroke-linecap="round"/><polyline points="13 54 13 17 32 44 51 17 51 54" stroke="#E9E4D8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Floor <span class="amp">&amp;</span> Ceiling</h1>
+  <nav>
+    <a href="index.html">Draft board</a>
+    <a href="trade.html" aria-current="page">Trade calculator</a>
+    <a href="weekly.html">Weekly</a>
+    <a href="about.html">About the model</a>
+  </nav>
+  <p class="stamp">loading…</p>
+</header>
+<main>
+  <p class="eyebrow">2026 pre-draft · players and picks</p>
+  <h1>Trade calculator</h1>
+  <p class="draft-note">Every number is season points in your best STARTING
+  LINEUP, measured by playing the rest of your draft out from the post-trade
+  roster. Keepers are worked out for both sides — a player you acquire competes
+  for one of your two slots, he does not add one. A player whose keeper cost
+  would be round 2 or lower goes back in the draft pool for everybody, so he is
+  worth nothing to trade before the draft, however good he is.</p>
+  <div class="draft-row" id="trade-connect">
+    <input id="trade-user" type="text" placeholder="Sleeper username" autocomplete="off">
+    <button id="trade-load">Load my league</button>
+    <span class="draft-status" id="trade-status">— not loaded</span>
+  </div>
+  <div class="draft-row" id="trade-league-picker"></div>
+  <div class="draft-row" id="trade-controls" hidden>
+    <label>Trade with <select id="trade-partner"></select></label>
+    <label>future picks ×<input id="trade-discount" type="number" min="0" max="1"
+           step="0.05" value="0.8" style="width:5rem"></label>
+    <label><input type="checkbox" id="trade-hide-generous" checked> hide trades that help them more</label>
+    <button id="trade-suggest">Suggest trades</button>
+  </div>
+  <p class="draft-note" id="trade-warn" hidden></p>
+  <div class="trade-cols" id="trade-cols" hidden>
+    <div><h2>You give</h2><p class="trade-col-note" id="trade-mine-note"></p><ul class="trade-assets" id="trade-mine"></ul></div>
+    <div><h2>You get</h2><p class="trade-col-note" id="trade-theirs-note"></p><ul class="trade-assets" id="trade-theirs"></ul></div>
+  </div>
+  <div class="draft-shortlist-panel" id="trade-grade" hidden></div>
+  <div class="draft-shortlist-panel" id="trade-suggestions" hidden></div>
+</main>
+<footer>Pre-draft only: this values players and draft picks before the draft.
+In-season trading is a separate tool.</footer>
+<script src="assets/app.js"></script>
+<script src="assets/sleeper.js"></script>
+<script src="assets/optimizer.js"></script>
+<script src="assets/keepers.js"></script>
+<script src="assets/trade.js"></script>
+<script src="assets/trademode.js"></script>
+<script>
+(async () => {
+  const board = await FC.loadJSON("data/draft.json");
+  FC.stampHeader(board);
+  TradeMode.init({
+    board,
+    els: {
+      user: document.getElementById("trade-user"),
+      load: document.getElementById("trade-load"),
+      status: document.getElementById("trade-status"),
+      picker: document.getElementById("trade-league-picker"),
+      controls: document.getElementById("trade-controls"),
+      partner: document.getElementById("trade-partner"),
+      discount: document.getElementById("trade-discount"),
+      hideGenerous: document.getElementById("trade-hide-generous"),
+      suggest: document.getElementById("trade-suggest"),
+      warn: document.getElementById("trade-warn"),
+      cols: document.getElementById("trade-cols"),
+      mine: document.getElementById("trade-mine"),
+      theirs: document.getElementById("trade-theirs"),
+      grade: document.getElementById("trade-grade"),
+      suggestions: document.getElementById("trade-suggestions"),
+    },
+  });
+})().catch(e => {
+  document.querySelector(".stamp").textContent = `failed to load: ${e.message}`;
+});
+</script>
+</body>
+</html>
