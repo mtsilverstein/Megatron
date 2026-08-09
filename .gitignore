@@ -29,3 +29,6 @@ models_artifacts.zip
 /models/backtests/worlds_tf/
 /models/backtests/worlds_tf_cal/
 /models/backtests/worlds_tf_base/
+
+# Brainstorming scratch (visual companion screens, SDD progress ledger).
+.superpowers/
