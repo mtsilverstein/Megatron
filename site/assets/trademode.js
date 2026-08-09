@@ -562,6 +562,22 @@
         bits.push(`Your gain is under ${Trade.MIN_GAIN} pts — inside this model's own `
           + `noise, so treat it as no change.`);
       }
+      // COMPARING two offers, not judging one. The bit above guards a single
+      // verdict's MAGNITUDE (|myGain| < MIN_GAIN); it says nothing about the
+      // DIFFERENCE between two offers, which is what you actually read when you
+      // toggle an asset on and off. Those are not the same guard, and the gap
+      // between them is reachable: adding an asset to a side can raise that
+      // side's gain slightly, because `Optimizer.finishRoster`'s rollout is
+      // greedy and two pick lists can interleave differently (trade.js documents
+      // the cause and the sweeps). Every violation measured on this branch is
+      // under MIN_GAIN -- worst +4.61 for future-pick removals, +1.82 across 552
+      // live-board (offer, offer + one asset) pairs -- so MIN_GAIN is the honest
+      // bar for a COMPARISON too, and it is the same one the suggester uses.
+      // Unconditional: the reader needs it most when the number looks decisive.
+      bits.push(`Comparing two offers: only a gap of ${Trade.MIN_GAIN} pts or more `
+        + `is real. The draft is played out greedily, so adding an asset can move `
+        + `a side's gain a little even when it should not — every case measured is `
+        + `under ${Trade.MIN_GAIN} pts.`);
       els.grade.innerHTML =
         `<p class="trade-verdict"><strong>${gainSpan(g.myGain, "You gain")}</strong>`
         + ` · ${gainSpan(g.theirGain, "they gain")}`
