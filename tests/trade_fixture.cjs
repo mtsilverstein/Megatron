@@ -1041,9 +1041,166 @@ check("offers that differ by a pick carrying real market value do not collapse",
 
   const offerA = Object.assign({ teamId: 7 }, sA);
   const offerB = Object.assign({ teamId: 7 }, sB);
-  const deduped = T.dedupOffers([offerA, offerB], ctx);
+  const holdings = { mine: me.picks, theirs: new Map([[7, them.picks]]) };
+  const deduped = T.dedupOffers([offerA, offerB], ctx, holdings);
   assert.strictEqual(deduped.length, 2,
     "a real, non-zero-priced pick makes this a DIFFERENT offer, not padding -- both must survive");
+});
+
+// A board shaped like the LIVE one rather than like `filler`: value_points keep
+// descending all the way down, but `vorp` is 0 from row 96 on. That is the only
+// property that makes marketValue clamp to 0 -- Optimizer.parVorp is
+// max(0, board[pick-1].vorp) -- and on the live board it is true of 599 of the
+// 695 rows and of every pick from round 9 down. `filler` cannot reproduce it
+// (its vorp descends 250 -> 47 and never reaches 0), which is precisely why the
+// wave-4 dedup tests had to reach for fictional rounds 30 and 31 to get a
+// zero-priced pick at all, and why the defect below survived them.
+const clampedFiller = filler.map((p, i) =>
+  Object.assign({}, p, { vorp: i < 96 ? p.vorp : 0 }));
+
+check("on a pick-depleted state, R9 and R12 are different offers, not padding", () => {
+  // THE DEFECT: the substance key called a pick padding when marketValue == 0.
+  // parVorp clamps to 0 from about R9 down, so on a state holding ONLY R9-R15
+  // every pick it owns priced at 0 -- including its FIRST selection. Measured
+  // on the live board, two offers differing only by whether 2026 R9 or 2026 R12
+  // rode along keyed to the same bucket while sitting 12.90 points of myGain
+  // apart, and three distinct offers collapsed into one.
+  const ctx = CTX({ board: clampedFiller });
+  // Keeper costs R14, so the pair consumes R14 and R13 (downward on a
+  // collision) and leaves the EARLY picks unspent -- which is what makes R9 and
+  // R12 differ in the lineup currency at all.
+  const mine = [1, 2].map(i => withHistory(ctx,
+    P(`DepRB${i}`, "RB", 210 - i * 4, { adp: 20 + i * 6, adp_round: 2 }), 15));
+  // Late ADP, high value: the board-vs-market gap this whole tool exists
+  // to trade on, and the only way the prefilter's marketDelta >= 0 bar lets
+  // a zero-priced pick buy him at all.
+  const star = withHistory(ctx, P("DepStar", "WR", 250, { adp: 150, adp_round: 13 }), 10);
+  ctx.board = clampedFiller.concat(mine).concat([star]);
+
+  // R9-R15 only: the pick-depleted regime every trade involving a pick lands in.
+  const depleted = allPicks().filter(p => p.round >= 9);
+  const me = state(mine, depleted);
+  const them = state([star], allPicks());
+  const r9 = { season: 2026, round: 9 }, r12 = { season: 2026, round: 12 };
+
+  // TEETH 1: both picks really are market-worthless, so the OLD key put them in
+  // the same bucket. Without this the group could pass on a board where R9
+  // simply prices above 0 and the fix is never exercised.
+  assert.strictEqual(T.marketValue(r9, ctx), 0);
+  assert.strictEqual(T.marketValue(r12, ctx), 0);
+
+  // A PLAYER RIDES ALONG ON THE GIVE SIDE, and that is load-bearing rather than
+  // scenery. With a pick-only give side both offers fall into the ALL-PADDING
+  // fallback branch, which keys on the raw pick list and so keeps them apart
+  // whatever the padding rule says -- the group would pass identically against
+  // the broken code. With a player present the substance key is exercised for
+  // real: the old rule keyed both to "DepRB1|" and collapsed them into one.
+  const opts = { minGain: -Infinity };
+  const spare = mine[0];
+  const mk = pick => {
+    const c = { toThem: { players: [spare], picks: [pick] },
+                toMe: { players: [star], picks: [] } };
+    c.md = T.marketDelta(c.toThem, c.toMe, ctx);
+    return Object.assign({ teamId: 7 }, T.scoreCandidate(me, them, c, ctx, opts));
+  };
+  const a = mk(r9), b = mk(r12);
+  // TEETH 2: the two offers must actually differ in the currency the page
+  // prints, or "they must not collapse" is a claim about nothing.
+  assert.ok(Math.abs(a.myGain - b.myGain) > 1,
+    `giving up R9 must cost measurably more than giving up R12; got `
+    + `${a.myGain.toFixed(2)} vs ${b.myGain.toFixed(2)}`);
+
+  const holdings = { mine: me.picks, theirs: new Map([[7, them.picks]]) };
+  assert.strictEqual(T.dedupOffers([a, b], ctx, holdings).length, 2,
+    "on a state holding R9-R15 the R9 is the team's FIRST selection: these are "
+    + "two different offers, whatever the market prices them at");
+});
+
+check("on a FULL complement the late rounds are still padding and still collapse", () => {
+  // The other side of the same rule, and the reason the fix is a narrowing
+  // rather than a repeal: a pick past the holder's rollout horizon really is
+  // padding, and wave 4's collapsing must survive. Same board and the same two
+  // currencies as the group above -- only the holder's pick list changes.
+  const ctx = CTX({ board: clampedFiller });
+  // Keeper costs R14, so the pair consumes R14 and R13 (downward on a
+  // collision) and leaves the EARLY picks unspent -- which is what makes R9 and
+  // R12 differ in the lineup currency at all.
+  const mine = [1, 2].map(i => withHistory(ctx,
+    P(`FullRB${i}`, "RB", 210 - i * 4, { adp: 20 + i * 6, adp_round: 2 }), 15));
+  // Late ADP, high value: the board-vs-market gap this whole tool exists
+  // to trade on, and the only way the prefilter's marketDelta >= 0 bar lets
+  // a zero-priced pick buy him at all.
+  const star = withHistory(ctx, P("FullStar", "WR", 250, { adp: 150, adp_round: 13 }), 10);
+  ctx.board = clampedFiller.concat(mine).concat([star]);
+
+  const me = state(mine, allPicks());
+  const them = state([star], allPicks());
+  const r14 = { season: 2026, round: 14 }, r15 = { season: 2026, round: 15 };
+  assert.strictEqual(T.marketValue(r14, ctx), 0);
+  assert.strictEqual(T.marketValue(r15, ctx), 0);
+
+  // Same give-side shape as the group above (a player plus the pick under test),
+  // so the two groups differ in exactly ONE thing -- the holder's complement --
+  // and neither can hide in the all-padding fallback.
+  const opts = { minGain: -Infinity };
+  const spare = mine[0];
+  const mk = pick => {
+    const c = { toThem: { players: [spare], picks: [pick] },
+                toMe: { players: [star], picks: [] } };
+    c.md = T.marketDelta(c.toThem, c.toMe, ctx);
+    return Object.assign({ teamId: 7 }, T.scoreCandidate(me, them, c, ctx, opts));
+  };
+  const holdings = { mine: me.picks, theirs: new Map([[7, them.picks]]) };
+  assert.strictEqual(T.dedupOffers([mk(r14), mk(r15)], ctx, holdings).length, 1,
+    "R14 and R15 of a full complement are both past the rollout horizon and "
+    + "worthless on the market: one offer, not two");
+});
+
+check("dedupOffers refuses to guess what each side holds", () => {
+  // Without the holder's pick list every zero-market pick ranks as "not held"
+  // and therefore as substance, so nothing would collapse -- wave 4 silently
+  // undone while the call still returned a plausible list. Loud instead.
+  const ctx = CTX();
+  ctx.board = filler;
+  const o = { teamId: 7, myGain: 1, toThem: { players: [], picks: [] },
+              toMe: { players: [], picks: [] } };
+  assert.throws(() => T.dedupOffers([o], ctx), /holdings/);
+  assert.throws(() => T.dedupOffers([o], ctx, { mine: [] }), /holdings/);
+});
+
+check("dedupOffers folded one offer at a time equals dedupOffers on the whole list", () => {
+  // The premise trademode.js's panel now relies on. It used to keep the RAW
+  // accumulator and dedup only at render time, so `finishRun` and the progress
+  // line counted the raw list while the renderer and its empty-state branch
+  // counted the deduped one -- observed live in Chrome as "40 offer(s) cleared
+  // both bars with Team 3" printed above two rows. It now dedups as each offer
+  // is accepted, which is only equivalent because dedupOffers keeps a running
+  // MAXIMUM per key and a maximum does not care how it is bracketed. If that
+  // ever stops being true, the panel's one number silently becomes the wrong
+  // one, and this is the group that says so.
+  const { ctx, me, them } = dedupScenario();
+  const raw = [];
+  for (const c of T.suggestCandidates(me, them, ctx)) {
+    const s = T.scoreCandidate(me, them, c, ctx);
+    if (s) raw.push(Object.assign({ teamId: 7 }, s));
+  }
+  // TEETH: the list must contain something to collapse, or both sides of the
+  // comparison are the same untouched list.
+  const holdings = { mine: me.picks, theirs: new Map([[7, them.picks]]) };
+  const oneShot = T.dedupOffers(raw, ctx, holdings);
+  assert.ok(raw.length > oneShot.length,
+    `the scenario must produce duplicates: ${raw.length} raw, ${oneShot.length} deduped`);
+
+  let folded = [];
+  for (const o of raw) {
+    folded.push(o);
+    folded = T.dedupOffers(folded, ctx, holdings);
+  }
+  const idOf = list => list.map(o =>
+    `${o.teamId}|${giveNames(o)}|${givePicks(o)}|${getNames(o)}|${getPicks(o)}|${o.myGain}`)
+    .sort();
+  assert.deepStrictEqual(idOf(folded), idOf(oneShot),
+    "folding dedup in as offers arrive must give the same set as one pass at the end");
 });
 
 // --- monotonicity: a state is never worth more WITHOUT an asset -------------
@@ -1054,12 +1211,27 @@ check("offers that differ by a pick carrying real market value do not collapse",
 // rounds of increasingly sharp scenario tests all missed a sign inversion that
 // made surrendering a 2026 R2 for nothing read as a +183.4 GAIN.
 //
-// One state, built once and read (never mutated) by both groups: every removal
-// below constructs a fresh state object off the same roster/pick arrays.
-// Eight roster players with a spread of keeper costs -- two of them ineligible
-// (cost <= R2, so they return to the pool for everybody) -- all 15 of this
-// season's picks, and two further seasons of 15, which is exactly what
-// trademode.js hands the page (PICK_SEASONS_AHEAD = 2, so 30 future picks).
+// One roster, built once and read (never mutated) by both groups: every removal
+// below constructs a fresh state object off the same arrays. Eight roster
+// players with a spread of keeper costs -- two of them ineligible (cost <= R2,
+// so they return to the pool for everybody) -- swept against each of the three
+// COMPLEMENTS below plus two further seasons of 15, which is what trademode.js
+// hands the page (PICK_SEASONS_AHEAD = 2, so 30 future picks).
+//
+// WHAT THESE TWO GROUPS DO AND DO NOT COVER. They hold future picks, so they
+// measure `stateValue`, which is `currentDraftValue` PLUS `futurePicksValue`.
+// The first half is exactly monotone (see the shape sweep below). The second is
+// not, and the residue is not a rounding artifact: `futurePicksValue` prices
+// future picks with the keeper set chosen to maximise the BASE state, and that
+// set does not maximise the augmented ones. Measured on the live board across
+// all three complements: 30 of 540 current-season pick removals raise
+// `stateValue` (worst +8.55), 6 of 1080 future-pick removals (worst +2.82,
+// under the tool's own MIN_GAIN of 5) and 31 of 540 roster removals (worst
+// +66.41). With ctx.maxKeepers = 0 every one of those goes to zero, which is
+// what identifies the cause. This state is a REGRESSION GUARD on a specific
+// scenario, then, not a proof of a universal property -- the shape sweep below
+// is the universal one, and it is deliberately kept free of future picks so it
+// can be.
 //
 // Every row carries an `adp`, for the reason `filler` documents above:
 // Optimizer.fieldTakes skips players without one, so on an ADP-less board the
@@ -1080,54 +1252,79 @@ const monoRoster = [
 ].map(([name, pos, val, adp, round]) => withHistory(monoCtx,
   P(name, pos, val, { adp, adp_round: Math.ceil(adp / 12) }), round));
 monoCtx.board = filler.concat(monoRoster);
-const monoPicks = [2026, 2027, 2028].reduce((a, s) => a.concat(allPicks(s, 15)), []);
-const monoState = state(monoRoster, monoPicks);
-const monoValue = s => T.stateValue(s, T.draftPool(monoCtx, s), monoCtx);
-const monoBase = monoValue(monoState);
 
-// Runs a list of {label, without} removals and returns the ones that RAISED
-// the value. A bare "assertion failed" here would waste whoever hits it next,
-// so each failure carries the asset and both values.
-function monoSweep(removals) {
-  const bad = [];
-  for (const r of removals) {
-    const v = monoValue(r.without);
-    if (v > monoBase + 1e-6) {
-      bad.push(`  ${r.label}: without ${v.toFixed(2)} > with ${monoBase.toFixed(2)}` +
-               `  (+${(v - monoBase).toFixed(2)})`);
-    }
-  }
-  return bad;
-}
-const monoDropPick = (season, round) => {
-  let dropped = false;
-  return state(monoRoster, monoPicks.filter(p => {
-    if (!dropped && p.season === season && p.round === round) { dropped = true; return false; }
-    return true;
-  }));
+// THE PICK COMPLEMENTS EVERY SWEEP BELOW RUNS AGAINST.
+//
+// Wave 2's monotonicity groups reported "0 of 180 violations" and it was true
+// -- of states holding all fifteen current-season picks, which is the ONE
+// complement the fixture ever built (`shapeState` hardcoded `picks:
+// allPicks()`). Every trade that moves a pick produces a state holding fewer,
+// and in that regime the defect was intact: measured on the live board, 14 of
+// 180 single-player removals RAISED their own team's value on an R9-R15
+// complement, worst +88.67, and through the public `gradeTrade` a team holding
+// R9-R15 could give a player away for nothing and read +81.74. The guard could
+// not see any of it, because the fixture guaranteed the assertion it made --
+// the sixth time this branch has been bitten by that exact shape.
+//
+// So: three complements, not one. FULL; EARLY-DEPLETED (no R1-R4, what a team
+// that has spent its early capital holds); and LATE-ONLY (R9-R15, the extreme a
+// two-pick trade reaches, and the one the re-review found worst). Each is swept
+// in full, and every group below reports which complement failed.
+const COMPLEMENTS = [
+  ["full", allPicks()],
+  ["no R1-R4", allPicks().filter(p => p.round > 4)],
+  ["R9-R15", allPicks().filter(p => p.round >= 9)],
+];
+
+// Two further seasons of 15, which is exactly what trademode.js hands the page
+// (PICK_SEASONS_AHEAD = 2, so 30 future picks).
+const monoFuture = allPicks(2027, 15).concat(allPicks(2028, 15));
+const monoValue = (roster, picks) => {
+  const st = state(roster, picks);
+  return T.stateValue(st, T.draftPool(monoCtx, st), monoCtx);
 };
+// Drops ONE COPY of a pick, so a complement holding two of a round keeps one.
+const dropPick = (picks, season, round) => {
+  let done = false;
+  return picks.filter(p => {
+    if (!done && p.season === season && p.round === round) { done = true; return false; }
+    return true;
+  });
+};
+const worse = (label, v, base) =>
+  `  ${label}: without ${v.toFixed(2)} > with ${base.toFixed(2)}  (+${(v - base).toFixed(2)})`;
 
 check("MONOTONICITY (picks): no pick is worth less than nothing", () => {
-  // All 15 current rounds, plus rounds 1, 2, 3, 8 and 15 of each future season.
-  // The future half is SAMPLED, not exhaustive, and the sample is deliberate:
-  // rounds 1-3 are the ones a trade actually moves, 8 is Optimizer.ROLLOUT_PICKS
-  // (the horizon past which a pick stops changing the simulated lineup), and 15
-  // is the far tail. Saying so because a silent cap reads as full coverage.
-  // Measured before reducing it: the exhaustive version (all 45 picks, 30 of
-  // them future) reports 0 failures too and costs 2596ms against the sample's
-  // 1444ms, so the sample finds everything the full sweep does for 55% of the
-  // time. The CURRENT season is swept in full -- that is where every step-1
-  // failure lived.
-  const removals = [];
-  for (let r = 1; r <= 15; r++) {
-    removals.push({ label: `2026 R${r}`, without: monoDropPick(2026, r) });
-  }
-  for (const season of [2027, 2028]) {
-    for (const r of [1, 2, 3, 8, 15]) {
-      removals.push({ label: `${season} R${r}`, without: monoDropPick(season, r) });
+  // Every current-season pick the complement actually holds, plus rounds 1, 2,
+  // 3, 8 and 15 of each future season. The future half is SAMPLED, not
+  // exhaustive, and the sample is deliberate: rounds 1-3 are the ones a trade
+  // actually moves AND where the discount alternation this wave fixed lived
+  // (the live-board violations were 2027 R2, 2028 R2 and 2028 R3), 8 is
+  // Optimizer.ROLLOUT_PICKS -- the horizon past which a pick stops changing the
+  // simulated lineup -- and 15 is the far tail. Saying so because a silent cap
+  // reads as full coverage.
+  const bad = [];
+  let swept = 0;
+  for (const [cname, cur] of COMPLEMENTS) {
+    const picks = cur.concat(monoFuture);
+    const base = monoValue(monoRoster, picks);
+    const removals = cur.map(p => [`${cname} / 2026 R${p.round}`, dropPick(picks, 2026, p.round)]);
+    for (const season of [2027, 2028]) {
+      for (const r of [1, 2, 3, 8, 15]) {
+        removals.push([`${cname} / ${season} R${r}`, dropPick(picks, season, r)]);
+      }
+    }
+    for (const [label, rest] of removals) {
+      swept++;
+      const v = monoValue(monoRoster, rest);
+      if (v > base + 1e-6) bad.push(worse(label, v, base));
     }
   }
-  const bad = monoSweep(removals);
+  // TEETH on the sweep itself: 15 + 11 + 7 current-season picks and 10 future
+  // samples per complement. A complement list that silently stopped producing
+  // states would make this group pass while checking nothing, which is the
+  // exact failure mode it exists to close.
+  assert.strictEqual(swept, 63, `the sweep must actually sweep: ${swept} removals`);
   assert.strictEqual(bad.length, 0,
     `giving these picks away for NOTHING raised the state's value:\n${bad.join("\n")}`);
 });
@@ -1153,41 +1350,47 @@ function shapeState(label, rows) {
   const roster = rows.map(([name, pos, val, adp, round]) => withHistory(ctx,
     P(name, pos, val, { adp, adp_round: Math.ceil(adp / 12) }), round));
   ctx.board = filler.concat(roster);
-  // CURRENT-season picks only, and that is a deliberate boundary rather than a
-  // convenience. On a state holding only this season's picks, `stateValue` IS
-  // `currentDraftValue`, which is EXACTLY monotone in the roster once keepers
-  // are chosen by the objective: every keeper set open to the smaller roster
-  // was already open to the larger one, so its maximum cannot be beaten.
-  // Measured on the live board, 12 rosters x 10 players: 0 of 120 removals
-  // raise `currentDraftValue`, against 12 of 120 before wave 2.
-  //
-  // `futurePicksValue` does NOT inherit that guarantee -- it sums CLAMPED,
-  // DISCOUNTED marginals of a monotone function, which is not itself monotone,
-  // and it prices 31 different pick lists against one keeper choice. Measured:
-  // 6 of the same 120 removals still raise the full 45-pick `stateValue`, worst
-  // +14.41 (down from 12 and +51.45). The 45-pick `monoState` above is the
-  // guard for that half, and the wave-2 report carries the residue; asserting
-  // exact monotonicity over future picks here would be asserting something
-  // measured to be false.
-  return { label, ctx, roster, picks: allPicks() };
+  // NO PICK LIST HERE, and that is the wave-5 change: `shapeSweep` runs every
+  // shape against all three COMPLEMENTS instead. Hardcoding `picks: allPicks()`
+  // was what let item 1 survive a full wave -- see the COMPLEMENTS note above.
+  return { label, ctx, roster };
 }
+// CURRENT-SEASON PICKS ONLY, and that is a deliberate boundary rather than a
+// convenience. On a state holding only this season's picks, `stateValue` IS
+// `currentDraftValue`, which is EXACTLY monotone in the roster once keepers are
+// chosen by the objective AND against the picks the state actually holds: every
+// keeper set open to the smaller roster was already open to the larger one, so
+// its maximum cannot be beaten. Wave 2 established the first half of that and
+// wave 5 the second -- while the selection scored against a full complement and
+// the valuation against `state.picks`, the argument covered only the complement
+// the old fixture happened to build. Measured on the live board, 12 rosters x
+// 15 players x these same three complements: 0 of 540 removals raise
+// `currentDraftValue`, against 0 / 9 / 14 of 180 before wave 5.
+//
+// `futurePicksValue` is swept by the `monoState` groups above, which hold all
+// 30 future picks; keeping it out here is what makes THIS sweep an exact
+// statement about keeper selection rather than a mixed one.
 function shapeSweep(s) {
   const KK = require("../site/assets/keepers.js");
-  const value = r => {
-    const st = state(r, s.picks);
-    return T.stateValue(st, T.draftPool(s.ctx, st), s.ctx);
-  };
-  const base = value(s.roster);
   const bad = [];
-  for (const p of s.roster) {
-    const v = value(s.roster.filter(x => x !== p));
-    if (v > base + 1e-6) {
-      bad.push(`  ${s.label} without ${p.name} `
-        + `(cost R${KK.keeperCost(T.candidate(p, s.ctx), s.ctx.season)}): `
-        + `${v.toFixed(2)} > ${base.toFixed(2)}  (+${(v - base).toFixed(2)})`);
+  let swept = 0;
+  for (const [cname, picks] of COMPLEMENTS) {
+    const value = r => {
+      const st = state(r, picks);
+      return T.stateValue(st, T.draftPool(s.ctx, st), s.ctx);
+    };
+    const base = value(s.roster);
+    for (const p of s.roster) {
+      swept++;
+      const v = value(s.roster.filter(x => x !== p));
+      if (v > base + 1e-6) {
+        bad.push(`  ${s.label} [${cname}] without ${p.name} `
+          + `(cost R${KK.keeperCost(T.candidate(p, s.ctx), s.ctx.season)}): `
+          + `${v.toFixed(2)} > ${base.toFixed(2)}  (+${(v - base).toFixed(2)})`);
+      }
     }
   }
-  return bad;
+  return { bad, swept };
 }
 
 // THREE REAL COUNTEREXAMPLES, not invented ones: found by sweeping randomly
@@ -1239,12 +1442,12 @@ const NAMED_SHAPES = [
 // BREADTH on top of those three. Deterministic (a seeded mulberry32, no
 // Math.random -- a flaky monotonicity test is worse than none), 40 shapes of
 // 5-7 players spanning positions, values 160-290, keeper costs R2-R13 and a
-// spread of ADPs. TEETH, measured rather than assumed: running this whole group
-// against the pre-wave-2 selection reports 18 of 260 removals across 16 of the
-// 43 shapes (all 3 named ones, plus g4 g10 g11 g12 g16 g18 g19 g20 g22 g25 g34
-// g35 g38), so a regression fails it sixteen times over rather than hanging on
-// one lucky scenario. Under the shipped selection all 43 are clean. 40 seeds
-// rather than 120 (where 29 fail) is a runtime call: 40 costs ~7s, 120 ~21s.
+// spread of ADPs. TEETH, measured rather than assumed: against the pre-wave-2
+// selection this group reported 18 of 260 removals across 16 of the 43 shapes;
+// against the pre-wave-5 one, now that all three COMPLEMENTS are swept, 60 of
+// 780 across 31 shapes, worst +166.90. Under the shipped selection all 43 are
+// clean on all three. 40 seeds rather than 120 is a runtime call: 40 costs ~21s
+// against 120's ~63s now that each shape is swept three times.
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -1276,29 +1479,51 @@ check("MONOTONICITY (roster): no player is worth less than nothing", () => {
   // no-op by construction and only the keeper slots can move this.
   //
   // Wave 1's version of this group tested ONE state and said in a comment that
-  // it was not coverage. It now sweeps 44 shapes as well (see NAMED_SHAPES /
-  // GENERATED_SHAPES above), and the caveat has been narrowed rather than
-  // deleted, because it is still true of ONE half: `monoState` holds 30 future
-  // picks and `futurePicksValue` is measurably NOT exactly monotone (6 of 120
-  // live-board removals, worst +14.41). What IS now covered, and exactly, is
-  // keeper selection -- the whole of wave 2's defect.
+  // it was not coverage. Wave 2 added 43 shapes. Wave 5 added the thing both
+  // were missing: EVERY state here is swept against all three COMPLEMENTS, not
+  // just a full one. That is where the defect lived, and it is why "0 of 180"
+  // was true and useless.
+  //
+  // TEETH, measured rather than assumed: run against the pre-wave-5 modules the
+  // shape sweep reports 60 of 780 removals across 31 of the 43 shapes -- and
+  // NOT ONE OF THEM ON THE FULL COMPLEMENT. 32 are on "no R1-R4" and 28 on
+  // "R9-R15", worst +166.90. That distribution is the whole lesson: the old
+  // fixture swept the one complement where the defect does not appear.
   const K = require("../site/assets/keepers.js");
-  const bad = monoSweep(monoRoster.map(p => ({
-    label: `${p.name} (cost R${K.keeperCost(T.candidate(p, monoCtx), monoCtx.season)})`,
-    without: state(monoRoster.filter(x => x !== p), monoPicks),
-  })));
+  const bad = [];
+  let monoSwept = 0;
+  for (const [cname, cur] of COMPLEMENTS) {
+    const picks = cur.concat(monoFuture);
+    const base = monoValue(monoRoster, picks);
+    for (const p of monoRoster) {
+      monoSwept++;
+      const v = monoValue(monoRoster.filter(x => x !== p), picks);
+      if (v > base + 1e-6) {
+        bad.push(worse(`${cname} / ${p.name} `
+          + `(cost R${K.keeperCost(T.candidate(p, monoCtx), monoCtx.season)})`, v, base));
+      }
+    }
+  }
+  assert.strictEqual(monoSwept, 24, `the sweep must actually sweep: ${monoSwept} removals`);
   assert.strictEqual(bad.length, 0,
     `giving these players away for NOTHING raised the state's value:\n${bad.join("\n")}`);
 
   const shapes = NAMED_SHAPES.concat(GENERATED_SHAPES);
   let swept = 0;
   const wide = [];
-  for (const s of shapes) { swept += s.roster.length; wide.push(...shapeSweep(s)); }
+  for (const s of shapes) {
+    const r = shapeSweep(s);
+    swept += r.swept;
+    wide.push(...r.bad);
+  }
   // TEETH on the sweep itself: a shape family that silently stopped producing
-  // rosters would make this group pass while checking nothing, which is the
-  // exact failure mode wave 1's suggester groups were rebuilt to close.
-  assert.ok(shapes.length === 43 && swept > 250,
-    `the sweep must actually sweep: ${shapes.length} shapes, ${swept} removals`);
+  // rosters -- or a COMPLEMENTS list that stopped producing complements -- would
+  // make this group pass while checking nothing, which is the exact failure mode
+  // wave 1's suggester groups were rebuilt to close and the one wave 5 caught
+  // here.
+  assert.ok(shapes.length === 43 && COMPLEMENTS.length === 3 && swept > 750,
+    `the sweep must actually sweep: ${shapes.length} shapes, ${COMPLEMENTS.length} `
+    + `complements, ${swept} removals`);
   assert.strictEqual(wide.length, 0,
     `keeper selection made a team richer by making it SMALLER `
     + `(${wide.length} of ${swept} removals):\n${wide.join("\n")}`);

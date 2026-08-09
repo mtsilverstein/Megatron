@@ -283,7 +283,7 @@
   let world = null;                 // {teams, ctx, warnings} from leagueWorld
   let me = null, partner = null;
   let sides = null;                 // {mine, theirs}: {ul, team, assets, picked}
-  let lastSuggestions = null;       // raw, so the hide-generous toggle is free
+  let lastSuggestions = null;       // deduped as offers arrive; ONE list, one count
   let loadSeq = 0, gradeSeq = 0;    // generation tokens: a stale run can't win
   let note = "";                    // transient warning (bad discount, stale list)
 
@@ -650,6 +650,29 @@
     run.i++;
     if (s) {
       lastSuggestions.push(Object.assign({ teamId: partner.rosterId }, s));
+      // DEDUP HERE, ONCE, at the point an offer is accepted -- not at render
+      // time. While the accumulator stayed raw and only the renderer deduped,
+      // the panel printed two different counts for the same run: observed live
+      // in Chrome, the status line said "40 offer(s) cleared both bars with
+      // Team 3" over a list of 2 rows, because finishRun and progressText
+      // counted the raw list while renderSuggestions and its empty-state branch
+      // read the deduped one. This file's own doctrine is that nothing prints a
+      // number the reader cannot check, and 40 was not checkable against
+      // anything on screen. One list now, and every counter and the renderer
+      // read it.
+      //
+      // Folding it in incrementally is exactly one-shot dedup of the full list:
+      // dedupOffers keeps the best myGain per key (ties to the fewer-asset
+      // offer), and a running maximum is the same maximum however it is
+      // bracketed. So a later-arriving duplicate with a better myGain still
+      // replaces the one already on screen, which is what the render-time
+      // version existed to guarantee.
+      //
+      // The hide-generous toggle stays free: it filters this list at render
+      // time and never needs the pre-dedup one.
+      lastSuggestions = Trade.dedupOffers(lastSuggestions, world.ctx,
+        { mine: me.state.picks,
+          theirs: new Map([[partner.rosterId, partner.state.picks]]) });
       // Best-first at every moment, not only at the end -- the prefilter's
       // least-overpay-first order is NOT most-gain-first, so a late candidate
       // can outrank everything already on screen. Same comparator
@@ -693,17 +716,15 @@
   }
 
   function renderSuggestions() {
-    // lastSuggestions stays RAW (see its own comment) so the hide-generous
-    // toggle stays free; dedup runs here instead, fresh from the full
-    // accumulator on every render, so a later-arriving duplicate with a
-    // better myGain is never shadowed by an earlier one already on screen.
-    // This is display-time collapsing of the SAME padded-duplicate shape
-    // trade.js's suggestTrades now dedups -- packages() pairs every real move
-    // with every worthless pick that can ride along, and this panel is the
-    // thing that made that visible (final-fixes-wave4.md): ten rows for one
-    // real offer. The page does not know what a duplicate IS; it just calls
-    // Trade.dedupOffers.
-    const raw = Trade.dedupOffers(lastSuggestions || [], world.ctx);
+    // ALREADY DEDUPED -- `step` collapses the accumulator as each offer is
+    // accepted (see its comment), so this is the same list finishRun and
+    // progressText count and there is exactly one number in play. This is
+    // display-time collapsing of the SAME padded-duplicate shape trade.js's
+    // suggestTrades dedups -- packages() pairs every real move with every
+    // worthless pick that can ride along, and this panel is the thing that made
+    // that visible (final-fixes-wave4.md): ten rows for one real offer. The
+    // page does not know what a duplicate IS; it just calls Trade.dedupOffers.
+    const raw = lastSuggestions || [];
     const hide = els.hideGenerous.checked;
     const shown = (hide ? raw.filter(s => !(s.theirGain > s.myGain)) : raw)
       .slice(0, SUGGEST_SHOW);

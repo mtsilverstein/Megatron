@@ -509,49 +509,122 @@
   // undiscounted and unclamped the marginals sum to (state + all future picks
   // credited) - (state), so the total can never exceed what those picks are
   // jointly worth.
+  //
+  // ONE SEGMENT PER SEASON, and the discount applied to the SEGMENT rather than
+  // to each pick. A single chain with a per-pick discount made the total
+  // NON-MONOTONE, measured exhaustively on the live board: 12 of 360
+  // future-pick removals RAISED the state's value on a full complement, worst
+  // +9.42 -- 1.9x the tool's own MIN_GAIN. Through gradeTrade, giving a 2028 R2
+  // and receiving a worthless 2028 R15 graded myGain +9.42 AND theirGain +9.73:
+  // both sides gaining from a one-way transfer. The cause, traced by the
+  // re-review:
+  //
+  //   with 2028R2:  2027R1:86.1  2028R1:47.5  2027R2:26.1  2028R2:24.5  2027R3:1.6
+  //   without:      2027R1:86.1  2028R1:47.5  2027R2:26.1  2027R3:31.7  2028R3:1.6
+  //
+  // Dropping the 2028 R2 promotes the 2027 R3 into that slot, where it is
+  // discounted x0.8 instead of x0.64. The MARGINAL is a function of position in
+  // the credit sequence; the DISCOUNT was a function of which pick sat there.
+  // Mixing seasons in one chain lets the two disagree, and the sum alternates.
+  //
+  // Within a season the discount is now a constant multiplying the whole
+  // segment, so that cannot happen, and the sum telescopes into something with
+  // a shape worth stating. Unclamped, with seasons credited nearest-first:
+  //
+  //   stateValue = (1-d)*V(base) + (d-d^2)*V(base+P1) + d^2*V(base+P1+P2)
+  //
+  // -- a CONVEX COMBINATION (the weights are non-negative for 0<=d<=1 and sum
+  // to 1) of the same value function at three pick lists, each of which can
+  // only fall when an asset is removed. That is the whole argument, and it
+  // generalises to any horizon.
+  //
+  // THE ACCUMULATOR RUNS ACROSS SEASONS, not per season from the base. Starting
+  // each season's segment from the base instead makes the V(base) weight
+  // 1 - (d + d^2) = -0.44, i.e. NEGATIVE, and removing a current-season pick
+  // then lifts every season's segment at once. That is not theory: it was
+  // measured, and it is catastrophic -- 76 of 180 current-season pick removals
+  // raising the state's value on a full complement, 77 of 84 on an R9-R15 one,
+  // worst +130.84. The same 15x-smaller shape as the independent-and-summed
+  // pricing the comment above rejects.
+  //
+  // THE CLAMP STAYS, and it is the one place this deviates from the argument
+  // above. Measured both ways on the live board (12 rosters x 45 picks x the
+  // three pick complements): clamped 6 future-pick violations, worst +2.82;
+  // unclamped 9, worst +4.61. Clamped is the better of the two and it is also
+  // the incumbent, so it ships; the deviation is that a negative marginal is
+  // credited as 0 rather than as itself, which is what stops the sum
+  // telescoping exactly.
+  //
+  // Rollout count is unchanged: one currentDraftValue per future pick plus the
+  // shared base. Measured on the live board, one team giving away its 2026 R2
+  // FOR NOTHING at the shipped 30-future-pick horizon: -15.3 before, -16.8
+  // after, so the sign inversion wave 1 fixed has not come back.
+  //
+  // WHAT THIS DOES NOT FIX, stated because the next reader will measure it:
+  // `stateValue` is still not exactly monotone. The residue is entirely the
+  // KEEPER SET moving under the removal -- the selection maximises V(base), but
+  // stateValue also weights V(base+P1) and V(base+P1+P2), which the chosen set
+  // does not maximise. Proof by measurement: with ctx.maxKeepers = 0 this form
+  // is exactly monotone on the live board, 0 of 180 current picks, 0 of 360
+  // future picks and 0 of 180 roster players. Fixing it would mean scoring
+  // every candidate keeper set against the full future chain, which is 31x the
+  // rollouts per candidate and out of budget by any measure.
   function futurePicksValue(state, pool, ctx) {
     requireCtx(ctx);
     const future = (state.picks || []).filter(p => p.season > ctx.season);
     if (!future.length) return 0;
-    // ROUND ascending, then SEASON ascending. The rollout keys on pick NUMBER,
-    // which derives from the round (Keepers.pickForRound at the round's
-    // mid-slot), so crediting the best rounds first prices the picks a team
-    // would actually use at their full worth and pushes the diminishing tail
-    // onto the late ones. Season is only the tie-break among equal rounds, and
-    // it runs NEAREST-FIRST: the earlier a copy is credited the larger its
-    // marginal tends to be, and the nearest season carries the smallest
-    // discount, so pairing them that way is the reading that does not
-    // systematically under-price two same-round picks in consecutive years.
-    const sorted = future.slice().sort((a, b) => a.round - b.round || a.season - b.season);
-    // NO EARLY EXIT, AND THAT IS DELIBERATE. The round-counting skip this
-    // replaces ("the state already holds ROLLOUT_PICKS unspent picks earlier
-    // than this one, so it cannot enter the rollout") cannot survive cumulative
-    // pricing: that count moves every iteration. The obvious replacement --
-    // stop at the first non-positive marginal, since with rounds ascending they
-    // should be non-increasing -- was TESTED THE WAY THE OLD SKIP WAS, by
-    // recomputing the full 30-entry contribution vector with the exit removed,
-    // and it is NOT exact. Counterexample, measured on the live board and
-    // reproduced on the synthetic one: a state whose keepers cost more than any
-    // pick it holds (here, no current-season picks at all) spends the first
-    // credited picks paying for those keepers, so the marginal vector opens
-    // 0.00, 0.00, 248.90, 206.50, ... -- an exit on the leading zero returned
-    // 0.00 against a true 863.34. Marginals are not monotone in general, so
-    // every future pick is priced. See final-fixes-wave1-report.md for the cost.
-    //
-    // `acc` carries this state's OTHER picks too, including the future ones:
-    // currentDraftValue filters to `p.season === ctx.season`, so a future pick
-    // sitting in the list is inert there, and starting from the full list keeps
-    // `prev` and `next` computed from exactly the same shape.
+    const bySeason = new Map();
+    for (const p of future) {
+      if (!bySeason.has(p.season)) bySeason.set(p.season, []);
+      bySeason.get(p.season).push(p);
+    }
     let acc = (state.picks || []).slice();
     let prev = currentDraftValue(state, pool, ctx);
     let total = 0;
-    for (const p of sorted) {
-      acc = acc.concat([{ season: ctx.season, round: p.round }]);
-      const next = currentDraftValue(Object.assign({}, state, { picks: acc }), pool, ctx,
-                                     state.picks);
-      const marginal = next - prev;
-      total += Math.max(0, marginal) * Math.pow(ctx.futureDiscount, p.season - ctx.season);
-      prev = next;
+    for (const season of Array.from(bySeason.keys()).sort((a, b) => a - b)) {
+      // ROUND ascending within the season. The rollout keys on pick NUMBER, which
+      // derives from the round (Keepers.pickForRound at the round's mid-slot), so
+      // crediting the best rounds first prices the picks a team would actually
+      // use at their full worth and pushes the diminishing tail onto the late
+      // ones. It is also what makes the chain monotone under removal: dropping
+      // the pick at position k promotes every later pick one slot, and because
+      // rounds ascend each promoted pick is no better than the one it replaces.
+      // The re-review confirmed round-ascending is the better ordering; the
+      // season tie-break the old single chain needed is gone with the mixing.
+      const sorted = bySeason.get(season).slice().sort((a, b) => a.round - b.round);
+      // NO EARLY EXIT, AND THAT IS DELIBERATE. The round-counting skip this
+      // replaces ("the state already holds ROLLOUT_PICKS unspent picks earlier
+      // than this one, so it cannot enter the rollout") cannot survive cumulative
+      // pricing: that count moves every iteration. The obvious replacement --
+      // stop at the first non-positive marginal, since with rounds ascending they
+      // should be non-increasing -- was TESTED THE WAY THE OLD SKIP WAS, by
+      // recomputing the full 30-entry contribution vector with the exit removed,
+      // and it is NOT exact. Counterexample, measured on the live board and
+      // reproduced on the synthetic one: a state whose keepers cost more than any
+      // pick it holds (here, no current-season picks at all) spends the first
+      // credited picks paying for those keepers, so the marginal vector opens
+      // 0.00, 0.00, 248.90, 206.50, ... -- an exit on the leading zero returned
+      // 0.00 against a true 863.34. Marginals are not monotone in general, so
+      // every future pick is priced. See final-fixes-wave1-report.md for the cost.
+      //
+      // `acc` and `prev` are declared OUTSIDE this loop: the accumulator runs
+      // across seasons (see the head comment), so 2028's segment is credited
+      // against a state that already holds 2027's. `acc` carries this state's
+      // OTHER picks too, including the future ones: currentDraftValue filters to
+      // `p.season === ctx.season`, so a future pick sitting in the list is inert
+      // there, and starting from the full list keeps `prev` and `next` computed
+      // from exactly the same shape.
+      let chain = 0;
+      for (const p of sorted) {
+        acc = acc.concat([{ season: ctx.season, round: p.round }]);
+        const next = currentDraftValue(Object.assign({}, state, { picks: acc }), pool, ctx,
+                                       state.picks);
+        chain += Math.max(0, next - prev);
+        prev = next;
+      }
+      // The discount is applied to the WHOLE chain, once, because it is constant
+      // across a season -- that constancy is the entire fix.
+      total += chain * Math.pow(ctx.futureDiscount, season - ctx.season);
     }
     return total;
   }
@@ -846,8 +919,39 @@
   // the panel cannot tell them apart -- measured on the live board, 108
   // suggestions across six opponents are 8 real ones (final-fixes-wave4.md).
   //
-  // SUBSTANCE = players (by id) + picks whose marketValue is nonzero. A pick
-  // priced at 0 is padding by definition.
+  // SUBSTANCE = players (by id) + picks that are not padding. A pick is PADDING
+  // only when it is worth ~nothing in BOTH currencies, and the two currencies
+  // disagree constantly once a state has traded picks away:
+  //
+  //   MARKET half (already here): marketValue == 0. parVorp clamps to 0 once
+  //   the board row at that pick sits at or below positional replacement, which
+  //   on the live board is true of every pick from round 9 down.
+  //
+  //   LINEUP half (added in wave 5): the pick must also be past the HOLDER'S
+  //   OWN rollout horizon -- more than Optimizer.ROLLOUT_PICKS selections into
+  //   the picks he actually holds that season. Round number alone is the wrong
+  //   test, because on a pick-depleted state an R9 is the team's FIRST
+  //   selection. Demonstrated on the live board: a state holding R9-R15, two
+  //   offers differing only by whether 2026 R9 or 2026 R12 rides along -- both
+  //   market 0.00, so both keyed to the same bucket, while sitting 12.90 points
+  //   of myGain apart. Three distinct offers collapsed into one.
+  //
+  //   AND a pick in a round the draft never reaches is padding whatever its
+  //   rank, because it produces no player at all. `applyTradedPicks` already
+  //   refuses to place such a row for the same reason; Sleeper really does
+  //   carry them.
+  //
+  // Deliberately CONSERVATIVE on the lineup half: keepers are not deducted from
+  // the holder's list before ranking, even though they will consume picks. Both
+  // errors are not equal. Calling substance what is really padding leaves a
+  // near-duplicate row on the panel, which the manager can see and ignore;
+  // calling padding what is really substance hides a 12.90-point difference he
+  // cannot see at all.
+  //
+  // HOLDINGS is therefore required, and dedupOffers THROWS without it rather
+  // than defaulting: with no holder list every zero-market pick ranks as
+  // "not held" and nothing collapses, which would silently undo wave 4 (108
+  // suggestions where 8 are real) while looking like it worked.
   //
   // Runs on the FULL, already-honestly-scored list, never before scoring: the
   // prefilter (suggestCandidates' marketDelta check) is a SEARCH heuristic and
@@ -868,10 +972,27 @@
   // one -- the "~" prefix keeps this fallback bucket disjoint from the normal
   // "players|picks" key space (a real key never starts with "~" because a
   // sorted player-id list never begins with the character "~").
-  function offerSideKey(side, ctx) {
+  // How many selections into that season's holdings this pick is: 1 for the
+  // holder's first, 2 for his second, and 0 when he does not hold it at all --
+  // which `assertHolds` makes unreachable through applyTrade, and which a
+  // hand-built offer should get SUBSTANCE for rather than a silent collapse.
+  function pickRankInHolding(pick, holding) {
+    const rounds = (holding || [])
+      .filter(p => p.season === pick.season)
+      .map(p => p.round).sort((a, b) => a - b);
+    return rounds.indexOf(pick.round) + 1;
+  }
+  function isPaddingPick(pick, holding, ctx) {
+    const rounds = ctx.rounds != null ? ctx.rounds : Keepers.DRAFT_ROUNDS;
+    if (pick.round > rounds) return true;          // a round the draft never reaches
+    if (marketValue(pick, ctx) > 0) return false;  // the market prices it
+    const rank = pickRankInHolding(pick, holding);
+    return rank > Optimizer.ROLLOUT_PICKS;         // rank 0 (not held) => substance
+  }
+  function offerSideKey(side, ctx, holding) {
     const players = (side.players || []).map(p => p.player_id).sort();
     const substancePicks = (side.picks || [])
-      .filter(p => marketValue(p, ctx) > 0)
+      .filter(p => !isPaddingPick(p, holding, ctx))
       .map(p => `${p.season}R${p.round}`).sort();
     if (!players.length && !substancePicks.length) {
       const raw = (side.picks || []).map(p => `${p.season}R${p.round}`).sort();
@@ -889,11 +1010,21 @@
   // On an exact tie, keeps the offer with fewer total assets -- a clean 1-for-1
   // is a better offer to SEND than the same trade with a late-rounder stapled
   // on, even when the padding is free in both currencies.
-  function dedupOffers(offers, ctx) {
+  //
+  // `holdings` is {mine, theirs}: MY pick list (the `toThem` side is drawn from
+  // it) and a Map from teamId to that opponent's pick list (the `toMe` side is
+  // drawn from theirs). Required -- see the padding note above for why this
+  // throws instead of defaulting.
+  function dedupOffers(offers, ctx, holdings) {
     requireCtx(ctx);
+    if (holdings == null || holdings.mine == null || holdings.theirs == null) {
+      throw new Error("trade.js: dedupOffers requires holdings {mine, theirs} "
+        + "-- the picks each side holds decide which of them are padding");
+    }
     const best = new Map();
     for (const o of offers) {
-      const key = `${o.teamId}::${offerSideKey(o.toThem, ctx)}=>${offerSideKey(o.toMe, ctx)}`;
+      const key = `${o.teamId}::${offerSideKey(o.toThem, ctx, holdings.mine)}`
+        + `=>${offerSideKey(o.toMe, ctx, holdings.theirs.get(o.teamId))}`;
       const assets = offerAssetCount(o);
       const prior = best.get(key);
       if (!prior || o.myGain > prior.offer.myGain
@@ -921,7 +1052,8 @@
         if (s) out.push(Object.assign({ teamId: other.teamId }, s));
       }
     }
-    const deduped = dedupOffers(out, ctx);
+    const deduped = dedupOffers(out, ctx,
+      { mine: me.picks, theirs: new Map(others.map(o => [o.teamId, o.state.picks])) });
     deduped.sort((a, b) => b.myGain - a.myGain);
     return deduped;
   }
