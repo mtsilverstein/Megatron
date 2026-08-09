@@ -21,6 +21,8 @@ Every task's requirements implicitly include these.
 - **Preserve all existing user-facing copy verbatim** unless a task explicitly changes it — especially the trade page's noise disclaimers (`site/assets/trademode.js:562-580`).
 - **Density must not regress.** The draft board shows no fewer players per screen after than before.
 - **Escape every interpolated string.** Build dynamic content with DOM nodes and `textContent`, or with the existing `FC.esc()` helper. Player names come from an external feed.
+- **In `site/assets/style.css`, locate blocks with `grep -n`, never by a line number quoted in this plan.** Task 3 grows the `:root` block by 14 lines, so every line number below it shifts. The same applies to `site/index.html` after Task 4 Step 2. Line numbers here describe the file *as it is today* and are for orientation only; the anchor is always the surrounding selector or comment text.
+- **New CSS added by Tasks 4, 5 and 7 should use Task 3's tokens** where one fits, or the ramp regresses as it lands.
 - **Keyboard reachability and visible focus are preserved.** Anything clickable is operable by keyboard and exposes its state.
 - Work on branch `feat/ui-redesign`. `main` stays draft-ready throughout.
 
@@ -347,6 +349,8 @@ git commit -m "feat: quantile band geometry as a pure, testable module"
 
 ### Task 3: The chassis — tokens, type scale, keeper panel
 
+> **Dispatch this task to `opus`.** Step 3 is a judgment call applied across 34 `font:` declarations and four pages, with a "change nothing visually" contract. Per CLAUDE.md, prose-specified work goes to the most capable model regardless of apparent size.
+
 **Files:**
 - Modify: `site/assets/style.css`
 
@@ -374,11 +378,20 @@ Replace the `:root` block at `site/assets/style.css:2-10` with:
   /* Spacing step. */
   --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1.1rem; --s5: 1.75rem;
 
-  /* Type scale. */
-  --t-display: 700 1.6rem/1 "Barlow Condensed", sans-serif;
-  --t-name:    600 1rem/1.15 "Barlow Condensed", sans-serif;
-  --t-num:     500 .82rem/1.2 "IBM Plex Mono", monospace;
-  --t-label:   600 .62rem/1 "IBM Plex Mono", monospace;
+  /* Type scale. Every value below is copied VERBATIM from a declaration that
+     already ships, so adopting a token is a pure refactor with no visual
+     change. Do not "round" them to a prettier ramp -- see Step 3. */
+  --t-display:  700 1.6rem/1 "Barlow Condensed", sans-serif;   /* .wordmark        */
+  --t-nav:      600 .95rem/1 "Barlow Condensed", sans-serif;   /* masthead nav     */
+  --t-chip:     600 .85rem/1 "Barlow Condensed", sans-serif;   /* filter buttons   */
+  --t-micro:    600 .7rem/1.5 "Barlow Condensed", sans-serif;  /* small captions   */
+  --t-num:      500 .92rem/1.4 "IBM Plex Mono", monospace;     /* td.num, th.num   */
+  --t-mono-sm:  500 .78rem/1.2 "IBM Plex Mono", monospace;     /* stamps           */
+
+  /* New surfaces only -- no existing declaration matches these. */
+  --t-name:     600 1rem/1.15 "Barlow Condensed", sans-serif;
+  --t-label:    600 .62rem/1 "IBM Plex Mono", monospace;
+  --t-edge:     500 .58rem/1 "IBM Plex Mono", monospace;
 }
 ```
 
@@ -426,22 +439,39 @@ Replace the `:root` block at `site/assets/style.css:2-10` with:
 .keeper-out { color: var(--chalk-dim); }
 ```
 
-- [ ] **Step 3: Apply the ramp to the existing components**
+- [ ] **Step 3: Migrate only EXACT matches — this is a refactor, not a retypeset**
 
-Spec §3 asks for "a defined ramp **rather than** per-component font declarations." Defining the tokens is not enough — if the existing `font:` declarations survive untouched, the chassis lands only on surfaces this plan happens to add, and the rest of the site is unchanged.
+Spec §3 asks for "a defined ramp rather than per-component font declarations." **Take that as far as it can safely go and no further, for a measured reason:** `style.css` carries **34 `font:` declarations spanning roughly 20 distinct sizes** across three families (`grep -n "font:" site/assets/style.css`). Those are deliberate choices, not drift. Forcing them onto a handful of tokens retypesets the entire site.
 
-Find every `font:` declaration in `style.css` and replace it with the matching token where one fits (`--t-display` for the wordmark, `--t-label` for uppercase micro-labels and nav, `--t-num` for numeric cells and stamps). Leave a declaration alone when no token matches; do **not** invent new tokens to force a match.
+Concretely, the naive version does damage: `td.num, th.num` (`:79`) is `500 .92rem/1.4 IBM Plex Mono` — substituting a `.82rem/1.2` token shrinks **every number on the board and weekly page by ~11%**. `.masthead nav a` (`:34`) is `600 .95rem/1 Barlow Condensed` — a mono `.62rem` token changes the **typeface and drops it 35%** on all four pages. And the density guard cannot catch either, because smaller type makes rows shorter, so density *improves* while the primary data surface silently changes.
 
-Then tighten the row rhythm, as §3 asks: reduce the table cell padding one step and set row borders to `--hairline` instead of `--rule`.
+So: **replace a declaration only where the token's value is byte-identical to what is already there.** The tokens in Step 1 were copied from real declarations precisely so this is possible. Expected substitutions, all zero-change:
 
-**Density is the guard on this step.** Before you start, load the board and record:
+| token | replaces | at |
+|---|---|---|
+| `--t-display` | `700 1.6rem/1 Barlow Condensed` | `:27` |
+| `--t-nav` | `600 .95rem/1 Barlow Condensed` | `:34`, `:131` |
+| `--t-num` | `500 .92rem/1.4 IBM Plex Mono` | `:79` |
+| `--t-mono-sm` | `500 .78rem/1.2 IBM Plex Mono` | `:40`, `:136` |
+| `--t-chip` | `600 .85rem/1 Barlow Condensed` | `:108`, `:148` |
+| `--t-micro` | `600 .7rem/1.5 Barlow Condensed` | `:165`, `:174` |
+
+Leave every other declaration alone. Do **not** widen a token to capture one more call site.
+
+**Do not touch `tbody tr`'s border.** It is already a hairline — `1px solid color-mix(in srgb, var(--rule) 45%, transparent)` (`:77`), which composites to roughly `#283037` against `--board`, a ~15-per-channel delta. Swapping in `--hairline` (`#1E262D`, a 3–6 delta) would make row separation **effectively invisible** on the densest table on the site. `--hairline` exists for new interior rules (the detail panel's `.kv`), not for this.
+
+Row rhythm is deliberately unchanged: `th, td` is `.45rem .6rem`, which is not on the `--s1..--s5` scale, and tightening the board's rows is the highest-risk change to the page you draft on for the least visible gain. The chassis's visual lift comes from the new surfaces — bands, the expanded panel, the keeper panel, the charts — not from re-spacing the existing table.
+
+- [ ] **Step 3b: Prove the migration changed nothing**
+
+Serve `site/`. For each of the four pages, screenshot before and after Step 3, and confirm they are visually identical. Then:
 
 ```js
-document.querySelectorAll("#board tbody tr").length   // total rows
-window.innerHeight                                     // viewport
+getComputedStyle(document.querySelector("td.num")).font
+getComputedStyle(document.querySelector(".masthead nav a")).font
 ```
 
-and count rows visible without scrolling. After the change, the visible count must be **greater than or equal to** the before count. If tightening makes it worse, revert the rhythm change and keep only the token migration — then say so in your report.
+Both must return exactly what they returned before. If any value moved, a token was not byte-identical — revert that one substitution.
 
 - [ ] **Step 4: Verify in a browser**
 
@@ -548,13 +578,23 @@ The floor and ceiling numbers become **visible text**, not a `title` tooltip —
 
 - [ ] **Step 4: Style it — REPLACE, do not append**
 
-There is already a `.band` block at `site/assets/style.css:83-92`. Appending would leave both in force and three things break:
+> **Anchor on comment text, never on line numbers in this file.** Task 3 replaced a 9-line `:root` block with a 23-line one, shifting everything below it down by **14 lines**. Any line number quoted from the pre-Task-3 file is now wrong, and following one literally here would delete `th, td` padding and the whole `thead th` block while leaving the real `.band` rules intact and conflicting — precisely the failure this step exists to prevent. Locate blocks with `grep -n`.
 
-- old `.band { width: 170px }` still wins, and a new `min-width` would defeat `@media (max-width: 560px) { .band { width: 110px } }` at `:123` — the rule that keeps the 10-column board off a horizontal scrollbar on a phone, which Task 9 Step 3 explicitly checks;
+There is already a `.band` block introduced by the comment:
+
+```
+/* -- signature: the range band ------------------------------------------- */
+```
+
+Find it with `grep -n "signature: the range band" site/assets/style.css`. It runs from that comment through the `prefers-reduced-motion` guard — ten lines: `.band`, `.band .track`, `.band .fill`, `.band .tick`, `@keyframes unfold`, and the reduced-motion rule.
+
+Appending instead of replacing leaves both in force and three things break:
+
+- old `.band { width: 170px }` still wins, and a new `min-width` would defeat `@media (max-width: 560px) { .band { width: 110px } }` — the rule that keeps the 10-column board off a horizontal scrollbar on a phone, which Task 9 Step 3 explicitly checks;
 - old `.band .fill` carries `transform-origin: var(--p50x)` and `animation: unfold`. The new fill never sets `--p50x` (only the retired `bandBar` did), so the origin silently falls back to centre **and every fill re-animates on each 3-second poll, sort and filter**;
 - `.band .track` becomes dead code — the new markup draws the track with `::before`.
 
-**Replace lines 83-92 entirely** with:
+**Replace that whole block** (comment through the reduced-motion guard) with:
 
 ```css
 .band { position: relative; width: 170px; height: 15px; }
@@ -573,13 +613,15 @@ There is already a `.band` block at `site/assets/style.css:83-92`. Appending wou
 .band .edge.lo { left: 0; } .band .edge.hi { right: 0; }
 ```
 
-Keep `width: 170px` (not `min-width`) so the `:123` mobile override still applies. The `@keyframes unfold` at `:91` and the `prefers-reduced-motion` guard at `:92` become unused — delete both; `grep -n "unfold" site/assets/style.css` must return nothing afterwards.
+Keep `width: 170px` (**not** `min-width`) so the mobile override still applies. `@keyframes unfold` and the `prefers-reduced-motion` guard become unused — delete both. Post-condition: `grep -n "unfold\|p50x" site/assets/style.css` returns **nothing**.
 
-At 110px wide on mobile the two `.edge` labels would collide. Add to the existing `@media (max-width: 560px)` block at `:122`:
+At 110px wide on mobile the two `.edge` labels would collide. Find the mobile block with `grep -n "max-width: 560px" site/assets/style.css` and add inside it:
 
 ```css
   .band .edge { display: none; }
 ```
+
+**One transitional note:** between this task and Task 6, `weekly.html` still calls `FC.bandBar`, which emits `class="track"` — now unstyled. The new `.band::before` draws a track for every `.band`, so weekly degrades only cosmetically (the fill loses its animation) across those two commits. Expected, not a bug to chase.
 
 - [ ] **Step 5: Verify density did not regress**
 
@@ -666,7 +708,11 @@ And as the last statement in `render`, after the loop:
     if (focusedId) {
       const back = tbody.querySelector(
         `tr[data-player-id="${CSS.escape(focusedId)}"]`);
-      if (back) back.focus();
+      // preventScroll is REQUIRED, not tidiness. A <tr tabindex="0"> takes
+      // focus on click, so without it: click a row, scroll down the 695-row
+      // board, and every 3s poll yanks the viewport back to that row -- on
+      // the live-draft surface this whole feature exists for.
+      if (back) back.focus({ preventScroll: true });
     }
 ```
 
@@ -790,10 +836,22 @@ Player names and teams come from an external feed, so every dynamic value is set
                     kv("Your overall rank", String(mine)),
                     edgeRow,
                     kv("Tier", String(p.tier)));
-      market.appendChild(el("p", "detail-note", edge > 0
-        ? `The field lets him fall about ${Math.abs(edge).toFixed(0)} picks past where you have him.`
+
+      // A pick delta is only meaningful INSIDE the draft. ADP covers 233 of
+      // 695 rows and tops out near 300, while board rank runs 1..695, so the
+      // raw difference goes nonsense past the last pick: 26 rows exceed +/-50
+      // and 5 exceed +/-100, worst being Ty Simpson at ADP 281 vs rank 543 --
+      // "reach about 262 picks" in a draft that is only 180 picks long. Keep
+      // the number in the table, but say the honest thing in the sentence.
+      const draftLen = Keepers.TEAMS * Keepers.DRAFT_ROUNDS;   // 12 x 15 = 180
+      market.appendChild(el("p", "detail-note",
+        (p.adp > draftLen || mine > draftLen)
+          ? "Both of you have him outside the drafted range, so the gap between "
+            + "these two numbers is not a real pick difference."
+        : edge > 0
+          ? `The field lets him fall about ${Math.abs(edge).toFixed(0)} picks past where you have him.`
         : edge < 0
-        ? `You would have to reach about ${Math.abs(edge).toFixed(0)} picks to get him.`
+          ? `You would have to reach about ${Math.abs(edge).toFixed(0)} picks to get him.`
         : "The field prices him exactly where you do."));
     }
 
