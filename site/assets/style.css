@@ -318,7 +318,7 @@ tr.mine td:nth-child(3) { text-decoration: none; }
   padding: var(--s3) var(--s4); margin: var(--s4) 0;
 }
 .keeper-panel > summary {
-  font: var(--t-label); letter-spacing: .13em; text-transform: uppercase;
+  font: var(--t-chip); letter-spacing: .13em; text-transform: uppercase;
   color: var(--chalk-dim); cursor: pointer;
 }
 .keeper-panel > summary::marker { color: var(--rule); }
@@ -327,7 +327,7 @@ tr.mine td:nth-child(3) { text-decoration: none; }
   color: var(--chalk-dim); margin: var(--s2) 0 0;
 }
 .keeper-load, .keeper-add { display: flex; gap: var(--s2); margin-top: var(--s3); flex-wrap: wrap; }
-.keeper-load input, .keeper-add input, .keeper-load select, .keeper-add select {
+.keeper-load input:not([type="checkbox"]), .keeper-add input:not([type="checkbox"]), .keeper-load select, .keeper-add select {
   background: var(--board); color: var(--chalk);
   border: 1px solid var(--rule); padding: var(--s1) var(--s2);
   font: var(--t-num);
@@ -343,9 +343,12 @@ tr.mine td:nth-child(3) { text-decoration: none; }
    font, so their digits reflow as numbers update. This is the one surface on
    the site that genuinely needed tabular figures -- the board and weekly
    tables already declare them (style.css `td.num, th.num`). */
-.keeper-rec, .keeper-out {
+.keeper-rec {
   font: var(--t-num); font-variant-numeric: tabular-nums;
-  display: block; padding: var(--s1) 0;
+  display: block; padding: var(--s1) 0; color: var(--rb);
 }
-.keeper-rec { color: var(--rb); }
-.keeper-out { color: var(--chalk-dim); }
+.keeper-out {
+  font: var(--t-num); font-variant-numeric: tabular-nums;
+  margin: var(--s2) 0 0; padding-left: var(--s5); color: var(--chalk-dim);
+}
+.keeper-out li { padding: var(--s1) 0; }
