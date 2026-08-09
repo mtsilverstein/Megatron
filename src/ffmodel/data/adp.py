@@ -71,10 +71,15 @@ def pull_adp(season: int, cache_dir: Path | None = None, teams: int = 12,
 # self-selected mock drafters with no money at stake, while Sleeper's ADP
 # reflects the actual population this league's drafter faces. Refresh by
 # re-exporting and updating SNAPSHOT_PATH; nothing here scrapes it.
-SNAPSHOT_PATH = Path("data_snapshots/fantasypros_adp_2026-07-27.csv")
+SNAPSHOT_PATH = Path("data_snapshots/fantasypros_adp_2026-08-09.csv")
 
-# The export marks "not ranked on this platform" with an em-dash, never an
-# empty cell or a 0 -- a missing Sleeper ADP must never be coerced to either.
+# "Not ranked on this platform" is marked EITHER with an em-dash or with an
+# empty cell -- never a 0, and a missing Sleeper ADP must never be coerced to
+# one. The two exports on hand disagree: 2026-07-27 marks all 314 unranked
+# Sleeper rows with an em-dash and zero empties, 2026-08-09 marks all 299 with
+# an empty cell and zero em-dashes. So the encoding is not stable across
+# exports and must not be assumed; `parse_snapshot_csv` treats NaN, empty and
+# em-dash alike, which is why the newer file needed no parser change.
 _MISSING = "—"
 
 # Packed "Name   TEAM (bye)" field, gap of 2+ spaces. Unsigned free agents
