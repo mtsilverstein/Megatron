@@ -49,6 +49,7 @@ swing. Overall, this weekly ranking is a statistical tie with expert
 consensus; at running back specifically it has measurably out-ranked
 consensus, and that edge replicated on a disjoint set of seasons — see the
 about page for the numbers.</footer>
+<script src="assets/bands.js"></script>
 <script src="assets/app.js"></script>
 <script>
 (async () => {
@@ -61,12 +62,35 @@ about page for the numbers.</footer>
   let pos = "ALL";
   let rows = payload.players.slice();
 
-  // Bars are pinned to the PPR p90 ceiling on purpose: a stable ruler across
-  // scoring toggles, so bars don't rescale when you switch format. Pinned to the
-  // default lens so bars and ranking agree on arrival.
-  const RULER = payload.players[0].points.league ? "league" : "ppr";
-  const maxCeil = Math.max(...payload.players.map(p =>
-    p.points[RULER].p90 ?? p.points[RULER].p50));
+  // "points", not "season_points" -- weekly nests its quantiles differently.
+  // boardDomain keeps the lens pinning this page already had (weekly.html:66
+  // picks `league` when present); do NOT hardcode a lens here.
+  const domain = Bands.boardDomain(payload.players, "points");
+
+  const POS_COLOR = { QB: "--qb", RB: "--rb", WR: "--wr", TE: "--te" };
+
+  function bandCell(sp, position) {
+    const g = Bands.quantileGeometry(sp.p10, sp.p50, sp.p90, domain);
+    const wrap = document.createElement("div");
+    wrap.className = "band";
+    const pct = x => `${(x * 100).toFixed(3)}%`;
+
+    if (g.ok) {
+      const fill = document.createElement("div");
+      fill.className = "fill";
+      fill.style.left = pct(g.lo);
+      fill.style.width = pct(g.width);
+      fill.style.background = `var(${POS_COLOR[position] || "--chalk"})`;
+      wrap.appendChild(fill);
+    }
+    if (g.med !== null) {
+      const tick = document.createElement("div");
+      tick.className = "tick" + (g.medianOutside ? " outside" : "");
+      tick.style.left = pct(g.med);
+      wrap.appendChild(tick);
+    }
+    return wrap;
+  }
 
   const tbody = document.querySelector("#slate tbody");
   function render(data) {
@@ -84,7 +108,7 @@ about page for the numbers.</footer>
         <td></td>
         <td class="num">${FC.fmt(pts.p10)}</td>
         <td class="num">${FC.fmt(pts.p90)}</td>`;
-      tr.children[5].appendChild(FC.bandBar(pts.p10, pts.p50, pts.p90, maxCeil, p.position));
+      tr.children[5].appendChild(bandCell(pts, p.position));
       tbody.appendChild(tr);
     }
   }
