@@ -619,8 +619,33 @@
   //     list, `unspentPicks` returns no better a set from a smaller one, and
   //     the weights are non-negative.
   // Verified rather than asserted -- final-fixes-wave6-report.md sweeps 12
-  // live-board rosters x 45 picks x 3 pick complements and reports 0 in every
-  // cell for both this and currentDraftValue.
+  // live-board rosters x 45 picks x 3 pick complements. Current-season picks
+  // 0 of 540, roster players 0 of 540, and the same for currentDraftValue.
+  //
+  // THE ONE RESIDUE, AND IT IS NOT IN THIS FILE. Future-pick removals are 8 of
+  // 1080, worst +4.61 on a ~1557-point state value (0.3%), every one of them
+  // under MIN_GAIN. The cause is `Optimizer.finishRoster`, one layer down:
+  // its rollout is GREEDY, taking whoever most improves the lineup at each of
+  // your picks, so two pick lists with the same number of selections and the
+  // same number of field-takes between them can still end in different
+  // lineups depending on how the two INTERLEAVE. Reduced to a minimal case on
+  // the live board, same roster and same pool, keepers frozen:
+  //
+  //   picks [6,6,6,18,18,18,30,30] -> 1595.16
+  //   picks [6,6,6,18,18,30,30,30] -> 1602.36
+  //
+  // The first list is a strict superset of the second in value (three R2-slot
+  // picks against two, everything else equal), 8 selections and 27 field-takes
+  // either way, and it scores 7.20 LOWER. Nothing about keepers, the ladder or
+  // the discount is involved -- proved by re-running the sweep with the keeper
+  // set frozen, which leaves the violations exactly where they were.
+  //
+  // It only surfaces on FUTURE-pick removals because that is the only place
+  // the ladder produces duplicate pick NUMBERS: rung X2 holds the same round
+  // once per season, so dropping one changes the interleaving without changing
+  // the count. Left alone deliberately -- fixing it means replacing the greedy
+  // rollout, which the draft board also runs, so it would move every number on
+  // the other page for 0.3% here.
   function stateValue(state, pool, ctx) {
     requireCtx(ctx);
     const kept = chooseKeepers(state.roster, state.picks, ctx);
