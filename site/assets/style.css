@@ -284,9 +284,22 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 /* The three numbers. Sized above the reasoning beneath them, which is the
    thing you check them against. */
 #trade-grade, #trade-suggestions { margin-top: 1rem; }
-.trade-verdict { margin: 0; font: 500 .95rem/1.5 "IBM Plex Mono", monospace;
-  color: var(--chalk); }
-.trade-market { color: var(--chalk-dim); }
+.trade-verdict {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s3);
+  font: 700 1.5rem/1.1 "Barlow Condensed", sans-serif;
+  font-variant-numeric: tabular-nums;
+  padding: var(--s3) 0; border-bottom: 1px solid var(--rule);
+}
+.trade-verdict strong { font-size: 1.9rem; }
+.trade-market { font: var(--t-num); color: var(--chalk-dim); }
+/* Trade page only: the shared .draft-basis disclaimer paragraph (also used by
+   the draft board's shortlist copy) gets a readable-prose override here
+   instead of a global rewrite, so this task's typography change doesn't
+   bleed into the unrelated draft board page. */
+#trade-grade .draft-basis {
+  font: 400 .78rem/1.6 "Source Sans 3", system-ui, sans-serif;
+  color: var(--chalk-dim); max-width: 68ch;
+}
 .trade-suggestions { margin: .45rem 0 0; padding: 0 0 0 1.4rem; }
 .trade-suggestions li { margin-bottom: .45rem; }
 .trade-offer { display: block; color: var(--chalk);
