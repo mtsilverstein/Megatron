@@ -1237,18 +1237,20 @@ check("dedupOffers folded one offer at a time equals dedupOffers on the whole li
 //
 // WHAT THESE TWO GROUPS DO AND DO NOT COVER. They hold future picks, so they
 // measure `stateValue`, which is `currentDraftValue` PLUS `futurePicksValue`.
-// The first half is exactly monotone (see the shape sweep below). The second is
-// not, and the residue is not a rounding artifact: `futurePicksValue` prices
-// future picks with the keeper set chosen to maximise the BASE state, and that
-// set does not maximise the augmented ones. Measured on the live board across
-// all three complements: 30 of 540 current-season pick removals raise
-// `stateValue` (worst +8.55), 6 of 1080 future-pick removals (worst +2.82,
-// under the tool's own MIN_GAIN of 5) and 31 of 540 roster removals (worst
-// +66.41). With ctx.maxKeepers = 0 every one of those goes to zero, which is
-// what identifies the cause. This state is a REGRESSION GUARD on a specific
-// scenario, then, not a proof of a universal property -- the shape sweep below
-// is the universal one, and it is deliberately kept free of future picks so it
-// can be.
+// As of wave 6 both current-season picks and the roster are exactly monotone
+// (0 violations, live board, 12 rosters x 45 picks x 3 complements) -- the
+// keeper-set-chosen-against-the-base-state defect this comment used to
+// describe is fixed, not merely bounded. What remains is a SMALLER, DIFFERENT
+// residue on future-pick removals only, one layer down in `Optimizer
+// .finishRoster`'s greedy rollout, not in this file's keeper selection --
+// freezing the keeper set does NOT remove it (the opposite of what an earlier
+// draft of this comment claimed). See trade.js's own `stateValue` comment
+// ("THE ONE RESIDUE, AND IT IS NOT IN THIS FILE") for the measured size, the
+// minimal reproduction and why it is left alone; restating the numbers here
+// too is exactly the seam that let this comment and that one disagree. This
+// state is a REGRESSION GUARD on a specific scenario, then, not a proof of a
+// universal property -- the shape sweep below is the universal one, and it is
+// deliberately kept free of future picks so it can be.
 //
 // Every row carries an `adp`, for the reason `filler` documents above:
 // Optimizer.fieldTakes skips players without one, so on an ADP-less board the

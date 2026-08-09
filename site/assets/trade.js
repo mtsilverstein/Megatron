@@ -275,17 +275,47 @@
   // A future pick has no slot in this draft, so it is valued by asking what the
   // equivalent current-year pick would add, then discounting per season ahead.
   // Wave 5 did that as a cumulative CHAIN: one rollout per future pick, each
-  // marginal clamped at 0 and multiplied by its own season's discount. Drop the
-  // clamp and that chain TELESCOPES -- the intermediate values cancel and only
-  // the segment endpoints survive:
+  // marginal clamped at 0 and multiplied by its own season's discount, credited
+  // ROUND-ASCENDING across seasons (`sort((a,b) => a.round - b.round ||
+  // a.season - b.season)`) -- wave 5 argued for that order on its own terms.
+  // Drop the clamp and a chain telescopes -- the intermediate values cancel and
+  // only the segment endpoints survive -- but ONLY if it is credited
+  // SEASON-GROUPED, nearest season first, all of that season's rounds added
+  // together before moving to the next:
   //
   //   value = (1-d^o1)*V(X0) + (d^o1-d^o2)*V(X1) + ... + d^ok*V(Xk)
   //
   // where X0 is the current-season picks the state holds, Xi adds season i's
-  // rounds as simulated current-year picks, and oi is that season's offset. So
-  // this is not an approximation of wave 5's chain, it IS wave 5's chain
-  // without the clamp -- verified byte-identical on the live board across all
-  // three pick complements before it was adopted.
+  // rounds as simulated current-year picks, and oi is that season's offset.
+  // Wave 6 changed BOTH the clamp and the crediting order, and the record
+  // (final-fixes-wave6-report.md) said this identity was "verified byte-
+  // identical" against wave 5's chain -- that is false. Measured directly, at
+  // a fixed keeper set (so only the ordering differs), max |ladder value -
+  // wave-5-order chain value| across 12 live-board rosters:
+  //
+  //   full complement    6.06     no R1-R4   14.10     R9-R15   28.28
+  //
+  // against 2.3e-13 (floating-point noise) for a season-grouped chain. The
+  // shipped formula is still correct -- it is a convex combination of a
+  // monotone function, exact against the season-grouped chain -- but "IS wave
+  // 5's chain without the clamp" overstated what changed. Of the +56.28 that
+  // R9-R15 future picks gained wave 5 -> wave 6 (final-fixes-wave6-report.md
+  // section 5), **22.80 is the reordering alone**, holding the keeper set
+  // fixed at wave 6's own choice; the wave-6 report attributed the whole
+  // +56.28 to the keeper set seeing the full ladder, and that attribution is
+  // wrong for the same reason.
+  //
+  // SEASON-GROUPING IS NOT A STYLE CHOICE, it is what the algebra above
+  // requires: the discount below is `Math.pow(ctx.futureDiscount, season -
+  // ctx.season)` -- a function of SEASON, not of round. Every pick folded into
+  // one rung must share that rung's single scalar weight, which is only true
+  // if a rung holds one season's picks. Round-ascending mixes picks from
+  // different seasons -- and therefore different discounts -- into one step,
+  // so it has no single weight to assign it; the telescoping identity, the
+  // convex-combination monotonicity argument below, and the 30 -> 2 rollout
+  // count all depend on the rungs being season-grouped. Wave 6 did not choose
+  // this order for the identity's convenience -- the identity does not exist
+  // in the other order.
   //
   // TWO THINGS FALL OUT, and they are the reason for the rewrite.
   //
