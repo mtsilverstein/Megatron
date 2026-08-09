@@ -1344,6 +1344,23 @@ check("MONOTONICITY (picks): no pick is worth less than nothing", () => {
   // states would make this group pass while checking nothing, which is the
   // exact failure mode it exists to close.
   assert.strictEqual(swept, 63, `the sweep must actually sweep: ${swept} removals`);
+  // EXACT ZERO IS A PROPERTY OF THIS BOARD, NOT A CLAIM ABOUT THE LIVE ONE.
+  // `stateValue` is not exactly monotone under future-pick removal on the live
+  // board -- 8 of 1080, worst +4.61, all under MIN_GAIN -- caused by
+  // `Optimizer.finishRoster`'s greedy rollout producing different lineups from
+  // pick lists that interleave differently despite equal counts (see
+  // `stateValue`'s own comment, "THE ONE RESIDUE"). It only surfaces where the
+  // ladder produces duplicate pick NUMBERS across rungs, and `filler`'s smooth,
+  // strictly-descending value curve (final-fixes-wave7.md item 6) does not give
+  // the rollout enough structure to make that interleaving matter -- so this
+  // group reads exact zero because the synthetic board cannot trigger the
+  // known defect, not because the defect is absent. Left as an exact-zero
+  // assertion deliberately rather than loosened to a tolerance band: a real
+  // regression should still fail this test outright. If this group ever starts
+  // failing after a change to `filler` or `monoRoster` rather than to
+  // `trade.js` or `optimizer.js`, check the greedy-interleaving cause above
+  // before assuming a new defect -- a small band under MIN_GAIN is the known,
+  // bounded, accepted shape of it.
   assert.strictEqual(bad.length, 0,
     `giving these picks away for NOTHING raised the state's value:\n${bad.join("\n")}`);
 });
