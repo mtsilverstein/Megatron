@@ -58,12 +58,16 @@ Two things are actually missing, and they are what §4 exists to fix:
 
 1. **A bar asserts a uniform interval.** The fill between p10 and p90 is
    flat, which reads as "equally likely anywhere in here" — the one claim a
-   quantile model knows to be false. Bijan's median sits at 42% of his
-   floor-to-ceiling range; the distribution is skewed, and a rectangle cannot
-   show skew or where the mass concentrates.
-2. **The numbers exist only on hover.** p10/p50/p90 are in a `title`
-   attribute. That is unavailable on touch, invisible when scanning, and
-   absent from any screenshot the owner sends a leaguemate or a recruiter.
+   quantile model knows to be false. Bijan's median sits at **47.6%** of his
+   floor-to-ceiling range ((226.4−67.8)/(401.0−67.8), PPR); the distribution
+   is right-skewed, and a rectangle cannot show skew or where mass sits.
+2. **On the draft board, the floor and ceiling numbers are hover-only.** p10
+   and p90 live in a `title` attribute (`site/assets/app.js:36`); p50 has its
+   own column. Hover text is unavailable on touch, invisible when scanning,
+   and absent from any screenshot the owner sends a leaguemate or recruiter.
+   **This applies to the draft board only** — `weekly.html` already renders
+   Proj/Floor/Ceiling as three real columns (`site/weekly.html:30,36-37`), so
+   the band there must not restate them.
 
 So the deliverable is not "make the band visible" — it is **make the band
 honest about shape, and readable without a mouse.**
@@ -80,9 +84,12 @@ Formalize what the CSS currently does by hand.
   Barlow Condensed for display and names, IBM Plex Mono for all numerics and
   labels, Source Sans 3 for prose. **No new fonts and no new dependencies** —
   all three are already loaded from Google Fonts on every page.
-- **Tabular numerals.** `font-variant-numeric: tabular-nums` everywhere a
-  number can change. Digits currently reflow as values update, which reads as
-  jitter on the draft board and in the trade grade.
+- **Tabular numerals — extend, do not "add".** The board and weekly tables
+  already declare `font-variant-numeric: tabular-nums` on `td.num, th.num`
+  (`style.css:80`) and again at `:197`, in IBM Plex Mono, so those digits do
+  **not** reflow today. The surface that actually needs it is the **keeper
+  panel**, which prints changing `+N.N pts` values (`keepers.js:274,278`) in
+  the proportional body font.
 - **Density.** Tighter row rhythm and hairline rules. The board must not show
   fewer players per screen than it does today; that is a hard constraint, not
   a preference.
@@ -98,13 +105,33 @@ quantileGeometry(p10, p50, p90, domain) -> { lo, med, hi, path }
 A **pure function** — no DOM, no globals, no page state. It returns normalized
 positions (0..1) plus an SVG path for the ridge rendering.
 
-**`domain` is shared across every row on screen, never per-row.** This
-preserves today's behaviour (`maxCeil`, one max over all players) and it is the
-property that makes bands comparable at all: a per-row domain would stretch
-every player to full width and destroy the Gibbs-vs-Chase distinction the
-component exists to show. A fixture asserts that two different players on one
-shared domain produce different geometry — the per-row bug would pass any test
-that checked a single row in isolation.
+**`domain` is shared across every row on screen, never per-row**, and it is
+**computed from one pinned scoring lens, not the active one.** Both properties
+preserve deliberate existing behaviour: `maxCeil` is one max over all players
+(`site/index.html:131`), taken from `RULER` — the league lens, falling back to
+PPR — with a comment stating the intent, "a stable ruler across scoring
+toggles, so bars don't rescale when you switch format."
+
+A per-row domain would stretch every player to full width and destroy the
+Gibbs-vs-Chase distinction the component exists to show. A domain computed
+from the *active* lens would make every band jump when the user toggles
+PPR/half-PPR/standard. Neither is covered by an existing test, so both get
+fixtures: two different players on one shared domain must produce different
+geometry, and the same player under two lenses must produce the same domain.
+
+### What the ridge may and may not assert
+
+Three quantiles do not determine a density. A smooth bell drawn through p10 /
+p50 / p90 invents mass the model never estimated — precisely the dishonesty §2
+objects to in the flat bar, in the opposite direction.
+
+So the ridge is defined as a **piecewise-linear silhouette through exactly the
+three known points** — baseline at p10, apex at p50, baseline at p90, straight
+segments between, no tails beyond the endpoints and no curvature implying
+sub-quantile structure. It is a shape that says "the middle is here and the
+mass leans this way," and nothing more. Its asymmetry comes only from the
+median's real position within the interval. Any rendering that extends past p10
+or p90 is out of contract.
 
 Callers:
 
@@ -118,10 +145,22 @@ and a geometry function that reads the DOM cannot be fixture-tested. This
 mirrors the existing split between `trade.js` (pure, node-testable) and
 `trademode.js` (the page).
 
-**Degenerate inputs are part of the contract**, not an afterthought: `p10 ==
-p90` (zero width), a median outside its own endpoints (upstream bug — must be
-visible, never silently clamped into place), and null/absent quantiles. Each
-has a defined, tested rendering.
+**Degenerate inputs are part of the contract**, not an afterthought. Each has
+a defined, tested rendering:
+
+- **`p10 == p90`** (zero width) — collapse to a single median tick, no fill.
+  Must not divide by zero or render a full-width band.
+- **median outside its own endpoints** — an upstream bug. Render it where it
+  actually falls, outside the fill, so it is visible. **Never silently clamp
+  it into range**; clamping hides the defect that the eval harness exists to
+  catch.
+- **null / absent quantiles** — preserve `bandBar`'s existing behaviour
+  exactly (`app.js:36,40`): median tick only, no fill. Note this path is
+  **currently unreachable from published data** — 0 of 695 draft rows and 0 of
+  615 weekly rows have a null p10/p50/p90 — so it cannot be verified against
+  the live board and must be covered by fixture alone. It is retained rather
+  than dropped because `bandBar` already implements it and a future
+  non-projectable player would otherwise crash the geometry.
 
 ## 5. Draft board — dense by default, editorial on click
 
@@ -139,6 +178,38 @@ Every value listed already exists in `draft.json` (`vorp`, `season_points.ppr.
 {p10,p50,p90}`, `adp`, `tier`, `bye`, `position_rank`). **No new model output,
 no regeneration, no pipeline change.**
 
+### Expansion state must survive the poll — the load-bearing requirement
+
+The draft board is **not** a static table. Draft mode polls Sleeper every 3
+seconds (`draftmode.js:9`, `POLL_MS = 3000`); every poll calls `onUpdate`
+(`site/index.html:214`), which calls `render(rows)`, and that function clears
+the whole tbody before redrawing (`site/index.html:137`). Sorting, position
+filters and scoring-lens changes rebuild the tbody the same way.
+
+So the naive implementation — expansion state held in the DOM — **closes the
+open panel every 3 seconds during a live draft**, on exactly the page and in
+exactly the moment §1 designs for. This is the single highest-risk item in the
+redesign.
+
+Requirement: expansion state lives **outside the DOM**, keyed by `player_id`,
+and is re-applied after every render. It must survive a draft-mode poll, a
+sort, a position filter change, and a scoring-lens change. Each of those is
+verified explicitly (§8), not inferred from one of them working.
+
+### Degrading when the data isn't there
+
+Two of the four panel bullets can hit missing inputs, and they degrade
+differently:
+
+- **Market vs your rank** — **462 of 695 rows have `adp: null`.** For those the
+  panel says so in words; it must never print a comparison against an absent
+  value or imply a market rank that does not exist. This follows the rule
+  already shipped in `trademode.js` for the same situation.
+- **Cost of passing** — safe. Only 4 of 695 rows have `vorp` exactly 0; 595 are
+  negative (below replacement) and 96 positive, so the delta to the next player
+  at a position is meaningful essentially everywhere. No special case needed
+  beyond the last player at a position, which has no next.
+
 **Draft mode, sorting, and filtering keep their current behaviour exactly.**
 This is the one place the redesign touches shipped, browser-verified
 interaction, so it carries its own task and its own verification (§8).
@@ -155,9 +226,18 @@ p10–p90 coverage against an 0.80 target, walk-forward, held-out seasons
 2023  0.819        2024  0.792        2025  0.795
 ```
 
-Then the walk-forward bake-off (transformer vs XGBoost vs naive-last-4) as a
-chart rather than a wall of numbers. The prose stays — it is good and it is
-honest — but underneath, and scannable.
+**Coverage is a transformer-only series.** In `about.json`,
+`coverage_p10_p90` is populated on the 15 `transformer` rows and null on all
+15 `xgboost` and 15 `naive_last4` rows — the baselines are point predictors
+and have no interval to measure. The calibration chart therefore plots one
+model against the target line; it must not render three series, two of them
+empty. (`about.html` already guards this with its `hasQ` check.)
+
+The walk-forward bake-off — transformer vs XGBoost vs naive-last-4, which
+*do* all have MAE — is a separate chart, and the place all three models
+appear.
+
+The prose stays — it is good and it is honest — but underneath, and scannable.
 
 Reporting stays honest whichever way results land (CLAUDE.md): the charts
 render what is in `about.json`, including any position or season where a
@@ -168,10 +248,21 @@ baseline wins.
 **Trade calculator.** Chassis applied. The verdict's three numbers (your gain,
 their gain, market) get real hierarchy instead of one flat line. **All existing
 copy is preserved verbatim** — the noise disclaimers, the ineligibility
-explanations, the "comparing two offers needs a 5-point gap" line. That copy
-was measured and argued for; the redesign restyles it and does not rewrite it.
+explanations, the "comparing two offers needs a 5-point gap" line
+(`trademode.js:562-580`). That copy was measured and argued for; the redesign
+restyles it and does not rewrite it.
 
-**Weekly.** Chassis plus the band component.
+**Weekly.** Chassis plus the band component — without duplicating the Floor and
+Ceiling columns that already exist there (§2).
+
+**Keeper panel — in scope.** `grep -c keeper site/assets/style.css` returns
+**0**: the panel at `site/index.html:72-93` (`.keeper-panel`, `.keeper-help`,
+`.keeper-depletion`, `.keeper-load`, `.keeper-add`, `.keeper-rec`,
+`.keeper-out`) has no styling at all and renders as a bare `<details>` with
+default form controls. It sits on the draft board — the owner's live-draft
+surface — so a chassis rollout that skipped it would ship a visibly
+inconsistent page. Styling only: **no change to keeper logic, costs, or
+eligibility**, and the two-currencies divergence stays out of scope (§10).
 
 ## 8. Correctness, testing, and the nav bug
 
@@ -188,10 +279,16 @@ to `index.html`. Two of four pages currently cannot reach the tool.
 
 Testing:
 
-- a **new node fixture** for `quantileGeometry`, including every degenerate
-  case in §4;
-- **all 8 existing node fixtures and 586 pytest tests stay green** — this work
-  changes no logic they cover, so any movement is a regression, not an update;
+- a **new node fixture** for `quantileGeometry`, covering every degenerate case
+  in §4, the shared-domain property, and the pinned-lens property;
+- **all 8 existing node fixtures stay green, and `python -m pytest` reports no
+  failures** — expressed as the command, not a count, since collection totals
+  drift. This work changes no logic those tests cover, so any movement is a
+  regression, not an update;
+- **the expanded row is verified against all four rebuild triggers
+  separately** — draft-mode poll, sort, position filter, scoring lens — since
+  they share a code path but not a cause, and passing one does not imply the
+  others;
 - **browser verification per page** against the live league, as done for the
   trade calculator: interaction works, console is clean, layout does not
   scroll horizontally;
