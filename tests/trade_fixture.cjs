@@ -1370,11 +1370,13 @@ function shapeState(label, rows) {
 // `futurePicksValue` is swept by the `monoState` groups above, which hold all
 // 30 future picks; keeping it out here is what makes THIS sweep an exact
 // statement about keeper selection rather than a mixed one.
-function shapeSweep(s) {
+function shapeSweep(s, extra) {
   const KK = require("../site/assets/keepers.js");
   const bad = [];
   let swept = 0;
-  for (const [cname, picks] of COMPLEMENTS) {
+  for (const [cname0, cur] of COMPLEMENTS) {
+    const picks = extra ? cur.concat(extra) : cur;
+    const cname = extra ? `${cname0} + future` : cname0;
     const value = r => {
       const st = state(r, picks);
       return T.stateValue(st, T.draftPool(s.ctx, st), s.ctx);
@@ -1472,6 +1474,85 @@ for (let seed = 1; seed <= 40; seed++) {
   }
   GENERATED_SHAPES.push(shapeState(`shape g${seed}`, rows));
 }
+
+// THE SAME SWEEP, ON STATES THAT ALSO HOLD FUTURE PICKS.
+//
+// The shape sweep above is deliberately free of future picks, which makes it an
+// exact statement about `currentDraftValue`. That is also its blind spot, and
+// wave 5 fell into it: there the keeper selection maximised the CURRENT-season
+// value while `stateValue` also weighted the two future rungs -- 80% of the
+// weight at d = 0.8 -- so removing a player could shift the chosen set to one
+// better at those rungs by more than it was worse at the base. A sweep with no
+// future picks cannot see that, because with no future picks the two objectives
+// are the same objective.
+//
+// THREE REAL COUNTEREXAMPLES, found by sweeping the generated shapes against
+// the PRE-wave-6 code with 30 future picks attached, written out longhand with
+// what that code did. Under wave 5 the generated family produced 38 such
+// violations; these are the worst three, one per complement that produced any.
+// Under wave 6 all three are clean, because `selectKeepers` now scores
+// candidates against the same weighted ladder `stateValue` reports.
+//
+// Three shapes rather than all 43: each state here holds 30 future picks, so
+// its ladder has three rungs and every candidate keeper set costs three
+// rollouts instead of one. Three shapes x three complements is ~6s; the whole
+// generated family would be ~90s. The named three are the measured extremes,
+// and the `monoState` groups above sweep future picks on a fourth roster.
+const FUTURE_PICKS = allPicks(2027, 15).concat(allPicks(2028, 15));
+const FUTURE_SHAPES = [
+  // Wave 5: [R9-R15] without G27_2 (cost R8) read 1765.88 against 1725.81 from
+  // the FULL roster -- +40.07 for giving a 211-point receiver away for nothing.
+  // The worst of the 38.
+  shapeState("shape f27", [
+    ["G27_0", "QB", 163, 168.2, 5],
+    ["G27_1", "QB", 195, 96.6, 4],
+    ["G27_2", "WR", 211, 93.6, 9],
+    ["G27_3", "RB", 187, 120.6, 3],
+    ["G27_4", "RB", 255, 124.9, 13],
+    ["G27_5", "RB", 264, 173, 6],
+  ]),
+  // Wave 5: [no R1-R4] without G20_2 (cost R3) read 1877.34 against 1840.27,
+  // +37.06. The worst on an early-depleted complement.
+  shapeState("shape f20", [
+    ["G20_0", "RB", 238, 87.5, 6],
+    ["G20_1", "QB", 255, 85.2, 13],
+    ["G20_2", "TE", 192, 57.7, 4],
+    ["G20_3", "WR", 188, 195.9, 5],
+    ["G20_4", "RB", 179, 22.3, 6],
+    ["G20_5", "RB", 209, 187.5, 14],
+    ["G20_6", "TE", 284, 40.3, 6],
+  ]),
+  // Wave 5: [no R1-R4] without G9_1 (cost R13) read 1807.42 against 1781.07,
+  // +26.35. A five-man roster, so the smallest of the three.
+  shapeState("shape f9", [
+    ["G9_0", "TE", 178, 146.8, 12],
+    ["G9_1", "WR", 194, 28.2, 14],
+    ["G9_2", "WR", 251, 58.7, 10],
+    ["G9_3", "TE", 197, 130.4, 11],
+    ["G9_4", "RB", 230, 175.1, 13],
+  ]),
+];
+
+check("MONOTONICITY (roster, holding future picks): the ladder is monotone too", () => {
+  let swept = 0;
+  const bad = [];
+  for (const s of FUTURE_SHAPES) {
+    const r = shapeSweep(s, FUTURE_PICKS);
+    swept += r.swept;
+    bad.push(...r.bad);
+  }
+  // TEETH on the sweep itself, and on the thing that makes this group different
+  // from the one below: if FUTURE_PICKS ever stopped carrying future picks,
+  // every ladder would collapse to one rung and this would silently become a
+  // duplicate of the current-season sweep.
+  assert.ok(FUTURE_PICKS.length === 30 && FUTURE_PICKS.every(p => p.season > 2026),
+    `FUTURE_PICKS must be 30 future picks, got ${FUTURE_PICKS.length}`);
+  assert.ok(FUTURE_SHAPES.length === 3 && swept === 54,
+    `the sweep must actually sweep: ${FUTURE_SHAPES.length} shapes, ${swept} removals`);
+  assert.strictEqual(bad.length, 0,
+    `giving a player away for NOTHING raised a state holding future picks `
+    + `(${bad.length} of ${swept} removals):\n${bad.join("\n")}`);
+});
 
 check("MONOTONICITY (roster): no player is worth less than nothing", () => {
   // Removing a player leaves him ON ctx.board, which is the model: a player

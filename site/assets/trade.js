@@ -234,16 +234,23 @@
   // (futureDiscount is deliberately NOT in the signature -- it only prices
   // FUTURE picks, which never reach a keeper decision.)
   //
-  // Third level: the CURRENT-SEASON PICK LIST, because the selection now sees
-  // it (see selectKeepers' PICKS note). Encoded as the sorted round numbers
-  // joined with "," -- order-independent, so two states holding the same rounds
-  // in different orders share one entry, and DUPLICATE-PRESERVING, because a
-  // team can hold two of a round and "3,3" is a different complement from "3".
-  // Comma-joined rather than concatenated so "1,2" cannot collide with "12".
-  // Future picks are excluded outright: they never reach a keeper decision, and
-  // including them would give `futurePicksValue`'s 31 augmented lists 31 keys,
-  // which is precisely the cost the fourth argument to `currentDraftValue`
-  // exists to avoid.
+  // Third level: THE WHOLE PICK LIST, current season and future. Wave 5 keyed
+  // on the current season alone because future picks "never reach a keeper
+  // decision". They do now -- the selection maximises the state's full value,
+  // and `pickLadder` turns the future picks into rungs the selection scores
+  // against -- so a state's future holdings change who it keeps and must be in
+  // the key. Encoded as sorted "season.round" strings joined with "," --
+  // order-independent, so two states holding the same picks in a different
+  // order share one entry, and DUPLICATE-PRESERVING, because a team can hold
+  // two of a round and "2026.3,2026.3" is a different complement from
+  // "2026.3". The separators are what stop "2026.1" plus "2026.2" colliding
+  // with "2026.12".
+  //
+  // The key got bigger and the hit rate did NOT drop, because the thing that
+  // used to vary per call is gone: `futurePicksValue` no longer walks 30
+  // augmented pick lists, it evaluates 2 extra ladder rungs inside one
+  // selection. Measured: 4 / 2 / 102 selections for cold gradeTrade / warm
+  // gradeTrade / one-opponent suggestTrades, the same counts as wave 5.
   const keeperCache = new WeakMap();
   const keeperSig = ctx => [ctx.season, ctx.board, ctx.originalByPlayerId,
                             ctx.keptElsewhere, ctx.teams, ctx.maxKeepers, ctx.rounds];
@@ -257,8 +264,101 @@
     return e.byRoster;
   }
   const currentPicks = (picks, ctx) => (picks || []).filter(p => p.season === ctx.season);
-  const picksKey = (picks, ctx) =>
-    currentPicks(picks, ctx).map(p => p.round).sort((a, b) => a - b).join(",");
+  const picksKey = picks =>
+    (picks || []).map(p => `${p.season}.${p.round}`).sort().join(",");
+
+  // --- the pick ladder -------------------------------------------------------
+
+  // A state's picks as a WEIGHTED LADDER of current-season pick lists, which is
+  // the whole of wave 6 in one function.
+  //
+  // A future pick has no slot in this draft, so it is valued by asking what the
+  // equivalent current-year pick would add, then discounting per season ahead.
+  // Wave 5 did that as a cumulative CHAIN: one rollout per future pick, each
+  // marginal clamped at 0 and multiplied by its own season's discount. Drop the
+  // clamp and that chain TELESCOPES -- the intermediate values cancel and only
+  // the segment endpoints survive:
+  //
+  //   value = (1-d^o1)*V(X0) + (d^o1-d^o2)*V(X1) + ... + d^ok*V(Xk)
+  //
+  // where X0 is the current-season picks the state holds, Xi adds season i's
+  // rounds as simulated current-year picks, and oi is that season's offset. So
+  // this is not an approximation of wave 5's chain, it IS wave 5's chain
+  // without the clamp -- verified byte-identical on the live board across all
+  // three pick complements before it was adopted.
+  //
+  // TWO THINGS FALL OUT, and they are the reason for the rewrite.
+  //
+  // COST. One rollout per future SEASON instead of one per future PICK: 30 ->
+  // 2 at the shipped horizon (trademode.PICK_SEASONS_AHEAD = 2). That is what
+  // makes an exact keeper selection affordable at all.
+  //
+  // MONOTONICITY. The weights are non-negative for 0 <= d <= 1 and sum to 1 --
+  // it is a CONVEX COMBINATION. So `stateValue = max over keeper sets S of
+  // Sum wi*f(S,Xi)` is a maximum of a weighted sum of functions each of which
+  // is monotone in the roster and in the pick list, and every keeper set open
+  // to a smaller roster was already open to a larger one. Removing an asset
+  // therefore cannot raise it, by construction rather than by tuning.
+  //
+  // That is precisely what wave 5 could NOT say. There the selection maximised
+  // f(S,X0) alone while the value also weighted f(S,X1) and f(S,X2) -- which
+  // carry 80% of the weight at d = 0.8 -- so removing an asset could shift the
+  // chosen set to one that was better at X1/X2 by more than it was worse at X0.
+  // Measured then: 31 of 540 roster removals raised `stateValue`, worst +66.41,
+  // and a team holding R9-R15 could still give a player away for nothing and
+  // read +64.56 through gradeTrade. With ctx.maxKeepers = 0 every one of those
+  // went to zero, which is what identified the cause.
+  //
+  // THE CLAMP IS GONE, and that is a change to what the page PRINTS as well as
+  // to how it computes: a negative marginal is now credited as itself instead
+  // of as 0, so a state whose keepers cost more than its picks are worth can
+  // price a future haul lower than wave 5 did. Quantified on real trades in
+  // final-fixes-wave6-report.md. It is not optional -- the clamp is exactly
+  // what stopped the chain telescoping, and without the telescoping there is
+  // neither the 30 -> 2 saving nor the convex-combination argument.
+  //
+  // Returns [{picks, weight}] with at least one rung, so a state with no future
+  // picks is [{picks: X0, weight: 1}] and `stateValue` collapses to exactly the
+  // current-season draft value with no special case.
+  function pickLadder(picks, ctx) {
+    const bySeason = new Map();
+    for (const p of picks || []) {
+      if (p.season <= ctx.season) continue;
+      if (!bySeason.has(p.season)) bySeason.set(p.season, []);
+      bySeason.get(p.season).push(p);
+    }
+    const rungs = [];
+    let acc = currentPicks(picks, ctx);
+    let carried = 1;
+    for (const season of Array.from(bySeason.keys()).sort((a, b) => a - b)) {
+      const d = Math.pow(ctx.futureDiscount, season - ctx.season);
+      rungs.push({ picks: acc, weight: carried - d });
+      // ROUND is all that survives the translation: a future pick is priced as
+      // the current-year pick of the same round (Keepers.pickForRound at that
+      // round's mid-slot), which is the same proxy wave 1 established.
+      acc = acc.concat(bySeason.get(season).map(p => ({ season: ctx.season, round: p.round })));
+      carried = d;
+    }
+    rungs.push({ picks: acc, weight: carried });
+    return rungs;
+  }
+
+  // One keeper set, scored against every rung. `kept` carries `.cost`, which is
+  // what `unspentPicks` reads, so this works on both a raw candidate subset
+  // (inside the selection) and a chosen set (inside stateValue).
+  function ladderValue(kept, rungs, pool, ctx) {
+    const players = kept.map(k => k.player);
+    let total = 0;
+    for (const r of rungs) {
+      if (r.weight === 0) continue;           // a zero-weight rung cannot move it
+      const nums = unspentPicks(kept, r.picks)
+        .map(p => Keepers.pickForRound(p.round, ctx.teams))
+        .sort((a, b) => a - b);
+      total += r.weight * Optimizer.lineupPoints(
+        Optimizer.finishRoster(players, pool, nums, 0));
+    }
+    return total;
+  }
 
   function selectKeepers(roster, picks, ctx) {
     const cands = (roster || []).map(p => candidate(p, ctx))
@@ -278,29 +378,22 @@
     // and "keep nobody" needs no special case beyond being in the enumeration.
     //
     // Two deliberate reference choices, both of which keep this a pure function
-    // of (roster, ctx) and therefore memoizable on the roster:
+    // of (roster, picks, ctx) and therefore memoizable on them:
     //
-    //   PICKS: the CURRENT-SEASON PICKS THE STATE ACTUALLY HOLDS. This used to
-    //   be a full 1..15 complement regardless, on the argument that
-    //   `futurePicksValue` values 31 pick lists against one identity-stable
-    //   roster so keying the cache on picks would drop the hit rate to zero.
-    //   That argument confused two different pick lists. Keepers are chosen
-    //   ONCE, in reality, against the picks the team holds; the future-pick loop
-    //   is a valuation proxy, and appending a simulated current-year pick to
-    //   measure a 2027 pick's marginal must not change who the team keeps. So
-    //   the loop keeps passing the ORIGINAL picks here (currentDraftValue's
-    //   fourth argument) and only the valuation sees the augmented list -- which
-    //   leaves ~1 selection per distinct state, exactly as before.
+    //   PICKS: THE WHOLE PICK LIST THE STATE ACTUALLY HOLDS, scored through
+    //   `pickLadder` -- so the objective maximised here is EXACTLY the objective
+    //   `stateValue` reports, future picks and all. That identity is the fix:
+    //   `stateValue = max over S of Sum wi*f(S,Xi)` is a maximum over a
+    //   candidate set that only grows with the roster, so it cannot rise when an
+    //   asset is removed. See pickLadder's own note for what wave 5 could say
+    //   instead and what that cost (31 of 540 roster removals raising the value,
+    //   worst +66.41).
     //
-    //   Threading them matters because `currentDraftValue` then evaluates the
-    //   chosen set against `state.picks`. While the two lists differed, wave 2's
-    //   "monotone by construction" argument established only that the
-    //   FULL-COMPLEMENT objective's maximum is monotone, and said nothing about
-    //   the objective the page prints -- and every trade involving a pick
-    //   produces a state where they differ. Measured on the live board before
-    //   this change, a team holding only R9-R15 could give a player away for
-    //   nothing and gain (worst +41.38 here, +81.74 in the re-review's own
-    //   scan); after it, 0 of 180 across all three complements.
+    //   Wave 5 scored against the current-season picks alone. Wave 2 scored
+    //   against a full 1..15 complement whatever the state held, which is how a
+    //   team on R9-R15 could give a player away for nothing and read +81.74.
+    //   Each step widened what the selection is allowed to see; this is the last
+    //   one, because it is now the whole thing.
     //
     //   POOL: the board minus ctx.keptElsewhere only. It cannot also exclude
     //   the OTHER side's keepers the way `draftPool` does, because those are
@@ -308,16 +401,12 @@
     //   (which is what the monotonicity sweep measures) the two agree exactly;
     //   inside gradeTrade each side's keepers are chosen against a pool very
     //   slightly richer than the one its value is finally computed on.
-    const spend = currentPicks(picks, ctx);
+    const rungs = pickLadder(picks, ctx);
     const goneElsewhere = new Set(ctx.keptElsewhere);
     const basePool = ctx.board.filter(p => !goneElsewhere.has(p.player_id));
     const scoreSet = set => {
       const ids = new Set(set.map(c => c.player.player_id));
-      const picks = unspentPicks(set, spend)
-        .map(p => Keepers.pickForRound(p.round, ctx.teams))
-        .sort((a, b) => a - b);
-      return Optimizer.lineupPoints(Optimizer.finishRoster(
-        set.map(c => c.player), basePool.filter(p => !ids.has(p.player_id)), picks, 0));
+      return ladderValue(set, rungs, basePool.filter(p => !ids.has(p.player_id)), ctx);
     };
 
     // TIE-BREAK: wherever the objective is INDIFFERENT, keep what the keeper
@@ -361,7 +450,7 @@
     const byRoster = keeperCacheFor(ctx);
     let byPicks = byRoster.get(roster);
     if (!byPicks) { byPicks = new Map(); byRoster.set(roster, byPicks); }
-    const k = picksKey(picks, ctx);
+    const k = picksKey(picks);
     let hit = byPicks.get(k);
     if (!hit) { hit = selectKeepers(roster, picks, ctx); byPicks.set(k, hit); }
     return hit;
@@ -442,30 +531,26 @@
   // MID-slot (Keepers.pickForRound) -- pretending to know the exact overall
   // pick would be false precision. fromPick is 0: nothing has been drafted.
   //
-  // `keeperPicks` is the pick list the KEEPER SELECTION sees, and it defaults to
-  // the state's own -- which is the only thing any real caller wants, and is
-  // what makes the selection and this valuation agree exactly on a single
-  // state. `futurePicksValue` is the one exception and passes the ORIGINAL
-  // state's picks while `state.picks` carries a simulated extra current-year
-  // pick: that loop is measuring what a FUTURE pick is worth, and a hypothetical
-  // pick appended to price it must not be allowed to change who the team keeps.
-  // Keeping it out also holds the selection to one memo entry per state instead
-  // of one per iteration, which is the whole cost of this fix.
-  function currentDraftValue(state, pool, ctx, keeperPicks) {
+  // DEFINED AS `stateValue` OF THE SAME STATE WITH ITS FUTURE PICKS DROPPED,
+  // rather than as "stateValue's first rung". The difference matters and it is
+  // the reason this is not one line shorter: on the restricted state the ladder
+  // has a single rung of weight 1, so this is again a MAXIMUM over keeper sets
+  // and therefore exactly monotone in its own right. Read as a component of the
+  // full state's value it would not be -- the keepers a team designates are
+  // chosen for the whole ladder, and f(S*, X0) alone is not maximised by S*.
+  // That is wave 5's defect in miniature, and defining the function this way is
+  // what keeps it out.
+  //
+  // The cost is a SECOND keeper selection on any state that holds future picks,
+  // because the restricted pick list is a different memo key. Nothing on the
+  // page pays it: trademode.js never calls this, `stateValue` no longer calls
+  // it, and `draftPool` uses the state's real (full-ladder) keepers. It is paid
+  // by `futurePicksValue` and by the fixture, both of which want the decomposed
+  // number.
+  function currentDraftValue(state, pool, ctx) {
     requireCtx(ctx);
-    const kept = chooseKeepers(state.roster,
-      keeperPicks !== undefined ? keeperPicks : state.picks, ctx);
-    const mine = (state.picks || []).filter(p => p.season === ctx.season);
-    const picks = unspentPicks(kept, mine)
-      .map(p => Keepers.pickForRound(p.round, ctx.teams))
-      .sort((a, b) => a - b);
-    // Idempotent against the caller's pool: a keeper must not also be
-    // draftable. This guards THIS state's keepers only -- the caller still
-    // owns excluding every other side's, which is what draftPool is for.
-    const keptIds = new Set(kept.map(k => k.player.player_id));
-    const usable = (pool || []).filter(p => !keptIds.has(p.player_id));
-    return Optimizer.lineupPoints(
-      Optimizer.finishRoster(kept.map(k => k.player), usable, picks, 0));
+    return stateValue({ roster: state.roster, picks: currentPicks(state.picks, ctx) },
+                      pool, ctx);
   }
 
   // --- future picks ----------------------------------------------------------
@@ -481,157 +566,70 @@
   // rather than redeclare it.
   const MIN_GAIN = 5;
 
-  // A 2027 pick has no slot in THIS draft, so finishRoster cannot place it. It
-  // is valued in the same currency by asking what the equivalent current-year
-  // pick would add, then discounting per season ahead.
+  // WHAT THE FUTURE PICKS ARE WORTH: the state's value minus the value of the
+  // same state holding only this season's picks. Both halves are maxima over
+  // keeper sets (see currentDraftValue), so this is a difference of two exact
+  // numbers rather than a sum of marginals, and it is >= 0 by construction --
+  // every rung's pick list contains X0, and the set that maximises the
+  // restricted problem is available to the full one.
   //
-  // CUMULATIVE, not independent-and-summed. Each pick's marginal is measured
-  // against a state that ALREADY CONTAINS the picks credited before it, so a
-  // large haul shows diminishing returns instead of N independent full-freight
-  // valuations. Pricing every future pick against the same base state was a
-  // sign inversion in the headline number, not a small overstatement: at the
-  // shipped horizon (trademode.PICK_SEASONS_AHEAD = 2) every state holds 30
-  // future picks, so removing a current-season pick lifted all 30 marginals at
-  // once and 30x that lift swamped what the surrendered pick was worth.
-  // Measured on the live board, one team giving away its 2026 R2 FOR NOTHING,
-  // varying only how many future picks both sides hold --
+  // THE 30-ROLLOUT CHAIN THIS REPLACES IS IN `pickLadder`, and so is the
+  // telescoping identity that makes the two the same computation. What used to
+  // live here -- the round-ascending ordering, the deliberate absence of an
+  // early exit, the per-pick clamp -- is gone with it: there are no per-pick
+  // marginals left to order, to exit early from, or to clamp. The ordering
+  // question that survives is which SEASON is credited first, and pickLadder
+  // credits nearest-first so the largest marginals carry the smallest discount.
+  //
+  // Wave 1's finding still holds and is what the ladder preserves: pricing
+  // every future pick INDEPENDENTLY against the same base state inverted the
+  // sign of the headline number, because at the shipped horizon every state
+  // holds 30 future picks and removing a current-season pick lifted all 30 at
+  // once. Measured then, one team giving away its 2026 R2 FOR NOTHING --
   //   independent-and-summed:  0 future picks -66.6, 15 picks -13.0, 30 +29.9
-  //   cumulative (this code):   0 future picks -66.6, 15 picks -48.6, 30 -35.6
-  // -- so at the horizon the page actually ships, the old pricing displayed
-  // surrendering a pick for nothing as a GAIN. On a state whose keepers cost
-  // early rounds it read as high as +129.7 for the 2026 R2 and +249.4 for the
-  // 2026 R5. The old comment here claimed the error was "small for the handful
-  // of picks a real trade moves": that is true of the picks that MOVE and
-  // irrelevant, because the error is driven by the picks each side already
-  // HOLDS.
+  //   cumulative:              0 future picks -66.6, 15 picks -48.6, 30 -35.6
+  // The ladder is cumulative in exactly the same sense: rung i contains every
+  // pick credited before it, so a large haul shows diminishing returns instead
+  // of N full-freight valuations.
   //
-  // Cumulative also restores the telescoping that makes the sum meaningful:
-  // undiscounted and unclamped the marginals sum to (state + all future picks
-  // credited) - (state), so the total can never exceed what those picks are
-  // jointly worth.
-  //
-  // ONE SEGMENT PER SEASON, and the discount applied to the SEGMENT rather than
-  // to each pick. A single chain with a per-pick discount made the total
-  // NON-MONOTONE, measured exhaustively on the live board: 12 of 360
-  // future-pick removals RAISED the state's value on a full complement, worst
-  // +9.42 -- 1.9x the tool's own MIN_GAIN. Through gradeTrade, giving a 2028 R2
-  // and receiving a worthless 2028 R15 graded myGain +9.42 AND theirGain +9.73:
-  // both sides gaining from a one-way transfer. The cause, traced by the
-  // re-review:
-  //
-  //   with 2028R2:  2027R1:86.1  2028R1:47.5  2027R2:26.1  2028R2:24.5  2027R3:1.6
-  //   without:      2027R1:86.1  2028R1:47.5  2027R2:26.1  2027R3:31.7  2028R3:1.6
-  //
-  // Dropping the 2028 R2 promotes the 2027 R3 into that slot, where it is
-  // discounted x0.8 instead of x0.64. The MARGINAL is a function of position in
-  // the credit sequence; the DISCOUNT was a function of which pick sat there.
-  // Mixing seasons in one chain lets the two disagree, and the sum alternates.
-  //
-  // Within a season the discount is now a constant multiplying the whole
-  // segment, so that cannot happen, and the sum telescopes into something with
-  // a shape worth stating. Unclamped, with seasons credited nearest-first:
-  //
-  //   stateValue = (1-d)*V(base) + (d-d^2)*V(base+P1) + d^2*V(base+P1+P2)
-  //
-  // -- a CONVEX COMBINATION (the weights are non-negative for 0<=d<=1 and sum
-  // to 1) of the same value function at three pick lists, each of which can
-  // only fall when an asset is removed. That is the whole argument, and it
-  // generalises to any horizon.
-  //
-  // THE ACCUMULATOR RUNS ACROSS SEASONS, not per season from the base. Starting
-  // each season's segment from the base instead makes the V(base) weight
-  // 1 - (d + d^2) = -0.44, i.e. NEGATIVE, and removing a current-season pick
-  // then lifts every season's segment at once. That is not theory: it was
-  // measured, and it is catastrophic -- 76 of 180 current-season pick removals
-  // raising the state's value on a full complement, 77 of 84 on an R9-R15 one,
-  // worst +130.84. The same 15x-smaller shape as the independent-and-summed
-  // pricing the comment above rejects.
-  //
-  // THE CLAMP STAYS, and it is the one place this deviates from the argument
-  // above. Measured both ways on the live board (12 rosters x 45 picks x the
-  // three pick complements): clamped 6 future-pick violations, worst +2.82;
-  // unclamped 9, worst +4.61. Clamped is the better of the two and it is also
-  // the incumbent, so it ships; the deviation is that a negative marginal is
-  // credited as 0 rather than as itself, which is what stops the sum
-  // telescoping exactly.
-  //
-  // Rollout count is unchanged: one currentDraftValue per future pick plus the
-  // shared base. Measured on the live board, one team giving away its 2026 R2
-  // FOR NOTHING at the shipped 30-future-pick horizon: -15.3 before, -16.8
-  // after, so the sign inversion wave 1 fixed has not come back.
-  //
-  // WHAT THIS DOES NOT FIX, stated because the next reader will measure it:
-  // `stateValue` is still not exactly monotone. The residue is entirely the
-  // KEEPER SET moving under the removal -- the selection maximises V(base), but
-  // stateValue also weights V(base+P1) and V(base+P1+P2), which the chosen set
-  // does not maximise. Proof by measurement: with ctx.maxKeepers = 0 this form
-  // is exactly monotone on the live board, 0 of 180 current picks, 0 of 360
-  // future picks and 0 of 180 roster players. Fixing it would mean scoring
-  // every candidate keeper set against the full future chain, which is 31x the
-  // rollouts per candidate and out of budget by any measure.
+  // NOT USED BY `stateValue`, which computes the whole ladder in one pass. This
+  // is the decomposition, for the fixture and for anyone who wants the two
+  // halves separately, and it costs a second keeper selection to get them.
   function futurePicksValue(state, pool, ctx) {
     requireCtx(ctx);
-    const future = (state.picks || []).filter(p => p.season > ctx.season);
-    if (!future.length) return 0;
-    const bySeason = new Map();
-    for (const p of future) {
-      if (!bySeason.has(p.season)) bySeason.set(p.season, []);
-      bySeason.get(p.season).push(p);
-    }
-    let acc = (state.picks || []).slice();
-    let prev = currentDraftValue(state, pool, ctx);
-    let total = 0;
-    for (const season of Array.from(bySeason.keys()).sort((a, b) => a - b)) {
-      // ROUND ascending within the season. The rollout keys on pick NUMBER, which
-      // derives from the round (Keepers.pickForRound at the round's mid-slot), so
-      // crediting the best rounds first prices the picks a team would actually
-      // use at their full worth and pushes the diminishing tail onto the late
-      // ones. It is also what makes the chain monotone under removal: dropping
-      // the pick at position k promotes every later pick one slot, and because
-      // rounds ascend each promoted pick is no better than the one it replaces.
-      // The re-review confirmed round-ascending is the better ordering; the
-      // season tie-break the old single chain needed is gone with the mixing.
-      const sorted = bySeason.get(season).slice().sort((a, b) => a.round - b.round);
-      // NO EARLY EXIT, AND THAT IS DELIBERATE. The round-counting skip this
-      // replaces ("the state already holds ROLLOUT_PICKS unspent picks earlier
-      // than this one, so it cannot enter the rollout") cannot survive cumulative
-      // pricing: that count moves every iteration. The obvious replacement --
-      // stop at the first non-positive marginal, since with rounds ascending they
-      // should be non-increasing -- was TESTED THE WAY THE OLD SKIP WAS, by
-      // recomputing the full 30-entry contribution vector with the exit removed,
-      // and it is NOT exact. Counterexample, measured on the live board and
-      // reproduced on the synthetic one: a state whose keepers cost more than any
-      // pick it holds (here, no current-season picks at all) spends the first
-      // credited picks paying for those keepers, so the marginal vector opens
-      // 0.00, 0.00, 248.90, 206.50, ... -- an exit on the leading zero returned
-      // 0.00 against a true 863.34. Marginals are not monotone in general, so
-      // every future pick is priced. See final-fixes-wave1-report.md for the cost.
-      //
-      // `acc` and `prev` are declared OUTSIDE this loop: the accumulator runs
-      // across seasons (see the head comment), so 2028's segment is credited
-      // against a state that already holds 2027's. `acc` carries this state's
-      // OTHER picks too, including the future ones: currentDraftValue filters to
-      // `p.season === ctx.season`, so a future pick sitting in the list is inert
-      // there, and starting from the full list keeps `prev` and `next` computed
-      // from exactly the same shape.
-      let chain = 0;
-      for (const p of sorted) {
-        acc = acc.concat([{ season: ctx.season, round: p.round }]);
-        const next = currentDraftValue(Object.assign({}, state, { picks: acc }), pool, ctx,
-                                       state.picks);
-        chain += Math.max(0, next - prev);
-        prev = next;
-      }
-      // The discount is applied to the WHOLE chain, once, because it is constant
-      // across a season -- that constancy is the entire fix.
-      total += chain * Math.pow(ctx.futureDiscount, season - ctx.season);
-    }
-    return total;
+    if (!(state.picks || []).some(p => p.season > ctx.season)) return 0;
+    return stateValue(state, pool, ctx) - currentDraftValue(state, pool, ctx);
   }
 
+  // THE NUMBER THE PAGE PRINTS DIFFERENCES OF. One keeper selection, one ladder,
+  // and the identity that makes the whole file monotone:
+  //
+  //   stateValue(state) = max over keeper sets S of  Sum wi * f(S, Xi)
+  //
+  // The selection maximises exactly this (selectKeepers scores candidates with
+  // the same `ladderValue` against the same rungs), so the equality is not an
+  // approximation -- it is the same expression evaluated twice, once to choose
+  // S and once to report the value at the caller's pool.
+  //
+  // Both properties the tool needs follow, without tuning:
+  //   - REMOVING A ROSTER PLAYER cannot raise it: every keeper set open to the
+  //     smaller roster was already open to the larger one, so the larger one's
+  //     maximum is at least the smaller one's.
+  //   - REMOVING A PICK cannot raise it: it can only shrink some rung's pick
+  //     list, `unspentPicks` returns no better a set from a smaller one, and
+  //     the weights are non-negative.
+  // Verified rather than asserted -- final-fixes-wave6-report.md sweeps 12
+  // live-board rosters x 45 picks x 3 pick complements and reports 0 in every
+  // cell for both this and currentDraftValue.
   function stateValue(state, pool, ctx) {
     requireCtx(ctx);
-    return currentDraftValue(state, pool, ctx) + futurePicksValue(state, pool, ctx);
+    const kept = chooseKeepers(state.roster, state.picks, ctx);
+    // Idempotent against the caller's pool: a keeper must not also be
+    // draftable. This guards THIS state's keepers only -- the caller still owns
+    // excluding every other side's, which is what draftPool is for.
+    const keptIds = new Set(kept.map(k => k.player.player_id));
+    const usable = (pool || []).filter(p => !keptIds.has(p.player_id));
+    return ladderValue(kept, pickLadder(state.picks, ctx), usable, ctx);
   }
 
   // --- market value: what the OTHER manager sees -----------------------------
