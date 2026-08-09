@@ -106,7 +106,7 @@ check("an ineligible player is worth exactly zero pre-draft", () => {
   const empty = state([], picks);
   const withStar = state([star], picks);
   const pool = T.draftPool(ctx, withStar);
-  assert.strictEqual(T.chooseKeepers(withStar.roster, ctx).length, 0,
+  assert.strictEqual(T.chooseKeepers(withStar.roster, withStar.picks, ctx).length, 0,
     "an R1 keeper cost is R0 -> ineligible");
   assert.ok(Math.abs(T.currentDraftValue(withStar, pool, ctx)
                    - T.currentDraftValue(empty, T.draftPool(ctx, empty), ctx)) < 1e-6,
@@ -157,7 +157,7 @@ check("an acquired player competes for a slot, he does not add one", () => {
   ctx.board = filler.concat([k1, k2, third]);
   const before = state([k1, k2], allPicks());
   const after = state([k1, k2, third], allPicks());
-  assert.strictEqual(T.chooseKeepers(after.roster, ctx).length, 2, "cap is 2");
+  assert.strictEqual(T.chooseKeepers(after.roster, after.picks, ctx).length, 2, "cap is 2");
   const value = (s, c) => T.currentDraftValue(s, T.draftPool(c, s), c);
   const gain = value(after, ctx) - value(before, ctx);
   assert.ok(Math.abs(gain) < 5,
@@ -166,7 +166,7 @@ check("an acquired player competes for a slot, he does not add one", () => {
   // move, the assertion above would be measuring a fixture that cannot move
   // rather than the cap actually binding.
   const ctx3 = Object.assign({}, ctx, { maxKeepers: 3 });
-  assert.strictEqual(T.chooseKeepers(after.roster, ctx3).length, 3);
+  assert.strictEqual(T.chooseKeepers(after.roster, after.picks, ctx3).length, 3);
   const gain3 = value(after, ctx3) - value(before, ctx3);
   assert.ok(gain3 > 20,
     `with a third slot the same player must be worth real points, got ${gain3.toFixed(1)}`);
@@ -177,7 +177,7 @@ check("keeping a player spends the pick at his cost round", () => {
   const k = withHistory(ctx, P("Keep", "RB", 200), 8);        // cost R7
   ctx.board = filler.concat([k]);
   const s = state([k], allPicks());
-  const kept = T.chooseKeepers(s.roster, ctx);
+  const kept = T.chooseKeepers(s.roster, s.picks, ctx);
   assert.strictEqual(kept.length, 1);
   assert.strictEqual(kept[0].cost, 7, "8 drafted in 2025 -> R7 in 2026");
 });
@@ -206,7 +206,7 @@ check("a player with no draft history is on the waiver ladder", () => {
   const ctx = CTX();
   const w = P("Waiver", "TE", 200);
   ctx.board = filler.concat([w]);
-  const kept = T.chooseKeepers([w], ctx);
+  const kept = T.chooseKeepers([w], allPicks(), ctx);
   assert.strictEqual(kept.length, 1);
   assert.strictEqual(kept[0].cost, 12);
 });
@@ -241,7 +241,7 @@ check("two keepers at the same cost round cannot share one pick", () => {
   ctxD.board = filler.concat([c, d]);
   const collide = state([a, b], allPicks());
   const distinct = state([c, d], allPicks());
-  assert.strictEqual(T.chooseKeepers(collide.roster, ctxC).length, 2);
+  assert.strictEqual(T.chooseKeepers(collide.roster, collide.picks, ctxC).length, 2);
   const vc = T.currentDraftValue(collide, T.draftPool(ctxC, collide), ctxC);
   const vd = T.currentDraftValue(distinct, T.draftPool(ctxD, distinct), ctxD);
   // One assertion, three implementations told apart. Two keepers at the same
@@ -294,7 +294,7 @@ check("a keeper whose ladder ran below every held pick pays the EARLIEST one", (
   const ctx = CTX();
   const k = withHistory(ctx, P("Broke", "RB", 240, { adp: 9.5, adp_round: 1 }), 4); // cost R3
   ctx.board = filler.concat([k]);
-  assert.strictEqual(T.chooseKeepers([k], ctx).length, 1, "he must actually be kept");
+  assert.strictEqual(T.chooseKeepers([k], allPicks(), ctx).length, 1, "he must actually be kept");
   const v = s => T.currentDraftValue(s, T.draftPool(ctx, s), ctx);
   const early = () => ({ season: 2026, round: 5 });
   const late = () => ({ season: 2026, round: 15 });
@@ -384,7 +384,7 @@ check("a ctx missing a silent-failure field throws instead of valuing zero", () 
     const broken = Object.assign({}, ctx);
     delete broken[field];
     assert.throws(() => T.currentDraftValue(s, filler, broken), /ctx\./, field);
-    assert.throws(() => T.chooseKeepers([], broken), /ctx\./, field);
+    assert.throws(() => T.chooseKeepers([], [], broken), /ctx\./, field);
     // Task 4's entry points have the same quiet failure mode: an empty
     // future-picks list or an empty trade side returns 0/no-op without ever
     // reading ctx downstream, so each validates its OWN ctx up front rather
@@ -698,10 +698,10 @@ check("THE PREMISE: trading up the keeper ladder is what pays", () => {
   const cheapGuy = withHistory(ctx, P("Cheap", "RB", 240), 13);  // cost R12
   ctx.board = filler.concat([dear, cheapGuy]);
   const a = state([dear], allPicks()), b = state([cheapGuy], allPicks());
-  assert.strictEqual(T.chooseKeepers(a.roster, ctx).length, 1,
+  assert.strictEqual(T.chooseKeepers(a.roster, a.picks, ctx).length, 1,
     "the expensive side must actually keep him -- otherwise this measures " +
     "'a cheap keeper vs no keeper', not the ladder");
-  assert.strictEqual(T.chooseKeepers(b.roster, ctx).length, 1);
+  assert.strictEqual(T.chooseKeepers(b.roster, b.picks, ctx).length, 1);
   const va = T.currentDraftValue(a, T.draftPool(ctx, a), ctx);
   const vb = T.currentDraftValue(b, T.draftPool(ctx, b), ctx);
   assert.ok(vb - va > 25,
@@ -887,8 +887,8 @@ check("an ineligible player is never suggested as an asset, on EITHER side", () 
     theirStar,
   ];
   ctx.board = filler.concat(rbs).concat([myStar]).concat(theirs);
-  assert.strictEqual(T.chooseKeepers([myStar], ctx).length, 0, "an R1 keeper cost is R0");
-  assert.strictEqual(T.chooseKeepers([theirStar], ctx).length, 0);
+  assert.strictEqual(T.chooseKeepers([myStar], allPicks(), ctx).length, 0, "an R1 keeper cost is R0");
+  assert.strictEqual(T.chooseKeepers([theirStar], allPicks(), ctx).length, 0);
   const me = state(rbs.concat([myStar]), allPicks());
   const them = state(theirs, allPicks());
   // `offerable` is the function actually under test, so check it directly as

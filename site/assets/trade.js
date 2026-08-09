@@ -233,6 +233,17 @@
   // changed field drops that ctx's roster cache rather than returning stale.
   // (futureDiscount is deliberately NOT in the signature -- it only prices
   // FUTURE picks, which never reach a keeper decision.)
+  //
+  // Third level: the CURRENT-SEASON PICK LIST, because the selection now sees
+  // it (see selectKeepers' PICKS note). Encoded as the sorted round numbers
+  // joined with "," -- order-independent, so two states holding the same rounds
+  // in different orders share one entry, and DUPLICATE-PRESERVING, because a
+  // team can hold two of a round and "3,3" is a different complement from "3".
+  // Comma-joined rather than concatenated so "1,2" cannot collide with "12".
+  // Future picks are excluded outright: they never reach a keeper decision, and
+  // including them would give `futurePicksValue`'s 31 augmented lists 31 keys,
+  // which is precisely the cost the fourth argument to `currentDraftValue`
+  // exists to avoid.
   const keeperCache = new WeakMap();
   const keeperSig = ctx => [ctx.season, ctx.board, ctx.originalByPlayerId,
                             ctx.keptElsewhere, ctx.teams, ctx.maxKeepers, ctx.rounds];
@@ -245,8 +256,11 @@
     }
     return e.byRoster;
   }
+  const currentPicks = (picks, ctx) => (picks || []).filter(p => p.season === ctx.season);
+  const picksKey = (picks, ctx) =>
+    currentPicks(picks, ctx).map(p => p.round).sort((a, b) => a - b).join(",");
 
-  function selectKeepers(roster, ctx) {
+  function selectKeepers(roster, picks, ctx) {
     const cands = (roster || []).map(p => candidate(p, ctx))
       .filter(c => Number.isFinite(c.vorp));
     const opts = { teams: ctx.teams, maxKeepers: ctx.maxKeepers };
@@ -255,7 +269,6 @@
     const ranked = Keepers.rankKeepers(cands, ctx.season, ctx.board, opts);
     if (!ranked.length) return [];
     const maxKeepers = ctx.maxKeepers != null ? ctx.maxKeepers : Keepers.MAX_KEEPERS;
-    const rounds = ctx.rounds != null ? ctx.rounds : Keepers.DRAFT_ROUNDS;
 
     // A candidate set is valued exactly the way currentDraftValue values the
     // state it produces: the set is the roster, the rest of the draft is played
@@ -267,13 +280,27 @@
     // Two deliberate reference choices, both of which keep this a pure function
     // of (roster, ctx) and therefore memoizable on the roster:
     //
-    //   PICKS: a FULL complement of this season's rounds, not `state.picks`.
-    //   chooseKeepers is handed a roster, never a state -- and it must stay
-    //   that way, because `futurePicksValue` values 31 pick lists against one
-    //   identity-stable roster, so keying the cache on picks would drop the hit
-    //   rate to zero and put the exact selection out of budget. The cost of the
-    //   approximation is that a team which has traded its early picks away is
-    //   still asked "what would you keep in a normal draft".
+    //   PICKS: the CURRENT-SEASON PICKS THE STATE ACTUALLY HOLDS. This used to
+    //   be a full 1..15 complement regardless, on the argument that
+    //   `futurePicksValue` values 31 pick lists against one identity-stable
+    //   roster so keying the cache on picks would drop the hit rate to zero.
+    //   That argument confused two different pick lists. Keepers are chosen
+    //   ONCE, in reality, against the picks the team holds; the future-pick loop
+    //   is a valuation proxy, and appending a simulated current-year pick to
+    //   measure a 2027 pick's marginal must not change who the team keeps. So
+    //   the loop keeps passing the ORIGINAL picks here (currentDraftValue's
+    //   fourth argument) and only the valuation sees the augmented list -- which
+    //   leaves ~1 selection per distinct state, exactly as before.
+    //
+    //   Threading them matters because `currentDraftValue` then evaluates the
+    //   chosen set against `state.picks`. While the two lists differed, wave 2's
+    //   "monotone by construction" argument established only that the
+    //   FULL-COMPLEMENT objective's maximum is monotone, and said nothing about
+    //   the objective the page prints -- and every trade involving a pick
+    //   produces a state where they differ. Measured on the live board before
+    //   this change, a team holding only R9-R15 could give a player away for
+    //   nothing and gain (worst +41.38 here, +81.74 in the re-review's own
+    //   scan); after it, 0 of 180 across all three complements.
     //
     //   POOL: the board minus ctx.keptElsewhere only. It cannot also exclude
     //   the OTHER side's keepers the way `draftPool` does, because those are
@@ -281,8 +308,7 @@
     //   (which is what the monotonicity sweep measures) the two agree exactly;
     //   inside gradeTrade each side's keepers are chosen against a pool very
     //   slightly richer than the one its value is finally computed on.
-    const spend = [];
-    for (let r = 1; r <= rounds; r++) spend.push({ season: ctx.season, round: r });
+    const spend = currentPicks(picks, ctx);
     const goneElsewhere = new Set(ctx.keptElsewhere);
     const basePool = ctx.board.filter(p => !goneElsewhere.has(p.player_id));
     const scoreSet = set => {
@@ -318,14 +344,26 @@
   }
 
   // The returned array is SHARED with every other caller holding the same
-  // roster reference (see the memo above) -- read it, never mutate it.
-  // `unspentPicks` already copies before sorting, which is why it is safe.
-  function chooseKeepers(roster, ctx) {
+  // roster reference AND the same current-season pick complement (see the memo
+  // above) -- read it, never mutate it. `unspentPicks` already copies before
+  // sorting, which is why it is safe.
+  //
+  // `picks` is the state's FULL pick list, not a pre-filtered one: the key and
+  // the selection both filter to ctx.season themselves, so a caller can hand
+  // over `state.picks` and be right. ctx moved to the third position rather
+  // than gaining an optional fourth, deliberately: a call site left on the old
+  // two-argument form passes ctx as `picks` and undefined as `ctx`, which
+  // `requireCtx` throws on immediately instead of silently selecting keepers
+  // against an empty complement.
+  function chooseKeepers(roster, picks, ctx) {
     requireCtx(ctx);
-    if (roster == null || typeof roster !== "object") return selectKeepers(roster, ctx);
+    if (roster == null || typeof roster !== "object") return selectKeepers(roster, picks, ctx);
     const byRoster = keeperCacheFor(ctx);
-    let hit = byRoster.get(roster);
-    if (!hit) { hit = selectKeepers(roster, ctx); byRoster.set(roster, hit); }
+    let byPicks = byRoster.get(roster);
+    if (!byPicks) { byPicks = new Map(); byRoster.set(roster, byPicks); }
+    const k = picksKey(picks, ctx);
+    let hit = byPicks.get(k);
+    if (!hit) { hit = selectKeepers(roster, picks, ctx); byPicks.set(k, hit); }
     return hit;
   }
 
@@ -338,7 +376,7 @@
     requireCtx(ctx);
     const gone = new Set(ctx.keptElsewhere);
     for (const s of states) {
-      for (const k of chooseKeepers(s.roster, ctx)) gone.add(k.player.player_id);
+      for (const k of chooseKeepers(s.roster, s.picks, ctx)) gone.add(k.player.player_id);
     }
     return ctx.board.filter(p => !gone.has(p.player_id));
   }
@@ -403,9 +441,20 @@
   // Draft order is unset pre-draft, so each pick is valued at its round's
   // MID-slot (Keepers.pickForRound) -- pretending to know the exact overall
   // pick would be false precision. fromPick is 0: nothing has been drafted.
-  function currentDraftValue(state, pool, ctx) {
+  //
+  // `keeperPicks` is the pick list the KEEPER SELECTION sees, and it defaults to
+  // the state's own -- which is the only thing any real caller wants, and is
+  // what makes the selection and this valuation agree exactly on a single
+  // state. `futurePicksValue` is the one exception and passes the ORIGINAL
+  // state's picks while `state.picks` carries a simulated extra current-year
+  // pick: that loop is measuring what a FUTURE pick is worth, and a hypothetical
+  // pick appended to price it must not be allowed to change who the team keeps.
+  // Keeping it out also holds the selection to one memo entry per state instead
+  // of one per iteration, which is the whole cost of this fix.
+  function currentDraftValue(state, pool, ctx, keeperPicks) {
     requireCtx(ctx);
-    const kept = chooseKeepers(state.roster, ctx);
+    const kept = chooseKeepers(state.roster,
+      keeperPicks !== undefined ? keeperPicks : state.picks, ctx);
     const mine = (state.picks || []).filter(p => p.season === ctx.season);
     const picks = unspentPicks(kept, mine)
       .map(p => Keepers.pickForRound(p.round, ctx.teams))
@@ -498,7 +547,8 @@
     let total = 0;
     for (const p of sorted) {
       acc = acc.concat([{ season: ctx.season, round: p.round }]);
-      const next = currentDraftValue(Object.assign({}, state, { picks: acc }), pool, ctx);
+      const next = currentDraftValue(Object.assign({}, state, { picks: acc }), pool, ctx,
+                                     state.picks);
       const marginal = next - prev;
       total += Math.max(0, marginal) * Math.pow(ctx.futureDiscount, p.season - ctx.season);
       prev = next;

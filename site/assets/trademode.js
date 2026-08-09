@@ -223,7 +223,9 @@
     const gone = new Set();
     for (const t of teams) {
       if (skip.has(t.rosterId)) continue;
-      for (const k of Trade.chooseKeepers(t.state.roster, base)) gone.add(k.player.player_id);
+      for (const k of Trade.chooseKeepers(t.state.roster, t.state.picks, base)) {
+        gone.add(k.player.player_id);
+      }
     }
     return gone;
   }
