@@ -125,6 +125,15 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   const isDrafted = p => !!(draftState && p.sleeper_id && draftState.drafted.has(p.sleeper_id));
   const isMine = p => !!(draftState && p.sleeper_id && draftState.mine.has(p.sleeper_id));
 
+  // ROVING TABINDEX. `tr.tabIndex = 0` on all 695 rows made the board 695 tab
+  // stops, so reaching the keeper panel or the footer -- both after the table
+  // in DOM order -- took ~700 Tab presses. Exactly one row is tabbable at a
+  // time (the last one focused, defaulting to the first row); Arrow Up/Down
+  // move between rows and move the tab stop with them, so Tab out of the table
+  // lands on whatever follows it. Like `expanded`, this is keyed by player_id
+  // and re-applied on every render, because render() destroys the tbody.
+  let activeRowId = null;
+
   // Keyed by player_id and re-applied after every render, because render()
   // destroys the tbody -- on each 3s draft-mode poll, and on every sort,
   // filter and lens change. DOM-held state would not survive any of them.
@@ -228,6 +237,9 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     const focusedRow = active && active.closest
       ? active.closest("tr[data-player-id]") : null;
     const focusedId = focusedRow ? focusedRow.dataset.playerId : null;
+    // Focus is the source of truth for the roving index: whatever the user is
+    // on is what stays tabbable through the rebuild.
+    if (focusedId) activeRowId = focusedId;
 
     tbody.innerHTML = "";
     let lastTier = null;
@@ -262,10 +274,15 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       if (isDrafted(p)) tr.classList.add("drafted");
       if (isMine(p)) tr.classList.add("mine");
       tr.dataset.playerId = p.player_id;
-      tr.tabIndex = 0;
+      tr.tabIndex = p.player_id === activeRowId ? 0 : -1;
       tr.setAttribute("aria-expanded", String(expanded.has(p.player_id)));
       tbody.appendChild(tr);
       if (expanded.has(p.player_id)) tbody.appendChild(detailRow(p));
+    }
+    // The active row can be filtered or hidden away (position filter, hide
+    // drafted). Without this the table would have NO tab stop at all.
+    if (!tbody.querySelector('tr[data-player-id][tabindex="0"]')) {
+      setActiveRow(tbody.querySelector("tr[data-player-id]"));
     }
     // One measure/position pass after the whole tbody is built, not per row,
     // so an open panel costs one forced reflow instead of one each.
@@ -282,6 +299,14 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     }
   }
 
+  function setActiveRow(tr) {
+    if (!tr) return;
+    const prev = tbody.querySelector('tr[data-player-id][tabindex="0"]');
+    if (prev && prev !== tr) prev.tabIndex = -1;
+    tr.tabIndex = 0;
+    activeRowId = tr.dataset.playerId;
+  }
+
   const toggleRow = id => {
     if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
     render(rows);   // focus is restored inside render, see above
@@ -290,10 +315,24 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     const tr = e.target.closest("tr[data-player-id]");
     if (tr) toggleRow(tr.dataset.playerId);
   });
+  // Clicking a row focuses it even at tabindex="-1"; the tab stop follows.
+  tbody.addEventListener("focusin", e => {
+    const tr = e.target.closest && e.target.closest("tr[data-player-id]");
+    if (tr) setActiveRow(tr);
+  });
   tbody.addEventListener("keydown", e => {
-    if (e.key !== "Enter" && e.key !== " ") return;
     const tr = e.target.closest("tr[data-player-id]");
     if (!tr) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const all = [...tbody.querySelectorAll("tr[data-player-id]")];
+      const next = all[all.indexOf(tr) + (e.key === "ArrowDown" ? 1 : -1)];
+      if (!next) return;
+      e.preventDefault();          // do not also scroll the page a line
+      setActiveRow(next);
+      next.focus();
+      return;
+    }
+    if (e.key !== "Enter" && e.key !== " ") return;
     e.preventDefault();
     toggleRow(tr.dataset.playerId);
   });
