@@ -427,6 +427,10 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     // comparison against a value that does not exist.
     const market = el("div");
     market.appendChild(el("div", "label", "Where he goes vs what he's worth"));
+    // Tier is UNCONDITIONAL. It lived inside the ADP branch, so the 462 rows
+    // with no market price never showed it -- and tier, the value-cliff
+    // marker, matters most exactly where the market has not priced the player.
+    let marketNote = null;
     if (p.adp == null) {
       market.appendChild(el("p", "detail-none",
         "No market price — he is undrafted in the ADP sample, so there is "
@@ -458,11 +462,10 @@ cohort priors — wide bands on purpose; see the about page.</footer>
         outOfRange ? "" : edge > 0 ? "good" : edge < 0 ? "warn" : "";
       market.append(kv("Market ADP", p.adp.toFixed(1)),
                     kv("Your overall rank", String(mine)),
-                    edgeRow,
-                    kv("Tier", String(p.tier)));
+                    edgeRow);
 
       // Keep the number in the table, but say the honest thing in the sentence.
-      market.appendChild(el("p", "detail-note",
+      marketNote = el("p", "detail-note",
         outOfRange
           ? "Both of you have him outside the drafted range, so the gap between "
             + "these two numbers is not a real pick difference."
@@ -470,8 +473,10 @@ cohort priors — wide bands on purpose; see the about page.</footer>
           ? `The field lets him fall about ${pickCount(edge)} past where you have him.`
         : edge < 0
           ? `You would have to reach about ${pickCount(edge)} to get him.`
-        : "The field prices him exactly where you do."));
+        : "The field prices him exactly where you do.");
     }
+    market.appendChild(kv("Tier", String(p.tier)));
+    if (marketNote) market.appendChild(marketNote);
 
     // --- 3. the cost of passing ----------------------------------------
     const pass = el("div");
