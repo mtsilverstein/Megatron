@@ -431,7 +431,10 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 }
 .keeper-out li { padding: var(--s1) 0; }
 
-tr.detail > td { background: var(--sunken); border-bottom: 1px solid var(--rule); padding: var(--s4); }
+/* `th, td { white-space: nowrap }` is inherited here, which makes every
+   paragraph in the panel one unwrappable line and widens the whole table
+   (1212 -> 1364 at 1280 on an ADP-less row). The panel is prose; it wraps. */
+tr.detail > td { background: var(--sunken); border-bottom: 1px solid var(--rule); padding: var(--s4); white-space: normal; }
 .detail-grid { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: var(--s5); align-items: start; }
 .detail-grid .label { font: var(--t-label); letter-spacing: .14em; text-transform: uppercase; color: var(--chalk-dim); margin-bottom: var(--s2); }
 .ridge { width: 100%; height: 54px; display: block; }
