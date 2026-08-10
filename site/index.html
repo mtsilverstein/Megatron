@@ -367,12 +367,22 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       const big = el("div", "big", FC.fmt(p.vorp - next.vorp));
       big.appendChild(el("span", "unit", " VORP"));
       const note = el("p", "detail-note");
-      note.append(`Next ${p.position} is `, el("b", null, next.name),
-                  ` at ${FC.fmt(next.vorp)}.`);
+      note.append(
+        draftState
+          ? `Next ${p.position} still undrafted is `
+          : `Next ${p.position} on your board is `,
+        el("b", null, next.name),
+        ` at ${FC.fmt(next.vorp)}.`);
+      if (!draftState) {
+        note.append(" That is a board delta, not a claim he will still be "
+          + "there — connect a draft and this skips players already taken.");
+      }
       pass.append(big, note);
     } else {
       pass.appendChild(el("p", "detail-none",
-        `Last ${p.position} on the board — nothing behind him.`));
+        draftState
+          ? `No ${p.position} left behind him on the board.`
+          : `Last ${p.position} on the board — nothing behind him.`));
     }
 
     grid.append(dist, market, pass);
@@ -390,11 +400,28 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 
   // `rows` is the full board; the next player at a position is the next one
   // down in VORP order, which is what passing on him actually costs.
+  //
+  // WHEN A DRAFT IS CONNECTED, SKIP PLAYERS WHO ARE GONE. Every other
+  // draft-aware surface on this page (strikethrough, hide-drafted, the
+  // shortlist) honours `isDrafted`; this one used to ignore it and quote a
+  // player already off the board, which understates the cost of passing --
+  // and it errs in the direction that makes passing look cheap. A player YOU
+  // hold is not a future pick either, so `isMine` is skipped too.
+  //
+  // With no draft connected we deliberately do NOT guess availability from
+  // ADP: that is an availability model, not a fix. The number stays a board
+  // delta and the sentence says so.
   function nextAtPosition(p) {
     const same = rows.filter(q => q.position === p.position)
       .sort((a, b) => b.vorp - a.vorp);
     const i = same.findIndex(q => q.player_id === p.player_id);
-    return (i >= 0 && i + 1 < same.length) ? same[i + 1] : null;
+    if (i < 0) return null;
+    for (let j = i + 1; j < same.length; j++) {
+      const q = same[j];
+      if (isDrafted(q) || isMine(q)) continue;
+      return q;
+    }
+    return null;
   }
 
   FC.posFilter(document.getElementById("pos-filters"), p => { pos = p; render(rows); });
