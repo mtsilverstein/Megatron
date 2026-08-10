@@ -346,6 +346,15 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     return n;
   }
 
+  // The plural has to follow the PRINTED number, not the raw one -- toFixed(0)
+  // rounds, and 17 of the 161 in-range rows print "1". They are the top of the
+  // board (Bijan, Chase, McCaffrey, Nacua, Lamb, Jefferson...), so "about 1
+  // picks" was on essentially every row a user opens in rounds 1-2.
+  function pickCount(n) {
+    const s = Math.abs(n).toFixed(0);
+    return `${s} ${s === "1" ? "pick" : "picks"}`;
+  }
+
   function kv(label, value) {
     const row = el("div", "kv");
     row.append(el("span", null, label), el("b", null, value));
@@ -450,9 +459,9 @@ cohort priors — wide bands on purpose; see the about page.</footer>
           ? "Both of you have him outside the drafted range, so the gap between "
             + "these two numbers is not a real pick difference."
         : edge > 0
-          ? `The field lets him fall about ${Math.abs(edge).toFixed(0)} picks past where you have him.`
+          ? `The field lets him fall about ${pickCount(edge)} past where you have him.`
         : edge < 0
-          ? `You would have to reach about ${Math.abs(edge).toFixed(0)} picks to get him.`
+          ? `You would have to reach about ${pickCount(edge)} to get him.`
         : "The field prices him exactly where you do."));
     }
 
