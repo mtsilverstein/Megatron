@@ -116,7 +116,12 @@ td.num, th.num { text-align: right; font: var(--t-num);
   position: absolute; top: -3px; font: var(--t-edge);
   color: var(--chalk-dim); font-variant-numeric: tabular-nums;
 }
+/* Fallback: the track ends. The page positions the two numbers at the FILL's
+   real ends when it can measure them (see `edges-placed`) -- pinned to the
+   container they said "the ceiling is the right end of the track", which for
+   anyone below about rank 50 is the wrong end by most of the cell. */
 .band .edge.lo { left: 0; } .band .edge.hi { right: 0; }
+.band.edges-placed .edge.hi { right: auto; }
 
 /* -- draft board tier shelves --------------------------------------------- */
 .tier-break { border: 0; border-top: 1px solid var(--rule); position: relative;
