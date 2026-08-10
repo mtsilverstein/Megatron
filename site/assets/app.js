@@ -1,7 +1,6 @@
 /* Floor & Ceiling — shared utilities. No framework, no build. */
 window.FC = (() => {
   const POS_CLASS = { QB: "pos-qb", RB: "pos-rb", WR: "pos-wr", TE: "pos-te" };
-  const POS_VAR = { QB: "--qb", RB: "--rb", WR: "--wr", TE: "--te" };
 
   async function loadJSON(path) {
     const res = await fetch(path, { cache: "no-cache" });
@@ -28,30 +27,6 @@ window.FC = (() => {
 
   function fmt(x, digits = 1) {
     return (x === null || x === undefined) ? "—" : x.toFixed(digits);
-  }
-
-  function bandBar(p10, p50, p90, max, pos) {
-    const wrap = document.createElement("div");
-    wrap.className = "band";
-    wrap.title = p10 === null ? `p50 ${fmt(p50)}` :
-      `floor ${fmt(p10)} · median ${fmt(p50)} · ceiling ${fmt(p90)}`;
-    const pct = v => `${Math.max(0, Math.min(100, (v / max) * 100))}%`;
-    wrap.innerHTML = `<div class="track"></div>`;
-    if (p10 !== null && p90 !== null) {
-      const fill = document.createElement("div");
-      fill.className = "fill";
-      fill.style.left = pct(p10);
-      fill.style.width = `calc(${pct(p90)} - ${pct(p10)})`;
-      fill.style.background = getComputedStyle(document.documentElement)
-        .getPropertyValue(POS_VAR[pos] || "--chalk");
-      fill.style.setProperty("--p50x", pct(p50));
-      wrap.appendChild(fill);
-    }
-    const tick = document.createElement("div");
-    tick.className = "tick";
-    tick.style.left = pct(p50);
-    wrap.appendChild(tick);
-    return wrap;
   }
 
   function makeSortable(table, rows, render) {
@@ -177,6 +152,6 @@ window.FC = (() => {
     });
   }
 
-  return { POS_CLASS, loadJSON, stampHeader, staleBanner, fmt, bandBar, makeSortable,
+  return { POS_CLASS, loadJSON, stampHeader, staleBanner, fmt, makeSortable,
            posFilter, esc, scoringFilter, LENS_LABEL };
 })();
