@@ -170,6 +170,56 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     return wrap;
   }
 
+  // FLOOR / MED / CEILING have to sit under the marks they name. Laid out with
+  // `justify-content: space-between` they landed at 0 / 50 / 100% of the SVG
+  // while the ridge is drawn at the player's real position on the shared
+  // domain -- for a mid-board player that put "MED" ~180px and "CEILING"
+  // ~340px from the marks they label, so the panel read as "median in the
+  // middle of a full-width interval", the exact misreading the ridge exists
+  // to correct.
+  //
+  // Done after the row is in the DOM because the collision rule below needs
+  // real label widths. NARROW BANDS: the tightest real band on this board is
+  // 3.5% of the domain (~12px of a ~350px ridge) and 6 rows have med == lo, so
+  // labels do collide. Rule: place each at its own fraction, then push only
+  // the pairs that actually overlap apart by equal halves, clamped inside the
+  // container. A wide band with a low median keeps CEILING on its mark and
+  // separates just FLOOR/MED; a fully collapsed band degrades to one centred
+  // contiguous run rather than three lies about position.
+  const CAP_GAP = 8;
+  function layoutRidgeCap(cap) {
+    if (!cap.dataset.frac) return;             // no band: keep the CSS fallback
+    const fr = cap.dataset.frac.split(",").map(Number);
+    const W = cap.getBoundingClientRect().width;
+    if (!W) return;
+    cap.classList.add("placed");
+    const kids = [...cap.children];
+    const n = kids.length;
+    const w = kids.map(k => k.getBoundingClientRect().width);
+    const need = i => (w[i] + w[i + 1]) / 2 + CAP_GAP;
+    const pos = fr.map(f => f * W);
+    // Relax first: overlapping neighbours give way to each other by equal
+    // halves, so a tight cluster stays centred on its marks instead of all
+    // sliding one way.
+    for (let pass = 0; pass < 6; pass++) {
+      for (let i = 0; i < n - 1; i++) {
+        const over = need(i) - (pos[i + 1] - pos[i]);
+        if (over > 0) { pos[i] -= over / 2; pos[i + 1] += over / 2; }
+      }
+    }
+    // Then guarantee it, which relaxation alone does not: monotone forward
+    // pass = no overlap, backward pass = nothing past the right edge.
+    pos[0] = Math.max(pos[0], w[0] / 2);
+    for (let i = 1; i < n; i++) pos[i] = Math.max(pos[i], pos[i - 1] + need(i - 1));
+    pos[n - 1] = Math.min(pos[n - 1], W - w[n - 1] / 2);
+    for (let i = n - 2; i >= 0; i--) pos[i] = Math.min(pos[i], pos[i + 1] - need(i));
+    const spill = Math.max(0, w[0] / 2 - pos[0]);   // only if the row is narrower
+    kids.forEach((k, i) => { k.style.left = `${pos[i] + spill - w[i] / 2}px`; });
+  }
+  const layoutAllCaps = () =>
+    tbody.querySelectorAll(".ridge-cap").forEach(layoutRidgeCap);
+  window.addEventListener("resize", layoutAllCaps);
+
   function render(data) {
     // render() destroys every row, including the focused one. Remember who
     // had focus so it can be restored below -- null when focus was outside
@@ -217,6 +267,9 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       tbody.appendChild(tr);
       if (expanded.has(p.player_id)) tbody.appendChild(detailRow(p));
     }
+    // One measure/position pass after the whole tbody is built, not per row,
+    // so an open panel costs one forced reflow instead of one each.
+    layoutAllCaps();
 
     if (focusedId) {
       const back = tbody.querySelector(
@@ -291,6 +344,11 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     cap.append(el("span", null, `FLOOR ${FC.fmt(sp.p10, 0)}`),
                el("b", null, `MED ${FC.fmt(sp.p50, 0)}`),
                el("span", null, `CEILING ${FC.fmt(sp.p90, 0)}`));
+    // The fractions the captions must sit at. Absent (no band) -> the CSS
+    // fallback keeps the old evenly-spread row, which asserts nothing.
+    if (g.lo !== null && g.med !== null && g.hi !== null) {
+      cap.dataset.frac = [g.lo, g.med, g.hi].join(",");
+    }
     dist.appendChild(cap);
 
     // Spec section 5 requires a sentence that READS the distribution, not just
