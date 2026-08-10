@@ -497,7 +497,12 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       // raw difference goes nonsense past the last pick: 26 rows exceed +/-50
       // and 5 exceed +/-100, worst being Ty Simpson at ADP 281 vs rank 543 --
       // "reach about 262 picks" in a draft that is only 180 picks long.
-      const draftLen = Keepers.TEAMS * Keepers.DRAFT_ROUNDS;   // 12 x 15 = 180
+      // Guarded exactly like the Keepers.init call at the bottom of this file.
+      // Unguarded, a failed keepers.js made render() throw AFTER the tbody was
+      // cleared -- a blank board with no message, and the page's .catch only
+      // covers the initial load, not a click.
+      const draftLen = (window.Keepers &&
+        Keepers.TEAMS * Keepers.DRAFT_ROUNDS) || 180;   // 12 x 15 = 180
       const outOfRange = p.adp > draftLen || mine > draftLen;
 
       const edgeRow = kv("Edge",
