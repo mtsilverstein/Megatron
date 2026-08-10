@@ -27,6 +27,24 @@
 <main>
   <p class="eyebrow">Methodology, honestly</p>
   <h1>How these projections are made</h1>
+
+  <!-- The strongest evidence on the site leads the page. Both figures are
+       drawn from data/about.json at load; nothing here is hardcoded. -->
+  <section class="evidence" id="calibration" aria-labelledby="cal-h">
+    <h2 id="cal-h">The bands mean what they say</h2>
+    <p class="chart-lead" id="cal-lead"></p>
+    <div class="chart" id="cal-chart"></div>
+    <p class="chart-note" id="cal-note"></p>
+  </section>
+
+  <section class="evidence" id="bakeoff-chart" aria-labelledby="bo-h">
+    <h2 id="bo-h">Walk-forward bake-off</h2>
+    <p class="chart-lead" id="bo-lead"></p>
+    <div class="chart-legend" id="bo-legend"></div>
+    <div class="chart" id="bo-chart"></div>
+    <p class="chart-note" id="bo-note"></p>
+  </section>
+
   <div class="prose">
     <p>Every number on this site comes from models that predict <strong>raw stat
     lines</strong> — yards, touchdowns, receptions — never fantasy points directly.
@@ -148,9 +166,332 @@
 uncertainty. Built as an open portfolio project — data via nflverse.</footer>
 <script src="assets/app.js"></script>
 <script>
+/* The two evidence charts. Exposed as window.AboutCharts so the render path
+   can be re-run against a mutated COPY of the payload (see the degradation
+   check in the task report) without touching data/about.json.
+
+   Everything is built with createElementNS + textContent; no data is ever
+   interpolated into a markup string. Colours and type live in style.css. */
+window.AboutCharts = (() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const TARGET = 0.80;                       // the p10-p90 band's design target
+  const MODELS = ["transformer", "xgboost", "naive_last4"];
+  const MODEL_LABEL = {
+    transformer: "Transformer (ensemble)",
+    xgboost: "XGBoost",
+    naive_last4: "Naive last-4"
+  };
+
+  function svg(name, attrs) {
+    const n = document.createElementNS(NS, name);
+    for (const k in attrs) n.setAttribute(k, String(attrs[k]));
+    return n;
+  }
+  function text(x, y, str, cls, anchor) {
+    const t = svg("text", { x, y, class: cls });
+    if (anchor) t.setAttribute("text-anchor", anchor);
+    t.textContent = str;
+    return t;
+  }
+  function titled(node, str) {
+    const t = document.createElementNS(NS, "title");
+    t.textContent = str;
+    node.appendChild(t);
+    return node;
+  }
+  // "m-" prefix so a model name can never collide with another class.
+  const modelClass = m => "m-" + String(m).replace(/[^A-Za-z0-9_-]/g, "-");
+
+  // Square at the baseline, 4px-rounded at the data end; works either
+  // direction so the calibration bar can sit on the target line.
+  function barPath(x0, x1, yTop, h, r) {
+    const yBot = yTop + h;
+    const len = Math.abs(x1 - x0);
+    const rr = Math.max(0, Math.min(r, len, h / 2));
+    const s = x1 >= x0 ? 1 : -1;
+    const xc = x1 - s * rr;
+    return `M ${x0} ${yTop} L ${xc} ${yTop} Q ${x1} ${yTop} ${x1} ${yTop + rr}` +
+           ` L ${x1} ${yBot - rr} Q ${x1} ${yBot} ${xc} ${yBot} L ${x0} ${yBot} Z`;
+  }
+
+  function niceTicks(lo, hi, want) {
+    const span = (hi - lo) || 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(span / want)));
+    const norm = (span / want) / mag;
+    const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+    const out = [];
+    for (let t = Math.ceil(lo / step) * step; t <= hi + step * 1e-9; t += step) {
+      out.push(Math.round(t / step) * step);
+    }
+    return { ticks: out, decimals: step < 0.1 ? 2 : step < 1 ? 1 : 0 };
+  }
+
+  // Charts are laid out in real pixels (not a scaled viewBox) so labels stay
+  // at their true type size on a phone. Width is measured, and re-measured on
+  // resize.
+  function measure(host) {
+    return Math.max(280, Math.min(880, Math.round(host.clientWidth || 640)));
+  }
+  function absent(host, message) {
+    const p = document.createElement("p");
+    p.className = "chart-none";
+    p.textContent = message;
+    host.replaceChildren(p);
+  }
+  function lead(host, before, big, after) {
+    const b = document.createElement("b");
+    b.textContent = big;
+    host.replaceChildren(document.createTextNode(before), b,
+                         document.createTextNode(after));
+  }
+
+  /* ---- chart 1: measured coverage against the 0.80 target ---------------
+     A deviation bar anchored ON the reference line, not a bar from zero: the
+     whole story lives in +/- 0.02 around 0.80, which a zero-baseline bar
+     would render as three identical blocks. Direction carries over/under. */
+  function renderCalibration(rows, host) {
+    const W = measure(host);
+    const padL = 56, padR = 74, padT = 38, padB = 38, rowH = 46, barH = 16;
+    const H = padT + rows.length * rowH + padB;
+    const x0 = padL, x1 = W - padR, plotW = x1 - x0;
+    const half = Math.max(0.05,
+      Math.max(...rows.map(r => Math.abs(r.coverage_p10_p90 - TARGET))) * 1.4);
+    const sx = v => x0 + ((v - (TARGET - half)) / (2 * half)) * plotW;
+    const cx = sx(TARGET);
+
+    const root = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`,
+                              role: "img" });
+    titled(root, `Measured p10-p90 coverage per held-out season against the ` +
+                 `${TARGET.toFixed(2)} target.`);
+
+    for (const t of [TARGET - half, TARGET + half]) {
+      root.appendChild(svg("line", { class: "ax-grid", x1: sx(t), x2: sx(t),
+                                     y1: padT, y2: H - padB }));
+      root.appendChild(text(sx(t), H - padB + 16, t.toFixed(2), "ax-tick", "middle"));
+    }
+    root.appendChild(svg("line", { class: "ax-ref", x1: cx, x2: cx,
+                                   y1: padT - 8, y2: H - padB }));
+    root.appendChild(text(cx, padT - 16, `TARGET ${TARGET.toFixed(2)}`,
+                          "ax-ref-label", "middle"));
+    root.appendChild(text(cx, H - padB + 16, TARGET.toFixed(2), "ax-tick", "middle"));
+    root.appendChild(text(x0, H - 4,
+      "share of actual player-weeks inside the band", "ax-title", "start"));
+
+    rows.forEach((r, i) => {
+      const v = r.coverage_p10_p90, dev = v - TARGET;
+      const yTop = padT + i * rowH + (rowH - barH) / 2;
+      const mid = yTop + barH / 2;
+      const g = svg("g", {});
+      titled(g, `${r.test_season}: coverage ${v.toFixed(3)} ` +
+                `(${dev >= 0 ? "+" : ""}${dev.toFixed(3)} vs target)` +
+                (r.n ? ` on ${r.n} player-weeks` : ""));
+      g.appendChild(text(x0 - 12, mid + 4, String(r.test_season), "row-label", "end"));
+      g.appendChild(svg("path", { class: "cal-bar",
+                                  d: barPath(cx, sx(v), yTop, barH, 4) }));
+      g.appendChild(text(x1 + 12, mid, v.toFixed(3), "val-label", "start"));
+      g.appendChild(text(x1 + 12, mid + 14,
+        `${dev >= 0 ? "+" : "−"}${Math.abs(dev).toFixed(3)}`, "val-sub", "start"));
+      root.appendChild(g);
+    });
+    host.replaceChildren(root);
+  }
+
+  /* ---- chart 2: MAE by season, all three models ------------------------
+     A dot plot, not grouped bars: MAE differences are tenths of a point on a
+     ~4.4 base, so a zero baseline hides them and a truncated bar would lie.
+     Dots carry no area, so a zoomed axis is honest. */
+  function renderBakeoff(rows, host, legendHost) {
+    const seasons = [...new Set(rows.map(r => r.test_season))].sort((a, b) => a - b);
+    const models = MODELS.filter(m => rows.some(r => r.model === m))
+      .concat([...new Set(rows.map(r => r.model))].filter(m => !MODELS.includes(m)));
+
+    legendHost.replaceChildren(...models.map(m => {
+      const s = document.createElement("span");
+      const sw = document.createElement("i");
+      sw.className = "sw " + modelClass(m);
+      const label = document.createElement("span");
+      label.textContent = MODEL_LABEL[m] || m;
+      s.append(sw, label);
+      return s;
+    }));
+
+    const W = measure(host);
+    const padL = 56, padR = 24, padT = 26, padB = 46, rowH = 62, R = 6;
+    const H = padT + seasons.length * rowH + padB;
+    const x0 = padL, x1 = W - padR, plotW = x1 - x0;
+    const vals = rows.map(r => r.mae);
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    const pad = ((hi - lo) || 1) * 0.14;
+    const dLo = lo - pad, dHi = hi + pad;
+    const sx = v => x0 + ((v - dLo) / (dHi - dLo)) * plotW;
+
+    // Only label every dot when adjacent dots are far enough apart to fit one.
+    const minGap = Math.min(...seasons.map(s => {
+      const xs = rows.filter(r => r.test_season === s).map(r => sx(r.mae))
+                     .sort((a, b) => a - b);
+      return xs.length < 2 ? Infinity
+        : Math.min(...xs.slice(1).map((x, i) => x - xs[i]));
+    }));
+    const labelAll = minGap >= 42;
+
+    const root = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`,
+                              role: "img" });
+    titled(root, "Walk-forward mean absolute error by held-out season for " +
+                 models.map(m => MODEL_LABEL[m] || m).join(", ") + ".");
+
+    const { ticks, decimals } = niceTicks(dLo, dHi, 4);
+    for (const t of ticks) {
+      root.appendChild(svg("line", { class: "ax-grid", x1: sx(t), x2: sx(t),
+                                     y1: padT, y2: H - padB }));
+      root.appendChild(text(sx(t), H - padB + 16, t.toFixed(decimals),
+                            "ax-tick", "middle"));
+    }
+    root.appendChild(text(x0, H - 6,
+      "MAE, PPR points per player-week — lower is better", "ax-title", "start"));
+
+    seasons.forEach((season, i) => {
+      const mid = padT + i * rowH + rowH / 2;
+      const here = rows.filter(r => r.test_season === season);
+      const xs = here.map(r => sx(r.mae));
+      root.appendChild(text(x0 - 12, mid + 4, String(season), "row-label", "end"));
+      root.appendChild(svg("line", { class: "dot-connector", y1: mid, y2: mid,
+                                     x1: Math.min(...xs), x2: Math.max(...xs) }));
+      for (const m of models) {
+        const r = here.find(row => row.model === m);
+        if (!r) continue;
+        const g = svg("g", {});
+        titled(g, `${MODEL_LABEL[m] || m}, ${season}: MAE ${r.mae.toFixed(3)}` +
+                  (r.n ? ` on ${r.n} player-weeks` : ""));
+        g.appendChild(svg("circle", { class: "dot " + modelClass(m),
+                                      cx: sx(r.mae), cy: mid, r: R }));
+        if (labelAll || m === "transformer") {
+          g.appendChild(text(sx(r.mae), mid + 24, r.mae.toFixed(2),
+                             labelAll ? "val-sub" : "val-label", "middle"));
+        }
+        root.appendChild(g);
+      }
+    });
+    host.replaceChildren(root);
+  }
+
+  let current = null, pending = false;
+
+  function render(payload) {
+    current = payload;
+    const calHost = document.getElementById("cal-chart");
+    const calLead = document.getElementById("cal-lead");
+    const calNote = document.getElementById("cal-note");
+    const boHost = document.getElementById("bo-chart");
+    const boLegend = document.getElementById("bo-legend");
+    const boLead = document.getElementById("bo-lead");
+    const boNote = document.getElementById("bo-note");
+
+    // Select by source, never by index: reports[] also carries baselines.json,
+    // which has the same three model names and MAE but no coverage at all.
+    const bakeoff = (payload && payload.reports || [])
+      .find(r => r.source === "bakeoff.json");
+    if (!bakeoff) {
+      const msg = "The bake-off report is not in this data file, so these " +
+                  "charts are not shown. The tables below carry whatever did load.";
+      calLead.textContent = ""; boLead.textContent = "";
+      calNote.textContent = ""; boNote.textContent = "";
+      boLegend.replaceChildren();
+      absent(calHost, msg); absent(boHost, msg);
+      return;
+    }
+    const all = bakeoff.results || [];
+
+    // --- calibration -----------------------------------------------------
+    const cal = all
+      .filter(r => r.model === "transformer" && r.position === "OVERALL" &&
+                   r.coverage_p10_p90 != null)
+      .sort((a, b) => a.test_season - b.test_season);
+    if (!cal.length) {
+      calLead.textContent = "";
+      calNote.textContent = "";
+      absent(calHost, "This bake-off run reports no p10–p90 coverage, so " +
+                      "there is nothing calibrated to show. Rather than draw an " +
+                      "empty chart, the page says so.");
+    } else {
+      const vs = cal.map(r => r.coverage_p10_p90);
+      const worst = cal.reduce((a, b) =>
+        Math.abs(b.coverage_p10_p90 - TARGET) > Math.abs(a.coverage_p10_p90 - TARGET) ? b : a);
+      lead(calLead,
+        `The transformer predicts a p10 floor and a p90 ceiling, so the honest ` +
+        `test is whether reality lands inside them. On ${cal.length} held-out ` +
+        `season${cal.length === 1 ? "" : "s"} it never touched, the band caught `,
+        `${(Math.min(...vs) * 100).toFixed(1)}–${(Math.max(...vs) * 100).toFixed(1)}%`,
+        ` of actual player-weeks against an ${(TARGET * 100).toFixed(0)}% target.`);
+      renderCalibration(cal, calHost);
+      calNote.textContent =
+        `Bars measure the miss, not the level — they grow from the ` +
+        `${TARGET.toFixed(2)} line, right when the band over-covers and left when ` +
+        `it under-covers. Worst season: ${worst.test_season} at ` +
+        `${worst.coverage_p10_p90.toFixed(3)}. Coverage is a transformer-only ` +
+        `number: the baselines are point predictors with no interval to score.`;
+    }
+
+    // --- bake-off --------------------------------------------------------
+    const mae = all.filter(r => r.position === "OVERALL" && r.mae != null);
+    if (!mae.length) {
+      boLead.textContent = "";
+      boNote.textContent = "";
+      boLegend.replaceChildren();
+      absent(boHost, "This bake-off run reports no overall MAE, so the " +
+                     "comparison chart is not shown.");
+    } else {
+      const seasons = [...new Set(mae.map(r => r.test_season))];
+      const bestPer = s => mae.filter(r => r.test_season === s)
+        .reduce((a, b) => (b.mae < a.mae ? b : a));
+      const wins = {};
+      for (const s of seasons) {
+        const w = bestPer(s).model;
+        wins[w] = (wins[w] || 0) + 1;
+      }
+      const top = Object.keys(wins).sort((a, b) => wins[b] - wins[a])[0];
+      lead(boLead,
+        `Same walk-forward harness for every model — train on seasons up ` +
+        `to S, test on S+1, no random splits. Lowest overall error in `,
+        `${wins[top]} of ${seasons.length}`,
+        ` held-out seasons: ${MODEL_LABEL[top] || top}.`);
+      renderBakeoff(mae, boHost, boLegend);
+
+      // Per-position honesty: name every cell a baseline wins, computed, so
+      // it stays true after a retrain.
+      const cells = all.filter(r => r.position !== "OVERALL" && r.mae != null);
+      const keys = [...new Set(cells.map(r => `${r.test_season}|${r.position}`))];
+      const lost = keys.map(k => {
+        const [s, pos] = k.split("|");
+        const group = cells.filter(r => String(r.test_season) === s && r.position === pos);
+        const best = group.reduce((a, b) => (b.mae < a.mae ? b : a));
+        return best.model === "transformer" ? null
+          : `${pos} in ${s} (${MODEL_LABEL[best.model] || best.model})`;
+      }).filter(Boolean);
+      boNote.textContent = keys.length === 0 ? "" : lost.length === 0
+        ? `Per position, the transformer has the lowest MAE in all ${keys.length} ` +
+          `season-position cells. Every number is in the tables below.`
+        : `Reported as it lands: per position the transformer leads ` +
+          `${keys.length - lost.length} of ${keys.length} season-position cells, ` +
+          `and loses ${lost.join(", ")}. Every number is in the tables below.`;
+    }
+  }
+
+  // Re-measure on resize so labels keep their true type size instead of being
+  // scaled down by a fixed viewBox.
+  window.addEventListener("resize", () => {
+    if (!current || pending) return;
+    pending = true;
+    requestAnimationFrame(() => { pending = false; render(current); });
+  });
+
+  return { render };
+})();
+</script>
+<script>
 (async () => {
   const about = await FC.loadJSON("data/about.json");
   FC.stampHeader(about);
+  AboutCharts.render(about);
   const host = document.getElementById("reports");
   for (const report of about.reports) {
     const h = document.createElement("h2");

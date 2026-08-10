@@ -143,6 +143,65 @@ td.num, th.num { text-align: right; font: var(--t-num);
 .prose .lim { color: var(--chalk-dim); }
 .report-meta { font: 500 .8rem/1.4 "IBM Plex Mono", monospace; color: var(--chalk-dim); }
 
+/* -- about page: the evidence charts --------------------------------------
+   Two figures carry the page's strongest claim (measured quantile coverage,
+   then the walk-forward bake-off), so they sit on a sunken card above the
+   prose. Every colour below is a token; the SVG marks are styled here rather
+   than by inline attributes so the chart builder stays pure geometry. */
+.evidence {
+  background: var(--sunken); border: 1px solid var(--hairline);
+  border-radius: 6px; padding: var(--s4); margin: 0 0 var(--s5);
+}
+.evidence h2 { margin: 0 0 var(--s2); }
+.chart-lead { max-width: 62ch; margin: 0 0 var(--s4); color: var(--chalk); }
+.chart-lead b {
+  font: var(--t-num); font-size: 1.05rem; font-variant-numeric: tabular-nums;
+  color: var(--chalk); white-space: nowrap;
+}
+/* max-width, NOT width: the SVG is authored at a measured pixel size so its
+   labels render at their true token size. Stretching it to 100% would scale
+   the type up with the viewBox. */
+.chart svg { display: block; max-width: 100%; height: auto; }
+.chart-note {
+  font: 400 .8rem/1.5 "Source Sans 3", system-ui, sans-serif;
+  color: var(--chalk-dim); max-width: 62ch; margin: var(--s3) 0 0;
+}
+/* The stated-absence path. A chart we cannot honestly draw says so. */
+.chart-none {
+  font: var(--t-num); color: var(--chalk-dim); margin: 0;
+  padding: var(--s4); border: 1px dashed var(--rule); border-radius: 4px;
+}
+.chart-legend {
+  display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); margin: 0 0 var(--s3);
+}
+.chart-legend > span { display: inline-flex; align-items: center; gap: var(--s2);
+  font: var(--t-label); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--chalk-dim); }
+.chart-legend .sw { display: inline-block; flex: none;
+  width: .7rem; height: .7rem; border-radius: 2px; background: var(--chalk); }
+
+/* SVG marks and furniture. */
+.ax-grid { stroke: var(--hairline); stroke-width: 1; }
+.ax-ref { stroke: var(--chalk); stroke-width: 1.5; }
+.ax-tick { font: var(--t-edge); fill: var(--chalk-dim); }
+.ax-title { font: var(--t-edge); fill: var(--chalk-dim); letter-spacing: .08em; }
+.ax-ref-label { font: var(--t-label); letter-spacing: .14em; fill: var(--chalk); }
+.row-label { font: var(--t-label); letter-spacing: .12em; fill: var(--chalk-dim); }
+.val-label { font: var(--t-num); fill: var(--chalk); font-variant-numeric: tabular-nums; }
+.val-sub { font: var(--t-edge); fill: var(--chalk-dim); font-variant-numeric: tabular-nums; }
+.cal-bar { fill: var(--te); }
+.dot-connector { stroke: var(--hairline); stroke-width: 2; stroke-linecap: round; }
+/* 2px surface ring keeps overlapping dots readable (chart sits on --sunken). */
+.dot { fill: var(--chalk); stroke: var(--sunken); stroke-width: 2; }
+/* Colour follows the model, not its rank: the transformer is amber on both
+   charts. Validated for CVD separation against the board surface. */
+.m-transformer { fill: var(--te); }
+.m-xgboost { fill: var(--wr); }
+.m-naive_last4 { fill: var(--qb); }
+.chart-legend .sw.m-transformer { background: var(--te); }
+.chart-legend .sw.m-xgboost { background: var(--wr); }
+.chart-legend .sw.m-naive_last4 { background: var(--qb); }
+
 footer { max-width: 1080px; margin: 2rem auto 0; padding: 1rem 1.25rem 2rem;
   border-top: 1px solid var(--rule); color: var(--chalk-dim); font-size: .85rem; }
 
@@ -150,6 +209,7 @@ footer { max-width: 1080px; margin: 2rem auto 0; padding: 1rem 1.25rem 2rem;
   .band { width: 110px; }
   .band .edge { display: none; }
   main { padding: .9rem; }
+  .evidence { padding: var(--s3); }
 }
 
 /* -- draft mode ----------------------------------------------------------- */
