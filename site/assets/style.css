@@ -88,6 +88,12 @@ h2 { font-size: 1.3rem; font-weight: 600; margin: 2rem 0 .6rem; }
 
 /* -- tables -------------------------------------------------------------- */
 .table-wrap { overflow-x: auto; }
+/* The board is wider than its scrollport (10 columns, ~1212 vs ~1040), which is
+   what `overflow-x: auto` above is for. Making the board's wrap a size query
+   container lets the expanded detail panel size itself to the width the reader
+   can actually see (`100cqi`) instead of the table's full width. Scoped with
+   `:has()` so the other pages' wraps are untouched. */
+.table-wrap:has(#board) { container-type: inline-size; }
 table { border-collapse: collapse; width: 100%; }
 th, td { padding: .45rem .6rem; text-align: left; white-space: nowrap; }
 thead th {
@@ -440,7 +446,15 @@ tr.mine td:nth-child(3) { text-decoration: none; }
    paragraph in the panel one unwrappable line and widens the whole table
    (1212 -> 1364 at 1280 on an ADP-less row). The panel is prose; it wraps. */
 tr.detail > td { background: var(--sunken); border-bottom: 1px solid var(--rule); padding: var(--s4); white-space: normal; }
-.detail-grid { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: var(--s5); align-items: start; }
+/* The `colspan` cell is as wide as the table, so a full-width grid put its third
+   column ~155px past the scrollport's right edge (clipped mid-word). Size the
+   panel to the wrap's visible width instead, and stick it at the same inset as
+   the cell's padding so horizontal scrolling of the board leaves it in place
+   (it holds still rather than sliding out of view). */
+.detail-grid {
+  display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: var(--s5); align-items: start;
+  position: sticky; left: var(--s4); width: calc(100cqi - 2 * var(--s4));
+}
 .detail-grid .label { font: var(--t-label); letter-spacing: .14em; text-transform: uppercase; color: var(--chalk-dim); margin-bottom: var(--s2); }
 .ridge { width: 100%; height: 54px; display: block; }
 /* Fallback layout, used only when a player has no band to place against.
