@@ -439,23 +439,31 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       // its boardRank is a board index, not position_rank.)
       const mine = overallRank.get(p.player_id);
       const edge = p.adp - mine;
-      const edgeRow = kv("Edge",
-        `${edge > 0 ? "+" : ""}${edge.toFixed(1)} picks`);
-      edgeRow.lastChild.className = edge > 0 ? "good" : edge < 0 ? "warn" : "";
-      market.append(kv("Market ADP", p.adp.toFixed(1)),
-                    kv("Your overall rank", String(mine)),
-                    edgeRow,
-                    kv("Tier", String(p.tier)));
 
       // A pick delta is only meaningful INSIDE the draft. ADP covers 233 of
       // 695 rows and tops out near 300, while board rank runs 1..695, so the
       // raw difference goes nonsense past the last pick: 26 rows exceed +/-50
       // and 5 exceed +/-100, worst being Ty Simpson at ADP 281 vs rank 543 --
-      // "reach about 262 picks" in a draft that is only 180 picks long. Keep
-      // the number in the table, but say the honest thing in the sentence.
+      // "reach about 262 picks" in a draft that is only 180 picks long.
       const draftLen = Keepers.TEAMS * Keepers.DRAFT_ROUNDS;   // 12 x 15 = 180
+      const outOfRange = p.adp > draftLen || mine > draftLen;
+
+      const edgeRow = kv("Edge",
+        `${edge > 0 ? "+" : ""}${edge.toFixed(1)} picks`);
+      // Colour is a verdict, and out of range there is no verdict to give: the
+      // note below says this is not a real pick difference, so colouring it
+      // green or amber first would assert and then withdraw. 72 of the 233 ADP
+      // rows are in that branch.
+      edgeRow.lastChild.className =
+        outOfRange ? "" : edge > 0 ? "good" : edge < 0 ? "warn" : "";
+      market.append(kv("Market ADP", p.adp.toFixed(1)),
+                    kv("Your overall rank", String(mine)),
+                    edgeRow,
+                    kv("Tier", String(p.tier)));
+
+      // Keep the number in the table, but say the honest thing in the sentence.
       market.appendChild(el("p", "detail-note",
-        (p.adp > draftLen || mine > draftLen)
+        outOfRange
           ? "Both of you have him outside the drafted range, so the gap between "
             + "these two numbers is not a real pick difference."
         : edge > 0
