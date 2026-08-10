@@ -175,6 +175,12 @@ uncertainty. Built as an open portfolio project — data via nflverse.</footer>
 window.AboutCharts = (() => {
   const NS = "http://www.w3.org/2000/svg";
   const TARGET = 0.80;                       // the p10-p90 band's design target
+  // This chart is WEEKLY player-week coverage. The bands a visitor has just
+  // seen on the draft board are SEASON bands, a different measurement, and it
+  // is a worse number -- so the note names it right under the headline instead
+  // of leaving it 60 lines down in Known limitations. Kept in sync with the
+  // same figure in the Known limitations paragraph above.
+  const SEASON_COVERAGE = "0.73–0.77";
   const MODELS = ["transformer", "xgboost", "naive_last4"];
   const MODEL_LABEL = {
     transformer: "Transformer (ensemble)",
@@ -428,7 +434,10 @@ window.AboutCharts = (() => {
         `${TARGET.toFixed(2)} line, right when the band over-covers and left when ` +
         `it under-covers. Worst season: ${worst.test_season} at ` +
         `${worst.coverage_p10_p90.toFixed(3)}. Coverage is a transformer-only ` +
-        `number: the baselines are point predictors with no interval to score.`;
+        `number: the baselines are point predictors with no interval to score. ` +
+        `These are weekly player-week bands — the season bands on the draft ` +
+        `board are measured separately and come out narrower, about ` +
+        `${SEASON_COVERAGE} by position, short of target for QB and RB.`;
     }
 
     // --- bake-off --------------------------------------------------------
