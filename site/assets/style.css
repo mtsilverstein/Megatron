@@ -483,4 +483,7 @@ tr.detail > td { background: var(--sunken); border-bottom: 1px solid var(--rule)
 .detail-grid .big { font: 700 1.5rem/1 "Barlow Condensed", sans-serif; color: var(--chalk); font-variant-numeric: tabular-nums; }
 .detail-grid .big .unit { font-size: 1rem; color: var(--chalk-dim); }
 .detail-note, .detail-none { font: 400 .72rem/1.5 "Source Sans 3", system-ui, sans-serif; color: var(--chalk-dim); margin: var(--s2) 0 0; }
+/* Figure footnote: names the assumption the ridge draws. Set below the note
+   it qualifies so it reads as apparatus, not as another finding. */
+.detail-fine { font: 400 .66rem/1.45 "Source Sans 3", system-ui, sans-serif; color: var(--chalk-faint, var(--chalk-dim)); opacity: .72; margin: var(--s2) 0 0; }
 @media (max-width: 800px) { .detail-grid { grid-template-columns: 1fr; gap: var(--s3); } }

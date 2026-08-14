@@ -470,6 +470,16 @@ cohort priors — wide bands on purpose; see the about page.</footer>
         + `his downside.`));
     }
 
+    // The shape is a fit, and the panel has to say so. The model predicts
+    // three quantiles; every curve between and beyond them is an assumption,
+    // and a chart that does not name its assumption is asserting it.
+    if (g.path) {
+      dist.appendChild(el("p", "detail-fine",
+        "Shape: a two-piece normal fitted to pass through exactly those three "
+        + "numbers. The model predicts quantiles, not a curve — the tails are "
+        + "the fit's, and they are cut off where the chart's scale ends."));
+    }
+
     // --- 2. market vs your rank ----------------------------------------
     // 462 of 695 rows have no ADP. Say so in words -- never print a
     // comparison against a value that does not exist.
