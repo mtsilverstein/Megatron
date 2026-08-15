@@ -32,3 +32,11 @@ models_artifacts.zip
 
 # Brainstorming scratch (visual companion screens, SDD progress ledger).
 .superpowers/
+
+# Local secrets. The FantasyPros key lives here, never in a tracked file --
+# this repo is public, and scraped free-tier keys get burned fast. `.env` is
+# ignored; `.env.example` is committed as the template and must stay
+# value-free.
+.env
+.env.*
+!.env.example
