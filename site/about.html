@@ -85,10 +85,10 @@
     2023–2025 held-out seasons; season bands come from a Monte-Carlo
     simulation — games played sampled from historical position availability,
     weeks linked by a measured week-to-week correlation — and measured
-    season coverage runs about 0.73–0.77 by position, narrower than the 0.80
-    target for QB and RB, and we're saying so plainly rather than rounding
-    up; snap-count data has no 2012 source and is treated as missing for that
-    season. These are design choices, documented, not surprises.</p>
+    <span id="season-cov-prose">season coverage is measured per position
+    against the 0.80 target</span>, and we're saying so plainly rather than
+    rounding up; snap-count data has no 2012 source and is treated as missing
+    for that season. These are design choices, documented, not surprises.</p>
   </div>
   <h2>Weekly ranking</h2>
   <div class="prose">
@@ -176,11 +176,16 @@ window.AboutCharts = (() => {
   const NS = "http://www.w3.org/2000/svg";
   const TARGET = 0.80;                       // the p10-p90 band's design target
   // This chart is WEEKLY player-week coverage. The bands a visitor has just
-  // seen on the draft board are SEASON bands, a different measurement, and it
-  // is a worse number -- so the note names it right under the headline instead
-  // of leaving it 60 lines down in Known limitations. Kept in sync with the
-  // same figure in the Known limitations paragraph above.
-  const SEASON_COVERAGE = "0.73–0.77";
+  // seen on the draft board are SEASON bands, a different measurement and a
+  // worse number -- so the note names it right under the headline instead of
+  // leaving it 60 lines down in Known limitations.
+  //
+  // BOTH PLACES ARE DERIVED FROM payload.season_bands. This used to be a
+  // hand-typed `const SEASON_COVERAGE = "0.73-0.77"`, and it drifted: that is
+  // the range of the OVERALL row POOLED across positions, while the page
+  // called it a by-position range. By position the real spread is 0.615-0.846.
+  // Nothing here restates a number the artifact does not contain.
+  const fmtRange = (lo, hi) => `${lo.toFixed(2)}–${hi.toFixed(2)}`;
   const MODELS = ["transformer", "xgboost", "naive_last4"];
   const MODEL_LABEL = {
     transformer: "Transformer (ensemble)",
@@ -392,6 +397,24 @@ window.AboutCharts = (() => {
     const boLead = document.getElementById("bo-lead");
     const boNote = document.getElementById("bo-note");
 
+    // Season band coverage, straight off the artifact. Absent on an older
+    // about.json (the block is new), so every use below is guarded and the
+    // page degrades to saying nothing rather than to a stale number.
+    const sb = payload && payload.season_bands;
+    const prose = document.getElementById("season-cov-prose");
+    if (prose && sb) {
+      // The whole clause, so it cannot collide with the static words around
+      // it. Says by-position AND pooled, because conflating the two is the
+      // error this replaced.
+      prose.textContent =
+        `season coverage runs ` +
+        `${fmtRange(sb.by_position_min, sb.by_position_max)} by ` +
+        `position-season (n=${sb.n_min}–${sb.n_max} per cell) against the ` +
+        `${sb.nominal.toFixed(2)} target — worst ${sb.worst_cell.position} ` +
+        `${sb.worst_cell.season} at ${sb.worst_cell.coverage.toFixed(3)}, and ` +
+        `${fmtRange(sb.pooled_min, sb.pooled_max)} pooled across positions`;
+    }
+
     // Select by source, never by index: reports[] also carries baselines.json,
     // which has the same three model names and MAE but no coverage at all.
     const bakeoff = (payload && payload.reports || [])
@@ -436,8 +459,11 @@ window.AboutCharts = (() => {
         `${worst.coverage_p10_p90.toFixed(3)}. Coverage is a transformer-only ` +
         `number: the baselines are point predictors with no interval to score. ` +
         `These are weekly player-week bands — the season bands on the draft ` +
-        `board are measured separately and come out narrower, about ` +
-        `${SEASON_COVERAGE} by position, short of target for QB and RB.`;
+        `board are measured separately and spread wider by position` +
+        (sb ? `: ${fmtRange(sb.by_position_min, sb.by_position_max)} across ` +
+              `position-seasons, worst ${sb.worst_cell.position} ` +
+              `${sb.worst_cell.season} at ${sb.worst_cell.coverage.toFixed(3)} ` +
+              `(n=${sb.worst_cell.n}).` : `.`);
     }
 
     // --- bake-off --------------------------------------------------------

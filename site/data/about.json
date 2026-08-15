@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-15T14:28:00+00:00",
+  "generated_at": "2026-08-15T15:07:42+00:00",
   "data_through": "2025-wk18",
   "site_model": "transformer",
   "reports": [
@@ -807,5 +807,100 @@
         }
       ]
     }
-  ]
+  ],
+  "season_bands": {
+    "source": "board_backtest.json",
+    "nominal": 0.8,
+    "seasons": [
+      2023,
+      2024,
+      2025
+    ],
+    "by_position_min": 0.6153846153846154,
+    "by_position_max": 0.8461538461538461,
+    "pooled_min": 0.7302631578947368,
+    "pooled_max": 0.7697368421052632,
+    "worst_cell": {
+      "season": 2023,
+      "position": "QB",
+      "n": 26,
+      "coverage": 0.6153846153846154
+    },
+    "n_min": 26,
+    "n_max": 50,
+    "cells": [
+      {
+        "season": 2023,
+        "position": "QB",
+        "n": 26,
+        "coverage": 0.6153846153846154
+      },
+      {
+        "season": 2023,
+        "position": "RB",
+        "n": 50,
+        "coverage": 0.78
+      },
+      {
+        "season": 2023,
+        "position": "WR",
+        "n": 50,
+        "coverage": 0.78
+      },
+      {
+        "season": 2023,
+        "position": "TE",
+        "n": 26,
+        "coverage": 0.7692307692307693
+      },
+      {
+        "season": 2024,
+        "position": "QB",
+        "n": 26,
+        "coverage": 0.7692307692307693
+      },
+      {
+        "season": 2024,
+        "position": "RB",
+        "n": 50,
+        "coverage": 0.74
+      },
+      {
+        "season": 2024,
+        "position": "WR",
+        "n": 50,
+        "coverage": 0.82
+      },
+      {
+        "season": 2024,
+        "position": "TE",
+        "n": 26,
+        "coverage": 0.7307692307692307
+      },
+      {
+        "season": 2025,
+        "position": "QB",
+        "n": 26,
+        "coverage": 0.8461538461538461
+      },
+      {
+        "season": 2025,
+        "position": "RB",
+        "n": 50,
+        "coverage": 0.66
+      },
+      {
+        "season": 2025,
+        "position": "WR",
+        "n": 50,
+        "coverage": 0.7
+      },
+      {
+        "season": 2025,
+        "position": "TE",
+        "n": 26,
+        "coverage": 0.8076923076923077
+      }
+    ]
+  }
 }
