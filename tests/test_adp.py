@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from ffmodel.data.adp import normalize_adp
+from ffmodel.data.adp import normalize_adp, normalize_snapshot_adp
 
 
 def _crosswalk():
@@ -272,3 +272,79 @@ def test_real_snapshot_has_zero_k_or_dst_rows():
         "if that's no longer true, the late-slot source decision needs "
         "revisiting, not a silent swap"
     )
+
+
+# --- the crosswalk guard is scoped to players this league can draft ---------
+# It exists to catch a SYSTEMIC break (nflverse dropped gsis_id for the whole
+# 2026 rookie class; the rate hit 89.8% and refusing was right). Scored over
+# every row it was also hostage to how deep the export happened to run, which
+# says nothing about the crosswalk: the 2026-08-15 export added 43 camp bodies
+# and would have cost the board its entire market overlay at 94.3% overall
+# while the draftable top 180 matched 100%.
+
+def _guard_crosswalk(names, position="RB"):
+    return pd.DataFrame({"merge_name": names, "position": [position] * len(names),
+                         "gsis_id": [f"00-{i:04d}" for i in range(len(names))]})
+
+
+def _guard_snapshot(names, adps, position="RB"):
+    return pd.DataFrame({"name": names, "position": [position] * len(names),
+                         "adp": adps})
+
+
+def test_undraftable_misses_do_not_block_the_overlay():
+    # 8 of 10 rows match; the 2 misses sit past the draft, so nothing a
+    # drafter could act on is missing. Overall 80%, draftable 100%.
+    names = [f"P{i}" for i in range(10)]
+    raw = _guard_snapshot(names, [10, 20, 30, 40, 50, 60, 70, 80, 300, 340])
+    matched, stats = normalize_snapshot_adp(raw, _guard_crosswalk(names[:8]))
+    assert stats["draftable_match_rate"] == 1.0
+    assert stats["draftable_ranked"] == 8
+    assert len(matched) == 8
+
+
+def test_a_draftable_miss_still_refuses_to_publish():
+    # The rookie-class break, in miniature: the unmatched players are INSIDE
+    # the draft. This must still raise, or the guard has been defanged.
+    names = [f"P{i}" for i in range(10)]
+    raw = _guard_snapshot(names, [10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+    with pytest.raises(ValueError, match="inside the draft"):
+        normalize_snapshot_adp(raw, _guard_crosswalk(names[:8]))
+
+
+def test_the_boundary_pick_counts_as_draftable():
+    # ADP exactly 180 is the last pick of a 12x15 draft — it is draftable.
+    names = ["A", "B"]
+    raw = _guard_snapshot(names, [180, 181])
+    with pytest.raises(ValueError, match="inside the draft"):
+        normalize_snapshot_adp(raw, _guard_crosswalk(["B"]))
+
+
+def test_a_whole_feed_collapse_still_aborts_even_with_a_clean_top_180():
+    # The smoke alarm: draftable is perfect, but the export as a whole has
+    # fallen apart. That is a feed problem and must not slide through.
+    names = [f"P{i}" for i in range(100)]
+    adps = [10, 20, 30] + list(range(200, 297))
+    raw = _guard_snapshot(names, adps)
+    with pytest.raises(ValueError, match="whole-feed problem"):
+        normalize_snapshot_adp(raw, _guard_crosswalk(names[:3]))
+
+
+def test_both_rates_are_published_so_a_deepening_export_stays_visible():
+    names = [f"P{i}" for i in range(10)]
+    raw = _guard_snapshot(names, [10, 20, 30, 40, 50, 60, 70, 80, 300, 340])
+    _matched, stats = normalize_snapshot_adp(raw, _guard_crosswalk(names[:8]))
+    assert stats["draftable_match_rate"] == 1.0
+    assert stats["match_rate"] < 1.0          # the depth miss is not hidden
+
+
+def test_the_published_draftable_rate_is_measured_not_assumed():
+    # Deliberately NOT a 1.0 case. Asserting only the happy value lets a
+    # hardcoded `1.0` satisfy the test -- mutation-checked, it survived until
+    # this case existed. 20 draftable rows with 1 miss lands exactly on the
+    # 0.95 floor: published as 0.95, and still allowed through.
+    names = [f"P{i}" for i in range(20)]
+    raw = _guard_snapshot(names, list(range(1, 21)))
+    _matched, stats = normalize_snapshot_adp(raw, _guard_crosswalk(names[:19]))
+    assert stats["draftable_ranked"] == 20
+    assert stats["draftable_match_rate"] == 0.95

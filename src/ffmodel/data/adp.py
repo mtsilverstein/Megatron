@@ -71,7 +71,7 @@ def pull_adp(season: int, cache_dir: Path | None = None, teams: int = 12,
 # self-selected mock drafters with no money at stake, while Sleeper's ADP
 # reflects the actual population this league's drafter faces. Refresh by
 # re-exporting and updating SNAPSHOT_PATH; nothing here scrapes it.
-SNAPSHOT_PATH = Path("data_snapshots/fantasypros_adp_2026-08-09.csv")
+SNAPSHOT_PATH = Path("data_snapshots/fantasypros_adp_2026-08-15.csv")
 
 # "Not ranked on this platform" is marked EITHER with an em-dash or with an
 # empty cell -- never a 0, and a missing Sleeper ADP must never be coerced to
@@ -93,7 +93,34 @@ _SNAPSHOT_DATE = re.compile(r"_(\d{4}-\d{2}-\d{2})\.csv$")
 
 # Same floor as rankings.MIN_MATCH_RATE -- below this the crosswalk is too
 # thin to trust this as the board's ADP source.
+#
+# MEASURED OVER DRAFTABLE PLAYERS, not every row in the export. The guard
+# exists to catch a SYSTEMIC crosswalk break: on 2026-07-28 nflverse dropped
+# `gsis_id` for the whole rookie class, this rate fell to 89.8%, and refusing
+# to publish was right. But scoring it over every row also makes it hostage to
+# how DEEP the export happens to go, which is not a property of the crosswalk
+# at all. The 2026-08-15 export ran 639 rows against 2026-08-09's 596, and the
+# 43 extra were camp bodies missing from the identity feed: overall rate 94.3%
+# (refused), rate among players inside the draft 100.0%. A week of roster
+# churn would have silently cost the board its entire market overlay.
+#
+# A rookie-class break still trips it, because rookies are draftable -- Jeanty
+# sits at ADP 13. What no longer trips it is an export that reaches further
+# into players this league cannot draft.
 MIN_SNAPSHOT_MATCH_RATE = 0.95
+
+# Picks in this league's draft: 12 teams x 15 rounds (the same league shape
+# keepers.js encodes as TEAMS/DRAFT_ROUNDS). A player whose ADP is past this
+# goes undrafted here, so whether the crosswalk resolves him cannot change any
+# decision the board supports.
+DRAFTABLE_ADP = 180
+
+# A separate, much looser floor on the WHOLE export. The draftable-scoped
+# guard above is the sharp one; this one exists so a feed that breaks in a
+# shape nobody predicted -- a changed name format, a truncated file, an
+# encoding regression -- still aborts instead of sliding through on a healthy
+# top 180. Deliberately far below 0.95: it is a smoke alarm, not a standard.
+MIN_SNAPSHOT_OVERALL_RATE = 0.80
 
 
 def snapshot_date(path: Path = SNAPSHOT_PATH) -> str:
@@ -199,18 +226,38 @@ def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
                .reset_index(drop=True))
 
     match_rate = (len(matched) / len(df)) if len(df) else 1.0
-    if len(df) and match_rate < min_match_rate:
+    draftable = df[df["adp"] <= DRAFTABLE_ADP]
+    draftable_rate = (float(draftable["player_id"].notna().mean())
+                      if len(draftable) else 1.0)
+    if len(draftable) and draftable_rate < min_match_rate:
+        names = sorted(draftable[draftable["player_id"].isna()]["name"].tolist())
+        raise ValueError(
+            f"Sleeper-ADP snapshot crosswalk matched only {draftable_rate:.1%} "
+            f"of the {len(draftable)} players inside the draft (ADP <= "
+            f"{DRAFTABLE_ADP}, floor {min_match_rate:.0%}) -- unmatched: "
+            f"{names} -- refusing to publish a partially-crosswalked ADP source"
+        )
+    # Never stricter than the guard it backs up: a caller that lowers
+    # `min_match_rate` (tests pinning the matching rules themselves, with no
+    # interest in the floors) must not then be stopped by the smoke alarm.
+    overall_floor = min(MIN_SNAPSHOT_OVERALL_RATE, min_match_rate)
+    if len(df) and match_rate < overall_floor:
         names = sorted(unmatched["name"].tolist())
         raise ValueError(
             f"Sleeper-ADP snapshot crosswalk matched only {match_rate:.1%} of "
-            f"{len(df)} players with a Sleeper ADP (floor {min_match_rate:.0%}) "
-            f"-- unmatched: {names} -- refusing to publish a partially-"
-            f"crosswalked ADP source"
+            f"all {len(df)} rows with a Sleeper ADP (floor "
+            f"{overall_floor:.0%}) -- the draftable top "
+            f"{DRAFTABLE_ADP} looks fine, so this is a whole-feed problem, not "
+            f"a depth one -- unmatched: {names[:40]}"
         )
     for col in ("stdev", "times_drafted"):
         matched[col] = pd.NA
     stats = {
         "ranked": int(len(df)),
+        # Both rates ship: the draftable one is what gates, the overall one is
+        # what makes a deepening export visible instead of merely tolerated.
+        "draftable_ranked": int(len(draftable)),
+        "draftable_match_rate": round(draftable_rate, 4),
         "matched_by_position": matched_by_position,
         "matched_by_name": matched_by_name,
         "unmatched": int(len(unmatched)),

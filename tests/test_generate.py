@@ -575,6 +575,11 @@ def test_load_adp_uses_snapshot_when_present(monkeypatch, tmp_path):
                       # instead of being computed and thrown away
                       "ranked": 1, "matched_by_position": 1, "matched_by_name": 0,
                       "unmatched": 0, "unmatched_players": [], "match_rate": 1.0,
+                      # The crosswalk floor is scored over players INSIDE the
+                      # draft, so both the scoped count and its rate ride along
+                      # -- an export that deepens into undraftable camp bodies
+                      # must be visible here, not merely tolerated.
+                      "draftable_ranked": 1, "draftable_match_rate": 1.0,
                       "unmatched_players_truncated": False}
 
 
