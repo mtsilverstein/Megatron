@@ -111,3 +111,64 @@ def test_future_week_inherits_team_pass_volume_and_roof():
     assert p1["is_indoor"] == 1
     assert np.isnan(p1["attempts"])
     assert np.isnan(p1["receiving_air_yards"])
+
+
+# --- current-team override -------------------------------------------------
+# `team` on a skeleton row comes from the player's most recent PLAYED row. In
+# the preseason that is last December, so without an override every offseason
+# move is stale -- 16.2% of the 2026 board. And team is not cosmetic: it picks
+# the opponent in the schedule merge, so it moves opp_allowed_last4, is_home,
+# is_indoor and team_pass_att_last4.
+
+def test_current_team_override_moves_the_player_and_his_opponent():
+    weekly = _history()                      # p1 last played for AAA
+    sk = future_skeleton(weekly, _sched_with_future(), season=2023, week=7,
+                         current_teams={"p1": "BBB"})
+    p1 = sk[sk["player_id"] == "p1"].iloc[0]
+    assert p1["team"] == "BBB"
+    # the mirror image of the stale matchup, not merely a relabelled row
+    assert p1["opponent_team"] == "AAA"
+    # everyone else is untouched
+    assert sk[sk["player_id"] == "p2"].iloc[0]["team"] == "BBB"
+
+
+def test_unmapped_players_keep_their_last_known_team():
+    weekly = _history()
+    sk = future_skeleton(weekly, _sched_with_future(), season=2023, week=7,
+                         current_teams={"p2": "AAA"})
+    assert sk[sk["player_id"] == "p1"].iloc[0]["team"] == "AAA"   # untouched
+    assert sk[sk["player_id"] == "p2"].iloc[0]["team"] == "AAA"   # overridden
+    assert len(sk) == 2                       # nobody dropped by the map
+
+
+def test_no_override_argument_reproduces_the_stale_behaviour():
+    weekly = _history()
+    args = (weekly, _sched_with_future())
+    a = future_skeleton(*args, season=2023, week=7)
+    b = future_skeleton(*args, season=2023, week=7, current_teams={})
+    c = future_skeleton(*args, season=2023, week=7, current_teams=None)
+    pd.testing.assert_frame_equal(a, b)
+    pd.testing.assert_frame_equal(a, c)
+
+
+def test_override_to_a_bye_team_drops_the_player_like_any_other_bye():
+    weekly = _history()
+    sched = _sched_with_future()
+    sched = sched[~((sched["week"] == 7) & (sched["home_team"] == "AAA"))]
+    sk = future_skeleton(weekly, sched, season=2023, week=7,
+                         current_teams={"p1": "CCC"})
+    assert "p1" not in set(sk["player_id"])
+
+
+def test_override_reaches_the_built_features_not_just_the_skeleton():
+    weekly = _history()
+    stale = build_future_features(weekly, _sched_with_future(),
+                                  season=2023, week=7)
+    moved = build_future_features(weekly, _sched_with_future(), season=2023,
+                                  week=7, current_teams={"p1": "BBB"})
+    s = stale[stale["player_id"] == "p1"].iloc[0]
+    m = moved[moved["player_id"] == "p1"].iloc[0]
+    assert (s["team"], s["opponent_team"]) == ("AAA", "BBB")
+    assert (m["team"], m["opponent_team"]) == ("BBB", "AAA")
+    # is_home is a live CTX feature and must flip with the move
+    assert s["is_home"] != m["is_home"]

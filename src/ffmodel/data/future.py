@@ -19,7 +19,9 @@ _NAN_COLUMNS = PREDICTED_STATS + SCORING_EXTRAS + [
 
 
 def future_skeleton(weekly: pd.DataFrame, schedules: pd.DataFrame,
-                    season: int, week: int) -> pd.DataFrame:
+                    season: int, week: int,
+                    current_teams: dict[str, str] | None = None
+                    ) -> pd.DataFrame:
     played = weekly[(weekly["season"] == season) & (weekly["week"] == week)]
     if not played.empty:
         raise RuntimeError(
@@ -35,7 +37,20 @@ def future_skeleton(weekly: pd.DataFrame, schedules: pd.DataFrame,
     away = games.rename(columns={"away_team": "team", "home_team": "opponent_team"})
     matchups = pd.concat([home, away])[["team", "opponent_team"]]
 
-    rows = active[["player_id", "player_display_name", "position", "team"]].merge(
+    projected = active[["player_id", "player_display_name", "position",
+                        "team"]].copy()
+    # WHERE HE PLAYS NOW, not where he last played. `team` here comes from the
+    # most recent PLAYED row, which in the preseason is the previous December --
+    # so without this every offseason move is stale, and team is what selects
+    # the opponent in the merge below. See ffmodel.data.rosters for the
+    # measurement (16.2% of the 2026 board wrong before, 0.2% after).
+    # Unmapped players keep their last-known team: `map` yields NaN for a miss
+    # and fillna restores the original.
+    if current_teams:
+        projected["team"] = (projected["player_id"].map(current_teams)
+                             .fillna(projected["team"]))
+
+    rows = projected.merge(
         matchups, on="team", how="inner"          # bye teams drop out here
     )
     rows["season"] = season
@@ -48,9 +63,10 @@ def future_skeleton(weekly: pd.DataFrame, schedules: pd.DataFrame,
 
 
 def combined_future_features(weekly: pd.DataFrame, schedules: pd.DataFrame,
-                             season: int, week: int
+                             season: int, week: int,
+                             current_teams: dict[str, str] | None = None
                              ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    skeleton = future_skeleton(weekly, schedules, season, week)
+    skeleton = future_skeleton(weekly, schedules, season, week, current_teams)
     combined = pd.concat([weekly, skeleton], ignore_index=True)
     features = build_features(combined, schedules)
     mask = (features["season"] == season) & (features["week"] == week) \
@@ -59,5 +75,8 @@ def combined_future_features(weekly: pd.DataFrame, schedules: pd.DataFrame,
 
 
 def build_future_features(weekly: pd.DataFrame, schedules: pd.DataFrame,
-                          season: int, week: int) -> pd.DataFrame:
-    return combined_future_features(weekly, schedules, season, week)[1]
+                          season: int, week: int,
+                          current_teams: dict[str, str] | None = None
+                          ) -> pd.DataFrame:
+    return combined_future_features(weekly, schedules, season, week,
+                                    current_teams)[1]

@@ -749,3 +749,36 @@ def test_returning_player_gets_a_lower_floor_than_an_identical_healthy_one():
     assert b["p50"] < a["p50"], "fewer expected games must lower the median too"
     # The ceiling should survive: the upside case is that he comes back whole.
     assert b["p90"] > 0.7 * a["p90"], (a["p90"], b["p90"])
+
+
+# --- current-team override reaches the board -------------------------------
+# The kwarg crosses two hops inside this module: build_draft_board ->
+# season_projection -> combined_future_features. Either hop can drop it, and
+# if one does the board silently reverts to last-played teams (16% of the 2026
+# board wrong) while still building a perfectly valid payload. Mutation-tested:
+# nulling `current_teams` at either hop must turn one of these red.
+
+def test_season_projection_applies_the_current_team_override():
+    weekly = _history()                   # p1's last played team is AAA
+    proj = season_projection(weekly, _sched_with_future(), _QuantileStub(),
+                             2023, weeks=range(7, 9),
+                             current_teams={"p1": "BBB"})
+    assert proj[proj["player_id"] == "p1"].iloc[0]["team"] == "BBB"
+    assert proj[proj["player_id"] == "p2"].iloc[0]["team"] == "BBB"   # unmoved
+
+
+def test_build_draft_board_forwards_the_current_team_override():
+    weekly = _history()
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-wk6", weeks=range(7, 9),
+                              current_teams={"p1": "BBB"})
+    p1 = [p for p in board["players"] if p["player_id"] == "p1"][0]
+    assert p1["team"] == "BBB"
+
+
+def test_board_without_the_override_keeps_the_last_played_team():
+    weekly = _history()
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-wk6", weeks=range(7, 9))
+    p1 = [p for p in board["players"] if p["player_id"] == "p1"][0]
+    assert p1["team"] == "AAA"

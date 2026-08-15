@@ -251,6 +251,38 @@ def _late_slots(season, data_dir):
     return late_slot_adp(raw)
 
 
+def _roster_override_stats(payload, current_teams: dict[str, str]) -> dict:
+    """How far the current-team override actually reached, for the artifact.
+
+    `covered` is the number of board players the roster feed could speak for;
+    `unmapped` kept their last-played team. A sudden collapse in `covered`
+    means the feed changed shape, and that is the failure this records --
+    the board would still render, just quietly back on stale teams.
+
+    ON `unmapped_above_replacement`, which reads worse than it is: on the 2026
+    board it is 4, and all four are ROOKIES. A rookie carries a placeholder
+    player_id (`LOV121782`), not a gsis id, so he cannot join the roster feed
+    at all -- but he also has no last-played team to be stale about. His team
+    comes from his draft team via the draft-capital path, which is already
+    current. The number to watch is a VETERAN appearing here; that would be a
+    real player projected in last season's offense.
+    """
+    players = payload.get("players") or []
+    covered = [p for p in players if p.get("player_id") in current_teams]
+    unmapped = [p for p in players if p.get("player_id") not in current_teams]
+    return {
+        "source": "nflreadpy.load_rosters",
+        "roster_rows": len(current_teams),
+        "board_players": len(players),
+        "covered": len(covered),
+        "unmapped": len(unmapped),
+        # The tail we knowingly leave on last-known teams. If this ever climbs
+        # above replacement it stops being a tail and needs a decision.
+        "unmapped_above_replacement": sum(
+            1 for p in unmapped if (p.get("vorp") or 0) > 0),
+    }
+
+
 def _attach_late_slots(payload, season, data_dir):
     """Best-effort: the board never depends on K/DST ADP, so a failure just
     yields empty lists and the UI degrades to a generic reminder."""
@@ -400,6 +432,21 @@ def main() -> None:
 
         sleeper_players = pull_sleeper_players(cache_dir=args.data_dir)
 
+        # WHERE EACH PLAYER PLAYS NOW. Without this the board projects every
+        # player on the team of his last PLAYED game -- last December in the
+        # preseason -- so offseason moves are stale and, because team selects
+        # the opponent through the schedule join, the model is handed the wrong
+        # offense and the wrong matchup. Measured at 16.2% of the 2026 board
+        # wrong before, 0.2% after (see ffmodel.data.rosters).
+        #
+        # Deliberately NOT wrapped in a try/except: a failed roster pull aborts
+        # the run like any other, and the site keeps its last-good board. A
+        # board published with one player in six on the wrong team is precisely
+        # the bad data the fail-safe rule exists to withhold.
+        from ffmodel.data.rosters import pull_current_teams
+
+        current_teams = pull_current_teams(args.season, cache_dir=args.data_dir)
+
         from ffmodel.data.pull import pull_draft_picks
 
         draft_picks = pull_draft_picks(list(range(2012, args.season + 1)),
@@ -445,7 +492,14 @@ def main() -> None:
         board_payload = build_draft_board(
             weekly, schedules, predictor, args.season, data_through, prefit=True,
             sleeper_players=sleeper_players, draft_picks=draft_picks,
-            ecr=ecr, adp=adp, replacement_rank=replacement, returning=returning)
+            ecr=ecr, adp=adp, replacement_rank=replacement, returning=returning,
+            current_teams=current_teams)
+        # Provenance, same rule as adp_source and draft_gsis_canonicalized
+        # below: this override silently rewrites an input the model is
+        # sensitive to, so how far it reached must be inspectable on the
+        # published artifact rather than inferred.
+        board_payload["roster_override"] = _roster_override_stats(
+            board_payload, current_teams)
         # Provenance: which ADP source actually fed the board (sleeper_snapshot
         # + its capture date, or the ffcalculator fallback) -- so the site can
         # say honestly where its market overlay came from.

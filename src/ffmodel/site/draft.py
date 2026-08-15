@@ -25,7 +25,9 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       games_dist: dict[str, np.ndarray] | None = None,
                       diagnostics: dict | None = None,
                       rho_by_position: dict[str, float] | None = None,
-                      returning: set[str] | None = None) -> pd.DataFrame:
+                      returning: set[str] | None = None,
+                      current_teams: dict[str, str] | None = None
+                      ) -> pd.DataFrame:
     """All weeks seeded from the same pre-season history (spec §7).
 
     For a quantile predictor, the season p10/p50/p90 come from a Monte-Carlo
@@ -74,7 +76,8 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
     # instead of being summed into totals directly.
     bands_by_player: dict[str, dict[str, list]] = {}
     for week in weeks:
-        combined, future = combined_future_features(weekly, schedules, season, week)
+        combined, future = combined_future_features(weekly, schedules, season,
+                                                    week, current_teams)
         if future.empty:
             continue
         if hasattr(predictor, "attach_features"):
@@ -372,10 +375,12 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       rookie_min_n: int | None = None,
                       ecr: dict | None = None, adp: dict | None = None,
                       replacement_rank: dict = REPLACEMENT_RANK,
-                      returning: set[str] | None = None) -> dict:
+                      returning: set[str] | None = None,
+                      current_teams: dict[str, str] | None = None) -> dict:
     players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit,
                                 n_draws=n_draws, seed=seed, games_dist=games_dist,
-                                diagnostics=diagnostics, returning=returning)
+                                diagnostics=diagnostics, returning=returning,
+                                current_teams=current_teams)
     if players.empty:
         raise RuntimeError(
             f"no future games found for season {season} weeks {list(weeks)} — "

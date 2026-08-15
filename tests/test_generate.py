@@ -248,6 +248,7 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     import ffmodel.data.features as features_mod
     import ffmodel.data.pull as pull_mod
     import ffmodel.data.rankings as rankings_mod
+    import ffmodel.data.rosters as rosters_mod
     import ffmodel.site.about as about_mod
     import ffmodel.site.draft as draft_mod
     import ffmodel.site.generate as gen_mod
@@ -261,6 +262,11 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     sched = sched.assign(home_score=float("nan"), away_score=float("nan"))
     monkeypatch.setattr(pull_mod, "pull_weekly", lambda *a, **k: weekly)
     monkeypatch.setattr(pull_mod, "pull_schedules", lambda *a, **k: sched)
+    # main() imports this one inside the function, so patch it on its source
+    # module (same pattern as pull_sleeper_players below). Unstubbed it makes
+    # this offline test hit the network AND write into the repo's data/raw.
+    monkeypatch.setattr(rosters_mod, "pull_current_teams",
+                        lambda *a, **k: {"p0": "AAA"})
     monkeypatch.setattr(features_mod, "build_features", lambda *a, **k: weekly)
 
     if pull_draft_picks is None:
@@ -327,6 +333,7 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
         capture["ecr"] = k.get("ecr")
         capture["adp"] = k.get("adp")
         capture["replacement_rank"] = k.get("replacement_rank")
+        capture["current_teams"] = k.get("current_teams")
         return {"players": []}
     monkeypatch.setattr(draft_mod, "build_draft_board", fake_board)
     monkeypatch.setattr(about_mod, "build_about",
@@ -688,3 +695,31 @@ def test_load_adp_backfills_rookie_gsis_from_draft_picks(monkeypatch):
     assert source["gsis_backfilled_from_draft_picks"] == n_blank
     assert len(df) == len(names)
     assert df["player_id"].notna().all()
+
+
+def test_draft_run_threads_current_teams_into_board(monkeypatch, tmp_path):
+    # The board projects each player onto whatever `team` reaches
+    # future_skeleton. If this kwarg stops arriving, the board silently
+    # reverts to last-played teams -- 16% of the 2026 board wrong -- and no
+    # other test in this file would notice, because the payload still builds.
+    capture = {}
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
+    assert capture["current_teams"] == {"p0": "AAA"}
+
+
+def test_roster_override_provenance_counts_the_unmapped_tail():
+    # Players the roster feed cannot speak for keep their last-played team.
+    # That tail is acceptable only while it stays below replacement, so the
+    # published artifact has to carry the count rather than imply full coverage.
+    payload = {"players": [
+        {"player_id": "a", "vorp": 10.0},
+        {"player_id": "b", "vorp": -5.0},
+        {"player_id": "c", "vorp": 3.0},
+    ]}
+    from ffmodel.site.generate import _roster_override_stats
+    stats = _roster_override_stats(payload, {"a": "NE"})
+    assert stats["board_players"] == 3
+    assert stats["covered"] == 1
+    assert stats["unmapped"] == 2
+    assert stats["unmapped_above_replacement"] == 1     # c, not b
+    assert stats["roster_rows"] == 1

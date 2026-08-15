@@ -1,0 +1,83 @@
+"""Current-season team assignments, so players are projected where they now play.
+
+WHY THIS EXISTS. `future_skeleton` builds each projected row from the player's
+most recent *played* row and reuses that row's team. In-season that is correct.
+For the preseason board the most recent played row is from the previous
+December, so every offseason signing, trade and release is stale.
+
+Measured on the 2026 board against the FantasyPros ADP export of 2026-08-09
+(which carries each player's current team), over the 432 players both sources
+cover: **70 wrong teams (16.2%) before the override, 1 (0.2%) after.** The
+stale names were not marginal — A.J. Brown at ADP 19 was still in Philadelphia,
+Kenneth Walker III at ADP 23 still in Seattle.
+
+TEAM IS NOT COSMETIC. It selects the opponent through the schedule join, so it
+drives `opp_allowed_last4`, `is_home`, `is_indoor` and `team_pass_att_last4` --
+all live CTX_FEATURES_V2 inputs. A player on the wrong team is projected inside
+the wrong offense against the wrong opponent, with home/away flipped about half
+the time.
+
+THIS IS NOT A LEAK. Free agency and trades are public the day they happen; the
+roster feed for season S during S's preseason describes what a drafter already
+knows. It carries no game outcome. (Contrast week-1 *status*, which resolves at
+the Aug 26-29 cutdown -- that is a separate signal and deliberately not used
+here.)
+
+NOT COVERED, and why that is acceptable: a player with no row in the current
+roster feed keeps his last-known team. On the 2026 board that is 87 of 695
+players, every one of them at or below replacement (`vorp <= 0`), and only 5
+carry an ADP at all -- the deepest being 127. Guessing a team for an
+unrostered player would be worse than leaving the last one we actually saw.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+
+from ffmodel.data.pull import POSITIONS, _cache_name, _cached
+
+# The roster feed abbreviates Arizona `AZ`; the weekly and schedule feeds use
+# `ARI`. Verified against the 2026 board this is the ONLY disagreement between
+# the two vocabularies -- every other one of the 32 codes matches exactly -- so
+# this map is a fix, not the start of a translation layer. If a future season
+# adds a second entry here, check whether the upstream feed changed instead.
+TEAM_ALIASES = {"AZ": "ARI"}
+
+# A traded or re-signed player can hold more than one row in a season's feed.
+# Prefer the one that says he is actually on a 53-man roster; an unrecognised
+# status sorts last rather than being dropped, because "some team, unknown
+# status" still beats "last season's team".
+_STATUS_ORDER = {"ACT": 0, "INA": 1, "RES": 2, "PUP": 2, "NFI": 2, "SUS": 2,
+                 "DEV": 3}
+_UNKNOWN_STATUS = 9
+
+
+def normalize_current_teams(raw: pd.DataFrame) -> dict[str, str]:
+    """Reduce a raw `load_rosters` frame to {player_id: team}.
+
+    Pure: no IO, so the mapping rules are testable without the network. Rows
+    without a gsis id are dropped -- that is the join key into weekly data, and
+    a player we cannot join is a player we cannot override.
+    """
+    df = raw[raw["position"].isin(POSITIONS)].copy()
+    df = df[df["gsis_id"].notna() & df["team"].notna()]
+    if df.empty:
+        return {}
+    df["_rank"] = df["status"].map(_STATUS_ORDER).fillna(_UNKNOWN_STATUS)
+    df = (df.sort_values(["gsis_id", "_rank"])
+            .drop_duplicates(subset=["gsis_id"], keep="first"))
+    return {pid: TEAM_ALIASES.get(team, team)
+            for pid, team in zip(df["gsis_id"], df["team"])}
+
+
+def pull_current_teams(season: int, cache_dir: Path | None = None
+                       ) -> dict[str, str]:
+    """{player_id: team} for `season`, from the season's roster feed."""
+    def load() -> pd.DataFrame:
+        import nflreadpy  # deferred: keep offline unit tests import-light
+
+        return nflreadpy.load_rosters([season]).to_pandas()
+
+    raw = _cached(cache_dir, _cache_name("rosters_current", [season]), load)
+    return normalize_current_teams(raw)
