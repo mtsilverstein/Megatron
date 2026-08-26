@@ -587,3 +587,166 @@ def test_snapshot_spanning_two_source_pages_raises():
     ])
     with pytest.raises(ValueError, match="multiple source pages"):
         preseason_snapshot(normalize_rankings(raw), pd.Timestamp("2024-09-05"))
+
+
+# --- hand-dropped ECR snapshot ---------------------------------------------
+# ECR is the board's SPINE (order_and_value sorts every position by it), and
+# nflverse's mirror publishes weekly. In the fortnight before a draft that lag
+# is a camp-injury cycle: on 2026-08-25 the newest mirrored scrape was 08-21.
+# This path lets a browser export be used directly, with the mirror as the
+# fallback whenever the file is absent.
+
+from ffmodel.data.rankings import (           # noqa: E402 - section-local
+    parse_ecr_snapshot_csv, normalize_ecr_snapshot,
+)
+
+
+def _ecr_export(tmp_path, rows, date="2026-08-25"):
+    """A FantasyPros 'Draft ALL Rankings' export. rows: (rk, name, team, pos)."""
+    p = tmp_path / f"fantasypros_ecr_{date}.csv"
+    body = "\n".join(f'"{rk}",1,"{nm}",{tm},"{ps}","6","5 out of 5"'
+                     for rk, nm, tm, ps in rows)
+    p.write_text('"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE "\n'
+                 + body + "\n", encoding="utf-8")
+    return p
+
+
+def test_ecr_snapshot_parses_into_the_mirrors_column_contract():
+    from ffmodel.data.rankings import RANKING_COLUMNS
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as d:
+        p = _ecr_export(pathlib.Path(d), [(1, "Ja'Marr Chase", "CIN", "WR1"),
+                                          (2, "Jahmyr Gibbs", "DET", "RB1")])
+        out = parse_ecr_snapshot_csv(p)
+    assert list(out.columns) == RANKING_COLUMNS
+    assert list(out["ecr"]) == [1.0, 2.0]
+    assert list(out["pos"]) == ["WR", "RB"]          # positional rank stripped
+    assert str(out["scrape_date"].iloc[0].date()) == "2026-08-25"
+
+
+def test_ecr_snapshot_drops_kickers_and_defenses():
+    # Out of v1 scope and carrying no board row. Leaving them in would also
+    # poison the match-rate guard: an unmatchable kicker is not evidence that
+    # the crosswalk is broken.
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as d:
+        p = _ecr_export(pathlib.Path(d), [(1, "A B", "KC", "QB1"),
+                                          (2, "C D", "KC", "K1"),
+                                          (3, "E F", "KC", "DST1")])
+        out = parse_ecr_snapshot_csv(p)
+    assert list(out["pos"]) == ["QB"]
+
+
+def test_ecr_snapshot_date_comes_from_the_filename_not_a_constant():
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as d:
+        p = _ecr_export(pathlib.Path(d), [(1, "A B", "KC", "QB1")],
+                        date="2026-09-02")
+        assert str(parse_ecr_snapshot_csv(p)["scrape_date"].iloc[0].date()) \
+            == "2026-09-02"
+        bad = pathlib.Path(d) / "rankings.csv"
+        bad.write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+        with pytest.raises(ValueError, match="provenance date"):
+            parse_ecr_snapshot_csv(bad)
+
+
+def test_ecr_snapshot_refuses_an_unrecognised_schema():
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as d:
+        p = pathlib.Path(d) / "fantasypros_ecr_2026-08-25.csv"
+        p.write_text("rank,name\n1,Somebody\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="missing column"):
+            parse_ecr_snapshot_csv(p)
+
+
+def _snap(rows):
+    """Parsed-snapshot shape: (ecr, player, pos)."""
+    return pd.DataFrame({"ecr": [r[0] for r in rows],
+                         "player": [r[1] for r in rows],
+                         "pos": [r[2] for r in rows],
+                         "team": ["KC"] * len(rows),
+                         "scrape_date": pd.Timestamp("2026-08-25"),
+                         "fp_page": "snapshot"})
+
+
+def _xw(rows):
+    """Crosswalk shape: (merge_name, position, gsis_id)."""
+    return pd.DataFrame({"merge_name": [r[0] for r in rows],
+                         "position": [r[1] for r in rows],
+                         "gsis_id": [r[2] for r in rows]})
+
+
+def test_ecr_snapshot_matching_strips_suffixes_the_mirror_never_has_to():
+    # THE reason this does not reuse attach_gsis. The export writes "Harold
+    # Fannin Jr."; the crosswalk holds "harold fannin". attach_gsis's fallback
+    # only lowercases, so it would miss him outright.
+    m, stats = normalize_ecr_snapshot(_snap([(1, "Harold Fannin Jr.", "TE")]),
+                                      _xw([("harold fannin", "TE", "00-1")]))
+    assert list(m["player_id"]) == ["00-1"]
+    assert stats["unmatched"] == 0
+
+
+def test_ecr_snapshot_matching_is_position_aware():
+    # "justin jefferson" is both an LB (CLE) and the WR (MIN) in the real
+    # crosswalk. A name-only join can hand the WR's rank to the LB.
+    m, _ = normalize_ecr_snapshot(
+        _snap([(1, "Justin Jefferson", "WR")]),
+        _xw([("justin jefferson", "LB", "00-LB"),
+             ("justin jefferson", "WR", "00-WR")]))
+    assert list(m["player_id"]) == ["00-WR"]
+
+
+def test_ecr_snapshot_name_fallback_never_takes_an_out_of_scope_namesake():
+    # Only an LB carries the name: the fallback pool is in-scope rows only, so
+    # this must stay unmatched rather than borrow the linebacker's id.
+    #
+    # Padded to 19 clean matches so the miss lands at exactly the 0.95 floor
+    # and the draftable guard does not fire -- the assertion here is about WHO
+    # matched, and it must not be satisfied merely by the whole call raising.
+    rows = [(i, f"P{i}", "WR") for i in range(1, 20)] + [(20, "Some Guy", "WR")]
+    xw = _xw([(f"p{i}", "WR", f"00-{i}") for i in range(1, 20)]
+             + [("some guy", "LB", "00-LB")])
+    m, stats = normalize_ecr_snapshot(_snap(rows), xw)
+    assert stats["unmatched"] == 1
+    assert "00-LB" not in set(m["player_id"])
+    assert stats["draftable_match_rate"] == 0.95
+
+
+def test_ecr_guard_is_scored_on_draftable_ranks_only():
+    # An export that runs deeper than the identity feed must not cost the board
+    # its entire spine -- the ADP overlay lost exactly that way on 2026-08-15.
+    rows = [(i, f"P{i}", "WR") for i in range(1, 11)] + \
+           [(300, "Camp Body", "WR"), (400, "Another", "WR")]
+    xw = _xw([(f"p{i}", "WR", f"00-{i}") for i in range(1, 11)])
+    m, stats = normalize_ecr_snapshot(_snap(rows), xw)
+    assert stats["draftable_match_rate"] == 1.0
+    assert stats["match_rate"] < 1.0        # the depth miss stays visible
+    assert len(m) == 10
+
+
+def test_ecr_guard_still_refuses_when_a_DRAFTABLE_player_is_unmatched():
+    rows = [(i, f"P{i}", "WR") for i in range(1, 11)]
+    xw = _xw([(f"p{i}", "WR", f"00-{i}") for i in range(1, 9)])   # 8/10
+    with pytest.raises(ValueError, match="inside the draft"):
+        normalize_ecr_snapshot(_snap(rows), xw)
+
+
+def test_ecr_guard_boundary_rank_180_counts_as_draftable():
+    rows = [(180, "In Draft", "WR"), (181, "Out Of Draft", "WR")]
+    with pytest.raises(ValueError, match="inside the draft"):
+        normalize_ecr_snapshot(_snap(rows), _xw([("out of draft", "WR", "00-2")]))
+
+
+def test_ecr_position_key_disambiguates_two_IN_SCOPE_namesakes():
+    # The WR/LB collision above is caught by the in-scope-only fallback alone,
+    # so it does not actually exercise the (name, position) primary key --
+    # mutation-checked, blanking that key still passed it. This does: both
+    # namesakes are QB/RB/WR/TE, so the fallback cannot tell them apart and
+    # only the position key can. Getting this wrong hands one real player's
+    # consensus rank to another.
+    m, stats = normalize_ecr_snapshot(
+        _snap([(1, "Mike Williams", "WR"), (2, "Mike Williams", "TE")]),
+        _xw([("mike williams", "WR", "00-WR"), ("mike williams", "TE", "00-TE")]))
+    assert stats["unmatched"] == 0
+    got = dict(zip(m["pos"], m["player_id"]))
+    assert got == {"WR": "00-WR", "TE": "00-TE"}

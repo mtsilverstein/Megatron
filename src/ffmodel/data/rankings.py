@@ -22,6 +22,7 @@ Leak discipline, three layers:
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -46,6 +47,166 @@ MIN_MATCH_RATE = 0.95
 # the source page stays auditable from a cached snapshot after the fact.
 RANKING_COLUMNS = ["fp_id", "player", "pos", "team", "ecr", "sd", "best",
                    "worst", "mergename", "scrape_date", "fp_page"]
+
+# --- hand-dropped ECR snapshot ---------------------------------------------
+# WHY THIS EXISTS. ECR normally arrives through nflverse's mirror of
+# FantasyPros (`pull_rankings`), which publishes weekly and lags the source by
+# days. That is fine in the abstract and not fine in the last fortnight before
+# a draft, when camp injuries move the consensus faster than the mirror
+# refreshes: on 2026-08-25 the newest mirrored scrape was 2026-08-21, four days
+# behind a FantasyPros export the owner could download in a browser.
+#
+# ECR is this board's SPINE -- `order_and_value` sorts every position by it and
+# lays the model's value curve onto that order -- so a stale consensus is not a
+# stale garnish, it is a stale board. This path lets a fresh export be used
+# directly, exactly as `adp.py` already allows for the market overlay.
+#
+# The snapshot is PREFERRED when present and the mirror remains the fallback,
+# so deleting the file restores the previous behaviour with no code change.
+ECR_SNAPSHOT_PATH = Path("data_snapshots/fantasypros_ecr_2026-08-25.csv")
+
+# Snapshot filenames end in _YYYY-MM-DD.csv, same convention (and same reason)
+# as adp.SNAPSHOT_PATH: provenance is read off the filename rather than kept
+# in a second hardcoded constant that can drift from the file it describes.
+_ECR_SNAPSHOT_DATE = re.compile(r"_(\d{4}-\d{2}-\d{2})\.csv$")
+
+# The export packs positional rank into the POS cell ("WR1", "RB12").
+_ECR_POS = re.compile(r"^([A-Z]+)\d*$")
+
+# NO FANTASYPROS ID IN THIS EXPORT. The mirrored feed carries `fp_id` and
+# `attach_gsis` uses it as the primary join key; the browser export does not
+# have that column at all, so every row matches by (normalized name, position)
+# instead -- attach_gsis's fallback, which is position-aware precisely so a
+# collision like "justin jefferson" (LB CLE vs WR MIN) cannot hand one
+# player's rank to another. `fp_id` is still emitted as NA so the frame keeps
+# the RANKING_COLUMNS contract and the id join simply matches nothing.
+ECR_SNAPSHOT_PAGE = "snapshot:fantasypros-draft-all-rankings"
+
+
+def ecr_snapshot_date(path: Path = ECR_SNAPSHOT_PATH) -> str:
+    """Capture date parsed from the snapshot's own filename convention."""
+    m = _ECR_SNAPSHOT_DATE.search(Path(path).name)
+    if not m:
+        raise ValueError(f"{path}: filename doesn't end in _YYYY-MM-DD.csv -- "
+                         f"cannot derive the ECR snapshot's provenance date")
+    return m.group(1)
+
+
+def parse_ecr_snapshot_csv(path: Path = ECR_SNAPSHOT_PATH) -> pd.DataFrame:
+    """A FantasyPros "Draft ALL Rankings" export, in `normalize_rankings`'
+    output shape so every downstream consumer is unchanged.
+
+    `RK` becomes `ecr`. The export gives an integer overall rank where the
+    mirror gives a float consensus average; both are only ever used to ORDER
+    players within a position, so the integer is not a loss of information the
+    board can see. `sd`/`best`/`worst` have no export equivalent and stay NA --
+    nothing on the draft path reads them.
+    """
+    raw = pd.read_csv(path)
+    missing = {"RK", "PLAYER NAME", "TEAM", "POS"} - set(raw.columns)
+    if missing:
+        raise ValueError(f"{path}: ECR export is missing column(s) "
+                         f"{sorted(missing)} -- refusing to guess its schema")
+    df = pd.DataFrame({
+        "player": raw["PLAYER NAME"].astype(str).str.strip(),
+        "team": raw["TEAM"].astype(str).str.strip(),
+        "ecr": pd.to_numeric(raw["RK"], errors="coerce"),
+    })
+    df["pos"] = (raw["POS"].astype(str).str.strip()
+                 .str.extract(_ECR_POS, expand=False))
+    # K/DST are out of v1 scope and carry no board row; dropping them here
+    # keeps the match-rate guard below honest, since an unmatchable kicker is
+    # not evidence the crosswalk is broken.
+    df = df[df["pos"].isin(POSITIONS)]
+    df = df[df["ecr"].notna() & (df["player"].str.len() > 0)]
+    df["fp_id"] = pd.NA
+    df["sd"] = pd.NA
+    df["best"] = pd.NA
+    df["worst"] = pd.NA
+    df["mergename"] = df["player"]
+    df["scrape_date"] = pd.Timestamp(ecr_snapshot_date(path))
+    df["fp_page"] = ECR_SNAPSHOT_PAGE
+    return df[RANKING_COLUMNS].reset_index(drop=True)
+
+
+# Ranks past this cannot change a decision in a 12-team, 15-round league: the
+# player goes undrafted. The crosswalk guard below is scored over the players
+# inside it, for the same reason adp.DRAFTABLE_ADP exists -- on 2026-08-15 a
+# whole-file match rate refused a perfectly good ADP overlay because a deeper
+# export had added camp bodies the identity feed does not carry.
+DRAFTABLE_ECR = 180
+
+
+def normalize_ecr_snapshot(raw: pd.DataFrame, crosswalk: pd.DataFrame,
+                           min_match_rate: float = MIN_MATCH_RATE
+                           ) -> tuple[pd.DataFrame, dict]:
+    """Crosswalk a parsed ECR snapshot onto gsis ids.
+
+    Deliberately NOT `attach_gsis`. That function's primary key is
+    `fantasypros_id`, which the browser export does not have, and its name
+    fallback normalizes with `_merge_key` (lowercase only) because the two
+    nflverse feeds already agree on everything else. A hand-dropped export
+    does not: it writes "Harold Fannin Jr." where the crosswalk holds "harold
+    fannin". So this reuses `adp.norm` -- suffix- and punctuation-stripping,
+    applied to BOTH sides -- which is the same normalizer the Sleeper ADP
+    snapshot uses against the same crosswalk, for the same reason.
+
+    Matching is position-aware first, exactly as the ADP snapshot path is: a
+    plain name join can hand the WR Justin Jefferson's rank to the LB of the
+    same name. The name-only fallback beneath it is built from in-scope rows
+    only, so an out-of-scope namesake can never win.
+    """
+    from ffmodel.data.adp import norm   # deferred: adp imports this module
+
+    x = crosswalk[crosswalk["gsis_id"].notna()].copy()
+    x["_k"] = x["merge_name"].map(norm)
+    by_name_pos = (x.drop_duplicates(subset=["_k", "position"])
+                   .set_index(["_k", "position"])["gsis_id"].to_dict())
+    in_scope = x[x["position"].isin(POSITIONS)]
+    by_name = in_scope.drop_duplicates("_k").set_index("_k")["gsis_id"]
+
+    df = raw.copy()
+    df["_k"] = df["player"].map(norm)
+    key_pos = pd.Series(list(zip(df["_k"], df["pos"])), index=df.index)
+    df["player_id"] = key_pos.map(by_name_pos).astype(object)
+    matched_by_position = int(df["player_id"].notna().sum())
+    need = df["player_id"].isna()
+    df.loc[need, "player_id"] = df.loc[need, "_k"].map(by_name)
+    matched_by_name = int(df["player_id"].notna().sum()) - matched_by_position
+
+    draftable = df[df["ecr"] <= DRAFTABLE_ECR]
+    draftable_rate = (float(draftable["player_id"].notna().mean())
+                      if len(draftable) else 1.0)
+    if len(draftable) and draftable_rate < min_match_rate:
+        names = sorted(draftable[draftable["player_id"].isna()]["player"].tolist())
+        raise ValueError(
+            f"ECR snapshot crosswalk matched only {draftable_rate:.1%} of the "
+            f"{len(draftable)} players inside the draft (rank <= "
+            f"{DRAFTABLE_ECR}, floor {min_match_rate:.0%}) -- unmatched: "
+            f"{names} -- refusing to publish a partially-crosswalked ECR spine"
+        )
+
+    unmatched = df[df["player_id"].isna()]
+    matched = (df.dropna(subset=["player_id"])
+               .sort_values("ecr", kind="mergesort")
+               .drop_duplicates("player_id")
+               .reset_index(drop=True))
+    stats = {
+        "ranked": int(len(df)),
+        "draftable_ranked": int(len(draftable)),
+        "draftable_match_rate": round(draftable_rate, 4),
+        "matched_by_id": 0,          # the export carries no FantasyPros id
+        "matched_by_position": matched_by_position,
+        "matched_by_name": matched_by_name,
+        "matched_by_name_position": matched_by_position,
+        "matched_by_name_only": matched_by_name,
+        "unmatched": int(len(unmatched)),
+        "unmatched_players": sorted(unmatched["player"].tolist()),
+        "gsis_collisions": 0,
+        "match_rate": round(len(matched) / len(df), 4) if len(df) else 1.0,
+    }
+    return matched[["player_id", "player", "pos", "team", "ecr",
+                    "scrape_date", "fp_page"]], stats
 
 
 def _merge_key(names: pd.Series) -> pd.Series:
@@ -363,11 +524,37 @@ def consensus_for_season(season: int, schedules: pd.DataFrame,
     if draft_picks is None:
         from ffmodel.data.pull import pull_draft_picks
         draft_picks = pull_draft_picks([season], cache_dir)
-    rankings = pull_rankings(cache_dir)
     kickoff = season_kickoff(schedules, season)
-    snapshot = preseason_snapshot(rankings, kickoff)
     crosswalk, restored = _backfill_draft_gsis(pull_player_ids(cache_dir), draft_picks)
-    matched, stats = attach_gsis(snapshot, crosswalk)
+
+    # A hand-dropped export WINS when it is present, because it is the only
+    # way to be current in the days before a draft -- nflverse's mirror
+    # publishes weekly and lagged it by four days on 2026-08-25, which is a
+    # camp-injury cycle. Delete the file and the mirror takes over again with
+    # no code change.
+    #
+    # Leak discipline is NOT relaxed for it: the same strictly-before-kickoff
+    # rule that governs the mirror applies here, so a snapshot captured after
+    # week 1 has begun is refused rather than quietly used.
+    if ECR_SNAPSHOT_PATH.exists():
+        snapshot = parse_ecr_snapshot_csv(ECR_SNAPSHOT_PATH)
+        captured = snapshot["scrape_date"].iloc[0]
+        if captured >= kickoff:
+            raise ValueError(
+                f"ECR snapshot {ECR_SNAPSHOT_PATH.name} was captured "
+                f"{captured.date()}, on or after kickoff {kickoff.date()} -- "
+                f"refusing to use a post-kickoff ranking as a preseason "
+                f"consensus"
+            )
+        matched, stats = normalize_ecr_snapshot(snapshot, crosswalk)
+        stats["source"] = "ecr_snapshot"
+        stats["path"] = ECR_SNAPSHOT_PATH.as_posix()
+    else:
+        rankings = pull_rankings(cache_dir)
+        snapshot = preseason_snapshot(rankings, kickoff)
+        matched, stats = attach_gsis(snapshot, crosswalk)
+        stats["source"] = "nflverse_mirror"
+
     stats["gsis_backfilled_from_draft_picks"] = restored
     stats["snapshot_date"] = str(snapshot["scrape_date"].iloc[0].date())
     stats["kickoff"] = str(kickoff.date())
