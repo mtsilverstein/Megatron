@@ -65,3 +65,17 @@ players:
   # in yards per target, per reception, per route run) -- productive-then-hurt,
   # not declining.
   - Sam LaPorta
+
+  # The judgement call in this batch, added knowingly. His 2025 games were
+  # lost to a SUSPENSION at the front and a concussion/IR at the back, and a
+  # suspension is explicitly out of scope above -- so he does not qualify on
+  # last season at all. He is here for a forward-looking reason instead: he is
+  # recovering from knee surgery going into 2026, which is real, is invisible
+  # to a model built from games played, and lands on an ECR-21 player, i.e. a
+  # second-round pick where a falsely confident floor is most expensive.
+  #
+  # The fit is imperfect and that is the honest description: the curve was
+  # measured on players who lost a season to injury, not on post-surgical
+  # returns. It is still far closer than the healthy-WR cohort, which is the
+  # only alternative on offer.
+  - Rashee Rice
