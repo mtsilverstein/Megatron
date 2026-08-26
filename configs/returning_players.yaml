@@ -32,3 +32,36 @@ players:
   # season -- 170 targets, 1204 yards -- which is exactly what the model is
   # projecting off, and exactly why his floor needed this.
   - Malik Nabers
+
+  # Added 2026-08-25 after auditing the 2025 season for players who lost most
+  # of it to injury while still producing per game -- the exact population the
+  # returning-player availability curve was fitted on. Found by query, then
+  # each one's REASON confirmed from reporting, because games-played alone
+  # cannot tell an injury from a benching or a suspension.
+
+  # Knee sprain from Nov 13; the Jets shut him down for the year once they
+  # were out of contention. 7 games, 14.2 ppg (14.7 the year before) -- the
+  # per-game form is intact, only the availability was lost.
+  - Garrett Wilson
+
+  # Turf-toe surgery on the left foot, no return timeline given at the time.
+  # 8 games at 16.8 ppg.
+  - Joe Burrow
+
+  # Knee in Week 3, elbow in Week 16, IR. 7 games at 16.0 ppg against 20.6
+  # across a full 2024.
+  - Jayden Daniels
+
+  # Week 8: fractured leg, dislocated ankle, ruptured deltoid ligament, then
+  # surgery. Was RB7 in fantasy points per game over his last six healthy
+  # appearances, which is why the healthy-cohort band flatters him so badly.
+  - Cam Skattebo
+
+  # Torn ACL in Week 9. 32-489-6 in the eight games before it, i.e. a genuine
+  # TE1 pace; the ACL is exactly the injury this curve was built from.
+  - Tucker Kraft
+
+  # Back injury, IR. 9 games, and efficiency-wise his best season (career highs
+  # in yards per target, per reception, per route run) -- productive-then-hurt,
+  # not declining.
+  - Sam LaPorta
