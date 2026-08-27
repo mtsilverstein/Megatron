@@ -93,4 +93,122 @@ assert.strictEqual(D.syncLabel(T + 9000, T, "reconnecting… (HTTP 500)"),
 // A clock that jumps backwards (NTP, sleep/wake) must not print a negative age.
 assert.strictEqual(D.syncLabel(T - 5000, T, ""), "live · synced 0s ago");
 
+
+// --- keeper drafts -----------------------------------------------------------
+// Sleeper loads keepers as picks BEFORE the draft opens, at the pick numbers
+// they cost. This league's 22 keepers sit at #40..#142, so the pick log has 22
+// rows while picks 1-39 have not happened. Every assertion below failed before
+// the fix, and each names a different way that broke the shortlist.
+const KEEPERS = [40, 42, 53, 55, 69, 71, 87, 91, 95, 120, 121, 123, 128, 131,
+                 133, 134, 135, 136, 139, 140, 141, 142].map(pick_no => ({ pick_no }));
+const made = n => Array.from({ length: n }, (_, i) => ({ pick_no: i + 1 }));
+
+// pickCursor: how far the draft actually got, NOT how many rows the log has.
+assert.strictEqual(D.pickCursor([]), 0);
+assert.strictEqual(D.pickCursor(KEEPERS), 0,           // 22 rows, zero picks made
+                   "keepers ahead of the cursor must not count as picks made");
+assert.strictEqual(D.pickCursor(made(30).concat(KEEPERS)), 30);
+// With no keepers it must agree exactly with the old picks.length behaviour.
+assert.strictEqual(D.pickCursor(made(47)), 47);
+// A keeper at an EARLY number IS consumed -- nobody selects there, so the
+// cursor must run straight through it rather than stopping short.
+assert.strictEqual(D.pickCursor(made(4).concat([{ pick_no: 5 }, { pick_no: 6 }])), 6);
+// Rows without a usable pick_no cannot move the cursor.
+assert.strictEqual(D.pickCursor([{ pick_no: null }, { pick_no: 0 }, {}]), 0);
+
+// The headline failure: at the open, seat 10's next pick is #10, not #34.
+const used = D.usedPickNumbers(KEEPERS);
+assert.strictEqual(D.nextPickNumber(10, 12, 15, 0, 22, "snake"), 34);   // old, wrong
+assert.strictEqual(D.nextPickNumber(10, 12, 15, 0, 0, "snake", used), 10);
+
+// A pick already spent on a keeper is not yours to plan. Seat 10 keeps at #87
+// and #135, so its own list must skip exactly those two and hold 13, not 15.
+const seat10 = [];
+for (let at = 0; ; ) {
+  const nxt = D.nextPickNumber(10, 12, 15, 0, at, "snake", used);
+  if (nxt === null) break;
+  seat10.push(nxt); at = nxt;
+}
+assert.deepStrictEqual(seat10, [10, 15, 34, 39, 58, 63, 82, 106, 111, 130, 154, 159, 178]);
+assert.strictEqual(seat10.length, 13, "15 rounds minus 2 keepers");
+assert.ok(!seat10.includes(87) && !seat10.includes(135), "planned a forfeited pick");
+// Another seat's keeper must not remove a pick from this seat.
+assert.strictEqual(D.nextPickNumber(10, 12, 15, 0, 0,
+                                    "snake", new Set([40])), 10);
+
+// openPicksBetween counts SELECTIONS, not pick numbers: a keeper slot in the
+// gap needs nobody to act, so counting it would overstate the wait.
+assert.strictEqual(D.openPicksBetween(0, 10, new Set()), 9);
+assert.strictEqual(D.openPicksBetween(0, 10, new Set([3, 7])), 7);
+assert.strictEqual(D.openPicksBetween(5, 6, new Set()), 0);   // adjacent picks
+
+// gapToNextPick honours the same set. Seat 10 on the clock at #82: its next
+// own pick is #106, because #87 is its own keeper and gets skipped. Picks
+// 83-105 is 23 numbers, but #87, #91 and #95 are keeper slots nobody selects
+// at, so only 20 real selections stand between.
+assert.strictEqual(D.gapToNextPick(10, 12, 15, 0, 81, "snake", used), 20);
+// Without keepers the old contract is unchanged.
+assert.strictEqual(D.gapToNextPick(3, 12, 15, 0, 2, "snake"), 18);
+
+// usedPickNumbers is exported, so its contract is pinned directly: a row
+// without a usable pick_no must not put junk in the set, where a future caller
+// would meet null/undefined instead of numbers.
+assert.deepStrictEqual([...D.usedPickNumbers([{ pick_no: 3 }, { pick_no: null },
+                                              { pick_no: 0 }, {}, null])], [3]);
+assert.deepStrictEqual([...D.usedPickNumbers([])], []);
+
+// planFromPicks is the whole calculation the shortlist runs on. It is pure so
+// that this -- the exact thing that was broken -- is reachable from a test;
+// the render path around it needs a DOM and a live session.
+const SEAT10 = { slot: 10, teams: 12, rounds: 15, reversalRound: 0 };
+const atOpen = D.planFromPicks(KEEPERS, SEAT10, "snake");
+assert.strictEqual(atOpen.cursor, 0, "22 keeper rows are not 22 picks made");
+assert.strictEqual(atOpen.next, 10, "first pick of the draft, not #34");
+assert.strictEqual(atOpen.until, 9, "nine selections before yours");
+assert.deepStrictEqual(atOpen.future,
+  [15, 34, 39, 58, 63, 82, 106, 111, 130, 154, 159, 178]);
+assert.ok(!atOpen.future.includes(87) && !atOpen.future.includes(135),
+          "rollout planned a pick spent on a keeper");
+
+// Mid-draft: 30 selections made. Old math read 52 rows and said #58 -- a whole
+// round late, so the shortlist priced a pick two turns further out than real.
+const mid = D.planFromPicks(made(30).concat(KEEPERS), SEAT10, "snake");
+assert.strictEqual(mid.cursor, 30);
+assert.strictEqual(mid.next, 34);
+assert.strictEqual(mid.until, 3);
+
+// THE MOMENT THE FORFEITED PICK COMES UP. 82 selections made: slot 10 just
+// picked at #82, and its snake turn says #87 next -- but #87 is the pick it
+// spent on Skattebo, so the real next turn is #106. This is the only state
+// that separates "skips your keeper pick" from "happens not to hit one", and
+// it is the state the tool will actually be in during round 8.
+const atForfeit = D.planFromPicks(made(82).concat(KEEPERS), SEAT10, "snake");
+assert.strictEqual(atForfeit.cursor, 82);
+assert.strictEqual(atForfeit.next, 106, "planned #87, a pick spent on a keeper");
+// #83-#105 is 23 numbers, but #87, #91 and #95 are keeper slots nobody
+// selects at -- so 20 real selections stand between, not 23.
+assert.strictEqual(atForfeit.until, 20);
+assert.ok(!atForfeit.future.includes(135), "still planning the R12 keeper pick");
+
+// Every seat in this league keeps at least one, so the forfeit is per-seat,
+// not global. Slot 8 keeps exactly one (#128) and must lose exactly that pick.
+const seat8 = D.planFromPicks(KEEPERS, { slot: 8, teams: 12, rounds: 15, reversalRound: 0 },
+                              "snake");
+assert.strictEqual(seat8.next, 8);
+assert.strictEqual(seat8.future.length, 13, "15 rounds minus its 1 keeper");
+assert.ok(!seat8.future.includes(128), "slot 8 planned the pick it kept at");
+// ...and it must NOT lose slot 10s keeper picks.
+assert.ok(seat8.future.includes(89) && seat8.future.includes(137),
+          "another seat's keepers removed picks from this one");
+
+// A draft with no keepers at all must be untouched by any of this.
+const plain = D.planFromPicks(made(9), SEAT10, "snake");
+assert.strictEqual(plain.cursor, 9);
+assert.strictEqual(plain.next, 10);
+assert.strictEqual(plain.until, 0, "on the clock");
+assert.strictEqual(plain.future.length, 14);
+
+// Past your last pick there is nothing to plan.
+assert.strictEqual(D.planFromPicks(made(180), SEAT10, "snake"), null);
+
 console.log("draftmode_fixture: OK");

@@ -289,19 +289,18 @@ window.DraftMode = (() => {
     const seat = mySeat(picks);
     const blocked = shortlistBlocker(seat, picks);
     if (blocked) { showBlocked(v, blocked); return; }
-    const next = nextPickNumber(seat.slot, seat.teams, seat.rounds,
-                                seat.reversalRound, picks.length, session.type);
-    if (next === null) {
+    const plan = planFromPicks(picks, seat, session.type);
+    if (plan === null) {
       showBlocked(v, "No pick left in this draft — the shortlist is done.");
       return;
     }
-    const until = next - picks.length - 1;   // full picks before yours
+    const next = plan.next, until = plan.until;
     const mine = myBoardPlayers();
     const available = boardPlayers().filter(
       p => !(p.sleeper_id && state.drafted.has(p.sleeper_id)));
     const shortlist = window.Optimizer.recommend({
       available, myPlayers: mine, pickNo: next,
-      futurePicks: remainingPicks(picks.length, seat),
+      futurePicks: plan.future,
     });
     if (!shortlist.length) {
       showBlocked(v, "Every player this board projects is gone — you're into "
@@ -380,19 +379,29 @@ window.DraftMode = (() => {
     return _scored;
   }
 
-  // Every overall pick number you have left AFTER the one on the clock.
-  function remainingPicks(picksMade, seat) {
-    const out = [];
-    let at = nextPickNumber(seat.slot, seat.teams, seat.rounds,
-                            seat.reversalRound, picksMade, session.type);
-    if (at === null) return out;
-    for (;;) {
+  /* Everything the shortlist is computed FOR, derived from the pick log alone.
+     Pure and exported so the keeper arithmetic is testable: the render path
+     around it needs a DOM and a live session, which is exactly why the bug
+     this replaces went unnoticed. Returns null when the seat has no pick left.
+
+       cursor  how far the draft has got (see pickCursor)
+       next    your next pick number, skipping picks spent on your keepers
+       until   selections that must happen before it
+       future  your remaining picks after that one */
+  function planFromPicks(picks, seat, type) {
+    const used = usedPickNumbers(picks);
+    const cursor = pickCursor(picks);
+    const next = nextPickNumber(seat.slot, seat.teams, seat.rounds,
+                                seat.reversalRound, cursor, type, used);
+    if (next === null) return null;
+    const future = [];
+    for (let at = next; ; ) {
       const nxt = nextPickNumber(seat.slot, seat.teams, seat.rounds,
-                                 seat.reversalRound, at, session.type);
-      if (nxt === null) return out;
-      out.push(nxt);
-      at = nxt;
+                                 seat.reversalRound, at, type, used);
+      if (nxt === null) break;
+      future.push(nxt); at = nxt;
     }
+    return { used, cursor, next, until: openPicksBetween(cursor, next, used), future };
   }
 
   // Your seat, from the draft object where it publishes one and from the pick
@@ -487,7 +496,52 @@ window.DraftMode = (() => {
     return reversed ? r * teams - slot + 1 : (r - 1) * teams + slot;
   }
 
-  function nextPickNumber(slot, teams, rounds, reversalRound, picksMade, type = "snake") {
+  /* HOW FAR THE DRAFT HAS ACTUALLY GOT, which is not how many rows the pick
+     log has. A keeper league loads its keepers as picks BEFORE the draft
+     opens, each one sitting at the pick number it cost -- in this league
+     picks 40, 42, 53 ... 142, never 1, 2, 3. So `picks.length` was 22 while
+     picks 1-39 had not happened, and feeding that to nextPickNumber reported
+     seat 10's next pick as #34 when it was #10: two rounds of shortlist
+     computed against the wrong pick number, and therefore against the wrong
+     replacement-level horizon. The error is largest at the open and only
+     closes by the final round -- backwards, since the early picks decide the
+     draft.
+
+     Counting pick NUMBERS consumed from 1 upward is right in both worlds: with
+     no keepers the used set is exactly {1..n} and this returns n, identical to
+     the old picks.length. A keeper sitting at an early number counts as
+     consumed, because it is -- nobody selects there. */
+  function usedPickNumbers(picks) {
+    const used = new Set();
+    for (const p of picks || []) {
+      if (p && Number.isInteger(p.pick_no) && p.pick_no > 0) used.add(p.pick_no);
+    }
+    return used;
+  }
+
+  function pickCursor(picks) {
+    const used = usedPickNumbers(picks);
+    let made = 0;
+    while (used.has(made + 1)) made++;
+    return made;
+  }
+
+  // Selections that still have to happen between the pick on the clock and
+  // yours. Pick numbers already spent on a keeper are skipped: nobody chooses
+  // there, so counting them would overstate how long you have to wait.
+  function openPicksBetween(from, to, used) {
+    let k = 0;
+    for (let p = from + 1; p < to; p++) if (!(used && used.has(p))) k++;
+    return k;
+  }
+
+  /* `used` also has to gate the SEARCH, not just the count. Your own keepers
+     occupy picks you no longer own -- slot 10 keeps at #87 and #135 -- and
+     without this the rollout plans two selections that will never come round,
+     so the optimizer believes it gets more board than it will. Same defect
+     tools/draft_sim.cjs had before it was made keeper-aware. */
+  function nextPickNumber(slot, teams, rounds, reversalRound, picksMade,
+                          type = "snake", used = null) {
     if (!Number.isInteger(slot) || !Number.isInteger(teams) || !Number.isInteger(rounds)
         || slot < 1 || teams < 1 || rounds < 1 || slot > teams
         || !Number.isInteger(picksMade) || picksMade < 0
@@ -495,7 +549,7 @@ window.DraftMode = (() => {
     if (type !== "snake" && type !== "linear") return null;
     for (let r = 1; r <= rounds; r++) {
       const p = pickForRoundSlot(r, slot, teams, reversalRound || 0, type);
-      if (p > picksMade) return p;
+      if (p > picksMade && !(used && used.has(p))) return p;
     }
     return null;                       // this slot has no pick left
   }
@@ -504,12 +558,15 @@ window.DraftMode = (() => {
   // This is the window other drafters get before you choose again -- the
   // horizon the optimizer's replacement level is measured over. It is nonzero
   // when you are on the clock, which is exactly when it drives the decision.
-  function gapToNextPick(slot, teams, rounds, reversalRound, picksMade, type = "snake") {
-    const current = nextPickNumber(slot, teams, rounds, reversalRound, picksMade, type);
+  function gapToNextPick(slot, teams, rounds, reversalRound, picksMade,
+                         type = "snake", used = null) {
+    const current = nextPickNumber(slot, teams, rounds, reversalRound, picksMade,
+                                   type, used);
     if (current === null) return null;
-    const after = nextPickNumber(slot, teams, rounds, reversalRound, current, type);
+    const after = nextPickNumber(slot, teams, rounds, reversalRound, current,
+                                 type, used);
     if (after === null) return null;
-    return after - current - 1;
+    return openPicksBetween(current, after, used);
   }
 
   function init(options) {
@@ -549,5 +606,6 @@ window.DraftMode = (() => {
   }
 
   return { init, disable, nextPickNumber, gapToNextPick, seatFromPicks,
+           pickCursor, usedPickNumbers, openPicksBetween, planFromPicks,
            shortlistBlocker, syncLabel };
 })();
