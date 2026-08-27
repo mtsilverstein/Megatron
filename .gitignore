@@ -40,3 +40,10 @@ models_artifacts.zip
 .env
 .env.*
 !.env.example
+
+# Keeper snapshots (tools/pull_keepers.cjs) describe a specific private
+# league: other managers' Sleeper handles and who they kept. This repo is
+# public and those are third parties, so the snapshot stays local. It is one
+# command to regenerate and the sim names its source in the report metadata:
+#   node tools/pull_keepers.cjs --league <id> --out data_snapshots/keepers_<date>.json
+data_snapshots/keepers_*.json

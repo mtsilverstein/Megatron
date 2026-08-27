@@ -216,9 +216,17 @@ function humanPick(order, taken, roster, ctx) {
 // --- snake math ----------------------------------------------------------
 const pickForRoundSlot = (r, slot) =>
   r % 2 === 0 ? r * TEAMS - slot + 1 : (r - 1) * TEAMS + slot;
-function futurePicks(round, slot) {
+// `forfeited` holds "round:slot" cells already spent on a keeper. A pick the
+// team does not own must not appear here: the optimizer plans its rollout
+// against this list, so leaving a forfeited pick in it makes the tool believe
+// it gets one more look at the board than it really has -- and it will pass on
+// a player now, expecting to take him at a pick that does not exist.
+function futurePicks(round, slot, forfeited) {
   const out = [];
-  for (let r = round + 1; r <= ROUNDS; r++) out.push(pickForRoundSlot(r, slot));
+  for (let r = round + 1; r <= ROUNDS; r++) {
+    if (forfeited && forfeited.has(`${r}:${slot}`)) continue;
+    out.push(pickForRoundSlot(r, slot));
+  }
   return out;
 }
 
@@ -251,11 +259,62 @@ function actualPoints(roster, weeks, lastWeek) {
   return total;
 }
 
+// --- keepers ---------------------------------------------------------------
+/* A keeper league does not start from an empty board. THREE things change at
+   once, and all three push the same way -- they make the simulated pool richer
+   than the real one:
+
+     1. the kept players are not draftable at all
+     2. every team already holds its keepers, so its remaining needs differ
+     3. the pick each keeper cost is gone from that team's order
+
+   Modelling only (1) would still be wrong, and quietly: a team that keeps two
+   players and then drafts a full fifteen ends up with seventeen, so our seat
+   gets measured against a field carrying more roster than the rules allow.
+
+   Returns null for "no keepers" so callers pass the value straight through and
+   every non-keeper path stays exactly as it was. */
+function loadKeepers(snapshot, players) {
+  if (!snapshot) return null;
+  if (snapshot.rounds && snapshot.rounds !== ROUNDS) {
+    throw new Error(`keeper snapshot is for a ${snapshot.rounds}-round draft, but `
+      + `this harness simulates ${ROUNDS}.`);
+  }
+  if (snapshot.teams && snapshot.teams !== TEAMS) {
+    throw new Error(`keeper snapshot is for ${snapshot.teams} teams, but this `
+      + `harness simulates ${TEAMS}.`);
+  }
+  // pickForRoundSlot is a plain snake. A league with a third-round reversal
+  // numbers its picks differently, so every keeper cell would land on the
+  // wrong team -- refuse rather than silently mis-assign them.
+  if (snapshot.reversal_round) {
+    throw new Error(`keeper snapshot has reversal_round=${snapshot.reversal_round}; `
+      + `this harness's snake math has no reversal and would place keeper picks `
+      + `on the wrong teams.`);
+  }
+  const byId = {};
+  for (const p of players) byId[p.player_id] = p;
+  const entries = [], missing = [], forfeited = new Set();
+  for (const k of snapshot.keepers || []) {
+    const player = byId[k.player_id];
+    if (!player) { missing.push(k); continue; }
+    entries.push({ round: k.round, slot: k.slot, player });
+    forfeited.add(`${k.round}:${k.slot}`);
+  }
+  if (missing.length) {
+    throw new Error(
+      `${missing.length} keeper(s) in the snapshot are not on this board `
+      + `(${missing.map(m => m.name || m.player_id).join(", ")}). Each would stay `
+      + `draftable here while its owner drafts without the pick it cost.`);
+  }
+  return { entries, forfeited };
+}
+
 // --- one draft -----------------------------------------------------------
 // `heroSlot` is the seat our optimizer occupies; every other seat drafts the
 // market. Returns every roster so the hero can be ranked against the field it
 // actually played.
-function runDraft(players, heroSlot, seed, field = "consensus") {
+function runDraft(players, heroSlot, seed, field = "consensus", keepers = null) {
   const rand = rng(seed);
   const orders = [];
   // Each drafter's private board AND his temperament come from the same seed,
@@ -273,15 +332,30 @@ function runDraft(players, heroSlot, seed, field = "consensus") {
   const recent = [];
   const scoreable = players.filter(p => Number.isFinite(O.seasonValue(p)));
 
+  // Keepers are on their rosters from pick 1, not from the round that pays for
+  // them -- that is what a keeper IS, and the optimizer must see its own from
+  // the first decision it makes or it will draft a position it already has.
+  // Roster entries are shallow copies so the round tag cannot leak onto the
+  // shared pool objects the other seats are drafting from.
+  const forfeited = keepers ? keepers.forfeited : null;
+  if (keepers) {
+    for (const k of keepers.entries) {
+      taken.add(k.player.player_id);
+      rosters[k.slot].push(Object.assign({}, k.player,
+                                         { _round: k.round, _keeper: true }));
+    }
+  }
+
   for (let round = 1; round <= ROUNDS; round++) {
     for (let slot = 1; slot <= TEAMS; slot++) {
+      if (forfeited && forfeited.has(`${round}:${slot}`)) continue;  // spent on a keeper
       const pickNo = pickForRoundSlot(round, slot);
       let choice;
       if (slot === heroSlot) {
         const available = scoreable.filter(p => !taken.has(p.player_id));
         const rec = O.recommend({
           available, myPlayers: rosters[slot], pickNo,
-          futurePicks: futurePicks(round, slot),
+          futurePicks: futurePicks(round, slot, forfeited),
         });
         choice = rec.length ? rec[0].player
                             : marketPick(orders[slot - 1], taken, rosters[slot]);
@@ -297,7 +371,7 @@ function runDraft(players, heroSlot, seed, field = "consensus") {
       }
       if (!choice) continue;
       taken.add(choice.player_id);
-      rosters[slot].push(choice);
+      rosters[slot].push(Object.assign({}, choice, { _round: round, _keeper: false }));
       recent.push(choice.position);
     }
   }
@@ -315,18 +389,30 @@ function runDraft(players, heroSlot, seed, field = "consensus") {
 // people actually draft (the 2026 snapshot lists 235 of 695). The bar is
 // whether the field can fill the draft: TEAMS * ROUNDS picks must come off a
 // market board, or drafters start passing and the hero inherits a board no
-// real opponent left him.
-const MARKET_FLOOR = TEAMS * ROUNDS;
+// real opponent left him. Keepers move both sides of that bar at once: each
+// one removes a pick the field must fill AND removes a player who could have
+// filled it, so the guard stays exactly as tight as it was without them.
+function marketFloor(keepers) {
+  return TEAMS * ROUNDS - (keepers ? keepers.entries.length : 0);
+}
 
-function assertMarketDepth(label, players) {
+function assertMarketDepth(label, players, keepers = null) {
   const withAdp = players.filter(p => Number.isFinite(p.adp)).length;
-  if (withAdp < MARKET_FLOOR) {
+  // Count only keepers who actually carry an ADP -- a kept deep-bench player
+  // was never part of the market supply, so removing him from the count as
+  // well as from the pool would double-charge the guard.
+  const keptWithAdp = keepers
+    ? keepers.entries.filter(k => Number.isFinite(k.player.adp)).length : 0;
+  const draftableWithAdp = withAdp - keptWithAdp;
+  const floor = marketFloor(keepers);
+  if (draftableWithAdp < floor) {
     throw new Error(
-      `${label}: only ${withAdp} players carry a market position (adp), but the `
-      + `field must make ${MARKET_FLOOR} picks. Drafters would run out and start `
-      + `passing, and the result would be meaningless rather than wrong-looking.`);
+      `${label}: only ${draftableWithAdp} draftable players carry a market position `
+      + `(adp), but the field must make ${floor} picks. Drafters would run out and `
+      + `start passing, and the result would be meaningless rather than `
+      + `wrong-looking.`);
   }
-  return withAdp;
+  return draftableWithAdp;
 }
 
 function assertWorldUsable(world, players) {
@@ -401,24 +487,37 @@ function summarize(rows, window) {
 // one you would get drafting straight off the market? Both sides are measured
 // with the same projections, so this can only show internal consistency --
 // never whether the projections are right. Only `--worlds` can show that.
-function dryRun(board, seeds, field = "consensus") {
+function dryRun(board, seeds, field = "consensus", keeperSnapshot = null) {
   const players = O.withValuePoints(board.players)
     .filter(p => Number.isFinite(O.seasonValue(p)));
-  assertMarketDepth(`${board.season} board`, players);
+  const keepers = loadKeepers(keeperSnapshot, players);
+  assertMarketDepth(`${board.season} board`, players, keepers);
   const rows = [];
   for (let seed = 1; seed <= seeds; seed++) {
     for (let slot = 1; slot <= TEAMS; slot++) {
-      const hero = runDraft(players, slot, seed, field)[slot];
-      const market = runDraft(players, 0, seed, field)[slot];
+      const hero = runDraft(players, slot, seed, field, keepers)[slot];
+      const market = runDraft(players, 0, seed, field, keepers)[slot];
       const counts = O.rosterSlots(hero);
+      // Behaviour questions ("when does it take a tight end?") are about what
+      // the tool CHOSE, so they read drafted players only -- a kept TE is not
+      // a decision this draft made. And the round comes off the pick itself,
+      // never from roster position: with picks forfeited to keepers the Nth
+      // player on a roster is no longer the player taken in round N.
+      const drafted = hero.filter(p => !p._keeper);
+      const firstAt = pos => {
+        const hit = drafted.find(p => p.position === pos);
+        return hit ? hit._round : null;
+      };
       rows.push({
         seed, slot,
         shape: `QB${counts.QB} RB${counts.RB} WR${counts.WR} TE${counts.TE}`,
         projected: +O.lineupPoints(hero).toFixed(1),
         market_projected: +O.lineupPoints(market).toFixed(1),
-        firstTeRound: hero.findIndex(p => p.position === "TE") + 1 || null,
-        firstQbRound: hero.findIndex(p => p.position === "QB") + 1 || null,
-        picks: hero.map(p => `${p.position} ${p.name}`),
+        firstTeRound: firstAt("TE"),
+        firstQbRound: firstAt("QB"),
+        kept: hero.filter(p => p._keeper)
+                  .map(p => `R${p._round} ${p.position} ${p.name}`),
+        picks: drafted.map(p => `R${p._round} ${p.position} ${p.name}`),
       });
     }
   }
@@ -442,7 +541,8 @@ function dryRun(board, seeds, field = "consensus") {
 }
 
 function parseArgs(argv) {
-  const a = { worlds: null, board: null, seeds: 8, out: null, noise: null, field: "consensus" };
+  const a = { worlds: null, board: null, seeds: 8, out: null, noise: null,
+              field: "consensus", keepers: null };
   for (let i = 2; i < argv.length; i += 2) {
     const k = argv[i].replace(/^--/, ""), v = argv[i + 1];
     if (k in a) a[k] = (k === "seeds" || k === "noise") ? Number(v) : v;
@@ -457,8 +557,11 @@ function main() {
 
   if (args.board) {
     const board = JSON.parse(fs.readFileSync(args.board, "utf8"));
-    const { rows, summary } = dryRun(board, args.seeds, args.field);
-    console.log(`DRY RUN — ${board.season} board, ${summary.n} simulated drafts`);
+    const keeperSnapshot = args.keepers
+      ? JSON.parse(fs.readFileSync(args.keepers, "utf8")) : null;
+    const { rows, summary } = dryRun(board, args.seeds, args.field, keeperSnapshot);
+    console.log(`DRY RUN — ${board.season} board, ${summary.n} simulated drafts`
+      + (keeperSnapshot ? `, ${keeperSnapshot.keepers.length} keepers held out` : `, NO keepers`));
     console.log(`  (no answer key: this season has not happened. Shows what the tool `
       + `DOES, not whether it is right.)\n`);
     console.log(`  projected lineup   ${summary.projected_mean} pts`);
@@ -477,6 +580,10 @@ function main() {
       season: board.season, data_through: board.data_through,
       method: { teams: TEAMS, rounds: ROUNDS, seeds: args.seeds,
                 field: `market ADP jittered by N(0, ${adpNoise}) ranks`,
+                keepers: keeperSnapshot
+                  ? { source: args.keepers, n: keeperSnapshot.keepers.length,
+                      league: keeperSnapshot.league_name }
+                  : null,
                 note: "projections on both sides — internal consistency only" },
       summary, rows }, null, 1));
     console.log(`\nwrote ${out}`);
@@ -544,6 +651,7 @@ function main() {
 }
 
 module.exports = { runDraft, actualPoints, marketOrder, marketPick, evaluateSeason, dryRun, assertMarketDepth,
+                   loadKeepers, marketFloor,
                    assertWorldUsable,
                    summarize, pickForRoundSlot, futurePicks, rng, ADP_NOISE_RANKS, setNoise,
                    humanPick, measuredPick, sampleRound, bestAt, MEASURED,

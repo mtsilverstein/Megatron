@@ -278,4 +278,161 @@ check("evaluateSeason reports both windows and a same-seat counterfactual", () =
   assert.ok(summary.mean_rank_of_12 >= 1 && summary.mean_rank_of_12 <= 12);
 });
 
+
+// --- keepers -----------------------------------------------------------------
+// A keeper league changes the pool, the rosters AND the pick order. Each of
+// these pins one of those three, because getting any one wrong inflates the
+// simulated field in a way that reads as a bigger edge for our tool.
+function keeperSnap(entries, over = {}) {
+  return Object.assign({ league_id: "L", league_name: "toy", draft_id: "D",
+                         season: 2023, teams: 12, rounds: 15, reversal_round: 0,
+                         keepers: entries }, over);
+}
+const KEEP = (round, slot, player_id) =>
+  ({ round, slot, pick_no: 0, player_id, name: player_id, position: "RB" });
+
+check("no snapshot means no keepers, and nothing else changes", () => {
+  assert.strictEqual(S.loadKeepers(null, toyWorld().players), null);
+});
+
+check("a keeper who is not on the board is refused, not skipped", () => {
+  // Skipping him would leave him draftable while his owner drafts without the
+  // pick he cost -- both errors enlarge the pool, so this must throw.
+  const w = toyWorld();
+  assert.throws(() => S.loadKeepers(keeperSnap([KEEP(8, 10, "nobody")]), w.players),
+                /not on this board/);
+});
+
+check("a snapshot whose draft shape differs from the harness is refused", () => {
+  const w = toyWorld();
+  const one = [KEEP(8, 10, "p5")];
+  assert.throws(() => S.loadKeepers(keeperSnap(one, { rounds: 16 }), w.players),
+                /16-round/);
+  assert.throws(() => S.loadKeepers(keeperSnap(one, { teams: 10 }), w.players),
+                /10 teams/);
+  // Third-round reversal renumbers every pick, so keeper cells would land on
+  // the wrong teams under this harness's plain snake.
+  assert.throws(() => S.loadKeepers(keeperSnap(one, { reversal_round: 3 }), w.players),
+                /reversal_round/);
+});
+
+check("nobody can draft a kept player", () => {
+  const w = toyWorld();
+  const snap = keeperSnap([KEEP(8, 10, "p5"), KEEP(12, 10, "p6"), KEEP(4, 3, "p7")]);
+  const k = S.loadKeepers(snap, w.players);
+  const rosters = S.runDraft(w.players, 6, 1, "consensus", k);
+  const drafted = rosters.slice(1).flat().filter(p => !p._keeper).map(p => p.player_id);
+  for (const id of ["p5", "p6", "p7"]) {
+    assert.ok(!drafted.includes(id), `${id} was kept but someone drafted him`);
+  }
+  assert.strictEqual(new Set(drafted).size, drafted.length, "a player was drafted twice");
+});
+
+check("a keeper costs its team that exact pick, and no other team's", () => {
+  const w = toyWorld();
+  const snap = keeperSnap([KEEP(8, 10, "p5"), KEEP(12, 10, "p6"), KEEP(4, 3, "p7")]);
+  const k = S.loadKeepers(snap, w.players);
+  const rosters = S.runDraft(w.players, 6, 1, "consensus", k);
+  for (let t = 1; t <= 12; t++) {
+    const kept = rosters[t].filter(p => p._keeper).length;
+    const drafted = rosters[t].filter(p => !p._keeper);
+    assert.strictEqual(rosters[t].length, 15,
+      `seat ${t} ended with ${rosters[t].length}, not 15`);
+    assert.strictEqual(drafted.length, 15 - kept,
+      `seat ${t} kept ${kept} but made ${drafted.length} picks`);
+    // the forfeited ROUND is the keeper's own round, not just "one fewer pick"
+    const keptRounds = rosters[t].filter(p => p._keeper).map(p => p._round).sort();
+    const draftedRounds = drafted.map(p => p._round);
+    for (const r of keptRounds) {
+      assert.ok(!draftedRounds.includes(r),
+        `seat ${t} kept a player in round ${r} but also drafted in round ${r}`);
+    }
+  }
+});
+
+check("every drafted player records the round he was actually taken in", () => {
+  // `_round` is what the dry run reports as "first TE round" / "first QB
+  // round". Nothing else checks it, so a constant here would silently make
+  // every timing number in the report wrong while the suite stayed green.
+  const w = toyWorld();
+  const snap = keeperSnap([KEEP(8, 10, "p5"), KEEP(12, 10, "p6"), KEEP(4, 3, "p7")]);
+  const rosters = S.runDraft(w.players, 6, 1, "consensus", S.loadKeepers(snap, w.players));
+  for (let t = 1; t <= 12; t++) {
+    const kept = rosters[t].filter(p => p._keeper).map(p => p._round);
+    const drafted = rosters[t].filter(p => !p._keeper).map(p => p._round)
+      .sort((a, b) => a - b);
+    const expected = [];
+    for (let r = 1; r <= 15; r++) if (!kept.includes(r)) expected.push(r);
+    assert.deepStrictEqual(drafted, expected,
+      `seat ${t} drafted in rounds ${drafted.join(",")}, expected ${expected.join(",")}`);
+  }
+});
+
+check("futurePicks omits a pick already spent on a keeper", () => {
+  const forfeited = new Set(["8:10", "12:10"]);
+  const all = S.futurePicks(1, 10);
+  const left = S.futurePicks(1, 10, forfeited);
+  assert.strictEqual(left.length, all.length - 2);
+  assert.ok(!left.includes(S.pickForRoundSlot(8, 10)), "round 8 pick still offered");
+  assert.ok(!left.includes(S.pickForRoundSlot(12, 10)), "round 12 pick still offered");
+  // another seat's forfeits must not shrink this seat's list
+  assert.deepStrictEqual(S.futurePicks(1, 10, new Set(["8:3"])), all);
+});
+
+check("a keeper is on the roster from pick 1, not merely absent from the pool", () => {
+  // The distinction that matters: the optimizer must SEE its own keepers while
+  // making every pick, or it drafts a position it already has. Holding p6 (QB)
+  // and p5 (TE) -- the two single-starter slots -- must change what it drafts,
+  // compared with a world where those two players simply do not exist.
+  const w = toyWorld();
+  const snap = keeperSnap([KEEP(8, 6, "p6"), KEEP(12, 6, "p5")]);
+  const withKeepers = S.runDraft(w.players, 6, 1, "consensus",
+                                 S.loadKeepers(snap, w.players))[6]
+    .filter(p => !p._keeper).map(p => p.player_id);
+  const merelyAbsent = S.runDraft(w.players.filter(p => !["p5", "p6"].includes(p.player_id)),
+                                  6, 1, "consensus")[6].map(p => p.player_id);
+  assert.notDeepStrictEqual(withKeepers, merelyAbsent,
+    "rostering a keeper made no difference to what the tool drafted");
+});
+
+check("the market-depth floor drops with the picks keepers remove", () => {
+  const w = toyWorld();
+  assert.strictEqual(S.marketFloor(null), 180);
+  // Board where only the first n players carry a market position.
+  const boardWith = n => w.players.map((p, i) =>
+    Object.assign({}, p, { adp: i < n ? i + 1 : NaN }));
+
+  const b180 = boardWith(180), b179 = boardWith(179);
+  const k180 = S.loadKeepers(keeperSnap([KEEP(8, 10, "p5"), KEEP(4, 3, "p7")]), b180);
+  const k179 = S.loadKeepers(keeperSnap([KEEP(8, 10, "p5"), KEEP(4, 3, "p7")]), b179);
+  assert.strictEqual(S.marketFloor(k180), 178);
+
+  // A keeper who carries an ADP removes a pick the field must make AND a
+  // player who could have made it, so the guard is exactly as tight as it was
+  // without keepers: 180 passes either way, 179 fails either way. If the floor
+  // moved without the supply, one of these four would flip.
+  assert.doesNotThrow(() => S.assertMarketDepth("180", b180, k180));
+  assert.doesNotThrow(() => S.assertMarketDepth("180", b180, null));
+  assert.throws(() => S.assertMarketDepth("179", b179, k179), /market position/);
+  assert.throws(() => S.assertMarketDepth("179", b179, null), /market position/);
+
+  // A kept player with NO ADP was never part of the market supply. He removes
+  // a pick without removing anyone's option, so the guard gets looser by
+  // exactly one -- charging him to both sides would double-count him and
+  // reject a board that can in fact fill the draft.
+  const kNoAdp = S.loadKeepers(keeperSnap([KEEP(8, 10, "p200")]), b179);
+  assert.ok(!Number.isFinite(kNoAdp.entries[0].player.adp), "p200 should have no adp");
+  assert.strictEqual(S.marketFloor(kNoAdp), 179);
+  assert.doesNotThrow(() => S.assertMarketDepth("179 + adp-less keeper", b179, kNoAdp));
+});
+
+check("a keeper draft is still reproducible from its seed", () => {
+  const w = toyWorld();
+  const snap = keeperSnap([KEEP(8, 10, "p5"), KEEP(4, 3, "p7")]);
+  const run = () => S.runDraft(w.players, 6, 7, "consensus",
+                               S.loadKeepers(snap, w.players))
+    .slice(1).flat().map(p => p.player_id);
+  assert.deepStrictEqual(run(), run());
+});
+
 console.log(`draft_sim fixture: ${n} groups OK`);
