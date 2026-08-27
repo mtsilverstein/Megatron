@@ -217,19 +217,54 @@ window.DraftMode = (() => {
     setStatus(`draft complete — ${n} picks`);
   }
 
+  /* YOUR picks. `picked_by` is EMPTY on anything the autodrafter took -- 145
+     of the 158 non-keeper picks in a measured mock of this league -- so keying
+     off it silently drops every player the clock took for you. The tool then
+     believes you do not hold him and goes on recommending the slot he already
+     fills, which is the wrong advice at the worst possible moment: you are
+     away from the keyboard, which is why autodraft fired at all.
+
+     Your SEAT is the durable identity. It comes from the draft's own
+     draft_order, and every pick carries draft_slot whether a human or the
+     autodrafter made it. picked_by stays as the fallback for a draft that
+     publishes no order -- some mocks -- where it is the only signal there is.
+
+     Pure and exported so the autodraft case is testable; the render path
+     around it needs a DOM and a live session. */
+  function myPicks(picks, slot, userId) {
+    const list = Array.isArray(picks) ? picks : [];
+    if (Number.isInteger(slot) && slot > 0) {
+      return list.filter(p => p && p.draft_slot === slot);
+    }
+    if (!userId) return [];
+    return list.filter(p => p && p.picked_by === userId);
+  }
+
+  /* Everything the panel needs about who holds what, from the pick log alone.
+     Pure for the same reason planFromPicks is: applyPicks writes to the DOM,
+     so anything left inside it is unreachable from a test -- and that is
+     exactly where the picked_by bug sat, unnoticed. */
+  function rosterStateFromPicks(picks, slot, userId) {
+    const list = Array.isArray(picks) ? picks : [];
+    const mine = myPicks(list, slot, userId);
+    const counts = { QB: 0, RB: 0, WR: 0, TE: 0, other: 0 };
+    for (const p of mine) {
+      const pos = p.metadata && p.metadata.position;
+      if (counts[pos] !== undefined) counts[pos]++; else counts.other++;
+    }
+    return { drafted: new Set(list.map(p => String(p.player_id))),
+             mine: new Set(mine.map(p => String(p.player_id))),
+             counts, myPickCount: mine.length };
+  }
+
   function applyPicks(picks) {
     lastPickCount = picks.length;
-    state.drafted = new Set(picks.map(p => String(p.player_id)));
-    state.mine = new Set(picks.filter(p => session.userId && p.picked_by === session.userId)
-                              .map(p => String(p.player_id)));
+    const rs = rosterStateFromPicks(picks, mySeat(picks).slot, session.userId);
+    state.drafted = rs.drafted;
+    state.mine = rs.mine;
     cfg.els.picksCount.textContent = `${picks.length} picks in`;
     if (session.userId) {
-      const counts = { QB: 0, RB: 0, WR: 0, TE: 0, other: 0 };
-      for (const p of picks) {
-        if (p.picked_by !== session.userId) continue;
-        const pos = p.metadata && p.metadata.position;
-        if (counts[pos] !== undefined) counts[pos]++; else counts.other++;
-      }
+      const counts = rs.counts;
       cfg.els.roster.hidden = false;
       // Counts say what you hold; the panel's picks say what a player would
       // fill. Neither says what is still EMPTY, which is the thing you act on.
@@ -259,10 +294,10 @@ window.DraftMode = (() => {
     return rows;
   }
 
-  function haveLateSlot(picks, position) {
+  function haveLateSlot(picks, position, slot) {
     if (!session || !session.userId) return false;
-    return picks.some(p => p.picked_by === session.userId
-      && p.metadata && p.metadata.position === position);
+    return myPicks(picks, slot, session.userId)
+      .some(p => p.metadata && p.metadata.position === position);
   }
 
   function updateAids(picks) {
@@ -422,11 +457,11 @@ window.DraftMode = (() => {
 
   function renderLateSlots(picks, l) {
     if (!l || !session || !session.rounds) return;
-    const myPickCount = session.userId
-      ? picks.filter(p => p.picked_by === session.userId).length : 0;
+    const slot = mySeat(picks).slot;
+    const myPickCount = session.userId ? myPicks(picks, slot, session.userId).length : 0;
     const roundsLeft = session.rounds - myPickCount;
-    const haveK = haveLateSlot(picks, "K");
-    const haveDst = haveLateSlot(picks, "DEF");
+    const haveK = haveLateSlot(picks, "K", slot);
+    const haveDst = haveLateSlot(picks, "DEF", slot);
     if (!window.Optimizer.lateSlotTrigger(roundsLeft, haveK, haveDst)) return;
     const late = cfg.board.late_slots || { K: [], DST: [] };
     const need = [!haveK ? "K" : null, !haveDst ? "D/ST" : null].filter(Boolean);
@@ -606,6 +641,7 @@ window.DraftMode = (() => {
   }
 
   return { init, disable, nextPickNumber, gapToNextPick, seatFromPicks,
-           pickCursor, usedPickNumbers, openPicksBetween, planFromPicks,
+           pickCursor, usedPickNumbers, openPicksBetween, planFromPicks, myPicks,
+           rosterStateFromPicks,
            shortlistBlocker, syncLabel };
 })();

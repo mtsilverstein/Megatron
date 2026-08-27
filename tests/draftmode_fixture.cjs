@@ -211,4 +211,58 @@ assert.strictEqual(plain.future.length, 14);
 // Past your last pick there is nothing to plan.
 assert.strictEqual(D.planFromPicks(made(180), SEAT10, "snake"), null);
 
+// --- whose pick is it -------------------------------------------------------
+// An autodrafted pick carries NO picked_by. In a measured mock of this league
+// 145 of the 158 non-keeper picks looked like this, so a roster keyed off
+// picked_by loses every player the clock took while you were away -- and then
+// the shortlist recommends the slot that player already fills.
+const AUTO = { draft_slot: 10, player_id: "a", picked_by: null,
+               metadata: { position: "RB" } };
+const BYHAND = { draft_slot: 10, player_id: "b", picked_by: "u1",
+                 metadata: { position: "WR" } };
+const KEEP10 = { draft_slot: 10, player_id: "c", picked_by: "u1", is_keeper: true,
+                 metadata: { position: "TE" } };
+const OTHER = { draft_slot: 3, player_id: "d", picked_by: "u2",
+                metadata: { position: "QB" } };
+const OTHERAUTO = { draft_slot: 3, player_id: "e", picked_by: null,
+                    metadata: { position: "QB" } };
+const MINE_LOG = [AUTO, BYHAND, KEEP10, OTHER, OTHERAUTO];
+
+// With the seat known, an autodrafted pick is still yours.
+assert.deepStrictEqual(D.myPicks(MINE_LOG, 10, "u1").map(p => p.player_id),
+                       ["a", "b", "c"], "autodrafted pick was not counted as yours");
+// ...and another seat is never yours, however it was picked.
+assert.ok(!D.myPicks(MINE_LOG, 10, "u1").some(p => p.draft_slot !== 10));
+assert.deepStrictEqual(D.myPicks(MINE_LOG, 3, "u1").map(p => p.player_id), ["d", "e"],
+                       "seat wins over picked_by");
+// Without a seat there is only picked_by, which is why it stays the fallback.
+assert.deepStrictEqual(D.myPicks(MINE_LOG, null, "u1").map(p => p.player_id), ["b", "c"]);
+assert.deepStrictEqual(D.myPicks(MINE_LOG, null, "u2").map(p => p.player_id), ["d"]);
+// Neither seat nor user: nothing is knowably yours.
+assert.deepStrictEqual(D.myPicks(MINE_LOG, null, null), []);
+assert.deepStrictEqual(D.myPicks(null, 10, "u1"), []);
+// Slot 0 / negative is not a seat and must not match a falsy draft_slot.
+assert.deepStrictEqual(D.myPicks(MINE_LOG, 0, "u1").map(p => p.player_id), ["b", "c"]);
+
+// rosterStateFromPicks: what the panel shows. An autodrafted pick must land
+// in BOTH the "mine" set the optimizer reads and the roster counts on screen,
+// or the tool advises you to fill a slot the clock already filled for you.
+const rsAuto = D.rosterStateFromPicks(MINE_LOG, 10, "u1");
+assert.deepStrictEqual([...rsAuto.mine].sort(), ["a", "b", "c"]);
+assert.strictEqual(rsAuto.counts.RB, 1, "autodrafted RB missing from the roster count");
+assert.strictEqual(rsAuto.counts.WR, 1);
+assert.strictEqual(rsAuto.counts.TE, 1, "a keeper is on your roster too");
+assert.strictEqual(rsAuto.counts.QB, 0, "another seat's QB was counted as yours");
+assert.strictEqual(rsAuto.myPickCount, 3);
+// Every pick in the log is struck from the board, whoever made it.
+assert.strictEqual(rsAuto.drafted.size, 5);
+// A position the board does not model falls to "other" rather than vanishing.
+const rsK = D.rosterStateFromPicks(
+  [{ draft_slot: 10, player_id: "k", metadata: { position: "K" } }], 10, "u1");
+assert.strictEqual(rsK.counts.other, 1);
+// Without a seat it degrades to picked_by, not to everything.
+assert.deepStrictEqual([...D.rosterStateFromPicks(MINE_LOG, null, "u1").mine].sort(),
+                       ["b", "c"]);
+assert.deepStrictEqual([...D.rosterStateFromPicks(null, 10, "u1").mine], []);
+
 console.log("draftmode_fixture: OK");
