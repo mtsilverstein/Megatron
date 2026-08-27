@@ -1,6 +1,6 @@
 // tools/pull_keepers.cjs — snapshot a Sleeper keeper league's locked keepers.
 //
-//   node tools/pull_keepers.cjs --league 1376245373244301312 \
+//   node tools/pull_keepers.cjs --league <your_league_id> \
 //        --board site/data/draft.json --out data_snapshots/keepers_2026-08-27.json
 //
 // WHY THIS EXISTS. tools/draft_sim.cjs drafts from an empty roster against the

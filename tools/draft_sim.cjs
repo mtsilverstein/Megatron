@@ -580,9 +580,10 @@ function main() {
       season: board.season, data_through: board.data_through,
       method: { teams: TEAMS, rounds: ROUNDS, seeds: args.seeds,
                 field: `market ADP jittered by N(0, ${adpNoise}) ranks`,
+                // Deliberately NOT the league name: this report is
+                // committed, and the snapshot it names is not.
                 keepers: keeperSnapshot
-                  ? { source: args.keepers, n: keeperSnapshot.keepers.length,
-                      league: keeperSnapshot.league_name }
+                  ? { source: args.keepers, n: keeperSnapshot.keepers.length }
                   : null,
                 note: "projections on both sides — internal consistency only" },
       summary, rows }, null, 1));

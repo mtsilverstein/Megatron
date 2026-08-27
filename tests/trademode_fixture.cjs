@@ -224,12 +224,12 @@ acheck("team names come from the team name, then the display name, then the id",
   const b = board();
   const rosters = teamsOf([1, 2, 3], [[], [], []]);
   const users = [
-    { user_id: "u1", display_name: "andy", metadata: { team_name: "Gabagool Fools" } },
+    { user_id: "u1", display_name: "andy", metadata: { team_name: "The Team Name" } },
     { user_id: "u2", display_name: "beth", metadata: {} },
   ];
   const w = await TM.leagueWorld(league({ rosters, users }), b);
   assert.deepStrictEqual(w.teams.map(t => t.name),
-    ["Gabagool Fools", "beth", "Roster 3"]);
+    ["The Team Name", "beth", "Roster 3"]);
 });
 
 // --- keptElsewhere ----------------------------------------------------------
