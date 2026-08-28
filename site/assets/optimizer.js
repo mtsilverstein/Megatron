@@ -282,6 +282,25 @@
   // Who the field takes over the next `n` picks. The market drafts the market:
   // ADP order, not our board. Players with no ADP are not drafted here -- they
   // are the undrafted depth tail, and treating them as safe is correct.
+  /* SELECTIONS between two pick numbers -- not the distance between them.
+     In a keeper league those differ: this league pre-consumes 22 pick slots,
+     so between pick 130 and pick 154 the raw distance is 23 but only 14
+     drafters actually choose. Everything downstream that asks "who is gone by
+     my next turn" was using the distance, and so believed 9 extra players
+     came off the board in that one gap alone -- 22 phantom selections across
+     the draft. That made the pool look scarcer than it is, which pulls picks
+     earlier than they need to be.
+
+     `used` is the set of pick NUMBERS already consumed (keepers, and picks
+     already made). Without it this is the old arithmetic exactly, so a draft
+     with no keepers is unaffected. */
+  function openPicksBetween(fromPick, toPick, used) {
+    if (!used || !used.size) return toPick - fromPick - 1;
+    let k = 0;
+    for (let p = fromPick + 1; p < toPick; p++) if (!used.has(p)) k++;
+    return k;
+  }
+
   function fieldTakes(pool, n) {
     if (n <= 0) return [];
     return (pool || []).filter(p => Number.isFinite(p.adp))
@@ -291,13 +310,14 @@
   // Play the rest of your draft out: at each of your remaining picks, take
   // whoever most improves your startable lineup, with the field taking the
   // market's best available in between.
-  function finishRoster(roster, pool, futurePicks, fromPick) {
+  function finishRoster(roster, pool, futurePicks, fromPick, used) {
     let current = (roster || []).slice();
     let available = (pool || []).slice()
       .sort((a, b) => (seasonValue(b) || 0) - (seasonValue(a) || 0));
     let prev = fromPick;
     for (const pick of (futurePicks || []).slice(0, ROLLOUT_PICKS)) {
-      const gone = new Set(fieldTakes(available, pick - prev - 1).map(p => p.player_id));
+      const gone = new Set(
+        fieldTakes(available, openPicksBetween(prev, pick, used)).map(p => p.player_id));
       available = available.filter(p => !gone.has(p.player_id));
       // Gain is measured with THE OBJECTIVE, not a cheaper proxy. Scoring the
       // rollout on bye-blind season totals made every pick past a full lineup
@@ -387,11 +407,12 @@
   // "should I wait?" answer in the form the question is actually asked: not a
   // cliff score, but the name of the player you would settle for. Returns null
   // when you have no pick left, or when the position is picked clean.
-  function nextAtPosition(player, pool, futurePicks, pickNo) {
+  function nextAtPosition(player, pool, futurePicks, pickNo, used) {
     const next = (futurePicks || [])[0];
     if (!Number.isFinite(next)) return null;
     const rest = (pool || []).filter(p => p !== player);
-    const gone = new Set(fieldTakes(rest, next - pickNo - 1).map(p => p.player_id));
+    const gone = new Set(fieldTakes(rest, openPicksBetween(pickNo, next, used))
+      .map(p => p.player_id));
     return rest.filter(p => !gone.has(p.player_id) && p.position === player.position)
       .sort((a, b) => seasonValue(b) - seasonValue(a))[0] || null;
   }
@@ -402,10 +423,10 @@
      stays IN the pool being tested, which is the whole point: we are asking
      whether the field takes HIM. With no next pick there is nothing to wait
      for, so everyone counts as surviving and the tiebreak below goes quiet. */
-  function survivesToNextPick(player, pool, futurePicks, pickNo) {
+  function survivesToNextPick(player, pool, futurePicks, pickNo, used) {
     const next = (futurePicks || [])[0];
     if (!Number.isFinite(next)) return true;
-    const gone = fieldTakes(pool || [], next - pickNo - 1);
+    const gone = fieldTakes(pool || [], openPicksBetween(pickNo, next, used));
     return !gone.some(p => p.player_id === player.player_id);
   }
 
@@ -463,10 +484,14 @@
       p => POSITIONS.includes(p.position) && Number.isFinite(seasonValue(p)));
     const mine = ctx.myPlayers || [];
     const future = ctx.futurePicks || [];
+    // Pick numbers already spent (keepers, picks made). Optional: without it
+    // every helper below falls back to raw pick distance, which is correct
+    // for a draft with no keepers and wrong for one with them.
+    const used = ctx.usedPicks || null;
     const ranked = pool.slice().sort((a, b) => seasonValue(b) - seasonValue(a));
     const scored = topCandidates(ranked, CANDIDATE_PER_POS).map(player => {
       const rest = ranked.filter(p => p !== player);
-      const finished = finishRoster(mine.concat([player]), rest, future, ctx.pickNo);
+      const finished = finishRoster(mine.concat([player]), rest, future, ctx.pickNo, used);
       return { player, points: lineupPoints(finished), roster: finished };
     });
     // Ties are real and they are common late: once your lineup is full and the
@@ -493,7 +518,7 @@
     // never going to take. Among equals, take the one you cannot get later;
     // VORP still decides within each group, so position-neutrality is intact.
     const survives = new Map(scored.map(e =>
-      [e.player, survivesToNextPick(e.player, pool, future, ctx.pickNo) ? 1 : 0]));
+      [e.player, survivesToNextPick(e.player, pool, future, ctx.pickNo, used) ? 1 : 0]));
     const safe = e => survives.get(e.player);
     scored.sort((a, b) => (grade(b) - grade(a))
                        || (over(a) - over(b))
@@ -504,7 +529,7 @@
     // dropped the runner-up off the list.
     const top = scored.length ? scored[0].points : 0;
     return shortlistSpread(scored, SHORTLIST_N, SHORTLIST_PER_POS).map(entry => {
-      const nextBest = nextAtPosition(entry.player, ranked, future, ctx.pickNo);
+      const nextBest = nextAtPosition(entry.player, ranked, future, ctx.pickNo, used);
       // What waiting costs, measured THE SAME WAY as `cost`: finish the draft
       // with his positional survivor in his place and compare projected
       // lineups. The obvious shortcut -- subtracting the two players' season
@@ -516,7 +541,7 @@
       // the shortlist now goes through the lineup objective.
       const alt = nextBest
         ? finishRoster(mine.concat([nextBest]), ranked.filter(p => p !== nextBest),
-                       future, ctx.pickNo)
+                       future, ctx.pickNo, used)
         : null;
       return {
         player: entry.player,
@@ -526,7 +551,7 @@
         nextBest,
         waitCost: alt ? entry.points - lineupPoints(alt) : null,
         adpDelta: adpDelta(entry.player, ctx.pickNo),
-        survivesToNext: survivesToNextPick(entry.player, pool, future, ctx.pickNo),
+        survivesToNext: survivesToNextPick(entry.player, pool, future, ctx.pickNo, used),
         byeClash: byeClash(entry.player, mine),
         roster: entry.roster,
       };
@@ -557,7 +582,7 @@
   return { seasonValue, withValuePoints, perWeek, rosterSlots, openSlot,
            bestLineup, lineupTotal, lineupPoints, fieldTakes, finishRoster,
            openSlots, lineupRole, adpDelta, byeClash, nextAtPosition, recommend,
-           survivesToNextPick,
+           survivesToNextPick, openPicksBetween,
            parVorp, shortlistSpread, SHORTLIST_PER_POS,
            valueLens, VALUE_LENS_ORDER,
            lateSlotTrigger,

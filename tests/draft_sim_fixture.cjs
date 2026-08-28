@@ -435,4 +435,23 @@ check("a keeper draft is still reproducible from its seed", () => {
   assert.deepStrictEqual(run(), run());
 });
 
+check("keeper cells are handed to the optimizer as pick NUMBERS", () => {
+  // forfeited is keyed "round:slot" for the draft loop; the optimizer works in
+  // overall pick numbers. Without the translation it counts every keeper cell
+  // in the league as a live selection between the hero's turns and believes
+  // the board empties faster than this simulation actually empties it.
+  const w = toyWorld();
+  const snap = keeperSnap([KEEP(4, 9, "p5"), KEEP(8, 10, "p6")]);
+  const k = S.loadKeepers(snap, w.players);
+  // 12-team snake: R4 slot 9 is pick 40, R8 slot 10 is pick 87.
+  assert.deepStrictEqual([...k.usedPicks].sort((a, b) => a - b), [40, 87]);
+  for (const e of k.entries) {
+    assert.ok(k.usedPicks.has(S.pickForRoundSlot(e.round, e.slot)));
+  }
+  assert.strictEqual(k.usedPicks.size, k.entries.length);
+});
+
+check("no keepers means no used-pick set to thread", () => {
+  assert.strictEqual(S.loadKeepers(null, toyWorld().players), null);
+});
 console.log(`draft_sim fixture: ${n} groups OK`);

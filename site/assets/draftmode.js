@@ -330,6 +330,10 @@ window.DraftMode = (() => {
     const shortlist = window.Optimizer.recommend({
       available, myPlayers: mine, pickNo: next,
       futurePicks: plan.future,
+      // Without this the model counts every keeper slot between your turns as
+      // a live selection -- 22 phantom picks in this league -- and believes
+      // the board empties faster than it does.
+      usedPicks: plan.used,
     });
     if (!shortlist.length) {
       showBlocked(v, "Every player this board projects is gone — you're into "
@@ -598,13 +602,11 @@ window.DraftMode = (() => {
   }
 
   // Selections that still have to happen between the pick on the clock and
-  // yours. Pick numbers already spent on a keeper are skipped: nobody chooses
-  // there, so counting them would overstate how long you have to wait.
-  function openPicksBetween(from, to, used) {
-    let k = 0;
-    for (let p = from + 1; p < to; p++) if (!(used && used.has(p))) k++;
-    return k;
-  }
+  // yours. Lives in optimizer.js because the model asks the same question
+  // when it works out who survives to your next turn; two implementations
+  // could drift apart and the panel would then contradict the shortlist.
+  const openPicksBetween = (from, to, used) =>
+    window.Optimizer.openPicksBetween(from, to, used);
 
   /* `used` also has to gate the SEARCH, not just the count. Your own keepers
      occupy picks you no longer own -- slot 10 keeps at #87 and #135 -- and
@@ -677,7 +679,7 @@ window.DraftMode = (() => {
   }
 
   return { init, disable, nextPickNumber, gapToNextPick, seatFromPicks,
-           pickCursor, usedPickNumbers, openPicksBetween, planFromPicks, myPicks,
+           pickCursor, usedPickNumbers, planFromPicks, myPicks,
            lateSlotNeed,
            rosterStateFromPicks,
            shortlistBlocker, syncLabel };

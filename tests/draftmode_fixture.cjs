@@ -7,6 +7,7 @@ global.document = { addEventListener() {}, getElementById: () => null,
                     querySelector: () => null, hidden: false };
 global.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 global.window.Optimizer = require("../site/assets/optimizer.js");
+const O = global.window.Optimizer;
 require("../site/assets/draftmode.js");
 const D = global.window.DraftMode;
 
@@ -139,9 +140,9 @@ assert.strictEqual(D.nextPickNumber(10, 12, 15, 0, 0,
 
 // openPicksBetween counts SELECTIONS, not pick numbers: a keeper slot in the
 // gap needs nobody to act, so counting it would overstate the wait.
-assert.strictEqual(D.openPicksBetween(0, 10, new Set()), 9);
-assert.strictEqual(D.openPicksBetween(0, 10, new Set([3, 7])), 7);
-assert.strictEqual(D.openPicksBetween(5, 6, new Set()), 0);   // adjacent picks
+assert.strictEqual(O.openPicksBetween(0, 10, new Set()), 9);
+assert.strictEqual(O.openPicksBetween(0, 10, new Set([3, 7])), 7);
+assert.strictEqual(O.openPicksBetween(5, 6, new Set()), 0);   // adjacent picks
 
 // gapToNextPick honours the same set. Seat 10 on the clock at #82: its next
 // own pick is #106, because #87 is its own keeper and gets skipped. Picks

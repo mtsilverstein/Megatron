@@ -307,7 +307,12 @@ function loadKeepers(snapshot, players) {
       + `(${missing.map(m => m.name || m.player_id).join(", ")}). Each would stay `
       + `draftable here while its owner drafts without the pick it cost.`);
   }
-  return { entries, forfeited };
+  // The same forfeits as PICK NUMBERS. The optimizer needs them to work out
+  // how many selections really happen between the hero's turns -- without
+  // this it counts every keeper cell in the league as a live pick and
+  // believes the board empties faster than this simulation empties it.
+  const usedPicks = new Set(entries.map(k => pickForRoundSlot(k.round, k.slot)));
+  return { entries, forfeited, usedPicks };
 }
 
 // --- one draft -----------------------------------------------------------
@@ -356,6 +361,7 @@ function runDraft(players, heroSlot, seed, field = "consensus", keepers = null) 
         const rec = O.recommend({
           available, myPlayers: rosters[slot], pickNo,
           futurePicks: futurePicks(round, slot, forfeited),
+          usedPicks: keepers ? keepers.usedPicks : null,
         });
         choice = rec.length ? rec[0].player
                             : marketPick(orders[slot - 1], taken, rosters[slot]);

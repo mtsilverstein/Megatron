@@ -433,6 +433,82 @@ check("scarcity never overrides a real lineup gain", () => {
   assert.strictEqual(out[0].player.name, "realStarter",
     "scarcity outranked a real lineup gain");
 });
+// --- the keeper pick horizon -----------------------------------------------------
+// A keeper league pre-consumes pick slots, so the DISTANCE between two of your
+// turns is not the number of selections that happen in between. Everything that
+// asks "who is gone by my next pick" used the distance. In this league that is
+// 22 phantom selections across the draft -- 9 in the gap from #130 to #154
+// alone -- which makes the pool look scarcer than it is and pulls picks early.
+
+check("openPicksBetween counts selections, not distance", () => {
+  assert.strictEqual(O.openPicksBetween(10, 20, null), 9);
+  assert.strictEqual(O.openPicksBetween(10, 20, new Set()), 9,
+    "an empty used-set must behave exactly like no keepers at all");
+  assert.strictEqual(O.openPicksBetween(10, 20, new Set([12, 14, 16])), 6);
+  // Only the numbers strictly between the two picks count.
+  assert.strictEqual(O.openPicksBetween(10, 20, new Set([10, 20])), 9);
+  assert.strictEqual(O.openPicksBetween(10, 11, new Set()), 0);
+});
+
+// 20 players across the four positions, ADP 1..20, so "the field takes n" is
+// exactly "ADP 1..n" and the shortlist spans several positions.
+const HPOS = ["RB", "WR", "TE", "QB"];
+const horizonPool = () => Array.from({ length: 20 }, (_, i) =>
+  P("a" + (i + 1), HPOS[i % 4], 100 - i, { vorp: 100 - i, adp: i + 1 }));
+// Seven of the nine slots between pick 10 and pick 20 are keepers, so only
+// two selections actually happen.
+const HKEPT = new Set([12, 13, 14, 15, 16, 17, 18]);
+
+check("survival is judged on real selections, not the pick gap", () => {
+  const pool = horizonPool();
+  const at3 = pool.find(p => p.adp === 3);
+  // Distance 9 -> the field reaches ADP 9, so he is long gone.
+  assert.strictEqual(O.survivesToNextPick(at3, pool, [20], 10), false);
+  // Really only 2 selections happen, so he is still there.
+  assert.strictEqual(O.survivesToNextPick(at3, pool, [20], 10, HKEPT), true);
+});
+
+check("the wait answer is judged the same way", () => {
+  const pool = horizonPool();
+  const mine = pool.find(p => p.adp === 1);
+  const raw = O.nextAtPosition(mine, pool, [20], 10);
+  const kept = O.nextAtPosition(mine, pool, [20], 10, HKEPT);
+  assert.ok(raw && kept);
+  // Fewer selections means a better man is still there when you come back.
+  assert.ok(O.seasonValue(kept) > O.seasonValue(raw),
+    "keeper slots were counted as live picks in the wait answer");
+});
+
+check("the rollout does not draft players nobody selected", () => {
+  const pool = horizonPool();
+  const raw  = O.finishRoster([], pool, [20], 10);
+  const kept = O.finishRoster([], pool, [20], 10, HKEPT);
+  // You make the same number of picks either way; what changes is WHO is left
+  // for them. Blind, the rollout believes ADP 1-9 are gone and settles for
+  // a10; knowing only two selections happen, it takes a3. A >= here would
+  // have passed on equality and let the whole fix be reverted unnoticed.
+  assert.strictEqual(raw.length, kept.length);
+  assert.deepStrictEqual(raw.map(p => p.name), ["a10"]);
+  assert.deepStrictEqual(kept.map(p => p.name), ["a3"]);
+  assert.ok(O.lineupPoints(kept) > O.lineupPoints(raw));
+});
+
+check("recommend threads usedPicks through to the field model", () => {
+  const pool = horizonPool();
+  const blind = O.recommend({ available: pool, myPlayers: [], pickNo: 10,
+                              futurePicks: [20] });
+  const aware = O.recommend({ available: pool, myPlayers: [], pickNo: 10,
+                              futurePicks: [20], usedPicks: HKEPT });
+  const survivors = out => out.filter(r => r.survivesToNext).length;
+  assert.strictEqual(survivors(blind), 0, "nine phantom picks bury everyone");
+  assert.ok(survivors(aware) > 0,
+    "usedPicks never reached the field model");
+  // An empty set must leave a keeper-free draft byte-for-byte as it was.
+  const empty = O.recommend({ available: pool, myPlayers: [], pickNo: 10,
+                              futurePicks: [20], usedPicks: new Set() });
+  assert.deepStrictEqual(empty.map(r => `${r.player.name}:${r.survivesToNext}`),
+                         blind.map(r => `${r.player.name}:${r.survivesToNext}`));
+});
 // --- lateSlotTrigger -------------------------------------------------------------
 // The window scales with how many mandatory slots are still empty. It used to be
 // a flat two rounds, which meant two empty starting slots got a warning with
