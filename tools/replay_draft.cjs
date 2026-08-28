@@ -35,6 +35,14 @@ if (typeof global.localStorage === "undefined") {
 }
 const SITE = path.join(__dirname, "..", "site", "assets");
 const O = require(path.join(SITE, "optimizer.js"));
+// Wire it onto the shim EXPLICITLY rather than trusting optimizer.js's own
+// UMD side effect. That side effect runs once, at first require: anything
+// that loaded optimizer.js before the `window` above existed leaves
+// window.Optimizer undefined, and require's cache means loading it again
+// here does not set it. draftmode.js's openPicksBetween now delegates
+// through window.Optimizer, so the miss surfaces as a TypeError inside
+// planFromPicks -- on the first pick of the replay, not at load.
+global.window.Optimizer = O;
 require(path.join(SITE, "draftmode.js"));
 const DM = global.window.DraftMode;
 
@@ -80,6 +88,12 @@ function replaySeat({ players, picks, slot, teams, rounds, reversalRound = 0,
     const shortlist = O.recommend({
       available, myPlayers: held, pickNo: pk.pick_no,
       futurePicks: plan ? plan.future : [],
+      // The pick NUMBERS between your turns are not all selections: keepers
+      // sit on 22 of them in this league. Without `usedPicks` the replay
+      // reasons over the phantom horizon the browser was fixed to stop
+      // using, so it would grade the shipped tool against arithmetic the
+      // shipped tool no longer does.
+      usedPicks: plan ? plan.used : null,
     });
     const took = look(pk);
     const top = shortlist.length ? shortlist[0].player : null;

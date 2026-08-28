@@ -189,6 +189,73 @@ check("a pick made at an impossible number voids the replay", () => {
   assert.strictEqual(R.summarize(rows).pick_math_matches_reality, false);
 });
 
+// --- the horizon handed to the optimizer -------------------------------------
+
+check("the optimizer is told which picks the keepers already spent", () => {
+  // The replay grades the SHIPPED tool, so it has to ask the shipped tool the
+  // question the browser asks. Pick NUMBERS between two turns are not all
+  // selections -- keepers sit on 22 of them in the real league -- and a
+  // replay reasoning over the phantom horizon would report agreement figures
+  // for arithmetic the browser no longer does.
+  const keepers = [{ round: 4, slot: 9, sleeper_id: 1 },
+                   { round: 3, slot: 2, sleeper_id: 2 }];
+  const log = toyLog(keepers);
+  const real = O.recommend;
+  const seen = [];
+  O.recommend = ctx => { seen.push(ctx); return real(ctx); };
+  try { replay(log, 1); } finally { O.recommend = real; }
+
+  assert.ok(seen.length > 0, "the optimizer was never called");
+  const spent = new Set(keepers.map(k => pickNo(k.round, k.slot)));
+  for (const ctx of seen) {
+    assert.ok(ctx.usedPicks instanceof Set,
+              "recommend got no usedPicks, so it counted keeper slots as picks");
+    for (const p of spent) {
+      assert.ok(ctx.usedPicks.has(p), `keeper pick #${p} was not marked spent`);
+    }
+  }
+});
+
+check("a keeper slot is not counted as a selection before your next pick", () => {
+  // The arithmetic the line above exists to fix, asserted on its own terms:
+  // between two of this seat's turns the replay must count open picks, not
+  // the raw distance.
+  const keepers = [{ round: 2, slot: 5, sleeper_id: 3 },
+                   { round: 2, slot: 6, sleeper_id: 4 }];
+  const log = toyLog(keepers);
+  const real = O.recommend;
+  let first = null;
+  O.recommend = ctx => { if (!first) first = ctx; return real(ctx); };
+  try { replay(log, 1); } finally { O.recommend = real; }
+
+  const next = first.futurePicks[0];
+  const raw = next - first.pickNo - 1;
+  const open = O.openPicksBetween(first.pickNo, next, first.usedPicks);
+  assert.strictEqual(raw, 22);
+  assert.strictEqual(open, 20, "the two keeper slots were counted as selections");
+});
+
+check("loading the optimizer before the replay does not break the replay", () => {
+  // P3. optimizer.js publishes window.Optimizer as a load-time side effect,
+  // and require() runs that side effect exactly once. A process that loads
+  // the optimizer before replay_draft.cjs creates its `window` shim leaves
+  // window.Optimizer undefined forever -- and draftmode's openPicksBetween
+  // delegates through it, so planFromPicks throws on the replay's first
+  // pick. Only a fresh process can reproduce that ordering.
+  const { execFileSync } = require("child_process");
+  const path = require("path");
+  const root = path.join(__dirname, "..");
+  const script = [
+    "require(" + JSON.stringify(path.join(root, "site/assets/optimizer.js")) + ");",
+    "require(" + JSON.stringify(path.join(root, "tools/replay_draft.cjs")) + ");",
+    "const w = global.window.Optimizer;",
+    "if (!w || typeof w.openPicksBetween !== 'function') {",
+    "  throw new Error('window.Optimizer was not wired for draftmode.js');",
+    "}",
+  ].join(" ");
+  execFileSync(process.execPath, ["-e", script], { stdio: "pipe" });
+});
+
 // --- summarize ---------------------------------------------------------------
 
 check("summarize counts agreement and the value forgone", () => {
