@@ -330,6 +330,16 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 .draft-blocked { margin: 0; padding: .5rem .6rem; border-left: 2px solid var(--te);
   background: rgba(255, 255, 255, .03); font: 500 .78rem/1.5 "IBM Plex Mono", monospace;
   color: var(--chalk-dim); }
+/* The one thing the shortlist below it CANNOT tell you. It sits above the
+   recommendations rather than beside them because the workflow is "read the
+   list, take number one" -- a notice off to the side was drafted straight past
+   in two consecutive mocks, both ending with no kicker and no defense. */
+.draft-late-need { margin: 0 0 .6rem; padding: .5rem .6rem;
+  border-left: 2px solid var(--qb); background: rgba(214, 69, 69, .10);
+  font: 500 .78rem/1.5 "IBM Plex Mono", monospace; color: var(--chalk); }
+.draft-late-need strong { color: var(--qb); }
+.draft-late-names { color: var(--chalk-dim); }
+.draft-late-need em { font-style: normal; opacity: .75; }
 .draft-late { margin-top: .4rem; }
 .draft-late em { opacity: .75; }
 

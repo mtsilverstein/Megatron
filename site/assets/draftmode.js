@@ -294,12 +294,6 @@ window.DraftMode = (() => {
     return rows;
   }
 
-  function haveLateSlot(picks, position, slot) {
-    if (!session || !session.userId) return false;
-    return myPicks(picks, slot, session.userId)
-      .some(p => p.metadata && p.metadata.position === position);
-  }
-
   function updateAids(picks) {
     const t = cfg.els.ticker, v = cfg.els.shortlist, l = cfg.els.late;
     if (picks.length) {
@@ -349,7 +343,11 @@ window.DraftMode = (() => {
     // starters are set -- say so rather than dressing a rounding difference up
     // as a recommendation. The order below it is then just best-available.
     const flat = shortlist[shortlist.length - 1].cost < INDIFFERENT_POINTS;
-    v.innerHTML = `<strong>${esc(head)}</strong>`
+    // The K/DST need goes ABOVE the recommendations, not beside them.
+    const lateNeed = lateSlotNeed(picks, seat.slot, session.rounds,
+                                  session.userId, cfg.board.late_slots);
+    v.innerHTML = (lateNeed ? renderLateNeed(lateNeed) : "")
+      + `<strong>${esc(head)}</strong>`
       + `<ol class="draft-shortlist">${shortlist.map(renderPick).join("")}</ol>`
       + (flat
         ? `<p class="draft-basis"><em>These all project the same lineup.</em> Your `
@@ -455,22 +453,60 @@ window.DraftMode = (() => {
     v.hidden = false;
   }
 
+  /* Which mandatory starting slots are still empty with the picks to fill them
+     running out, or null. Pure and exported: this used to live inside the
+     renderer, where it could not be tested, and the banner it produced was
+     drafted straight past in two consecutive mock drafts -- both ending with
+     15 skill players, no kicker and no defense. The board cannot help here by
+     design (it models QB/RB/WR/TE only), so this is the ONLY thing standing
+     between "take the top recommendation every time" and two empty starting
+     slots for the season. */
+  function lateSlotNeed(picks, slot, rounds, userId, lateSlots) {
+    if (!Number.isFinite(rounds) || !window.Optimizer) return null;
+    const mine = myPicks(picks, slot, userId);
+    const has = pos => mine.some(p => p.metadata && p.metadata.position === pos);
+    const haveK = has("K"), haveDst = has("DEF");
+    const roundsLeft = rounds - mine.length;
+    if (!window.Optimizer.lateSlotTrigger(roundsLeft, haveK, haveDst)) return null;
+    const late = lateSlots || {};
+    const names = key => ((late[key] || []).slice(0, 3)
+      .map(r => r && r.name).filter(Boolean));
+    return {
+      need: [!haveK ? "K" : null, !haveDst ? "D/ST" : null].filter(Boolean),
+      roundsLeft,
+      K: haveK ? [] : names("K"),
+      DST: haveDst ? [] : names("DST"),
+    };
+  }
+
+  // The same need, said where it cannot be missed: at the TOP of the shortlist.
+  // A notice beside the list is not enough when the workflow is "read the list,
+  // take number one" -- that is exactly how both mocks ended without a kicker.
+  function renderLateNeed(need) {
+    const lists = [need.K.length ? `K: ${need.K.map(esc).join(" · ")}` : null,
+                   need.DST.length ? `D/ST: ${need.DST.map(esc).join(" · ")}` : null]
+      .filter(Boolean).join(" &nbsp;·&nbsp; ");
+    const slots = need.need.length > 1 ? "slots" : "slot";
+    const picks = need.roundsLeft === 1 ? "pick" : "picks";
+    return `<p class="draft-late-need">⚠ <strong>Draft ${esc(need.need.join(" + "))} `
+      + `now</strong> — ${need.need.length} required starting ${slots} still empty `
+      + `with ${need.roundsLeft} ${picks} left. <strong>The list below cannot `
+      + `suggest them</strong>: this board does not project K or D/ST.`
+      + (lists ? `<br><span class="draft-late-names">${lists} <em>— by ADP, not `
+                 + `projected</em></span>` : "")
+      + `</p>`;
+  }
+
   function renderLateSlots(picks, l) {
     if (!l || !session || !session.rounds) return;
-    const slot = mySeat(picks).slot;
-    const myPickCount = session.userId ? myPicks(picks, slot, session.userId).length : 0;
-    const roundsLeft = session.rounds - myPickCount;
-    const haveK = haveLateSlot(picks, "K", slot);
-    const haveDst = haveLateSlot(picks, "DEF", slot);
-    if (!window.Optimizer.lateSlotTrigger(roundsLeft, haveK, haveDst)) return;
-    const late = cfg.board.late_slots || { K: [], DST: [] };
-    const need = [!haveK ? "K" : null, !haveDst ? "D/ST" : null].filter(Boolean);
-    const names = key => (late[key] || []).slice(0, 3)
-      .map(r => esc(r.name)).join(" · ");
-    const lists = [!haveK && names("K") ? `K: ${names("K")}` : null,
-                   !haveDst && names("DST") ? `D/ST: ${names("DST")}` : null]
+    const need = lateSlotNeed(picks, mySeat(picks).slot, session.rounds,
+                              session.userId, cfg.board.late_slots);
+    if (!need) return;
+    const lists = [need.K.length ? `K: ${need.K.map(esc).join(" · ")}` : null,
+                   need.DST.length ? `D/ST: ${need.DST.map(esc).join(" · ")}` : null]
       .filter(Boolean).join(" | ");
-    l.innerHTML = `⚠ fill ${esc(need.join(" + "))} — ADP says now`
+    l.innerHTML = `⚠ fill ${esc(need.need.join(" + "))} — ${need.roundsLeft} `
+      + `pick${need.roundsLeft === 1 ? "" : "s"} left`
       + (lists ? ` · ${lists} <em>(not projected)</em>` : "");
     l.hidden = false;
   }
@@ -642,6 +678,7 @@ window.DraftMode = (() => {
 
   return { init, disable, nextPickNumber, gapToNextPick, seatFromPicks,
            pickCursor, usedPickNumbers, openPicksBetween, planFromPicks, myPicks,
+           lateSlotNeed,
            rosterStateFromPicks,
            shortlistBlocker, syncLabel };
 })();

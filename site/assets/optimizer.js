@@ -71,7 +71,15 @@
   const SHORTLIST_N = 5;
   const SHORTLIST_PER_POS = 2;   // display spread; see shortlistSpread
   const WEEKS = 18;              // NFL regular season, 2026
-  const LATE_ROUNDS = 2;         // K/DST nudge window, in rounds remaining
+  // Picks of margin beyond the mandatory slots still unfilled. This was a flat
+  // LATE_ROUNDS = 2, which put the warning on screen with exactly two picks
+  // left for two mandatory starting slots -- no slack at all. Since the
+  // shortlist can never contain a kicker or a defense (this board does not
+  // project them), following the shortlist spent those two picks on skill
+  // players and left both slots empty: measured on two mock drafts, 15 skill
+  // players and no K or D/ST either time. The window now scales with what is
+  // actually still missing, so one slot warns later than two.
+  const LATE_SLACK = 2;
 
   // Slot weights. The lookahead does NOT use these -- it scores whole lineups,
   // so a bench player is priced by what he actually contributes. They remain
@@ -388,6 +396,19 @@
       .sort((a, b) => seasonValue(b) - seasonValue(a))[0] || null;
   }
 
+  /* Will he still be there at your NEXT pick, if the field drafts the market?
+     Uses fieldTakes -- the same model finishRoster's rollout uses -- so the
+     shortlist and the rollout cannot disagree about who survives. The player
+     stays IN the pool being tested, which is the whole point: we are asking
+     whether the field takes HIM. With no next pick there is nothing to wait
+     for, so everyone counts as surviving and the tiebreak below goes quiet. */
+  function survivesToNextPick(player, pool, futurePicks, pickNo) {
+    const next = (futurePicks || [])[0];
+    if (!Number.isFinite(next)) return true;
+    const gone = fieldTakes(pool || [], next - pickNo - 1);
+    return !gone.some(p => p.player_id === player.player_id);
+  }
+
   /* Rank the live board.
 
      ctx = { available, myPlayers, pickNo, futurePicks }
@@ -463,8 +484,20 @@
     const held = rosterSlots(mine);
     const grade = e => Math.round(e.points / TIE_POINTS);
     const over = e => (held[e.player.position] >= DEPTH_CAP[e.player.position] ? 1 : 0);
+    // SCARCITY BREAKS TIES BEFORE VALUE DOES. When the objective is indifferent
+    // -- which is most of the late rounds -- the old order fell straight to
+    // VORP and ignored whether a man would still be there next time. On a real
+    // board that recommended Juwan Johnson (ADP 187) at pick 130 over Hunter
+    // Henry (ADP 139) when both projected identically and the wait cost was 0.0
+    // for each: it spent the pick on the one player in the pair the field was
+    // never going to take. Among equals, take the one you cannot get later;
+    // VORP still decides within each group, so position-neutrality is intact.
+    const survives = new Map(scored.map(e =>
+      [e.player, survivesToNextPick(e.player, pool, future, ctx.pickNo) ? 1 : 0]));
+    const safe = e => survives.get(e.player);
     scored.sort((a, b) => (grade(b) - grade(a))
                        || (over(a) - over(b))
+                       || (safe(a) - safe(b))
                        || ((b.player.vorp || 0) - (a.player.vorp || 0)));
     // `top` comes from the full ranking, BEFORE the display spread, so `cost`
     // stays measured against the genuinely best pick even when the spread has
@@ -493,6 +526,7 @@
         nextBest,
         waitCost: alt ? entry.points - lineupPoints(alt) : null,
         adpDelta: adpDelta(entry.player, ctx.pickNo),
+        survivesToNext: survivesToNextPick(entry.player, pool, future, ctx.pickNo),
         byeClash: byeClash(entry.player, mine),
         roster: entry.roster,
       };
@@ -509,19 +543,25 @@
     return row && Number.isFinite(row.vorp) ? Math.max(0, row.vorp) : 0;
   }
 
-  // Remind about K/DST only in the last rounds, and only while a slot is open.
+  // Remind about K/DST while a mandatory slot is open and the picks to fill it
+  // are running out. The window scales with the number of slots still missing:
+  // two empty slots need two picks, so the warning has to arrive with more
+  // room than one empty slot does.
   function lateSlotTrigger(roundsLeft, haveK, haveDst) {
-    if (!Number.isFinite(roundsLeft) || roundsLeft > LATE_ROUNDS) return false;
-    return !haveK || !haveDst;
+    if (!Number.isFinite(roundsLeft)) return false;
+    const needed = (haveK ? 0 : 1) + (haveDst ? 0 : 1);
+    if (needed === 0) return false;
+    return roundsLeft <= needed + LATE_SLACK;
   }
 
   return { seasonValue, withValuePoints, perWeek, rosterSlots, openSlot,
            bestLineup, lineupTotal, lineupPoints, fieldTakes, finishRoster,
            openSlots, lineupRole, adpDelta, byeClash, nextAtPosition, recommend,
+           survivesToNextPick,
            parVorp, shortlistSpread, SHORTLIST_PER_POS,
            valueLens, VALUE_LENS_ORDER,
            lateSlotTrigger,
            DEDICATED, FLEX_SLOTS, FLEX_POS, POSITIONS, SHORTLIST_N, WEEKS,
-           LATE_ROUNDS, CANDIDATE_PER_POS, ROLLOUT_PER_POS, ROLLOUT_PICKS, TIE_POINTS, DEPTH_CAP, topCandidates,
+           LATE_SLACK, CANDIDATE_PER_POS, ROLLOUT_PER_POS, ROLLOUT_PICKS, TIE_POINTS, DEPTH_CAP, topCandidates,
            FLEX_WEIGHT, BENCH_WEIGHT };
 });

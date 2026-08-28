@@ -6,6 +6,7 @@ global.window = {};
 global.document = { addEventListener() {}, getElementById: () => null,
                     querySelector: () => null, hidden: false };
 global.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+global.window.Optimizer = require("../site/assets/optimizer.js");
 require("../site/assets/draftmode.js");
 const D = global.window.DraftMode;
 
@@ -265,4 +266,52 @@ assert.deepStrictEqual([...D.rosterStateFromPicks(MINE_LOG, null, "u1").mine].so
                        ["b", "c"]);
 assert.deepStrictEqual([...D.rosterStateFromPicks(null, 10, "u1").mine], []);
 
+// --- the K/DST slots the board cannot fill ----------------------------------
+// This league starts 1 K and 1 D/ST, and the board models neither, so the
+// shortlist can never suggest them. Two consecutive mock drafts ended with 15
+// skill players and both slots empty -- eight of ten starters, all season.
+const skill = (pos, slot = 10) => ({ draft_slot: slot, player_id: pos + Math.random(),
+                                     metadata: { position: pos } });
+const roster = (n, slot = 10) => Array.from({ length: n }, () => skill("RB", slot));
+const LATE = { K: [{ name: "Brandon Aubrey" }, { name: "Jason Myers" }],
+               DST: [{ name: "Seattle Defense" }] };
+
+// 15-round league. With 11 picks held there are 4 left and both slots open,
+// so the warning is due; with 10 held (5 left) it is not yet.
+assert.ok(D.lateSlotNeed(roster(11), 10, 15, "u1", LATE), "no warning with 4 picks left");
+assert.strictEqual(D.lateSlotNeed(roster(10), 10, 15, "u1", LATE), null);
+
+// It names both slots, counts the picks left, and offers ADP-ranked names.
+const need2 = D.lateSlotNeed(roster(12), 10, 15, "u1", LATE);
+assert.deepStrictEqual(need2.need, ["K", "D/ST"]);
+assert.strictEqual(need2.roundsLeft, 3);
+assert.deepStrictEqual(need2.K, ["Brandon Aubrey", "Jason Myers"]);
+assert.deepStrictEqual(need2.DST, ["Seattle Defense"]);
+
+// A slot already filled drops out, and the names for it stop being offered.
+const withK = roster(11).concat([skill("K")]);
+const need1 = D.lateSlotNeed(withK, 10, 15, "u1", LATE);
+assert.deepStrictEqual(need1.need, ["D/ST"]);
+assert.deepStrictEqual(need1.K, [], "kept nagging about a slot already filled");
+assert.deepStrictEqual(need1.DST, ["Seattle Defense"]);
+
+// Both filled: silence.
+assert.strictEqual(
+  D.lateSlotNeed(roster(11).concat([skill("K"), skill("DEF")]), 10, 15, "u1", LATE), null);
+
+// ANOTHER SEAT'S kicker is not yours. Keying this off the pick log without
+// the seat filter would silence the warning as soon as anyone drafted one.
+const theirs = roster(11).concat([skill("K", 3), skill("DEF", 3)]);
+assert.ok(D.lateSlotNeed(theirs, 10, 15, "u1", LATE), "another seat filled your slots");
+
+// An autodrafted kicker still counts as yours (no picked_by on it).
+const autoK = roster(11).concat([{ draft_slot: 10, player_id: "k",
+                                   picked_by: null, metadata: { position: "K" } }]);
+assert.deepStrictEqual(D.lateSlotNeed(autoK, 10, 15, "u1", LATE).need, ["D/ST"]);
+
+// Degrades rather than throwing when the board carries no late_slots block.
+const bare = D.lateSlotNeed(roster(12), 10, 15, "u1", null);
+assert.deepStrictEqual(bare.need, ["K", "D/ST"]);
+assert.deepStrictEqual(bare.K, []);
+assert.strictEqual(D.lateSlotNeed(roster(12), 10, NaN, "u1", LATE), null);
 console.log("draftmode_fixture: OK");

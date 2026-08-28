@@ -361,12 +361,104 @@ check("when the objective is indifferent, the cap decides", () => {
   assert.strictEqual(out[0].player.name, "wr4");
 });
 
-// --- lateSlotTrigger (unchanged from v1) ----------------------------------------
-check("lateSlotTrigger fires only late, and only with a slot open", () => {
-  assert.strictEqual(O.lateSlotTrigger(2, false, false), true);
-  assert.strictEqual(O.lateSlotTrigger(2, true, true), false);
-  assert.strictEqual(O.lateSlotTrigger(3, false, false), false);
+// --- scarcity breaks ties before value does --------------------------------------
+check("survivesToNextPick asks whether the field takes HIM", () => {
+  // The player under test must stay in the pool being drafted from -- the
+  // question is whether the market reaches him, not who is left beside him.
+  const cheap = P("cheap", "WR", 100, { adp: 200 });
+  const dear  = P("dear",  "WR", 100, { adp: 1 });
+  // The pool must outlast the gap, or the field simply takes everyone and the
+  // test proves nothing about ordering.
+  const between = [2, 3, 4, 5].map(a => P("f" + a, "WR", 100, { adp: a }));
+  const pool  = [cheap, dear, ...between];
+  // 4 picks pass before your next turn: the field takes the lowest ADP first.
+  assert.strictEqual(O.survivesToNextPick(dear,  pool, [50], 45), false);
+  assert.strictEqual(O.survivesToNextPick(cheap, pool, [50], 45), true);
+  // No next pick: nothing to wait for, so everyone "survives" and the
+  // tiebreak this drives goes quiet rather than guessing.
+  assert.strictEqual(O.survivesToNextPick(dear, pool, [], 45), true);
+  // Back-to-back picks: no one is taken in between.
+  assert.strictEqual(O.survivesToNextPick(dear, pool, [46], 45), true);
+});
+
+check("among equals, take the one you cannot get later", () => {
+  // Lineup full and byes covered, so neither candidate changes the projection
+  // -- exactly the late-round tie. `scarce` carries LESS vorp, so the old
+  // vorp-only tiebreak took `plentiful`, spending the pick on the one man the
+  // field was never going to take. Measured on the real board at pick 130:
+  // Juwan Johnson (ADP 187) over Hunter Henry (ADP 139), both projecting the
+  // same lineup.
+  const mine = [P("q1", "QB", 300), P("q2", "QB", 290),
+                P("r1", "RB", 280), P("r2", "RB", 270), P("r3", "RB", 260),
+                P("w1", "WR", 250), P("w2", "WR", 240), P("w3", "WR", 230),
+                P("t1", "TE", 220)];
+  const scarce    = P("scarce",    "TE", 5, { vorp: 1,  adp: 131 });
+  const plentiful = P("plentiful", "TE", 5, { vorp: 40, adp: 400 });
+  // Filler the field will actually spend its picks on, so the gap is real.
+  const filler = [];
+  for (let i = 0; i < 40; i++) filler.push(P("f" + i, "WR", 4, { vorp: 0, adp: 132 + i }));
+  const out = O.recommend({ available: [plentiful, scarce, ...filler],
+                            myPlayers: mine, pickNo: 130, futurePicks: [154] });
+  assert.strictEqual(out[0].player.name, "scarce",
+    "took the player who would still have been there next turn");
+  const byName = Object.fromEntries(out.map(r => [r.player.name, r]));
+  assert.strictEqual(byName.scarce.survivesToNext, false);
+  assert.ok(!byName.plentiful || byName.plentiful.survivesToNext === true);
+});
+
+check("scarcity never overrides a real lineup gain", () => {
+  // The tiebreak sits BELOW the objective, and showing that needs a case where
+  // the objective genuinely differs. With a future pick it usually does NOT:
+  // taking the scarce man now and the starter later ends on the same roster,
+  // which is exactly why the tiebreak is allowed to decide there.
+  //
+  // Here it differs. Two good WRs survive to the next pick and only one pick
+  // remains, so:
+  //   take realStarter now -> the rollout adds goodTwo   -> WR200 + WR190
+  //   take scarceBench now -> the rollout adds realStarter -> QB10  + WR200
+  // A second QB cannot start (QB has one slot and cannot flex), so the first
+  // line is worth ~190 more. Scarcity must not touch that.
+  const mine = [P("q1", "QB", 300), P("r1", "RB", 280), P("r2", "RB", 270)];
+  const scarceBench = P("scarceBench", "QB", 10,  { vorp: 5, adp: 1 });
+  const realStarter = P("realStarter", "WR", 200, { vorp: 5, adp: 400 });
+  const goodTwo     = P("goodTwo",     "WR", 190, { vorp: 5, adp: 401 });
+  const soaks = [];
+  for (let i = 2; i <= 26; i++) soaks.push(P("s" + i, "TE", 1, { vorp: 0, adp: i }));
+  const pool = [scarceBench, realStarter, goodTwo, ...soaks];
+  // Precondition: the candidates really do differ on survival.
+  assert.strictEqual(O.survivesToNextPick(scarceBench, pool, [120], 100), false);
+  assert.strictEqual(O.survivesToNextPick(realStarter, pool, [120], 100), true);
+  const out = O.recommend({ available: pool, myPlayers: mine,
+                            pickNo: 100, futurePicks: [120] });
+  assert.strictEqual(out[0].player.name, "realStarter",
+    "scarcity outranked a real lineup gain");
+});
+// --- lateSlotTrigger -------------------------------------------------------------
+// The window scales with how many mandatory slots are still empty. It used to be
+// a flat two rounds, which meant two empty starting slots got a warning with
+// exactly two picks left to fill them -- and since the shortlist can never
+// contain a K or a D/ST, following the shortlist spent both. Two mock drafts
+// ended with 15 skill players and neither slot filled.
+check("the warning arrives with room to act, scaled to what is missing", () => {
+  // Two slots missing: needs two picks, so it must warn with slack for both.
+  assert.strictEqual(O.lateSlotTrigger(4, false, false), true);
+  assert.strictEqual(O.lateSlotTrigger(5, false, false), false);
+  // One slot missing: one pick to spend, so it can wait a round longer.
+  assert.strictEqual(O.lateSlotTrigger(3, true, false), true);
+  assert.strictEqual(O.lateSlotTrigger(4, true, false), false);
+  assert.strictEqual(O.lateSlotTrigger(3, false, true), true);
+  // Two empty slots must ALWAYS warn at least as early as one empty slot;
+  // a window that ignored `needed` would make these two agree.
+  assert.strictEqual(O.lateSlotTrigger(4, false, false), true);
+  assert.strictEqual(O.lateSlotTrigger(4, true, false), false);
+});
+
+check("lateSlotTrigger stays quiet when there is nothing to fill", () => {
+  assert.strictEqual(O.lateSlotTrigger(1, true, true), false);
+  assert.strictEqual(O.lateSlotTrigger(0, true, true), false);
   assert.strictEqual(O.lateSlotTrigger(NaN, false, false), false);
+  // Still fires on the very last pick when a slot is open -- late is not never.
+  assert.strictEqual(O.lateSlotTrigger(1, true, false), true);
 });
 
 // --- parVorp: still used by keepers.js -------------------------------------------
