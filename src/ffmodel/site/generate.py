@@ -421,6 +421,30 @@ def main() -> None:
         weekly = _extend_with_target_season(weekly, schedules, args.season, args.data_dir)
     validate_inputs(weekly, schedules, args.season)
 
+    # WHERE EACH PLAYER PLAYS NOW. Without this every projection puts a player
+    # on the team of his last PLAYED game -- last December, for any run before
+    # week 1 is in the books -- so offseason moves are stale and, because team
+    # selects the opponent through the schedule join, the model is handed the
+    # wrong offense and the wrong matchup. Measured at 16.2% of the 2026 board
+    # wrong before, 0.2% after (see ffmodel.data.rosters).
+    #
+    # BOTH PAYLOADS NEED IT, which is why the pull sits out here rather than
+    # inside the --draft block where it started. The weekly page has exactly
+    # the same problem and worse timing: its first live run is week 1, when
+    # the target season has no played rows at all and `future_skeleton` falls
+    # all the way back to the previous December -- the preseason case, on the
+    # page that is supposed to be current. Gated behind --draft, the two
+    # payloads also disagreed with each other: 114 of the 615 players they
+    # share were on different teams, A.J. Brown (ECR 12) among them.
+    #
+    # Deliberately NOT wrapped in a try/except: a failed roster pull aborts
+    # the run like any other, and the site keeps its last-good files. Data
+    # published with one player in six on the wrong team is precisely what
+    # the fail-safe rule exists to withhold.
+    from ffmodel.data.rosters import pull_current_teams
+
+    current_teams = pull_current_teams(args.season, cache_dir=args.data_dir)
+
     sleeper_players = None
     draft_picks = None
     if args.draft:
@@ -431,21 +455,6 @@ def main() -> None:
         from ffmodel.site.sleeper import pull_sleeper_players
 
         sleeper_players = pull_sleeper_players(cache_dir=args.data_dir)
-
-        # WHERE EACH PLAYER PLAYS NOW. Without this the board projects every
-        # player on the team of his last PLAYED game -- last December in the
-        # preseason -- so offseason moves are stale and, because team selects
-        # the opponent through the schedule join, the model is handed the wrong
-        # offense and the wrong matchup. Measured at 16.2% of the 2026 board
-        # wrong before, 0.2% after (see ffmodel.data.rosters).
-        #
-        # Deliberately NOT wrapped in a try/except: a failed roster pull aborts
-        # the run like any other, and the site keeps its last-good board. A
-        # board published with one player in six on the wrong team is precisely
-        # the bad data the fail-safe rule exists to withhold.
-        from ffmodel.data.rosters import pull_current_teams
-
-        current_teams = pull_current_teams(args.season, cache_dir=args.data_dir)
 
         from ffmodel.data.pull import pull_draft_picks
 
@@ -478,7 +487,8 @@ def main() -> None:
     payloads: dict[str, dict] = {}
     if week is not None:
         combined, future = combined_future_features(weekly, schedules,
-                                                    args.season, week)
+                                                    args.season, week,
+                                                    current_teams)
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)
         payloads["weekly.json"] = build_weekly_projections(

@@ -712,6 +712,42 @@ def test_draft_run_threads_current_teams_into_board(monkeypatch, tmp_path):
     assert capture["current_teams"] == {"p0": "AAA"}
 
 
+def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
+        monkeypatch, tmp_path):
+    """The roster override started life gated behind --draft, so the weekly
+    page kept projecting every player onto the team of his last PLAYED game.
+    That is worst exactly where the weekly page goes live: at week 1 the
+    target season has no played rows at all, so `future_skeleton` falls back
+    to the previous December and the "current" page is as stale as an
+    un-overridden preseason board. It also put the two payloads into open
+    disagreement -- 114 of the 615 players they share were on different
+    teams, A.J. Brown (ECR 12) among them.
+
+    Pins the generate.py seam only; that `current_teams` actually moves the
+    player and his opponent is tests/test_future.py's job. A weekly-only run
+    must also PULL the rosters -- the value asserted here exists nowhere but
+    the stubbed `pull_current_teams`, so a re-gated pull fails this too.
+    """
+    import ffmodel.data.future as future_mod
+    import ffmodel.site.weekly as weekly_mod
+
+    seen = {}
+
+    def fake_combined(weekly, schedules, season, week, current_teams=None):
+        seen["current_teams"] = current_teams
+        return (None, None)
+    monkeypatch.setattr(future_mod, "combined_future_features", fake_combined)
+    monkeypatch.setattr(weekly_mod, "build_weekly_projections",
+                        lambda *a, **k: {"players": []})
+
+    def boom_draft_picks(*a, **k):
+        raise AssertionError("weekly-only run must not pull draft picks")
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], {},
+                             pull_draft_picks=boom_draft_picks)
+
+    assert seen["current_teams"] == {"p0": "AAA"}
+
+
 def test_roster_override_provenance_counts_the_unmapped_tail():
     # Players the roster feed cannot speak for keep their last-played team.
     # That tail is acceptable only while it stays below replacement, so the
