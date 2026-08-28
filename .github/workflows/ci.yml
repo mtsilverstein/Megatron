@@ -13,18 +13,32 @@ jobs:
       - run: pytest -W error
 
   # The draft-night JS (VONA/steal math, Sleeper draft sync, keeper cost) is
-  # gated ONLY by these node fixtures -- pytest never loads site/assets/. They
-  # ran local-only until now, so a regression in the tool actually used live on
-  # draft day could reach main unnoticed. Each fixture exits non-zero on a
-  # failed assert, so plain `node` is the whole runner; no package.json needed.
+  # gated ONLY by these node fixtures -- pytest never loads site/assets/. A
+  # regression in the tool actually used live on draft day would otherwise
+  # reach main unnoticed. Each fixture exits non-zero on a failed assert, so
+  # plain `node` is the whole runner; no package.json needed.
+  #
+  # DISCOVERED, not listed. This step named five fixtures by hand and four
+  # others had drifted out of CI unnoticed -- bands, sleeper, trade and
+  # trademode were running local-only, which is the exact failure the comment
+  # above warns about. A glob cannot drift, and the guard below fails loudly
+  # rather than passing green on zero files if the pattern ever stops matching.
   node-fixtures:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: "24" }
-      - run: node tests/optimizer_fixture.cjs
-      - run: node tests/draftmode_fixture.cjs
-      - run: node tests/keepers_fixture.cjs
-      - run: node tests/sort_fixture.cjs
-      - run: node tests/draft_sim_fixture.cjs
+      - name: Run every tests/*_fixture.cjs
+        run: |
+          shopt -s nullglob
+          fixtures=(tests/*_fixture.cjs)
+          if [ ${#fixtures[@]} -lt 9 ]; then
+            echo "Expected at least 9 node fixtures, found ${#fixtures[@]}." >&2
+            echo "If a fixture was deliberately removed, lower this floor." >&2
+            exit 1
+          fi
+          for f in "${fixtures[@]}"; do
+            echo "--- $f"
+            node "$f"
+          done
