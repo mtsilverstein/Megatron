@@ -122,9 +122,10 @@ difference is the point:
   across seasons, and QB regresses significantly (+0.082 MAE, CI excluding
   zero). Passing the letter of a gate is not the same as having an effect.
 - **conditional-mean head** — 9 walk-forward folds, 40 Kaggle runs. This one
-  **failed its pre-registered primary** outright: pooled within-position
-  weekly Spearman delta −0.0005, 95% CI [−0.0015, +0.0004], plus a failing
-  band guard. The second arm failed its own gate too.
+  **failed its pre-registered primary** outright: within-position weekly
+  Spearman pooled over RB/WR/TE — the registered population, with QB held out
+  as a separate guard — delta −0.0005, 95% CI [−0.0015, +0.0004], plus a
+  failing band guard. The second arm failed its own gate too.
 
 The site still serves v1. A negative result that is cheap to run and honestly
 recorded is worth more than a promotion that would not have replicated.
