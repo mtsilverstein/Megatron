@@ -620,3 +620,67 @@ def test_a_fully_cached_historical_pull_weekly_is_offline_safe(tmp_path):
     finally:
         nflreadpy.load_players = real
     assert out["snap_pct"].tolist() == [0.5]
+
+
+def test_a_cache_refresh_is_written_atomically(tmp_path):
+    """The cache is usually the only copy. A refresh that dies mid-write must
+    not leave a truncated parquet carrying a fresh mtime, because every later
+    call would then read the corruption instead of re-pulling past it."""
+    from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, _cached
+
+    calls = []
+    _cached(tmp_path, "live", _stub(pd.DataFrame({"a": [1]}), calls),
+            LIVE_MAX_AGE_HOURS)
+    path = tmp_path / "live.parquet"
+    before = path.read_bytes()
+    _age(path, LIVE_MAX_AGE_HOURS + 1)
+
+    class _Boom:
+        """Writes garbage, THEN fails -- the only shape that distinguishes an
+        atomic write from a direct one. A mock that raises before touching the
+        file leaves the original intact either way and proves nothing."""
+        def to_parquet(self, target, *a, **k):
+            with open(target, "wb") as fh:
+                fh.write(b"TRUNCATED")
+            raise OSError("disk full halfway through")
+
+    with pytest.raises(OSError):
+        _cached(tmp_path, "live", lambda: _Boom(), LIVE_MAX_AGE_HOURS)
+
+    assert path.read_bytes() == before, "a failed write clobbered the cache"
+    assert not list(tmp_path.glob("*.tmp")), "a temp file was left behind"
+
+
+def test_an_empty_player_master_is_never_cached(tmp_path):
+    """snap_pct joins through this crosswalk, so an empty-but-schema-correct
+    response caches silently and leaves every snap_pct NaN -- which reads
+    downstream as 'no snap data', not 'the pull came back empty'."""
+    import nflreadpy
+
+    from ffmodel.data.pull import _cache_name, pull_weekly, current_nfl_season
+
+    seasons = [current_nfl_season()]
+    weekly = pd.DataFrame({
+        "player_id": ["00-1"], "season": seasons, "week": [1],
+        "attempts": [0.0], "receiving_air_yards": [0.0],
+        "passing_air_yards": [0.0],
+    })
+    snaps = pd.DataFrame({"pfr_player_id": ["P1"], "season": seasons,
+                          "week": [1], "offense_pct": [0.5]})
+    weekly.to_parquet(tmp_path / f"{_cache_name('weekly_v2', seasons)}.parquet",
+                      index=False)
+    snaps.to_parquet(tmp_path / f"{_cache_name('snaps', seasons)}.parquet",
+                     index=False)
+
+    class _Empty:
+        def to_pandas(self):
+            return pd.DataFrame(columns=["pfr_id", "gsis_id"])
+
+    real = nflreadpy.load_players
+    nflreadpy.load_players = lambda *a, **k: _Empty()
+    try:
+        with pytest.raises(RuntimeError, match="empty"):
+            pull_weekly(seasons, cache_dir=tmp_path)
+    finally:
+        nflreadpy.load_players = real
+    assert not (tmp_path / "players.parquet").exists(), "cached an empty master"

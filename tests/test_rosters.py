@@ -268,3 +268,54 @@ def test_a_bad_upstream_response_never_replaces_the_cached_roster(tmp_path):
         nflreadpy.load_rosters = monkeypatch_target
 
     assert path.read_bytes() == before, "a refused frame overwrote the cache"
+
+
+def test_a_response_missing_whole_teams_never_replaces_the_cache(tmp_path):
+    """The position floors alone are not the whole contract.
+
+    A response can satisfy every position floor and still be missing whole
+    franchises. Validated only after caching, it would replace the last-good
+    parquet, abort the run, and then be served from that fresh cache for the
+    entire TTL -- one bad minute upstream keeping the board broken for twelve
+    hours after upstream recovered.
+    """
+    import os
+    import time
+
+    import nflreadpy
+
+    from ffmodel.data.pull import _cache_name
+    from ffmodel.data.rosters import (LIVE_MAX_AGE_HOURS,
+                                      MIN_PLAYERS_PER_POSITION,
+                                      MIN_PLAYERS_PER_TEAM,
+                                      pull_current_teams)
+
+    teams = {"AAA", "BBB", "CCC"}
+    n = max(MIN_PLAYERS_PER_POSITION, MIN_PLAYERS_PER_TEAM)
+    good = [(f"00-{pos}{t}{i}", pos, t, "ACT")
+            for t in teams for pos in ("QB", "RB", "WR", "TE")
+            for i in range(n)]
+    path = tmp_path / f"{_cache_name('rosters_current', [2026])}.parquet"
+    _raw(good).to_parquet(path, index=False)
+    before = path.read_bytes()
+    old = time.time() - (LIVE_MAX_AGE_HOURS + 1) * 3600
+    os.utime(path, (old, old))
+
+    # Every position floor cleared, but CCC has vanished entirely.
+    partial = [r for r in good if r[2] != "CCC"]
+
+    class _Partial:
+        def to_pandas(self):
+            return _raw(partial)
+
+    real = nflreadpy.load_rosters
+    nflreadpy.load_rosters = lambda *a, **k: _Partial()
+    try:
+        from ffmodel.data.rosters import assert_positions_present
+        assert_positions_present(_raw(partial))          # passes on its own
+        with pytest.raises(RuntimeError, match="CCC"):
+            pull_current_teams(2026, cache_dir=tmp_path, scheduled_teams=teams)
+    finally:
+        nflreadpy.load_rosters = real
+
+    assert path.read_bytes() == before, "a refused frame overwrote the cache"

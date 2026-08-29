@@ -141,9 +141,17 @@ def assert_roster_coverage(mapping: dict[str, str],
             f"(a new spelling needs an entry in TEAM_ALIASES)")
 
 
-def pull_current_teams(season: int, cache_dir: Path | None = None
+def pull_current_teams(season: int, cache_dir: Path | None = None,
+                       scheduled_teams: set[str] | None = None
                        ) -> dict[str, str]:
-    """{player_id: team} for `season`, from the season's roster feed."""
+    """{player_id: team} for `season`, from the season's roster feed.
+
+    `scheduled_teams`, when given, makes the FULL coverage check run inside
+    the loader -- before the refreshed frame is cached. Without it only the
+    position check can run here, because team coverage is defined against the
+    season's schedule and this function has never seen one. Callers that have
+    a schedule should pass it; see the caching note in `load` below.
+    """
     def load() -> pd.DataFrame:
         import nflreadpy  # deferred: keep offline unit tests import-light
 
@@ -155,6 +163,14 @@ def pull_current_teams(season: int, cache_dir: Path | None = None
         # broken for hours after upstream recovered. Never cache a frame we
         # would refuse to use.
         assert_positions_present(raw)
+        if scheduled_teams:
+            # The other half of the same rule. Validated only after caching,
+            # a response that satisfies the position floors but is missing
+            # whole franchises would replace the last-good parquet, abort the
+            # run, and then be served from that fresh cache for the entire
+            # TTL -- so one bad minute upstream keeps the board broken for
+            # twelve hours after upstream recovers.
+            assert_roster_coverage(normalize_current_teams(raw), scheduled_teams)
         return raw
 
     # Where players are RIGHT NOW: the definition of live state, and the

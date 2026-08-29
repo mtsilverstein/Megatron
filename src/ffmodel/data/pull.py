@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import time
 from datetime import date
 from pathlib import Path
@@ -176,7 +177,18 @@ def _cached(cache_dir: Path | None, name: str, loader,
     df = loader()
     if cache_dir is not None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_parquet(path, index=False)
+        # Same rule as site.generate's _atomic_write, for the same reason: this
+        # is usually the ONLY copy. A refresh that dies mid-serialization --
+        # interrupt, full disk, a concurrent reader -- would otherwise leave a
+        # truncated parquet carrying a fresh mtime, so every later call reads
+        # the corruption instead of re-pulling past it.
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        try:
+            df.to_parquet(tmp, index=False)
+            os.replace(tmp, path)
+        finally:
+            if tmp.exists():
+                tmp.unlink()
     return df
 
 
@@ -200,7 +212,17 @@ def pull_weekly(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFra
     def load_players() -> pd.DataFrame:
         import nflreadpy
 
-        return nflreadpy.load_players().to_pandas()
+        raw = nflreadpy.load_players().to_pandas()
+        # Checked before _cached writes it. This frame is the pfr->gsis
+        # crosswalk snap_pct joins through; a schema-correct empty response
+        # would cache silently and leave every snap_pct NaN, which reads
+        # downstream as "no snap data" rather than "the pull came back empty".
+        if raw.empty or not {"pfr_id", "gsis_id"} <= set(raw.columns):
+            raise RuntimeError(
+                "player master came back empty or without the pfr_id/gsis_id "
+                "crosswalk columns -- refusing to cache it, snap_pct joins "
+                "through it and would silently go all-NaN")
+        return raw
 
     # Prefix bumped to weekly_v2 for the feature-pack-v2 source columns: a
     # local cache written before they existed must never be silently reused.

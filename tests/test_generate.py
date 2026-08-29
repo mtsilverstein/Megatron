@@ -274,10 +274,10 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     # tests/test_features.py::make_schedules) or main()'s roster-coverage
     # guard correctly aborts the run. `current_teams` overrides it, so a test
     # can hand main() the incomplete feed the guard exists to catch.
-    monkeypatch.setattr(rosters_mod, "pull_current_teams",
-                        lambda *a, **k: (PLAUSIBLE_TEAMS
-                                         if current_teams is None
-                                         else current_teams))
+    def fake_current_teams(*a, **k):
+        capture["scheduled_teams"] = k.get("scheduled_teams")
+        return PLAUSIBLE_TEAMS if current_teams is None else current_teams
+    monkeypatch.setattr(rosters_mod, "pull_current_teams", fake_current_teams)
     monkeypatch.setattr(features_mod, "build_features", lambda *a, **k: weekly)
 
     if pull_draft_picks is None:
@@ -721,6 +721,28 @@ def test_draft_run_threads_current_teams_into_board(monkeypatch, tmp_path):
     capture = {}
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
     assert capture["current_teams"] == PLAUSIBLE_TEAMS
+
+
+@pytest.mark.parametrize("argv", [["--week", "6"], ["--draft"]])
+def test_the_pull_is_told_which_teams_the_season_schedules(monkeypatch, tmp_path,
+                                                           argv):
+    """The coverage check has to run INSIDE the pull, before a refreshed frame
+    is cached -- otherwise a response missing whole franchises replaces the
+    last-good parquet, aborts the run, and is then served from that fresh
+    cache for the whole TTL. The pull cannot derive the team list itself, so
+    main() has to hand it over."""
+    import ffmodel.data.future as future_mod
+    import ffmodel.site.sleeper as sleeper_mod
+    import ffmodel.site.weekly as weekly_mod
+
+    monkeypatch.setattr(sleeper_mod, "pull_sleeper_players", lambda **k: {})
+    monkeypatch.setattr(future_mod, "combined_future_features",
+                        lambda *a, **k: (None, None))
+    monkeypatch.setattr(weekly_mod, "build_weekly_projections",
+                        lambda *a, **k: {"players": []})
+    capture = {}
+    _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture)
+    assert capture["scheduled_teams"] == {"AAA", "BBB"}
 
 
 def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
