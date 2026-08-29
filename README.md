@@ -95,7 +95,7 @@ the season starts (cron or plain dispatch, which use `--week auto`).
 Walk-forward only: train on seasons ≤ S, test on S+1, held-out years
 2023-2025. There are no random splits anywhere — rolling features make them
 leak the future into the past. Weekly PPR points, pooled over the three
-held-out seasons (`models/backtests/bakeoff.json`, n = 35,816 player-weeks):
+held-out seasons (`models/backtests/bakeoff.json`, n = 17,908 player-weeks):
 
 | model | MAE | QB | RB | WR | TE |
 |---|---|---|---|---|---|
@@ -103,21 +103,28 @@ held-out seasons (`models/backtests/bakeoff.json`, n = 35,816 player-weeks):
 | XGBoost | 4.448 | 6.34 | 4.33 | 4.47 | 3.54 |
 | **transformer** (3-seed ensemble) | **4.325** | **6.24** | **4.33** | **4.25** | **3.45** |
 
-The transformer wins overall and at every position, but the margin over
-XGBoost is small — about 0.12 points per player-week — and it ties at RB. The
-baselines run through the identical eval harness, and the deployed model is
-whichever one actually won.
+The transformer is ahead everywhere, but read the size before the ranking:
+0.12 points per player-week overall, and RB is 4.3253 against 4.3294 — a win
+in the fourth decimal, which is a tie. WR and QB are where the gap is real.
+The baselines run through the identical eval harness, and the deployed model
+is whichever one actually won.
 
-Two later experiments were pre-registered and both **failed their gate**; the
-verdicts are committed under `models/diagnostics/` next to the criteria that
-were written before the results existed:
+Two later experiments were pre-registered, and neither was promoted. Both
+verdicts are committed under `models/diagnostics/` next to the criteria, which
+record `recorded_before_results: true`. The two failed differently, and the
+difference is the point:
 
-- **feature-pack v2** (`air_share`, `team_pass_att_last4`, `is_indoor`) — met
-  both criteria by the letter, but the paired 95% CI on per-row absolute error
-  includes zero, it wins only 1 of 3 held-out seasons, and QB regresses
-  significantly. Not promoted.
-- **conditional-mean head** — 9 paired folds, 40 Kaggle runs, testing whether
-  a mean head improves within-position weekly ranking. Not promoted.
+- **feature-pack v2** (`air_share`, `team_pass_att_last4`, `is_indoor`)
+  **passed both declared criteria** — MAE below the committed 4.3263 bar,
+  calibration inside [0.75, 0.85] for every position-season. It was withheld
+  anyway, on checks that were explicitly **post-hoc**: a paired test over the
+  17,908 identical held-out rows puts the gain inside noise, the sign flips
+  across seasons, and QB regresses significantly (+0.082 MAE, CI excluding
+  zero). Passing the letter of a gate is not the same as having an effect.
+- **conditional-mean head** — 9 walk-forward folds, 40 Kaggle runs. This one
+  **failed its pre-registered primary** outright: pooled within-position
+  weekly Spearman delta −0.0005, 95% CI [−0.0015, +0.0004], plus a failing
+  band guard. The second arm failed its own gate too.
 
 The site still serves v1. A negative result that is cheap to run and honestly
 recorded is worth more than a promotion that would not have replicated.
