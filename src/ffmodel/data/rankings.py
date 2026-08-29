@@ -503,10 +503,12 @@ def pull_rankings(cache_dir: Path | None = None) -> pd.DataFrame:
 
         return nflreadpy.load_ff_rankings("all").to_pandas()
 
-    # ECR is the board's SPINE -- it supplies the order the whole draft board
-    # is anchored to -- and it moves every day of draft season. Cached forever,
-    # a board regenerated the night before a draft would have been ordered by
-    # whenever this parquet was first written.
+    # This is the FALLBACK ECR source: `consensus_for_season` prefers the
+    # hand-dropped snapshot under data_snapshots/ when one is present, and only
+    # reaches the nflverse mirror when it is not. The mirror is still what
+    # orders the board on that path, and it republishes weekly, so a cache that
+    # never expired would anchor a board to whenever this parquet was first
+    # written. It is also what `eval.weekly_consensus` measures against.
     return normalize_rankings(
         _cached(cache_dir, "ff_rankings_all_raw", load, LIVE_MAX_AGE_HOURS))
 
