@@ -700,6 +700,11 @@ def test_an_empty_player_master_is_never_cached(tmp_path):
             "pfr_id": [f"P{i}" for i in range(n)], "gsis_id": [None] * n}),
         "collapsed to a handful": pd.DataFrame({
             "pfr_id": ["P1"], "gsis_id": ["00-1"]}),
+        # Clears any row count, but merge_snap_pct dedupes on pfr_id and is
+        # left with ONE mapping -- so the guard has to count what survives
+        # the consumer's own normalization, not what arrived.
+        "one mapping repeated": pd.DataFrame({"pfr_id": ["P1"] * n,
+                                              "gsis_id": ["00-1"] * n}),
     }
     try:
         for label, frame in cases.items():

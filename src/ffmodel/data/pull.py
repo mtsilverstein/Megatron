@@ -233,7 +233,12 @@ def pull_weekly(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFra
             raise RuntimeError(
                 "player master is missing the pfr_id/gsis_id crosswalk "
                 "columns -- refusing to cache it, snap_pct joins through it")
-        usable = len(raw[["pfr_id", "gsis_id"]].dropna())
+        # Deduplicated on pfr_id exactly as merge_snap_pct does, so this
+        # counts MAPPINGS rather than rows: 5,000 copies of one pair is one
+        # mapping, and would otherwise clear the floor while joining to
+        # nothing. Count what survives the consumer's own normalization.
+        usable = len(raw[["pfr_id", "gsis_id"]].dropna()
+                     .drop_duplicates(subset="pfr_id"))
         if usable < MIN_CROSSWALK_PAIRS:
             raise RuntimeError(
                 f"player master carries only {usable} usable pfr_id/gsis_id "
