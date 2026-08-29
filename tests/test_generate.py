@@ -9,6 +9,11 @@ from ffmodel.site.generate import _atomic_write, build_parser, validate_inputs
 
 from tests.test_features import make_schedules, make_weekly
 
+# A roster map main()'s coverage guard accepts: every team the toy schedule
+# fields (AAA/BBB, from make_schedules) with enough players to clear
+# MIN_PLAYERS_PER_TEAM. Anything thinner is, correctly, an aborted run.
+PLAUSIBLE_TEAMS = {f"{t}-{i}": t for t in ("AAA", "BBB") for i in range(12)}
+
 
 def test_parser_defaults_and_flags():
     args = build_parser().parse_args(["--out", "site/data", "--model", "xgboost",
@@ -270,7 +275,7 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     # guard correctly aborts the run. `current_teams` overrides it, so a test
     # can hand main() the incomplete feed the guard exists to catch.
     monkeypatch.setattr(rosters_mod, "pull_current_teams",
-                        lambda *a, **k: ({"p0": "AAA", "p1": "BBB"}
+                        lambda *a, **k: (PLAUSIBLE_TEAMS
                                          if current_teams is None
                                          else current_teams))
     monkeypatch.setattr(features_mod, "build_features", lambda *a, **k: weekly)
@@ -715,7 +720,7 @@ def test_draft_run_threads_current_teams_into_board(monkeypatch, tmp_path):
     # other test in this file would notice, because the payload still builds.
     capture = {}
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
-    assert capture["current_teams"] == {"p0": "AAA", "p1": "BBB"}
+    assert capture["current_teams"] == PLAUSIBLE_TEAMS
 
 
 def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
@@ -751,7 +756,7 @@ def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], {},
                              pull_draft_picks=boom_draft_picks)
 
-    assert seen["current_teams"] == {"p0": "AAA", "p1": "BBB"}
+    assert seen["current_teams"] == PLAUSIBLE_TEAMS
 
 
 @pytest.mark.parametrize("argv", [["--week", "6"], ["--draft"]])

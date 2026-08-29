@@ -83,10 +83,17 @@ def test_pull_current_teams_reads_the_cache_without_touching_the_network(
     from ffmodel.data.pull import _cache_name
     from ffmodel.data.rosters import pull_current_teams
 
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_POSITION
+
     name = _cache_name("rosters_current", [2026])
-    _raw([("00-9", "TE", "AZ", "ACT")]).to_parquet(
-        tmp_path / f"{name}.parquet", index=False)
-    assert pull_current_teams(2026, cache_dir=tmp_path) == {"00-9": "ARI"}
+    # Padded to a feed the truncation guard accepts; the AZ->ARI row is still
+    # the one the assertion is about.
+    n = MIN_PLAYERS_PER_POSITION
+    rows = [("00-9", "TE", "AZ", "ACT")]
+    rows += [(f"00-{pos}{i}", pos, "NE", "ACT")
+             for pos in ("QB", "RB", "WR", "TE") for i in range(n)]
+    _raw(rows).to_parquet(tmp_path / f"{name}.parquet", index=False)
+    assert pull_current_teams(2026, cache_dir=tmp_path)["00-9"] == "ARI"
 
 
 # --- coverage guard ----------------------------------------------------------
@@ -98,10 +105,16 @@ def test_pull_current_teams_reads_the_cache_without_touching_the_network(
 SCHEDULED = {"AAA", "BBB", "CCC"}
 
 
+def _map_over(teams, per_team=None):
+    """{player_id: team} with enough players per team to clear the floor."""
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_TEAM
+    n = MIN_PLAYERS_PER_TEAM if per_team is None else per_team
+    return {f"{t}-{i}": t for t in teams for i in range(n)}
+
+
 def test_a_map_covering_every_scheduled_team_is_accepted():
     from ffmodel.data.rosters import assert_roster_coverage
-    assert_roster_coverage({"1": "AAA", "2": "BBB", "3": "CCC", "4": "AAA"},
-                           SCHEDULED)
+    assert_roster_coverage(_map_over(SCHEDULED), SCHEDULED)
 
 
 def test_an_empty_map_is_refused():
@@ -113,7 +126,7 @@ def test_an_empty_map_is_refused():
 def test_a_scheduled_team_with_no_rostered_player_is_refused_and_named():
     from ffmodel.data.rosters import assert_roster_coverage
     with pytest.raises(RuntimeError, match="CCC"):
-        assert_roster_coverage({"1": "AAA", "2": "BBB"}, SCHEDULED)
+        assert_roster_coverage(_map_over({"AAA", "BBB"}), SCHEDULED)
 
 
 def test_a_team_the_schedule_has_never_heard_of_is_refused():
@@ -124,5 +137,78 @@ def test_a_team_the_schedule_has_never_heard_of_is_refused():
     # complete here, so only the unknown spelling can fail this.
     from ffmodel.data.rosters import assert_roster_coverage
     with pytest.raises(RuntimeError, match="TEAM_ALIASES"):
-        assert_roster_coverage({"1": "AAA", "2": "BBB", "3": "CCC", "4": "AZ"},
+        assert_roster_coverage(_map_over(SCHEDULED | {"AZ"}), SCHEDULED)
+
+
+def test_a_token_row_per_franchise_is_refused():
+    # The truncation a team-name check cannot see: every scheduled team is
+    # present, both set differences are empty, and almost every player is
+    # still sitting on last season's team.
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_TEAM, assert_roster_coverage
+    token = _map_over(SCHEDULED, per_team=1)
+    assert set(token.values()) == SCHEDULED     # both set differences empty
+    with pytest.raises(RuntimeError, match="truncated"):
+        assert_roster_coverage(token, SCHEDULED)
+    with pytest.raises(RuntimeError, match="truncated"):
+        assert_roster_coverage(_map_over(SCHEDULED, MIN_PLAYERS_PER_TEAM - 1),
                                SCHEDULED)
+
+
+def test_a_healthy_per_team_count_is_accepted():
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_TEAM, assert_roster_coverage
+    assert_roster_coverage(_map_over(SCHEDULED, MIN_PLAYERS_PER_TEAM), SCHEDULED)
+
+
+def _roster_frame(counts: dict[str, int]) -> pd.DataFrame:
+    rows = [{"gsis_id": f"00-{pos}{i}", "position": pos, "team": "NE",
+             "status": "ACT"}
+            for pos, n in counts.items() for i in range(n)]
+    return pd.DataFrame(rows, columns=["gsis_id", "position", "team", "status"])
+
+
+def test_a_feed_that_renamed_a_position_is_refused():
+    # 32 teams, healthy per-team counts, and every wide receiver silently
+    # keeping the team he last played for -- neither other guard sees it.
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_POSITION, assert_positions_present
+    n = MIN_PLAYERS_PER_POSITION
+    ok = {"QB": n, "RB": n, "WR": n, "TE": n}
+    assert_positions_present(_roster_frame(ok))
+    renamed = dict(ok, WR=0)
+    renamed["REC"] = n
+    with pytest.raises(RuntimeError, match="renamed a position"):
+        assert_positions_present(_roster_frame(renamed))
+
+
+def test_a_position_thinned_below_one_per_franchise_is_refused():
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_POSITION, assert_positions_present
+    n = MIN_PLAYERS_PER_POSITION
+    with pytest.raises(RuntimeError, match="TE"):
+        assert_positions_present(_roster_frame({"QB": n, "RB": n, "WR": n,
+                                                "TE": n - 1}))
+
+
+def test_rows_without_a_join_key_do_not_count_toward_a_position():
+    # A player with no gsis id cannot be joined to weekly data, so he is not
+    # coverage -- counting him would let a feed of unjoinable rows pass.
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_POSITION, assert_positions_present
+    n = MIN_PLAYERS_PER_POSITION
+    frame = _roster_frame({"QB": n, "RB": n, "WR": n, "TE": n})
+    frame.loc[frame["position"] == "TE", "gsis_id"] = pd.NA
+    with pytest.raises(RuntimeError, match="TE"):
+        assert_positions_present(frame)
+
+
+def test_pull_current_teams_refuses_a_truncated_feed(tmp_path):
+    # The position guard is only worth having if the pull actually runs it;
+    # without this, deleting the call from pull_current_teams passes every
+    # other test in this file.
+    from ffmodel.data.pull import _cache_name
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_POSITION, pull_current_teams
+
+    n = MIN_PLAYERS_PER_POSITION
+    rows = [(f"00-{pos}{i}", pos, "NE", "ACT")
+            for pos in ("QB", "RB", "WR") for i in range(n)]   # no TE at all
+    name = _cache_name("rosters_current", [2026])
+    _raw(rows).to_parquet(tmp_path / f"{name}.parquet", index=False)
+    with pytest.raises(RuntimeError, match="TE"):
+        pull_current_teams(2026, cache_dir=tmp_path)

@@ -71,6 +71,20 @@ def normalize_current_teams(raw: pd.DataFrame) -> dict[str, str]:
             for pid, team in zip(df["gsis_id"], df["team"])}
 
 
+# Observed on the 2026 feed: 24 players on the thinnest team, 31 on the
+# thickest. A floor of 10 is well clear of normal variation while still
+# refusing a feed that has kept a token row per franchise -- the truncation
+# that survives a pure team-name check, because every team is still "present".
+MIN_PLAYERS_PER_TEAM = 10
+
+# Same idea one axis over. `normalize_current_teams` filters to POSITIONS, so
+# if the feed renames one of them the filter drops that position entirely and
+# every WR (or TE, or RB) silently keeps his last-played team while the team
+# and per-team counts still look healthy. Observed thinnest position: QB at
+# 119. One per franchise is the floor.
+MIN_PLAYERS_PER_POSITION = 32
+
+
 def assert_roster_coverage(mapping: dict[str, str],
                            scheduled_teams: set[str]) -> None:
     """Refuse a roster map that cannot speak for the season being projected.
@@ -94,12 +108,28 @@ def assert_roster_coverage(mapping: dict[str, str],
         exactly that bug, already papered over by TEAM_ALIASES; this is what
         makes the next one fail loudly instead of deleting a roster.
 
+    Team names alone are not enough, though: a feed truncated to one row per
+    franchise satisfies both set differences and still leaves almost every
+    player on last season's team, so the per-team count is checked too.
+
     Measured on the 2026 feed: 915 players, all 32 teams, 24-31 each, and
     neither direction missing anything.
     """
+    from collections import Counter
+
     have = set(mapping.values())
     unrostered = sorted(scheduled_teams - have)
     unscheduled = sorted(have - scheduled_teams)
+    counts = Counter(mapping.values())
+    thin = sorted(t for t in scheduled_teams
+                  if counts[t] < MIN_PLAYERS_PER_TEAM)
+    if thin and not (unrostered or unscheduled):
+        raise RuntimeError(
+            f"current-roster feed is truncated ({len(mapping)} players over "
+            f"{len(have)} teams) — refusing to publish projections built on "
+            f"last-played teams. Every scheduled team is present but "
+            f"{len(thin)} carry fewer than {MIN_PLAYERS_PER_TEAM} players: "
+            f"{thin[:8]}{' ...' if len(thin) > 8 else ''}")
     if unrostered or unscheduled:
         raise RuntimeError(
             f"current-roster feed is unusable for this season "
@@ -119,4 +149,32 @@ def pull_current_teams(season: int, cache_dir: Path | None = None
         return nflreadpy.load_rosters([season]).to_pandas()
 
     raw = _cached(cache_dir, _cache_name("rosters_current", [season]), load)
+    assert_positions_present(raw)
     return normalize_current_teams(raw)
+
+
+def assert_positions_present(raw: pd.DataFrame) -> None:
+    """Refuse a feed that has stopped speaking about a whole position.
+
+    Lives here rather than in `normalize_current_teams` because that function
+    is documented — and tested — to return `{}` for a frame with nothing it
+    recognises; turning its filter into an assertion would change a contract
+    two callers rely on. The frame is only in scope inside the pull, so the
+    check is too.
+
+    This is the truncation a team-name or per-team-count check cannot see: if
+    the feed renames `WR`, the filter drops 388 players, all 32 teams stay
+    present with 16 apiece, and every wide receiver quietly keeps the team he
+    last played for.
+    """
+    joinable = raw[raw["gsis_id"].notna()] if "gsis_id" in raw.columns else raw
+    counts = joinable["position"].value_counts() if len(joinable) else {}
+    thin = {p: int(counts.get(p, 0)) for p in POSITIONS
+            if int(counts.get(p, 0)) < MIN_PLAYERS_PER_POSITION}
+    if thin:
+        raise RuntimeError(
+            f"current-roster feed is unusable: {thin} — fewer than "
+            f"{MIN_PLAYERS_PER_POSITION} joinable players at a position the "
+            f"board projects. Either the feed is truncated or it has renamed "
+            f"a position and ffmodel.data.pull.POSITIONS no longer matches it; "
+            f"refusing to publish projections built on last-played teams")
