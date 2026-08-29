@@ -47,3 +47,7 @@ models_artifacts.zip
 # command to regenerate and the sim names its source in the report metadata:
 #   node tools/pull_keepers.cjs --league <id> --out data_snapshots/keepers_<date>.json
 data_snapshots/keepers_*.json
+
+# codex review runs drop pytest temp dirs here (its Windows sandbox is
+# elevated, so they are not deletable from an ordinary shell)
+.review/
