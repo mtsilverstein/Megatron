@@ -537,7 +537,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     from ffmodel.data.features import build_features
-    from ffmodel.data.pull import _cached, pull_schedules, pull_weekly
+    from ffmodel.data.pull import (LIVE_MAX_AGE_HOURS, _cached,
+                                   pull_schedules, pull_weekly)
     from ffmodel.data.rankings import pull_player_ids
 
     seasons = sorted(args.seasons)
@@ -553,7 +554,8 @@ def main() -> None:
         return nflreadpy.load_ff_rankings("all").to_pandas()
 
     rankings = normalize_weekly_rankings(
-        _cached(args.data_dir, "ff_rankings_all_raw", load_raw_rankings))
+        _cached(args.data_dir, "ff_rankings_all_raw", load_raw_rankings,
+                LIVE_MAX_AGE_HOURS))
     crosswalk = pull_player_ids(args.data_dir)
 
     scored, provenance = collect_cells(

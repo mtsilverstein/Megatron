@@ -418,3 +418,97 @@ def test_pull_real_season_snap_pct_coverage_and_range(tmp_path):
     assert non_nan.mean() > 0.95
     valid = df.loc[non_nan, "snap_pct"]
     assert (valid >= 0).all() and (valid <= 1).all()
+
+
+# --- cache expiry ------------------------------------------------------------
+# Until this existed, a parquet written once was returned unchanged for the
+# life of the checkout. The failure has no symptom: the run succeeds, on data
+# from whenever the file happened to be written. The ECR spine that orders the
+# whole draft board is one of these feeds.
+
+def _stub(frame, calls):
+    def load():
+        calls.append(1)
+        return frame
+    return load
+
+
+def _age(path, hours):
+    import os
+    import time
+    old = time.time() - hours * 3600
+    os.utime(path, (old, old))
+
+
+def test_an_immutable_cache_is_never_re_pulled(tmp_path):
+    from ffmodel.data.pull import _cached
+
+    frame = pd.DataFrame({"a": [1]})
+    calls = []
+    _cached(tmp_path, "hist", _stub(frame, calls))
+    _age(tmp_path / "hist.parquet", 24 * 365)          # a year old
+    _cached(tmp_path, "hist", _stub(frame, calls))
+    assert len(calls) == 1, "a finished-season cache was re-pulled"
+
+
+def test_a_live_cache_inside_its_window_is_reused(tmp_path):
+    from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, _cached
+
+    calls = []
+    _cached(tmp_path, "live", _stub(pd.DataFrame({"a": [1]}), calls),
+            LIVE_MAX_AGE_HOURS)
+    _age(tmp_path / "live.parquet", LIVE_MAX_AGE_HOURS - 1)
+    _cached(tmp_path, "live", _stub(pd.DataFrame({"a": [1]}), calls),
+            LIVE_MAX_AGE_HOURS)
+    assert len(calls) == 1, "a fresh cache was needlessly re-pulled"
+
+
+def test_a_stale_live_cache_is_re_pulled_and_overwritten(tmp_path):
+    from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, _cached
+
+    calls = []
+    _cached(tmp_path, "live", _stub(pd.DataFrame({"a": [1]}), calls),
+            LIVE_MAX_AGE_HOURS)
+    _age(tmp_path / "live.parquet", LIVE_MAX_AGE_HOURS + 1)
+    got = _cached(tmp_path, "live", _stub(pd.DataFrame({"a": [2]}), calls),
+                  LIVE_MAX_AGE_HOURS)
+    assert len(calls) == 2, "a stale live cache was served anyway"
+    assert got["a"].tolist() == [2], "the re-pull was not returned"
+    # and the refreshed copy is what the NEXT run reads
+    assert pd.read_parquet(tmp_path / "live.parquet")["a"].tolist() == [2]
+
+
+def test_current_nfl_season_turns_over_in_march():
+    from datetime import date
+
+    from ffmodel.data.pull import current_nfl_season
+
+    assert current_nfl_season(date(2026, 3, 1)) == 2026    # league year opens
+    assert current_nfl_season(date(2026, 2, 28)) == 2025   # still last season
+    assert current_nfl_season(date(2026, 8, 28)) == 2026
+    assert current_nfl_season(date(2027, 1, 15)) == 2026   # playoffs
+
+
+def test_only_ranges_touching_a_live_season_expire():
+    from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, _live_age, current_nfl_season
+
+    live = current_nfl_season()
+    assert _live_age([2012, live - 1]) is None       # finished seasons
+    assert _live_age([2012, live]) == LIVE_MAX_AGE_HOURS
+    assert _live_age([live]) == LIVE_MAX_AGE_HOURS
+
+
+def test_a_historical_pull_never_reaches_the_network(tmp_path):
+    """The expiry must not turn offline-safe historical pulls into network
+    calls: a cache of finished seasons stays valid however old it is."""
+    from ffmodel.data.pull import _cached, _live_age, current_nfl_season
+
+    seasons = [2012, current_nfl_season() - 1]
+    calls = []
+    _cached(tmp_path, "hist", _stub(pd.DataFrame({"a": [1]}), calls),
+            _live_age(seasons))
+    _age(tmp_path / "hist.parquet", 24 * 500)
+
+    def boom():
+        raise AssertionError("a finished-season cache went back to the network")
+    _cached(tmp_path, "hist", boom, _live_age(seasons))

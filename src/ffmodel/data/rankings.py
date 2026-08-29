@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from ffmodel.data.pull import POSITIONS, _cached
+from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, POSITIONS, _cached
 
 # FantasyPros publishes many ranking flavors in one frame; these two select
 # the preseason redraft consensus ("ro" = redraft overall).
@@ -503,7 +503,12 @@ def pull_rankings(cache_dir: Path | None = None) -> pd.DataFrame:
 
         return nflreadpy.load_ff_rankings("all").to_pandas()
 
-    return normalize_rankings(_cached(cache_dir, "ff_rankings_all_raw", load))
+    # ECR is the board's SPINE -- it supplies the order the whole draft board
+    # is anchored to -- and it moves every day of draft season. Cached forever,
+    # a board regenerated the night before a draft would have been ordered by
+    # whenever this parquet was first written.
+    return normalize_rankings(
+        _cached(cache_dir, "ff_rankings_all_raw", load, LIVE_MAX_AGE_HOURS))
 
 
 def pull_player_ids(cache_dir: Path | None = None) -> pd.DataFrame:
@@ -513,7 +518,11 @@ def pull_player_ids(cache_dir: Path | None = None) -> pd.DataFrame:
 
         return nflreadpy.load_ff_playerids().to_pandas()
 
-    return _cached(cache_dir, "ff_playerids", load)
+    # This is the feed that blanked gsis_id for the 2026 rookie class on
+    # 2026-07-28 and cost the board its entire ADP overlay. It is repaired
+    # upstream over days, so a cache that never expires holds the broken
+    # snapshot indefinitely.
+    return _cached(cache_dir, "ff_playerids", load, LIVE_MAX_AGE_HOURS)
 
 
 def consensus_for_season(season: int, schedules: pd.DataFrame,

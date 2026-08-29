@@ -35,7 +35,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from ffmodel.data.pull import POSITIONS, _cache_name, _cached
+from ffmodel.data.pull import (LIVE_MAX_AGE_HOURS, POSITIONS,
+                               _cache_name, _cached)
 
 # The roster feed abbreviates Arizona `AZ`; the weekly and schedule feeds use
 # `ARI`. Verified against the 2026 board this is the ONLY disagreement between
@@ -148,7 +149,10 @@ def pull_current_teams(season: int, cache_dir: Path | None = None
 
         return nflreadpy.load_rosters([season]).to_pandas()
 
-    raw = _cached(cache_dir, _cache_name("rosters_current", [season]), load)
+    # Where players are RIGHT NOW: the definition of live state, and the
+    # reason this whole override exists.
+    raw = _cached(cache_dir, _cache_name("rosters_current", [season]), load,
+                  LIVE_MAX_AGE_HOURS)
     assert_positions_present(raw)
     return normalize_current_teams(raw)
 

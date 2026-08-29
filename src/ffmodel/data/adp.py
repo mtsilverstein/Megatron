@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from ffmodel.data.pull import POSITIONS, _cached
+from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, POSITIONS, _cached
 from ffmodel.data.rankings import pull_player_ids
 
 # FFCalculator display name -> nflverse merge_name form (known mismatches).
@@ -58,7 +58,8 @@ def pull_adp(season: int, cache_dir: Path | None = None, teams: int = 12,
             raw = json.loads(resp.read().decode("utf-8"))
         return normalize_adp(raw, pull_player_ids(cache_dir))
 
-    return _cached(cache_dir, f"adp_{scoring}_{teams}_{season}", load)
+    return _cached(cache_dir, f"adp_{scoring}_{teams}_{season}", load,
+                   LIVE_MAX_AGE_HOURS)
 
 
 # --- Sleeper-population ADP: committed FantasyPros snapshot ---------------
