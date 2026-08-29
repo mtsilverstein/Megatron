@@ -237,7 +237,7 @@ def test_extend_with_target_season_concats_on_success(monkeypatch):
 
 
 def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
-                             pull_draft_picks=None):
+                             pull_draft_picks=None, current_teams=None):
     """Run generate.main() end-to-end with data pulls, predictor, and payload
     builders stubbed. Records the sleeper_players/draft_picks kwargs
     build_draft_board saw. `pull_draft_picks`, if given, overrides the
@@ -265,8 +265,14 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     # main() imports this one inside the function, so patch it on its source
     # module (same pattern as pull_sleeper_players below). Unstubbed it makes
     # this offline test hit the network AND write into the repo's data/raw.
+    # Must cover every team the toy schedule fields (AAA and BBB, from
+    # tests/test_features.py::make_schedules) or main()'s roster-coverage
+    # guard correctly aborts the run. `current_teams` overrides it, so a test
+    # can hand main() the incomplete feed the guard exists to catch.
     monkeypatch.setattr(rosters_mod, "pull_current_teams",
-                        lambda *a, **k: {"p0": "AAA"})
+                        lambda *a, **k: ({"p0": "AAA", "p1": "BBB"}
+                                         if current_teams is None
+                                         else current_teams))
     monkeypatch.setattr(features_mod, "build_features", lambda *a, **k: weekly)
 
     if pull_draft_picks is None:
@@ -709,7 +715,7 @@ def test_draft_run_threads_current_teams_into_board(monkeypatch, tmp_path):
     # other test in this file would notice, because the payload still builds.
     capture = {}
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
-    assert capture["current_teams"] == {"p0": "AAA"}
+    assert capture["current_teams"] == {"p0": "AAA", "p1": "BBB"}
 
 
 def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
@@ -745,7 +751,28 @@ def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], {},
                              pull_draft_picks=boom_draft_picks)
 
-    assert seen["current_teams"] == {"p0": "AAA"}
+    assert seen["current_teams"] == {"p0": "AAA", "p1": "BBB"}
+
+
+@pytest.mark.parametrize("argv", [["--week", "6"], ["--draft"]])
+def test_an_incomplete_roster_feed_aborts_without_writing_anything(
+        monkeypatch, tmp_path, argv):
+    """A roster feed that downloads fine and comes back empty is an
+    INCOMPLETE PULL, and CLAUDE.md's fail-safe rule says an incomplete pull
+    aborts without touching published JSON. Downstream it is invisible:
+    `future_skeleton` tests `if current_teams:`, so an empty map means
+    "nobody asked for an override" and the run publishes last-played teams --
+    the exact 114-player staleness the override exists to remove, with no
+    error anywhere. Both payload paths depend on it, so both are checked.
+
+    The write side matters as much as the raise: the guard sits ahead of all
+    model work precisely so a half-built run cannot leave a partial file.
+    """
+    out = tmp_path / "out"
+    with pytest.raises(RuntimeError, match="refusing to publish"):
+        _run_generate_with_stubs(monkeypatch, tmp_path, argv, {},
+                                 current_teams={"p0": "AAA"})   # BBB missing
+    assert not out.exists() or not list(out.iterdir())
 
 
 def test_roster_override_provenance_counts_the_unmapped_tail():

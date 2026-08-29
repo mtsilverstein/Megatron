@@ -71,6 +71,45 @@ def normalize_current_teams(raw: pd.DataFrame) -> dict[str, str]:
             for pid, team in zip(df["gsis_id"], df["team"])}
 
 
+def assert_roster_coverage(mapping: dict[str, str],
+                           scheduled_teams: set[str]) -> None:
+    """Refuse a roster map that cannot speak for the season being projected.
+
+    `pull_current_teams` returns `{}` for a feed that downloads fine but comes
+    back empty or gets filtered to nothing, and `future_skeleton` treats a
+    falsey mapping as "no override asked for" -- so the run would sail on and
+    publish every player on the team of his last played game. That is the
+    incomplete-pull case CLAUDE.md's fail-safe rule exists for, and it has to
+    abort rather than degrade quietly.
+
+    Checked in BOTH directions, against the season's own schedule rather than
+    a hardcoded 32, because the two failures look nothing alike:
+
+      * a scheduled team with no rostered skill player means the feed is
+        missing or truncated;
+      * a rostered team the schedule has never heard of means the two feeds
+        disagree about how to spell a team -- and `future_skeleton` merges
+        players onto matchups BY TEAM, so every player on that spelling is
+        silently dropped as though his team were on bye. `AZ` vs `ARI` is
+        exactly that bug, already papered over by TEAM_ALIASES; this is what
+        makes the next one fail loudly instead of deleting a roster.
+
+    Measured on the 2026 feed: 915 players, all 32 teams, 24-31 each, and
+    neither direction missing anything.
+    """
+    have = set(mapping.values())
+    unrostered = sorted(scheduled_teams - have)
+    unscheduled = sorted(have - scheduled_teams)
+    if unrostered or unscheduled:
+        raise RuntimeError(
+            f"current-roster feed is unusable for this season "
+            f"({len(mapping)} players, {len(have)} teams) — refusing to "
+            f"publish projections built on last-played teams. "
+            f"scheduled teams with no rostered player: {unrostered or 'none'}; "
+            f"rostered teams absent from the schedule: {unscheduled or 'none'} "
+            f"(a new spelling needs an entry in TEAM_ALIASES)")
+
+
 def pull_current_teams(season: int, cache_dir: Path | None = None
                        ) -> dict[str, str]:
     """{player_id: team} for `season`, from the season's roster feed."""

@@ -87,3 +87,42 @@ def test_pull_current_teams_reads_the_cache_without_touching_the_network(
     _raw([("00-9", "TE", "AZ", "ACT")]).to_parquet(
         tmp_path / f"{name}.parquet", index=False)
     assert pull_current_teams(2026, cache_dir=tmp_path) == {"00-9": "ARI"}
+
+
+# --- coverage guard ----------------------------------------------------------
+# An empty roster map is indistinguishable downstream from "no override was
+# asked for": future_skeleton tests `if current_teams:`, so a feed that
+# downloads fine and comes back empty publishes last-played teams instead of
+# aborting. That is the incomplete-pull case the fail-safe rule covers.
+
+SCHEDULED = {"AAA", "BBB", "CCC"}
+
+
+def test_a_map_covering_every_scheduled_team_is_accepted():
+    from ffmodel.data.rosters import assert_roster_coverage
+    assert_roster_coverage({"1": "AAA", "2": "BBB", "3": "CCC", "4": "AAA"},
+                           SCHEDULED)
+
+
+def test_an_empty_map_is_refused():
+    from ffmodel.data.rosters import assert_roster_coverage
+    with pytest.raises(RuntimeError, match="refusing to publish"):
+        assert_roster_coverage({}, SCHEDULED)
+
+
+def test_a_scheduled_team_with_no_rostered_player_is_refused_and_named():
+    from ffmodel.data.rosters import assert_roster_coverage
+    with pytest.raises(RuntimeError, match="CCC"):
+        assert_roster_coverage({"1": "AAA", "2": "BBB"}, SCHEDULED)
+
+
+def test_a_team_the_schedule_has_never_heard_of_is_refused():
+    # The AZ/ARI failure mode. future_skeleton merges players onto matchups BY
+    # TEAM, so a spelling the schedule does not use drops that whole roster as
+    # though the team were on bye -- silently, since a dropped player is
+    # simply absent from the payload. Coverage in the other direction is
+    # complete here, so only the unknown spelling can fail this.
+    from ffmodel.data.rosters import assert_roster_coverage
+    with pytest.raises(RuntimeError, match="TEAM_ALIASES"):
+        assert_roster_coverage({"1": "AAA", "2": "BBB", "3": "CCC", "4": "AZ"},
+                               SCHEDULED)

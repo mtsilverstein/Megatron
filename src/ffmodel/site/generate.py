@@ -441,9 +441,18 @@ def main() -> None:
     # the run like any other, and the site keeps its last-good files. Data
     # published with one player in six on the wrong team is precisely what
     # the fail-safe rule exists to withhold.
-    from ffmodel.data.rosters import pull_current_teams
+    from ffmodel.data.rosters import assert_roster_coverage, pull_current_teams
 
     current_teams = pull_current_teams(args.season, cache_dir=args.data_dir)
+    # A feed that downloads fine and comes back empty is an incomplete pull,
+    # not a run without an override -- and it is indistinguishable from one
+    # downstream, because `future_skeleton` treats a falsey map as "not asked
+    # for" and quietly reverts to last-played teams. Checked here, before any
+    # model work or file write, so the site keeps its last-good JSON.
+    season_games = schedules[schedules["season"] == args.season]
+    assert_roster_coverage(current_teams,
+                           set(season_games["home_team"])
+                           | set(season_games["away_team"]))
 
     sleeper_players = None
     draft_picks = None
