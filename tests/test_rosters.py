@@ -228,3 +228,43 @@ def test_a_position_with_no_team_on_any_row_is_refused():
     assert not any(p.startswith("00-TE") for p in normalize_current_teams(frame))
     with pytest.raises(RuntimeError, match="TE"):
         assert_positions_present(frame)
+
+
+def test_a_bad_upstream_response_never_replaces_the_cached_roster(tmp_path):
+    """Validation runs INSIDE the loader, before _cached writes.
+
+    Validating only after caching would let one truncated response overwrite
+    the last-good parquet, abort the run, and then be served from that fresh
+    cache for the whole TTL -- so a transient upstream failure would keep the
+    run broken for hours after upstream had recovered.
+    """
+    from ffmodel.data.pull import _cache_name
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_POSITION, pull_current_teams
+
+    n = MIN_PLAYERS_PER_POSITION
+    good = [(f"00-{pos}{i}", pos, "NE", "ACT")
+            for pos in ("QB", "RB", "WR", "TE") for i in range(n)]
+    path = tmp_path / f"{_cache_name('rosters_current', [2026])}.parquet"
+    _raw(good).to_parquet(path, index=False)
+    before = path.read_bytes()
+
+    import ffmodel.data.rosters as rosters_mod
+    import nflreadpy
+
+    class _Truncated:
+        def to_pandas(self):
+            return _raw(good[: n])          # QB only
+    monkeypatch_target = nflreadpy.load_rosters
+    nflreadpy.load_rosters = lambda *a, **k: _Truncated()
+    try:
+        # force the pull past the cache by aging it out
+        import os
+        import time
+        old = time.time() - (rosters_mod.LIVE_MAX_AGE_HOURS + 1) * 3600
+        os.utime(path, (old, old))
+        with pytest.raises(RuntimeError, match="unusable"):
+            pull_current_teams(2026, cache_dir=tmp_path)
+    finally:
+        nflreadpy.load_rosters = monkeypatch_target
+
+    assert path.read_bytes() == before, "a refused frame overwrote the cache"

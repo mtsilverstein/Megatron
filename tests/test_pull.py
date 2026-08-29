@@ -489,26 +489,134 @@ def test_current_nfl_season_turns_over_in_march():
     assert current_nfl_season(date(2027, 1, 15)) == 2026   # playoffs
 
 
-def test_only_ranges_touching_a_live_season_expire():
-    from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, _live_age, current_nfl_season
-
-    live = current_nfl_season()
-    assert _live_age([2012, live - 1]) is None       # finished seasons
-    assert _live_age([2012, live]) == LIVE_MAX_AGE_HOURS
-    assert _live_age([live]) == LIVE_MAX_AGE_HOURS
-
-
 def test_a_historical_pull_never_reaches_the_network(tmp_path):
     """The expiry must not turn offline-safe historical pulls into network
     calls: a cache of finished seasons stays valid however old it is."""
-    from ffmodel.data.pull import _cached, _live_age, current_nfl_season
+    import os
+    import time
+    from datetime import date
 
-    seasons = [2012, current_nfl_season() - 1]
+    from ffmodel.data.pull import _cached
+
+    seasons = [2012, 2019]
     calls = []
     _cached(tmp_path, "hist", _stub(pd.DataFrame({"a": [1]}), calls),
-            _live_age(seasons))
-    _age(tmp_path / "hist.parquet", 24 * 500)
+            covers_seasons=seasons)
+    # Written years ago AND after 2019 ended, so it holds complete seasons.
+    old = time.mktime(date(2020, 4, 1).timetuple())
+    os.utime(tmp_path / "hist.parquet", (old, old))
 
     def boom():
         raise AssertionError("a finished-season cache went back to the network")
-    _cached(tmp_path, "hist", boom, _live_age(seasons))
+    _cached(tmp_path, "hist", boom, covers_seasons=seasons)
+    assert len(calls) == 1
+
+
+def test_a_range_ending_in_a_live_season_keeps_expiring(tmp_path):
+    from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, _cached, current_nfl_season
+
+    seasons = [2012, current_nfl_season()]
+    calls = []
+    _cached(tmp_path, "live", _stub(pd.DataFrame({"a": [1]}), calls),
+            covers_seasons=seasons)
+    _age(tmp_path / "live.parquet", LIVE_MAX_AGE_HOURS + 1)
+    _cached(tmp_path, "live", _stub(pd.DataFrame({"a": [2]}), calls),
+            covers_seasons=seasons)
+    assert len(calls) == 2, "an in-progress season was served from a stale cache"
+
+
+def test_a_partial_season_cached_before_rollover_does_not_become_immutable(
+        tmp_path):
+    """THE TWELVE-MONTH FUSE. A range ending in season S, cached during S,
+    holds a partial season. Judge immutability by today's calendar alone and
+    the moment the year rolls over that partial file is "finished" and frozen
+    forever -- the next season's rolling features would be built from whatever
+    week the file was written in, with no error anywhere. Immutability has to
+    be judged from WHEN THE FILE WAS WRITTEN.
+    """
+    import os
+    import time
+    from datetime import date
+
+    from ffmodel.data.pull import _cached, current_nfl_season
+
+    now = date.today()
+    last = current_nfl_season() - 1          # a season that is over today
+    seasons = [2012, last]
+    calls = []
+    _cached(tmp_path, "roll", _stub(pd.DataFrame({"a": [1]}), calls),
+            covers_seasons=seasons)
+
+    # Backdate the file into the middle of season `last` -- i.e. written while
+    # that season was still being played, so it holds a partial season.
+    mid = time.mktime(date(last, 11, 1).timetuple())
+    os.utime(tmp_path / "roll.parquet", (mid, mid))
+    assert date(last, 11, 1) < now           # the rollover has happened
+
+    _cached(tmp_path, "roll", _stub(pd.DataFrame({"a": [2]}), calls),
+            covers_seasons=seasons)
+    assert len(calls) == 2, ("a partial season captured mid-season was frozen "
+                             "as immutable once the calendar rolled over")
+
+
+def test_current_nfl_season_decides_immutability_from_the_write_date(tmp_path):
+    # The same file, written after its newest season ended, IS immutable.
+    import os
+    import time
+    from datetime import date
+
+    from ffmodel.data.pull import _cached, current_nfl_season
+
+    last = current_nfl_season() - 1
+    calls = []
+    _cached(tmp_path, "done", _stub(pd.DataFrame({"a": [1]}), calls),
+            covers_seasons=[2012, last])
+    after = time.mktime(date(last + 1, 4, 1).timetuple())   # league year of S+1
+    os.utime(tmp_path / "done.parquet", (after, after))
+
+    def boom():
+        raise AssertionError("a cache written after the season ended re-pulled")
+    _cached(tmp_path, "done", boom, covers_seasons=[2012, last])
+
+
+def test_a_fully_cached_historical_pull_weekly_is_offline_safe(tmp_path):
+    """pull_weekly reads three caches, and the player master is one of them.
+
+    Giving that one an unconditional TTL while the other two follow the season
+    range makes a fully cached historical pull reach the network after twelve
+    hours -- so offline training and evaluation break, on data that cannot
+    have changed. All three must follow the range.
+    """
+    import os
+    import time
+    from datetime import date
+
+    import nflreadpy
+
+    from ffmodel.data.pull import _cache_name, pull_weekly
+
+    seasons = [2018, 2019]
+    weekly = pd.DataFrame({
+        "player_id": ["00-1"], "season": [2019], "week": [1],
+        "attempts": [0.0], "receiving_air_yards": [0.0],
+        "passing_air_yards": [0.0],
+    })
+    snaps = pd.DataFrame({"pfr_player_id": ["P1"], "season": [2019],
+                          "week": [1], "offense_pct": [0.5]})
+    players = pd.DataFrame({"pfr_id": ["P1"], "gsis_id": ["00-1"]})
+    for name, frame in [(_cache_name("weekly_v2", seasons), weekly),
+                        (_cache_name("snaps", seasons), snaps),
+                        ("players", players)]:
+        path = tmp_path / f"{name}.parquet"
+        frame.to_parquet(path, index=False)
+        old = time.mktime(date(2020, 4, 1).timetuple())   # ancient, post-2019
+        os.utime(path, (old, old))
+
+    real = nflreadpy.load_players
+    nflreadpy.load_players = lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("a fully cached historical pull hit the network"))
+    try:
+        out = pull_weekly(seasons, cache_dir=tmp_path)
+    finally:
+        nflreadpy.load_players = real
+    assert out["snap_pct"].tolist() == [0.5]

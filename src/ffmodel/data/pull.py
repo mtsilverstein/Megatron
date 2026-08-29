@@ -143,28 +143,35 @@ def current_nfl_season(today: date | None = None) -> int:
     return d.year if d.month >= 3 else d.year - 1
 
 
-def _live_age(seasons: list[int]) -> float | None:
-    """Expiry for a cache covering `seasons`: set if any of them is live."""
-    return (LIVE_MAX_AGE_HOURS if seasons and max(seasons) >= current_nfl_season()
-            else None)
-
-
 def _cached(cache_dir: Path | None, name: str, loader,
-            max_age_hours: float | None = None) -> pd.DataFrame:
+            max_age_hours: float | None = None, *,
+            covers_seasons: list[int] | None = None) -> pd.DataFrame:
     """Read `name` from `cache_dir`, pulling through `loader` on a miss.
 
     `max_age_hours` marks the cache as describing live state: a file older
-    than that is re-pulled and overwritten. Omitted (the default) means the
-    data is immutable once written -- finished seasons -- and the cache is
-    kept indefinitely.
+    than that is re-pulled and overwritten. Omitted, the data is immutable
+    once written and the cache is kept indefinitely.
+
+    `covers_seasons` decides that for season-ranged feeds, and it deliberately
+    asks WHEN THE FILE WAS WRITTEN rather than what year it is now. Deciding
+    from today's calendar alone has a trap with a twelve-month fuse: a range
+    ending in 2026, cached during week 3 of 2026, holds three weeks of a
+    season. Read it in 2027 and 2026 is "finished", so the partial file is
+    immutable forever and the 2027 board's rolling features are built from
+    week 3 of the previous year, with no error anywhere. A file written while
+    its newest season was still in progress therefore keeps expiring, however
+    old it gets; only a file written after that season ended is immutable.
     """
     if cache_dir is not None:
         path = Path(cache_dir) / f"{name}.parquet"
         if path.exists():
-            fresh = (max_age_hours is None
-                     or (time.time() - path.stat().st_mtime)
-                     <= max_age_hours * 3600)
-            if fresh:
+            mtime = path.stat().st_mtime
+            limit = max_age_hours
+            if covers_seasons:
+                written_during = current_nfl_season(date.fromtimestamp(mtime))
+                limit = (LIVE_MAX_AGE_HOURS
+                         if written_during <= max(covers_seasons) else None)
+            if limit is None or (time.time() - mtime) <= limit * 3600:
                 return pd.read_parquet(path)
     df = loader()
     if cache_dir is not None:
@@ -197,8 +204,8 @@ def pull_weekly(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFra
 
     # Prefix bumped to weekly_v2 for the feature-pack-v2 source columns: a
     # local cache written before they existed must never be silently reused.
-    age = _live_age(seasons)
-    weekly = _cached(cache_dir, _cache_name("weekly_v2", seasons), load, age)
+    weekly = _cached(cache_dir, _cache_name("weekly_v2", seasons), load,
+                     covers_seasons=seasons)
     missing = [c for c in V2_SOURCE_COLUMNS if c not in weekly.columns]
     if missing:
         raise ValueError(
@@ -208,10 +215,14 @@ def pull_weekly(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFra
     # Post-cache enrichment (same pattern as normalize_schedule_teams): applied
     # on every read path so a weekly cache written before this feature existed
     # self-heals on the next pull, without re-fetching player_stats.
-    snaps = _cached(cache_dir, _cache_name("snaps", seasons), load_snaps, age)
-    # The player master gains rows as nflverse ingests new players, so it is
-    # live state like the rest -- not a finished season.
-    players = _cached(cache_dir, "players", load_players, LIVE_MAX_AGE_HOURS)
+    snaps = _cached(cache_dir, _cache_name("snaps", seasons), load_snaps,
+                    covers_seasons=seasons)
+    # The player master gains rows as nflverse ingests new players -- but it
+    # is pulled here only to name the players in `seasons`, so it follows the
+    # range. Giving it an unconditional TTL would make a fully cached
+    # historical pull reach the network, breaking offline training and eval.
+    players = _cached(cache_dir, "players", load_players,
+                      covers_seasons=seasons)
     return merge_snap_pct(weekly, snaps, players)
 
 
@@ -234,7 +245,7 @@ def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.Data
     # v3 bump: adds the roof column (feature-pack v2 is_indoor).
     return normalize_schedule_teams(
         _cached(cache_dir, _cache_name("schedules_v3", seasons), load,
-                _live_age(seasons)))
+                covers_seasons=seasons))
 
 
 # PFR-style codes used by nflverse draft_picks, mapped to the current

@@ -147,7 +147,15 @@ def pull_current_teams(season: int, cache_dir: Path | None = None
     def load() -> pd.DataFrame:
         import nflreadpy  # deferred: keep offline unit tests import-light
 
-        return nflreadpy.load_rosters([season]).to_pandas()
+        raw = nflreadpy.load_rosters([season]).to_pandas()
+        # Checked INSIDE the loader, before _cached writes the parquet. A
+        # truncated response validated only after caching would replace the
+        # last-good file, abort the run, and then be served from cache for the
+        # whole TTL -- so a transient upstream failure would keep the run
+        # broken for hours after upstream recovered. Never cache a frame we
+        # would refuse to use.
+        assert_positions_present(raw)
+        return raw
 
     # Where players are RIGHT NOW: the definition of live state, and the
     # reason this whole override exists.
