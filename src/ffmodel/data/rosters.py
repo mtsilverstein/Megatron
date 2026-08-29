@@ -167,8 +167,16 @@ def assert_positions_present(raw: pd.DataFrame) -> None:
     present with 16 apiece, and every wide receiver quietly keeps the team he
     last played for.
     """
-    joinable = raw[raw["gsis_id"].notna()] if "gsis_id" in raw.columns else raw
-    counts = joinable["position"].value_counts() if len(joinable) else {}
+    # Count only rows that would SURVIVE normalize_current_teams. Counting raw
+    # rows lets a feed that populates gsis_id and position but blanks `team`
+    # for one position clear this guard and then get dropped downstream --
+    # every player at that position silently keeping his last-played team,
+    # which is the exact outcome the guard exists to prevent.
+    usable = raw
+    for col in ("gsis_id", "team"):
+        if col in usable.columns:
+            usable = usable[usable[col].notna()]
+    counts = usable["position"].value_counts() if len(usable) else {}
     thin = {p: int(counts.get(p, 0)) for p in POSITIONS
             if int(counts.get(p, 0)) < MIN_PLAYERS_PER_POSITION}
     if thin:

@@ -212,3 +212,19 @@ def test_pull_current_teams_refuses_a_truncated_feed(tmp_path):
     _raw(rows).to_parquet(tmp_path / f"{name}.parquet", index=False)
     with pytest.raises(RuntimeError, match="TE"):
         pull_current_teams(2026, cache_dir=tmp_path)
+
+
+def test_a_position_with_no_team_on_any_row_is_refused():
+    # The feed can populate gsis_id and position while blanking `team` --
+    # normalize_current_teams then drops every one of those rows, so counting
+    # raw rows would clear the floor on players the mapping never contains.
+    # The guard has to count what survives normalization, not what arrived.
+    from ffmodel.data.rosters import (MIN_PLAYERS_PER_POSITION,
+                                      assert_positions_present,
+                                      normalize_current_teams)
+    n = MIN_PLAYERS_PER_POSITION
+    frame = _roster_frame({"QB": n, "RB": n, "WR": n, "TE": n})
+    frame.loc[frame["position"] == "TE", "team"] = pd.NA
+    assert not any(p.startswith("00-TE") for p in normalize_current_teams(frame))
+    with pytest.raises(RuntimeError, match="TE"):
+        assert_positions_present(frame)
