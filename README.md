@@ -1,9 +1,16 @@
 # ff-model
 
 NFL fantasy football projections: a small quantile transformer (trained on a
-free SageMaker Studio Lab T4) versus classical baselines, evaluated honestly
-with walk-forward backtests, published as a static site that updates itself
-weekly during the season.
+free Kaggle T4) versus classical baselines, evaluated honestly with
+walk-forward backtests, published as a static site that updates itself weekly
+during the season.
+
+The site is four pages, no backend and no framework: a **draft board** with a
+pick-time optimizer that reads a live Sleeper draft, a **trade calculator**,
+**weekly projections** with p10/p50/p90 bands, and an **about** page carrying
+the backtest numbers. Models predict raw stat lines; fantasy points are
+computed from those by pure scoring functions, so PPR, half-PPR, standard and
+this league's custom rules all derive from one set of predictions.
 
 **Design spec:** `docs/superpowers/specs/2026-07-09-fantasy-football-model-design.md`
 
@@ -20,25 +27,32 @@ python -m ffmodel.data.pull     # cache 2012-2025 data to data/raw/
 python -m ffmodel.eval.run      # walk-forward backtest -> models/backtests/baselines.json
 ```
 
-## Training on SageMaker Studio Lab
+## Training (Kaggle)
 
-1. Start a **GPU** runtime (T4; 4h/day quota) and open a terminal.
-2. Once: `git clone <repo-url> && cd <repo> && pip install -e .`, then set your
-   git identity (`git config --global user.name "..."` and `user.email "..."`)
-   and authenticate for pushing — a fresh Studio Lab runtime has neither
-   configured. Use a GitHub personal access token as the clone/push credential,
-   or run `gh auth login` if the `gh` CLI is available.
-3. Open `notebooks/train_studio_lab.ipynb` and run the cells top to bottom.
-   Each config trains one walk-forward artifact (`models/transformer/v1/through<year>/`);
-   training checkpoints every epoch, so if the session dies, restart the runtime
-   and rerun the same cell adding `--resume`.
-4. The last cell runs the full bake-off and commits artifacts + results.
-   Note on fairness: the transformer reserves the season right before each
-   test year as an early-stopping validation set, while the baselines are
-   fit through that season with no holdout — a small handicap for the
-   transformer that we call out honestly in the results rather than hide.
+Training runs on Kaggle's free GPU tier (~30 h/week). The four
+`notebooks/*_kaggle.ipynb` notebooks are thin wrappers — every line of logic
+lives in `src/ffmodel/`, so the same commands run locally on CPU, slower.
 
-Local CPU training works identically (slower): same commands, no notebook needed.
+1. Session options → Accelerator **GPU T4 ×2**, Internet **ON**.
+   Not the P100: it is sm_60 and unsupported by this project's torch build.
+2. Open a `*_kaggle.ipynb` and **Run All**, then walk away (~1 hour for a
+   12-run sweep). The first cell clones or pulls the repo and installs it.
+3. Come back to either a push confirmation or a zip of artifacts to commit
+   locally — Kaggle usually cannot push with your git credentials.
+
+Sessions can be cut off at any time, so every training loop checkpoints each
+epoch: re-running the notebook skips completed runs and resumes an interrupted
+one from its checkpoint. Nothing is scheduled here — all recurring work runs in
+GitHub Actions (below).
+
+`notebooks/train_studio_lab.ipynb` is the original SageMaker Studio Lab
+notebook, kept because it still runs. Studio Lab closed to new customers in
+July 2026; new work should use the Kaggle notebooks.
+
+Fairness note carried over from the bake-off: the transformer reserves the
+season right before each test year as an early-stopping validation set, while
+the baselines are fit through that season with no holdout — a small handicap
+for the transformer, called out here rather than hidden.
 
 ## Automation (GitHub Actions)
 
@@ -64,13 +78,11 @@ and nothing deploys — the site keeps serving last week's data, with its
 
 **Deployed model:** the `env:` block at the top of `weekly-update.yml`
 selects the model. It is set to `MODEL: transformer` with `ARTIFACT_ROOT:
-models/transformer/v1` — the *run root*, not a `through<year>` directory;
-the predictor appends `through{last-trained-season}` itself. A
-comma-separated list of run roots deploys a seed ensemble.
-
-**One-time setup:** these workflows are inert until the repo is pushed to
-GitHub. Once pushed, enable Pages once under repo Settings -> Pages ->
-Source: GitHub Actions.
+models/transformer/v1,models/transformer/v1_s43,models/transformer/v1_s44` —
+three *run roots*, not `through<year>` directories; the predictor appends
+`through{last-trained-season}` to each and averages the quantiles. A single
+root deploys a single model; the comma-separated list is what makes it a
+3-seed ensemble.
 
 **Preseason draft-board refresh:** before week 1, run `weekly-update.yml`
 manually with the `draft` input checked. This regenerates only the draft
@@ -78,18 +90,47 @@ board (`--draft`, no `--week`), since the target season has no games yet
 and requesting its weekly stats would fail; the weekly slate resumes once
 the season starts (cron or plain dispatch, which use `--week auto`).
 
+## Results
+
+Walk-forward only: train on seasons ≤ S, test on S+1, held-out years
+2023-2025. There are no random splits anywhere — rolling features make them
+leak the future into the past. Weekly PPR points, pooled over the three
+held-out seasons (`models/backtests/bakeoff.json`, n = 35,816 player-weeks):
+
+| model | MAE | QB | RB | WR | TE |
+|---|---|---|---|---|---|
+| naive last-4 average | 4.612 | 6.57 | 4.44 | 4.62 | 3.75 |
+| XGBoost | 4.448 | 6.34 | 4.33 | 4.47 | 3.54 |
+| **transformer** (3-seed ensemble) | **4.325** | **6.24** | **4.33** | **4.25** | **3.45** |
+
+The transformer wins overall and at every position, but the margin over
+XGBoost is small — about 0.12 points per player-week — and it ties at RB. The
+baselines run through the identical eval harness, and the deployed model is
+whichever one actually won.
+
+Two later experiments were pre-registered and both **failed their gate**; the
+verdicts are committed under `models/diagnostics/` next to the criteria that
+were written before the results existed:
+
+- **feature-pack v2** (`air_share`, `team_pass_att_last4`, `is_indoor`) — met
+  both criteria by the letter, but the paired 95% CI on per-row absolute error
+  includes zero, it wins only 1 of 3 held-out seasons, and QB regresses
+  significantly. Not promoted.
+- **conditional-mean head** — 9 paired folds, 40 Kaggle runs, testing whether
+  a mean head improves within-position weekly ranking. Not promoted.
+
+The site still serves v1. A negative result that is cheap to run and honestly
+recorded is worth more than a promotion that would not have replicated.
+
 ## Status
 
 - [x] Plan 1: data pipeline, scoring, features, eval harness, baselines
-- [x] Plan 2: quantile transformer code complete (CPU smoke-tested end-to-end on real data)
-  - Transformer walk-forward artifacts: pending GPU training (see Training on SageMaker Studio Lab)
-- [x] Plan 3: draft board + weekly site, GitHub Actions automation
-  - Site pages (draft board, weekly, about) and all three workflows complete
-  - First real 2026 draft board generated (xgboost) and committed under `site/data/`
+- [x] Plan 2: quantile transformer trained (Kaggle T4), 3-seed walk-forward
+      ensemble deployed as the site model
+- [x] Plan 3: draft board + weekly site, GitHub Actions automation, Pages live
+- [x] Draft tool: pick-time optimizer, live Sleeper draft mode, keeper
+      handling, trade calculator
+- [ ] In-season: the weekly cron takes over from week 1
 
-Remaining user tasks:
-
-- [ ] Create the GitHub remote and push (workflows are inert until then)
-- [ ] Enable Pages once: repo Settings -> Pages -> Source: GitHub Actions
-- [ ] Train the transformer on Studio Lab GPU (see Training on SageMaker Studio Lab)
-- [ ] Flip `MODEL`/`ARTIFACT_ROOT` in `weekly-update.yml` to the trained transformer
+Scope guards (v1), deliberately: QB/RB/WR/TE only — no K/DST/IDP projections,
+no DFS optimization, no injury or news signals.
