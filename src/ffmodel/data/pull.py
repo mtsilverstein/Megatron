@@ -132,6 +132,14 @@ def merge_snap_pct(weekly: pd.DataFrame, snaps: pd.DataFrame, crosswalk: pd.Data
 # about local runs, which is where the draft board actually gets regenerated.
 LIVE_MAX_AGE_HOURS = 12
 
+# Usable pfr_id -> gsis_id pairs the player master must carry. It is the join
+# snap_pct rides on, and merge_snap_pct drops any row missing either id, so a
+# frame can be large, non-empty and schema-correct while joining to nothing.
+# Measured on the live feed: 25,033 rows, 22,556 usable pairs. The floor is a
+# quarter of that -- far enough below to survive normal churn, far enough
+# above zero to catch a feed that has stopped carrying one of the two ids.
+MIN_CROSSWALK_PAIRS = 5000
+
 
 def current_nfl_season(today: date | None = None) -> int:
     """The season a given date belongs to.
@@ -214,14 +222,24 @@ def pull_weekly(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFra
 
         raw = nflreadpy.load_players().to_pandas()
         # Checked before _cached writes it. This frame is the pfr->gsis
-        # crosswalk snap_pct joins through; a schema-correct empty response
-        # would cache silently and leave every snap_pct NaN, which reads
-        # downstream as "no snap data" rather than "the pull came back empty".
-        if raw.empty or not {"pfr_id", "gsis_id"} <= set(raw.columns):
+        # crosswalk snap_pct joins through, and merge_snap_pct drops every row
+        # missing either id -- so "non-empty with the right columns" is not
+        # the contract. A frame of 25k rows whose ids are all null joins to
+        # nothing, caches silently, and leaves every snap_pct NaN, which reads
+        # downstream as "this season has no snap data" (a real state -- 2012
+        # genuinely has none) rather than "the pull came back useless".
+        # Measured on the live feed: 25,033 rows, 22,556 usable pairs.
+        if not {"pfr_id", "gsis_id"} <= set(raw.columns):
             raise RuntimeError(
-                "player master came back empty or without the pfr_id/gsis_id "
-                "crosswalk columns -- refusing to cache it, snap_pct joins "
-                "through it and would silently go all-NaN")
+                "player master is missing the pfr_id/gsis_id crosswalk "
+                "columns -- refusing to cache it, snap_pct joins through it")
+        usable = len(raw[["pfr_id", "gsis_id"]].dropna())
+        if usable < MIN_CROSSWALK_PAIRS:
+            raise RuntimeError(
+                f"player master carries only {usable} usable pfr_id/gsis_id "
+                f"pairs of {len(raw)} rows (expected >= {MIN_CROSSWALK_PAIRS}) "
+                f"-- refusing to cache it, snap_pct joins through this and "
+                f"would silently go all-NaN")
         return raw
 
     # Prefix bumped to weekly_v2 for the feature-pack-v2 source columns: a

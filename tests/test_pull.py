@@ -327,7 +327,14 @@ def test_pull_weekly_uses_v2_prefix_and_ignores_stale_v1_cache(tmp_path, monkeyp
 
         @staticmethod
         def load_players():
-            return _Result(pd.DataFrame([{"pfr_id": "x", "gsis_id": "y"}]))
+            # Padded past MIN_CROSSWALK_PAIRS: the crosswalk's CONTENT is
+            # irrelevant to this test, but a master too small to join through
+            # is refused before it can be cached, as it should be.
+            from ffmodel.data.pull import MIN_CROSSWALK_PAIRS
+            n = MIN_CROSSWALK_PAIRS
+            return _Result(pd.DataFrame({
+                "pfr_id": [f"x{i}" for i in range(n)],
+                "gsis_id": [f"y{i}" for i in range(n)]}))
 
     monkeypatch.setitem(sys.modules, "nflreadpy", _FakeNflreadpy())
 
@@ -672,15 +679,41 @@ def test_an_empty_player_master_is_never_cached(tmp_path):
     snaps.to_parquet(tmp_path / f"{_cache_name('snaps', seasons)}.parquet",
                      index=False)
 
-    class _Empty:
-        def to_pandas(self):
-            return pd.DataFrame(columns=["pfr_id", "gsis_id"])
+    from ffmodel.data.pull import MIN_CROSSWALK_PAIRS
+
+    def _master(frame):
+        class _M:
+            def to_pandas(self):
+                return frame
+        return _M()
 
     real = nflreadpy.load_players
-    nflreadpy.load_players = lambda *a, **k: _Empty()
+    n = MIN_CROSSWALK_PAIRS
+    cases = {
+        "empty": pd.DataFrame(columns=["pfr_id", "gsis_id"]),
+        # THE ONE "non-empty and schema-correct" MISSES: 25k rows, zero
+        # joinable pairs. merge_snap_pct drops them all and snap_pct goes
+        # silently NaN.
+        "all-null ids": pd.DataFrame({"pfr_id": [None] * n,
+                                      "gsis_id": [None] * n}),
+        "one id column blanked": pd.DataFrame({
+            "pfr_id": [f"P{i}" for i in range(n)], "gsis_id": [None] * n}),
+        "collapsed to a handful": pd.DataFrame({
+            "pfr_id": ["P1"], "gsis_id": ["00-1"]}),
+    }
     try:
-        with pytest.raises(RuntimeError, match="empty"):
-            pull_weekly(seasons, cache_dir=tmp_path)
+        for label, frame in cases.items():
+            nflreadpy.load_players = lambda *a, _f=frame, **k: _master(_f)
+            with pytest.raises(RuntimeError, match="player master"):
+                pull_weekly(seasons, cache_dir=tmp_path)
+            assert not (tmp_path / "players.parquet").exists(),                 f"cached a useless master ({label})"
+
+        # ...and a healthy one still goes through.
+        good = pd.DataFrame({"pfr_id": [f"P{i}" for i in range(n)],
+                             "gsis_id": [f"00-{i}" for i in range(n)]})
+        nflreadpy.load_players = lambda *a, **k: _master(good)
+        out = pull_weekly(seasons, cache_dir=tmp_path)
+        assert (tmp_path / "players.parquet").exists()
+        assert out["snap_pct"].notna().any(), "the healthy crosswalk did not join"
     finally:
         nflreadpy.load_players = real
-    assert not (tmp_path / "players.parquet").exists(), "cached an empty master"
