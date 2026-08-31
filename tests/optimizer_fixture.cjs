@@ -763,4 +763,50 @@ check("no shortlist entry is ever charged a negative cost", () => {
   assert.ok(Math.abs(outside.cost - (best - outside.points)) < 1e-9,
             `cost measured from the wrong baseline (${outside.cost} vs ${best - outside.points})`);
 });
+
+check("outside the top band the objective is not overruled", () => {
+  // Only band 0 is a band. Bucketing the whole list by the same width let
+  // scarcity reorder two candidates that merely shared a LATER interval: on
+  // the live board a 6.606-point deficit was listed above a 5.224-point one.
+  // Below the top band the raw score must decide, in order.
+  const pool = nearTiePool();
+  // Three clearly-separated also-rans, the scarcest of them the WORST.
+  pool.push(P("farA", "WR", 60, { adp: 300, vorp: 5 }));
+  pool.push(P("farB", "WR", 55, { adp: 301, vorp: 80 }));
+  pool.push(P("farC", "WR", 50, { adp: 1, vorp: 99 }));
+  const out = O.recommend({ available: pool, myPlayers: [], pickNo: 1,
+                            futurePicks: [5] });
+  const best = Math.max(...out.map(e => e.points));
+  const tail = out.filter(e => !O.sameBand(best, e.points, O.TIE_POINTS));
+  assert.ok(tail.length >= 2, "need two entries below the band to compare");
+  for (let i = 1; i < tail.length; i++) {
+    assert.ok(tail[i - 1].points >= tail[i].points,
+              `below the band the objective was overruled: ${tail[i-1].player.name} `
+              + `(${tail[i-1].points.toFixed(2)}) listed above ${tail[i].player.name} `
+              + `(${tail[i].points.toFixed(2)})`);
+  }
+  // Monotonicity alone is too weak: letting scarcity sort below the band swaps
+  // WHICH players are shown while leaving the survivors in descending order,
+  // so the list still looks sorted. farA outscores farC by 10 points and farC
+  // is the scarce one -- name the player who must lead the tail.
+  assert.strictEqual(tail[0].player.name, "farA",
+                     "a scarcer but lower-scoring candidate was promoted below the band");
+});
+
+check("rawCost keeps the true spread that cost no longer carries", () => {
+  // draftmode prints "these all project the same lineup" off the spread across
+  // the shortlist. Reading zeroed costs there would make it claim a flat slate
+  // whenever everything fell inside one band.
+  const out = O.recommend({ available: nearTiePool(), myPlayers: [], pickNo: 1,
+                            futurePicks: [5] });
+  const best = Math.max(...out.map(e => e.points));
+  const banded = out.filter(e => O.sameBand(best, e.points, O.TIE_POINTS));
+  assert.ok(banded.some(e => e.cost === 0 && e.rawCost > 0),
+            "no in-band entry has a zeroed cost over a real deficit");
+  for (const e of out) {
+    assert.ok(Math.abs(e.rawCost - (best - e.points)) < 1e-9,
+              `${e.player.name} rawCost is not the true deficit`);
+    assert.ok(e.rawCost >= e.cost, "rawCost must never understate cost");
+  }
+});
 console.log(`optimizer fixture: ${n} groups OK`);

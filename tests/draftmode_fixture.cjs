@@ -315,4 +315,29 @@ const bare = D.lateSlotNeed(roster(12), 10, 15, "u1", null);
 assert.deepStrictEqual(bare.need, ["K", "D/ST"]);
 assert.deepStrictEqual(bare.K, []);
 assert.strictEqual(D.lateSlotNeed(roster(12), 10, NaN, "u1", LATE), null);
+
+// --- the "these all project the same lineup" message -------------------------
+// The optimizer now zeroes `cost` inside its resolution band (4.3247 points,
+// the model's measured MAE). This message makes a much stronger claim than
+// that -- "none of them changes your season total" -- so it must read the RAW
+// deficit. Keyed off cost, it would fire for any slate that happened to fit in
+// one band, including gaps this panel used to call meaningful.
+{
+  const DM = window.DraftMode;
+  const row = (cost, rawCost) => ({ cost, rawCost });
+
+  // A genuinely flat slate: nothing separates them even before banding.
+  assert.strictEqual(DM.isFlatSlate([row(0, 0), row(0, 0.2)], 1), true);
+
+  // THE REGRESSION. Costs are all zeroed by the band, but the real spread is
+  // 1.98 points -- over the panel's own 1-point threshold.
+  assert.strictEqual(DM.isFlatSlate([row(0, 0), row(0, 1.98)], 1), false,
+                     "claimed a flat slate for a 1.98-point spread");
+
+  // Falls back to cost for a shortlist built before rawCost existed.
+  assert.strictEqual(DM.isFlatSlate([{ cost: 0 }, { cost: 3 }], 1), false);
+  assert.strictEqual(DM.isFlatSlate([{ cost: 0 }, { cost: 0.1 }], 1), true);
+
+  assert.strictEqual(DM.isFlatSlate([], 1), false, "an empty slate is not flat");
+}
 console.log("draftmode_fixture: OK");

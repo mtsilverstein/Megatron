@@ -346,7 +346,7 @@ window.DraftMode = (() => {
     // When no candidate changes the projected lineup -- typical once your
     // starters are set -- say so rather than dressing a rounding difference up
     // as a recommendation. The order below it is then just best-available.
-    const flat = shortlist[shortlist.length - 1].cost < INDIFFERENT_POINTS;
+    const flat = isFlatSlate(shortlist, INDIFFERENT_POINTS);
     // The K/DST need goes ABOVE the recommendations, not beside them.
     const lateNeed = lateSlotNeed(picks, seat.slot, session.rounds,
                                   session.userId, cfg.board.late_slots);
@@ -425,6 +425,20 @@ window.DraftMode = (() => {
        next    your next pick number, skipping picks spent on your keepers
        until   selections that must happen before it
        future  your remaining picks after that one */
+  /* Does the whole shortlist project the same lineup?
+     Reads the RAW deficit, never `cost`. The optimizer zeroes cost inside its
+     resolution band (4.3247 points, the model's measured MAE), so keying this
+     off cost would print "none of these changes your season total" for any
+     slate that merely fits in one band -- a much stronger claim, on gaps this
+     panel used to call meaningful. Extracted from the render path because a
+     message that overclaims during a live draft has to be testable. */
+  function isFlatSlate(shortlist, threshold) {
+    if (!shortlist || !shortlist.length) return false;
+    const last = shortlist[shortlist.length - 1];
+    const spread = last.rawCost != null ? last.rawCost : last.cost;
+    return spread < threshold;
+  }
+
   function planFromPicks(picks, seat, type) {
     const used = usedPickNumbers(picks);
     const cursor = pickCursor(picks);
@@ -680,7 +694,7 @@ window.DraftMode = (() => {
 
   return { init, disable, nextPickNumber, gapToNextPick, seatFromPicks,
            pickCursor, usedPickNumbers, planFromPicks, myPicks,
-           lateSlotNeed,
+           lateSlotNeed, isFlatSlate,
            rosterStateFromPicks,
            shortlistBlocker, syncLabel };
 })();

@@ -546,9 +546,15 @@
     const held = rosterSlots(mine);
     // Band 0 is every candidate within TIE_POINTS of the best score -- the set
     // the objective cannot honestly tell apart. Inside it the tiebreaks below
-    // decide; outside it the objective still wins outright.
+    // decide; outside it the objective wins outright.
+    //
+    // ONLY the top band is a band. Bucketing the whole list by the same width
+    // let scarcity reorder two candidates that were merely in the same LATER
+    // interval -- on the live board that put a 6.606-point deficit above a
+    // 5.224-point one, which is the objective being overruled exactly where it
+    // was supposed to be decisive.
     const bestPoints = scored.reduce((m, e) => Math.max(m, e.points), -Infinity);
-    const grade = e => -Math.floor((bestPoints - e.points) / TIE_POINTS);
+    const inTopBand = e => sameBand(bestPoints, e.points, TIE_POINTS);
     const over = e => (held[e.player.position] >= DEPTH_CAP[e.player.position] ? 1 : 0);
     // SCARCITY BREAKS TIES BEFORE VALUE DOES. When the objective is indifferent
     // -- which is most of the late rounds -- the old order fell straight to
@@ -561,10 +567,14 @@
     const survives = new Map(scored.map(e =>
       [e.player, survivesToNextPick(e.player, pool, future, ctx.pickNo, used) ? 1 : 0]));
     const safe = e => survives.get(e.player);
-    scored.sort((a, b) => (grade(b) - grade(a))
-                       || (over(a) - over(b))
-                       || (safe(a) - safe(b))
-                       || ((b.player.vorp || 0) - (a.player.vorp || 0)));
+    scored.sort((a, b) => {
+      const ta = inTopBand(a), tb = inTopBand(b);
+      if (ta !== tb) return ta ? -1 : 1;          // the band the model can see
+      if (!ta) return b.points - a.points;        // below it, the objective rules
+      return (over(a) - over(b))
+          || (safe(a) - safe(b))
+          || ((b.player.vorp || 0) - (a.player.vorp || 0));
+    });
     // `top` comes from the full ranking, BEFORE the display spread, so `cost`
     // stays measured against the genuinely best pick even when the spread has
     // dropped the runner-up off the list.
@@ -598,6 +608,12 @@
         // presented to someone on the clock.
         cost: sameBand(top, entry.points, TIE_POINTS)
           ? 0 : Math.max(0, top - entry.points),
+        // The unrounded deficit, kept because `cost` no longer carries it.
+        // draftmode decides whether to print "these all project the same
+        // lineup" from the spread across the shortlist; reading zeroed costs
+        // there would make it claim a flat slate whenever everything happened
+        // to fall inside one band, for gaps it used to call meaningful.
+        rawCost: Math.max(0, top - entry.points),
         role: lineupRole(entry.player, entry.roster),
         nextBest,
         waitCost: alt ? entry.points - lineupPoints(alt) : null,
