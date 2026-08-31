@@ -632,4 +632,135 @@ check("recommend spans at least three positions on the real board shape", () => 
   }
 });
 
+
+
+// --- sub-resolution gaps must not decide a pick ------------------------------
+// THE 2026-08-31 MOCK. At pick 10 the rollout scored QB Joe Burrow 1311.1 and
+// WR CeeDee Lamb 1310.3 -- 0.82 points apart on an 18-week, ~1308-point
+// objective. Lamb was worth 51 more VORP and would NOT survive to the seat's
+// next pick; Burrow would. The scarcity tiebreak that exists for exactly this
+// never ran, because the score comparison sat above it on a 0.05-point grid
+// and called 0.82 decisive. The seat took a quarterback tenth overall in a
+// one-QB league.
+//
+// Two separate defects, both pinned below:
+//   1. the band was 0.05 points wide, ~150x finer than the objective's own
+//      demonstrated resolution -- measured on that draft, 13.3% of
+//      same-position candidate pairs INVERT (the rollout prefers a strictly
+//      worse player at the same position), p90 magnitude 7.41, max 10.15;
+//   2. it was an ABSOLUTE grid, so Math.round(points / TIE_POINTS) puts scores
+//      0.02 apart in different cells whenever a boundary falls between them.
+//      Widening an absolute grid does not fix that -- the band has to be
+//      measured from the best candidate.
+
+// Reproduces the pick-10 shape in miniature. Taking the safe QB now leaves the
+// urgent RB at your next pick (200 + 100.82 = 300.82); taking the scarce WR now
+// leaves the QB, who nobody else wants (100 + 200 = 300.00). The branches land
+// 0.82 apart -- the real gap -- and only one of the two men is actually going
+// anywhere.
+function nearTiePool() {
+  const pool = [
+    P("safeQB", "QB", 200, { adp: 100, vorp: 1 }),
+    P("scarceWR", "WR", 100, { adp: 1, vorp: 90 }),
+    P("urgentRB", "RB", 100.82, { adp: 50, vorp: 50 }),
+  ];
+  // ADPs from 2 up, so the field spends its three picks between your turns on
+  // these rather than sweeping the whole board -- only scarceWR is meant to
+  // disappear. Verified: the field takes scarceWR, filler0, filler1.
+  for (let i = 0; i < 60; i++) {
+    pool.push(P("filler" + i, "TE", 1, { adp: 2 + i, vorp: -50 }));
+  }
+  return pool;
+}
+
+check("the near-tie fixture really is a near-tie", () => {
+  // Guard the guard: if the two branches stop landing inside the band this
+  // fixture proves nothing, and would keep passing while proving nothing.
+  const out = O.recommend({ available: nearTiePool(), myPlayers: [], pickNo: 1,
+                            futurePicks: [5] });
+  const best = Math.max(...out.map(e => e.points));
+  const scarce = out.find(e => e.player.name === "scarceWR");
+  assert.ok(scarce, "the scarce man fell off the shortlist entirely");
+  const gap = best - scarce.points;
+  // A real gap, not an exact tie: an exact tie would reach the tiebreaks even
+  // under the old absolute grid, so it would prove nothing about the band.
+  assert.ok(gap > 0, "the branches tie exactly -- that is not the bug");
+  assert.ok(gap < O.TIE_POINTS,
+            `scarceWR must land inside the band (gap ${gap.toFixed(3)})`);
+});
+
+check("a gap inside the measured band falls through to scarcity", () => {
+  const out = O.recommend({ available: nearTiePool(), myPlayers: [], pickNo: 1,
+                            futurePicks: [5] });
+  assert.strictEqual(out[0].player.name, "scarceWR",
+                     "a sub-resolution score edge outranked a player who will be gone");
+});
+
+check("a gap wider than the band still lets the objective win", () => {
+  // The band must not become "always take the scarce man": a real lineup gain
+  // has to beat scarcity, or the score has stopped meaning anything.
+  // Raising safeQB would not widen anything -- he ends up on BOTH rosters, so
+  // the gap is unchanged. Make the scarce man genuinely worse instead. His
+  // vorp stays 90, the highest on the board, so this also proves the objective
+  // outranks the VORP tiebreak and not merely the scarcity one.
+  const pool = nearTiePool();
+  pool.find(p => p.name === "scarceWR").value_points = 50;
+  const out = O.recommend({ available: pool, myPlayers: [], pickNo: 1,
+                            futurePicks: [5] });
+  const best = Math.max(...out.map(e => e.points));
+  const scarce = out.find(e => e.player.name === "scarceWR");
+  assert.ok(best - scarce.points > O.TIE_POINTS,
+            `fixture no longer clears the band (gap ${(best - scarce.points).toFixed(2)})`);
+  assert.notStrictEqual(out[0].player.name, "scarceWR",
+                        "a genuine lineup gain lost to scarcity");
+});
+
+check("the band is measured from the best score, not laid on a fixed grid", () => {
+  // An absolute grid ties two scores or splits them depending on where a cell
+  // boundary happens to fall: round(100.02/0.05)=2000 but round(100.04/0.05)
+  // =2001, so 0.02 apart lands in different cells. Relative banding cannot do
+  // that -- anything within TIE_POINTS of the best candidate shares its band,
+  // wherever it sits on the number line.
+  const eps = O.TIE_POINTS / 10;
+  for (const best of [100, 100.02, 1311.1, 26221.7]) {
+    assert.strictEqual(O.sameBand(best, best - eps, O.TIE_POINTS), true,
+                       `${best} and ${best - eps} should share a band`);
+    assert.strictEqual(O.sameBand(best, best - O.TIE_POINTS * 1.5, O.TIE_POINTS), false,
+                       `${best} and a score 1.5 bands back must not share one`);
+  }
+});
+
+check("the tie band is anchored to the model's measured error", () => {
+  // Not a taste constant. 4.3247 is the transformer's pooled walk-forward PPR
+  // MAE over 17,908 held-out player-weeks (models/backtests/bakeoff.json), so
+  // the optimizer refuses to split two rosters by less than the error its own
+  // projections are known to carry.
+  assert.ok(Math.abs(O.TIE_POINTS - 4.3247) < 0.001,
+            "TIE_POINTS drifted off the measured MAE");
+});
+
+check("no shortlist entry is ever charged a negative cost", () => {
+  // `cost` was measured against scored[0] AFTER the tiebreak sort, so once a
+  // lower-scoring scarcity winner took the top slot every higher-scoring entry
+  // below it displayed a NEGATIVE cost -- the panel telling you that passing
+  // on its own recommendation gains you points.
+  const out = O.recommend({ available: nearTiePool(), myPlayers: [], pickNo: 1,
+                            futurePicks: [5] });
+  assert.strictEqual(out[0].player.name, "scarceWR");
+  assert.ok(out.some(e => e.points > out[0].points),
+            "fixture must contain an entry outscoring the tiebreak winner");
+  for (const e of out) {
+    assert.ok(e.cost >= 0, `${e.player.name} charged a negative cost (${e.cost})`);
+  }
+  assert.strictEqual(out[0].cost, 0, "the recommendation itself must cost nothing");
+  // Sign alone is not enough: the clamp would satisfy that while `top` still
+  // read the post-sort winner. Pin the VALUE for an entry outside the band --
+  // it has to be measured from the best RAW score, not from whoever the
+  // tiebreaks promoted to the top slot.
+  const best = Math.max(...out.map(e => e.points));
+  const outside = out.find(e => !O.sameBand(best, e.points, O.TIE_POINTS));
+  assert.ok(outside, "fixture needs an entry outside the band to measure cost against");
+  assert.ok(Math.abs(outside.cost - (best - outside.points)) < 1e-9,
+            `cost measured from the wrong baseline (${outside.cost} vs ${best - outside.points})`);
+});
 console.log(`optimizer fixture: ${n} groups OK`);

@@ -102,10 +102,47 @@
   const ROLLOUT_PER_POS = 6;     // considered at each simulated pick
   const ROLLOUT_PICKS = 8;       // your own future picks simulated (= starters)
 
-  // Season-point resolution below which two candidates are the same pick. A
-  // twentieth of a point over 18 weeks is not a distinction this model can
-  // support -- treating it as one would let float noise order the shortlist.
-  const TIE_POINTS = 0.05;
+  // Season-point resolution below which two candidates are the SAME PICK.
+  //
+  // This was 0.05, chosen to keep float noise from ordering the shortlist. It
+  // was about 150x too fine, and on 2026-08-31 it cost a real draft its first
+  // pick: the rollout scored QB Joe Burrow 1311.1 and WR CeeDee Lamb 1310.3 --
+  // 0.82 points apart on an 18-week, ~1308-point objective -- so the score
+  // comparison resolved outright and the scarcity tiebreak below it never ran.
+  // Lamb was worth 51 more VORP and would not have survived to the seat's next
+  // pick; Burrow would have. The seat took a quarterback tenth overall in a
+  // one-QB league. Ten of that draft's thirteen picks were decided by a gap
+  // under two points.
+  //
+  // The objective cannot support anything like that resolution. Measured on
+  // the same draft: of 780 same-position candidate pairs, 13.3% INVERT -- the
+  // rollout scores a strictly worse player at the same position higher, which
+  // with the lineup structure held fixed can only be instability in
+  // finishRoster's greedy fill. p90 inversion magnitude 7.41 points, max
+  // 10.15.
+  //
+  // 4.3247 is the transformer's pooled walk-forward PPR MAE over the 17,908
+  // held-out player-weeks in models/backtests/bakeoff.json. It is the
+  // smallest band anchored in something measured: the optimizer refuses to
+  // split two rosters by less than the error its own projections are known to
+  // carry. It is deliberately NOT scaled to a season -- multiplying by 18
+  // would assume errors accumulate, dividing by sqrt(18) would assume they are
+  // independent, and this repo has no covariance estimate to justify either.
+  // The 7.41 inversion figure says the true resolution is coarser still, so
+  // this is a floor rather than a ceiling.
+  const TIE_POINTS = 4.3247;
+
+  // Two scores are the same pick when they sit within `width` of each other.
+  //
+  // The band is RELATIVE, measured from the best candidate, because the old
+  // absolute grid did not actually do what its name promised:
+  // Math.round(points / 0.05) puts 100.02 in cell 2000 and 100.04 in cell
+  // 2001, so two scores a fiftieth of a point apart resolve outright whenever
+  // a cell boundary falls between them. Widening the grid does not fix that --
+  // it only moves the boundaries. Anchoring to the best score does.
+  function sameBand(a, b, width) {
+    return Math.abs(a - b) < width;
+  }
 
   // How many of a position can still be useful. Reached only in the late
   // rounds, where every remaining player leaves the projected lineup unchanged
@@ -507,7 +544,11 @@
     // Points are compared on a TIE_POINTS grid so the ordering stays a valid
     // total order rather than an epsilon comparator that can sort unstably.
     const held = rosterSlots(mine);
-    const grade = e => Math.round(e.points / TIE_POINTS);
+    // Band 0 is every candidate within TIE_POINTS of the best score -- the set
+    // the objective cannot honestly tell apart. Inside it the tiebreaks below
+    // decide; outside it the objective still wins outright.
+    const bestPoints = scored.reduce((m, e) => Math.max(m, e.points), -Infinity);
+    const grade = e => -Math.floor((bestPoints - e.points) / TIE_POINTS);
     const over = e => (held[e.player.position] >= DEPTH_CAP[e.player.position] ? 1 : 0);
     // SCARCITY BREAKS TIES BEFORE VALUE DOES. When the objective is indifferent
     // -- which is most of the late rounds -- the old order fell straight to
@@ -527,7 +568,12 @@
     // `top` comes from the full ranking, BEFORE the display spread, so `cost`
     // stays measured against the genuinely best pick even when the spread has
     // dropped the runner-up off the list.
-    const top = scored.length ? scored[0].points : 0;
+    //
+    // It must be the best RAW score, not scored[0]. Once the band above let a
+    // lower-scoring scarcity winner take the top slot, reading scored[0] after
+    // the sort charged every higher-scoring entry below it a NEGATIVE cost --
+    // the panel telling you that ignoring its own recommendation gains points.
+    const top = scored.length ? bestPoints : 0;
     return shortlistSpread(scored, SHORTLIST_N, SHORTLIST_PER_POS).map(entry => {
       const nextBest = nextAtPosition(entry.player, ranked, future, ctx.pickNo, used);
       // What waiting costs, measured THE SAME WAY as `cost`: finish the draft
@@ -546,7 +592,12 @@
       return {
         player: entry.player,
         points: entry.points,
-        cost: top - entry.points,
+        // Zero inside the band, because that is the honest number: the
+        // objective cannot tell these apart, and printing "costs you 0.8" for
+        // a difference the model has no power to resolve is false precision
+        // presented to someone on the clock.
+        cost: sameBand(top, entry.points, TIE_POINTS)
+          ? 0 : Math.max(0, top - entry.points),
         role: lineupRole(entry.player, entry.roster),
         nextBest,
         waitCost: alt ? entry.points - lineupPoints(alt) : null,
@@ -582,7 +633,7 @@
   return { seasonValue, withValuePoints, perWeek, rosterSlots, openSlot,
            bestLineup, lineupTotal, lineupPoints, fieldTakes, finishRoster,
            openSlots, lineupRole, adpDelta, byeClash, nextAtPosition, recommend,
-           survivesToNextPick, openPicksBetween,
+           survivesToNextPick, openPicksBetween, sameBand,
            parVorp, shortlistSpread, SHORTLIST_PER_POS,
            valueLens, VALUE_LENS_ORDER,
            lateSlotTrigger,
