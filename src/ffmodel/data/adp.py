@@ -72,7 +72,7 @@ def pull_adp(season: int, cache_dir: Path | None = None, teams: int = 12,
 # self-selected mock drafters with no money at stake, while Sleeper's ADP
 # reflects the actual population this league's drafter faces. Refresh by
 # re-exporting and updating SNAPSHOT_PATH; nothing here scrapes it.
-SNAPSHOT_PATH = Path("data_snapshots/fantasypros_adp_2026-08-28.csv")
+SNAPSHOT_PATH = Path("data_snapshots/fantasypros_adp_2026-08-31.csv")
 
 # "Not ranked on this platform" is marked EITHER with an em-dash or with an
 # empty cell -- never a 0, and a missing Sleeper ADP must never be coerced to

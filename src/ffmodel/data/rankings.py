@@ -63,7 +63,7 @@ RANKING_COLUMNS = ["fp_id", "player", "pos", "team", "ecr", "sd", "best",
 #
 # The snapshot is PREFERRED when present and the mirror remains the fallback,
 # so deleting the file restores the previous behaviour with no code change.
-ECR_SNAPSHOT_PATH = Path("data_snapshots/fantasypros_ecr_2026-08-27.csv")
+ECR_SNAPSHOT_PATH = Path("data_snapshots/fantasypros_ecr_2026-08-31.csv")
 
 # Snapshot filenames end in _YYYY-MM-DD.csv, same convention (and same reason)
 # as adp.SNAPSHOT_PATH: provenance is read off the filename rather than kept
