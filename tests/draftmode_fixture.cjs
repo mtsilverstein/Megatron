@@ -340,4 +340,113 @@ assert.strictEqual(D.lateSlotNeed(roster(12), 10, NaN, "u1", LATE), null);
 
   assert.strictEqual(DM.isFlatSlate([], 1), false, "an empty slate is not flat");
 }
+
+// --- the K/DST panel must not name players who are gone ----------------------
+// Found by GPT-5.6-sol in the pre-draft audit, confirmed on the real mock: at
+// pick #130 the panel offered Brandon Aubrey, Jason Myers and Ka'imi Fairbairn
+// -- drafted at #78, #114 and #113 -- plus three defenses taken at #93, #108
+// and #86. Six suggestions, none available, at the one moment the shortlist
+// deliberately cannot help.
+{
+  const DM = window.DraftMode;
+  const pick = (pos, first, last, pick_no) =>
+    ({ pick_no, metadata: { position: pos, first_name: first, last_name: last } });
+
+  const log = [pick("K", "Brandon", "Aubrey", 78),
+               pick("DEF", "Seattle", "Seahawks", 93),
+               pick("DEF", "Los Angeles", "Rams", 73)];
+  const taken = DM.lateSlotTaken(log);
+
+  const ks = ["Brandon Aubrey", "Jason Myers", "Cam Little"];
+  assert.deepStrictEqual(DM.lateSlotAvailable(ks, "K", taken),
+                         ["Jason Myers", "Cam Little"], "a drafted kicker survived the filter");
+
+  const ds = ["Seattle Defense", "LA Rams Defense", "Denver Defense"];
+  assert.deepStrictEqual(DM.lateSlotAvailable(ds, "DST", taken),
+                         ["Denver Defense"], "a drafted defense survived the filter");
+
+  // The two pairs that could collide are exactly the ones the board spells out.
+  const laTaken = DM.lateSlotTaken([pick("DEF", "Los Angeles", "Rams", 1)]);
+  assert.deepStrictEqual(
+    DM.lateSlotAvailable(["LA Rams Defense", "LA Chargers Defense"], "DST", laTaken),
+    ["LA Chargers Defense"], "taking the Rams removed the Chargers");
+  const nyTaken = DM.lateSlotTaken([pick("DEF", "New York", "Jets", 1)]);
+  assert.deepStrictEqual(
+    DM.lateSlotAvailable(["NY Jets Defense", "NY Giants Defense"], "DST", nyTaken),
+    ["NY Giants Defense"], "taking the Jets removed the Giants");
+
+  // Filter BEFORE slicing to three, or the list empties exactly when the top of
+  // the ADP board has gone.
+  // 12 of his 15 picks made, so 3 left for 2 empty slots -- inside the window.
+  const seat = [];
+  for (let i = 0; i < 12; i++) {
+    seat.push({ pick_no: 100 + i, draft_slot: 10, metadata: { position: "RB" } });
+  }
+  const gone = [pick("K", "A", "One", 2), pick("K", "B", "Two", 3), pick("K", "C", "Three", 4)];
+  const need = DM.lateSlotNeed(seat.concat(gone), 10, 15, "u",
+    { K: [{ name: "A One" }, { name: "B Two" }, { name: "C Three" },
+          { name: "D Four" }, { name: "E Five" }], DST: [] });
+  assert.ok(need, "the warning should be showing");
+  assert.deepStrictEqual(need.K, ["D Four", "E Five"],
+                         "sliced before filtering, so the list came back empty");
+}
+
+// --- the wait line must not manufacture urgency -------------------------------
+// waitCost forces the candidate's positional successor into the lineup, which
+// is the wrong question when the model expects him to LAST. At pick #10 the
+// panel charged 23 points for waiting on Chase Brown while predicting he would
+// survive -- and he did, going at #16.
+{
+  const DM = window.DraftMode;
+  const entry = extra => Object.assign({
+    player: { name: "Chase Brown", position: "RB", vorp: 40, adp: 20 },
+    points: 100, cost: 0, rawCost: 0, role: "RB1",
+    nextBest: { name: "Kenneth Walker III" }, waitCost: 23,
+    adpDelta: 0, byeClash: false, survivesToNext: true,
+  }, extra);
+
+  const survives = DM.renderPick(entry(), 0);
+  assert.ok(!/wait →/.test(survives),
+            "printed a wait cost for a player it expects to last");
+  assert.ok(/still there/.test(survives), "did not say he is expected to last");
+
+  const doomed = DM.renderPick(entry({ survivesToNext: false }), 0);
+  assert.ok(/wait →/.test(doomed), "dropped the wait cost for a player who will be gone");
+  assert.ok(/Kenneth Walker III/.test(doomed), "lost the successor's name");
+}
+
+// --- an edited pick must not leave the panel stale ----------------------------
+// Sleeper lets a commissioner edit or undo a pick, so the log is not
+// append-only and a length check cannot see a swap.
+{
+  const DM = window.DraftMode;
+  const a = [{ pick_no: 1, player_id: "x" }, { pick_no: 2, player_id: "y" }];
+  const swapped = [{ pick_no: 1, player_id: "x" }, { pick_no: 2, player_id: "ZZZ" }];
+  const appended = a.concat([{ pick_no: 3, player_id: "z" }]);
+  assert.strictEqual(DM.pickSignature(a), DM.pickSignature(a.slice()),
+                     "signature is not stable for identical input");
+  assert.notStrictEqual(DM.pickSignature(a), DM.pickSignature(swapped),
+                        "a same-length edit was invisible");
+  assert.notStrictEqual(DM.pickSignature(a), DM.pickSignature(appended));
+  assert.strictEqual(DM.pickSignature([]), DM.pickSignature([]));
+}
+
+// --- the flat message reads the widest gap, not the last row ------------------
+{
+  const DM = window.DraftMode;
+  // Tiebreaks reorder within the top band, so rawCost is not monotonic: the
+  // real pick #106 shortlist ended at 2.835 with a maximum of 3.894.
+  // The real pick #106 shortlist ended at 2.835 with a maximum of 3.894 -- both
+  // over the threshold, so that shape cannot tell the two readings apart. The
+  // discriminating case is a LOW last row hiding a wide gap above it, which is
+  // exactly what tie-breaking inside the top band produces.
+  const hidden = [{ cost: 0, rawCost: 0 }, { cost: 0, rawCost: 3.894 },
+                  { cost: 0, rawCost: 0.5 }];
+  assert.strictEqual(DM.isFlatSlate(hidden, 1), false,
+                     "read the last row and called a 3.894 spread flat");
+  const genuinely = [{ cost: 0, rawCost: 0 }, { cost: 0, rawCost: 0.4 },
+                     { cost: 0, rawCost: 0.2 }];
+  assert.strictEqual(DM.isFlatSlate(genuinely, 1), true,
+                     "a genuinely flat slate stopped being reported flat");
+}
 console.log("draftmode_fixture: OK");

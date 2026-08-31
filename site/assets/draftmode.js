@@ -19,6 +19,7 @@ window.DraftMode = (() => {
   let cfg = null;       // {board, els, onUpdate}
   let session = null;   // {username, userId, draftId, totalPicks}
   let timer = null, backoff = POLL_MS;
+  let lastPickSig = null;
   let pollSeq = 0;       // generation token: bumped to silently retire stale poll chains
   let lastPickCount = -1;   // render guard: picks are append-only
   let statusChecks = 0;     // draft-complete fallback when settings lack rounds/teams
@@ -185,8 +186,15 @@ window.DraftMode = (() => {
       backoff = POLL_MS;
       lastSyncAt = Date.now();
       syncNote = "";
-      if (picks.length !== lastPickCount) {
-        applyPicks(picks);                    // render guard: append-only picks
+      // Sleeper lets a commissioner edit or undo a pick, so the log is NOT
+      // append-only and length alone cannot see a swap: the panel would keep
+      // showing the old board, under a status still reading "live", until some
+      // later pick changed the count. A recommend() costs ~100ms against a
+      // 3-second poll, so a content signature is affordable insurance.
+      const sig = pickSignature(picks);
+      if (sig !== lastPickSig) {
+        lastPickSig = sig;
+        applyPicks(picks);
       }
       if (!session.totalPicks && ++statusChecks % 10 === 0) {
         // Sleeper omitted settings.rounds/teams: fall back to re-checking
@@ -294,10 +302,24 @@ window.DraftMode = (() => {
     return rows;
   }
 
+  /* Cheap fingerprint of the pick log: length plus the last pick's identity,
+     plus a rolling sum over every pick number and player so an EDIT in the
+     middle is visible too. */
+  function pickSignature(picks) {
+    const list = Array.isArray(picks) ? picks : [];
+    let acc = list.length + "|";
+    for (const p of list) acc += `${p && p.pick_no}:${p && p.player_id},`;
+    return acc;
+  }
+
   function updateAids(picks) {
     const t = cfg.els.ticker, v = cfg.els.shortlist, l = cfg.els.late;
     if (picks.length) {
-      const recent = picks.slice(-3).map(p => {
+      // Sorted by pick number and with keepers dropped: keepers sit at #40-#142
+      // in this league, so before a single live pick was made the ticker showed
+      // keepers #140-#142 as "recent".
+      const recent = picks.filter(p => p && !p.is_keeper)
+        .slice().sort((a, b) => a.pick_no - b.pick_no).slice(-3).map(p => {
         const m = p.metadata || {};
         const name = [m.first_name, m.last_name].filter(Boolean).join(" ")
                      || m.position || "?";
@@ -372,9 +394,17 @@ window.DraftMode = (() => {
   function renderPick(r, i) {
     const p = r.player;
     const bits = [];
-    if (r.nextBest) {
-      // The wait question, answered by name: who is left at his position if
-      // you pass. A negative cost means someone BETTER is projected to last.
+    // `waitCost` answers "what if he is gone", by forcing his positional
+    // successor into the lineup. That is the wrong question whenever the model
+    // expects him to LAST, and the panel used to print it anyway: at pick #10
+    // it charged 23 points for waiting on Chase Brown and 69 on Trey McBride,
+    // both of whom it simultaneously predicted would survive -- and both of
+    // whom really did, going at #16 and #20. Manufactured urgency is the one
+    // failure mode that reliably costs a pick, so when he is expected to last,
+    // say that instead.
+    if (r.survivesToNext) {
+      bits.push(`<span class="pick-survives">likely still there next turn</span>`);
+    } else if (r.nextBest) {
       const drop = r.waitCost;
       bits.push(drop > 0
         ? `wait → ${esc(r.nextBest.name)} (−${drop.toFixed(0)} pts)`
@@ -434,8 +464,14 @@ window.DraftMode = (() => {
      message that overclaims during a live draft has to be testable. */
   function isFlatSlate(shortlist, threshold) {
     if (!shortlist || !shortlist.length) return false;
-    const last = shortlist[shortlist.length - 1];
-    const spread = last.rawCost != null ? last.rawCost : last.cost;
+    // The WIDEST gap, not the last row: the tiebreaks reorder within the top
+    // band, so rawCost is not monotonic down the list. On the real pick #106
+    // shortlist the last entry was 2.835 while the maximum was 3.894.
+    let spread = 0;
+    for (const e of shortlist) {
+      const c = e && (e.rawCost != null ? e.rawCost : e.cost);
+      if (Number.isFinite(c) && c > spread) spread = c;
+    }
     return spread < threshold;
   }
 
@@ -479,6 +515,46 @@ window.DraftMode = (() => {
      design (it models QB/RB/WR/TE only), so this is the ONLY thing standing
      between "take the top recommendation every time" and two empty starting
      slots for the season. */
+  /* Names already off the board, for the K/DST panel.
+
+     The panel reads three static names out of draft.json and, until now, never
+     looked at the pick log -- so at pick #130 of the 2026-08-31 mock it offered
+     Brandon Aubrey, Jason Myers and Ka'imi Fairbairn, drafted at #78, #114 and
+     #113, and three defenses taken at #93, #108 and #86. Six suggestions, none
+     of them available, at the one moment the shortlist deliberately cannot
+     help. This is the whole reason the panel exists, so it has to be current.
+
+     Kickers match on full name. Defenses cannot: the board says "Seattle
+     Defense" and "LA Rams Defense" while Sleeper says first_name "Seattle" /
+     last_name "Seahawks" and "Los Angeles" / "Rams". Either of the pick's two
+     name parts appearing in the board's name settles it, and the pairs that
+     could collide are exactly the ones the board spells out -- LA Rams vs LA
+     Chargers, NY Jets vs NY Giants -- so the distinguishing word is always
+     present. */
+  const normName = s => String(s == null ? "" : s)
+    .toLowerCase().replace(/[^a-z ]/g, "").replace(/ +/g, " ").trim();
+
+  function lateSlotTaken(picks) {
+    const k = new Set(), dst = [];
+    for (const p of picks || []) {
+      const m = (p && p.metadata) || {};
+      const first = normName(m.first_name), last = normName(m.last_name);
+      if (m.position === "K") k.add(`${first} ${last}`.trim());
+      else if (m.position === "DEF") { if (first) dst.push(first); if (last) dst.push(last); }
+    }
+    return { k, dst };
+  }
+
+  function lateSlotAvailable(names, key, taken) {
+    return (names || []).filter(name => {
+      const n = normName(name);
+      if (!n) return false;
+      if (key === "K") return !taken.k.has(n);
+      return !taken.dst.some(t => t && (n === t
+        || n.startsWith(t + " ") || n.endsWith(" " + t) || n.includes(" " + t + " ")));
+    });
+  }
+
   function lateSlotNeed(picks, slot, rounds, userId, lateSlots) {
     if (!Number.isFinite(rounds) || !window.Optimizer) return null;
     const mine = myPicks(picks, slot, userId);
@@ -487,8 +563,12 @@ window.DraftMode = (() => {
     const roundsLeft = rounds - mine.length;
     if (!window.Optimizer.lateSlotTrigger(roundsLeft, haveK, haveDst)) return null;
     const late = lateSlots || {};
-    const names = key => ((late[key] || []).slice(0, 3)
-      .map(r => r && r.name).filter(Boolean));
+    const taken = lateSlotTaken(picks);
+    // Filter FIRST, then take three -- slicing first would hand back an empty
+    // list precisely when the top of the ADP board has already gone.
+    const names = key => lateSlotAvailable(
+      (late[key] || []).map(r => r && r.name).filter(Boolean), key, taken
+    ).slice(0, 3);
     return {
       need: [!haveK ? "K" : null, !haveDst ? "D/ST" : null].filter(Boolean),
       roundsLeft,
@@ -694,7 +774,8 @@ window.DraftMode = (() => {
 
   return { init, disable, nextPickNumber, gapToNextPick, seatFromPicks,
            pickCursor, usedPickNumbers, planFromPicks, myPicks,
-           lateSlotNeed, isFlatSlate,
+           lateSlotNeed, isFlatSlate, lateSlotTaken, lateSlotAvailable,
+           pickSignature, renderPick,
            rosterStateFromPicks,
            shortlistBlocker, syncLabel };
 })();
