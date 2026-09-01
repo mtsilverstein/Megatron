@@ -319,8 +319,16 @@ function loadKeepers(snapshot, players) {
 // `heroSlot` is the seat our optimizer occupies; every other seat drafts the
 // market. Returns every roster so the hero can be ranked against the field it
 // actually played.
-function runDraft(players, heroSlot, seed, field = "consensus", keepers = null) {
+/* `heroTurns` caps how many of the hero seat's OWN turns the optimizer
+   makes. Past that the seat reverts to the market drafter -- the same one
+   the counterfactual uses -- which models a manager who is present for the
+   early rounds and then leaves. Infinity is the default and reproduces the
+   committed backtest exactly; 0 is the counterfactual itself, which is a
+   free self-check that the two paths agree. */
+function runDraft(players, heroSlot, seed, field = "consensus", keepers = null,
+                  heroTurns = Infinity) {
   const rand = rng(seed);
+  let heroTurnsUsed = 0;
   const orders = [];
   // Each drafter's private board AND his temperament come from the same seed,
   // so a league is reproducible and contains a mix of disciplined and jumpy
@@ -356,7 +364,8 @@ function runDraft(players, heroSlot, seed, field = "consensus", keepers = null) 
       if (forfeited && forfeited.has(`${round}:${slot}`)) continue;  // spent on a keeper
       const pickNo = pickForRoundSlot(round, slot);
       let choice;
-      if (slot === heroSlot) {
+      if (slot === heroSlot && heroTurnsUsed < heroTurns) {
+        heroTurnsUsed++;
         const available = scoreable.filter(p => !taken.has(p.player_id));
         const rec = O.recommend({
           available, myPlayers: rosters[slot], pickNo,
@@ -365,6 +374,9 @@ function runDraft(players, heroSlot, seed, field = "consensus", keepers = null) 
         });
         choice = rec.length ? rec[0].player
                             : marketPick(orders[slot - 1], taken, rosters[slot]);
+      } else if (slot === heroSlot) {
+        // Attended turns spent: the manager has left the keyboard.
+        choice = marketPick(orders[slot - 1], taken, rosters[slot]);
       } else if (field === "measured") {
         choice = measuredPick(orders[slot - 1], taken, rosters[slot],
                               { round, recent, rand,
@@ -431,7 +443,7 @@ function assertWorldUsable(world, players) {
   }
 }
 
-function evaluateSeason(world, seeds, field = "consensus") {
+function evaluateSeason(world, seeds, field = "consensus", heroTurns = Infinity) {
   const players = O.withValuePoints(world.players);
   assertWorldUsable(world, players);
   const weeks = world.actual_weeks;
@@ -442,7 +454,7 @@ function evaluateSeason(world, seeds, field = "consensus") {
       // once with a market drafter in it. Identical field, identical draft
       // order, identical noise -- so the only difference is the strategy, and
       // the comparison is not contaminated by draft position or luck of order.
-      const withHero = runDraft(players, heroSlot, seed, field);
+      const withHero = runDraft(players, heroSlot, seed, field, null, heroTurns);
       const allMarket = runDraft(players, 0, seed, field);
       for (const [lastWeek, label] of [[REGULAR_WEEKS, "reg"], [FULL_WEEKS, "full"]]) {
         const hero = actualPoints(withHero[heroSlot], weeks, lastWeek);
@@ -548,10 +560,10 @@ function dryRun(board, seeds, field = "consensus", keeperSnapshot = null) {
 
 function parseArgs(argv) {
   const a = { worlds: null, board: null, seeds: 8, out: null, noise: null,
-              field: "consensus", keepers: null };
+              field: "consensus", keepers: null, heroTurns: null };
   for (let i = 2; i < argv.length; i += 2) {
     const k = argv[i].replace(/^--/, ""), v = argv[i + 1];
-    if (k in a) a[k] = (k === "seeds" || k === "noise") ? Number(v) : v;
+    if (k in a) a[k] = (k === "seeds" || k === "noise" || k === "heroTurns") ? Number(v) : v;
   }
   return a;
 }
@@ -613,7 +625,8 @@ function main() {
   const perSeason = {};
   for (const w of worlds) {
     const t0 = Date.now();
-    const rows = evaluateSeason(w, args.seeds, args.field);
+    const rows = evaluateSeason(w, args.seeds, args.field,
+                                args.heroTurns === null ? Infinity : args.heroTurns);
     all.push(...rows);
     perSeason[w.season] = { reg: summarize(rows, "reg"), full: summarize(rows, "full"),
                             model: w.model, market_source: w.market_source };
@@ -643,7 +656,18 @@ function main() {
     overall: { reg: summarize(all, "reg"), full: summarize(all, "full") },
     rows: all,
   };
-  const out = args.out || "models/backtests/draft_strategy/draft_sim.json";
+  /* The canonical artifact is the FULL-ATTENDANCE run, and it is committed
+     alongside the metrics that produced it. A --heroTurns sweep is an
+     experiment, not that artifact, so it must never land on the same path:
+     writing there silently replaces a 480-draft committed result with a
+     partial one, and nothing in the output says so. (Measured the hard way --
+     an exploratory sweep overwrote it, and only `git diff --stat` caught it.)
+     Explicit --out still wins, so a deliberate regeneration is unaffected. */
+  const canonical = "models/backtests/draft_strategy/draft_sim.json";
+  const out = args.out
+    || (Number.isFinite(args.heroTurns)
+        ? `models/backtests/draft_strategy/draft_sim_heroturns_${args.heroTurns}.json`
+        : canonical);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, JSON.stringify(report, null, 1));
   const o = report.overall.reg;
