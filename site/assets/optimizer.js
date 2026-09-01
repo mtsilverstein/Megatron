@@ -332,6 +332,25 @@
      already made). Without it this is the old arithmetic exactly, so a draft
      with no keepers is unaffected. */
   function openPicksBetween(fromPick, toPick, used) {
+    /* `used` must be a Set, and this refuses anything else LOUDLY. The test
+       below reads `used.size`, which is `undefined` on an Array -- so passing
+       an Array of pick numbers used to fall through to the keeper-blind
+       arithmetic and return a quietly different answer, with no error and no
+       warning. That is the worst failure mode available to this function: the
+       caller believes it asked for keeper-aware spacing and gets the opposite.
+
+       Measured cost of exactly that mistake: an analysis harness passed an
+       Array here and reported a keeper margin of +10.1 points that was really
+       +1.8. Nothing in the run looked wrong, and it took an outside reviewer
+       to find. A throw would have cost twenty seconds.
+
+       null/undefined stay legal and mean "no cells are spoken for" -- a real
+       and common state, and trade.js:388 omits the argument deliberately. */
+    if (used != null && !(used instanceof Set)) {
+      throw new TypeError(
+        "openPicksBetween: `used` must be a Set of pick numbers (got "
+        + (Array.isArray(used) ? "Array" : typeof used) + ")");
+    }
     if (!used || !used.size) return toPick - fromPick - 1;
     let k = 0;
     for (let p = fromPick + 1; p < toPick; p++) if (!used.has(p)) k++;

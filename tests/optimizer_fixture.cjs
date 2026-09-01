@@ -809,4 +809,29 @@ check("rawCost keeps the true spread that cost no longer carries", () => {
     assert.ok(e.rawCost >= e.cost, "rawCost must never understate cost");
   }
 });
+/* The Array trap. `used.size` is undefined on an Array, so before the guard
+   an Array of pick numbers fell through to the keeper-BLIND arithmetic and
+   returned a quietly different answer -- no throw, no warning. A committed
+   analysis harness did exactly this and published a keeper margin of +10.1
+   that was really +1.8. These asserts exist so that failure mode can never
+   come back silently. */
+check("openPicksBetween rejects a non-Set `used` instead of degrading", () => {
+  const cells = [12, 14, 16];
+  // The correct call, for reference: three cells are spoken for, so six open.
+  assert.strictEqual(O.openPicksBetween(10, 20, new Set(cells)), 6);
+  // The same cells as an Array must THROW, not return the keeper-blind 9.
+  assert.throws(() => O.openPicksBetween(10, 20, cells), /must be a Set/,
+    "an Array must be refused, not silently treated as no keepers");
+  assert.throws(() => O.openPicksBetween(10, 20, cells), /Array/,
+    "the message must name what was actually passed");
+  // Set-lookalikes are refused too: carrying a `size` is not being a Set.
+  assert.throws(() => O.openPicksBetween(10, 20, { size: 3, has: () => false }),
+    /must be a Set/, "a duck-typed object must not pass");
+  // ...but the two legitimate "nothing is spoken for" spellings still work,
+  // because trade.js:388 omits the argument deliberately.
+  assert.strictEqual(O.openPicksBetween(10, 20, null), 9);
+  assert.strictEqual(O.openPicksBetween(10, 20, undefined), 9);
+  assert.strictEqual(O.openPicksBetween(10, 20), 9);
+});
+
 console.log(`optimizer fixture: ${n} groups OK`);
