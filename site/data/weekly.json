@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-28T23:02:36+00:00",
+  "generated_at": "2026-09-02T09:45:09+00:00",
   "data_through": "2025-wk18",
   "season": 2026,
   "week": 1,
@@ -361,30 +361,30 @@
         "ppr": {
           "p10": 5.24,
           "p50": 15.51,
-          "p90": 28.62
+          "p90": 28.63
         },
         "half_ppr": {
-          "p10": 5.26,
-          "p50": 15.52,
-          "p90": 28.57
+          "p10": 5.27,
+          "p50": 15.53,
+          "p90": 28.59
         },
         "standard": {
-          "p10": 5.28,
+          "p10": 5.29,
           "p50": 15.54,
-          "p90": 28.53
+          "p90": 28.54
         },
         "league": {
           "p10": 6.27,
-          "p50": 18.29,
-          "p90": 33.47
+          "p50": 18.3,
+          "p90": 33.49
         }
       },
       "stats_p50": {
-        "passing_yards": 245.05,
+        "passing_yards": 245.02,
         "passing_tds": 1.39,
         "passing_interceptions": 0.84,
-        "carries": 5.18,
-        "rushing_yards": 19.35,
+        "carries": 5.2,
+        "rushing_yards": 19.43,
         "rushing_tds": -0.0,
         "targets": -0.04,
         "receptions": -0.03,
@@ -1092,30 +1092,30 @@
         "ppr": {
           "p10": 4.21,
           "p50": 13.87,
-          "p90": 25.39
+          "p90": 25.38
         },
         "half_ppr": {
           "p10": 4.23,
           "p50": 13.87,
-          "p90": 25.33
+          "p90": 25.32
         },
         "standard": {
           "p10": 4.25,
           "p50": 13.87,
-          "p90": 25.26
+          "p90": 25.25
         },
         "league": {
-          "p10": 5.19,
-          "p50": 16.5,
-          "p90": 30.14
+          "p10": 5.2,
+          "p50": 16.51,
+          "p90": 30.13
         }
       },
       "stats_p50": {
-        "passing_yards": 237.52,
+        "passing_yards": 237.62,
         "passing_tds": 1.32,
         "passing_interceptions": 0.8,
-        "carries": 2.59,
-        "rushing_yards": 7.77,
+        "carries": 2.58,
+        "rushing_yards": 7.72,
         "rushing_tds": -0.0,
         "targets": -0.04,
         "receptions": -0.01,
@@ -1606,36 +1606,36 @@
       "is_home": true,
       "points": {
         "ppr": {
-          "p10": 5.35,
-          "p50": 12.58,
-          "p90": 31.71
+          "p10": 5.34,
+          "p50": 12.56,
+          "p90": 31.69
         },
         "half_ppr": {
-          "p10": 4.66,
-          "p50": 10.85,
-          "p90": 28.82
+          "p10": 4.65,
+          "p50": 10.84,
+          "p90": 28.8
         },
         "standard": {
-          "p10": 3.97,
-          "p50": 9.13,
-          "p90": 25.93
+          "p10": 3.96,
+          "p50": 9.12,
+          "p90": 25.9
         },
         "league": {
-          "p10": 5.24,
-          "p50": 12.57,
-          "p90": 31.77
+          "p10": 5.23,
+          "p50": 12.56,
+          "p90": 31.75
         }
       },
       "stats_p50": {
         "passing_yards": 0.16,
         "passing_tds": -0.0,
         "passing_interceptions": 0.01,
-        "carries": 15.74,
-        "rushing_yards": 64.57,
+        "carries": 15.72,
+        "rushing_yards": 64.49,
         "rushing_tds": 0.0,
         "targets": 4.86,
-        "receptions": 3.45,
-        "receiving_yards": 26.47,
+        "receptions": 3.44,
+        "receiving_yards": 26.43,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -2477,7 +2477,7 @@
         },
         "standard": {
           "p10": 1.68,
-          "p50": 10.39,
+          "p50": 10.4,
           "p90": 24.59
         },
         "league": {
@@ -2487,11 +2487,11 @@
         }
       },
       "stats_p50": {
-        "passing_yards": 158.7,
+        "passing_yards": 158.76,
         "passing_tds": 0.71,
         "passing_interceptions": 0.47,
         "carries": 6.11,
-        "rushing_yards": 22.05,
+        "rushing_yards": 22.04,
         "rushing_tds": -0.0,
         "targets": -0.05,
         "receptions": -0.02,
@@ -2668,6 +2668,49 @@
         "targets": 7.34,
         "receptions": 4.48,
         "receiving_yards": 56.16,
+        "receiving_tds": 0.02,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0035719",
+      "name": "Deebo Samuel Sr.",
+      "team": "SF",
+      "opponent": "LA",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": 3.65,
+          "p50": 10.09,
+          "p90": 24.42
+        },
+        "half_ppr": {
+          "p10": 2.59,
+          "p50": 7.78,
+          "p90": 20.49
+        },
+        "standard": {
+          "p10": 1.53,
+          "p50": 5.46,
+          "p90": 16.56
+        },
+        "league": {
+          "p10": 3.59,
+          "p50": 10.08,
+          "p90": 24.46
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.07,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 0.17,
+        "rushing_yards": 0.35,
+        "rushing_tds": -0.0,
+        "targets": 7.32,
+        "receptions": 4.63,
+        "receiving_yards": 53.52,
         "receiving_tds": 0.02,
         "fumbles_lost": -0.0
       }
@@ -2941,22 +2984,22 @@
         "ppr": {
           "p10": 3.78,
           "p50": 9.53,
-          "p90": 22.54
+          "p90": 22.55
         },
         "half_ppr": {
           "p10": 2.73,
-          "p50": 7.33,
-          "p90": 18.88
+          "p50": 7.34,
+          "p90": 18.9
         },
         "standard": {
           "p10": 1.68,
-          "p50": 5.13,
-          "p90": 15.23
+          "p50": 5.14,
+          "p90": 15.24
         },
         "league": {
-          "p10": 3.72,
-          "p50": 9.52,
-          "p90": 22.57
+          "p10": 3.73,
+          "p50": 9.53,
+          "p90": 22.58
         }
       },
       "stats_p50": {
@@ -2967,8 +3010,8 @@
         "rushing_yards": 0.01,
         "rushing_tds": -0.0,
         "targets": 6.94,
-        "receptions": 4.39,
-        "receiving_yards": 50.55,
+        "receptions": 4.4,
+        "receiving_yards": 50.6,
         "receiving_tds": 0.02,
         "fumbles_lost": -0.0
       }
@@ -3487,49 +3530,6 @@
         "receiving_yards": 12.38,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
-      }
-    },
-    {
-      "player_id": "00-0035719",
-      "name": "Deebo Samuel Sr.",
-      "team": "WAS",
-      "opponent": "PHI",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 2.78,
-          "p50": 8.71,
-          "p90": 22.49
-        },
-        "half_ppr": {
-          "p10": 1.95,
-          "p50": 6.67,
-          "p90": 18.93
-        },
-        "standard": {
-          "p10": 1.13,
-          "p50": 4.63,
-          "p90": 15.36
-        },
-        "league": {
-          "p10": 2.72,
-          "p50": 8.7,
-          "p90": 22.53
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 0.01,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": 0.22,
-        "rushing_yards": 0.48,
-        "rushing_tds": -0.0,
-        "targets": 6.41,
-        "receptions": 4.08,
-        "receiving_yards": 45.14,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
       }
     },
     {
@@ -4746,12 +4746,12 @@
       "points": {
         "ppr": {
           "p10": 2.07,
-          "p50": 7.52,
-          "p90": 20.88
+          "p50": 7.51,
+          "p90": 20.87
         },
         "half_ppr": {
-          "p10": 1.47,
-          "p50": 5.88,
+          "p10": 1.46,
+          "p50": 5.87,
           "p90": 17.92
         },
         "standard": {
@@ -4761,8 +4761,8 @@
         },
         "league": {
           "p10": 2.02,
-          "p50": 7.51,
-          "p90": 20.91
+          "p50": 7.5,
+          "p90": 20.9
         }
       },
       "stats_p50": {
@@ -4770,11 +4770,11 @@
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
         "carries": -0.01,
-        "rushing_yards": 0.01,
+        "rushing_yards": 0.0,
         "rushing_tds": -0.0,
-        "targets": 5.66,
-        "receptions": 3.28,
-        "receiving_yards": 41.71,
+        "targets": 5.65,
+        "receptions": 3.27,
+        "receiving_yards": 41.66,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -4995,6 +4995,49 @@
       }
     },
     {
+      "player_id": "00-0030279",
+      "name": "Keenan Allen",
+      "team": "IND",
+      "opponent": "BAL",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 1.95,
+          "p50": 7.02,
+          "p90": 19.05
+        },
+        "half_ppr": {
+          "p10": 1.36,
+          "p50": 5.33,
+          "p90": 15.98
+        },
+        "standard": {
+          "p10": 0.77,
+          "p50": 3.65,
+          "p90": 12.91
+        },
+        "league": {
+          "p10": 1.91,
+          "p50": 7.02,
+          "p90": 19.08
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 5.29,
+        "receptions": 3.38,
+        "receiving_yards": 36.02,
+        "receiving_tds": 0.01,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0035700",
       "name": "Josh Jacobs",
       "team": "GB",
@@ -5003,36 +5046,36 @@
       "is_home": false,
       "points": {
         "ppr": {
-          "p10": 2.71,
-          "p50": 6.99,
-          "p90": 20.63
+          "p10": 2.7,
+          "p50": 6.98,
+          "p90": 20.61
         },
         "half_ppr": {
-          "p10": 2.43,
-          "p50": 6.15,
-          "p90": 18.92
+          "p10": 2.42,
+          "p50": 6.14,
+          "p90": 18.91
         },
         "standard": {
-          "p10": 2.15,
+          "p10": 2.14,
           "p50": 5.31,
-          "p90": 17.22
+          "p90": 17.21
         },
         "league": {
           "p10": 2.62,
-          "p50": 6.99,
-          "p90": 20.66
+          "p50": 6.98,
+          "p90": 20.65
         }
       },
       "stats_p50": {
-        "passing_yards": -0.05,
+        "passing_yards": -0.06,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
-        "carries": 11.23,
-        "rushing_yards": 45.0,
+        "carries": 11.2,
+        "rushing_yards": 44.89,
         "rushing_tds": 0.0,
         "targets": 2.26,
-        "receptions": 1.68,
-        "receiving_yards": 8.35,
+        "receptions": 1.67,
+        "receiving_yards": 8.36,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -5296,49 +5339,6 @@
       }
     },
     {
-      "player_id": "00-0030279",
-      "name": "Keenan Allen",
-      "team": "LAC",
-      "opponent": "ARI",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 1.76,
-          "p50": 6.65,
-          "p90": 18.37
-        },
-        "half_ppr": {
-          "p10": 1.22,
-          "p50": 5.04,
-          "p90": 15.41
-        },
-        "standard": {
-          "p10": 0.68,
-          "p50": 3.42,
-          "p90": 12.46
-        },
-        "league": {
-          "p10": 1.72,
-          "p50": 6.64,
-          "p90": 18.4
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.03,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.04,
-        "rushing_tds": -0.0,
-        "targets": 5.04,
-        "receptions": 3.23,
-        "receiving_yards": 33.85,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0038400",
       "name": "Tanner McKee",
       "team": "PHI",
@@ -5463,49 +5463,6 @@
         "targets": 5.06,
         "receptions": 3.12,
         "receiving_yards": 33.8,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0031588",
-      "name": "Stefon Diggs",
-      "team": "NE",
-      "opponent": "SEA",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 1.7,
-          "p50": 6.48,
-          "p90": 18.07
-        },
-        "half_ppr": {
-          "p10": 1.18,
-          "p50": 4.91,
-          "p90": 15.18
-        },
-        "standard": {
-          "p10": 0.65,
-          "p50": 3.35,
-          "p90": 12.29
-        },
-        "league": {
-          "p10": 1.65,
-          "p50": 6.47,
-          "p90": 18.09
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.04,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.03,
-        "rushing_tds": -0.0,
-        "targets": 4.92,
-        "receptions": 3.13,
-        "receiving_yards": 33.0,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -5893,6 +5850,49 @@
         "targets": 4.78,
         "receptions": 2.89,
         "receiving_yards": 32.42,
+        "receiving_tds": 0.01,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0031588",
+      "name": "Stefon Diggs",
+      "team": "WAS",
+      "opponent": "PHI",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": 1.54,
+          "p50": 6.16,
+          "p90": 17.49
+        },
+        "half_ppr": {
+          "p10": 1.06,
+          "p50": 4.66,
+          "p90": 14.7
+        },
+        "standard": {
+          "p10": 0.57,
+          "p50": 3.16,
+          "p90": 11.9
+        },
+        "league": {
+          "p10": 1.49,
+          "p50": 6.15,
+          "p90": 17.51
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.05,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.04,
+        "rushing_tds": -0.0,
+        "targets": 4.7,
+        "receptions": 3.0,
+        "receiving_yards": 31.16,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -6328,49 +6328,6 @@
       }
     },
     {
-      "player_id": "00-0038997",
-      "name": "Josh Downs",
-      "team": "IND",
-      "opponent": "BAL",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 1.13,
-          "p50": 5.74,
-          "p90": 17.63
-        },
-        "half_ppr": {
-          "p10": 0.77,
-          "p50": 4.37,
-          "p90": 14.98
-        },
-        "standard": {
-          "p10": 0.4,
-          "p50": 3.0,
-          "p90": 12.33
-        },
-        "league": {
-          "p10": 1.09,
-          "p50": 5.73,
-          "p90": 17.65
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 0.04,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 4.5,
-        "receptions": 2.74,
-        "receiving_yards": 29.52,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0039847",
       "name": "Theo Johnson",
       "team": "NYG",
@@ -6409,6 +6366,49 @@
         "targets": 4.44,
         "receptions": 2.8,
         "receiving_yards": 28.98,
+        "receiving_tds": 0.01,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0038997",
+      "name": "Josh Downs",
+      "team": "IND",
+      "opponent": "BAL",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 1.13,
+          "p50": 5.72,
+          "p90": 17.62
+        },
+        "half_ppr": {
+          "p10": 0.76,
+          "p50": 4.36,
+          "p90": 14.98
+        },
+        "standard": {
+          "p10": 0.39,
+          "p50": 3.0,
+          "p90": 12.33
+        },
+        "league": {
+          "p10": 1.08,
+          "p50": 5.72,
+          "p90": 17.64
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 4.49,
+        "receptions": 2.73,
+        "receiving_yards": 29.47,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -6540,49 +6540,6 @@
         "receiving_yards": 4.83,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
-      }
-    },
-    {
-      "player_id": "00-0040234",
-      "name": "Quinn Ewers",
-      "team": "MIA",
-      "opponent": "LV",
-      "position": "QB",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -1.15,
-          "p50": 5.58,
-          "p90": 16.31
-        },
-        "half_ppr": {
-          "p10": -1.13,
-          "p50": 5.59,
-          "p90": 16.24
-        },
-        "standard": {
-          "p10": -1.1,
-          "p50": 5.61,
-          "p90": 16.18
-        },
-        "league": {
-          "p10": -0.9,
-          "p50": 6.32,
-          "p90": 19.06
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 112.28,
-        "passing_tds": 0.37,
-        "passing_interceptions": 0.26,
-        "carries": 1.85,
-        "rushing_yards": 1.95,
-        "rushing_tds": -0.0,
-        "targets": -0.03,
-        "receptions": -0.03,
-        "receiving_yards": -0.24,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.01
       }
     },
     {
@@ -6970,6 +6927,49 @@
         "receiving_yards": 26.3,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0040234",
+      "name": "Quinn Ewers",
+      "team": "JAX",
+      "opponent": "CLE",
+      "position": "QB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -1.29,
+          "p50": 5.3,
+          "p90": 15.94
+        },
+        "half_ppr": {
+          "p10": -1.27,
+          "p50": 5.31,
+          "p90": 15.87
+        },
+        "standard": {
+          "p10": -1.25,
+          "p50": 5.33,
+          "p90": 15.81
+        },
+        "league": {
+          "p10": -1.06,
+          "p50": 5.97,
+          "p90": 18.6
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 107.47,
+        "passing_tds": 0.34,
+        "passing_interceptions": 0.24,
+        "carries": 1.87,
+        "rushing_yards": 1.96,
+        "rushing_tds": -0.0,
+        "targets": -0.04,
+        "receptions": -0.03,
+        "receiving_yards": -0.26,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.01
       }
     },
     {
@@ -7413,7 +7413,7 @@
         "ppr": {
           "p10": 0.62,
           "p50": 4.92,
-          "p90": 16.77
+          "p90": 16.76
         },
         "half_ppr": {
           "p10": 0.38,
@@ -7440,7 +7440,7 @@
         "rushing_tds": -0.0,
         "targets": 3.94,
         "receptions": 2.34,
-        "receiving_yards": 25.3,
+        "receiving_yards": 25.29,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -7532,46 +7532,46 @@
       }
     },
     {
-      "player_id": "00-0036924",
-      "name": "Michael Carter",
-      "team": "TEN",
-      "opponent": "NYJ",
-      "position": "RB",
+      "player_id": "00-0038608",
+      "name": "Kayshon Boutte",
+      "team": "HOU",
+      "opponent": "BUF",
+      "position": "WR",
       "is_home": true,
       "points": {
         "ppr": {
-          "p10": 1.5,
-          "p50": 4.74,
-          "p90": 16.31
+          "p10": 0.57,
+          "p50": 4.73,
+          "p90": 16.2
         },
         "half_ppr": {
-          "p10": 1.22,
-          "p50": 3.88,
-          "p90": 14.49
+          "p10": 0.36,
+          "p50": 3.64,
+          "p90": 13.98
         },
         "standard": {
-          "p10": 0.93,
-          "p50": 3.03,
-          "p90": 12.68
+          "p10": 0.15,
+          "p50": 2.55,
+          "p90": 11.76
         },
         "league": {
-          "p10": 1.44,
-          "p50": 4.74,
-          "p90": 16.33
+          "p10": 0.54,
+          "p50": 4.72,
+          "p90": 16.22
         }
       },
       "stats_p50": {
-        "passing_yards": 0.15,
-        "passing_tds": 0.0,
-        "passing_interceptions": 0.0,
-        "carries": 5.54,
-        "rushing_yards": 20.79,
+        "passing_yards": 0.01,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.01,
         "rushing_tds": -0.0,
-        "targets": 2.39,
-        "receptions": 1.71,
-        "receiving_yards": 9.54,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.0
+        "targets": 3.82,
+        "receptions": 2.18,
+        "receiving_yards": 24.99,
+        "receiving_tds": 0.01,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -7747,49 +7747,6 @@
       }
     },
     {
-      "player_id": "00-0038608",
-      "name": "Kayshon Boutte",
-      "team": "NE",
-      "opponent": "SEA",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 0.53,
-          "p50": 4.57,
-          "p90": 15.8
-        },
-        "half_ppr": {
-          "p10": 0.33,
-          "p50": 3.51,
-          "p90": 13.61
-        },
-        "standard": {
-          "p10": 0.13,
-          "p50": 2.44,
-          "p90": 11.43
-        },
-        "league": {
-          "p10": 0.49,
-          "p50": 4.56,
-          "p90": 15.81
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 0.01,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.01,
-        "rushing_tds": -0.0,
-        "targets": 3.71,
-        "receptions": 2.13,
-        "receiving_yards": 23.96,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0031237",
       "name": "Teddy Bridgewater",
       "team": "DET",
@@ -7916,6 +7873,49 @@
         "receiving_yards": 2.53,
         "receiving_tds": -0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0031610",
+      "name": "Darren Waller",
+      "team": "CAR",
+      "opponent": "CHI",
+      "position": "TE",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.92,
+          "p50": 4.5,
+          "p90": 14.23
+        },
+        "half_ppr": {
+          "p10": 0.61,
+          "p50": 3.36,
+          "p90": 12.04
+        },
+        "standard": {
+          "p10": 0.31,
+          "p50": 2.22,
+          "p90": 9.86
+        },
+        "league": {
+          "p10": 0.88,
+          "p50": 4.5,
+          "p90": 14.25
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.0,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 3.54,
+        "receptions": 2.28,
+        "receiving_yards": 21.88,
+        "receiving_tds": 0.01,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -8564,49 +8564,6 @@
       }
     },
     {
-      "player_id": "00-0031610",
-      "name": "Darren Waller",
-      "team": "MIA",
-      "opponent": "LV",
-      "position": "TE",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 0.75,
-          "p50": 4.17,
-          "p90": 13.61
-        },
-        "half_ppr": {
-          "p10": 0.49,
-          "p50": 3.1,
-          "p90": 11.51
-        },
-        "standard": {
-          "p10": 0.23,
-          "p50": 2.03,
-          "p90": 9.41
-        },
-        "league": {
-          "p10": 0.72,
-          "p50": 4.17,
-          "p90": 13.62
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 0.0,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 3.32,
-        "receptions": 2.14,
-        "receiving_yards": 19.97,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0036894",
       "name": "Pat Freiermuth",
       "team": "PIT",
@@ -8831,7 +8788,7 @@
       "points": {
         "ppr": {
           "p10": 0.27,
-          "p50": 4.04,
+          "p50": 4.05,
           "p90": 15.09
         },
         "half_ppr": {
@@ -8910,42 +8867,42 @@
     {
       "player_id": "00-0033662",
       "name": "Cooper Rush",
-      "team": "BAL",
-      "opponent": "IND",
+      "team": "ATL",
+      "opponent": "PIT",
       "position": "QB",
       "is_home": false,
       "points": {
         "ppr": {
-          "p10": -1.87,
-          "p50": 3.99,
-          "p90": 14.03
+          "p10": -1.88,
+          "p50": 3.97,
+          "p90": 14.02
         },
         "half_ppr": {
-          "p10": -1.85,
-          "p50": 4.0,
-          "p90": 13.94
+          "p10": -1.86,
+          "p50": 3.98,
+          "p90": 13.93
         },
         "standard": {
-          "p10": -1.83,
-          "p50": 4.01,
-          "p90": 13.86
+          "p10": -1.84,
+          "p50": 3.99,
+          "p90": 13.84
         },
         "league": {
-          "p10": -1.74,
-          "p50": 4.41,
-          "p90": 16.32
+          "p10": -1.75,
+          "p50": 4.39,
+          "p90": 16.3
         }
       },
       "stats_p50": {
-        "passing_yards": 85.95,
+        "passing_yards": 85.57,
         "passing_tds": 0.21,
         "passing_interceptions": 0.17,
         "carries": 1.67,
-        "rushing_yards": 0.98,
+        "rushing_yards": 1.0,
         "rushing_tds": -0.0,
-        "targets": 0.0,
+        "targets": 0.01,
         "receptions": -0.02,
-        "receiving_yards": -0.13,
+        "receiving_yards": -0.1,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.01
       }
@@ -9034,6 +8991,49 @@
         "receiving_yards": 19.4,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0035100",
+      "name": "Jake Browning",
+      "team": "CIN",
+      "opponent": "TB",
+      "position": "QB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -1.92,
+          "p50": 3.89,
+          "p90": 14.33
+        },
+        "half_ppr": {
+          "p10": -1.9,
+          "p50": 3.9,
+          "p90": 14.26
+        },
+        "standard": {
+          "p10": -1.88,
+          "p50": 3.9,
+          "p90": 14.19
+        },
+        "league": {
+          "p10": -1.82,
+          "p50": 4.26,
+          "p90": 16.53
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 80.55,
+        "passing_tds": 0.18,
+        "passing_interceptions": 0.15,
+        "carries": 2.09,
+        "rushing_yards": 2.73,
+        "rushing_tds": -0.0,
+        "targets": -0.02,
+        "receptions": -0.0,
+        "receiving_yards": -0.18,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.01
       }
     },
     {
@@ -9176,17 +9176,17 @@
         "ppr": {
           "p10": 0.32,
           "p50": 3.85,
-          "p90": 14.1
+          "p90": 14.09
         },
         "half_ppr": {
           "p10": 0.17,
           "p50": 2.92,
-          "p90": 12.05
+          "p90": 12.04
         },
         "standard": {
           "p10": 0.02,
           "p50": 1.98,
-          "p90": 10.0
+          "p90": 9.99
         },
         "league": {
           "p10": 0.28,
@@ -9202,53 +9202,10 @@
         "rushing_yards": -0.02,
         "rushing_tds": -0.0,
         "targets": 3.21,
-        "receptions": 1.88,
+        "receptions": 1.87,
         "receiving_yards": 19.44,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0035100",
-      "name": "Jake Browning",
-      "team": "TB",
-      "opponent": "CIN",
-      "position": "QB",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -1.96,
-          "p50": 3.82,
-          "p90": 14.15
-        },
-        "half_ppr": {
-          "p10": -1.94,
-          "p50": 3.83,
-          "p90": 14.08
-        },
-        "standard": {
-          "p10": -1.92,
-          "p50": 3.83,
-          "p90": 14.01
-        },
-        "league": {
-          "p10": -1.85,
-          "p50": 4.18,
-          "p90": 16.33
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 79.94,
-        "passing_tds": 0.18,
-        "passing_interceptions": 0.14,
-        "carries": 2.0,
-        "rushing_yards": 2.35,
-        "rushing_tds": -0.0,
-        "targets": -0.01,
-        "receptions": -0.01,
-        "receiving_yards": -0.24,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.01
       }
     },
     {
@@ -9378,6 +9335,49 @@
         "receiving_yards": 19.45,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0026300",
+      "name": "Josh Johnson",
+      "team": "WAS",
+      "opponent": "PHI",
+      "position": "QB",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -1.97,
+          "p50": 3.77,
+          "p90": 14.37
+        },
+        "half_ppr": {
+          "p10": -1.96,
+          "p50": 3.77,
+          "p90": 14.29
+        },
+        "standard": {
+          "p10": -1.94,
+          "p50": 3.77,
+          "p90": 14.21
+        },
+        "league": {
+          "p10": -1.89,
+          "p50": 4.09,
+          "p90": 16.51
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 77.66,
+        "passing_tds": 0.16,
+        "passing_interceptions": 0.14,
+        "carries": 2.22,
+        "rushing_yards": 3.35,
+        "rushing_tds": -0.0,
+        "targets": 0.01,
+        "receptions": -0.0,
+        "receiving_yards": -0.22,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.01
       }
     },
     {
@@ -9725,6 +9725,49 @@
       }
     },
     {
+      "player_id": "00-0036679",
+      "name": "Shane Buechele",
+      "team": "KC",
+      "opponent": "DEN",
+      "position": "QB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -2.04,
+          "p50": 3.59,
+          "p90": 13.41
+        },
+        "half_ppr": {
+          "p10": -2.03,
+          "p50": 3.58,
+          "p90": 13.32
+        },
+        "standard": {
+          "p10": -2.03,
+          "p50": 3.57,
+          "p90": 13.23
+        },
+        "league": {
+          "p10": -1.94,
+          "p50": 3.9,
+          "p90": 15.5
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 75.94,
+        "passing_tds": 0.16,
+        "passing_interceptions": 0.13,
+        "carries": 1.8,
+        "rushing_yards": 1.47,
+        "rushing_tds": 0.0,
+        "targets": 0.05,
+        "receptions": 0.02,
+        "receiving_yards": 0.07,
+        "receiving_tds": 0.01,
+        "fumbles_lost": 0.01
+      }
+    },
+    {
       "player_id": "00-0040311",
       "name": "Theo Wease Jr.",
       "team": "MIA",
@@ -9765,49 +9808,6 @@
         "receiving_yards": 19.28,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0026300",
-      "name": "Josh Johnson",
-      "team": "CIN",
-      "opponent": "TB",
-      "position": "QB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -2.07,
-          "p50": 3.56,
-          "p90": 14.04
-        },
-        "half_ppr": {
-          "p10": -2.05,
-          "p50": 3.56,
-          "p90": 13.96
-        },
-        "standard": {
-          "p10": -2.03,
-          "p50": 3.57,
-          "p90": 13.89
-        },
-        "league": {
-          "p10": -1.99,
-          "p50": 3.84,
-          "p90": 16.12
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 74.44,
-        "passing_tds": 0.14,
-        "passing_interceptions": 0.13,
-        "carries": 2.17,
-        "rushing_yards": 3.1,
-        "rushing_tds": -0.0,
-        "targets": -0.01,
-        "receptions": -0.01,
-        "receiving_yards": -0.24,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.01
       }
     },
     {
@@ -9897,46 +9897,46 @@
       }
     },
     {
-      "player_id": "00-0036679",
-      "name": "Shane Buechele",
-      "team": "BUF",
-      "opponent": "HOU",
-      "position": "QB",
+      "player_id": "00-0036924",
+      "name": "Michael Carter",
+      "team": "ARI",
+      "opponent": "LAC",
+      "position": "RB",
       "is_home": false,
       "points": {
         "ppr": {
-          "p10": -2.08,
-          "p50": 3.51,
-          "p90": 13.31
+          "p10": 0.94,
+          "p50": 3.52,
+          "p90": 13.58
         },
         "half_ppr": {
-          "p10": -2.08,
-          "p50": 3.5,
-          "p90": 13.22
+          "p10": 0.72,
+          "p50": 2.83,
+          "p90": 12.0
         },
         "standard": {
-          "p10": -2.07,
-          "p50": 3.49,
-          "p90": 13.14
+          "p10": 0.49,
+          "p50": 2.14,
+          "p90": 10.42
         },
         "league": {
-          "p10": -2.0,
-          "p50": 3.8,
-          "p90": 15.39
+          "p10": 0.89,
+          "p50": 3.53,
+          "p90": 13.6
         }
       },
       "stats_p50": {
-        "passing_yards": 74.64,
-        "passing_tds": 0.15,
-        "passing_interceptions": 0.12,
-        "carries": 1.81,
-        "rushing_yards": 1.48,
-        "rushing_tds": 0.0,
-        "targets": 0.04,
-        "receptions": 0.02,
-        "receiving_yards": -0.02,
-        "receiving_tds": 0.01,
-        "fumbles_lost": 0.01
+        "passing_yards": 0.03,
+        "passing_tds": 0.0,
+        "passing_interceptions": 0.0,
+        "carries": 3.89,
+        "rushing_yards": 13.91,
+        "rushing_tds": -0.0,
+        "targets": 1.97,
+        "receptions": 1.38,
+        "receiving_yards": 7.52,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.0
       }
     },
     {
@@ -10026,6 +10026,49 @@
       }
     },
     {
+      "player_id": "00-0040388",
+      "name": "Jakobie Keeney-James",
+      "team": "PIT",
+      "opponent": "ATL",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.21,
+          "p50": 3.46,
+          "p90": 13.43
+        },
+        "half_ppr": {
+          "p10": 0.09,
+          "p50": 2.63,
+          "p90": 11.5
+        },
+        "standard": {
+          "p10": -0.02,
+          "p50": 1.81,
+          "p90": 9.57
+        },
+        "league": {
+          "p10": 0.16,
+          "p50": 3.46,
+          "p90": 13.44
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": 0.01,
+        "rushing_yards": -0.01,
+        "rushing_tds": -0.0,
+        "targets": 2.99,
+        "receptions": 1.65,
+        "receiving_yards": 17.72,
+        "receiving_tds": 0.01,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0038619",
       "name": "Andrei Iosivas",
       "team": "CIN",
@@ -10109,6 +10152,49 @@
         "receiving_yards": 1.74,
         "receiving_tds": -0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0036415",
+      "name": "Van Jefferson",
+      "team": "TEN",
+      "opponent": "NYJ",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.21,
+          "p50": 3.33,
+          "p90": 12.75
+        },
+        "half_ppr": {
+          "p10": 0.09,
+          "p50": 2.51,
+          "p90": 10.86
+        },
+        "standard": {
+          "p10": -0.03,
+          "p50": 1.68,
+          "p90": 8.97
+        },
+        "league": {
+          "p10": 0.17,
+          "p50": 3.33,
+          "p90": 12.76
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.03,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 2.84,
+        "receptions": 1.65,
+        "receiving_yards": 16.54,
+        "receiving_tds": 0.01,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -10294,7 +10380,7 @@
         "ppr": {
           "p10": 0.97,
           "p50": 3.29,
-          "p90": 13.46
+          "p90": 13.45
         },
         "half_ppr": {
           "p10": 0.84,
@@ -10380,22 +10466,22 @@
         "ppr": {
           "p10": 0.44,
           "p50": 3.21,
-          "p90": 11.52
+          "p90": 11.54
         },
         "half_ppr": {
           "p10": 0.26,
-          "p50": 2.35,
-          "p90": 9.68
+          "p50": 2.36,
+          "p90": 9.69
         },
         "standard": {
-          "p10": 0.07,
-          "p50": 1.49,
-          "p90": 7.83
+          "p10": 0.08,
+          "p50": 1.5,
+          "p90": 7.85
         },
         "league": {
           "p10": 0.41,
-          "p50": 3.2,
-          "p90": 11.53
+          "p50": 3.21,
+          "p90": 11.55
         }
       },
       "stats_p50": {
@@ -10406,51 +10492,8 @@
         "rushing_yards": -0.02,
         "rushing_tds": -0.0,
         "targets": 2.69,
-        "receptions": 1.71,
-        "receiving_yards": 14.69,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0035500",
-      "name": "Greg Dortch",
-      "team": "DET",
-      "opponent": "NO",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.18,
-          "p50": 3.2,
-          "p90": 12.54
-        },
-        "half_ppr": {
-          "p10": 0.06,
-          "p50": 2.38,
-          "p90": 10.63
-        },
-        "standard": {
-          "p10": -0.06,
-          "p50": 1.56,
-          "p90": 8.72
-        },
-        "league": {
-          "p10": 0.15,
-          "p50": 3.2,
-          "p90": 12.55
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.07,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": 0.07,
-        "rushing_yards": 0.02,
-        "rushing_tds": -0.0,
-        "targets": 2.73,
-        "receptions": 1.65,
-        "receiving_yards": 15.33,
+        "receptions": 1.72,
+        "receiving_yards": 14.72,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -10542,49 +10585,6 @@
       }
     },
     {
-      "player_id": "00-0033949",
-      "name": "Joshua Dobbs",
-      "team": "NE",
-      "opponent": "SEA",
-      "position": "QB",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -2.21,
-          "p50": 3.14,
-          "p90": 13.86
-        },
-        "half_ppr": {
-          "p10": -2.19,
-          "p50": 3.15,
-          "p90": 13.77
-        },
-        "standard": {
-          "p10": -2.18,
-          "p50": 3.15,
-          "p90": 13.68
-        },
-        "league": {
-          "p10": -2.19,
-          "p50": 3.32,
-          "p90": 15.72
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 62.72,
-        "passing_tds": 0.09,
-        "passing_interceptions": 0.08,
-        "carries": 2.69,
-        "rushing_yards": 5.02,
-        "rushing_tds": -0.0,
-        "targets": 0.01,
-        "receptions": -0.01,
-        "receiving_yards": -0.16,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.01
-      }
-    },
-    {
       "player_id": "00-0034975",
       "name": "Justice Hill",
       "team": "BAL",
@@ -10628,49 +10628,6 @@
       }
     },
     {
-      "player_id": "00-0036893",
-      "name": "Najee Harris",
-      "team": "LAC",
-      "opponent": "ARI",
-      "position": "RB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.92,
-          "p50": 3.14,
-          "p90": 13.11
-        },
-        "half_ppr": {
-          "p10": 0.8,
-          "p50": 2.75,
-          "p90": 11.95
-        },
-        "standard": {
-          "p10": 0.68,
-          "p50": 2.36,
-          "p90": 10.8
-        },
-        "league": {
-          "p10": 0.86,
-          "p50": 3.15,
-          "p90": 13.13
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.02,
-        "passing_tds": 0.0,
-        "passing_interceptions": 0.0,
-        "carries": 5.74,
-        "rushing_yards": 21.35,
-        "rushing_tds": -0.0,
-        "targets": 1.18,
-        "receptions": 0.78,
-        "receiving_yards": 2.55,
-        "receiving_tds": -0.0,
-        "fumbles_lost": 0.0
-      }
-    },
-    {
       "player_id": "00-0032385",
       "name": "Sterling Shepard",
       "team": "TB",
@@ -10696,7 +10653,7 @@
         "league": {
           "p10": 0.16,
           "p50": 3.1,
-          "p90": 11.75
+          "p90": 11.74
         }
       },
       "stats_p50": {
@@ -10810,22 +10767,22 @@
         "ppr": {
           "p10": 0.41,
           "p50": 3.09,
-          "p90": 11.27
+          "p90": 11.29
         },
         "half_ppr": {
-          "p10": 0.23,
-          "p50": 2.26,
-          "p90": 9.47
+          "p10": 0.24,
+          "p50": 2.27,
+          "p90": 9.48
         },
         "standard": {
           "p10": 0.06,
           "p50": 1.44,
-          "p90": 7.66
+          "p90": 7.67
         },
         "league": {
           "p10": 0.38,
-          "p50": 3.08,
-          "p90": 11.29
+          "p50": 3.09,
+          "p90": 11.3
         }
       },
       "stats_p50": {
@@ -10837,7 +10794,7 @@
         "rushing_tds": -0.0,
         "targets": 2.6,
         "receptions": 1.65,
-        "receiving_yards": 14.22,
+        "receiving_yards": 14.24,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -10883,6 +10840,92 @@
         "receiving_yards": 3.22,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0036893",
+      "name": "Najee Harris",
+      "team": "NYG",
+      "opponent": "DAL",
+      "position": "RB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.89,
+          "p50": 3.08,
+          "p90": 12.96
+        },
+        "half_ppr": {
+          "p10": 0.77,
+          "p50": 2.7,
+          "p90": 11.82
+        },
+        "standard": {
+          "p10": 0.65,
+          "p50": 2.31,
+          "p90": 10.68
+        },
+        "league": {
+          "p10": 0.83,
+          "p50": 3.09,
+          "p90": 12.99
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.02,
+        "passing_tds": 0.0,
+        "passing_interceptions": 0.0,
+        "carries": 5.66,
+        "rushing_yards": 21.0,
+        "rushing_tds": -0.0,
+        "targets": 1.16,
+        "receptions": 0.77,
+        "receiving_yards": 2.43,
+        "receiving_tds": -0.0,
+        "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0036427",
+      "name": "Tyler Johnson",
+      "team": "NYJ",
+      "opponent": "TEN",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": 0.17,
+          "p50": 3.06,
+          "p90": 12.1
+        },
+        "half_ppr": {
+          "p10": 0.07,
+          "p50": 2.32,
+          "p90": 10.35
+        },
+        "standard": {
+          "p10": -0.04,
+          "p50": 1.58,
+          "p90": 8.59
+        },
+        "league": {
+          "p10": 0.13,
+          "p50": 3.06,
+          "p90": 12.12
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.0,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 2.66,
+        "receptions": 1.49,
+        "receiving_yards": 15.59,
+        "receiving_tds": 0.01,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -10972,6 +11015,49 @@
       }
     },
     {
+      "player_id": "00-0033949",
+      "name": "Joshua Dobbs",
+      "team": "DET",
+      "opponent": "NO",
+      "position": "QB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -2.25,
+          "p50": 3.02,
+          "p90": 13.71
+        },
+        "half_ppr": {
+          "p10": -2.24,
+          "p50": 3.02,
+          "p90": 13.62
+        },
+        "standard": {
+          "p10": -2.22,
+          "p50": 3.03,
+          "p90": 13.54
+        },
+        "league": {
+          "p10": -2.24,
+          "p50": 3.16,
+          "p90": 15.53
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 61.05,
+        "passing_tds": 0.07,
+        "passing_interceptions": 0.08,
+        "carries": 2.66,
+        "rushing_yards": 4.91,
+        "rushing_tds": -0.0,
+        "targets": 0.0,
+        "receptions": -0.01,
+        "receiving_yards": -0.16,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.01
+      }
+    },
+    {
       "player_id": "00-0036898",
       "name": "Davis Mills",
       "team": "HOU",
@@ -11012,49 +11098,6 @@
         "receiving_yards": -0.22,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.01
-      }
-    },
-    {
-      "player_id": "00-0036427",
-      "name": "Tyler Johnson",
-      "team": "DAL",
-      "opponent": "NYG",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 0.15,
-          "p50": 2.96,
-          "p90": 11.8
-        },
-        "half_ppr": {
-          "p10": 0.04,
-          "p50": 2.23,
-          "p90": 10.06
-        },
-        "standard": {
-          "p10": -0.06,
-          "p50": 1.5,
-          "p90": 8.33
-        },
-        "league": {
-          "p10": 0.11,
-          "p50": 2.96,
-          "p90": 11.81
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.0,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.03,
-        "rushing_tds": -0.0,
-        "targets": 2.58,
-        "receptions": 1.46,
-        "receiving_yards": 14.89,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
       }
     },
     {
@@ -11359,49 +11402,6 @@
       }
     },
     {
-      "player_id": "00-0036415",
-      "name": "Van Jefferson",
-      "team": "WAS",
-      "opponent": "PHI",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 0.13,
-          "p50": 2.83,
-          "p90": 11.23
-        },
-        "half_ppr": {
-          "p10": 0.03,
-          "p50": 2.11,
-          "p90": 9.49
-        },
-        "standard": {
-          "p10": -0.08,
-          "p50": 1.38,
-          "p90": 7.76
-        },
-        "league": {
-          "p10": 0.09,
-          "p50": 2.83,
-          "p90": 11.25
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.0,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.03,
-        "rushing_tds": -0.0,
-        "targets": 2.47,
-        "receptions": 1.45,
-        "receiving_yards": 13.63,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0034983",
       "name": "Hunter Renfrow",
       "team": "CAR",
@@ -11700,6 +11700,49 @@
         "receiving_yards": 1.43,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0035500",
+      "name": "Greg Dortch",
+      "team": "ARI",
+      "opponent": "LAC",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": 0.12,
+          "p50": 2.77,
+          "p90": 11.37
+        },
+        "half_ppr": {
+          "p10": 0.01,
+          "p50": 2.05,
+          "p90": 9.6
+        },
+        "standard": {
+          "p10": -0.09,
+          "p50": 1.32,
+          "p90": 7.83
+        },
+        "league": {
+          "p10": 0.08,
+          "p50": 2.77,
+          "p90": 11.38
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.06,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": 0.07,
+        "rushing_yards": 0.03,
+        "rushing_tds": -0.0,
+        "targets": 2.43,
+        "receptions": 1.45,
+        "receiving_yards": 13.03,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -12047,135 +12090,6 @@
       }
     },
     {
-      "player_id": "00-0032434",
-      "name": "Brandon Allen",
-      "team": "NYG",
-      "opponent": "DAL",
-      "position": "QB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -2.43,
-          "p50": 2.68,
-          "p90": 12.32
-        },
-        "half_ppr": {
-          "p10": -2.4,
-          "p50": 2.69,
-          "p90": 12.24
-        },
-        "standard": {
-          "p10": -2.37,
-          "p50": 2.71,
-          "p90": 12.15
-        },
-        "league": {
-          "p10": -2.41,
-          "p50": 2.83,
-          "p90": 14.18
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 62.6,
-        "passing_tds": 0.08,
-        "passing_interceptions": 0.09,
-        "carries": 1.72,
-        "rushing_yards": 0.95,
-        "rushing_tds": -0.0,
-        "targets": -0.02,
-        "receptions": -0.03,
-        "receiving_yards": -0.1,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.01
-      }
-    },
-    {
-      "player_id": "00-0040388",
-      "name": "Jakobie Keeney-James",
-      "team": "GB",
-      "opponent": "MIN",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 0.09,
-          "p50": 2.67,
-          "p90": 11.13
-        },
-        "half_ppr": {
-          "p10": 0.0,
-          "p50": 2.0,
-          "p90": 9.42
-        },
-        "standard": {
-          "p10": -0.08,
-          "p50": 1.33,
-          "p90": 7.72
-        },
-        "league": {
-          "p10": 0.05,
-          "p50": 2.67,
-          "p90": 11.14
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.1,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.01,
-        "rushing_tds": -0.0,
-        "targets": 2.43,
-        "receptions": 1.34,
-        "receiving_yards": 13.12,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0033857",
-      "name": "JuJu Smith-Schuster",
-      "team": "NYG",
-      "opponent": "DAL",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.11,
-          "p50": 2.65,
-          "p90": 10.78
-        },
-        "half_ppr": {
-          "p10": 0.02,
-          "p50": 1.97,
-          "p90": 9.12
-        },
-        "standard": {
-          "p10": -0.08,
-          "p50": 1.3,
-          "p90": 7.46
-        },
-        "league": {
-          "p10": 0.07,
-          "p50": 2.64,
-          "p90": 10.8
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.03,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.03,
-        "rushing_tds": -0.0,
-        "targets": 2.32,
-        "receptions": 1.35,
-        "receiving_yards": 12.87,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0033891",
       "name": "Zay Jones",
       "team": "ARI",
@@ -12216,6 +12130,49 @@
         "receiving_yards": 12.64,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0032434",
+      "name": "Brandon Allen",
+      "team": "TEN",
+      "opponent": "NYJ",
+      "position": "QB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -2.45,
+          "p50": 2.62,
+          "p90": 12.26
+        },
+        "half_ppr": {
+          "p10": -2.42,
+          "p50": 2.64,
+          "p90": 12.17
+        },
+        "standard": {
+          "p10": -2.39,
+          "p50": 2.66,
+          "p90": 12.08
+        },
+        "league": {
+          "p10": -2.43,
+          "p50": 2.77,
+          "p90": 14.1
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 61.57,
+        "passing_tds": 0.07,
+        "passing_interceptions": 0.09,
+        "carries": 1.73,
+        "rushing_yards": 0.98,
+        "rushing_tds": -0.0,
+        "targets": -0.03,
+        "receptions": -0.03,
+        "receiving_yards": -0.1,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.01
       }
     },
     {
@@ -12388,6 +12345,49 @@
         "receiving_yards": 0.91,
         "receiving_tds": -0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0033857",
+      "name": "JuJu Smith-Schuster",
+      "team": "KC",
+      "opponent": "DEN",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.1,
+          "p50": 2.58,
+          "p90": 10.53
+        },
+        "half_ppr": {
+          "p10": 0.01,
+          "p50": 1.92,
+          "p90": 8.9
+        },
+        "standard": {
+          "p10": -0.08,
+          "p50": 1.26,
+          "p90": 7.27
+        },
+        "league": {
+          "p10": 0.07,
+          "p50": 2.58,
+          "p90": 10.55
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.02,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 2.26,
+        "receptions": 1.33,
+        "receiving_yards": 12.47,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -12821,49 +12821,6 @@
       }
     },
     {
-      "player_id": "00-0033858",
-      "name": "Jonnu Smith",
-      "team": "PIT",
-      "opponent": "ATL",
-      "position": "TE",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.26,
-          "p50": 2.48,
-          "p90": 9.67
-        },
-        "half_ppr": {
-          "p10": 0.11,
-          "p50": 1.77,
-          "p90": 8.05
-        },
-        "standard": {
-          "p10": -0.04,
-          "p50": 1.06,
-          "p90": 6.43
-        },
-        "league": {
-          "p10": 0.23,
-          "p50": 2.47,
-          "p90": 9.68
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.01,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": 0.06,
-        "rushing_yards": 0.02,
-        "rushing_tds": -0.0,
-        "targets": 2.1,
-        "receptions": 1.41,
-        "receiving_yards": 10.56,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0038555",
       "name": "Tank Bigsby",
       "team": "PHI",
@@ -12945,49 +12902,6 @@
         "targets": 2.17,
         "receptions": 1.29,
         "receiving_yards": 11.74,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0037004",
-      "name": "Hunter Long",
-      "team": "JAX",
-      "opponent": "CLE",
-      "position": "TE",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.27,
-          "p50": 2.47,
-          "p90": 9.63
-        },
-        "half_ppr": {
-          "p10": 0.14,
-          "p50": 1.8,
-          "p90": 8.07
-        },
-        "standard": {
-          "p10": -0.0,
-          "p50": 1.13,
-          "p90": 6.51
-        },
-        "league": {
-          "p10": 0.24,
-          "p50": 2.47,
-          "p90": 9.64
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.02,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.01,
-        "rushing_tds": -0.0,
-        "targets": 2.13,
-        "receptions": 1.34,
-        "receiving_yards": 11.22,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -13117,49 +13031,6 @@
         "targets": 2.14,
         "receptions": 1.38,
         "receiving_yards": 10.48,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0034270",
-      "name": "Tyler Conklin",
-      "team": "DET",
-      "opponent": "NO",
-      "position": "TE",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.26,
-          "p50": 2.41,
-          "p90": 9.31
-        },
-        "half_ppr": {
-          "p10": 0.13,
-          "p50": 1.75,
-          "p90": 7.8
-        },
-        "standard": {
-          "p10": -0.01,
-          "p50": 1.09,
-          "p90": 6.28
-        },
-        "league": {
-          "p10": 0.23,
-          "p50": 2.41,
-          "p90": 9.32
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.01,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 2.05,
-        "receptions": 1.32,
-        "receiving_yards": 10.82,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -13552,6 +13423,49 @@
       }
     },
     {
+      "player_id": "00-0034272",
+      "name": "Marquez Valdes-Scantling",
+      "team": "PIT",
+      "opponent": "ATL",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.06,
+          "p50": 2.34,
+          "p90": 9.9
+        },
+        "half_ppr": {
+          "p10": -0.02,
+          "p50": 1.73,
+          "p90": 8.34
+        },
+        "standard": {
+          "p10": -0.1,
+          "p50": 1.12,
+          "p90": 6.77
+        },
+        "league": {
+          "p10": 0.03,
+          "p50": 2.34,
+          "p90": 9.92
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.01,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 2.09,
+        "receptions": 1.22,
+        "receiving_yards": 11.15,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0032211",
       "name": "Tyler Lockett",
       "team": "LV",
@@ -13595,44 +13509,44 @@
       }
     },
     {
-      "player_id": "00-0036534",
-      "name": "Shane Zylstra",
-      "team": "BUF",
-      "opponent": "HOU",
+      "player_id": "00-0033858",
+      "name": "Jonnu Smith",
+      "team": "GB",
+      "opponent": "MIN",
       "position": "TE",
       "is_home": false,
       "points": {
         "ppr": {
-          "p10": 0.24,
+          "p10": 0.23,
           "p50": 2.33,
-          "p90": 9.29
+          "p90": 9.18
         },
         "half_ppr": {
-          "p10": 0.11,
-          "p50": 1.69,
-          "p90": 7.76
+          "p10": 0.09,
+          "p50": 1.65,
+          "p90": 7.62
         },
         "standard": {
-          "p10": -0.02,
-          "p50": 1.05,
-          "p90": 6.24
+          "p10": -0.05,
+          "p50": 0.98,
+          "p90": 6.06
         },
         "league": {
           "p10": 0.2,
           "p50": 2.32,
-          "p90": 9.3
+          "p90": 9.19
         }
       },
       "stats_p50": {
-        "passing_yards": -0.06,
+        "passing_yards": 0.0,
         "passing_tds": -0.0,
         "passing_interceptions": -0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.02,
+        "carries": 0.07,
+        "rushing_yards": 0.02,
         "rushing_tds": -0.0,
-        "targets": 2.04,
-        "receptions": 1.28,
-        "receiving_yards": 10.45,
+        "targets": 1.99,
+        "receptions": 1.35,
+        "receiving_yards": 9.73,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -13678,6 +13592,49 @@
         "receiving_yards": 1.06,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0034270",
+      "name": "Tyler Conklin",
+      "team": "LAC",
+      "opponent": "ARI",
+      "position": "TE",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.24,
+          "p50": 2.3,
+          "p90": 9.08
+        },
+        "half_ppr": {
+          "p10": 0.11,
+          "p50": 1.67,
+          "p90": 7.6
+        },
+        "standard": {
+          "p10": -0.02,
+          "p50": 1.04,
+          "p90": 6.12
+        },
+        "league": {
+          "p10": 0.2,
+          "p50": 2.29,
+          "p90": 9.09
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.02,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.01,
+        "rushing_tds": -0.0,
+        "targets": 1.97,
+        "receptions": 1.26,
+        "receiving_yards": 10.29,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -13982,6 +13939,49 @@
       }
     },
     {
+      "player_id": "00-0037004",
+      "name": "Hunter Long",
+      "team": "ARI",
+      "opponent": "LAC",
+      "position": "TE",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": 0.22,
+          "p50": 2.22,
+          "p90": 8.86
+        },
+        "half_ppr": {
+          "p10": 0.09,
+          "p50": 1.6,
+          "p90": 7.38
+        },
+        "standard": {
+          "p10": -0.04,
+          "p50": 0.98,
+          "p90": 5.9
+        },
+        "league": {
+          "p10": 0.19,
+          "p50": 2.22,
+          "p90": 8.87
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.03,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.95,
+        "receptions": 1.24,
+        "receiving_yards": 9.79,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0037742",
       "name": "Treylon Burks",
       "team": "WAS",
@@ -14106,6 +14106,49 @@
         "targets": 2.03,
         "receptions": 1.14,
         "receiving_yards": 10.4,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0033455",
+      "name": "Anthony Firkser",
+      "team": "DET",
+      "opponent": "NO",
+      "position": "TE",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.2,
+          "p50": 2.17,
+          "p90": 8.79
+        },
+        "half_ppr": {
+          "p10": 0.08,
+          "p50": 1.57,
+          "p90": 7.32
+        },
+        "standard": {
+          "p10": -0.05,
+          "p50": 0.97,
+          "p90": 5.85
+        },
+        "league": {
+          "p10": 0.17,
+          "p50": 2.17,
+          "p90": 8.8
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.06,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.89,
+        "receptions": 1.21,
+        "receiving_yards": 9.51,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -14283,6 +14326,49 @@
       }
     },
     {
+      "player_id": "00-0036534",
+      "name": "Shane Zylstra",
+      "team": "DET",
+      "opponent": "NO",
+      "position": "TE",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.2,
+          "p50": 2.12,
+          "p90": 8.76
+        },
+        "half_ppr": {
+          "p10": 0.08,
+          "p50": 1.54,
+          "p90": 7.33
+        },
+        "standard": {
+          "p10": -0.04,
+          "p50": 0.96,
+          "p90": 5.9
+        },
+        "league": {
+          "p10": 0.16,
+          "p50": 2.11,
+          "p90": 8.77
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.03,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": 0.0,
+        "rushing_yards": -0.01,
+        "rushing_tds": -0.0,
+        "targets": 1.88,
+        "receptions": 1.16,
+        "receiving_yards": 9.57,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0037666",
       "name": "Jalen Tolbert",
       "team": "MIA",
@@ -14407,49 +14493,6 @@
         "targets": 1.89,
         "receptions": 1.18,
         "receiving_yards": 9.31,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0033455",
-      "name": "Anthony Firkser",
-      "team": "WAS",
-      "opponent": "PHI",
-      "position": "TE",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 0.19,
-          "p50": 2.1,
-          "p90": 8.5
-        },
-        "half_ppr": {
-          "p10": 0.07,
-          "p50": 1.51,
-          "p90": 7.06
-        },
-        "standard": {
-          "p10": -0.06,
-          "p50": 0.91,
-          "p90": 5.62
-        },
-        "league": {
-          "p10": 0.15,
-          "p50": 2.09,
-          "p90": 8.52
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.05,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 1.84,
-        "receptions": 1.19,
-        "receiving_yards": 9.04,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -14665,49 +14708,6 @@
         "targets": 1.89,
         "receptions": 1.11,
         "receiving_yards": 9.62,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0034272",
-      "name": "Marquez Valdes-Scantling",
-      "team": "DAL",
-      "opponent": "NYG",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 0.02,
-          "p50": 2.08,
-          "p90": 9.04
-        },
-        "half_ppr": {
-          "p10": -0.05,
-          "p50": 1.52,
-          "p90": 7.58
-        },
-        "standard": {
-          "p10": -0.12,
-          "p50": 0.97,
-          "p90": 6.11
-        },
-        "league": {
-          "p10": -0.01,
-          "p50": 2.08,
-          "p90": 9.06
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.01,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 1.89,
-        "receptions": 1.11,
-        "receiving_yards": 9.65,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -15057,6 +15057,49 @@
       }
     },
     {
+      "player_id": "00-0039884",
+      "name": "Tahj Washington",
+      "team": "PHI",
+      "opponent": "WAS",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.01,
+          "p50": 2.02,
+          "p90": 9.27
+        },
+        "half_ppr": {
+          "p10": -0.06,
+          "p50": 1.49,
+          "p90": 7.76
+        },
+        "standard": {
+          "p10": -0.13,
+          "p50": 0.96,
+          "p90": 6.26
+        },
+        "league": {
+          "p10": -0.03,
+          "p50": 2.02,
+          "p90": 9.28
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.0,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.01,
+        "rushing_tds": -0.0,
+        "targets": 1.9,
+        "receptions": 1.07,
+        "receiving_yards": 9.47,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0040729",
       "name": "Jack Bech",
       "team": "LV",
@@ -15401,92 +15444,6 @@
       }
     },
     {
-      "player_id": "00-0034407",
-      "name": "Ray-Ray McCloud",
-      "team": "NYG",
-      "opponent": "DAL",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.0,
-          "p50": 1.91,
-          "p90": 8.67
-        },
-        "half_ppr": {
-          "p10": -0.06,
-          "p50": 1.4,
-          "p90": 7.26
-        },
-        "standard": {
-          "p10": -0.13,
-          "p50": 0.89,
-          "p90": 5.84
-        },
-        "league": {
-          "p10": -0.04,
-          "p50": 1.9,
-          "p90": 8.69
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.03,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": 0.0,
-        "rushing_yards": -0.01,
-        "rushing_tds": -0.0,
-        "targets": 1.77,
-        "receptions": 1.02,
-        "receiving_yards": 8.8,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0037348",
-      "name": "Tanner Conner",
-      "team": "NYG",
-      "opponent": "DAL",
-      "position": "TE",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.14,
-          "p50": 1.91,
-          "p90": 8.28
-        },
-        "half_ppr": {
-          "p10": 0.04,
-          "p50": 1.38,
-          "p90": 6.89
-        },
-        "standard": {
-          "p10": -0.07,
-          "p50": 0.84,
-          "p90": 5.51
-        },
-        "league": {
-          "p10": 0.11,
-          "p50": 1.91,
-          "p90": 8.29
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.02,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 1.75,
-        "receptions": 1.07,
-        "receiving_yards": 8.36,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0036980",
       "name": "Elijah Moore",
       "team": "PHI",
@@ -15702,6 +15659,49 @@
       }
     },
     {
+      "player_id": "00-0034407",
+      "name": "Ray-Ray McCloud",
+      "team": "CHI",
+      "opponent": "CAR",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.0,
+          "p50": 1.88,
+          "p90": 8.52
+        },
+        "half_ppr": {
+          "p10": -0.07,
+          "p50": 1.36,
+          "p90": 7.11
+        },
+        "standard": {
+          "p10": -0.13,
+          "p50": 0.85,
+          "p90": 5.69
+        },
+        "league": {
+          "p10": -0.04,
+          "p50": 1.87,
+          "p90": 8.53
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.03,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": 0.0,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.76,
+        "receptions": 1.03,
+        "receiving_yards": 8.53,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0038040",
       "name": "Zamir White",
       "team": "LV",
@@ -15717,7 +15717,7 @@
         "half_ppr": {
           "p10": 0.25,
           "p50": 1.59,
-          "p90": 9.2
+          "p90": 9.19
         },
         "standard": {
           "p10": 0.17,
@@ -15735,7 +15735,7 @@
         "passing_tds": 0.0,
         "passing_interceptions": 0.0,
         "carries": 3.56,
-        "rushing_yards": 12.32,
+        "rushing_yards": 12.31,
         "rushing_tds": -0.0,
         "targets": 0.88,
         "receptions": 0.54,
@@ -15874,49 +15874,6 @@
       }
     },
     {
-      "player_id": "00-0036567",
-      "name": "Elijah Mitchell",
-      "team": "PHI",
-      "opponent": "WAS",
-      "position": "RB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.3,
-          "p50": 1.85,
-          "p90": 10.4
-        },
-        "half_ppr": {
-          "p10": 0.25,
-          "p50": 1.67,
-          "p90": 9.57
-        },
-        "standard": {
-          "p10": 0.2,
-          "p50": 1.48,
-          "p90": 8.73
-        },
-        "league": {
-          "p10": 0.25,
-          "p50": 1.86,
-          "p90": 10.43
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 0.11,
-        "passing_tds": 0.0,
-        "passing_interceptions": 0.01,
-        "carries": 4.08,
-        "rushing_yards": 14.25,
-        "rushing_tds": -0.0,
-        "targets": 0.65,
-        "receptions": 0.37,
-        "receiving_yards": 0.74,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.0
-      }
-    },
-    {
       "player_id": "00-0032464",
       "name": "Kalif Raymond",
       "team": "CHI",
@@ -15962,42 +15919,42 @@
     {
       "player_id": "00-0037267",
       "name": "Jerome Ford",
-      "team": "WAS",
-      "opponent": "PHI",
+      "team": "CLE",
+      "opponent": "JAX",
       "position": "RB",
       "is_home": false,
       "points": {
         "ppr": {
           "p10": 0.3,
           "p50": 1.81,
-          "p90": 8.45
+          "p90": 8.47
         },
         "half_ppr": {
           "p10": 0.14,
           "p50": 1.31,
-          "p90": 7.13
+          "p90": 7.15
         },
         "standard": {
           "p10": -0.02,
-          "p50": 0.8,
-          "p90": 5.81
+          "p50": 0.81,
+          "p90": 5.83
         },
         "league": {
           "p10": 0.26,
           "p50": 1.8,
-          "p90": 8.46
+          "p90": 8.48
         }
       },
       "stats_p50": {
         "passing_yards": 0.0,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
-        "carries": 1.2,
-        "rushing_yards": 3.53,
+        "carries": 1.21,
+        "rushing_yards": 3.57,
         "rushing_tds": -0.0,
         "targets": 1.46,
         "receptions": 1.0,
-        "receiving_yards": 4.66,
+        "receiving_yards": 4.64,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -16132,6 +16089,49 @@
       }
     },
     {
+      "player_id": "00-0036849",
+      "name": "Tutu Atwell",
+      "team": "LA",
+      "opponent": "SF",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.04,
+          "p50": 1.8,
+          "p90": 8.76
+        },
+        "half_ppr": {
+          "p10": -0.09,
+          "p50": 1.35,
+          "p90": 7.42
+        },
+        "standard": {
+          "p10": -0.15,
+          "p50": 0.9,
+          "p90": 6.07
+        },
+        "league": {
+          "p10": -0.08,
+          "p50": 1.79,
+          "p90": 8.77
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.05,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 1.72,
+        "receptions": 0.9,
+        "receiving_yards": 8.89,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0038102",
       "name": "Kenny Pickett",
       "team": "CAR",
@@ -16218,49 +16218,6 @@
       }
     },
     {
-      "player_id": "00-0039884",
-      "name": "Tahj Washington",
-      "team": "MIA",
-      "opponent": "LV",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.03,
-          "p50": 1.79,
-          "p90": 8.49
-        },
-        "half_ppr": {
-          "p10": -0.09,
-          "p50": 1.3,
-          "p90": 7.06
-        },
-        "standard": {
-          "p10": -0.15,
-          "p50": 0.8,
-          "p90": 5.63
-        },
-        "league": {
-          "p10": -0.06,
-          "p50": 1.79,
-          "p90": 8.5
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.0,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": 0.0,
-        "rushing_yards": -0.03,
-        "rushing_tds": -0.0,
-        "targets": 1.74,
-        "receptions": 0.99,
-        "receiving_yards": 8.06,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0038951",
       "name": "Sean Tucker",
       "team": "TB",
@@ -16301,6 +16258,49 @@
         "receiving_yards": 0.86,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0037348",
+      "name": "Tanner Conner",
+      "team": "MIA",
+      "opponent": "LV",
+      "position": "TE",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": 0.11,
+          "p50": 1.77,
+          "p90": 7.91
+        },
+        "half_ppr": {
+          "p10": 0.01,
+          "p50": 1.27,
+          "p90": 6.56
+        },
+        "standard": {
+          "p10": -0.08,
+          "p50": 0.77,
+          "p90": 5.22
+        },
+        "league": {
+          "p10": 0.08,
+          "p50": 1.76,
+          "p90": 7.92
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.65,
+        "receptions": 1.0,
+        "receiving_yards": 7.61,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -16385,6 +16385,49 @@
         "targets": 0.74,
         "receptions": 0.42,
         "receiving_yards": 0.9,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0036567",
+      "name": "Elijah Mitchell",
+      "team": "KC",
+      "opponent": "DEN",
+      "position": "RB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.25,
+          "p50": 1.75,
+          "p90": 10.05
+        },
+        "half_ppr": {
+          "p10": 0.2,
+          "p50": 1.56,
+          "p90": 9.22
+        },
+        "standard": {
+          "p10": 0.15,
+          "p50": 1.37,
+          "p90": 8.38
+        },
+        "league": {
+          "p10": 0.2,
+          "p50": 1.76,
+          "p90": 10.08
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.12,
+        "passing_tds": 0.0,
+        "passing_interceptions": 0.0,
+        "carries": 3.8,
+        "rushing_yards": 13.11,
+        "rushing_tds": -0.0,
+        "targets": 0.66,
+        "receptions": 0.38,
+        "receiving_yards": 0.76,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -16605,87 +16648,44 @@
       }
     },
     {
-      "player_id": "00-0040317",
-      "name": "Jacoby Jones",
-      "team": "WAS",
-      "opponent": "PHI",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.05,
-          "p50": 1.7,
-          "p90": 8.41
-        },
-        "half_ppr": {
-          "p10": -0.1,
-          "p50": 1.25,
-          "p90": 7.05
-        },
-        "standard": {
-          "p10": -0.16,
-          "p50": 0.79,
-          "p90": 5.68
-        },
-        "league": {
-          "p10": -0.09,
-          "p50": 1.69,
-          "p90": 8.43
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.04,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": 0.0,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 1.7,
-        "receptions": 0.9,
-        "receiving_yards": 7.97,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0036849",
-      "name": "Tutu Atwell",
+      "player_id": "00-0034418",
+      "name": "Cedrick Wilson Jr.",
       "team": "MIA",
       "opponent": "LV",
       "position": "WR",
       "is_home": false,
       "points": {
         "ppr": {
-          "p10": -0.06,
-          "p50": 1.67,
-          "p90": 8.25
+          "p10": -0.04,
+          "p50": 1.68,
+          "p90": 8.01
         },
         "half_ppr": {
-          "p10": -0.11,
-          "p50": 1.24,
-          "p90": 6.96
+          "p10": -0.1,
+          "p50": 1.21,
+          "p90": 6.66
         },
         "standard": {
           "p10": -0.16,
-          "p50": 0.81,
-          "p90": 5.67
+          "p50": 0.75,
+          "p90": 5.31
         },
         "league": {
-          "p10": -0.09,
-          "p50": 1.66,
-          "p90": 8.26
+          "p10": -0.08,
+          "p50": 1.68,
+          "p90": 8.03
         }
       },
       "stats_p50": {
-        "passing_yards": -0.05,
+        "passing_yards": -0.04,
         "passing_tds": -0.0,
         "passing_interceptions": -0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.03,
+        "carries": -0.0,
+        "rushing_yards": -0.02,
         "rushing_tds": -0.0,
-        "targets": 1.6,
-        "receptions": 0.85,
-        "receiving_yards": 8.1,
+        "targets": 1.62,
+        "receptions": 0.93,
+        "receiving_yards": 7.54,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -16772,49 +16772,6 @@
         "targets": 1.47,
         "receptions": 0.97,
         "receiving_yards": 6.77,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0034418",
-      "name": "Cedrick Wilson Jr.",
-      "team": "DET",
-      "opponent": "NO",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.05,
-          "p50": 1.65,
-          "p90": 8.0
-        },
-        "half_ppr": {
-          "p10": -0.1,
-          "p50": 1.2,
-          "p90": 6.67
-        },
-        "standard": {
-          "p10": -0.16,
-          "p50": 0.75,
-          "p90": 5.35
-        },
-        "league": {
-          "p10": -0.08,
-          "p50": 1.64,
-          "p90": 8.02
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.05,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 1.58,
-        "receptions": 0.9,
-        "receiving_yards": 7.53,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -17293,44 +17250,44 @@
       }
     },
     {
-      "player_id": "00-0039394",
-      "name": "Casey Washington",
-      "team": "ATL",
-      "opponent": "PIT",
-      "position": "WR",
+      "player_id": "00-0037475",
+      "name": "Stone Smartt",
+      "team": "NYJ",
+      "opponent": "TEN",
+      "position": "TE",
       "is_home": false,
       "points": {
         "ppr": {
-          "p10": -0.08,
-          "p50": 1.49,
-          "p90": 7.81
+          "p10": 0.04,
+          "p50": 1.46,
+          "p90": 6.92
         },
         "half_ppr": {
-          "p10": -0.12,
-          "p50": 1.1,
-          "p90": 6.55
+          "p10": -0.04,
+          "p50": 1.03,
+          "p90": 5.7
         },
         "standard": {
-          "p10": -0.17,
-          "p50": 0.71,
-          "p90": 5.28
+          "p10": -0.13,
+          "p50": 0.6,
+          "p90": 4.48
         },
         "league": {
-          "p10": -0.12,
-          "p50": 1.48,
-          "p90": 7.83
+          "p10": 0.01,
+          "p50": 1.46,
+          "p90": 6.94
         }
       },
       "stats_p50": {
-        "passing_yards": -0.09,
+        "passing_yards": -0.02,
         "passing_tds": -0.0,
         "passing_interceptions": -0.0,
         "carries": -0.01,
-        "rushing_yards": -0.03,
+        "rushing_yards": -0.01,
         "rushing_tds": -0.0,
-        "targets": 1.5,
-        "receptions": 0.77,
-        "receiving_yards": 7.1,
+        "targets": 1.38,
+        "receptions": 0.87,
+        "receiving_yards": 5.94,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -17508,49 +17465,6 @@
       }
     },
     {
-      "player_id": "00-0037475",
-      "name": "Stone Smartt",
-      "team": "PHI",
-      "opponent": "WAS",
-      "position": "TE",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 0.03,
-          "p50": 1.42,
-          "p90": 6.87
-        },
-        "half_ppr": {
-          "p10": -0.05,
-          "p50": 1.0,
-          "p90": 5.67
-        },
-        "standard": {
-          "p10": -0.13,
-          "p50": 0.59,
-          "p90": 4.47
-        },
-        "league": {
-          "p10": -0.01,
-          "p50": 1.41,
-          "p90": 6.88
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.0,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.01,
-        "rushing_tds": -0.0,
-        "targets": 1.34,
-        "receptions": 0.83,
-        "receiving_yards": 5.85,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0039379",
       "name": "Jamari Thrash",
       "team": "CLE",
@@ -17680,49 +17594,6 @@
       }
     },
     {
-      "player_id": "00-0040556",
-      "name": "Corey Kiner",
-      "team": "ARI",
-      "opponent": "LAC",
-      "position": "RB",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": 0.1,
-          "p50": 1.4,
-          "p90": 8.82
-        },
-        "half_ppr": {
-          "p10": 0.03,
-          "p50": 1.14,
-          "p90": 7.84
-        },
-        "standard": {
-          "p10": -0.05,
-          "p50": 0.88,
-          "p90": 6.85
-        },
-        "league": {
-          "p10": 0.06,
-          "p50": 1.41,
-          "p90": 8.85
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 0.11,
-        "passing_tds": 0.0,
-        "passing_interceptions": 0.0,
-        "carries": 2.45,
-        "rushing_yards": 7.72,
-        "rushing_tds": -0.0,
-        "targets": 0.85,
-        "receptions": 0.52,
-        "receiving_yards": 1.23,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.0
-      }
-    },
-    {
       "player_id": "00-0038046",
       "name": "Charlie Kolar",
       "team": "LAC",
@@ -17776,17 +17647,17 @@
         "ppr": {
           "p10": 0.1,
           "p50": 1.37,
-          "p90": 8.81
+          "p90": 8.8
         },
         "half_ppr": {
           "p10": 0.05,
           "p50": 1.18,
-          "p90": 7.97
+          "p90": 7.96
         },
         "standard": {
           "p10": 0.0,
           "p50": 0.99,
-          "p90": 7.13
+          "p90": 7.12
         },
         "league": {
           "p10": 0.06,
@@ -17798,12 +17669,55 @@
         "passing_yards": 0.09,
         "passing_tds": 0.0,
         "passing_interceptions": 0.01,
-        "carries": 2.86,
-        "rushing_yards": 9.46,
+        "carries": 2.85,
+        "rushing_yards": 9.45,
         "rushing_tds": -0.0,
         "targets": 0.64,
         "receptions": 0.37,
         "receiving_yards": 0.73,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0040556",
+      "name": "Corey Kiner",
+      "team": "NE",
+      "opponent": "SEA",
+      "position": "RB",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": 0.08,
+          "p50": 1.37,
+          "p90": 8.84
+        },
+        "half_ppr": {
+          "p10": 0.01,
+          "p50": 1.12,
+          "p90": 7.87
+        },
+        "standard": {
+          "p10": -0.06,
+          "p50": 0.88,
+          "p90": 6.9
+        },
+        "league": {
+          "p10": 0.04,
+          "p50": 1.37,
+          "p90": 8.86
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.11,
+        "passing_tds": 0.0,
+        "passing_interceptions": 0.0,
+        "carries": 2.5,
+        "rushing_yards": 7.89,
+        "rushing_tds": -0.0,
+        "targets": 0.81,
+        "receptions": 0.49,
+        "receiving_yards": 1.06,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -17890,6 +17804,49 @@
         "targets": 1.3,
         "receptions": 0.83,
         "receiving_yards": 5.26,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0040406",
+      "name": "Quentin Skinner",
+      "team": "BUF",
+      "opponent": "HOU",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.1,
+          "p50": 1.35,
+          "p90": 7.53
+        },
+        "half_ppr": {
+          "p10": -0.14,
+          "p50": 0.98,
+          "p90": 6.25
+        },
+        "standard": {
+          "p10": -0.18,
+          "p50": 0.6,
+          "p90": 4.97
+        },
+        "league": {
+          "p10": -0.14,
+          "p50": 1.35,
+          "p90": 7.55
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.03,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": 0.01,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.46,
+        "receptions": 0.75,
+        "receiving_yards": 6.07,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -18024,6 +17981,49 @@
       }
     },
     {
+      "player_id": "00-0039394",
+      "name": "Casey Washington",
+      "team": "CAR",
+      "opponent": "CHI",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.11,
+          "p50": 1.34,
+          "p90": 7.43
+        },
+        "half_ppr": {
+          "p10": -0.14,
+          "p50": 0.99,
+          "p90": 6.23
+        },
+        "standard": {
+          "p10": -0.18,
+          "p50": 0.65,
+          "p90": 5.03
+        },
+        "league": {
+          "p10": -0.14,
+          "p50": 1.33,
+          "p90": 7.45
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.08,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.38,
+        "receptions": 0.69,
+        "receiving_yards": 6.45,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0034365",
       "name": "Ian Thomas",
       "team": "LV",
@@ -18034,7 +18034,7 @@
         "ppr": {
           "p10": 0.02,
           "p50": 1.33,
-          "p90": 6.36
+          "p90": 6.37
         },
         "half_ppr": {
           "p10": -0.06,
@@ -18060,8 +18060,8 @@
         "rushing_yards": -0.02,
         "rushing_tds": -0.0,
         "targets": 1.25,
-        "receptions": 0.81,
-        "receiving_yards": 5.18,
+        "receptions": 0.82,
+        "receiving_yards": 5.19,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -18282,6 +18282,49 @@
       }
     },
     {
+      "player_id": "00-0037524",
+      "name": "Tay Martin",
+      "team": "DET",
+      "opponent": "NO",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.12,
+          "p50": 1.26,
+          "p90": 7.29
+        },
+        "half_ppr": {
+          "p10": -0.16,
+          "p50": 0.94,
+          "p90": 6.11
+        },
+        "standard": {
+          "p10": -0.19,
+          "p50": 0.61,
+          "p90": 4.94
+        },
+        "league": {
+          "p10": -0.16,
+          "p50": 1.26,
+          "p90": 7.3
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.03,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.31,
+        "receptions": 0.65,
+        "receiving_yards": 6.11,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0038394",
       "name": "Will Mallory",
       "team": "IND",
@@ -18497,49 +18540,6 @@
       }
     },
     {
-      "player_id": "00-0040406",
-      "name": "Quentin Skinner",
-      "team": "NYJ",
-      "opponent": "TEN",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.13,
-          "p50": 1.2,
-          "p90": 7.13
-        },
-        "half_ppr": {
-          "p10": -0.16,
-          "p50": 0.86,
-          "p90": 5.9
-        },
-        "standard": {
-          "p10": -0.2,
-          "p50": 0.52,
-          "p90": 4.67
-        },
-        "league": {
-          "p10": -0.16,
-          "p50": 1.19,
-          "p90": 7.15
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.04,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": 0.01,
-        "rushing_yards": -0.03,
-        "rushing_tds": -0.0,
-        "targets": 1.34,
-        "receptions": 0.67,
-        "receiving_yards": 5.26,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0035891",
       "name": "Cody White",
       "team": "SEA",
@@ -18714,30 +18714,30 @@
     {
       "player_id": "00-0036232",
       "name": "Harrison Bryant",
-      "team": "SEA",
-      "opponent": "NE",
+      "team": "HOU",
+      "opponent": "BUF",
       "position": "TE",
       "is_home": true,
       "points": {
         "ppr": {
           "p10": -0.01,
           "p50": 1.17,
-          "p90": 6.02
+          "p90": 6.03
         },
         "half_ppr": {
           "p10": -0.08,
           "p50": 0.81,
-          "p90": 4.94
+          "p90": 4.95
         },
         "standard": {
           "p10": -0.15,
           "p50": 0.45,
-          "p90": 3.85
+          "p90": 3.86
         },
         "league": {
           "p10": -0.05,
           "p50": 1.17,
-          "p90": 6.04
+          "p90": 6.05
         }
       },
       "stats_p50": {
@@ -18748,8 +18748,8 @@
         "rushing_yards": -0.01,
         "rushing_tds": -0.0,
         "targets": 1.15,
-        "receptions": 0.73,
-        "receiving_yards": 4.55,
+        "receptions": 0.72,
+        "receiving_yards": 4.56,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -18836,49 +18836,6 @@
         "targets": 1.16,
         "receptions": 0.72,
         "receiving_yards": 4.5,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0037524",
-      "name": "Tay Martin",
-      "team": "WAS",
-      "opponent": "PHI",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.13,
-          "p50": 1.16,
-          "p90": 6.89
-        },
-        "half_ppr": {
-          "p10": -0.16,
-          "p50": 0.85,
-          "p90": 5.74
-        },
-        "standard": {
-          "p10": -0.2,
-          "p50": 0.53,
-          "p90": 4.59
-        },
-        "league": {
-          "p10": -0.17,
-          "p50": 1.16,
-          "p90": 6.9
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.02,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 1.25,
-        "receptions": 0.63,
-        "receiving_yards": 5.34,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -19013,6 +18970,49 @@
       }
     },
     {
+      "player_id": "00-0040317",
+      "name": "Jacoby Jones",
+      "team": "WAS",
+      "opponent": "PHI",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.14,
+          "p50": 1.13,
+          "p90": 6.9
+        },
+        "half_ppr": {
+          "p10": -0.17,
+          "p50": 0.81,
+          "p90": 5.72
+        },
+        "standard": {
+          "p10": -0.21,
+          "p50": 0.49,
+          "p90": 4.55
+        },
+        "league": {
+          "p10": -0.18,
+          "p50": 1.13,
+          "p90": 6.91
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": 0.02,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.25,
+        "receptions": 0.64,
+        "receiving_yards": 4.99,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0039623",
       "name": "Mason Tipton",
       "team": "NO",
@@ -19053,92 +19053,6 @@
         "receiving_yards": 4.68,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0036182",
-      "name": "Nick Westbrook-Ikhine",
-      "team": "IND",
-      "opponent": "BAL",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.13,
-          "p50": 1.11,
-          "p90": 6.56
-        },
-        "half_ppr": {
-          "p10": -0.16,
-          "p50": 0.8,
-          "p90": 5.45
-        },
-        "standard": {
-          "p10": -0.2,
-          "p50": 0.49,
-          "p90": 4.34
-        },
-        "league": {
-          "p10": -0.17,
-          "p50": 1.1,
-          "p90": 6.57
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.09,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.04,
-        "rushing_tds": -0.0,
-        "targets": 1.19,
-        "receptions": 0.62,
-        "receiving_yards": 4.98,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0037258",
-      "name": "Dameon Pierce",
-      "team": "PHI",
-      "opponent": "WAS",
-      "position": "RB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.0,
-          "p50": 1.11,
-          "p90": 7.98
-        },
-        "half_ppr": {
-          "p10": -0.03,
-          "p50": 0.97,
-          "p90": 7.25
-        },
-        "standard": {
-          "p10": -0.06,
-          "p50": 0.84,
-          "p90": 6.52
-        },
-        "league": {
-          "p10": -0.05,
-          "p50": 1.1,
-          "p90": 8.01
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.04,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": 2.51,
-        "rushing_yards": 8.14,
-        "rushing_tds": -0.0,
-        "targets": 0.48,
-        "receptions": 0.26,
-        "receiving_yards": 0.66,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.0
       }
     },
     {
@@ -19238,7 +19152,7 @@
         "ppr": {
           "p10": 0.02,
           "p50": 1.09,
-          "p90": 7.19
+          "p90": 7.18
         },
         "half_ppr": {
           "p10": -0.06,
@@ -19260,12 +19174,12 @@
         "passing_yards": -0.05,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
-        "carries": 1.44,
-        "rushing_yards": 4.23,
+        "carries": 1.43,
+        "rushing_yards": 4.22,
         "rushing_tds": -0.0,
         "targets": 0.87,
         "receptions": 0.55,
-        "receiving_yards": 1.43,
+        "receiving_yards": 1.42,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -19311,6 +19225,49 @@
         "receiving_yards": 4.15,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0037258",
+      "name": "Dameon Pierce",
+      "team": "KC",
+      "opponent": "DEN",
+      "position": "RB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.03,
+          "p50": 1.05,
+          "p90": 7.74
+        },
+        "half_ppr": {
+          "p10": -0.06,
+          "p50": 0.92,
+          "p90": 7.02
+        },
+        "standard": {
+          "p10": -0.09,
+          "p50": 0.79,
+          "p90": 6.3
+        },
+        "league": {
+          "p10": -0.07,
+          "p50": 1.05,
+          "p90": 7.77
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.01,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.01,
+        "carries": 2.36,
+        "rushing_yards": 7.53,
+        "rushing_tds": -0.0,
+        "targets": 0.48,
+        "receptions": 0.26,
+        "receiving_yards": 0.64,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.0
       }
     },
     {
@@ -19395,6 +19352,49 @@
         "targets": 1.09,
         "receptions": 0.69,
         "receiving_yards": 3.56,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0036182",
+      "name": "Nick Westbrook-Ikhine",
+      "team": "MIA",
+      "opponent": "LV",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.15,
+          "p50": 1.02,
+          "p90": 6.19
+        },
+        "half_ppr": {
+          "p10": -0.18,
+          "p50": 0.72,
+          "p90": 5.1
+        },
+        "standard": {
+          "p10": -0.21,
+          "p50": 0.41,
+          "p90": 4.02
+        },
+        "league": {
+          "p10": -0.19,
+          "p50": 1.01,
+          "p90": 6.21
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.08,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 1.12,
+        "receptions": 0.6,
+        "receiving_yards": 4.31,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -19744,6 +19744,49 @@
       }
     },
     {
+      "player_id": "00-0035298",
+      "name": "Scott Miller",
+      "team": "PIT",
+      "opponent": "ATL",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.16,
+          "p50": 0.98,
+          "p90": 6.16
+        },
+        "half_ppr": {
+          "p10": -0.18,
+          "p50": 0.7,
+          "p90": 5.09
+        },
+        "standard": {
+          "p10": -0.21,
+          "p50": 0.42,
+          "p90": 4.03
+        },
+        "league": {
+          "p10": -0.19,
+          "p50": 0.98,
+          "p90": 6.18
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.07,
+        "receptions": 0.56,
+        "receiving_yards": 4.24,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0039757",
       "name": "Terrell Jennings",
       "team": "NE",
@@ -19784,6 +19827,49 @@
         "receiving_yards": 0.59,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0036741",
+      "name": "Jack Stoll",
+      "team": "NO",
+      "opponent": "DET",
+      "position": "TE",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.06,
+          "p50": 0.97,
+          "p90": 5.55
+        },
+        "half_ppr": {
+          "p10": -0.12,
+          "p50": 0.65,
+          "p90": 4.53
+        },
+        "standard": {
+          "p10": -0.18,
+          "p50": 0.34,
+          "p90": 3.52
+        },
+        "league": {
+          "p10": -0.1,
+          "p50": 0.96,
+          "p90": 5.56
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.03,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.01,
+        "rushing_tds": -0.0,
+        "targets": 1.01,
+        "receptions": 0.62,
+        "receiving_yards": 3.58,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -19916,92 +20002,6 @@
       }
     },
     {
-      "player_id": "00-0036741",
-      "name": "Jack Stoll",
-      "team": "CLE",
-      "opponent": "JAX",
-      "position": "TE",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.07,
-          "p50": 0.94,
-          "p90": 5.44
-        },
-        "half_ppr": {
-          "p10": -0.13,
-          "p50": 0.63,
-          "p90": 4.44
-        },
-        "standard": {
-          "p10": -0.18,
-          "p50": 0.33,
-          "p90": 3.45
-        },
-        "league": {
-          "p10": -0.1,
-          "p50": 0.93,
-          "p90": 5.45
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.03,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.01,
-        "rushing_tds": -0.0,
-        "targets": 0.99,
-        "receptions": 0.61,
-        "receiving_yards": 3.43,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0035298",
-      "name": "Scott Miller",
-      "team": "CHI",
-      "opponent": "CAR",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.16,
-          "p50": 0.93,
-          "p90": 5.96
-        },
-        "half_ppr": {
-          "p10": -0.19,
-          "p50": 0.65,
-          "p90": 4.9
-        },
-        "standard": {
-          "p10": -0.22,
-          "p50": 0.37,
-          "p90": 3.84
-        },
-        "league": {
-          "p10": -0.2,
-          "p50": 0.92,
-          "p90": 5.98
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.02,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 1.05,
-        "receptions": 0.56,
-        "receiving_yards": 3.86,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0039631",
       "name": "Cam Grandy",
       "team": "CIN",
@@ -20055,22 +20055,22 @@
         "ppr": {
           "p10": -0.08,
           "p50": 0.93,
-          "p90": 5.59
+          "p90": 5.58
         },
         "half_ppr": {
           "p10": -0.13,
           "p50": 0.63,
-          "p90": 4.57
+          "p90": 4.56
         },
         "standard": {
           "p10": -0.18,
           "p50": 0.33,
-          "p90": 3.54
+          "p90": 3.53
         },
         "league": {
           "p10": -0.11,
-          "p50": 0.93,
-          "p90": 5.61
+          "p50": 0.92,
+          "p90": 5.6
         }
       },
       "stats_p50": {
@@ -20080,9 +20080,9 @@
         "carries": -0.01,
         "rushing_yards": -0.04,
         "rushing_tds": -0.0,
-        "targets": 1.0,
+        "targets": 0.99,
         "receptions": 0.6,
-        "receiving_yards": 3.38,
+        "receiving_yards": 3.36,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -20389,49 +20389,6 @@
       }
     },
     {
-      "player_id": "00-0040432",
-      "name": "Beaux Collins",
-      "team": "NYG",
-      "opponent": "DAL",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.18,
-          "p50": 0.86,
-          "p90": 6.04
-        },
-        "half_ppr": {
-          "p10": -0.2,
-          "p50": 0.61,
-          "p90": 4.99
-        },
-        "standard": {
-          "p10": -0.22,
-          "p50": 0.37,
-          "p90": 3.94
-        },
-        "league": {
-          "p10": -0.22,
-          "p50": 0.85,
-          "p90": 6.05
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.05,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 1.02,
-        "receptions": 0.49,
-        "receiving_yards": 3.7,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0036906",
       "name": "Khalil Herbert",
       "team": "NYJ",
@@ -20561,49 +20518,6 @@
       }
     },
     {
-      "player_id": "00-0037277",
-      "name": "Teagan Quitoriano",
-      "team": "ARI",
-      "opponent": "LAC",
-      "position": "TE",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.1,
-          "p50": 0.81,
-          "p90": 5.19
-        },
-        "half_ppr": {
-          "p10": -0.15,
-          "p50": 0.54,
-          "p90": 4.24
-        },
-        "standard": {
-          "p10": -0.19,
-          "p50": 0.27,
-          "p90": 3.28
-        },
-        "league": {
-          "p10": -0.13,
-          "p50": 0.81,
-          "p90": 5.21
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.04,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.01,
-        "rushing_tds": -0.0,
-        "targets": 0.91,
-        "receptions": 0.54,
-        "receiving_yards": 2.89,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0031687",
       "name": "Raheem Mostert",
       "team": "LV",
@@ -20623,7 +20537,7 @@
         },
         "standard": {
           "p10": -0.19,
-          "p50": 0.4,
+          "p50": 0.41,
           "p90": 4.56
         },
         "league": {
@@ -20641,7 +20555,7 @@
         "rushing_tds": -0.0,
         "targets": 0.6,
         "receptions": 0.39,
-        "receiving_yards": 0.71,
+        "receiving_yards": 0.72,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -20862,6 +20776,49 @@
       }
     },
     {
+      "player_id": "00-0037277",
+      "name": "Teagan Quitoriano",
+      "team": "ATL",
+      "opponent": "PIT",
+      "position": "TE",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.11,
+          "p50": 0.76,
+          "p90": 5.09
+        },
+        "half_ppr": {
+          "p10": -0.15,
+          "p50": 0.51,
+          "p90": 4.15
+        },
+        "standard": {
+          "p10": -0.19,
+          "p50": 0.25,
+          "p90": 3.21
+        },
+        "league": {
+          "p10": -0.14,
+          "p50": 0.76,
+          "p90": 5.11
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.01,
+        "rushing_tds": -0.0,
+        "targets": 0.88,
+        "receptions": 0.51,
+        "receiving_yards": 2.68,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0038498",
       "name": "E.J. Jenkins",
       "team": "PHI",
@@ -20991,46 +20948,46 @@
       }
     },
     {
-      "player_id": "00-0040142",
-      "name": "Kaleb Johnson",
-      "team": "PIT",
-      "opponent": "ATL",
-      "position": "RB",
-      "is_home": true,
+      "player_id": "00-0040432",
+      "name": "Beaux Collins",
+      "team": "ATL",
+      "opponent": "PIT",
+      "position": "WR",
+      "is_home": false,
       "points": {
         "ppr": {
-          "p10": -0.15,
+          "p10": -0.2,
           "p50": 0.72,
-          "p90": 6.32
+          "p90": 5.58
         },
         "half_ppr": {
-          "p10": -0.16,
-          "p50": 0.65,
-          "p90": 5.74
+          "p10": -0.22,
+          "p50": 0.5,
+          "p90": 4.58
         },
         "standard": {
-          "p10": -0.17,
-          "p50": 0.57,
-          "p90": 5.15
+          "p10": -0.23,
+          "p50": 0.28,
+          "p90": 3.57
         },
         "league": {
-          "p10": -0.19,
+          "p10": -0.24,
           "p50": 0.72,
-          "p90": 6.35
+          "p90": 5.6
         }
       },
       "stats_p50": {
         "passing_yards": -0.04,
         "passing_tds": -0.0,
-        "passing_interceptions": 0.01,
-        "carries": 1.79,
-        "rushing_yards": 5.5,
+        "passing_interceptions": 0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.03,
         "rushing_tds": -0.0,
-        "targets": 0.3,
-        "receptions": 0.15,
-        "receiving_yards": 0.53,
+        "targets": 0.92,
+        "receptions": 0.44,
+        "receiving_yards": 2.9,
         "receiving_tds": 0.0,
-        "fumbles_lost": 0.0
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -21120,6 +21077,49 @@
       }
     },
     {
+      "player_id": "00-0040142",
+      "name": "Kaleb Johnson",
+      "team": "GB",
+      "opponent": "MIN",
+      "position": "RB",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.16,
+          "p50": 0.69,
+          "p90": 6.16
+        },
+        "half_ppr": {
+          "p10": -0.17,
+          "p50": 0.61,
+          "p90": 5.56
+        },
+        "standard": {
+          "p10": -0.19,
+          "p50": 0.53,
+          "p90": 4.96
+        },
+        "league": {
+          "p10": -0.2,
+          "p50": 0.69,
+          "p90": 6.19
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.0,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 1.66,
+        "rushing_yards": 5.05,
+        "rushing_tds": -0.0,
+        "targets": 0.32,
+        "receptions": 0.17,
+        "receiving_yards": 0.53,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.0
+      }
+    },
+    {
       "player_id": "00-0040172",
       "name": "Jordan Watkins",
       "team": "SF",
@@ -21206,6 +21206,49 @@
       }
     },
     {
+      "player_id": "00-0034419",
+      "name": "Braxton Berrios",
+      "team": "HOU",
+      "opponent": "BUF",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.21,
+          "p50": 0.68,
+          "p90": 5.17
+        },
+        "half_ppr": {
+          "p10": -0.22,
+          "p50": 0.46,
+          "p90": 4.23
+        },
+        "standard": {
+          "p10": -0.24,
+          "p50": 0.24,
+          "p90": 3.3
+        },
+        "league": {
+          "p10": -0.24,
+          "p50": 0.67,
+          "p90": 5.18
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.05,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 0.82,
+        "receptions": 0.43,
+        "receiving_yards": 2.58,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0036133",
       "name": "James Proche",
       "team": "TEN",
@@ -21244,6 +21287,49 @@
         "targets": 0.83,
         "receptions": 0.41,
         "receiving_yards": 2.82,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0037091",
+      "name": "Bo Melton",
+      "team": "GB",
+      "opponent": "MIN",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.23,
+          "p50": 0.68,
+          "p90": 5.54
+        },
+        "half_ppr": {
+          "p10": -0.24,
+          "p50": 0.48,
+          "p90": 4.58
+        },
+        "standard": {
+          "p10": -0.26,
+          "p50": 0.28,
+          "p90": 3.61
+        },
+        "league": {
+          "p10": -0.27,
+          "p50": 0.68,
+          "p90": 5.56
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.05,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 0.02,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 0.87,
+        "receptions": 0.4,
+        "receiving_yards": 2.91,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -21292,49 +21378,6 @@
       }
     },
     {
-      "player_id": "00-0038397",
-      "name": "Evan Hull",
-      "team": "HOU",
-      "opponent": "BUF",
-      "position": "RB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.14,
-          "p50": 0.68,
-          "p90": 5.97
-        },
-        "half_ppr": {
-          "p10": -0.18,
-          "p50": 0.54,
-          "p90": 5.21
-        },
-        "standard": {
-          "p10": -0.21,
-          "p50": 0.39,
-          "p90": 4.46
-        },
-        "league": {
-          "p10": -0.18,
-          "p50": 0.68,
-          "p90": 5.99
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 0.01,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": 1.26,
-        "rushing_yards": 3.6,
-        "rushing_tds": -0.0,
-        "targets": 0.51,
-        "receptions": 0.29,
-        "receiving_yards": 0.55,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.0
-      }
-    },
-    {
       "player_id": "00-0035628",
       "name": "D'Ernest Johnson",
       "team": "NE",
@@ -21373,6 +21416,49 @@
         "targets": 0.55,
         "receptions": 0.35,
         "receiving_yards": 0.63,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0038397",
+      "name": "Evan Hull",
+      "team": "ARI",
+      "opponent": "LAC",
+      "position": "RB",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.14,
+          "p50": 0.67,
+          "p90": 5.77
+        },
+        "half_ppr": {
+          "p10": -0.18,
+          "p50": 0.51,
+          "p90": 5.01
+        },
+        "standard": {
+          "p10": -0.22,
+          "p50": 0.36,
+          "p90": 4.25
+        },
+        "league": {
+          "p10": -0.18,
+          "p50": 0.67,
+          "p90": 5.79
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 1.16,
+        "rushing_yards": 3.24,
+        "rushing_tds": -0.0,
+        "targets": 0.53,
+        "receptions": 0.31,
+        "receiving_yards": 0.57,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -21418,6 +21504,49 @@
         "receiving_yards": 0.56,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0039305",
+      "name": "Jack Westover",
+      "team": "NE",
+      "opponent": "SEA",
+      "position": "TE",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.14,
+          "p50": 0.65,
+          "p90": 4.72
+        },
+        "half_ppr": {
+          "p10": -0.18,
+          "p50": 0.42,
+          "p90": 3.82
+        },
+        "standard": {
+          "p10": -0.22,
+          "p50": 0.18,
+          "p90": 2.92
+        },
+        "league": {
+          "p10": -0.17,
+          "p50": 0.64,
+          "p90": 4.74
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.01,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 0.8,
+        "receptions": 0.47,
+        "receiving_yards": 1.97,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -21689,7 +21818,7 @@
         "ppr": {
           "p10": -0.22,
           "p50": 0.6,
-          "p90": 4.92
+          "p90": 4.93
         },
         "half_ppr": {
           "p10": -0.23,
@@ -21699,16 +21828,16 @@
         "standard": {
           "p10": -0.24,
           "p50": 0.23,
-          "p90": 3.15
+          "p90": 3.16
         },
         "league": {
           "p10": -0.25,
-          "p50": 0.59,
-          "p90": 4.94
+          "p50": 0.6,
+          "p90": 4.95
         }
       },
       "stats_p50": {
-        "passing_yards": -0.03,
+        "passing_yards": -0.04,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
         "carries": -0.0,
@@ -21716,7 +21845,7 @@
         "rushing_tds": -0.0,
         "targets": 0.75,
         "receptions": 0.37,
-        "receiving_yards": 2.36,
+        "receiving_yards": 2.37,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -22281,49 +22410,6 @@
       }
     },
     {
-      "player_id": "00-0034419",
-      "name": "Braxton Berrios",
-      "team": "NYG",
-      "opponent": "DAL",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.23,
-          "p50": 0.49,
-          "p90": 4.72
-        },
-        "half_ppr": {
-          "p10": -0.24,
-          "p50": 0.33,
-          "p90": 3.86
-        },
-        "standard": {
-          "p10": -0.25,
-          "p50": 0.16,
-          "p90": 3.0
-        },
-        "league": {
-          "p10": -0.27,
-          "p50": 0.48,
-          "p90": 4.74
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.07,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.03,
-        "rushing_tds": -0.0,
-        "targets": 0.68,
-        "receptions": 0.33,
-        "receiving_yards": 1.8,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0040009",
       "name": "Savion Williams",
       "team": "GB",
@@ -22670,30 +22756,30 @@
     {
       "player_id": "00-0034487",
       "name": "Trent Sherfield",
-      "team": "BUF",
-      "opponent": "HOU",
+      "team": "ARI",
+      "opponent": "LAC",
       "position": "WR",
       "is_home": false,
       "points": {
         "ppr": {
           "p10": -0.24,
           "p50": 0.43,
-          "p90": 4.44
+          "p90": 4.46
         },
         "half_ppr": {
           "p10": -0.25,
           "p50": 0.28,
-          "p90": 3.6
+          "p90": 3.63
         },
         "standard": {
-          "p10": -0.26,
-          "p50": 0.12,
-          "p90": 2.77
+          "p10": -0.25,
+          "p50": 0.13,
+          "p90": 2.79
         },
         "league": {
           "p10": -0.28,
           "p50": 0.43,
-          "p90": 4.46
+          "p90": 4.48
         }
       },
       "stats_p50": {
@@ -22704,8 +22790,8 @@
         "rushing_yards": -0.02,
         "rushing_tds": -0.0,
         "targets": 0.64,
-        "receptions": 0.31,
-        "receiving_yards": 1.43,
+        "receptions": 0.3,
+        "receiving_yards": 1.45,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -22797,49 +22883,6 @@
       }
     },
     {
-      "player_id": "00-0038678",
-      "name": "Jordan Mims",
-      "team": "SF",
-      "opponent": "LA",
-      "position": "RB",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.2,
-          "p50": 0.41,
-          "p90": 4.57
-        },
-        "half_ppr": {
-          "p10": -0.23,
-          "p50": 0.28,
-          "p90": 3.85
-        },
-        "standard": {
-          "p10": -0.26,
-          "p50": 0.14,
-          "p90": 3.14
-        },
-        "league": {
-          "p10": -0.23,
-          "p50": 0.41,
-          "p90": 4.59
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 0.02,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": 0.53,
-        "rushing_yards": 1.13,
-        "rushing_tds": -0.0,
-        "targets": 0.47,
-        "receptions": 0.26,
-        "receiving_yards": 0.48,
-        "receiving_tds": -0.0,
-        "fumbles_lost": 0.0
-      }
-    },
-    {
       "player_id": "00-0038752",
       "name": "Jake Bobo",
       "team": "SEA",
@@ -22926,6 +22969,49 @@
       }
     },
     {
+      "player_id": "00-0038678",
+      "name": "Jordan Mims",
+      "team": "PHI",
+      "opponent": "WAS",
+      "position": "RB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.21,
+          "p50": 0.39,
+          "p90": 4.54
+        },
+        "half_ppr": {
+          "p10": -0.24,
+          "p50": 0.26,
+          "p90": 3.82
+        },
+        "standard": {
+          "p10": -0.27,
+          "p50": 0.13,
+          "p90": 3.11
+        },
+        "league": {
+          "p10": -0.24,
+          "p50": 0.39,
+          "p90": 4.55
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.01,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 0.51,
+        "rushing_yards": 1.04,
+        "rushing_tds": -0.0,
+        "targets": 0.46,
+        "receptions": 0.26,
+        "receiving_yards": 0.44,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.0
+      }
+    },
+    {
       "player_id": "00-0036332",
       "name": "Josiah Deguara",
       "team": "ARI",
@@ -22971,44 +23057,44 @@
     {
       "player_id": "00-0038458",
       "name": "Owen Wright",
-      "team": "TB",
-      "opponent": "CIN",
+      "team": "HOU",
+      "opponent": "BUF",
       "position": "RB",
-      "is_home": false,
+      "is_home": true,
       "points": {
         "ppr": {
           "p10": -0.26,
-          "p50": 0.37,
-          "p90": 4.63
+          "p50": 0.36,
+          "p90": 4.68
         },
         "half_ppr": {
           "p10": -0.28,
           "p50": 0.28,
-          "p90": 4.01
+          "p90": 4.06
         },
         "standard": {
           "p10": -0.3,
           "p50": 0.19,
-          "p90": 3.39
+          "p90": 3.45
         },
         "league": {
           "p10": -0.3,
           "p50": 0.36,
-          "p90": 4.65
+          "p90": 4.7
         }
       },
       "stats_p50": {
-        "passing_yards": -0.07,
+        "passing_yards": -0.11,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
-        "carries": 0.72,
-        "rushing_yards": 1.66,
+        "carries": 0.76,
+        "rushing_yards": 1.78,
         "rushing_tds": -0.0,
-        "targets": 0.34,
-        "receptions": 0.18,
-        "receiving_yards": 0.37,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
+        "targets": 0.32,
+        "receptions": 0.17,
+        "receiving_yards": 0.35,
+        "receiving_tds": -0.0,
+        "fumbles_lost": 0.0
       }
     },
     {
@@ -23237,7 +23323,7 @@
         "ppr": {
           "p10": -0.25,
           "p50": 0.32,
-          "p90": 4.28
+          "p90": 4.27
         },
         "half_ppr": {
           "p10": -0.27,
@@ -23247,7 +23333,7 @@
         "standard": {
           "p10": -0.28,
           "p50": 0.15,
-          "p90": 3.09
+          "p90": 3.08
         },
         "league": {
           "p10": -0.28,
@@ -23260,7 +23346,7 @@
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
         "carries": 0.57,
-        "rushing_yards": 1.26,
+        "rushing_yards": 1.25,
         "rushing_tds": -0.0,
         "targets": 0.29,
         "receptions": 0.17,
@@ -23442,49 +23528,6 @@
       }
     },
     {
-      "player_id": "00-0033376",
-      "name": "Patrick Ricard",
-      "team": "NYG",
-      "opponent": "DAL",
-      "position": "RB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.16,
-          "p50": 0.3,
-          "p90": 2.99
-        },
-        "half_ppr": {
-          "p10": -0.19,
-          "p50": 0.17,
-          "p90": 2.36
-        },
-        "standard": {
-          "p10": -0.22,
-          "p50": 0.04,
-          "p90": 1.73
-        },
-        "league": {
-          "p10": -0.19,
-          "p50": 0.29,
-          "p90": 3.01
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.06,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 0.45,
-        "receptions": 0.26,
-        "receiving_yards": 0.6,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0040259",
       "name": "Gage Larvadain",
       "team": "CLE",
@@ -23523,6 +23566,49 @@
         "targets": 0.57,
         "receptions": 0.22,
         "receiving_yards": 0.88,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0033376",
+      "name": "Patrick Ricard",
+      "team": "NYG",
+      "opponent": "DAL",
+      "position": "RB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.16,
+          "p50": 0.28,
+          "p90": 2.94
+        },
+        "half_ppr": {
+          "p10": -0.19,
+          "p50": 0.16,
+          "p90": 2.33
+        },
+        "standard": {
+          "p10": -0.22,
+          "p50": 0.03,
+          "p90": 1.71
+        },
+        "league": {
+          "p10": -0.19,
+          "p50": 0.28,
+          "p90": 2.96
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.06,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 0.44,
+        "receptions": 0.25,
+        "receiving_yards": 0.56,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -23616,42 +23702,42 @@
     {
       "player_id": "00-0038824",
       "name": "Ryan Miller",
-      "team": "NYG",
-      "opponent": "DAL",
+      "team": "MIA",
+      "opponent": "LV",
       "position": "WR",
-      "is_home": true,
+      "is_home": false,
       "points": {
         "ppr": {
           "p10": -0.28,
           "p50": 0.25,
-          "p90": 4.27
+          "p90": 4.15
         },
         "half_ppr": {
           "p10": -0.28,
-          "p50": 0.17,
-          "p90": 3.52
+          "p50": 0.16,
+          "p90": 3.4
         },
         "standard": {
           "p10": -0.27,
-          "p50": 0.09,
-          "p90": 2.78
+          "p50": 0.06,
+          "p90": 2.65
         },
         "league": {
           "p10": -0.32,
-          "p50": 0.25,
-          "p90": 4.29
+          "p50": 0.24,
+          "p90": 4.17
         }
       },
       "stats_p50": {
-        "passing_yards": -0.06,
+        "passing_yards": -0.05,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
         "carries": -0.0,
         "rushing_yards": -0.03,
         "rushing_tds": -0.0,
         "targets": 0.52,
-        "receptions": 0.17,
-        "receiving_yards": 1.07,
+        "receptions": 0.19,
+        "receiving_yards": 0.87,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -24132,44 +24218,44 @@
     {
       "player_id": "00-0036984",
       "name": "Trey Sermon",
-      "team": "PIT",
-      "opponent": "ATL",
+      "team": "ATL",
+      "opponent": "PIT",
       "position": "RB",
-      "is_home": true,
+      "is_home": false,
       "points": {
         "ppr": {
           "p10": -0.28,
           "p50": 0.2,
-          "p90": 3.73
+          "p90": 3.65
         },
         "half_ppr": {
-          "p10": -0.3,
+          "p10": -0.29,
           "p50": 0.12,
-          "p90": 3.15
+          "p90": 3.07
         },
         "standard": {
           "p10": -0.31,
-          "p50": 0.04,
-          "p90": 2.57
+          "p50": 0.03,
+          "p90": 2.49
         },
         "league": {
           "p10": -0.31,
           "p50": 0.2,
-          "p90": 3.75
+          "p90": 3.67
         }
       },
       "stats_p50": {
-        "passing_yards": -0.03,
+        "passing_yards": -0.04,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
-        "carries": 0.3,
-        "rushing_yards": 0.31,
+        "carries": 0.26,
+        "rushing_yards": 0.24,
         "rushing_tds": -0.0,
-        "targets": 0.29,
+        "targets": 0.3,
         "receptions": 0.17,
-        "receiving_yards": 0.26,
+        "receiving_yards": 0.27,
         "receiving_tds": 0.0,
-        "fumbles_lost": 0.0
+        "fumbles_lost": -0.0
       }
     },
     {
@@ -24211,6 +24297,49 @@
         "targets": 0.35,
         "receptions": 0.2,
         "receiving_yards": 0.29,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0035021",
+      "name": "Ashton Dulin",
+      "team": "IND",
+      "opponent": "BAL",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.29,
+          "p50": 0.19,
+          "p90": 3.96
+        },
+        "half_ppr": {
+          "p10": -0.29,
+          "p50": 0.12,
+          "p90": 3.24
+        },
+        "standard": {
+          "p10": -0.28,
+          "p50": 0.05,
+          "p90": 2.52
+        },
+        "league": {
+          "p10": -0.33,
+          "p50": 0.18,
+          "p90": 3.98
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.05,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 0.0,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 0.43,
+        "receptions": 0.14,
+        "receiving_yards": 0.64,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -24302,135 +24431,6 @@
       }
     },
     {
-      "player_id": "00-0035021",
-      "name": "Ashton Dulin",
-      "team": "IND",
-      "opponent": "BAL",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.29,
-          "p50": 0.18,
-          "p90": 3.95
-        },
-        "half_ppr": {
-          "p10": -0.29,
-          "p50": 0.11,
-          "p90": 3.23
-        },
-        "standard": {
-          "p10": -0.28,
-          "p50": 0.04,
-          "p90": 2.51
-        },
-        "league": {
-          "p10": -0.33,
-          "p50": 0.18,
-          "p90": 3.97
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.05,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": 0.0,
-        "rushing_yards": -0.03,
-        "rushing_tds": -0.0,
-        "targets": 0.43,
-        "receptions": 0.14,
-        "receiving_yards": 0.62,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0037120",
-      "name": "Tyler Goodson",
-      "team": "ATL",
-      "opponent": "PIT",
-      "position": "RB",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.29,
-          "p50": 0.18,
-          "p90": 3.4
-        },
-        "half_ppr": {
-          "p10": -0.3,
-          "p50": 0.11,
-          "p90": 2.85
-        },
-        "standard": {
-          "p10": -0.31,
-          "p50": 0.03,
-          "p90": 2.3
-        },
-        "league": {
-          "p10": -0.32,
-          "p50": 0.18,
-          "p90": 3.42
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.05,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": 0.22,
-        "rushing_yards": 0.21,
-        "rushing_tds": -0.0,
-        "targets": 0.26,
-        "receptions": 0.15,
-        "receiving_yards": 0.3,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0039305",
-      "name": "Jack Westover",
-      "team": "NE",
-      "opponent": "SEA",
-      "position": "RB",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.22,
-          "p50": 0.18,
-          "p90": 2.76
-        },
-        "half_ppr": {
-          "p10": -0.23,
-          "p50": 0.09,
-          "p90": 2.21
-        },
-        "standard": {
-          "p10": -0.25,
-          "p50": 0.0,
-          "p90": 1.65
-        },
-        "league": {
-          "p10": -0.25,
-          "p50": 0.17,
-          "p90": 2.77
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.07,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": 0.0,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 0.34,
-        "receptions": 0.17,
-        "receiving_yards": 0.27,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0039650",
       "name": "Bryce Oliver",
       "team": "TEN",
@@ -24513,6 +24513,49 @@
         "receptions": 0.08,
         "receiving_yards": 0.24,
         "receiving_tds": -0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0037120",
+      "name": "Tyler Goodson",
+      "team": "IND",
+      "opponent": "BAL",
+      "position": "RB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.3,
+          "p50": 0.17,
+          "p90": 3.47
+        },
+        "half_ppr": {
+          "p10": -0.31,
+          "p50": 0.11,
+          "p90": 2.94
+        },
+        "standard": {
+          "p10": -0.32,
+          "p50": 0.04,
+          "p90": 2.4
+        },
+        "league": {
+          "p10": -0.33,
+          "p50": 0.17,
+          "p90": 3.49
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.07,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 0.26,
+        "rushing_yards": 0.3,
+        "rushing_tds": -0.0,
+        "targets": 0.23,
+        "receptions": 0.13,
+        "receiving_yards": 0.3,
+        "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
     },
@@ -24683,7 +24726,7 @@
         "rushing_tds": -0.0,
         "targets": 0.28,
         "receptions": 0.15,
-        "receiving_yards": 0.24,
+        "receiving_yards": 0.23,
         "receiving_tds": -0.0,
         "fumbles_lost": -0.0
       }
@@ -24940,8 +24983,8 @@
         "rushing_yards": -0.03,
         "rushing_tds": -0.0,
         "targets": 0.33,
-        "receptions": 0.12,
-        "receiving_yards": 0.25,
+        "receptions": 0.11,
+        "receiving_yards": 0.26,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -24992,42 +25035,42 @@
     {
       "player_id": "00-0035594",
       "name": "Travis Homer",
-      "team": "PIT",
-      "opponent": "ATL",
+      "team": "CHI",
+      "opponent": "CAR",
       "position": "RB",
-      "is_home": true,
+      "is_home": false,
       "points": {
         "ppr": {
           "p10": -0.27,
           "p50": 0.11,
-          "p90": 2.43
+          "p90": 2.41
         },
         "half_ppr": {
           "p10": -0.28,
           "p50": 0.06,
-          "p90": 2.0
+          "p90": 1.97
         },
         "standard": {
           "p10": -0.28,
           "p50": 0.01,
-          "p90": 1.56
+          "p90": 1.54
         },
         "league": {
-          "p10": -0.31,
-          "p50": 0.1,
-          "p90": 2.45
+          "p10": -0.3,
+          "p50": 0.11,
+          "p90": 2.44
         }
       },
       "stats_p50": {
         "passing_yards": -0.06,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
-        "carries": 0.04,
-        "rushing_yards": -0.02,
+        "carries": 0.02,
+        "rushing_yards": -0.03,
         "rushing_tds": 0.0,
-        "targets": 0.14,
+        "targets": 0.15,
         "receptions": 0.1,
-        "receiving_yards": 0.24,
+        "receiving_yards": 0.23,
         "receiving_tds": -0.0,
         "fumbles_lost": -0.0
       }
@@ -25387,7 +25430,7 @@
         "ppr": {
           "p10": -0.3,
           "p50": 0.08,
-          "p90": 2.71
+          "p90": 2.72
         },
         "half_ppr": {
           "p10": -0.3,
@@ -25415,49 +25458,6 @@
         "targets": 0.14,
         "receptions": 0.08,
         "receiving_yards": 0.18,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0040352",
-      "name": "Coleman Owen",
-      "team": "IND",
-      "opponent": "BAL",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.32,
-          "p50": 0.08,
-          "p90": 3.56
-        },
-        "half_ppr": {
-          "p10": -0.31,
-          "p50": 0.04,
-          "p90": 2.91
-        },
-        "standard": {
-          "p10": -0.3,
-          "p50": -0.0,
-          "p90": 2.26
-        },
-        "league": {
-          "p10": -0.36,
-          "p50": 0.07,
-          "p90": 3.58
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.09,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 0.34,
-        "receptions": 0.08,
-        "receiving_yards": 0.22,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -25557,28 +25557,28 @@
       "is_home": true,
       "points": {
         "ppr": {
-          "p10": -0.33,
+          "p10": -0.32,
           "p50": 0.07,
-          "p90": 3.5
+          "p90": 3.51
         },
         "half_ppr": {
           "p10": -0.31,
-          "p50": 0.03,
-          "p90": 2.87
+          "p50": 0.04,
+          "p90": 2.88
         },
         "standard": {
           "p10": -0.3,
           "p50": 0.0,
-          "p90": 2.23
+          "p90": 2.24
         },
         "league": {
           "p10": -0.36,
           "p50": 0.07,
-          "p90": 3.52
+          "p90": 3.53
         }
       },
       "stats_p50": {
-        "passing_yards": -0.03,
+        "passing_yards": -0.02,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
         "carries": -0.01,
@@ -25631,6 +25631,49 @@
         "receptions": 0.03,
         "receiving_yards": 0.27,
         "receiving_tds": -0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0040352",
+      "name": "Coleman Owen",
+      "team": "IND",
+      "opponent": "BAL",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.32,
+          "p50": 0.07,
+          "p90": 3.55
+        },
+        "half_ppr": {
+          "p10": -0.31,
+          "p50": 0.04,
+          "p90": 2.9
+        },
+        "standard": {
+          "p10": -0.3,
+          "p50": -0.0,
+          "p90": 2.25
+        },
+        "league": {
+          "p10": -0.36,
+          "p50": 0.07,
+          "p90": 3.57
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.09,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 0.34,
+        "receptions": 0.07,
+        "receiving_yards": 0.21,
+        "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
     },
@@ -25979,49 +26022,6 @@
       }
     },
     {
-      "player_id": "00-0038740",
-      "name": "Jalen Moreno-Cropper",
-      "team": "DAL",
-      "opponent": "NYG",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.35,
-          "p50": 0.03,
-          "p90": 3.08
-        },
-        "half_ppr": {
-          "p10": -0.33,
-          "p50": 0.0,
-          "p90": 2.52
-        },
-        "standard": {
-          "p10": -0.32,
-          "p50": -0.03,
-          "p90": 1.97
-        },
-        "league": {
-          "p10": -0.38,
-          "p50": 0.03,
-          "p90": 3.1
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.16,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.05,
-        "rushing_tds": -0.0,
-        "targets": 0.23,
-        "receptions": 0.06,
-        "receiving_yards": 0.11,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0038896",
       "name": "Jacob Saylors",
       "team": "DET",
@@ -26146,6 +26146,49 @@
         "targets": 0.27,
         "receptions": 0.04,
         "receiving_yards": 0.21,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0038740",
+      "name": "Jalen Moreno-Cropper",
+      "team": "NO",
+      "opponent": "DET",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.35,
+          "p50": 0.02,
+          "p90": 3.06
+        },
+        "half_ppr": {
+          "p10": -0.33,
+          "p50": -0.0,
+          "p90": 2.51
+        },
+        "standard": {
+          "p10": -0.32,
+          "p50": -0.03,
+          "p90": 1.96
+        },
+        "league": {
+          "p10": -0.39,
+          "p50": 0.02,
+          "p90": 3.08
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.17,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.05,
+        "rushing_tds": -0.0,
+        "targets": 0.22,
+        "receptions": 0.05,
+        "receiving_yards": 0.1,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -26325,8 +26368,8 @@
     {
       "player_id": "00-0037380",
       "name": "Kaden Davis",
-      "team": "CLE",
-      "opponent": "JAX",
+      "team": "CHI",
+      "opponent": "CAR",
       "position": "WR",
       "is_home": false,
       "points": {
