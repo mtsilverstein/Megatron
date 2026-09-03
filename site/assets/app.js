@@ -1,4 +1,4 @@
-/* Floor & Ceiling — shared utilities. No framework, no build. */
+/* Megatron — shared utilities. No framework, no build. */
 window.FC = (() => {
   const POS_CLASS = { QB: "pos-qb", RB: "pos-rb", WR: "pos-wr", TE: "pos-te" };
 
