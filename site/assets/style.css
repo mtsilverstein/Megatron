@@ -19,7 +19,7 @@
   /* Type scale. Every value below is copied VERBATIM from a declaration that
      already ships, so adopting a token is a pure refactor with no visual
      change. Do not "round" them to a prettier ramp -- see Step 3. */
-  --t-display:  700 1.6rem/1 "Barlow Condensed", sans-serif;   /* .wordmark        */
+  --t-display:  400 1.35rem/1 "Bruno Ace", "Barlow Condensed", sans-serif; /* .wordmark */
   --t-nav:      600 .95rem/1 "Barlow Condensed", sans-serif;   /* masthead nav     */
   --t-chip:     600 .85rem/1 "Barlow Condensed", sans-serif;   /* filter buttons   */
   --t-micro:    600 .7rem/1.5 "Barlow Condensed", sans-serif;  /* small captions   */
@@ -48,7 +48,7 @@ a { color: var(--chalk); }
 }
 .wordmark {
   font: var(--t-display);
-  letter-spacing: .04em; text-transform: uppercase; margin: 0;
+  letter-spacing: .01em; text-transform: uppercase; margin: 0;
 }
 .wordmark .logo { height: 1.05em; width: auto; vertical-align: -0.16em; margin-right: .35rem; }
 .masthead nav { display: flex; gap: 1rem; margin-left: auto; }
