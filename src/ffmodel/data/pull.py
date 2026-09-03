@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import time
 from datetime import date
 from pathlib import Path
@@ -140,6 +141,47 @@ LIVE_MAX_AGE_HOURS = 12
 # above zero to catch a feed that has stopped carrying one of the two ids.
 MIN_CROSSWALK_PAIRS = 5000
 
+
+
+# A PINNED snapshot filename is a silent staleness trap. Both the ADP board
+# and the ECR consensus read a hardcoded `data_snapshots/..._YYYY-MM-DD.csv`,
+# deliberately: the weekly Actions cron must never grow a live FantasyPros
+# dependency, and the committed file is what makes a board reproducible from
+# committed inputs. The cost is that dropping a fresh export beside the old
+# one and forgetting to bump the constant regenerates the board off stale
+# data, reports success, and says nothing -- the provenance block simply
+# carries the OLD date, which nobody reads. This turns that into an error.
+#
+# Only the same FAMILY is compared (the filename prefix before the date), so
+# refreshing ADP never complains about ECR. A path with no date in it is not a
+# dated snapshot and is left alone.
+_DATED_SNAPSHOT = re.compile(r"^(?P<prefix>.+)_(?P<date>\d{4}-\d{2}-\d{2})\.csv$")
+
+
+def assert_snapshot_is_newest(path) -> None:
+    """Raise if a newer dated snapshot of the same family sits beside `path`.
+
+    Call this where a PINNED constant is chosen, never inside a parser --
+    reading an older snapshot on purpose (a comparison, a test fixture) is
+    legitimate and must stay free.
+    """
+    path = Path(path)
+    m = _DATED_SNAPSHOT.match(path.name)
+    if m is None:
+        return
+    prefix, pinned = m.group("prefix"), m.group("date")
+    newer = sorted(
+        c.name for c in path.parent.glob(f"{prefix}_*.csv")
+        if (mm := _DATED_SNAPSHOT.match(c.name)) and mm.group("date") > pinned
+    )
+    if newer:
+        raise RuntimeError(
+            f"{path.name} is pinned, but a newer snapshot of the same family "
+            f"is on disk: {', '.join(newer)}. A fresh export was dropped in "
+            f"without bumping the constant, so the board would be built from "
+            f"stale data and report success. Point the constant at the newest "
+            f"file, or delete the newer export if it was not meant to be used."
+        )
 
 def current_nfl_season(today: date | None = None) -> int:
     """The season a given date belongs to.

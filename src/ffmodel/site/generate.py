@@ -215,9 +215,13 @@ def _load_adp(season, data_dir, draft_picks=None):
     exists.
     """
     from ffmodel.data.adp import SNAPSHOT_PATH, load_snapshot_adp, pull_adp, snapshot_date
+    from ffmodel.data.pull import assert_snapshot_is_newest
     from ffmodel.data.rankings import _backfill_draft_gsis, pull_player_ids
 
     if SNAPSHOT_PATH.exists():
+        # Loud if a fresher export was dropped in without bumping the pin --
+        # otherwise the board rebuilds off stale ADP and reports success.
+        assert_snapshot_is_newest(SNAPSHOT_PATH)
         crosswalk = pull_player_ids(data_dir)
         backfilled = 0
         if draft_picks is not None:

@@ -27,7 +27,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, POSITIONS, _cached
+from ffmodel.data.pull import (LIVE_MAX_AGE_HOURS, POSITIONS, _cached,
+                              assert_snapshot_is_newest)
 
 # FantasyPros publishes many ranking flavors in one frame; these two select
 # the preseason redraft consensus ("ro" = redraft overall).
@@ -548,6 +549,9 @@ def consensus_for_season(season: int, schedules: pd.DataFrame,
     # rule that governs the mirror applies here, so a snapshot captured after
     # week 1 has begun is refused rather than quietly used.
     if ECR_SNAPSHOT_PATH.exists():
+        # Same trap as the ADP pin: a newer export on disk that the constant
+        # does not point at would be used as a silently stale consensus.
+        assert_snapshot_is_newest(ECR_SNAPSHOT_PATH)
         snapshot = parse_ecr_snapshot_csv(ECR_SNAPSHOT_PATH)
         captured = snapshot["scrape_date"].iloc[0]
         if captured >= kickoff:

@@ -722,3 +722,44 @@ def test_an_empty_player_master_is_never_cached(tmp_path):
         assert out["snap_pct"].notna().any(), "the healthy crosswalk did not join"
     finally:
         nflreadpy.load_players = real
+
+
+# --- pinned-snapshot staleness ------------------------------------------------
+# Both the ADP board and the ECR consensus read a hardcoded dated CSV. That is
+# deliberate (the weekly cron must not call FantasyPros live, and a committed
+# file is what makes a board reproducible), but it means a fresh export dropped
+# in without bumping the constant rebuilds the board off stale data and reports
+# success. These pin the guard that makes it loud.
+def _snap(d, name):
+    p = d / name
+    p.write_text("x", encoding="utf-8")
+    return p
+
+
+def test_snapshot_guard_passes_when_the_pin_is_the_newest(tmp_path):
+    from ffmodel.data.pull import assert_snapshot_is_newest
+    _snap(tmp_path, "fantasypros_adp_2026-07-27.csv")
+    pinned = _snap(tmp_path, "fantasypros_adp_2026-08-31.csv")
+    assert_snapshot_is_newest(pinned)          # older siblings are fine
+
+
+def test_snapshot_guard_raises_when_a_newer_export_is_on_disk(tmp_path):
+    from ffmodel.data.pull import assert_snapshot_is_newest
+    pinned = _snap(tmp_path, "fantasypros_adp_2026-08-31.csv")
+    _snap(tmp_path, "fantasypros_adp_2026-09-07.csv")
+    with pytest.raises(RuntimeError, match="2026-09-07"):
+        assert_snapshot_is_newest(pinned)
+
+
+def test_snapshot_guard_does_not_confuse_families(tmp_path):
+    # An ECR refresh must never make the ADP pin look stale.
+    from ffmodel.data.pull import assert_snapshot_is_newest
+    pinned = _snap(tmp_path, "fantasypros_adp_2026-08-31.csv")
+    _snap(tmp_path, "fantasypros_ecr_2026-09-07.csv")
+    assert_snapshot_is_newest(pinned)
+
+
+def test_snapshot_guard_ignores_an_undated_path(tmp_path):
+    from ffmodel.data.pull import assert_snapshot_is_newest
+    _snap(tmp_path, "fantasypros_adp_2026-09-07.csv")
+    assert_snapshot_is_newest(_snap(tmp_path, "keepers.csv"))
