@@ -8,6 +8,17 @@ global.document = { addEventListener() {}, getElementById: () => null,
 global.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 global.window.Optimizer = require("../site/assets/optimizer.js");
 const O = global.window.Optimizer;
+// Sleeper stub, installed BEFORE the require: draftmode.js captures
+// window.Sleeper at load time. `SLEEPER` is mutated by the live-panel test at
+// the bottom; every other test in this file goes nowhere near the network.
+const SLEEPER = { picks: [], draft: null, user: null, calls: [] };
+global.window.Sleeper = { get: async (path) => {
+  SLEEPER.calls.push(path);
+  if (/\/picks$/.test(path)) return SLEEPER.picks;
+  if (/^\/user\//.test(path)) return SLEEPER.user;
+  if (/^\/draft\//.test(path)) return SLEEPER.draft;
+  throw new Error(`unstubbed sleeper path: ${path}`);
+} };
 require("../site/assets/draftmode.js");
 const D = global.window.DraftMode;
 
@@ -449,4 +460,89 @@ assert.strictEqual(D.lateSlotNeed(roster(12), 10, NaN, "u1", LATE), null);
   assert.strictEqual(DM.isFlatSlate(genuinely, 1), true,
                      "a genuinely flat slate stopped being reported flat");
 }
-console.log("draftmode_fixture: OK");
+
+/* --- reconnecting to an UNCHANGED draft must rebuild the board -----------
+   The panel renders only when the pick log's fingerprint changes. Disconnect
+   clears the displayed state (state.drafted, roster, ticker); if it does not
+   also clear the fingerprint, reconnecting to a log that has not moved is a
+   no-op and the board sits blank -- struck players gone, roster hidden --
+   under a status reading "live", until some later pick changes the log. In a
+   60-second-clock draft that is a full minute of a board that is silently
+   wrong, and it fires on the flow connect() documents: connect without a
+   username, then Connect again WITH one to get your own picks highlighted. */
+{
+  const el = () => ({
+    value: "", textContent: "", innerHTML: "", hidden: false, checked: false,
+    open: false, addEventListener() {}, querySelectorAll: () => [],
+  });
+  const els = {
+    connect: el(), connectId: el(), disconnect: el(), find: el(), hide: el(),
+    idInput: el(), late: el(), list: el(), live: el(), note: el(),
+    picksCount: el(), roster: el(), shortlist: el(), status: el(),
+    ticker: el(), username: el(),
+  };
+  // Capture the real click handlers: init() is the only thing that wires
+  // connect/disconnect, and they are closure-private otherwise. Driving the
+  // handlers IS driving the buttons.
+  const handlers = {};
+  for (const [name, node] of Object.entries(els)) {
+    node.addEventListener = (ev, fn) => { if (ev === "click") handlers[name] = fn; };
+  }
+  const board = { players: [
+    { player_id: "a", sleeper_id: "9509", name: "P1", position: "RB", adp: 1,
+      bye: 5, value_points: 300, vorp: 90, position_rank: 1 },
+    { player_id: "b", sleeper_id: "4034", name: "P2", position: "WR", adp: 2,
+      bye: 7, value_points: 290, vorp: 85, position_rank: 1 },
+  ] };
+  let last = null;
+  D.init({ board, els, onUpdate: (st) => { last = st; } });
+
+  SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
+                    settings: { rounds: 15, teams: 12 }, draft_order: {} };
+  SLEEPER.picks = [
+    { pick_no: 1, draft_slot: 1, player_id: "9509", picked_by: "them" },
+    { pick_no: 2, draft_slot: 2, player_id: "4034", picked_by: "them" },
+  ];
+
+  // Wait on the OBSERVABLE, not on a guessed number of event-loop turns: the
+  // panel's render is however many async hops deep it happens to be today, and
+  // a fixture that encodes that depth breaks the next time a hop is added.
+  const until = async (pred, what, ms = 2000) => {
+    const t0 = Date.now();
+    while (!pred()) {
+      if (Date.now() - t0 > ms) throw new Error(`timed out waiting for ${what}`);
+      await new Promise(r => setImmediate(r));
+    }
+  };
+
+  (async () => {
+    els.idInput.value = "D1234567";
+    await handlers.connectId();
+    await until(() => last && last.drafted.size === 2,
+                "the first connect to strike the drafted players");
+
+    handlers.disconnect();
+    assert.strictEqual(last.drafted.size, 0, "disconnect left stale strikes");
+
+    // Reconnect to the SAME, UNMOVED log. This is the regression.
+    await handlers.connectId();
+    await until(() => last.drafted.size === 2,
+                "a reconnect to an unchanged draft to rebuild the board");
+
+    /* The second entry into the same defect, and the one connect() names:
+       Connect with no username (picks strike, but none are yours), then type
+       your name and hit Connect AGAIN. There is no disconnect on this path, so
+       only connect()'s own reset can clear the fingerprint -- without it the
+       reconnect never re-renders and your roster never appears, which is the
+       whole reason you reconnected. */
+    SLEEPER.user = { user_id: "U1" };
+    SLEEPER.draft = Object.assign({}, SLEEPER.draft, { draft_order: { U1: 2 } });
+    els.username.value = "me";
+    await handlers.connectId();
+    await until(() => last.mine.size === 1,
+                "reconnecting WITH a username to pick up your roster");
+
+    handlers.disconnect();   // stops the poll chain + heartbeat so node exits
+    console.log("draftmode_fixture: OK");
+  })().catch(e => { console.error(e.message); process.exit(1); });
+}

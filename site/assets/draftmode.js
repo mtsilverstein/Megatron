@@ -21,7 +21,6 @@ window.DraftMode = (() => {
   let timer = null, backoff = POLL_MS;
   let lastPickSig = null;
   let pollSeq = 0;       // generation token: bumped to silently retire stale poll chains
-  let lastPickCount = -1;   // render guard: picks are append-only
   let statusChecks = 0;     // draft-complete fallback when settings lack rounds/teams
   // Freshness, shown in the status line. A tool that says "live" has to be able
   // to prove it: this ticks on its own clock, so if the poll chain dies the age
@@ -35,6 +34,21 @@ window.DraftMode = (() => {
   const api = path => Sleeper.get(path);
 
   function emit() { cfg.onUpdate(state); }
+
+  /* The ONE render guard, cleared from every place that starts or tears down a
+     session. `lastPickSig` is the sole gate on applyPicks. Both reset sites
+     used to clear a `lastPickCount` instead -- a leftover of the old
+     length-based guard, by then write-only -- so they LOOKED complete while
+     clearing nothing that mattered, and a reconnect to a pick log that had not
+     moved skipped the render entirely. The board sat blank, no strikes and no
+     roster, under a status reading "live", until some later pick changed the
+     log: up to a full 60-second clock of a silently wrong board mid-draft. It
+     fired on the ordinary recovery flow connect() documents -- connect with no
+     username, then Connect again WITH one to pick up your own roster. The decoy
+     is deleted; this function is the only place the guard is cleared. */
+  function resetPickFingerprint() {
+    lastPickSig = null;
+  }
 
   // What the status line says, given a clock. Pure so the staleness threshold
   // is pinned by a test rather than eyeballed on a live draft.
@@ -115,7 +129,7 @@ window.DraftMode = (() => {
                   teams: s.teams || 0, rounds: s.rounds || 0,
                   reversalRound: s.reversal_round || 0,
                   type: draft.type || "snake" };
-      lastPickCount = -1;
+      resetPickFingerprint();
       statusChecks = 0;
       lastSyncAt = 0;
       syncNote = "";
@@ -154,7 +168,7 @@ window.DraftMode = (() => {
     cfg.els.note.hidden = true;
     cfg.els.hide.checked = false;
     state.hideDrafted = false;
-    lastPickCount = -1;
+    resetPickFingerprint();
     statusChecks = 0;
     lastSyncAt = 0;
     syncNote = "";
@@ -266,7 +280,6 @@ window.DraftMode = (() => {
   }
 
   function applyPicks(picks) {
-    lastPickCount = picks.length;
     const rs = rosterStateFromPicks(picks, mySeat(picks).slot, session.userId);
     state.drafted = rs.drafted;
     state.mine = rs.mine;
