@@ -23,8 +23,53 @@ const fs = require("fs");
 const path = require("path");
 const O = require(path.join(__dirname, "..", "site", "assets", "optimizer.js"));
 
-const TEAMS = 12, ROUNDS = 15;
-const DEDICATED = O.DEDICATED, FLEX_POS = O.FLEX_POS, FLEX_SLOTS = O.FLEX_SLOTS;
+// League shape. Defaults are Gabagool Fools', the league this harness was
+// written for, so every existing invocation and every committed artifact is
+// unchanged. `applyLeague` below overrides them from a board's own `league`
+// block -- the same contract the browser configures the optimizer from.
+let TEAMS = 12, ROUNDS = 15;
+let DEDICATED = O.DEDICATED, FLEX_POS = O.FLEX_POS, FLEX_SLOTS = O.FLEX_SLOTS;
+
+/* Point BOTH this harness and the optimizer it drives at one league.
+   Two separate things have to move together and neither is optional:
+   O.configure() sets the roster shape the optimizer builds lineups against,
+   while TEAMS/ROUNDS size the draft this file simulates. Setting one without
+   the other silently measures a league that does not exist -- a 10-team draft
+   scored against 12-team lineup slots, or the reverse. The optimizer's
+   DEDICATED/FLEX_* are re-read AFTER configure because the UMD export object
+   froze copies at require time and would otherwise stay Gabagool's. */
+let LEAGUE_SLUG = null;      // set by applyLeague; names the output artifact
+function applyLeague(league) {
+  if (!league) return null;
+  LEAGUE_SLUG = league.slug || "custom";
+  O.configure(league);
+  const cfg = O.leagueConfig();
+  TEAMS = league.teams;
+  ROUNDS = league.rounds;
+  DEDICATED = cfg.DEDICATED;
+  FLEX_POS = cfg.FLEX_POS;
+  FLEX_SLOTS = cfg.FLEX_SLOTS;
+  return league;
+}
+
+/* Override the tie-break depth caps, for measuring what they are worth.
+   Format: "QB:2,RB:5,WR:5,TE:2". Applied AFTER applyLeague so it wins. */
+function applyDepthCap(spec) {
+  if (!spec) return null;
+  const cap = {};
+  for (const part of spec.split(",")) {
+    const [pos, n] = part.split(":");
+    if (!pos || !n || !Number.isInteger(Number(n))) {
+      throw new Error(`--depth-cap: expected "QB:2,RB:5,WR:5,TE:2", got "${spec}"`);
+    }
+    cap[pos.trim().toUpperCase()] = Number(n);
+  }
+  const cur = O.leagueConfig();
+  O.configure({ roster: cur.DEDICATED, flex: cur.FLEX_SLOTS,
+                flex_positions: cur.FLEX_POS, starters: cur.ROLLOUT_PICKS,
+                depth_cap: cap });
+  return cap;
+}
 const REGULAR_WEEKS = 14;          // fantasy regular season
 const FULL_WEEKS = 17;
 
@@ -493,7 +538,11 @@ function summarize(rows, window) {
     edge_p10: +q(0.1).toFixed(1),
     edge_p90: +q(0.9).toFixed(1),
     win_rate_vs_same_seat: +(r.filter(x => x.edge > 0).length / r.length).toFixed(3),
-    mean_rank_of_12: +mean("rank").toFixed(2),
+    // Key name is legacy -- it is the mean finish among TEAMS seats, and
+    // TEAMS is 12 only for the league this harness was written for. The
+    // name is kept so the committed artifact's schema does not move;
+    // `teams` beside it says what the denominator actually was.
+    mean_rank_of_12: +mean("rank").toFixed(2), teams: TEAMS,
     top3_rate: +(r.filter(x => x.rank <= 3).length / r.length).toFixed(3),
   };
 }
@@ -560,7 +609,8 @@ function dryRun(board, seeds, field = "consensus", keeperSnapshot = null) {
 
 function parseArgs(argv) {
   const a = { worlds: null, board: null, seeds: 8, out: null, noise: null,
-              field: "consensus", keepers: null, heroTurns: null };
+              field: "consensus", keepers: null, heroTurns: null,
+              league: null, "depth-cap": null };
   for (let i = 2; i < argv.length; i += 2) {
     const k = argv[i].replace(/^--/, ""), v = argv[i + 1];
     if (k in a) a[k] = (k === "seeds" || k === "noise" || k === "heroTurns") ? Number(v) : v;
@@ -570,6 +620,18 @@ function parseArgs(argv) {
 
 function main() {
   const args = parseArgs(process.argv);
+  // --league takes a board JSON and reads its `league` block: the shape a
+  // board was VALUED under is the only shape it is honest to simulate.
+  if (args.league) {
+    const lg = JSON.parse(fs.readFileSync(args.league, "utf8")).league;
+    if (!lg) throw new Error(`${args.league} has no \`league\` block -- `
+      + `regenerate it with a --league slug`);
+    applyLeague(lg);
+    console.log(`league: ${lg.name} — ${TEAMS} teams x ${ROUNDS} rounds, `
+      + `${FLEX_SLOTS} flex, ${O.leagueConfig().ROLLOUT_PICKS} starters`);
+  }
+  const capOverride = applyDepthCap(args["depth-cap"]);
+  if (capOverride) console.log(`depth cap OVERRIDE: ${JSON.stringify(capOverride)}`);
   if (args.noise !== null) setNoise(args.noise);
   else if (args.field === "measured") setNoise(MEASURED.noiseRanks);
 
@@ -633,7 +695,7 @@ function main() {
     const s = perSeason[w.season].reg;
     console.log(`${w.season} (${w.model}): edge ${s.edge_mean >= 0 ? "+" : ""}${s.edge_mean} pts `
       + `over the same seat drafting the market · wins ${(s.win_rate_vs_same_seat * 100).toFixed(0)}% `
-      + `· mean finish ${s.mean_rank_of_12}/12 · ${Math.round((Date.now() - t0) / 1000)}s`);
+      + `· mean finish ${s.mean_rank_of_12}/${TEAMS} · ${Math.round((Date.now() - t0) / 1000)}s`);
   }
 
   const report = {
@@ -664,10 +726,21 @@ function main() {
      an exploratory sweep overwrote it, and only `git diff --stat` caught it.)
      Explicit --out still wins, so a deliberate regeneration is unaffected. */
   const canonical = "models/backtests/draft_strategy/draft_sim.json";
+  /* EVERY non-default knob suffixes the filename, not just --heroTurns. A
+     --league or --depth-cap run is a different experiment against a different
+     league, and letting it land on the canonical path replaces the committed
+     480-draft Gabagool result with something that is not comparable to it.
+     This was measured the hard way twice: once by an exploratory --heroTurns
+     sweep, and again by the first FAM run, which overwrote 480 drafts with 200
+     before `git status` caught it. */
+  const variant = [
+    Number.isFinite(args.heroTurns) ? `heroturns_${args.heroTurns}` : null,
+    LEAGUE_SLUG && LEAGUE_SLUG !== "gabagool" ? `league_${LEAGUE_SLUG}` : null,
+    args["depth-cap"] ? `cap_${args["depth-cap"].replace(/[^A-Za-z0-9]+/g, "")}` : null,
+  ].filter(Boolean).join("_");
   const out = args.out
-    || (Number.isFinite(args.heroTurns)
-        ? `models/backtests/draft_strategy/draft_sim_heroturns_${args.heroTurns}.json`
-        : canonical);
+    || (variant ? `models/backtests/draft_strategy/draft_sim_${variant}.json`
+                : canonical);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, JSON.stringify(report, null, 1));
   const o = report.overall.reg;
@@ -677,7 +750,7 @@ function main() {
   console.log(`  edge            ${o.edge_mean >= 0 ? "+" : ""}${o.edge_mean} pts  `
     + `(median ${o.edge_median}, p10 ${o.edge_p10}, p90 ${o.edge_p90})`);
   console.log(`  beats that seat ${(o.win_rate_vs_same_seat * 100).toFixed(1)}% of the time`);
-  console.log(`  mean finish     ${o.mean_rank_of_12} of 12   (top-3 ${(o.top3_rate * 100).toFixed(0)}%)`);
+  console.log(`  mean finish     ${o.mean_rank_of_12} of ${TEAMS}   (top-3 ${(o.top3_rate * 100).toFixed(0)}%)`);
   console.log(`\nwrote ${out}`);
 }
 
