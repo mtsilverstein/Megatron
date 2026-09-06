@@ -259,9 +259,19 @@ the `REPLACEMENT_RANK` fallback, and QB must be strictly shallower than
 Gabagool's — 11 against 13. QB is the only position where the direction is
 guaranteed, because it takes no flex and is `teams + 1` by construction; RB,
 WR and TE depend on how `flex_replacement_ranks` splits flex by ECR, and this
-spec has not computed that. FAM's QB ordering must also differ from
-Gabagool's: 4-point passing TDs reorder 4 to 8 of the top twelve, so an
-identical order means the scoring lens never took effect.
+spec has not computed that.
+
+The scoring lens is proven by VALUE, not by order: FAM's
+`season_points.league` must be strictly lower than Gabagool's for every top-24
+QB, while the league-independent `ppr` lens is identical in both, and every
+top-24 QB's VORP moves.
+
+The within-position ORDER must NOT change. This board is consensus-anchored --
+`methodology.ranking` reads "expert-consensus (FantasyPros ECR); the model
+supplies the value curve and the floor/ceiling bands, not the order" -- and
+ECR is league-independent. An earlier draft of this spec asserted that FAM's
+QB order must differ, which is backwards and would have failed a correct
+implementation. Verified against the built boards on 2026-09-06.
 
 ## Non-goals
 

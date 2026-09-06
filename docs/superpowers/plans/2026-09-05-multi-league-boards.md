@@ -674,12 +674,20 @@ print("fam replacement     :", fr)
 # so its rank is teams + 1 by construction. 11 < 13.
 assert fr["QB"] == 11, fr
 assert fr != {"QB": 13, "RB": 25, "WR": 25, "TE": 13}, "fell back to the default"
-qg = [p["name"] for p in g["players"] if p["position"] == "QB"][:12]
-qf = [p["name"] for p in f["players"] if p["position"] == "QB"][:12]
-# 4-point passing TDs reorder 4-8 of the top twelve QBs. Identical order means
-# the scoring lens never took effect.
-assert qg != qf, "QB order identical -- the FAM scoring lens did not apply"
-print("top-12 QB order differs:", sum(a != b for a, b in zip(qg, qf)), "positions")
+# The lens is proven by VALUE, not order. This board is consensus-anchored:
+# order comes from ECR and is league-independent, so it must NOT move.
+gq = {p["name"]: p for p in g["players"] if p["position"] == "QB"}
+fq = {p["name"]: p for p in f["players"] if p["position"] == "QB"}
+qbs = list(gq)[:24]
+assert all(fq[n]["season_points"]["league"]["p50"]
+           < gq[n]["season_points"]["league"]["p50"] for n in qbs),     "FAM QBs not devalued by 4-point passing TDs -- the lens did not apply"
+assert all(fq[n]["season_points"]["ppr"]["p50"]
+           == gq[n]["season_points"]["ppr"]["p50"] for n in qbs),     "the league-INdependent ppr lens moved"
+assert all(fq[n]["vorp"] != gq[n]["vorp"] for n in qbs)
+assert list(gq)[:12] == list(fq)[:12], "order moved; it is ECR-anchored and must not"
+# adp_round must read a 10-team draft: pick 11 is round 2, not round 1.
+tens = [p for p in f["players"] if p.get("adp") and 10 < p["adp"] <= 12]
+assert tens and all(p["adp_round"] == 2 for p in tens)
 print("fam league block:", f["league"])
 PY
 ```
