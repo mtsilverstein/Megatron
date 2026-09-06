@@ -113,7 +113,16 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/keepers.js"></script>
 <script>
 (async () => {
-  const board = await FC.loadJSON("data/draft.json");
+  // ?league=<slug> selects the board. No parameter -- and "gabagool" -- keep
+  // the existing filename, so every published link to this page is unchanged.
+  const slug = new URLSearchParams(location.search).get("league") || "gabagool";
+  const board = await FC.loadJSON(
+    slug === "gabagool" ? "data/draft.json" : `data/draft-${slug}.json`);
+  // BEFORE any rendering and before DraftMode.init: the roster shape drives
+  // openSlots, the lineup rollout and the shortlist, so a render that ran
+  // first would use another league's shape. The board carries the contract it
+  // was VALUED under, so the two can never disagree.
+  if (board.league && window.Optimizer) Optimizer.configure(board.league);
   FC.stampHeader(board);
   // Default to the league's own scoring: it is what VORP, the tiers and the
   // draft order on this page are computed from, so showing PPR points beside a
@@ -512,8 +521,13 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       // Unguarded, a failed keepers.js made render() throw AFTER the tbody was
       // cleared -- a blank board with no message, and the page's .catch only
       // covers the initial load, not a click.
-      const draftLen = (window.Keepers &&
-        Keepers.TEAMS * Keepers.DRAFT_ROUNDS) || 180;   // 12 x 15 = 180
+      // This league's own draft length. Was Keepers.TEAMS * Keepers.DRAFT_ROUNDS,
+      // which is Gabagool's 180 wherever it is read: on a 10-team, 14-round
+      // board that invented "reach about N picks" language about 40 picks the
+      // league never makes. keepers.js stays the fallback for a board built
+      // before the league block existed.
+      const draftLen = (board.league && board.league.total_picks)
+        || (window.Keepers && Keepers.TEAMS * Keepers.DRAFT_ROUNDS) || 180;
       const outOfRange = p.adp > draftLen || mine > draftLen;
 
       const edgeRow = kv("Edge",
@@ -630,9 +644,17 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     document.fonts.ready.then(() => render(rows)).catch(() => {});
   }
 
-  if (window.Keepers) {
-    Keepers.init({ players: board.players, panel: document.getElementById("keepers"),
+  // keepers.js implements GABAGOOL's ladder -- original round, decaying one
+  // round per year kept, R12 for a waiver pickup. Running it for a league with
+  // different keeper rules would price keepers against a rule that league does
+  // not have, so it is SKIPPED, not merely hidden: none of its logic runs and
+  // none of its constants reach a board they were not written for.
+  const keeperPanel = document.getElementById("keepers");
+  if (window.Keepers && board.league && board.league.keeper_rules === "gabagool") {
+    Keepers.init({ players: board.players, panel: keeperPanel,
                    currentSeason: board.season });
+  } else if (keeperPanel) {
+    keeperPanel.hidden = true;
   }
 
   if (window.DraftMode) {
