@@ -258,6 +258,12 @@ def _load_adp(season, data_dir, draft_picks=None, *, teams: int = 12,
 
 
 def _late_slots(season, data_dir, teams: int = 12):
+    # MEASURED 2026-09-06: FFCalculator echoes `meta.teams` back correctly but
+    # returns the SAME K/DST ADPs for teams=10 and teams=12, so a 10-team board's
+    # late-slot reminder comes out identical to a 12-team one. That is upstream
+    # behaviour, not a dropped parameter -- verify against the API before
+    # "fixing" it. The argument is still passed because the endpoint accepts it
+    # and may start differentiating.
     """Raw K/DST ADP for the late-round slot reminder (display-only).
 
     `teams` sizes FFCalculator's mock-draft pool: a 10-team league's kickers
