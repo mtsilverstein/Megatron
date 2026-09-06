@@ -270,8 +270,14 @@ function main() {
   const loadOptimizer = H => {
     if (optCache.has(H)) return optCache.get(H);
     const src = fs.readFileSync(path.join(repo, "site/assets/optimizer.js"), "utf8");
-    const patched = src.replace(/const ROLLOUT_PICKS = \d+;/, `const ROLLOUT_PICKS = ${H};`);
-    if (patched === src && !/const ROLLOUT_PICKS = 8;/.test(src)) throw new Error("could not patch ROLLOUT_PICKS");
+    // Accepts `let` as well as `const`: ROLLOUT_PICKS became reassignable when
+    // optimizer.js gained configure(), and a regex pinned to `const` silently
+    // stopped matching -- which this guard then turned into a hard throw on
+    // every invocation. Matching either keyword keeps the source-patch trick
+    // working; the guard fires only when the declaration is really gone.
+    const patched = src.replace(/(?:const|let) ROLLOUT_PICKS = \d+;/,
+                                `let ROLLOUT_PICKS = ${H};`);
+    if (patched === src) throw new Error("could not patch ROLLOUT_PICKS");
     const tmp = path.join(require("os").tmpdir(), `opt_h${H}_${process.pid}.cjs`);
     fs.writeFileSync(tmp, patched);
     const prev = global.window;
