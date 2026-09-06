@@ -110,10 +110,12 @@ _SNAPSHOT_DATE = re.compile(r"_(\d{4}-\d{2}-\d{2})\.csv$")
 # into players this league cannot draft.
 MIN_SNAPSHOT_MATCH_RATE = 0.95
 
-# Picks in this league's draft: 12 teams x 15 rounds (the same league shape
-# keepers.js encodes as TEAMS/DRAFT_ROUNDS). A player whose ADP is past this
-# goes undrafted here, so whether the crosswalk resolves him cannot change any
-# decision the board supports.
+# Picks in a 12-team, 15-round draft -- the DEFAULT, and the shape this
+# project's original league (the same one keepers.js encodes as
+# TEAMS/DRAFT_ROUNDS) has. Callers with a different league pass their own
+# `teams * rounds` to `normalize_snapshot_adp`'s `draftable_adp`; a 10-team,
+# 14-round league drafts only 140, and scoring the guard over 180 would judge
+# the crosswalk on 40 picks that league never makes.
 DRAFTABLE_ADP = 180
 
 # A separate, much looser floor on the WHOLE export. The draftable-scoped
@@ -172,7 +174,8 @@ def parse_snapshot_csv(path: Path) -> pd.DataFrame:
 
 
 def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
-                           min_match_rate: float = MIN_SNAPSHOT_MATCH_RATE
+                           min_match_rate: float = MIN_SNAPSHOT_MATCH_RATE,
+                           draftable_adp: int = DRAFTABLE_ADP
                            ) -> tuple[pd.DataFrame, dict]:
     """Crosswalk `parse_snapshot_csv`'s output onto gsis ids, in `pull_adp`'s
     output shape (same columns, `stdev`/`times_drafted` filled as <NA> since
@@ -195,7 +198,12 @@ def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
 
     Below `min_match_rate` this raises, naming every unmatched player (mirrors
     rankings.attach_gsis's MIN_MATCH_RATE guard) -- a silently-thinned ADP
-    source would degrade the market overlay without anyone noticing.
+    source would degrade the market overlay without anyone noticing. That
+    guard is scored only over players inside the draft: `draftable_adp`
+    (default `DRAFTABLE_ADP`, the 12-team/15-round shape) bounds which ADPs
+    count as "inside" -- a caller with a different league's size passes its
+    own `teams * rounds` so the guard never judges the crosswalk on picks
+    that league never makes.
 
     Returns `(matched_df, stats)`; `stats` breaks the match out by which key
     resolved it (`matched_by_position` vs `matched_by_name`) so a silent
@@ -227,7 +235,7 @@ def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
                .reset_index(drop=True))
 
     match_rate = (len(matched) / len(df)) if len(df) else 1.0
-    draftable = df[df["adp"] <= DRAFTABLE_ADP]
+    draftable = df[df["adp"] <= draftable_adp]
     draftable_rate = (float(draftable["player_id"].notna().mean())
                       if len(draftable) else 1.0)
     if len(draftable) and draftable_rate < min_match_rate:
@@ -235,7 +243,7 @@ def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
         raise ValueError(
             f"Sleeper-ADP snapshot crosswalk matched only {draftable_rate:.1%} "
             f"of the {len(draftable)} players inside the draft (ADP <= "
-            f"{DRAFTABLE_ADP}, floor {min_match_rate:.0%}) -- unmatched: "
+            f"{draftable_adp}, floor {min_match_rate:.0%}) -- unmatched: "
             f"{names} -- refusing to publish a partially-crosswalked ADP source"
         )
     # Never stricter than the guard it backs up: a caller that lowers
@@ -248,7 +256,7 @@ def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
             f"Sleeper-ADP snapshot crosswalk matched only {match_rate:.1%} of "
             f"all {len(df)} rows with a Sleeper ADP (floor "
             f"{overall_floor:.0%}) -- the draftable top "
-            f"{DRAFTABLE_ADP} looks fine, so this is a whole-feed problem, not "
+            f"{draftable_adp} looks fine, so this is a whole-feed problem, not "
             f"a depth one -- unmatched: {names[:40]}"
         )
     for col in ("stdev", "times_drafted"):

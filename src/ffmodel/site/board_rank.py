@@ -80,7 +80,8 @@ def flex_replacement_ranks(players: pd.DataFrame, dedicated: dict[str, int],
 
 def rank_board(players: pd.DataFrame,
                replacement_rank: dict[str, int],
-               value_col: str = "ppr_p50") -> pd.DataFrame:
+               value_col: str = "ppr_p50",
+               teams: int = 12) -> pd.DataFrame:
     """Per-position order_and_value -> VORP -> position_rank -> tier, then the
     whole board sorted by VORP descending, with adp_round attached."""
     frames = []
@@ -106,7 +107,10 @@ def rank_board(players: pd.DataFrame,
             ordered["tier"] = _assign_tiers(ordered["vorp"], rank)
         frames.append(ordered)
     board = pd.concat(frames).sort_values("vorp", ascending=False, kind="mergesort")
-    # Map adp_round values, then convert to object dtype to preserve None
-    board["adp_round"] = pd.Series([adp_round(a) for a in board["adp"]],
+    # Map adp_round values, then convert to object dtype to preserve None.
+    # `teams` is REQUIRED here, not cosmetic: this call omitted it for a long
+    # time and silently mapped every board's ADP to 12-team rounds. In a
+    # 10-team league pick 11 is round 2, not round 1.
+    board["adp_round"] = pd.Series([adp_round(a, teams) for a in board["adp"]],
                                     index=board.index, dtype=object)
     return board.reset_index(drop=True)

@@ -101,3 +101,36 @@ def test_flex_replacement_small_pool_falls_back_to_dedicated_plus_one():
         players, dedicated={"QB": 12, "RB": 24, "WR": 24, "TE": 12}, flex_slots=24)
     # pool smaller than dedicated -> no flex filled -> base replacement, no crash
     assert repl == {"QB": 13, "RB": 25, "WR": 25, "TE": 13}
+
+
+def test_rank_board_maps_adp_rounds_at_the_leagues_team_count():
+    import pandas as pd
+
+    from ffmodel.site.board_rank import rank_board
+
+    players = pd.DataFrame({
+        "player_id": ["a", "b", "c"],
+        "position": ["RB", "RB", "RB"],
+        "ppr_p50": [300.0, 200.0, 100.0],
+        "ecr": [1.0, 2.0, 3.0],
+        # pick 11 is round 2 in a 10-team league and round 1 in a 12-team one:
+        # the discriminating value, not an arbitrary one.
+        "adp": [11.0, 24.0, 25.0],
+    })
+    ten = rank_board(players.copy(), {"RB": 3}, teams=10)
+    twelve = rank_board(players.copy(), {"RB": 3}, teams=12)
+    assert list(ten["adp_round"]) == [2, 3, 3]
+    assert list(twelve["adp_round"]) == [1, 2, 3]
+
+
+def test_rank_board_still_defaults_to_twelve_teams():
+    # Every existing caller omits `teams`; the default must not move.
+    import pandas as pd
+
+    from ffmodel.site.board_rank import rank_board
+
+    players = pd.DataFrame({
+        "player_id": ["a"], "position": ["RB"], "ppr_p50": [300.0],
+        "ecr": [1.0], "adp": [11.0],
+    })
+    assert list(rank_board(players, {"RB": 1})["adp_round"]) == [1]

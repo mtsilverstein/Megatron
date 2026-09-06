@@ -221,6 +221,45 @@ def test_normalize_snapshot_adp_out_of_scope_only_match_does_not_resolve():
     assert stats["unmatched"] == 1
 
 
+def test_draftable_bound_scopes_the_crosswalk_guard_to_this_league():
+    # The snapshot guard judges the crosswalk on players INSIDE the draft.
+    # Scored over 180 for a 10-team, 14-round league, it would fail the board
+    # on picks that league never makes. Prove the bound is a real parameter,
+    # not just present in the signature: the SAME frame must pass under a
+    # 140 (10-team) bound and raise under the 180 (12-team) default, because
+    # the two bounds score a different set of rows.
+    from ffmodel.data import adp as adp_mod
+
+    assert adp_mod.DRAFTABLE_ADP == 180          # the 12-team default is unmoved
+
+    crosswalk = pd.DataFrame({
+        "gsis_id": ["00-1", "00-2", "00-3", "00-4", "00-5"],
+        "merge_name": ["a one", "f one", "f two", "f three", "f four"],
+        "position": ["RB", "RB", "RB", "RB", "RB"],
+    })
+    raw = pd.DataFrame({
+        # "Gap" sits at ADP 150 -- inside a 12-team/15-round draft (<=180)
+        # but outside a 10-team/14-round one (<=140) -- and has no crosswalk
+        # entry. The filler rows (adp > 180, all matched) keep the OVERALL
+        # match rate comfortably above the separate whole-feed floor, so only
+        # the draftable-scoped guard is exercised here.
+        "name": ["A One", "F One", "F Two", "F Three", "F Four", "Gap"],
+        "position": ["RB", "RB", "RB", "RB", "RB", "WR"],
+        "adp": [10.0, 200.0, 201.0, 202.0, 203.0, 150.0],
+    })
+
+    # 10-team, 14-round league: Gap (adp 150) is outside the draft entirely,
+    # so its missing crosswalk entry cannot fail the guard.
+    matched, stats = normalize_snapshot_adp(raw, crosswalk, draftable_adp=140)
+    assert stats["draftable_ranked"] == 1
+    assert stats["draftable_match_rate"] == pytest.approx(1.0)
+
+    # 12-team, 15-round default: Gap is now inside the draft and unmatched,
+    # so the same frame must fail the guard it just passed.
+    with pytest.raises(ValueError, match="Gap"):
+        normalize_snapshot_adp(raw, crosswalk, draftable_adp=180)
+
+
 def test_snapshot_loader_scopes_out_k_and_dst_even_if_present(tmp_path):
     """K/DST are OUT of model scope (CLAUDE.md); prove the loader actually
     enforces it rather than merely happening to lack K/DST data today. If
