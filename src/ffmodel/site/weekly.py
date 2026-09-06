@@ -23,6 +23,20 @@ RULESETS = {"ppr": PPR, "half_ppr": HALF_PPR, "standard": STANDARD,
 BOARD_RULESET = "league"
 
 
+def set_league_rules(rules) -> None:
+    """Point the "league" lens at THIS league's scoring.
+
+    Process-global, called once by generate.py before a board is built. The
+    key stays "league" for every league -- it is a published payload key that
+    optimizer.js reads by name -- so what changes is what it means, never
+    where it lives. See ffmodel.league.BOARD_RULESET.
+
+    Mutates RULESETS in place rather than rebinding it, because draft.py and
+    eval/rookies.py hold their own references to the same dict.
+    """
+    RULESETS["league"] = rules
+
+
 def _quantile_frames(future: pd.DataFrame, predictor) -> dict[str, pd.DataFrame | None]:
     if hasattr(predictor, "predict_quantiles"):
         qs = predictor.predict_quantiles(future)

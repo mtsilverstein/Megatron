@@ -331,7 +331,7 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
                                       "matched_by_name": 0, "unmatched": 0,
                                       "unmatched_players": [], "match_rate": 1.0}))
     monkeypatch.setattr(gen_mod, "_late_slots",
-                        lambda season, data_dir: {"K": [], "DST": []})
+                        lambda season, data_dir, teams=12: {"K": [], "DST": []})
 
     class _Stub:
         name = "stub"
@@ -345,6 +345,8 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
         capture["adp"] = k.get("adp")
         capture["replacement_rank"] = k.get("replacement_rank")
         capture["current_teams"] = k.get("current_teams")
+        capture["league"] = k.get("league")
+        capture["teams"] = k.get("teams")
         return {"players": []}
     monkeypatch.setattr(draft_mod, "build_draft_board", fake_board)
     monkeypatch.setattr(about_mod, "build_about",
@@ -603,13 +605,15 @@ def test_load_adp_falls_back_to_ffcalculator_when_snapshot_missing(monkeypatch, 
     monkeypatch.setattr(adp_mod, "SNAPSHOT_PATH", tmp_path / "does-not-exist.csv")
     calls = {}
 
-    def fake_pull_adp(season, cache_dir=None):
+    def fake_pull_adp(season, cache_dir=None, teams=12):
         calls["season"], calls["cache_dir"] = season, cache_dir
+        calls["teams"] = teams
         return pd.DataFrame({"player_id": ["00-1"], "adp": [3.0]})
     monkeypatch.setattr(adp_mod, "pull_adp", fake_pull_adp)
 
     adp_df, source = generate._load_adp(2026, tmp_path)
-    assert calls == {"season": 2026, "cache_dir": tmp_path}
+    # the mock-draft pool is sized by the league; unnamed, it stays 12-team
+    assert calls == {"season": 2026, "cache_dir": tmp_path, "teams": 12}
     assert list(adp_df["player_id"]) == ["00-1"]
     assert source == {"source": "ffcalculator"}
 
@@ -618,7 +622,7 @@ def test_draft_payload_carries_late_slots(monkeypatch, tmp_path):
     from ffmodel.site import generate
 
     payload = {"season": 2026, "players": []}
-    monkeypatch.setattr(generate, "_late_slots", lambda season, data_dir:
+    monkeypatch.setattr(generate, "_late_slots", lambda season, data_dir, teams=12:
                         {"K": [{"name": "Early K", "adp": 140.5}], "DST": []})
     out = generate._attach_late_slots(payload, 2026, tmp_path)
     assert out["late_slots"] == {"K": [{"name": "Early K", "adp": 140.5}],
@@ -628,7 +632,9 @@ def test_draft_payload_carries_late_slots(monkeypatch, tmp_path):
 def test_late_slots_degrade_to_empty_when_adp_unavailable(monkeypatch, tmp_path):
     from ffmodel.site import generate
 
-    def boom(season, data_dir):
+    def boom(season, data_dir, teams=12):
+        # signature matches _late_slots, so this proves the DOWNSTREAM
+        # failure degrades gracefully -- not that a stale stub TypeErrors
         raise RuntimeError("ffcalculator down")
 
     monkeypatch.setattr(generate, "_late_slots", boom)
@@ -818,3 +824,83 @@ def test_roster_override_provenance_counts_the_unmapped_tail():
     assert stats["unmapped"] == 2
     assert stats["unmapped_above_replacement"] == 1     # c, not b
     assert stats["roster_rows"] == 1
+
+
+# --- league configuration ---------------------------------------------------
+# The board is VALUED under one league's contract. These pin the two halves of
+# that wiring: the scoring lens the setter swaps, and the slug the parser
+# defaults to (Gabagool, so every existing invocation is unchanged).
+def test_set_league_rules_swaps_only_the_league_lens():
+    from ffmodel.league import load_league
+    from ffmodel.site import weekly
+
+    before = weekly.RULESETS["league"]
+    try:
+        weekly.set_league_rules(load_league("fam").rules)
+        assert weekly.RULESETS["league"].pass_td == 4.0
+        assert weekly.RULESETS["league"].interception == -1.0
+        # The other three lenses are league-independent and must not move.
+        assert weekly.RULESETS["ppr"].pass_td == 4.0
+        assert weekly.RULESETS["standard"].reception == 0.0
+    finally:
+        weekly.set_league_rules(before)
+    assert weekly.RULESETS["league"].pass_td == 6.0
+
+
+def test_generate_parser_defaults_to_gabagool():
+    from ffmodel.site.generate import build_parser
+
+    args = build_parser().parse_args(
+        ["--out", "x", "--model", "xgboost", "--season", "2026", "--draft"])
+    assert args.league == "gabagool"
+
+
+def test_draft_run_passes_the_default_leagues_contract_into_the_board(
+        monkeypatch, tmp_path):
+    """The default run must carry Gabagool's own contract -- the same shape
+    `LEAGUE_DEDICATED`/`LEAGUE_FLEX_SLOTS` hardcode -- and write the same
+    `draft.json` it has always written."""
+    import ffmodel.site.sleeper as sleeper_mod
+
+    monkeypatch.setattr(sleeper_mod, "pull_sleeper_players", lambda **k:
+                        {"1": {"gsis_id": "00-0000001", "full_name": "A B",
+                               "position": "QB"}})
+    capture = {}
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--draft"], capture)
+
+    assert capture["teams"] == 12
+    assert capture["league"]["slug"] == "gabagool"
+    assert capture["league"]["teams"] == 12
+    assert capture["league"]["total_picks"] == 180
+    assert capture["league"]["board_ruleset"] == "league"
+    # derived replacement, unchanged: 12 dedicated QBs league-wide + 1
+    assert capture["replacement_rank"]["QB"] == 13
+    assert (tmp_path / "out" / "draft.json").exists()
+
+
+def test_a_non_default_league_builds_its_own_board_file(monkeypatch, tmp_path):
+    """`--league fam` must value the board on FAM's scoring, size it to 10
+    teams, and land in FAM's own file -- never overwriting Gabagool's."""
+    import ffmodel.site.sleeper as sleeper_mod
+    from ffmodel.site import weekly as weekly_mod
+
+    monkeypatch.setattr(sleeper_mod, "pull_sleeper_players", lambda **k:
+                        {"1": {"gsis_id": "00-0000001", "full_name": "A B",
+                               "position": "QB"}})
+    capture = {}
+    before = weekly_mod.RULESETS["league"]
+    try:
+        _run_generate_with_stubs(monkeypatch, tmp_path,
+                                 ["--draft", "--league", "fam"], capture)
+        # the "league" lens now MEANS FAM's scoring; the key never moves
+        assert weekly_mod.RULESETS["league"].pass_td == 4.0
+    finally:
+        weekly_mod.set_league_rules(before)
+
+    assert capture["teams"] == 10
+    assert capture["league"]["slug"] == "fam"
+    assert capture["league"]["total_picks"] == 140
+    # 10 dedicated QBs league-wide + 1 -- NOT Gabagool's 13
+    assert capture["replacement_rank"]["QB"] == 11
+    assert (tmp_path / "out" / "draft-fam.json").exists()
+    assert not (tmp_path / "out" / "draft.json").exists()

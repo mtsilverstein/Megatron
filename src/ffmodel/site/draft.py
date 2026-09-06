@@ -296,7 +296,8 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
                     data_through: str, has_bands: bool, n_draws: int = 2000,
                     rookie_prior: dict | None = None, *,
                     ecr: dict | None = None, adp: dict | None = None,
-                    replacement_rank: dict = REPLACEMENT_RANK) -> dict:
+                    replacement_rank: dict = REPLACEMENT_RANK,
+                    league: dict | None = None, teams: int = 12) -> dict:
     players = players.copy()
     players["ecr"] = (players["player_id"].map(ecr) if ecr is not None
                       else np.nan)
@@ -306,7 +307,11 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
     # passing TDs move the top 24 QBs by ~+48 points a season and reorder 4-8
     # of the top twelve, so a PPR value curve ranks this league's
     # quarterbacks wrongly, not merely on a different scale.
-    board = rank_board(players, replacement_rank, f"{BOARD_RULESET}_p50")
+    # `teams` reaches adp_round: pick 11 is round 2 in a 10-team league and
+    # round 1 in a 12-team one. The default is Gabagool's, so a caller that
+    # names no league is unchanged.
+    board = rank_board(players, replacement_rank, f"{BOARD_RULESET}_p50",
+                       teams=teams)
     consensus_anchored = ecr is not None
 
     def _band(value) -> float | None:
@@ -362,6 +367,12 @@ def _finalize_board(players: pd.DataFrame, model: str, season: int,
     }
     if rookie_prior is not None:
         payload["methodology"]["rookie_prior"] = rookie_prior
+    # The contract this board was VALUED under, shipped WITH the board so the
+    # two can never disagree (ffmodel.league). Behind the None check on
+    # purpose: the eval harness and the board backtests name no league, and
+    # must keep emitting exactly the payload they emit today.
+    if league is not None:
+        payload["league"] = league
     return payload
 
 
@@ -376,7 +387,8 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       ecr: dict | None = None, adp: dict | None = None,
                       replacement_rank: dict = REPLACEMENT_RANK,
                       returning: set[str] | None = None,
-                      current_teams: dict[str, str] | None = None) -> dict:
+                      current_teams: dict[str, str] | None = None,
+                      league: dict | None = None, teams: int = 12) -> dict:
     players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit,
                                 n_draws=n_draws, seed=seed, games_dist=games_dist,
                                 diagnostics=diagnostics, returning=returning,
@@ -414,7 +426,8 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
     has_bands = hasattr(predictor, "predict_quantiles")
     payload = _finalize_board(players, predictor.name, season, data_through, has_bands,
                               n_draws, rookie_prior=rookie_prior_meta,
-                              ecr=ecr, adp=adp, replacement_rank=replacement_rank)
+                              ecr=ecr, adp=adp, replacement_rank=replacement_rank,
+                              league=league, teams=teams)
     if sleeper_players is not None:
         # Deferred import keeps draft.py import-light for consumers that
         # never touch draft mode (board backtests, tests).

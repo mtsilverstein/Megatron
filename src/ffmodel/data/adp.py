@@ -278,15 +278,22 @@ def normalize_snapshot_adp(raw: pd.DataFrame, crosswalk: pd.DataFrame,
 
 
 def load_snapshot_adp(path: Path, crosswalk: pd.DataFrame,
-                      min_match_rate: float = MIN_SNAPSHOT_MATCH_RATE
+                      min_match_rate: float = MIN_SNAPSHOT_MATCH_RATE,
+                      draftable_adp: int = DRAFTABLE_ADP
                       ) -> tuple[pd.DataFrame, dict]:
     """Sleeper ADP from the committed snapshot at `path`, on gsis ids.
 
     Pure function of the file plus the crosswalk it's given -- no network,
     no hidden global state -- so it is directly unit-testable with a small
     on-disk CSV and a synthetic crosswalk (no fixtures-on-the-internet).
+
+    `draftable_adp` is forwarded to `normalize_snapshot_adp`: it bounds which
+    players the crosswalk guard is scored over, so a league that drafts fewer
+    than 180 picks is judged on the picks it actually makes. Default unmoved
+    (the 12-team, 15-round shape), so every existing caller is unchanged.
     """
-    return normalize_snapshot_adp(parse_snapshot_csv(path), crosswalk, min_match_rate)
+    return normalize_snapshot_adp(parse_snapshot_csv(path), crosswalk,
+                                  min_match_rate, draftable_adp)
 
 
 # K/DST are OUT of model scope (kickers/defenses do not predict year to year),

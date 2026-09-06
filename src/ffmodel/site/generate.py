@@ -50,6 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--returning", default=str(RETURNING_CONFIG),
                         help="YAML list of players returning from a "
                              "season-ending injury (--draft only)")
+    parser.add_argument("--league", default="gabagool",
+                        help="league slug in configs/leagues/ (default: gabagool)")
     parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
     parser.add_argument("--first-season", type=int, default=2012)
     return parser
@@ -137,6 +139,10 @@ def require_backtests(paths: list[Path]) -> list[Path]:
 # The live board's league: 12-team, dedicated 1 QB / 2 RB / 2 WR / 1 TE per
 # team (x12), plus 2 FLEX per team (24 league-wide). Replacement is DERIVED
 # from these + the ECR pool (flex split falls out of the rankings), not guessed.
+#
+# NOTE: the two constants below are Gabagool's values and remain the defaults
+# for ffmodel.eval.draft_world, which imports them by name. The generation
+# path reads its shape from the league config instead -- see --league.
 LEAGUE_DEDICATED = {"QB": 12, "RB": 24, "WR": 24, "TE": 12}
 LEAGUE_FLEX_SLOTS = 24
 
@@ -186,7 +192,8 @@ def _canonicalize_draft_picks(draft_picks, data_dir):
     return canonicalize_draft_gsis(draft_picks, crosswalk)
 
 
-def _load_adp(season, data_dir, draft_picks=None):
+def _load_adp(season, data_dir, draft_picks=None, *, teams: int = 12,
+              draftable_adp: int | None = None):
     """Sleeper-population ADP for the draft board (preferred): this
     project's actual league is a Sleeper keeper league, so the committed
     FantasyPros/Sleeper snapshot (data_snapshots/) matches that population
@@ -213,8 +220,15 @@ def _load_adp(season, data_dir, draft_picks=None):
     The ECR path was repaired for the same drift in `4ad0871`; ADP reads the
     same feed and needs the same repair, or the two disagree about who
     exists.
+
+    `teams` sizes the FFCalculator fallback's mock-draft pool, and
+    `draftable_adp` (this league's `teams * rounds`, default `DRAFTABLE_ADP`'s
+    12-team/15-round 180) bounds the players the snapshot crosswalk guard is
+    scored over. Both defaults are Gabagool's, so a caller that names no
+    league is unchanged.
     """
-    from ffmodel.data.adp import SNAPSHOT_PATH, load_snapshot_adp, pull_adp, snapshot_date
+    from ffmodel.data.adp import (DRAFTABLE_ADP, SNAPSHOT_PATH, load_snapshot_adp,
+                                  pull_adp, snapshot_date)
     from ffmodel.data.pull import assert_snapshot_is_newest
     from ffmodel.data.rankings import _backfill_draft_gsis, pull_player_ids
 
@@ -226,7 +240,10 @@ def _load_adp(season, data_dir, draft_picks=None):
         backfilled = 0
         if draft_picks is not None:
             crosswalk, backfilled = _backfill_draft_gsis(crosswalk, draft_picks)
-        adp_df, stats = load_snapshot_adp(SNAPSHOT_PATH, crosswalk)
+        adp_df, stats = load_snapshot_adp(
+            SNAPSHOT_PATH, crosswalk,
+            draftable_adp=(DRAFTABLE_ADP if draftable_adp is None
+                           else draftable_adp))
         source = {"source": "sleeper_snapshot",
                  "path": SNAPSHOT_PATH.as_posix(),
                  "snapshot_date": snapshot_date(SNAPSHOT_PATH),
@@ -237,18 +254,22 @@ def _load_adp(season, data_dir, draft_picks=None):
         # block so it actually reaches the published draft.json.
         source.update(_bounded_stats(stats))
         return adp_df, source
-    return pull_adp(season, cache_dir=data_dir), {"source": "ffcalculator"}
+    return pull_adp(season, cache_dir=data_dir, teams=teams), {"source": "ffcalculator"}
 
 
-def _late_slots(season, data_dir):
-    """Raw K/DST ADP for the late-round slot reminder (display-only)."""
+def _late_slots(season, data_dir, teams: int = 12):
+    """Raw K/DST ADP for the late-round slot reminder (display-only).
+
+    `teams` sizes FFCalculator's mock-draft pool: a 10-team league's kickers
+    go later than a 12-team one's, and the reminder is about WHEN to take
+    them. Default unmoved, so a caller that names no league is unchanged."""
     import json
     import urllib.request
 
     from ffmodel.data.adp import late_slot_adp
 
     url = ("https://fantasyfootballcalculator.com/api/v1/adp/ppr"
-           f"?teams=12&year={season}&position=all")
+           f"?teams={teams}&year={season}&position=all")
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
@@ -287,11 +308,11 @@ def _roster_override_stats(payload, current_teams: dict[str, str]) -> dict:
     }
 
 
-def _attach_late_slots(payload, season, data_dir):
+def _attach_late_slots(payload, season, data_dir, teams: int = 12):
     """Best-effort: the board never depends on K/DST ADP, so a failure just
     yields empty lists and the UI degrades to a generic reminder."""
     try:
-        payload["late_slots"] = _late_slots(season, data_dir)
+        payload["late_slots"] = _late_slots(season, data_dir, teams=teams)
     except Exception as exc:                     # noqa: BLE001 - overlay is optional
         print(f"K/DST ADP unavailable ({exc}); late-slot lists will be empty")
         payload["late_slots"] = {"K": [], "DST": []}
@@ -355,7 +376,8 @@ def _load_returning(path: Path, weekly: pd.DataFrame, season: int) -> set[str]:
     return resolved
 
 
-def _draft_consensus(season, schedules, data_dir, *, draft_picks=None):
+def _draft_consensus(season, schedules, data_dir, *, draft_picks=None,
+                     league=None):
     """ECR is the required spine (raise -> abort the run, fail-safe); ADP is a
     best-effort overlay (failure -> None/None, board still builds). Replacement
     is derived from the ECR pool so the flex split is not a guess.
@@ -365,7 +387,13 @@ def _draft_consensus(season, schedules, data_dir, *, draft_picks=None):
     published board can say honestly which one it used -- None whenever
     `adp` itself is None. consensus_stats is attach_gsis's match-provenance
     dict (matched_by_id, matched_by_name_position, unmatched, ...), bounded
-    for publication -- ECR is required, so this is never None."""
+    for publication -- ECR is required, so this is never None.
+
+    `league` is a `ffmodel.league.LeagueConfig`: it supplies the roster shape
+    replacement is derived from and the draft size ADP is read against. With
+    no league (the eval harness, the tests below) this falls back to the
+    module constants above, which are Gabagool's -- so those callers are
+    unchanged."""
     from ffmodel.site.board_rank import flex_replacement_ranks
 
     if draft_picks is None:
@@ -374,9 +402,14 @@ def _draft_consensus(season, schedules, data_dir, *, draft_picks=None):
         ecr_df, consensus_stats = _load_consensus(season, schedules, data_dir, draft_picks)
     ecr = dict(zip(ecr_df["player_id"], ecr_df["ecr"]))
     pool = ecr_df.rename(columns={"pos": "position"})[["position", "ecr"]]
-    replacement = flex_replacement_ranks(pool, LEAGUE_DEDICATED, LEAGUE_FLEX_SLOTS)
+    dedicated = LEAGUE_DEDICATED if league is None else league.dedicated
+    flex_slots = LEAGUE_FLEX_SLOTS if league is None else league.flex_slots
+    replacement = flex_replacement_ranks(pool, dedicated, flex_slots)
     try:
-        adp_df, adp_source = _load_adp(season, data_dir, draft_picks=draft_picks)
+        adp_df, adp_source = _load_adp(
+            season, data_dir, draft_picks=draft_picks,
+            teams=(12 if league is None else league.teams),
+            draftable_adp=(None if league is None else league.total_picks))
         adp = dict(zip(adp_df["player_id"], adp_df["adp"]))
     except Exception as exc:                     # noqa: BLE001 - overlay is optional
         print(f"ADP unavailable ({exc}); board builds without the market overlay")
@@ -404,6 +437,19 @@ def _make_predictor(args, features: pd.DataFrame):
 
 def main() -> None:
     args = parse_and_validate()
+    from ffmodel.league import load_league
+    from ffmodel.site.weekly import set_league_rules
+
+    # The contract this run publishes under, read once and threaded from here
+    # -- the board's replacement level, its value lens, its ADP rounds and its
+    # output filename all come from this object rather than from a constant.
+    # A missing slug raises (ffmodel.league): a board must never fall back to
+    # another league's shape.
+    cfg = load_league(args.league)
+    set_league_rules(cfg.rules)
+    print(f"league: {cfg.name} -- {cfg.teams} teams, {cfg.starters} starters, "
+          f"{cfg.total_picks} picks, pass_td {cfg.rules.pass_td}")
+
     from ffmodel.data.features import build_features
     from ffmodel.data.future import combined_future_features
     from ffmodel.data.pull import pull_schedules, pull_weekly
@@ -487,7 +533,8 @@ def main() -> None:
             draft_picks, args.data_dir)
 
         ecr, adp, replacement, adp_source, consensus_stats = _draft_consensus(
-            args.season, schedules, args.data_dir, draft_picks=draft_picks)
+            args.season, schedules, args.data_dir, draft_picks=draft_picks,
+            league=cfg)
 
     latest_season = int(weekly["season"].max())
     latest_week = int(weekly[weekly["season"] == latest_season]["week"].max())
@@ -521,7 +568,7 @@ def main() -> None:
             weekly, schedules, predictor, args.season, data_through, prefit=True,
             sleeper_players=sleeper_players, draft_picks=draft_picks,
             ecr=ecr, adp=adp, replacement_rank=replacement, returning=returning,
-            current_teams=current_teams)
+            current_teams=current_teams, league=cfg.payload(), teams=cfg.teams)
         # Provenance, same rule as adp_source and draft_gsis_canonicalized
         # below: this override silently rewrites an input the model is
         # sensitive to, so how far it reached must be inspectable on the
@@ -549,7 +596,11 @@ def main() -> None:
         # adp_source above: a silent data repair is a bug, so it must be
         # inspectable.
         board_payload["consensus"] = consensus_stats
-        payloads["draft.json"] = _attach_late_slots(board_payload, args.season, args.data_dir)
+        # Keyed by the config: Gabagool keeps `draft.json` (its published URL
+        # and the site's default fetch), every other league gets its own file
+        # and can never overwrite another league's board.
+        payloads[cfg.board_file] = _attach_late_slots(
+            board_payload, args.season, args.data_dir, teams=cfg.teams)
     backtests = require_backtests(sorted(Path("models/backtests").glob("*.json")))
     payloads["about.json"] = build_about(backtests, data_through, site_model=predictor.name)
 

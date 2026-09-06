@@ -782,3 +782,49 @@ def test_board_without_the_override_keeps_the_last_played_team():
                               2023, "2023-wk6", weeks=range(7, 9))
     p1 = [p for p in board["players"] if p["player_id"] == "p1"][0]
     assert p1["team"] == "AAA"
+
+
+def test_finalize_board_embeds_the_league_block_only_when_given():
+    """`league` is the contract the browser reads to know what the board was
+    valued under -- and it must appear ONLY when a league is passed, so the
+    eval harness and the board backtests keep emitting exactly the payload
+    they emit today. `teams` rides the same call into `adp_round`: pick 11 is
+    round 2 in a 10-team league and round 1 in a 12-team one.
+    """
+    from ffmodel.site.draft import _finalize_board
+    players = pd.DataFrame({
+        "player_id": ["rb0"], "name": "x", "team": "AAA", "position": ["RB"],
+        "ppr_p50": [300.0], "ppr_p10": np.nan, "ppr_p90": np.nan,
+        "half_ppr_p50": [300.0], "half_ppr_p10": np.nan, "half_ppr_p90": np.nan,
+        "standard_p50": [300.0], "standard_p10": np.nan, "standard_p90": np.nan,
+        "league_p50": [300.0], "league_p10": np.nan, "league_p90": np.nan,
+        "games": 17, "bye": None,
+    })
+    kwargs = dict(model="m", season=2026, data_through="2025-01-05",
+                  has_bands=False, adp={"rb0": 11.0},
+                  replacement_rank={"RB": 1})
+
+    default = _finalize_board(players.copy(), **kwargs)
+    assert "league" not in default, (
+        "an unconfigured caller must produce the payload it produces today")
+    assert default["players"][0]["adp_round"] == 1
+
+    block = {"slug": "fam", "teams": 10, "total_picks": 140}
+    fam = _finalize_board(players.copy(), league=block, teams=10, **kwargs)
+    assert fam["league"] == block
+    assert fam["players"][0]["adp_round"] == 2
+    json.dumps(fam, allow_nan=False)
+
+
+def test_build_draft_board_forwards_the_league_contract():
+    # The kwarg crosses build_draft_board -> _finalize_board; a board built
+    # for a league must SAY which league, on the artifact itself.
+    weekly = _history()
+    block = {"slug": "fam", "teams": 10, "total_picks": 140}
+    board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9),
+                              league=block, teams=10)
+    assert board["league"] == block
+    plain = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
+                              2023, "2023-10-15", weeks=range(7, 9))
+    assert "league" not in plain
