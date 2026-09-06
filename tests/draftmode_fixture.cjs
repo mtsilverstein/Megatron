@@ -461,6 +461,18 @@ assert.strictEqual(D.lateSlotNeed(roster(12), 10, NaN, "u1", LATE), null);
                      "a genuinely flat slate stopped being reported flat");
 }
 
+// Wait on the OBSERVABLE, not on a guessed number of event-loop turns: a
+// panel's render is however many async hops deep it happens to be today, and
+// a fixture that encodes that depth breaks the next time a hop is added.
+// Shared by every fake-DOM block below -- do not define a second copy.
+const until = async (pred, what, ms = 2000) => {
+  const t0 = Date.now();
+  while (!pred()) {
+    if (Date.now() - t0 > ms) throw new Error(`timed out waiting for ${what}`);
+    await new Promise(r => setImmediate(r));
+  }
+};
+
 /* --- reconnecting to an UNCHANGED draft must rebuild the board -----------
    The panel renders only when the pick log's fingerprint changes. Disconnect
    clears the displayed state (state.drafted, roster, ticker); if it does not
@@ -504,18 +516,14 @@ assert.strictEqual(D.lateSlotNeed(roster(12), 10, NaN, "u1", LATE), null);
     { pick_no: 2, draft_slot: 2, player_id: "4034", picked_by: "them" },
   ];
 
-  // Wait on the OBSERVABLE, not on a guessed number of event-loop turns: the
-  // panel's render is however many async hops deep it happens to be today, and
-  // a fixture that encodes that depth breaks the next time a hop is added.
-  const until = async (pred, what, ms = 2000) => {
-    const t0 = Date.now();
-    while (!pred()) {
-      if (Date.now() - t0 > ms) throw new Error(`timed out waiting for ${what}`);
-      await new Promise(r => setImmediate(r));
-    }
-  };
-
-  (async () => {
+  // Exposed (via `var`, function-scoped in this CommonJS module) so the next
+  // block can wait for this one to fully settle before it touches the SAME
+  // module-singleton `cfg`/`session`/`SLEEPER` -- draftmode.js supports one
+  // live session at a time by design, so two of these fixture blocks running
+  // with overlapping in-flight async work would corrupt each other: the
+  // second block's D.init() reassigns cfg out from under the first block's
+  // still-pending connect() before it ever gets to read it back.
+  var reconnectFixtureDone = (async () => {
     els.idInput.value = "D1234567";
     await handlers.connectId();
     await until(() => last && last.drafted.size === 2,
@@ -543,6 +551,99 @@ assert.strictEqual(D.lateSlotNeed(roster(12), 10, NaN, "u1", LATE), null);
                 "reconnecting WITH a username to pick up your roster");
 
     handlers.disconnect();   // stops the poll chain + heartbeat so node exits
+  })();
+  reconnectFixtureDone.catch(e => { console.error(e.message); process.exit(1); });
+}
+
+/* --- one browser, two leagues --------------------------------------------
+   The stored session lived under a single global key with no league in it, so
+   connecting to one league's draft left the OTHER league's page auto-restoring
+   it on load -- a FAM draft resurrected on the Gabagool board on draft night.
+   And a draft id pasted into the wrong board was accepted silently, optimizing
+   a 10-team draft against 12-team VORP with nothing on screen to say so. */
+{
+  (async () => {
+    // Must not start touching cfg/session/SLEEPER until the previous block's
+    // async chain has fully settled -- see the comment on reconnectFixtureDone.
+    await reconnectFixtureDone;
+
+    const store = new Map();
+    global.localStorage = {
+      getItem: k => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => store.set(k, String(v)),
+      removeItem: k => store.delete(k),
+    };
+    const GAB = { slug: "gabagool", name: "Gabagool Fools", teams: 12, rounds: 15,
+                  roster: { QB: 1, RB: 2, WR: 2, TE: 1 }, flex: 2,
+                  flex_positions: ["RB", "WR", "TE"], starters: 8,
+                  total_picks: 180, depth_cap: { QB: 2, RB: 6, WR: 6, TE: 2 },
+                  keeper_rules: "gabagool" };
+
+    const el = () => ({
+      value: "", textContent: "", innerHTML: "", hidden: false, checked: false,
+      open: false, addEventListener() {}, querySelectorAll: () => [],
+    });
+    const els = {
+      connect: el(), connectId: el(), disconnect: el(), find: el(), hide: el(),
+      idInput: el(), late: el(), list: el(), live: el(), note: el(),
+      picksCount: el(), roster: el(), shortlist: el(), status: el(),
+      ticker: el(), username: el(),
+    };
+    const handlers = {};
+    for (const [name, node] of Object.entries(els)) {
+      node.addEventListener = (ev, fn) => { if (ev === "click") handlers[name] = fn; };
+    }
+    const board = {
+      league: GAB,
+      players: [
+        { player_id: "a", sleeper_id: "9509", name: "P1", position: "RB", adp: 1,
+          bye: 5, value_points: 300, vorp: 90, position_rank: 1 },
+        { player_id: "b", sleeper_id: "4034", name: "P2", position: "WR", adp: 2,
+          bye: 7, value_points: 290, vorp: 85, position_rank: 1 },
+      ],
+    };
+    let last = null;
+    D.init({ board, els, onUpdate: (st) => { last = st; } });
+
+    // A session belonging to the OTHER league, already in storage.
+    store.set("fc-draft-mode:fam", JSON.stringify({ draftId: "FAM1" }));
+
+    SLEEPER.picks = [
+      { pick_no: 1, draft_slot: 1, player_id: "9509", picked_by: "them" },
+      { pick_no: 2, draft_slot: 2, player_id: "4034", picked_by: "them" },
+    ];
+
+    // 1. A draft whose shape disagrees with the board is REFUSED.
+    SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
+                      settings: { rounds: 14, teams: 10 }, draft_order: {} };
+    els.idInput.value = "D1234567";
+    await handlers.connectId();
+    await until(() => /10 teams/.test(els.status.textContent),
+                "the mismatched draft to be refused by name");
+    assert.strictEqual(last && last.connected, false,
+      "a 10-team draft was accepted on a 12-team board");
+    assert.ok(/Gabagool Fools/.test(els.status.textContent),
+      "the refusal did not name the board's own league");
+
+    // 2. A matching draft connects, and stores under a LEAGUE-SCOPED key.
+    SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
+                      settings: { rounds: 15, teams: 12 }, draft_order: {} };
+    await handlers.connectId();
+    await until(() => last && last.drafted.size === 2, "the matching draft to connect");
+    assert.ok(store.has("fc-draft-mode:gabagool"),
+      "the session was not stored under a league-scoped key");
+    assert.ok(!store.has("fc-draft-mode"),
+      "still writing the un-scoped global session key");
+
+    // 3. The other league's stored session is untouched, and would not be
+    //    restored onto this board.
+    assert.strictEqual(JSON.parse(store.get("fc-draft-mode:fam")).draftId, "FAM1",
+      "connecting on one board clobbered the other league's saved session");
+
+    handlers.disconnect();
+    assert.ok(!store.has("fc-draft-mode:gabagool"), "disconnect left the session stored");
+    assert.ok(store.has("fc-draft-mode:fam"),
+      "disconnecting one league removed the OTHER league's session");
     console.log("draftmode_fixture: OK");
   })().catch(e => { console.error(e.message); process.exit(1); });
 }

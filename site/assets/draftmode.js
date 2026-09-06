@@ -5,7 +5,12 @@ window.DraftMode = (() => {
   const Sleeper = (typeof window !== "undefined" && window.Sleeper)
     ? window.Sleeper
     : (typeof require !== "undefined" ? require("./sleeper.js") : null);
-  const STORE_KEY = "fc-draft-mode";
+  // Was the bare "fc-draft-mode". One key across every league meant connecting
+  // to one league's draft left the OTHER league's page auto-restoring it on
+  // load -- a FAM draft resurrected on the Gabagool board on draft night.
+  const STORE_KEY_BASE = "fc-draft-mode";
+  const storeKey = () => `${STORE_KEY_BASE}:${(cfg && cfg.board && cfg.board.league
+                                                && cfg.board.league.slug) || "default"}`;
   const POLL_MS = 3000, MAX_BACKOFF_MS = 30000;
   // Four missed polls. Past this the board may be behind the draft, and on
   // draft day a board you cannot trust is worse than one that admits it.
@@ -123,6 +128,19 @@ window.DraftMode = (() => {
       if (!draft || !draft.draft_id) throw new Error("draft not found");
       const s = draft.settings || {};
       const order = draft.draft_order || {};
+      // A draft whose SHAPE disagrees with the board is the wrong draft for
+      // this page. Accepting it would optimize one league's picks against
+      // another league's VORP and replacement level, and nothing on screen
+      // would say so. Refuse instead.
+      const lg = cfg.board && cfg.board.league;
+      if (lg && s.teams && s.rounds
+          && (s.teams !== lg.teams || s.rounds !== lg.rounds)) {
+        setStatus(`that draft is ${s.teams} teams x ${s.rounds} rounds; `
+                  + `this board is built for ${lg.name} `
+                  + `(${lg.teams} x ${lg.rounds}) — open that league's board instead`);
+        emit();          // tell the caller the refusal, not just the status line
+        return;
+      }
       session = { username, userId, draftId,
                   totalPicks: (s.rounds || 0) * (s.teams || 0),
                   slot: (userId && order[userId]) || null,
@@ -134,7 +152,7 @@ window.DraftMode = (() => {
       lastSyncAt = 0;
       syncNote = "";
       startHeartbeat();
-      localStorage.setItem(STORE_KEY, JSON.stringify({ username, userId, draftId }));
+      localStorage.setItem(storeKey(), JSON.stringify({ username, userId, draftId }));
       state.connected = true;
       if (username) cfg.els.username.value = username;   // survives a reload
       // Keep the connect row up when we don't know WHO you are — the shortlist
@@ -154,7 +172,7 @@ window.DraftMode = (() => {
     clearTimeout(timer);
     clearInterval(heartbeat);
     heartbeat = null;
-    localStorage.removeItem(STORE_KEY);
+    localStorage.removeItem(storeKey());
     session = null;
     state.connected = false;
     state.drafted = new Set();
@@ -763,7 +781,7 @@ window.DraftMode = (() => {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden && session) startPolling();  // supersedes any pending chain
     });
-    const stored = localStorage.getItem(STORE_KEY);
+    const stored = localStorage.getItem(storeKey());
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
@@ -771,9 +789,9 @@ window.DraftMode = (() => {
           document.getElementById("draft-panel").open = true;
           connect(parsed.username, parsed.userId, parsed.draftId);
         } else {
-          localStorage.removeItem(STORE_KEY);   // incomplete blob: clear, don't 404
+          localStorage.removeItem(storeKey());   // incomplete blob: clear, don't 404
         }
-      } catch (e) { localStorage.removeItem(STORE_KEY); }
+      } catch (e) { localStorage.removeItem(storeKey()); }
     }
   }
 
