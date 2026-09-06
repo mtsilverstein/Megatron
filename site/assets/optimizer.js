@@ -64,9 +64,12 @@
   if (typeof module !== "undefined" && module.exports) module.exports = O;
 })(this, function () {
   // --- league contract -------------------------------------------------------
-  const DEDICATED = { QB: 1, RB: 2, WR: 2, TE: 1 };
-  const FLEX_SLOTS = 2;
-  const FLEX_POS = ["RB", "WR", "TE"];
+  // DEFAULTS are Gabagool Fools', the league this board was built for, so any
+  // consumer that never calls configure() -- trade.js, draft_sim.cjs,
+  // replay_draft.cjs, the fixtures -- behaves exactly as it always has.
+  let DEDICATED = { QB: 1, RB: 2, WR: 2, TE: 1 };
+  let FLEX_SLOTS = 2;                 // PER TEAM (the payload's `flex`)
+  let FLEX_POS = ["RB", "WR", "TE"];
   const POSITIONS = ["QB", "RB", "WR", "TE"];
   const SHORTLIST_N = 5;
   const SHORTLIST_PER_POS = 2;   // display spread; see shortlistSpread
@@ -100,7 +103,7 @@
   // them does not change the shortlist on the live board.
   const CANDIDATE_PER_POS = 10;  // scored at the live pick (<= 40 candidates)
   const ROLLOUT_PER_POS = 6;     // considered at each simulated pick
-  const ROLLOUT_PICKS = 8;       // your own future picks simulated (= starters)
+  let ROLLOUT_PICKS = 8;         // your own future picks simulated (= starters)
 
   // Season-point resolution below which two candidates are the SAME PICK.
   //
@@ -152,7 +155,7 @@
   // flex slots as well, so depth there keeps its value much longer.
   // This ONLY breaks ties. A player over the cap still wins outright whenever
   // he genuinely improves the lineup.
-  const DEPTH_CAP = { QB: 2, RB: 6, WR: 6, TE: 2 };
+  let DEPTH_CAP = { QB: 2, RB: 6, WR: 6, TE: 2 };
 
   // Best `perPos` at each position, merged and left in value order.
   function topCandidates(ranked, perPos) {
@@ -665,6 +668,36 @@
     return roundsLeft <= needed + LATE_SLACK;
   }
 
+  /* Point the optimizer at a league. `league` is the block the board payload
+     carries, so the roster shape can never disagree with the VORP the board
+     was valued under -- they ship together.
+
+     This mutates module state, which is a smell. It was chosen over threading
+     a config through every signature in this file because that is a large
+     diff on the code path a live draft depends on. Every consumer that does
+     not call this keeps the Gabagool defaults above. */
+  function configure(league) {
+    if (!league || typeof league !== "object") {
+      throw new TypeError("Optimizer.configure: expected the board's `league` block");
+    }
+    for (const key of ["roster", "flex", "flex_positions", "starters", "depth_cap"]) {
+      if (league[key] == null) {
+        throw new TypeError(`Optimizer.configure: league block is missing \`${key}\``);
+      }
+    }
+    DEDICATED = Object.assign({}, league.roster);
+    FLEX_SLOTS = league.flex;          // PER TEAM -- not the league-wide count
+    FLEX_POS = league.flex_positions.slice();
+    ROLLOUT_PICKS = league.starters;
+    DEPTH_CAP = Object.assign({}, league.depth_cap);
+  }
+
+  // The current contract, for tests and for the panel to display.
+  function leagueConfig() {
+    return { DEDICATED: Object.assign({}, DEDICATED), FLEX_SLOTS, ROLLOUT_PICKS,
+             FLEX_POS: FLEX_POS.slice(), DEPTH_CAP: Object.assign({}, DEPTH_CAP) };
+  }
+
   return { seasonValue, withValuePoints, perWeek, rosterSlots, openSlot,
            bestLineup, lineupTotal, lineupPoints, fieldTakes, finishRoster,
            openSlots, lineupRole, adpDelta, byeClash, nextAtPosition, recommend,
@@ -674,5 +707,5 @@
            lateSlotTrigger,
            DEDICATED, FLEX_SLOTS, FLEX_POS, POSITIONS, SHORTLIST_N, WEEKS,
            LATE_SLACK, CANDIDATE_PER_POS, ROLLOUT_PER_POS, ROLLOUT_PICKS, TIE_POINTS, DEPTH_CAP, topCandidates,
-           FLEX_WEIGHT, BENCH_WEIGHT };
+           FLEX_WEIGHT, BENCH_WEIGHT, configure, leagueConfig };
 });

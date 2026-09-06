@@ -834,4 +834,49 @@ check("openPicksBetween rejects a non-Set `used` instead of degrading", () => {
   assert.strictEqual(O.openPicksBetween(10, 20), 9);
 });
 
+/* --- league configuration -------------------------------------------------
+   configure() exists so one optimizer serves more than one league. Two
+   properties matter and are asserted separately: configuring with Gabagool's
+   OWN values must be a no-op (this is what makes the change safe for the
+   2026-09-08 draft), and configuring with a different shape must actually
+   change the lineup arithmetic. */
+{
+  const GABAGOOL = {
+    slug: "gabagool", teams: 12, roster: { QB: 1, RB: 2, WR: 2, TE: 1 },
+    flex: 2, flex_positions: ["RB", "WR", "TE"], rounds: 15, starters: 8,
+    total_picks: 180, depth_cap: { QB: 2, RB: 6, WR: 6, TE: 2 },
+    keeper_rules: "gabagool",
+  };
+  const FAM = {
+    slug: "fam", teams: 10, roster: { QB: 1, RB: 2, WR: 2, TE: 1 },
+    flex: 1, flex_positions: ["RB", "WR", "TE"], rounds: 14, starters: 7,
+    total_picks: 140, depth_cap: { QB: 2, RB: 5, WR: 5, TE: 2 },
+  };
+  const roster = (pos) => pos.map((p, i) => (
+    { player_id: `x${i}`, position: p, value_points: 200 - i, vorp: 50 - i }));
+
+  // A lineup with 2 RB + 2 WR + 1 QB + 1 TE fills both Gabagool flex slots
+  // only if two more flex-eligible players are present.
+  const held = roster(["QB", "RB", "RB", "WR", "WR", "TE"]);
+
+  const beforeDefault = O.openSlots(held);
+  assert.deepStrictEqual(beforeDefault, ["FLEX", "FLEX"],
+    "default build no longer starts 2 FLEX -- the module defaults moved");
+
+  O.configure(GABAGOOL);
+  assert.deepStrictEqual(O.openSlots(held), beforeDefault,
+    "configure() with Gabagool's own values changed behaviour -- it must be a no-op");
+  assert.strictEqual(O.leagueConfig().ROLLOUT_PICKS, 8);
+
+  O.configure(FAM);
+  assert.deepStrictEqual(O.openSlots(held), ["FLEX"],
+    "a 1-flex league still reported 2 open flex slots");
+  assert.strictEqual(O.leagueConfig().ROLLOUT_PICKS, 7,
+    "ROLLOUT_PICKS is documented as the starter count; FAM starts 7");
+  assert.strictEqual(O.leagueConfig().DEPTH_CAP.RB, 5);
+
+  O.configure(GABAGOOL);   // restore for any test that follows
+  assert.deepStrictEqual(O.openSlots(held), beforeDefault);
+}
+
 console.log(`optimizer fixture: ${n} groups OK`);
