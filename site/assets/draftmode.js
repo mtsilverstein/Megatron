@@ -25,6 +25,7 @@ window.DraftMode = (() => {
   let session = null;   // {username, userId, draftId, totalPicks}
   let timer = null, backoff = POLL_MS;
   let lastPickSig = null;
+  let roundsNote = "";   // set at connect; see the shape check there
   let pollSeq = 0;       // generation token: bumped to silently retire stale poll chains
   let statusChecks = 0;     // draft-complete fallback when settings lack rounds/teams
   // Freshness, shown in the status line. A tool that says "live" has to be able
@@ -133,14 +134,29 @@ window.DraftMode = (() => {
       // another league's VORP and replacement level, and nothing on screen
       // would say so. Refuse instead.
       const lg = cfg.board && cfg.board.league;
-      if (lg && s.teams && s.rounds
-          && (s.teams !== lg.teams || s.rounds !== lg.rounds)) {
-        setStatus(`that draft is ${s.teams} teams x ${s.rounds} rounds; `
-                  + `this board is built for ${lg.name} `
-                  + `(${lg.teams} x ${lg.rounds}) — open that league's board instead`);
+      // TEAMS is the hard one. Replacement level, and therefore every VORP,
+      // tier and position_rank on this board, was computed for `lg.teams`
+      // seats. Connecting a draft with a different count means optimizing one
+      // league's picks against another league's value curve, with nothing on
+      // screen to say so. Refuse.
+      if (lg && s.teams && s.teams !== lg.teams) {
+        setStatus(`that draft is ${s.teams} teams; this board is built for `
+                  + `${lg.name} (${lg.teams} teams, ${lg.rounds} rounds) — `
+                  + `open that league's board instead`);
         emit();          // tell the caller the refusal, not just the status line
         return;
       }
+      // ROUNDS only warns. The panel's own pick math reads `rounds` off the
+      // SLEEPER draft object below, not off the board, so a changed round
+      // count stays correct where it matters; only the board's display bound
+      // for "inside the drafted range" goes stale. Refusing here would lock
+      // the tool out of a live draft because a commissioner added a round the
+      // week of the draft -- a far worse failure than a slightly wide bound.
+      roundsNote = (lg && s.rounds && s.rounds !== lg.rounds)
+        ? `note: this draft is ${s.rounds} rounds, the board assumes `
+          + `${lg.rounds} — picks and the shortlist are unaffected, only the `
+          + `"inside the draft" pick comparison reads long`
+        : "";
       session = { username, userId, draftId,
                   totalPicks: (s.rounds || 0) * (s.teams || 0),
                   slot: (userId && order[userId]) || null,
@@ -642,10 +658,17 @@ window.DraftMode = (() => {
 
   function unmatchedNote() {
     const cw = cfg.board.crosswalk;
+    const lines = [];
     if (cw && cw.unmatched > 0) {
+      lines.push(`heads up: ${cw.unmatched} board player(s) have no Sleeper `
+                 + `mapping and will never strike`);
+    }
+    // Appended, not assigned: a round-count warning must not silently replace
+    // the crosswalk advisory, which is the one that explains missing strikes.
+    if (roundsNote) lines.push(roundsNote);
+    if (lines.length) {
       cfg.els.note.hidden = false;
-      cfg.els.note.textContent =
-        `heads up: ${cw.unmatched} board player(s) have no Sleeper mapping and will never strike`;
+      cfg.els.note.textContent = lines.join(" · ");
     }
   }
 

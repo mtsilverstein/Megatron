@@ -613,7 +613,8 @@ const until = async (pred, what, ms = 2000) => {
       { pick_no: 2, draft_slot: 2, player_id: "4034", picked_by: "them" },
     ];
 
-    // 1. A draft whose shape disagrees with the board is REFUSED.
+    // 1. A draft with a different TEAM COUNT is REFUSED: replacement level,
+    //    and so every VORP on this board, was computed for 12 seats.
     SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
                       settings: { rounds: 14, teams: 10 }, draft_order: {} };
     els.idInput.value = "D1234567";
@@ -624,6 +625,22 @@ const until = async (pred, what, ms = 2000) => {
       "a 10-team draft was accepted on a 12-team board");
     assert.ok(/Gabagool Fools/.test(els.status.textContent),
       "the refusal did not name the board's own league");
+
+    // 1b. A ROUNDS-only difference must CONNECT, with a note. The panel reads
+    //     `rounds` off the Sleeper draft object, so its pick math stays right;
+    //     only the board's "inside the draft" display bound goes stale.
+    //     Refusing here would lock the tool out of a live draft because a
+    //     commissioner added a round the week of the draft -- and this
+    //     league's commissioner has already moved the date once.
+    SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
+                      settings: { rounds: 16, teams: 12 }, draft_order: {} };
+    await handlers.connectId();
+    await until(() => last && last.connected === true,
+                "a rounds-only mismatch to connect rather than be refused");
+    assert.ok(/16 rounds/.test(els.note.textContent),
+      "connected on a different round count without saying so");
+    assert.ok(!els.note.hidden, "the round-count note was left hidden");
+    handlers.disconnect();
 
     // 2. A matching draft connects, and stores under a LEAGUE-SCOPED key.
     SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
