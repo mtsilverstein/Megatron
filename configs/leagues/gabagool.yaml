@@ -1,0 +1,18 @@
+# Gabagool Fools. Verified from api.sleeper.app/v1/league/<id> 2026-09-05.
+# `roster` and `flex` are PER TEAM; league-wide counts are derived.
+name: Gabagool Fools
+league_id: "1376245373244301312"
+teams: 12
+roster: {QB: 1, RB: 2, WR: 2, TE: 1}
+flex: 2
+flex_positions: [RB, WR, TE]
+rounds: 15
+# Full PPR with SIX-point passing TDs. See ffmodel/scoring.py: measured on
+# 2023-25 actuals this moves the top 24 QBs +46 to +50 points a season and
+# reorders 4-8 of the top twelve, so it is a reordering, not a rescale.
+scoring: {reception: 1.0, pass_td: 6.0}
+# Shipped values, copied verbatim. A JUDGEMENT CALL, not a derivation: you
+# start one QB and one TE so a second is bye cover, while RB and WR also fill
+# the two flex slots and keep their depth value longer. Ties only.
+depth_cap: {QB: 2, RB: 6, WR: 6, TE: 2}
+keeper_rules: gabagool

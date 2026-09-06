@@ -1,0 +1,21 @@
+# FAM FOOTBALL. Verified from api.sleeper.app/v1/league/<id> 2026-09-05.
+# Rolling waivers (waiver_type 0), 1 keeper, K + DEF rostered but unprojected.
+name: FAM FOOTBALL
+league_id: "1389736745205002240"
+teams: 10
+roster: {QB: 1, RB: 2, WR: 2, TE: 1}
+flex: 1
+flex_positions: [RB, WR, TE]
+rounds: 14
+# PPR with FOUR-point passing TDs and -1 per interception. Every other
+# skill-position weight matches Gabagool. FAM carries none of the bonus
+# categories the model cannot predict (50-yard TD bonuses, pick-sixes), so
+# this is an exact representation rather than an approximation.
+scoring: {reception: 1.0, pass_td: 4.0, interception: -1.0}
+# Gabagool's caps with RB and WR dropped by one, because optimizer.js's own
+# comment reasons from "RB and WR fill the two flex slots as well" and FAM has
+# one flex slot. UNMEASURED. Breaks ties only -- a player over the cap still
+# wins outright whenever he improves the lineup.
+depth_cap: {QB: 2, RB: 5, WR: 5, TE: 2}
+# keeper_rules deliberately omitted: FAM allows 1 keeper but its cost rule is
+# not known to this project, and keepers.js implements Gabagool's ladder only.
