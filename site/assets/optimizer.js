@@ -640,9 +640,38 @@
        treatment, and diff it against the committed one before trusting either
        -- a file's mtime tracks the last `git checkout`, not its content.
 
-       Still untested: a NARROW rule keyed on a currently EMPTY starting slot,
-       rather than on `role` or on the objective. Both attempts above were
-       broad. Do not re-add either without beating the numbers above. */
+       ATTEMPT 3 (2026-09-07), the narrow one, and the clearest loss of the
+       three: prefer a candidate whose position still has an unfilled DEDICATED
+       slot -- silent once every mandatory slot is taken, so it cannot speak in
+       the late rounds where attempts 1 and 2 did their damage. This is the
+       complaint stated as precisely as it can be: "an empty starting slot
+       should be filled." It fixes pick 34 and leaves picks 94 and 147 alone.
+
+         Gabagool  full -14.5 pts/draft, 5 of 5 seasons negative, 175/480
+                   drafts changed, season-level 95% CI [-33.7, +4.7]
+         FAM       full -17.0 pts/draft, 5 of 5 seasons negative, 166/400
+                   drafts changed, season-level 95% CI [-24.4, -9.7]
+
+       FAM's interval EXCLUDES ZERO -- the only significant result in this
+       whole line of work, and it says the rule is harmful. Every one of the
+       ten league-season cells is negative. The median draft is unchanged
+       (+0.0), which is why the signal is clean rather than despite it: the
+       ~60% of drafts the rule never touches contribute no variance, so the
+       seasons agree instead of drowning each other out. Narrowing the rule did
+       not rescue it; it sharpened the evidence against it.
+       Artifacts: narrow_{gab,fam}_TREAT_narrow.json against the same controls.
+
+       THE CONCLUSION, after three attempts from three directions: do not
+       re-rank band-tied candidates by how well they fit the PROJECTED lineup.
+       The projected lineup is not what a roster is scored on. The realized
+       flex gets filled by somebody every week, so passing on a higher-ceiling
+       player to slot a nominal starter trades away upside for a tidiness the
+       scoring never pays for. VORP survives here not because it is correctly
+       specified -- it is not, for a filled slot -- but because it is the only
+       term in the chain that prices upside the projection cannot see.
+
+       Anyone reopening this needs a NEW hypothesis, not a fourth phrasing of
+       "prefer the starter", and a same-session control (see above). */
     scored.sort((a, b) => {
       const ta = inTopBand(a), tb = inTopBand(b);
       if (ta !== tb) return ta ? -1 : 1;          // the band the model can see
