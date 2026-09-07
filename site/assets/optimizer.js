@@ -31,6 +31,19 @@
         bonus for REACHING: Loveland, ADP 41, drew +5.34 at pick 30. Market
         mispricing is now an INDICATOR (`adpDelta`), never a score term.
 
+        READ THAT NARROWLY. It says `adpDelta` is not a score term. It does
+        NOT say the optimizer ignores ADP -- ADP is how `fieldTakes` models
+        the field, which drives `survivesToNextPick`, `waitCost` and the whole
+        `finishRoster` rollout. So ADP does not set what a player is WORTH,
+        but it predicts whether he is still THERE, and that moves picks.
+        Measured 2026-09-07 by mutation on a real mock: changing nothing but
+        ADP moved 9 of 33 top recommendations, and forcing Trey McBride's ADP
+        from 24 to 150 flipped pick 14 off him entirely -- correctly, since a
+        player who would last to your next pick is one you should not spend
+        this one on. Anyone quoting the line above as "the tool never uses
+        ADP" is wrong; that mistake was made in this project and cost a
+        confident, wrong explanation to the user mid-draft-prep.
+
    The objective
    -------------
    score(X) = the projected points of the best STARTING LINEUP you can still
