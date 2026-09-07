@@ -146,6 +146,35 @@ window.DraftMode = (() => {
         emit();          // tell the caller the refusal, not just the status line
         return;
       }
+      // ROSTER SHAPE is the other hard one, and the guard originally missed it.
+      // Sleeper publishes the starting lineup right here as slots_qb/rb/wr/te
+      // and slots_flex, and it is what the optimizer builds every lineup
+      // against: openSlots, the rollout, "still need", the whole shortlist. A
+      // standalone Sleeper mock takes DEFAULTS rather than a league's settings
+      // -- measured 2026-09-07, a 10-team mock for a 1-flex league came back
+      // with slots_flex 2 -- so matching `teams` alone is not enough to know
+      // you are looking at the same game. Optimizing a 7-man lineup for a
+      // draft that starts 8 produced a real, visibly wrong roster: three QBs
+      // in a one-QB league.
+      const SLOT_KEYS = { QB: "slots_qb", RB: "slots_rb", WR: "slots_wr", TE: "slots_te" };
+      if (lg && lg.roster) {
+        const wrong = [];
+        for (const [pos, key] of Object.entries(SLOT_KEYS)) {
+          if (s[key] != null && s[key] !== lg.roster[pos]) {
+            wrong.push(`${pos} ${s[key]}≠${lg.roster[pos]}`);
+          }
+        }
+        if (s.slots_flex != null && lg.flex != null && s.slots_flex !== lg.flex) {
+          wrong.push(`FLEX ${s.slots_flex}≠${lg.flex}`);
+        }
+        if (wrong.length) {
+          setStatus(`that draft starts a different lineup (${wrong.join(", ")}) than `
+                    + `${lg.name}'s board was built for — every recommendation would `
+                    + `target the wrong lineup, so this board will not drive it`);
+          emit();
+          return;
+        }
+      }
       // ROUNDS only warns. The panel's own pick math reads `rounds` off the
       // SLEEPER draft object below, not off the board, so a changed round
       // count stays correct where it matters; only the board's display bound

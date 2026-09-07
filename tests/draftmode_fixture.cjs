@@ -510,7 +510,9 @@ const until = async (pred, what, ms = 2000) => {
   D.init({ board, els, onUpdate: (st) => { last = st; } });
 
   SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
-                    settings: { rounds: 15, teams: 12 }, draft_order: {} };
+                    settings: { rounds: 15, teams: 12, slots_qb: 1, slots_rb: 2,
+                                  slots_wr: 2, slots_te: 1, slots_flex: 2 },
+                      draft_order: {} };
   SLEEPER.picks = [
     { pick_no: 1, draft_slot: 1, player_id: "9509", picked_by: "them" },
     { pick_no: 2, draft_slot: 2, player_id: "4034", picked_by: "them" },
@@ -626,6 +628,25 @@ const until = async (pred, what, ms = 2000) => {
     assert.ok(/Gabagool Fools/.test(els.status.textContent),
       "the refusal did not name the board's own league");
 
+    // 1a. A different STARTING LINEUP is refused even when the team count
+    //     matches. A standalone Sleeper mock takes defaults rather than a
+    //     league's settings, so a 10-team mock for a 1-flex league comes back
+    //     with slots_flex 2 -- measured on a real mock, 2026-09-07. The
+    //     optimizer builds every lineup against the board's roster shape, so
+    //     connecting there optimized a 7-man lineup for a draft starting 8
+    //     and produced three QBs in a one-QB league.
+    SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
+                      settings: { rounds: 15, teams: 12, slots_qb: 1, slots_rb: 2,
+                                  slots_wr: 2, slots_te: 1, slots_flex: 3 },
+                      draft_order: {} };
+    await handlers.connectId();
+    await until(() => /different lineup/.test(els.status.textContent),
+                "a mismatched starting lineup to be refused");
+    assert.ok(/FLEX 3/.test(els.status.textContent),
+      "the refusal did not name which slot disagreed");
+    assert.strictEqual(last && last.connected, false,
+      "a 3-flex draft was accepted on a 2-flex board");
+
     // 1b. A ROUNDS-only difference must CONNECT, with a note. The panel reads
     //     `rounds` off the Sleeper draft object, so its pick math stays right;
     //     only the board's "inside the draft" display bound goes stale.
@@ -633,7 +654,9 @@ const until = async (pred, what, ms = 2000) => {
     //     commissioner added a round the week of the draft -- and this
     //     league's commissioner has already moved the date once.
     SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
-                      settings: { rounds: 16, teams: 12 }, draft_order: {} };
+                      settings: { rounds: 16, teams: 12, slots_qb: 1, slots_rb: 2,
+                                  slots_wr: 2, slots_te: 1, slots_flex: 2 },
+                      draft_order: {} };
     await handlers.connectId();
     await until(() => last && last.connected === true,
                 "a rounds-only mismatch to connect rather than be refused");
@@ -644,7 +667,9 @@ const until = async (pred, what, ms = 2000) => {
 
     // 2. A matching draft connects, and stores under a LEAGUE-SCOPED key.
     SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
-                      settings: { rounds: 15, teams: 12 }, draft_order: {} };
+                      settings: { rounds: 15, teams: 12, slots_qb: 1, slots_rb: 2,
+                                  slots_wr: 2, slots_te: 1, slots_flex: 2 },
+                      draft_order: {} };
     await handlers.connectId();
     await until(() => last && last.drafted.size === 2, "the matching draft to connect");
     assert.ok(store.has("fc-draft-mode:gabagool"),
