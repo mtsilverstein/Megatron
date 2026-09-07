@@ -783,9 +783,17 @@ window.DraftMode = (() => {
     const names = key => lateSlotAvailable(
       (late[key] || []).map(r => r && r.name).filter(Boolean), key, taken
     ).slice(0, 3);
+    const need = [!haveK ? "K" : null, !haveDst ? "D/ST" : null].filter(Boolean);
     return {
-      need: [!haveK ? "K" : null, !haveDst ? "D/ST" : null].filter(Boolean),
+      need,
       roundsLeft,
+      // How many MORE picks can still go to skill players. The trigger fires
+      // with LATE_SLACK to spare, so "now" was overstating it by exactly that
+      // much: a real FAM mock spent picks 114 and 127 on K and D/ST when the
+      // deadline was 134 and 147, and finished with Jakobi Meyers and Woody
+      // Marks (vorp -17, -18) where waiting would have taken Wan'Dale Robinson
+      // and Rachaad White (-4, -6). Same trigger, honest deadline.
+      slack: Math.max(0, roundsLeft - need.length),
       K: haveK ? [] : names("K"),
       DST: haveDst ? [] : names("DST"),
     };
@@ -800,10 +808,17 @@ window.DraftMode = (() => {
       .filter(Boolean).join(" &nbsp;·&nbsp; ");
     const slots = need.need.length > 1 ? "slots" : "slot";
     const picks = need.roundsLeft === 1 ? "pick" : "picks";
-    return `<p class="draft-late-need">⚠ <strong>Draft ${esc(need.need.join(" + "))} `
-      + `now</strong> — ${need.need.length} required starting ${slots} still empty `
-      + `with ${need.roundsLeft} ${picks} left. <strong>The list below cannot `
-      + `suggest them</strong>: this board does not project K or D/ST.`
+    // Say the DEADLINE, not "now". Taking them the moment this appears burns
+    // `slack` picks that could still be skill players -- see lateSlotNeed.
+    const when = need.slack === 0
+      ? `<strong>Draft ${esc(need.need.join(" + "))} now</strong>`
+      : `<strong>Draft ${esc(need.need.join(" + "))} within your next `
+        + `${need.roundsLeft} picks</strong> — you can still take `
+        + `${need.slack} more skill player${need.slack === 1 ? "" : "s"} first`;
+    return `<p class="draft-late-need">⚠ ${when} — ${need.need.length} required `
+      + `starting ${slots} still empty with ${need.roundsLeft} ${picks} left. `
+      + `<strong>The list below cannot suggest them</strong>: this board does `
+      + `not project K or D/ST.`
       + (lists ? `<br><span class="draft-late-names">${lists} <em>— by ADP, not `
                  + `projected</em></span>` : "")
       + `</p>`;

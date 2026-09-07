@@ -343,6 +343,21 @@ const LATE = { K: [{ name: "Brandon Aubrey" }, { name: "Jason Myers" }],
 assert.ok(D.lateSlotNeed(roster(11), 10, 15, "u1", LATE), "no warning with 4 picks left");
 assert.strictEqual(D.lateSlotNeed(roster(10), 10, 15, "u1", LATE), null);
 
+/* `slack` is how many MORE picks can go to skill players before the remaining
+   slots have to be filled. The banner fires with LATE_SLACK to spare, so it
+   used to say "draft K + D/ST now" two picks before that was true: in a real
+   FAM mock that spent picks 114 and 127 on K and D/ST and left Jakobi Meyers
+   and Woody Marks (vorp -17, -18) as the last two picks, where waiting would
+   have taken Wan'Dale Robinson and Rachaad White (-4, -6) instead. Same
+   trigger, honest deadline. */
+assert.strictEqual(D.lateSlotNeed(roster(11), 10, 15, "u1", LATE).slack, 2);
+assert.strictEqual(D.lateSlotNeed(roster(12), 10, 15, "u1", LATE).slack, 1);
+assert.strictEqual(D.lateSlotNeed(roster(13), 10, 15, "u1", LATE).slack, 0,
+  "with exactly as many picks left as slots, there is no slack");
+assert.strictEqual(
+  D.lateSlotNeed(roster(11).concat([skill("K")]), 10, 15, "u1", LATE).slack, 2,
+  "one slot filled frees a pick: 3 left, 1 needed");
+
 // It names both slots, counts the picks left, and offers ADP-ranked names.
 const need2 = D.lateSlotNeed(roster(12), 10, 15, "u1", LATE);
 assert.deepStrictEqual(need2.need, ["K", "D/ST"]);
