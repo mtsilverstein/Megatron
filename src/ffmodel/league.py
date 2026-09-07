@@ -7,7 +7,7 @@ exists to make impossible.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import yaml
@@ -25,6 +25,14 @@ BOARD_RULESET = "league"
 _REQUIRED = ("name", "league_id", "teams", "roster", "flex", "flex_positions",
              "rounds", "scoring", "depth_cap")
 
+SLEEPER_RULE_FIELDS = {
+    "pass_yd": "pass_yd", "pass_td": "pass_td", "pass_int": "interception",
+    "pass_int_td": "pass_int_td", "rush_yd": "rush_yd", "rush_td": "rush_td",
+    "rec_yd": "rec_yd", "rec_td": "rec_td", "rec": "reception",
+    "fum_lost": "fumble_lost", "pass_2pt": "two_point",
+    "rush_2pt": "two_point", "rec_2pt": "two_point", "st_td": "st_td",
+}
+
 
 @dataclass(frozen=True)
 class LeagueConfig:
@@ -39,6 +47,7 @@ class LeagueConfig:
     scoring: dict[str, float]
     depth_cap: dict[str, int]
     keeper_rules: str | None = None
+    sleeper_scoring: dict[str, float] | None = None
 
     @property
     def dedicated(self) -> dict[str, int]:
@@ -84,7 +93,18 @@ class LeagueConfig:
             "rounds": self.rounds, "starters": self.starters,
             "total_picks": self.total_picks, "depth_cap": dict(self.depth_cap),
             "board_ruleset": BOARD_RULESET,
+            "scoring": {k: v for k, v in asdict(self.rules).items() if k != "name"},
         }
+        if self.sleeper_scoring is not None:
+            out["sleeper_scoring"] = dict(self.sleeper_scoring)
+            # These events have scoring rules but no trained projection head.
+            # Recording a rule is not evidence that the value curve includes it.
+            extras = ("pass_int_td", "pass_td_50p", "rush_td_50p", "rec_td_50p",
+                      "pass_2pt", "rush_2pt", "rec_2pt", "fum_rec_td", "st_td")
+            out["unprojected_scoring"] = {
+                k: self.sleeper_scoring[k] for k in extras
+                if self.sleeper_scoring.get(k, 0) != 0
+            }
         if self.keeper_rules is not None:
             out["keeper_rules"] = self.keeper_rules
         return out
@@ -107,9 +127,16 @@ def load_league(slug: str, root: Path | None = None) -> LeagueConfig:
     missing = [k for k in _REQUIRED if k not in data]
     if missing:
         raise ValueError(f"{path}: missing required key(s) {missing}")
-    return LeagueConfig(
+    cfg = LeagueConfig(
         slug=slug, name=data["name"], league_id=str(data["league_id"]),
         teams=int(data["teams"]), roster=dict(data["roster"]),
         flex=int(data["flex"]), flex_positions=tuple(data["flex_positions"]),
         rounds=int(data["rounds"]), scoring=dict(data["scoring"]),
-        depth_cap=dict(data["depth_cap"]), keeper_rules=data.get("keeper_rules"))
+        depth_cap=dict(data["depth_cap"]), keeper_rules=data.get("keeper_rules"),
+        sleeper_scoring=(dict(data["sleeper_scoring"])
+                         if "sleeper_scoring" in data else None))
+    if cfg.sleeper_scoring is not None:
+        for key, field in SLEEPER_RULE_FIELDS.items():
+            if float(cfg.sleeper_scoring.get(key, 0)) != getattr(cfg.rules, field):
+                raise ValueError(f"{path}: scoring.{field} disagrees with sleeper_scoring.{key}")
+    return cfg

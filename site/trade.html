@@ -22,7 +22,7 @@
   <p class="stamp">loading…</p>
 </header>
 <main>
-  <p class="eyebrow">2026 pre-draft · players and picks</p>
+  <p class="eyebrow">Gabagool Fools only · 2026 pre-draft · players and picks</p>
   <h1>Trade calculator</h1>
   <p class="draft-note">Every number is season points in your best STARTING
   LINEUP, measured by playing the rest of your draft out from the post-trade
@@ -61,6 +61,7 @@ In-season trading is a separate tool.</footer>
 <script src="assets/trademode.js"></script>
 <script>
 (async () => {
+  FC.leagueNavigation();
   const board = await FC.loadJSON("data/draft.json");
   FC.stampHeader(board);
   TradeMode.init({

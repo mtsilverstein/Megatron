@@ -26,8 +26,9 @@ window.DraftMode = (() => {
   let timer = null, backoff = POLL_MS;
   let lastPickSig = null;
   let roundsNote = "";   // set at connect; see the shape check there
+  let scoringNote = "";  // standalone drafts cannot prove a league scoring contract
   let pollSeq = 0;       // generation token: bumped to silently retire stale poll chains
-  let statusChecks = 0;     // draft-complete fallback when settings lack rounds/teams
+  let statusChecks = 0;     // periodically revalidate commissioner-editable settings
   // Freshness, shown in the status line. A tool that says "live" has to be able
   // to prove it: this ticks on its own clock, so if the poll chain dies the age
   // keeps climbing on screen instead of the label sitting at "live" forever.
@@ -106,10 +107,24 @@ window.DraftMode = (() => {
     } catch (e) { setStatus(`lookup failed: ${e.message}`); }
   }
 
+  /* Claims the connect, returning the generation token this attempt must still
+     hold when its awaits resolve. Connecting is two or three network round
+     trips (username -> draft -> league scoring), and during them the user can
+     hit Disconnect or pick a different draft. Both of those bump pollSeq, so a
+     superseded attempt sees a stale token and stops rather than reviving a
+     session the user just dismissed or connecting the draft they didn't pick
+     last. Bumping here also retires the previous poll chain up front, so no
+     older chain can write over the new session's first render. */
+  function beginConnect() {
+    clearTimeout(timer);
+    return ++pollSeq;
+  }
+
   async function connectById() {
     const raw = cfg.els.idInput.value.trim();
     const m = raw.match(/(\d{6,})/);          // raw id or any sleeper.com draft URL
     if (!m) { setStatus("that doesn't look like a draft id"); return; }
+    const attempt = beginConnect();
     // Username optional here — without it, picks still strike but none are "yours".
     let userId = null;
     const username = cfg.els.username.value.trim();
@@ -119,79 +134,178 @@ window.DraftMode = (() => {
         userId = user && user.user_id || null;
       } catch (e) { /* non-fatal: connect without highlight */ }
     }
-    connect(username || null, userId, m[1]);
+    if (attempt !== pollSeq) return;
+    return connect(username || null, userId, m[1], attempt);
   }
 
-  async function connect(username, userId, draftId) {
+  // Sleeper normally publishes integers, but equivalent numeric strings must
+  // not lock out a legitimate draft. Missing fields remain unknown.
+  function draftNumber(value) {
+    if (value == null || (typeof value === "string" && !value.trim())) return null;
+    if (typeof value !== "number" && typeof value !== "string") return NaN;
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 0 ? n : NaN;
+  }
+
+  function draftContractError(draft, lg) {
+    const s = draft.settings || {};
+    if (draft.type && !["snake", "linear"].includes(draft.type)) {
+      return `unsupported draft type: ${draft.type} — this board supports snake and linear drafts`;
+    }
+    if (!lg) return null;
+    // A league-backed draft identifies its scoring contract. Standalone mocks
+    // have no league_id and remain usable when their published shape matches.
+    if (draft.league_id != null && lg.league_id != null
+        && String(draft.league_id) !== String(lg.league_id)) {
+      return `that draft belongs to a different league; this board is built for ${lg.name} — open that league's board instead`;
+    }
+    const teams = draftNumber(s.teams);
+    if (teams != null && teams !== 0 && teams !== Number(lg.teams)) {
+      return `that draft is ${s.teams} teams; this board is built for `
+        + `${lg.name} (${lg.teams} teams, ${lg.rounds} rounds) — open that league's board instead`;
+    }
+    const expected = { slots_flex: lg.flex,
+      // Both shipped leagues require these; lateSlotNeed assumes one of each.
+      slots_k: 1, slots_def: 1 };
+    for (const pos of ["QB", "RB", "WR", "TE"]) {
+      expected[`slots_${pos.toLowerCase()}`] = lg.roster && lg.roster[pos];
+    }
+    const wrong = [];
+    for (const [key, count] of Object.entries(expected)) {
+      const actual = draftNumber(s[key]);
+      if (actual != null && count != null && actual !== Number(count)) {
+        wrong.push(`${key.slice(6).toUpperCase()} ${s[key]}≠${count}`);
+      }
+    }
+    // Superflex, WR/RB, WR/TE and individual defensive starters cannot be
+    // represented by this optimizer. Zero/omitted slots do not add starters.
+    const nonStarters = new Set(["slots_bn", "slots_ir", "slots_taxi"]);
+    for (const [key, value] of Object.entries(s)) {
+      if (!key.startsWith("slots_") || key in expected || nonStarters.has(key)) continue;
+      const count = draftNumber(value);
+      if (count != null && count !== 0) wrong.push(`${key} ${value} (unsupported)`);
+    }
+    return wrong.length
+      ? `that draft starts a different lineup (${wrong.join(", ")}) than ${lg.name}'s board was built for — this board will not drive it`
+      : null;
+  }
+
+  function scoringObject(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function scoringDifferences(actual, expected) {
+    const different = [];
+    const keys = new Set([...Object.keys(actual), ...Object.keys(expected)]);
+    for (const key of [...keys].sort()) {
+      const aRaw = Object.prototype.hasOwnProperty.call(actual, key) ? actual[key] : 0;
+      const eRaw = Object.prototype.hasOwnProperty.call(expected, key) ? expected[key] : 0;
+      const a = Number(aRaw), e = Number(eRaw);
+      if (!Number.isFinite(a) || !Number.isFinite(e) || a !== e) {
+        different.push({ key, text: `${key} ${String(aRaw)}≠${String(eRaw)}` });
+      }
+    }
+    return different;
+  }
+
+  // Sleeper omits zero-valued categories. Compare the complete union so an
+  // unexpected live bonus is just as visible as a changed expected setting.
+  // Number() deliberately admits the numeric strings seen in older payloads.
+  function leagueScoringError(actual, expected) {
+    if (!scoringObject(actual)) {
+      return "live league scoring_settings is missing or invalid";
+    }
+    if (!scoringObject(expected)) {
+      return "board league scoring snapshot is missing or invalid";
+    }
+    const different = scoringDifferences(actual, expected);
+    return different.length
+      ? `league scoring differs (${different.map(d => d.text).join(", ")})`
+      : null;
+  }
+
+  function kickerDefenseScoring(key) {
+    // Explicit Sleeper kicker, team-defense and IDP families. Keep `int`
+    // anchored so offensive pass_int/pass_int_td can never be downgraded.
+    return /^(?:fgm|fgmiss|xpm|pts_allow|yds_allow|def_|idp_|st_|tkl|sack(?:_|$)|bonus_sack(?:_|$)|int(?:_|$)|ff(?:_|$)|fum_rec(?:_|$)|fum_force(?:_|$)|safe(?:_|$)|blk_kick(?:_|$)|qb_hit(?:_|$)|pass_def(?:_|$))/.test(key);
+  }
+
+  async function liveScoringError(draft, lg) {
+    scoringNote = "";
+    if (!lg || !scoringObject(lg.sleeper_scoring)) return null;
+    const leagueId = draft && draft.league_id != null
+      ? String(draft.league_id).trim() : "";
+    if (!leagueId) {
+      scoringNote = "note: league scoring not verified — this standalone draft has no league id";
+      return null;
+    }
+    // An unreachable league endpoint means the scoring contract is UNKNOWN, not
+    // verified, so this throws rather than falling back to the board's own
+    // settings under a clean status. Callers already distinguish the two cases:
+    // at connect time it surfaces as a refusal you can retry, and mid-draft the
+    // poll chain shows "reconnecting…" and keeps its backoff rather than
+    // dropping a live session over one bad request.
+    let live;
+    try {
+      live = await api(`/league/${encodeURIComponent(leagueId)}`);
+    } catch (e) {
+      throw new Error(`league scoring verification failed: ${e.message}`);
+    }
+    const actual = live && live.scoring_settings;
+    const problem = leagueScoringError(actual, lg.sleeper_scoring);
+    if (!problem || !scoringObject(actual)) return problem;
+    const different = scoringDifferences(actual, lg.sleeper_scoring);
+    if (different.length && different.every(d => kickerDefenseScoring(d.key))) {
+      scoringNote = `warning: ${problem} — K/DST scoring does not drive player recommendations`;
+      return null;
+    }
+    return problem;
+  }
+
+  function updateDraftSettings(draft) {
+    const s = draft.settings || {};
+    for (const [key, field] of [["teams", "teams"], ["rounds", "rounds"],
+                               ["reversal_round", "reversalRound"]]) {
+      const n = draftNumber(s[key]);
+      if (Number.isFinite(n)) session[field] = n;
+    }
+    const slot = draftNumber(draft.draft_order && draft.draft_order[session.userId]);
+    if (slot > 0) session.slot = slot;
+    if (draft.type) session.type = draft.type;
+    session.totalPicks = session.teams * session.rounds;
+    const lg = cfg.board && cfg.board.league;
+    roundsNote = (lg && session.rounds && session.rounds !== Number(lg.rounds))
+      ? `note: this draft is ${session.rounds} rounds, the board assumes ${lg.rounds} — live pick timing uses the draft's round count; the static board's draft-range comparison does not`
+      : "";
+  }
+
+  // `attempt` is beginConnect()'s token. Callers that have already awaited
+  // something (connectById) pass theirs so the whole attempt is covered; the
+  // direct callers -- a draft button, the localStorage restore -- let this
+  // claim one for them.
+  async function connect(username, userId, draftId, attempt) {
+    if (attempt == null) attempt = beginConnect();
     try {
       setStatus("connecting…");
       const draft = await api(`/draft/${draftId}`);
+      if (attempt !== pollSeq) return;        // superseded mid-fetch
       if (!draft || !draft.draft_id) throw new Error("draft not found");
-      const s = draft.settings || {};
-      const order = draft.draft_order || {};
-      // A draft whose SHAPE disagrees with the board is the wrong draft for
-      // this page. Accepting it would optimize one league's picks against
-      // another league's VORP and replacement level, and nothing on screen
-      // would say so. Refuse instead.
       const lg = cfg.board && cfg.board.league;
-      // TEAMS is the hard one. Replacement level, and therefore every VORP,
-      // tier and position_rank on this board, was computed for `lg.teams`
-      // seats. Connecting a draft with a different count means optimizing one
-      // league's picks against another league's value curve, with nothing on
-      // screen to say so. Refuse.
-      if (lg && s.teams && s.teams !== lg.teams) {
-        setStatus(`that draft is ${s.teams} teams; this board is built for `
-                  + `${lg.name} (${lg.teams} teams, ${lg.rounds} rounds) — `
-                  + `open that league's board instead`);
-        emit();          // tell the caller the refusal, not just the status line
+      const problem = draftContractError(draft, lg)
+        || await liveScoringError(draft, lg);
+      if (attempt !== pollSeq) return;
+      if (problem) {
+        // Retire an earlier session too: its heartbeat must not overwrite the
+        // refusal or leave recommendations from another draft visible.
+        if (session) disconnect();
+        setStatus(problem);
+        emit();
         return;
       }
-      // ROSTER SHAPE is the other hard one, and the guard originally missed it.
-      // Sleeper publishes the starting lineup right here as slots_qb/rb/wr/te
-      // and slots_flex, and it is what the optimizer builds every lineup
-      // against: openSlots, the rollout, "still need", the whole shortlist. A
-      // standalone Sleeper mock takes DEFAULTS rather than a league's settings
-      // -- measured 2026-09-07, a 10-team mock for a 1-flex league came back
-      // with slots_flex 2 -- so matching `teams` alone is not enough to know
-      // you are looking at the same game. Optimizing a 7-man lineup for a
-      // draft that starts 8 produced a real, visibly wrong roster: three QBs
-      // in a one-QB league.
-      const SLOT_KEYS = { QB: "slots_qb", RB: "slots_rb", WR: "slots_wr", TE: "slots_te" };
-      if (lg && lg.roster) {
-        const wrong = [];
-        for (const [pos, key] of Object.entries(SLOT_KEYS)) {
-          if (s[key] != null && s[key] !== lg.roster[pos]) {
-            wrong.push(`${pos} ${s[key]}≠${lg.roster[pos]}`);
-          }
-        }
-        if (s.slots_flex != null && lg.flex != null && s.slots_flex !== lg.flex) {
-          wrong.push(`FLEX ${s.slots_flex}≠${lg.flex}`);
-        }
-        if (wrong.length) {
-          setStatus(`that draft starts a different lineup (${wrong.join(", ")}) than `
-                    + `${lg.name}'s board was built for — every recommendation would `
-                    + `target the wrong lineup, so this board will not drive it`);
-          emit();
-          return;
-        }
-      }
-      // ROUNDS only warns. The panel's own pick math reads `rounds` off the
-      // SLEEPER draft object below, not off the board, so a changed round
-      // count stays correct where it matters; only the board's display bound
-      // for "inside the drafted range" goes stale. Refusing here would lock
-      // the tool out of a live draft because a commissioner added a round the
-      // week of the draft -- a far worse failure than a slightly wide bound.
-      roundsNote = (lg && s.rounds && s.rounds !== lg.rounds)
-        ? `note: this draft is ${s.rounds} rounds, the board assumes `
-          + `${lg.rounds} — picks and the shortlist are unaffected, only the `
-          + `"inside the draft" pick comparison reads long`
-        : "";
       session = { username, userId, draftId,
-                  totalPicks: (s.rounds || 0) * (s.teams || 0),
-                  slot: (userId && order[userId]) || null,
-                  teams: s.teams || 0, rounds: s.rounds || 0,
-                  reversalRound: s.reversal_round || 0,
-                  type: draft.type || "snake" };
+                  totalPicks: 0, slot: null, teams: 0, rounds: 0,
+                  reversalRound: 0, type: "snake" };
+      updateDraftSettings(draft);
       resetPickFingerprint();
       statusChecks = 0;
       lastSyncAt = 0;
@@ -209,7 +323,14 @@ window.DraftMode = (() => {
       cfg.els.live.hidden = false;
       unmatchedNote();
       startPolling();
-    } catch (e) { setStatus(`connect failed: ${e.message}`); }
+    } catch (e) {
+      setStatus(`connect failed: ${e.message}`);
+      // Claiming the attempt retired whatever chain was running. A session that
+      // survives the failure -- you were live and fat-fingered a draft id --
+      // would otherwise sit frozen behind a "live" label, so put it back on the
+      // wire. If a newer attempt has already superseded us, it owns the state.
+      if (attempt === pollSeq && session) startPolling();
+    }
   }
 
   function disconnect() {
@@ -235,6 +356,7 @@ window.DraftMode = (() => {
     statusChecks = 0;
     lastSyncAt = 0;
     syncNote = "";
+    scoringNote = "";
     setStatus("— off");
     emit();
   }
@@ -260,6 +382,29 @@ window.DraftMode = (() => {
     try {
       const picks = await api(`/draft/${session.draftId}/picks`) || [];
       if (seq !== pollSeq || !session) return;
+      // Recheck every ten polls (~30s), and before declaring the draft over.
+      // Commissioners can edit settings/order without changing the pick log.
+      if (++statusChecks % 10 === 0
+          || (session.totalPicks && picks.length >= session.totalPicks)) {
+        const d = await api(`/draft/${session.draftId}`);
+        if (seq !== pollSeq || !session) return;
+        if (!d || !d.draft_id) throw new Error("draft settings unavailable");
+        const lg = cfg.board && cfg.board.league;
+        const problem = draftContractError(d, lg)
+          || await liveScoringError(d, lg);
+        if (problem) {
+          disconnect();
+          setStatus(`draft settings changed — ${problem}`);
+          return;
+        }
+        updateDraftSettings(d);
+        unmatchedNote();
+        resetPickFingerprint(); // re-render even if only rounds/order changed
+        if (d.status === "complete") {
+          applyPicks(picks);
+          return finish(picks.length);
+        }
+      }
       backoff = POLL_MS;
       lastSyncAt = Date.now();
       syncNote = "";
@@ -272,13 +417,6 @@ window.DraftMode = (() => {
       if (sig !== lastPickSig) {
         lastPickSig = sig;
         applyPicks(picks);
-      }
-      if (!session.totalPicks && ++statusChecks % 10 === 0) {
-        // Sleeper omitted settings.rounds/teams: fall back to re-checking
-        // the draft object's status every 10th poll so completion still stops us.
-        const d = await api(`/draft/${session.draftId}`);
-        if (seq !== pollSeq || !session) return;
-        if (d && d.status === "complete") return finish(picks.length);
       }
       if (session.totalPicks && picks.length >= session.totalPicks) {
         return finish(picks.length);              // stop polling
@@ -695,10 +833,9 @@ window.DraftMode = (() => {
     // Appended, not assigned: a round-count warning must not silently replace
     // the crosswalk advisory, which is the one that explains missing strikes.
     if (roundsNote) lines.push(roundsNote);
-    if (lines.length) {
-      cfg.els.note.hidden = false;
-      cfg.els.note.textContent = lines.join(" · ");
-    }
+    if (scoringNote) lines.push(scoringNote);
+    cfg.els.note.hidden = !lines.length;
+    cfg.els.note.textContent = lines.join(" · ");
   }
 
   // --- pure draft math (exported for fixture verification) -----------------
@@ -860,5 +997,6 @@ window.DraftMode = (() => {
            lateSlotNeed, isFlatSlate, lateSlotTaken, lateSlotAvailable,
            pickSignature, renderPick,
            rosterStateFromPicks,
-           shortlistBlocker, syncLabel };
+           shortlistBlocker, syncLabel, draftContractError,
+           leagueScoringError };
 })();

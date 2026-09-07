@@ -525,6 +525,7 @@ window.AboutCharts = (() => {
 </script>
 <script>
 (async () => {
+  FC.leagueNavigation();
   const about = await FC.loadJSON("data/about.json");
   FC.stampHeader(about);
   AboutCharts.render(about);

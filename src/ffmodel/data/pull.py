@@ -78,6 +78,12 @@ def normalize_weekly(raw: pd.DataFrame) -> pd.DataFrame:
     df["position"] = df["position_group"]
     for out, parts in _RAW_SUMS.items():
         df[out] = sum(df[p].fillna(0) for p in parts)
+    # nflverse snapshots do not all expose this rare-event stat. Preserve it
+    # when supplied; otherwise materialize the scoring-extra contract's zero
+    # default so older/raw schemas remain normalizable. This does not imply
+    # historical caches contain observed pick-six data.
+    if "passing_pick_sixes" not in df.columns:
+        df["passing_pick_sixes"] = 0.0
     keep = (
         CONTEXT_COLUMNS + PREDICTED_STATS + SCORING_EXTRAS + V2_SOURCE_COLUMNS
         + ["target_share", "fantasy_points_ppr"]

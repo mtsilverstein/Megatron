@@ -41,7 +41,9 @@
    Usage:
      node tools/queue_cost.cjs --picks <draft-picks.json> [--residuals <completed.json>]
        [--mycells 87,135] [--mykeepers "Cam Skattebo,Harold Fannin"]
-       [--slot 10] [--teams 12] [--rounds 15] [--trials 150] [--seed 1] [--depth 75]
+       [--board site/data/draft.json] [--slot 10] [--teams <n>] [--rounds <n>]
+       [--trials 150] [--seed 1] [--depth 75]
+   Teams and rounds default to the board's league (12 x 15 for legacy boards).
 */
 const fs = require("fs");
 const path = require("path");
@@ -55,12 +57,16 @@ const args = {};
 for (let i = 2; i < process.argv.length; i++) {
   if (process.argv[i].startsWith("--")) args[process.argv[i].slice(2)] = process.argv[++i];
 }
-const SLOT = Number(args.slot || 10), TEAMS = Number(args.teams || 12), ROUNDS = Number(args.rounds || 15);
+const payload = JSON.parse(fs.readFileSync(path.resolve(repo, args.board || "site/data/draft.json"), "utf8"));
+if (payload.league) O.configure(payload.league);
+const SLOT = Number(args.slot ?? 10);
+const TEAMS = Number(args.teams ?? (payload.league && payload.league.teams) ?? 12);
+const ROUNDS = Number(args.rounds ?? (payload.league && payload.league.rounds) ?? 15);
 const TRIALS = Number(args.trials || 150), SEED = Number(args.seed || 1);
 const QUEUE_DEPTH = Number(args.depth || 75);
 const MODES = ["vorp", "plan", "backups", "value"];
 
-const board = JSON.parse(fs.readFileSync(path.join(repo, args.board || "site/data/draft.json"), "utf8")).players;
+const board = payload.players;
 const picks = JSON.parse(fs.readFileSync(path.resolve(args.picks), "utf8"));
 const find = K.indexBoard(board);
 const leagueKeepers = picks.filter(p => p.is_keeper);

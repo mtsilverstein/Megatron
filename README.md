@@ -27,6 +27,44 @@ python -m ffmodel.data.pull     # cache 2012-2025 data to data/raw/
 python -m ffmodel.eval.run      # walk-forward backtest -> models/backtests/baselines.json
 ```
 
+## Draft-night boards
+
+- [FAM FOOTBALL](https://mtsilverstein.github.io/Megatron/index.html?league=fam):
+  10 teams, 2 FLEX, 15 rounds.
+- [Gabagool Fools](https://mtsilverstein.github.io/Megatron/index.html?league=gabagool):
+  12 teams, 2 FLEX, 15 rounds.
+
+The live contracts were checked on 2026-09-07. Both leagues use full PPR,
+6-point passing TDs, -2 per interception, and an additional -3 for a pick-six
+thrown. The YAML files in `configs/leagues/` record **every nonzero Sleeper
+scoring category**, including the leagues' different kicking and long-TD rules.
+The board displays its league and scoring; navigation preserves the choice
+per tab. Trade and Weekly remain explicitly Gabagool-only.
+
+Before either draft, run this read-only check from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe tools/check_draft_readiness.py
+```
+
+It compares both boards with their configs and live Sleeper league/draft
+settings, then runs the production JavaScript contract and optimizer checks.
+The live panel also rechecks settings during the draft and refuses a known
+scoring or roster mismatch. Standalone mocks must be set up to match the league;
+Sleeper's mock defaults can differ, and mock scoring cannot be verified through
+a league ID.
+
+Projection limits are shown on each board. The trained model does not forecast
+pick-sixes, 50+ yard TD bonuses, two-point conversions, or return/recovery TDs.
+Recording their scoring rules does not make them projected. Pick-six scoring
+is exact when the observed count is supplied; absent historical counts remain
+zero. K/DST reminders use ADP, not model point projections.
+
+The manual draft refresh workflow rebuilds **both** leagues. Weekly refreshes
+build Gabagool only; `--league fam --week ...` is refused before any output is
+written. To regenerate a draft locally, use `ffmodel.site.generate --draft`
+with `--league fam` or `--league gabagool` and the normal model/artifact arguments.
+
 ## Training (Kaggle)
 
 Training runs on Kaggle's free GPU tier (~30 h/week). The four

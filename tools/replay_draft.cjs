@@ -133,12 +133,26 @@ function summarize(rows) {
 
 function parseArgs(argv) {
   const a = { draft: null, picks: null, board: "site/data/draft.json",
-              slot: null, out: null, teams: 12, rounds: 15, reversal: 0 };
+              slot: null, out: null, teams: null, rounds: null, reversal: null };
   for (let i = 2; i < argv.length; i += 2) {
     const k = argv[i].replace(/^--/, ""), v = argv[i + 1];
     if (k in a) a[k] = ["slot", "teams", "rounds", "reversal"].includes(k) ? Number(v) : v;
   }
   return a;
+}
+
+// Explicit overrides also work for a saved log; otherwise prefer the live
+// draft, then its board's league. Legacy boards retain the original defaults.
+function replaySettings(args, league, draft) {
+  const settings = (draft && draft.settings) || {};
+  const teams = args.teams ?? settings.teams ?? (league && league.teams) ?? 12;
+  const rounds = args.rounds ?? settings.rounds ?? (league && league.rounds) ?? 15;
+  const reversalRound = args.reversal ?? settings.reversal_round ?? 0;
+  if (![teams, rounds].every(n => Number.isInteger(n) && n > 0)
+      || !Number.isInteger(reversalRound) || reversalRound < 0) {
+    throw new Error("replay requires positive integer teams/rounds and a nonnegative reversal round");
+  }
+  return { teams, rounds, reversalRound, type: (draft && draft.type) || "snake" };
 }
 
 async function main() {
@@ -161,21 +175,17 @@ async function main() {
     console.log(`league: ${board.league.name} — ${board.league.teams} teams, `
       + `${c.FLEX_SLOTS} flex, ${c.ROLLOUT_PICKS} starters`);
   }
-  let picks, teams = args.teams, rounds = args.rounds;
-  let reversal = args.reversal, type = "snake";
+  let picks, draft = null;
   if (args.draft) {
     const [d, p] = await Promise.all([get(`/draft/${args.draft}`),
                                       get(`/draft/${args.draft}/picks`)]);
     picks = p;
-    type = d.type || "snake";
-    if (d.settings) {
-      teams = d.settings.teams || teams;
-      rounds = d.settings.rounds || rounds;
-      reversal = d.settings.reversal_round || 0;
-    }
+    draft = d;
   } else {
     picks = JSON.parse(fs.readFileSync(args.picks, "utf8"));
   }
+  const { teams, rounds, reversalRound: reversal, type } =
+    replaySettings(args, board.league, draft);
 
   const players = O.withValuePoints(board.players)
     .filter(p => Number.isFinite(O.seasonValue(p)));
@@ -219,7 +229,7 @@ async function main() {
   }
 }
 
-module.exports = { replaySeat, summarize, stateBefore };
+module.exports = { replaySeat, summarize, stateBefore, parseArgs, replaySettings };
 if (require.main === module) {
   main().catch(e => { console.error(String(e.message || e)); process.exit(1); });
 }

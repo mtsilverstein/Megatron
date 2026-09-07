@@ -296,4 +296,39 @@ check("a pick with no recommendation still counts against the total", () => {
   assert.strictEqual(s.vorp_left_on_table, -4);
 });
 
+check("saved FAM logs use the board's schedule from the first pick", () => {
+  const args = R.parseArgs(["node", "replay", "--picks", "saved.json", "--slot", "1"]);
+  const settings = R.replaySettings(args, { teams: 10, rounds: 14 });
+  const real = O.recommend;
+  let seen;
+  O.recommend = ctx => { seen = ctx; return []; };
+  try {
+    const rows = R.replaySeat({ players: toyBoard(), picks: [toyLog()[0]],
+                               slot: args.slot, ...settings });
+    assert.strictEqual(rows[0].plan_matches_reality, true);
+    assert.strictEqual(seen.futurePicks[0], 20,
+      "a first-pick replay can pass its current-pick check with the wrong future schedule");
+    assert.strictEqual(seen.futurePicks.at(-1), 140);
+    assert.strictEqual(seen.futurePicks.length, 13);
+  } finally { O.recommend = real; }
+});
+
+check("explicit replay dimensions and reversal override board and live defaults", () => {
+  const args = R.parseArgs(["node", "replay", "--teams", "8", "--rounds", "3",
+                            "--reversal", "0"]);
+  assert.deepStrictEqual(R.replaySettings(args, { teams: 10, rounds: 14 },
+    { type: "snake", settings: { teams: 12, rounds: 15, reversal_round: 3 } }),
+    { teams: 8, rounds: 3, reversalRound: 0, type: "snake" });
+});
+
+check("replay uses live metadata, with board and legacy fallbacks", () => {
+  const args = R.parseArgs(["node", "replay"]);
+  assert.deepStrictEqual(R.replaySettings(args, { teams: 10, rounds: 14 },
+    { type: "linear", settings: { rounds: 16, reversal_round: 3 } }),
+    { teams: 10, rounds: 16, reversalRound: 3, type: "linear" });
+  assert.deepStrictEqual(R.replaySettings(args),
+    { teams: 12, rounds: 15, reversalRound: 0, type: "snake" });
+  assert.throws(() => R.replaySettings({ teams: 0 }), /positive integer/);
+});
+
 console.log(`replay fixture: ${n} groups OK`);

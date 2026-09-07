@@ -589,26 +589,41 @@
     const survives = new Map(scored.map(e =>
       [e.player, survivesToNextPick(e.player, pool, future, ctx.pickNo, used) ? 1 : 0]));
     const safe = e => survives.get(e.player);
-    /* TRIED AND MEASURED HARMFUL 2026-09-07: a fourth tiebreak preferring a
-       candidate who fills an OPEN STARTING SLOT over one landing on the bench.
-       It looks obviously right. At pick 67 of a real mock with both WR slots
-       empty, every candidate scored cost 0.00 and this chain recommended a
-       backup QB (vorp 7, role "bench") over a receiver filling a mandatory
-       slot (vorp 0, role "WR2").
+    /* TRIED AND REVERTED 2026-09-07: a fourth tiebreak preferring a candidate
+       whose simulated `lineupRole` was not "bench". It looks obviously right.
+       At pick 67 of a real mock with both WR slots empty, every candidate
+       scored cost 0.00 and this chain recommended a backup QB (vorp 7, role
+       "bench") over a receiver filling a mandatory slot (vorp 0, role "WR2").
 
-       Adding `starts` above `safe` cost points in BOTH leagues, on realized
-       weekly points across 2021-25, paired by (season, seed, slot):
-         Gabagool  -16.7 pts/draft, 4 of 5 seasons negative (n=480)
-         FAM        -2.3 pts/draft, 4 of 5 seasons negative (n=2400)
-       It also changed the roster in 100% of drafts, so it is not the narrow
-       late-round adjustment it appears to be.
+       Measured on realized weekly points 2021-25, treatment vs control paired
+       exactly by (season, seed, slot, window) -- 480/480 pairs matched, same
+       field, same seats -- it cost Gabagool 16.7 pts/draft over the full
+       season, negative in 4 of 5 seasons, and changed the roster in 100% of
+       drafts. Reproduce: draft_sim.json (control) vs starter_TREAT_gabagool.json.
 
-       WHY VORP IS RIGHT HERE, most likely: rosters are scored on the best
-       legal lineup RE-PICKED FROM ACTUAL WEEKLY POINTS. A backup QB is not
-       dead weight under that scoring -- he starts on the bye and in the weeks
-       the starter busts. `role` describes the PROJECTED lineup, not the
-       realized one, so preferring by role discards depth's option value.
-       Do not re-add this without beating those numbers. */
+       Read that as "no evidence it helps", NOT as a proven harm. Season is the
+       unit of independence here -- drafts within a season share the same
+       realized player performances -- and across 5 seasons the spread is wide
+       enough that the interval includes zero. What IS solid is the third fact:
+       it rewrites every roster, so it is not the narrow late-round nudge it
+       appears to be, and a change that large with no measured upside does not
+       ship.
+
+       Two limits, stated so nobody re-derives them the hard way. The rule
+       tested was BROAD -- any non-bench role, even with the starting lineup
+       already full -- so the narrow rule the mock complaint actually points at
+       ("fills a currently EMPTY starting slot") remains untested. And the FAM
+       arm of that run is retired: it predates the 2026-09-07 config
+       correction and ran 14 rounds / 1 flex / 4-point passing TDs, a league
+       that does not exist.
+
+       WHY VORP IS PLAUSIBLY RIGHT HERE: rosters are scored on the best legal
+       lineup RE-PICKED FROM ACTUAL WEEKLY POINTS. A backup QB is not dead
+       weight under that scoring -- he starts on the bye and in the weeks the
+       starter busts. `role` describes the PROJECTED lineup, not the realized
+       one, so preferring by role discards depth's option value. Do not re-add
+       the broad rule without beating those numbers; a narrow empty-slot rule
+       needs its own controlled run first. */
     scored.sort((a, b) => {
       const ta = inTopBand(a), tb = inTopBand(b);
       if (ta !== tb) return ta ? -1 : 1;          // the band the model can see
@@ -725,7 +740,14 @@
            parVorp, shortlistSpread, SHORTLIST_PER_POS,
            valueLens, VALUE_LENS_ORDER,
            lateSlotTrigger,
-           DEDICATED, FLEX_SLOTS, FLEX_POS, POSITIONS, SHORTLIST_N, WEEKS,
-           LATE_SLACK, CANDIDATE_PER_POS, ROLLOUT_PER_POS, ROLLOUT_PICKS, TIE_POINTS, DEPTH_CAP, topCandidates,
+           // Read the active contract, not copies captured before configure().
+           // Copies keep callers from mutating the optimizer through an export.
+           get DEDICATED() { return Object.assign({}, DEDICATED); },
+           get FLEX_SLOTS() { return FLEX_SLOTS; },
+           get FLEX_POS() { return FLEX_POS.slice(); },
+           get ROLLOUT_PICKS() { return ROLLOUT_PICKS; },
+           get DEPTH_CAP() { return Object.assign({}, DEPTH_CAP); },
+           POSITIONS, SHORTLIST_N, WEEKS,
+           LATE_SLACK, CANDIDATE_PER_POS, ROLLOUT_PER_POS, TIE_POINTS, topCandidates,
            FLEX_WEIGHT, BENCH_WEIGHT, configure, leagueConfig };
 });

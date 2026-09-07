@@ -28,7 +28,13 @@ jobs:
           ARGS="--out site/data --model $MODEL --season $SEASON"
           if [ "${{ inputs.draft }}" = "true" ]; then ARGS="$ARGS --draft"; else ARGS="$ARGS --week auto"; fi
           if [ -n "$ARTIFACT_ROOT" ]; then ARGS="$ARGS --artifact-root $ARTIFACT_ROOT"; fi
-          python -m ffmodel.site.generate $ARGS
+          if [ "${{ inputs.draft }}" = "true" ]; then
+            for LEAGUE in fam gabagool; do
+              python -m ffmodel.site.generate $ARGS --league "$LEAGUE"
+            done
+          else
+            python -m ffmodel.site.generate $ARGS --league gabagool
+          fi
       - name: Commit refreshed data
         id: commit
         run: |

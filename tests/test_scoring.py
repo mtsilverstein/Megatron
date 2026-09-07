@@ -3,9 +3,12 @@ import pytest
 
 from ffmodel.scoring import (
     HALF_PPR,
+    LEAGUE,
     PPR,
     PREDICTED_STATS,
+    SCORING_EXTRAS,
     STANDARD,
+    ScoringRules,
     fantasy_points,
     fantasy_points_band,
     fantasy_points_quantiles,
@@ -44,9 +47,38 @@ def test_qb_line_with_two_point_and_int():
     assert fantasy_points(df, PPR).iloc[0] == pytest.approx(20.0)
 
 
+def test_pick_six_penalty_is_additional_to_interception_penalty():
+    rules = ScoringRules(name="custom", interception=-2.0, pass_int_td=-3.0)
+    pick_six = pd.DataFrame([{
+        "passing_interceptions": 1, "passing_pick_sixes": 1,
+    }])
+    ordinary_int = pd.DataFrame([{
+        "passing_interceptions": 1, "passing_pick_sixes": 0,
+    }])
+    assert fantasy_points(pick_six, rules).iloc[0] == pytest.approx(-5.0)
+    assert fantasy_points(ordinary_int, rules).iloc[0] == pytest.approx(-2.0)
+
+
+def test_ppr_has_no_additional_pick_six_penalty():
+    df = pd.DataFrame([{
+        "passing_interceptions": 1, "passing_pick_sixes": 1,
+    }])
+    assert fantasy_points(df, PPR).iloc[0] == pytest.approx(-2.0)
+
+
+def test_pick_six_is_an_unpredicted_scoring_extra():
+    assert "passing_pick_sixes" in SCORING_EXTRAS
+    assert "passing_pick_sixes" not in PREDICTED_STATS
+
+
 def test_missing_columns_count_as_zero():
     df = pd.DataFrame([{"rushing_yards": 50}])
     assert fantasy_points(df, PPR).iloc[0] == pytest.approx(5.0)
+
+
+def test_missing_pick_six_stat_preserves_existing_score():
+    df = pd.DataFrame([{"passing_interceptions": 1}])
+    assert fantasy_points(df, LEAGUE).iloc[0] == pytest.approx(-2.0)
 
 
 def test_carries_and_targets_do_not_score():
@@ -91,6 +123,19 @@ def test_fantasy_points_band_puts_fewest_interceptions_in_ceiling():
     assert floor.iloc[0] == pytest.approx(200 * 0.04 + 1 * 4 - 2 * 2)  # 8.0, not 12.0
     # The old fantasy_points(high) would have understated the ceiling.
     assert ceil.iloc[0] > fantasy_points(high, PPR).iloc[0]
+
+
+def test_fantasy_points_band_treats_pick_six_penalty_as_negative():
+    rules = ScoringRules(name="custom", interception=-2.0, pass_int_td=-3.0)
+    low = pd.DataFrame([{
+        "passing_interceptions": 0, "passing_pick_sixes": 0,
+    }])
+    high = pd.DataFrame([{
+        "passing_interceptions": 2, "passing_pick_sixes": 1,
+    }])
+    floor, ceil = fantasy_points_band(low, high, rules)
+    assert floor.iloc[0] == pytest.approx(-7.0)
+    assert ceil.iloc[0] == pytest.approx(0.0)
 
 
 def test_fantasy_points_band_floor_never_exceeds_ceiling():
@@ -146,8 +191,8 @@ def test_stat_weights_is_the_source_of_truth_for_scoring():
         assert got == pytest.approx(weight), col
 
 
-def test_league_scoring_is_ppr_with_six_point_passing_tds():
-    """This project's league (points.md) differs from PPR in exactly one weight.
+def test_league_scoring_adds_six_point_passing_tds_and_pick_six_penalty():
+    """The league adds six-point passing TDs and a pick-six penalty.
 
     It is not a cosmetic difference: measured on 2023-25 actuals the top 24
     quarterbacks gain +46 to +50 points a season and 4-8 of the top TWELVE
@@ -156,20 +201,17 @@ def test_league_scoring_is_ppr_with_six_point_passing_tds():
     """
     from dataclasses import asdict
 
-    from ffmodel.scoring import LEAGUE, PPR
-
     differs = {k: (v, asdict(PPR)[k]) for k, v in asdict(LEAGUE).items()
                if asdict(PPR)[k] != v}
-    assert differs == {"name": ("league", "ppr"), "pass_td": (6.0, 4.0)}
+    assert differs == {
+        "name": ("league", "ppr"),
+        "pass_td": (6.0, 4.0),
+        "pass_int_td": (-3.0, 0.0),
+    }
 
 
-def test_league_scoring_never_scores_below_ppr():
-    """Six-point passing TDs can only add. A player with no passing stats must
-    score identically under both, so the lens can never quietly move a receiver."""
-    import pandas as pd
-
-    from ffmodel.scoring import LEAGUE, PPR, fantasy_points
-
+def test_league_scoring_without_pick_six_only_adds_passing_td_points():
+    """When the rare-event extra is absent, only six-point pass TDs differ."""
     stats = pd.DataFrame({
         "passing_yards": [300.0, 0.0], "passing_tds": [3.0, 0.0],
         "passing_interceptions": [1.0, 0.0], "carries": [2.0, 12.0],

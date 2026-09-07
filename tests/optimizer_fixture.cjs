@@ -860,6 +860,9 @@ check("openPicksBetween rejects a non-Set `used` instead of degrading", () => {
   const held = roster(["QB", "RB", "RB", "WR", "WR", "TE"]);
 
   const beforeDefault = O.openSlots(held);
+  const recommendCtx = { available: nearTiePool(), myPlayers: [], pickNo: 1,
+                         futurePicks: [5, 24, 25] };
+  const beforeRecommendations = O.recommend(recommendCtx);
   assert.deepStrictEqual(beforeDefault, ["FLEX", "FLEX"],
     "default build no longer starts 2 FLEX -- the module defaults moved");
 
@@ -867,6 +870,8 @@ check("openPicksBetween rejects a non-Set `used` instead of degrading", () => {
   assert.deepStrictEqual(O.openSlots(held), beforeDefault,
     "configure() with Gabagool's own values changed behaviour -- it must be a no-op");
   assert.strictEqual(O.leagueConfig().ROLLOUT_PICKS, 8);
+  assert.deepStrictEqual(O.recommend(recommendCtx), beforeRecommendations,
+    "configuring Gabagool must preserve complete recommendation outputs");
 
   O.configure(FAM);
   assert.deepStrictEqual(O.openSlots(held), ["FLEX"],
@@ -875,8 +880,34 @@ check("openPicksBetween rejects a non-Set `used` instead of degrading", () => {
     "ROLLOUT_PICKS is documented as the starter count; FAM starts 7");
   assert.strictEqual(O.leagueConfig().DEPTH_CAP.RB, 5);
 
+  check("public configuration follows league switches", () => {
+    assert.strictEqual(O.FLEX_SLOTS, 1);
+    assert.strictEqual(O.ROLLOUT_PICKS, 7);
+    assert.strictEqual(O.DEPTH_CAP.RB, 5);
+    assert.deepStrictEqual(O.DEDICATED, FAM.roster);
+    assert.deepStrictEqual(O.FLEX_POS, FAM.flex_positions);
+    O.configure(GABAGOOL);
+    assert.strictEqual(O.FLEX_SLOTS, 2);
+    assert.strictEqual(O.ROLLOUT_PICKS, 8);
+    assert.strictEqual(O.DEPTH_CAP.RB, 6);
+  });
+
+  check("public roster, flex eligibility and caps cannot mutate the optimizer", () => {
+    O.configure({ ...FAM, roster: { ...FAM.roster, QB: 2 },
+                  flex_positions: ["WR"], starters: 8 });
+    assert.strictEqual(O.DEDICATED.QB, 2);
+    assert.deepStrictEqual(O.FLEX_POS, ["WR"]);
+    const before = O.leagueConfig();
+    O.DEDICATED.QB = 0;
+    O.FLEX_POS.push("QB");
+    O.DEPTH_CAP.RB = 99;
+    assert.deepStrictEqual(O.leagueConfig(), before);
+    assert.deepStrictEqual(O.openSlots(held), ["QB2", "FLEX"]);
+  });
+
   O.configure(GABAGOOL);   // restore for any test that follows
   assert.deepStrictEqual(O.openSlots(held), beforeDefault);
+  assert.deepStrictEqual(O.recommend(recommendCtx), beforeRecommendations);
 }
 
 console.log(`optimizer fixture: ${n} groups OK`);

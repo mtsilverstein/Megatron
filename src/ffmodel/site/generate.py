@@ -62,6 +62,10 @@ def parse_and_validate(argv=None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.week is None and not args.draft:
         parser.error("provide --week and/or --draft")
+    if args.week is not None and args.league != "gabagool":
+        parser.error("--week currently supports only --league gabagool: "
+                     "weekly.json is shared and uses Gabagool scoring. "
+                     "For another league, use --draft without --week.")
     return args
 
 
@@ -147,9 +151,12 @@ LEAGUE_DEDICATED = {"QB": 12, "RB": 24, "WR": 24, "TE": 12}
 LEAGUE_FLEX_SLOTS = 24
 
 
-def _load_consensus(season, schedules, data_dir, draft_picks=None):
-    from ffmodel.data.rankings import consensus_for_season
-    return consensus_for_season(season, schedules, data_dir, draft_picks=draft_picks)
+def _load_consensus(season, schedules, data_dir, draft_picks=None, *,
+                    draftable_ecr: int | None = None):
+    from ffmodel.data.rankings import DRAFTABLE_ECR, consensus_for_season
+    return consensus_for_season(
+        season, schedules, data_dir, draft_picks=draft_picks,
+        draftable_ecr=DRAFTABLE_ECR if draftable_ecr is None else draftable_ecr)
 
 
 # A silent data repair is a bug in this project (see attach_gsis's docstring
@@ -396,16 +403,20 @@ def _draft_consensus(season, schedules, data_dir, *, draft_picks=None,
     for publication -- ECR is required, so this is never None.
 
     `league` is a `ffmodel.league.LeagueConfig`: it supplies the roster shape
-    replacement is derived from and the draft size ADP is read against. With
+    replacement is derived from and the draft size for both ECR and ADP guards. With
     no league (the eval harness, the tests below) this falls back to the
     module constants above, which are Gabagool's -- so those callers are
     unchanged."""
     from ffmodel.site.board_rank import flex_replacement_ranks
 
+    consensus_kwargs = ({} if league is None
+                        else {"draftable_ecr": league.total_picks})
     if draft_picks is None:
-        ecr_df, consensus_stats = _load_consensus(season, schedules, data_dir)
+        ecr_df, consensus_stats = _load_consensus(
+            season, schedules, data_dir, **consensus_kwargs)
     else:
-        ecr_df, consensus_stats = _load_consensus(season, schedules, data_dir, draft_picks)
+        ecr_df, consensus_stats = _load_consensus(
+            season, schedules, data_dir, draft_picks, **consensus_kwargs)
     ecr = dict(zip(ecr_df["player_id"], ecr_df["ecr"]))
     pool = ecr_df.rename(columns={"pos": "position"})[["position", "ecr"]]
     dedicated = LEAGUE_DEDICATED if league is None else league.dedicated

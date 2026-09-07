@@ -11,16 +11,66 @@ const O = global.window.Optimizer;
 // Sleeper stub, installed BEFORE the require: draftmode.js captures
 // window.Sleeper at load time. `SLEEPER` is mutated by the live-panel test at
 // the bottom; every other test in this file goes nowhere near the network.
-const SLEEPER = { picks: [], draft: null, user: null, calls: [] };
+const SLEEPER = { picks: [], draft: null, league: null, user: null, calls: [] };
 global.window.Sleeper = { get: async (path) => {
   SLEEPER.calls.push(path);
   if (/\/picks$/.test(path)) return SLEEPER.picks;
   if (/^\/user\//.test(path)) return SLEEPER.user;
-  if (/^\/draft\//.test(path)) return SLEEPER.draft;
+  if (/^\/league\//.test(path)) {
+    if (SLEEPER.leagueError) throw new Error(SLEEPER.leagueError);
+    return SLEEPER.league;
+  }
+  if (/^\/draft\//.test(path)) {
+    if (SLEEPER.draftError) throw new Error(SLEEPER.draftError);
+    return SLEEPER.draft;
+  }
   throw new Error(`unstubbed sleeper path: ${path}`);
 } };
 require("../site/assets/draftmode.js");
 const D = global.window.DraftMode;
+
+const SCORING = { pass_yd: 0.04, pass_td: 6, pass_int: -2,
+                  pass_int_td: -3, rec: 1 };
+assert.strictEqual(D.leagueScoringError(
+  { pass_yd: "0.04", pass_td: "6", pass_int: "-2",
+    pass_int_td: "-3", rec: "1" }, SCORING), null);
+assert.match(D.leagueScoringError({ ...SCORING, pass_td: 4 }, SCORING), /pass_td 4≠6/);
+assert.match(D.leagueScoringError({ ...SCORING, pass_int_td: -2 }, SCORING),
+  /pass_int_td -2≠-3/);
+assert.match(D.leagueScoringError({ ...SCORING, bonus_rec_te: 0.5 }, SCORING),
+  /bonus_rec_te 0.5≠0/);
+assert.strictEqual(D.leagueScoringError({ ...SCORING, bonus_rec_te: 0 }, SCORING), null);
+assert.strictEqual(D.leagueScoringError(SCORING, { ...SCORING, bonus_rec_te: 0 }), null);
+assert.match(D.leagueScoringError(null, SCORING), /scoring_settings.*invalid/);
+
+// Use both shipped board contracts, with the settings their real drafts
+// publish. No network dependency: missing fields and standalone mocks are
+// deliberate compatibility cases, not fabricated defaults.
+for (const file of ["draft.json", "draft-fam.json"]) {
+  const lg = require(`../site/data/${file}`).league;
+  const settings = { teams: lg.teams, rounds: lg.rounds, slots_qb: 1,
+    slots_rb: 2, slots_wr: 2, slots_te: 1, slots_flex: lg.flex,
+    slots_k: 1, slots_def: 1, slots_bn: 5 };
+  const draft = { type: "snake", league_id: lg.league_id, settings };
+  assert.strictEqual(D.draftContractError(draft, lg), null);
+  const strings = Object.fromEntries(Object.entries(settings).map(([k, v]) => [k, String(v)]));
+  assert.strictEqual(D.draftContractError({ ...draft, settings: strings }, lg), null);
+  assert.strictEqual(D.draftContractError({ ...draft, league_id: null }, lg), null);
+  assert.strictEqual(D.draftContractError({ type: "linear" }, lg), null);
+  assert.strictEqual(D.draftContractError({ ...draft, settings: {} }, lg), null);
+  assert.match(D.draftContractError({ ...draft, league_id: "another-league" }, lg), /different league/);
+  assert.match(D.draftContractError({ ...draft, type: "auction" }, lg), /unsupported draft type: auction/);
+  for (const key of ["slots_super_flex", "slots_wr_rb", "slots_wr_te", "slots_idp_flex",
+                     "slots_dl", "slots_lb", "slots_db"]) {
+    assert.match(D.draftContractError({ ...draft, settings: { ...settings, [key]: "1" } }, lg), /unsupported/);
+    assert.strictEqual(D.draftContractError({ ...draft, settings: { ...settings, [key]: "0" } }, lg), null);
+  }
+  for (const key of ["slots_k", "slots_def"]) {
+    for (const count of [0, 2]) {
+      assert.match(D.draftContractError({ ...draft, settings: { ...settings, [key]: count } }, lg), /different lineup/);
+    }
+  }
+}
 
 // nextPickNumber: 12-team snake, slot 3 -> picks #3, #22, #27, #46, #51 ...
 // (values below were verified against the shipped implementation)
@@ -575,11 +625,11 @@ const until = async (pred, what, ms = 2000) => {
       setItem: (k, v) => store.set(k, String(v)),
       removeItem: k => store.delete(k),
     };
-    const GAB = { slug: "gabagool", name: "Gabagool Fools", teams: 12, rounds: 15,
+    const GAB = { slug: "gabagool", name: "Gabagool Fools", league_id: "1376245373244301312", teams: 12, rounds: 15,
                   roster: { QB: 1, RB: 2, WR: 2, TE: 1 }, flex: 2,
                   flex_positions: ["RB", "WR", "TE"], starters: 8,
                   total_picks: 180, depth_cap: { QB: 2, RB: 6, WR: 6, TE: 2 },
-                  keeper_rules: "gabagool" };
+                  keeper_rules: "gabagool", sleeper_scoring: SCORING };
 
     const el = () => ({
       value: "", textContent: "", innerHTML: "", hidden: false, checked: false,
@@ -662,6 +712,8 @@ const until = async (pred, what, ms = 2000) => {
                 "a rounds-only mismatch to connect rather than be refused");
     assert.ok(/16 rounds/.test(els.note.textContent),
       "connected on a different round count without saying so");
+    assert.ok(/scoring not verified/.test(els.note.textContent),
+      "standalone draft did not disclose that league scoring was unverified");
     assert.ok(!els.note.hidden, "the round-count note was left hidden");
     handlers.disconnect();
 
@@ -686,6 +738,126 @@ const until = async (pred, what, ms = 2000) => {
     assert.ok(!store.has("fc-draft-mode:gabagool"), "disconnect left the session stored");
     assert.ok(store.has("fc-draft-mode:fam"),
       "disconnecting one league removed the OTHER league's session");
+
+    // Advance the actual poll chain deterministically, without a 30s wait.
+    // Numeric-string settings must normalize for pick math as well as guards.
+    const realSetTimeout = global.setTimeout;
+    let pendingPoll;
+    global.setTimeout = fn => { pendingPoll = fn; return 0; };
+    try {
+      SLEEPER.league = { league_id: GAB.league_id,
+                         scoring_settings: { ...SCORING } };
+      SLEEPER.calls.length = 0;
+      SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
+        league_id: GAB.league_id, draft_order: { U1: "2" },
+        settings: { teams: "12", rounds: "15", reversal_round: "0", slots_flex: "2" } };
+      els.username.value = "me";
+      await handlers.connectId();
+      await until(() => pendingPoll && last.connected, "numeric-string draft to connect");
+      assert.ok(!/No pick left|doesn&#39;t report its size/.test(els.shortlist.innerHTML),
+        "numeric-string settings passed the guard but broke pick timing");
+      assert.match(els.roster.innerHTML, /still need/,
+        "the live panel must show unfilled starting slots");
+      assert.ok(SLEEPER.calls.includes(`/league/${GAB.league_id}`),
+        "a league-backed draft did not verify its scoring snapshot");
+
+      SLEEPER.draft.settings.rounds = "16";
+      for (let i = 0; i < 9; i++) await pendingPoll();
+      assert.match(els.note.textContent, /16 rounds/,
+        "commissioner round edit was not refreshed");
+      SLEEPER.draft.settings.rounds = "15";
+      for (let i = 0; i < 10; i++) await pendingPoll();
+      assert.ok(els.note.hidden, "restoring rounds left a stale round warning");
+
+      SLEEPER.draftError = "temporary metadata failure";
+      for (let i = 0; i < 10; i++) await pendingPoll();
+      assert.strictEqual(last.connected, true, "transient metadata failure disconnected the draft");
+      assert.match(els.status.textContent, /reconnecting.*temporary metadata failure/);
+      delete SLEEPER.draftError;
+
+      SLEEPER.leagueError = "temporary scoring lookup failure";
+      for (let i = 0; i < 10; i++) await pendingPoll();
+      assert.strictEqual(last.connected, true, "scoring lookup failure disconnected the draft");
+      assert.match(els.status.textContent,
+        /reconnecting.*league scoring verification failed.*temporary scoring lookup failure/);
+      delete SLEEPER.leagueError;
+
+      SLEEPER.draft.settings.slots_super_flex = 1;
+      for (let i = 0; i < 10; i++) await pendingPoll();
+      assert.strictEqual(last.connected, false, "incompatible commissioner edit kept driving the draft");
+      assert.match(els.status.textContent, /draft settings changed.*slots_super_flex/);
+      assert.ok(els.shortlist.hidden, "incompatible settings left recommendations visible");
+      assert.ok(!store.has("fc-draft-mode:gabagool"), "invalidated draft kept auto-restore state");
+
+      // Rejecting a second connection must retire the original heartbeat and
+      // visible recommendations, rather than reverting to a misleading live label.
+      delete SLEEPER.draft.settings.slots_super_flex;
+      SLEEPER.draft.settings.rounds = "1";
+      await handlers.connectId();
+      await until(() => last.connected, "reconnect after restoring compatible shape");
+      // A round added since connect must not be mistaken for draft completion
+      // when the pick log first reaches the old length.
+      SLEEPER.draft.settings.rounds = "2";
+      SLEEPER.picks = Array.from({ length: 12 }, (_, i) => ({
+        pick_no: i + 1, draft_slot: i + 1, player_id: `picked-${i}`, picked_by: "them",
+      }));
+      await pendingPoll();
+      assert.match(els.note.textContent, /2 rounds/);
+      assert.ok(!/draft complete/.test(els.status.textContent), "added round was ignored at old completion boundary");
+      SLEEPER.draft.type = "auction";
+      await handlers.connectId();
+      assert.strictEqual(last.connected, false);
+      assert.match(els.status.textContent, /unsupported draft type: auction/);
+
+      // Live scoring is part of the same immutable board contract: exact
+      // values connect, while either a changed known rule or a new nonzero
+      // bonus refuses/clears recommendations. Extra zero categories are benign
+      // because Sleeper commonly omits zero-valued fields.
+      SLEEPER.draft.type = "snake";
+      SLEEPER.draft.settings.rounds = "15";
+      SLEEPER.picks = [];
+      SLEEPER.league.scoring_settings.pass_td = 4;
+      await handlers.connectId();
+      assert.strictEqual(last.connected, false, "changed passing TD scoring connected");
+      assert.match(els.status.textContent, /pass_td 4≠6/);
+
+      SLEEPER.league.scoring_settings.pass_td = 6;
+      SLEEPER.league.scoring_settings.pass_int_td = -2;
+      await handlers.connectId();
+      assert.strictEqual(last.connected, false, "changed pick-six scoring connected");
+      assert.match(els.status.textContent, /pass_int_td -2≠-3/);
+
+      SLEEPER.league.scoring_settings.pass_int_td = -3;
+      SLEEPER.league.scoring_settings.bonus_rec_te = 0.5;
+      await handlers.connectId();
+      assert.strictEqual(last.connected, false, "unexpected nonzero bonus connected");
+      assert.match(els.status.textContent, /bonus_rec_te 0.5≠0/);
+
+      SLEEPER.league.scoring_settings.bonus_rec_te = 0;
+      pendingPoll = null;
+      await handlers.connectId();
+      await until(() => pendingPoll && last.connected,
+        "an optional zero scoring field to connect");
+      SLEEPER.league.scoring_settings.pass_td = 4;
+      for (let i = 0; i < 9; i++) await pendingPoll();
+      assert.strictEqual(last.connected, false,
+        "a live scoring contract change left the draft connected");
+      assert.match(els.status.textContent, /draft settings changed.*pass_td 4≠6/);
+      assert.ok(els.shortlist.hidden,
+        "a live scoring contract change left recommendations visible");
+      SLEEPER.league.scoring_settings.pass_td = 6;
+
+      SLEEPER.leagueError = "league endpoint unavailable";
+      await handlers.connectId();
+      assert.strictEqual(last.connected, false, "unverified scoring connected after network failure");
+      assert.match(els.status.textContent,
+        /connect failed.*league scoring verification failed.*league endpoint unavailable/);
+    } finally {
+      delete SLEEPER.draftError;
+      delete SLEEPER.leagueError;
+      handlers.disconnect();
+      global.setTimeout = realSetTimeout;
+    }
     console.log("draftmode_fixture: OK");
   })().catch(e => { console.error(e.message); process.exit(1); });
 }

@@ -1,21 +1,62 @@
-# FAM FOOTBALL. Verified from api.sleeper.app/v1/league/<id> 2026-09-05.
+# FAM FOOTBALL. Locked scoring and live roster verified 2026-09-07.
 # Rolling waivers (waiver_type 0), 1 keeper, K + DEF rostered but unprojected.
 name: FAM FOOTBALL
 league_id: "1389736745205002240"
 teams: 10
 roster: {QB: 1, RB: 2, WR: 2, TE: 1}
-flex: 1
+flex: 2
 flex_positions: [RB, WR, TE]
-rounds: 14
-# PPR with FOUR-point passing TDs and -1 per interception. Every other
-# skill-position weight matches Gabagool. FAM carries none of the bonus
-# categories the model cannot predict (50-yard TD bonuses, pick-sixes), so
-# this is an exact representation rather than an approximation.
-scoring: {reception: 1.0, pass_td: 4.0, interception: -1.0}
-# Gabagool's caps with RB and WR dropped by one, because optimizer.js's own
-# comment reasons from "RB and WR fill the two flex slots as well" and FAM has
-# one flex slot. UNMEASURED. Breaks ties only -- a player over the cap still
-# wins outright whenever he improves the lineup.
-depth_cap: {QB: 2, RB: 5, WR: 5, TE: 2}
+rounds: 15
+# A pick-six costs -2 for the interception PLUS -3 for its return touchdown.
+# The model does not predict pick-sixes; the payload discloses that omission.
+scoring: {reception: 1.0, pass_td: 6.0, interception: -2.0, pass_int_td: -3.0}
+# Same per-team lineup/bench size as Gabagool. These remain judgment-based
+# tie-break caps, not a measured optimum.
+depth_cap: {QB: 2, RB: 6, WR: 6, TE: 2}
+# Complete nonzero Sleeper scoring contract; omitted categories score zero.
+# Includes K/DST settings, which drive ADP reminders, not model projections.
+sleeper_scoring:
+  pass_yd: 0.04
+  pass_td: 6.0
+  pass_int: -2.0
+  pass_int_td: -3.0
+  pass_2pt: 2.0
+  rush_yd: 0.1
+  rush_td: 6.0
+  rush_2pt: 2.0
+  rec: 1.0
+  rec_yd: 0.1
+  rec_td: 6.0
+  rec_2pt: 2.0
+  fum_lost: -2.0
+  fum_rec_td: 6.0
+  st_td: 6.0
+  st_fum_rec: 1.0
+  st_ff: 1.0
+  sack: 1.0
+  int: 2.0
+  ff: 1.0
+  fum_rec: 2.0
+  safe: 2.0
+  blk_kick: 2.0
+  def_td: 6.0
+  def_st_td: 6.0
+  def_st_fum_rec: 1.0
+  def_st_ff: 1.0
+  pts_allow_0: 10.0
+  pts_allow_1_6: 7.0
+  pts_allow_7_13: 4.0
+  pts_allow_14_20: 1.0
+  pts_allow_28_34: -1.0
+  pts_allow_35p: -4.0
+  fgm_0_19: 3.0
+  fgm_20_29: 3.0
+  fgm_30_39: 3.0
+  fgm_40_49: 4.0
+  fgm_50_59: 5.0
+  fgm_60p: 6.0
+  fgmiss: -1.0
+  xpm: 1.0
+  xpmiss: -1.0
 # keeper_rules deliberately omitted: FAM allows 1 keeper but its cost rule is
 # not known to this project, and keepers.js implements Gabagool's ladder only.

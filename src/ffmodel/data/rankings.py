@@ -64,7 +64,7 @@ RANKING_COLUMNS = ["fp_id", "player", "pos", "team", "ecr", "sd", "best",
 #
 # The snapshot is PREFERRED when present and the mirror remains the fallback,
 # so deleting the file restores the previous behaviour with no code change.
-ECR_SNAPSHOT_PATH = Path("data_snapshots/fantasypros_ecr_2026-09-06.csv")
+ECR_SNAPSHOT_PATH = Path("data_snapshots/fantasypros_ecr_2026-09-07.csv")
 
 # Snapshot filenames end in _YYYY-MM-DD.csv, same convention (and same reason)
 # as adp.SNAPSHOT_PATH: provenance is read off the filename rather than kept
@@ -130,16 +130,15 @@ def parse_ecr_snapshot_csv(path: Path = ECR_SNAPSHOT_PATH) -> pd.DataFrame:
     return df[RANKING_COLUMNS].reset_index(drop=True)
 
 
-# Ranks past this cannot change a decision in a 12-team, 15-round league: the
-# player goes undrafted. The crosswalk guard below is scored over the players
-# inside it, for the same reason adp.DRAFTABLE_ADP exists -- on 2026-08-15 a
-# whole-file match rate refused a perfectly good ADP overlay because a deeper
-# export had added camp bodies the identity feed does not carry.
+# Default draft size for Gabagool (12 teams, 15 rounds). Other leagues pass
+# their own bound: matches outside their draft must not dilute missing
+# identities inside it, nor should an unmatched depth tail cause an abort.
 DRAFTABLE_ECR = 180
 
 
 def normalize_ecr_snapshot(raw: pd.DataFrame, crosswalk: pd.DataFrame,
-                           min_match_rate: float = MIN_MATCH_RATE
+                           min_match_rate: float = MIN_MATCH_RATE,
+                           draftable_ecr: int = DRAFTABLE_ECR
                            ) -> tuple[pd.DataFrame, dict]:
     """Crosswalk a parsed ECR snapshot onto gsis ids.
 
@@ -155,7 +154,8 @@ def normalize_ecr_snapshot(raw: pd.DataFrame, crosswalk: pd.DataFrame,
     Matching is position-aware first, exactly as the ADP snapshot path is: a
     plain name join can hand the WR Justin Jefferson's rank to the LB of the
     same name. The name-only fallback beneath it is built from in-scope rows
-    only, so an out-of-scope namesake can never win.
+    only, so an out-of-scope namesake can never win. `draftable_ecr` bounds
+    the match-rate guard to this league's draft (teams * rounds).
     """
     from ffmodel.data.adp import norm   # deferred: adp imports this module
 
@@ -175,7 +175,7 @@ def normalize_ecr_snapshot(raw: pd.DataFrame, crosswalk: pd.DataFrame,
     df.loc[need, "player_id"] = df.loc[need, "_k"].map(by_name)
     matched_by_name = int(df["player_id"].notna().sum()) - matched_by_position
 
-    draftable = df[df["ecr"] <= DRAFTABLE_ECR]
+    draftable = df[df["ecr"] <= draftable_ecr]
     draftable_rate = (float(draftable["player_id"].notna().mean())
                       if len(draftable) else 1.0)
     if len(draftable) and draftable_rate < min_match_rate:
@@ -183,7 +183,7 @@ def normalize_ecr_snapshot(raw: pd.DataFrame, crosswalk: pd.DataFrame,
         raise ValueError(
             f"ECR snapshot crosswalk matched only {draftable_rate:.1%} of the "
             f"{len(draftable)} players inside the draft (rank <= "
-            f"{DRAFTABLE_ECR}, floor {min_match_rate:.0%}) -- unmatched: "
+            f"{draftable_ecr}, floor {min_match_rate:.0%}) -- unmatched: "
             f"{names} -- refusing to publish a partially-crosswalked ECR spine"
         )
 
@@ -294,7 +294,8 @@ def preseason_snapshot(rankings: pd.DataFrame, kickoff: pd.Timestamp) -> pd.Data
 
 
 def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
-                min_match_rate: float = MIN_MATCH_RATE
+                min_match_rate: float = MIN_MATCH_RATE, *,
+                draftable_ecr: int | None = None
                 ) -> tuple[pd.DataFrame, dict]:
     """Map consensus rows onto our `player_id` (gsis_id).
 
@@ -313,7 +314,10 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
 
     Rows that resolve to no gsis_id are DROPPED and counted -- a silent drop
     would quietly bias the consensus pool, so the caller gets the tally and
-    the names.
+    the names. Direct callers retain the historical whole-pool match-rate
+    guard when `draftable_ecr` is omitted. A league-aware caller can supply
+    its draft size to guard only ranks that can affect that draft; unmatched
+    depth rows remain visible in the whole-pool statistics.
     """
     x = crosswalk[crosswalk["gsis_id"].notna()].copy()
     x["fantasypros_id"] = _fp_key(x["fantasypros_id"])
@@ -382,10 +386,27 @@ def attach_gsis(snapshot: pd.DataFrame, crosswalk: pd.DataFrame,
         "gsis_collisions": int(len(matched) - len(deduped)),
         "match_rate": (float(len(matched) / len(out)) if len(out) else 0.0),
     }
-    if len(out) and stats["match_rate"] < min_match_rate:
+    if draftable_ecr is None:
+        guarded = out
+        guarded_rate = stats["match_rate"]
+    else:
+        guarded = out[out["ecr"] <= draftable_ecr]
+        guarded_rate = (float(guarded["player_id"].notna().mean())
+                        if len(guarded) else 1.0)
+        stats["draftable_ranked"] = int(len(guarded))
+        stats["draftable_match_rate"] = round(guarded_rate, 4)
+
+    if len(guarded) and guarded_rate < min_match_rate:
+        if draftable_ecr is not None:
+            raise ValueError(
+                f"consensus crosswalk matched only {guarded_rate:.1%} of "
+                f"{len(guarded)} players inside the draft (rank <= "
+                f"{draftable_ecr}, floor {min_match_rate:.0%}) -- refusing "
+                f"to benchmark against a partial consensus pool"
+            )
         raise ValueError(
             f"consensus crosswalk matched only {stats['match_rate']:.1%} of "
-            f"{len(out)} ranked players (floor {MIN_MATCH_RATE:.0%}) — refusing "
+            f"{len(out)} ranked players (floor {min_match_rate:.0%}) — refusing "
             f"to benchmark against a partial consensus pool"
         )
     return deduped, stats
@@ -530,7 +551,8 @@ def pull_player_ids(cache_dir: Path | None = None) -> pd.DataFrame:
 
 def consensus_for_season(season: int, schedules: pd.DataFrame,
                          cache_dir: Path | None = None, *,
-                         draft_picks: pd.DataFrame | None = None
+                         draft_picks: pd.DataFrame | None = None,
+                         draftable_ecr: int = DRAFTABLE_ECR
                          ) -> tuple[pd.DataFrame, dict]:
     """Leak-free preseason consensus for board season `season`, on our ids."""
     if draft_picks is None:
@@ -561,13 +583,15 @@ def consensus_for_season(season: int, schedules: pd.DataFrame,
                 f"refusing to use a post-kickoff ranking as a preseason "
                 f"consensus"
             )
-        matched, stats = normalize_ecr_snapshot(snapshot, crosswalk)
+        matched, stats = normalize_ecr_snapshot(
+            snapshot, crosswalk, draftable_ecr=draftable_ecr)
         stats["source"] = "ecr_snapshot"
         stats["path"] = ECR_SNAPSHOT_PATH.as_posix()
     else:
         rankings = pull_rankings(cache_dir)
         snapshot = preseason_snapshot(rankings, kickoff)
-        matched, stats = attach_gsis(snapshot, crosswalk)
+        matched, stats = attach_gsis(
+            snapshot, crosswalk, draftable_ecr=draftable_ecr)
         stats["source"] = "nflverse_mirror"
 
     stats["gsis_backfilled_from_draft_picks"] = restored

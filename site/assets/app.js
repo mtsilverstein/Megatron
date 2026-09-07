@@ -8,6 +8,29 @@ window.FC = (() => {
     return res.json();
   }
 
+  function leagueNavigation() {
+    // Keep the choice in each tab's URL, including the trip back from another
+    // page. A shared stored preference would let one league change the other.
+    const slug = new URLSearchParams(location.search).get("league") || "gabagool";
+    if (!["gabagool", "fam"].includes(slug)) {
+      throw new Error(`Unknown league "${slug}". Choose gabagool or fam.`);
+    }
+    document.querySelectorAll(".masthead nav a").forEach(link => {
+      const url = new URL(link.getAttribute("href"), location.href);
+      url.searchParams.set("league", slug);
+      link.href = url.href;
+      if (slug === "fam" && /\/(trade|weekly)\.html$/.test(url.pathname)) {
+        link.textContent += " · Gabagool";
+      }
+    });
+    document.querySelectorAll(".league-links a").forEach(link => {
+      const url = new URL(link.getAttribute("href"), location.href);
+      if (url.searchParams.get("league") === slug) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+    return slug;
+  }
+
   function stampHeader(payload) {
     const el = document.querySelector(".stamp");
     if (el) el.textContent =
@@ -152,6 +175,6 @@ window.FC = (() => {
     });
   }
 
-  return { POS_CLASS, loadJSON, stampHeader, staleBanner, fmt, makeSortable,
+  return { POS_CLASS, loadJSON, leagueNavigation, stampHeader, staleBanner, fmt, makeSortable,
            posFilter, esc, scoringFilter, LENS_LABEL };
 })();

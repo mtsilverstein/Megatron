@@ -23,7 +23,7 @@
 </header>
 <main>
   <p class="eyebrow" id="week-eyebrow">weekly projections</p>
-  <h1>This week's slate</h1>
+  <h1>Gabagool Fools — this week's slate</h1>
   <div class="filters" id="pos-filters" role="group" aria-label="Filter by position"></div>
   <div class="filters" id="scoring-filters" role="group" aria-label="Scoring format"></div>
   <div class="table-wrap">
@@ -54,6 +54,7 @@ about page for the numbers.</footer>
 <script src="assets/app.js"></script>
 <script>
 (async () => {
+  FC.leagueNavigation();
   const payload = await FC.loadJSON("data/weekly.json");
   FC.stampHeader(payload);
   document.getElementById("week-eyebrow").textContent =

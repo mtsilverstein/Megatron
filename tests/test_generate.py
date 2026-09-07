@@ -117,6 +117,35 @@ def test_parser_requires_week_or_draft():
                             "--season", "2026"])
 
 
+@pytest.mark.parametrize("extra", [["--week", "1"],
+                                   ["--draft", "--week", "auto"]])
+def test_fam_weekly_run_refuses_before_io_or_scoring_changes(
+        monkeypatch, tmp_path, capsys, extra):
+    import sys
+    from ffmodel.site import generate, weekly
+    import ffmodel.data.pull as pull
+
+    target = tmp_path / "weekly.json"
+    original = '{"gabagool": "last-good"}'
+    target.write_text(original)
+    before = weekly.RULESETS["league"]
+
+    def unexpected_pull(*args, **kwargs):
+        pytest.fail("unsupported weekly generation must refuse before data pulls")
+
+    monkeypatch.setattr(pull, "pull_weekly", unexpected_pull)
+    monkeypatch.setattr(sys, "argv", ["gen", "--out", str(tmp_path),
+                        "--model", "xgboost", "--season", "2026",
+                        "--league", "fam", *extra])
+    with pytest.raises(SystemExit) as exc:
+        generate.main()
+    assert exc.value.code == 2
+    assert "--week currently supports only --league gabagool" in capsys.readouterr().err
+    assert weekly.RULESETS["league"] is before
+    assert target.read_text() == original
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["weekly.json"]
+
+
 def test_week_auto_resolves_first_unplayed():
     from ffmodel.site.generate import resolve_week
 
@@ -316,8 +345,9 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     # normalize_snapshot_adp return) so tests can pin that specific counters
     # -- matched_by_id in particular, whose silent loss is the bug this task
     # fixes -- actually survive the trip into the published draft.json.
-    def fake_consensus(s, sched, d, picks=None):
+    def fake_consensus(s, sched, d, picks=None, *, draftable_ecr=None):
         capture["consensus_draft_picks"] = picks
+        capture["draftable_ecr"] = draftable_ecr
         return ecr_df, {"ranked": 1, "matched_by_id": 1, "matched_by_name": 0,
                         "matched_by_name_position": 0, "matched_by_name_only": 0,
                         "unmatched": 0, "unmatched_players": [], "gsis_collisions": 0,
@@ -831,12 +861,15 @@ def test_roster_override_provenance_counts_the_unmapped_tail():
 # that wiring: the scoring lens the setter swaps, and the slug the parser
 # defaults to (Gabagool, so every existing invocation is unchanged).
 def test_set_league_rules_swaps_only_the_league_lens():
+    from dataclasses import replace
     from ffmodel.league import load_league
     from ffmodel.site import weekly
 
     before = weekly.RULESETS["league"]
     try:
-        weekly.set_league_rules(load_league("fam").rules)
+        # Keep a distinct fixture: the two live leagues now share base scoring.
+        weekly.set_league_rules(replace(load_league("fam").rules,
+                                       pass_td=4.0, interception=-1.0))
         assert weekly.RULESETS["league"].pass_td == 4.0
         assert weekly.RULESETS["league"].interception == -1.0
         # The other three lenses are league-independent and must not move.
@@ -872,6 +905,7 @@ def test_draft_run_passes_the_default_leagues_contract_into_the_board(
     assert capture["league"]["slug"] == "gabagool"
     assert capture["league"]["teams"] == 12
     assert capture["league"]["total_picks"] == 180
+    assert capture["draftable_ecr"] == 180
     assert capture["league"]["board_ruleset"] == "league"
     # derived replacement, unchanged: 12 dedicated QBs league-wide + 1
     assert capture["replacement_rank"]["QB"] == 13
@@ -893,13 +927,15 @@ def test_a_non_default_league_builds_its_own_board_file(monkeypatch, tmp_path):
         _run_generate_with_stubs(monkeypatch, tmp_path,
                                  ["--draft", "--league", "fam"], capture)
         # the "league" lens now MEANS FAM's scoring; the key never moves
-        assert weekly_mod.RULESETS["league"].pass_td == 4.0
+        assert weekly_mod.RULESETS["league"].pass_td == 6.0
+        assert weekly_mod.RULESETS["league"].pass_int_td == -3.0
     finally:
         weekly_mod.set_league_rules(before)
 
     assert capture["teams"] == 10
     assert capture["league"]["slug"] == "fam"
-    assert capture["league"]["total_picks"] == 140
+    assert capture["league"]["total_picks"] == 150
+    assert capture["draftable_ecr"] == 150
     # 10 dedicated QBs league-wide + 1 -- NOT Gabagool's 13
     assert capture["replacement_rank"]["QB"] == 11
     assert (tmp_path / "out" / "draft-fam.json").exists()

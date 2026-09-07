@@ -29,7 +29,9 @@ COUNT_IDX = [PREDICTED_STATS.index(s) for s in COUNT_STATS]
 
 # Columns that affect scoring but are not predicted; present on actuals so
 # our points match official totals, absent (-> 0) on model output.
-SCORING_EXTRAS = ["two_point_conversions", "special_teams_tds"]
+SCORING_EXTRAS = [
+    "two_point_conversions", "special_teams_tds", "passing_pick_sixes",
+]
 
 # Names the point-band construction so eval reports and calibration artifacts
 # can never be silently compared across constructions.
@@ -42,6 +44,7 @@ class ScoringRules:
     pass_yd: float = 0.04
     pass_td: float = 4.0
     interception: float = -2.0
+    pass_int_td: float = 0.0
     rush_yd: float = 0.1
     rush_td: float = 6.0
     rec_yd: float = 0.1
@@ -68,11 +71,13 @@ STANDARD = ScoringRules(name="standard", reception=0.0)
 # ones. A board built on 4-point passing TDs ranks this league's quarterbacks
 # in the wrong order, not merely on the wrong scale.
 #
-# NOT modelled, because no head predicts them (same standing limitation as
-# `SCORING_EXTRAS`): 50+ yard TD bonuses (+2), two-point conversions (+2), and
-# pick-sixes thrown (-3). All are small and none is position-distorting the way
-# the passing-TD weight is.
-LEAGUE = ScoringRules(name="league", reception=1.0, pass_td=6.0)
+# Pick-sixes thrown are scored exactly on actuals when `passing_pick_sixes` is
+# observed, but projections do not currently predict that head, so the existing
+# SCORING_EXTRAS contract treats it as zero on model output. We do not estimate
+# or fabricate this rare event. 50+ yard TD bonuses (+2) also remain unmodelled.
+LEAGUE = ScoringRules(
+    name="league", reception=1.0, pass_td=6.0, pass_int_td=-3.0,
+)
 
 
 def stat_weights(rules: ScoringRules = PPR) -> dict[str, float]:
@@ -83,6 +88,7 @@ def stat_weights(rules: ScoringRules = PPR) -> dict[str, float]:
         "passing_yards": rules.pass_yd,
         "passing_tds": rules.pass_td,
         "passing_interceptions": rules.interception,
+        "passing_pick_sixes": rules.pass_int_td,
         "rushing_yards": rules.rush_yd,
         "rushing_tds": rules.rush_td,
         "receiving_yards": rules.rec_yd,

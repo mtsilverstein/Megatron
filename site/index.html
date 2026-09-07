@@ -22,8 +22,19 @@
   <p class="stamp">loading…</p>
 </header>
 <main>
-  <p class="eyebrow">2026 season · value over replacement</p>
-  <h1>Draft board</h1>
+  <p class="eyebrow" id="board-contract">2026 season · value over replacement</p>
+  <h1 id="board-title">Draft board</h1>
+  <nav class="league-links" aria-label="Draft league">
+    <a href="index.html?league=fam">FAM FOOTBALL</a>
+    <a href="index.html?league=gabagool">Gabagool Fools</a>
+  </nav>
+  <details class="draft-panel">
+    <summary>League scoring and projection limits</summary>
+    <div class="draft-body">
+      <p class="draft-note" id="league-scoring"></p>
+      <p class="draft-note" id="projection-limits"></p>
+    </div>
+  </details>
   <details class="draft-panel" id="draft-panel">
     <summary>Draft mode <span class="draft-status" id="draft-status">— off</span></summary>
     <div class="draft-body">
@@ -115,9 +126,31 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 (async () => {
   // ?league=<slug> selects the board. No parameter -- and "gabagool" -- keep
   // the existing filename, so every published link to this page is unchanged.
-  const slug = new URLSearchParams(location.search).get("league") || "gabagool";
+  const slug = FC.leagueNavigation();
   const board = await FC.loadJSON(
     slug === "gabagool" ? "data/draft.json" : `data/draft-${slug}.json`);
+  if (!board.league || board.league.slug !== slug) {
+    throw new Error("This board does not match the selected league. Reload before drafting.");
+  }
+  if (!board.league.sleeper_scoring) {
+    throw new Error("This board lacks the locked scoring settings. Regenerate it before drafting.");
+  }
+  const weights = board.league.sleeper_scoring;
+  document.getElementById("board-title").textContent = `${board.league.name} draft board`;
+  document.title = `${board.league.name} draft board — Megatron`;
+  document.getElementById("board-contract").textContent =
+    `${board.season} season · ${board.league.teams} teams · ${board.league.flex} FLEX · ${board.league.rounds} rounds · ${weights.pass_td} pts/pass TD · ${weights.pass_int}/INT`;
+  document.getElementById("league-scoring").textContent =
+    `Passing: ${weights.pass_yd}/yard, ${weights.pass_td}/TD, ${weights.pass_int}/interception, `
+    + `plus ${weights.pass_int_td || 0} if returned for a TD. `
+    + `Rushing: ${weights.rush_yd}/yard, ${weights.rush_td}/TD. `
+    + `Receiving: ${weights.rec || 0}/catch, ${weights.rec_yd}/yard, ${weights.rec_td}/TD. `
+    + `Lost fumbles: ${weights.fum_lost}.`;
+  const longTDs = ["pass_td_50p", "rush_td_50p", "rec_td_50p"].some(k => weights[k]);
+  document.getElementById("projection-limits").textContent =
+    "Projected points do not forecast pick-sixes thrown, two-point conversions, or return/recovery touchdowns"
+    + (longTDs ? ", or this league's 50+ yard TD bonuses" : "")
+    + ". These rules still apply in Sleeper. K/DST reminders use ADP, not projected scoring.";
   // BEFORE any rendering and before DraftMode.init: the roster shape drives
   // openSlots, the lineup rollout and the shortlist, so a render that ran
   // first would use another league's shape. The board carries the contract it

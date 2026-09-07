@@ -108,8 +108,14 @@ def test_pull_real_season_and_scoring_matches_nflverse(tmp_path):
 
 def test_canonical_columns_include_scoring_extras():
     out = normalize_weekly(pd.DataFrame([_raw_row()]))
-    for col in ("two_point_conversions", "special_teams_tds"):
+    for col in ("two_point_conversions", "special_teams_tds", "passing_pick_sixes"):
         assert col in out.columns, col
+    assert out["passing_pick_sixes"].iloc[0] == pytest.approx(0.0)
+
+
+def test_normalize_weekly_preserves_observed_passing_pick_sixes():
+    out = normalize_weekly(pd.DataFrame([_raw_row(passing_pick_sixes=1)]))
+    assert out["passing_pick_sixes"].iloc[0] == pytest.approx(1.0)
 
 
 def test_cache_name_rejects_empty_seasons():

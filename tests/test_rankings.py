@@ -545,6 +545,88 @@ def test_attach_gsis_raises_below_match_rate_floor():
         attach_gsis(snap, xwalk)
 
 
+def test_attach_gsis_short_draft_guard_cannot_be_diluted_by_depth_matches():
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": str(i), "player": f"P{i}", "mergename": f"p{i}", "ecr": i}
+        for i in range(1, 181)
+    ]))
+    xwalk = _crosswalk([
+        {"fantasypros_id": str(i), "gsis_id": f"00-{i}",
+         "merge_name": f"p{i}"}
+        for i in range(9, 181)
+    ])
+    # 172/180 passes a whole-pool 95% guard, but the relevant top 140 are
+    # only 132/140 matched and must be refused.
+    with pytest.raises(ValueError, match=r"94.3%.*rank <= 140"):
+        attach_gsis(snap, xwalk, draftable_ecr=140)
+
+
+def test_attach_gsis_short_draft_ignores_unmatched_depth_tail_for_guard():
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": str(i), "player": f"P{i}", "mergename": f"p{i}", "ecr": i}
+        for i in range(1, 201)
+    ]))
+    xwalk = _crosswalk([
+        {"fantasypros_id": str(i), "gsis_id": f"00-{i}",
+         "merge_name": f"p{i}"}
+        for i in range(1, 141)
+    ])
+    matched, stats = attach_gsis(snap, xwalk, draftable_ecr=140)
+    assert len(matched) == 140
+    assert stats["draftable_ranked"] == 140
+    assert stats["draftable_match_rate"] == 1.0
+    assert stats["unmatched"] == 60
+    assert stats["match_rate"] == pytest.approx(0.70)
+
+
+def test_attach_gsis_without_draft_bound_preserves_whole_pool_guard():
+    from ffmodel.data.rankings import attach_gsis, normalize_rankings
+
+    snap = normalize_rankings(_raw_rankings([
+        {"id": str(i), "player": f"P{i}", "mergename": f"p{i}", "ecr": i}
+        for i in range(1, 201)
+    ]))
+    xwalk = _crosswalk([
+        {"fantasypros_id": str(i), "gsis_id": f"00-{i}",
+         "merge_name": f"p{i}"}
+        for i in range(1, 141)
+    ])
+    with pytest.raises(ValueError, match=r"70.0% of 200 ranked players"):
+        attach_gsis(snap, xwalk)
+
+
+def test_consensus_mirror_passes_short_draft_bound_to_attach_gsis(
+        monkeypatch, tmp_path):
+    from ffmodel.data import rankings
+
+    mirrored = rankings.normalize_rankings(_raw_rankings([
+        {"id": str(i), "player": f"P{i}", "mergename": f"p{i}", "ecr": i}
+        for i in range(1, 181)
+    ]))
+    xwalk = _crosswalk([
+        {"fantasypros_id": str(i), "gsis_id": f"00-{i}",
+         "merge_name": f"p{i}", "pfr_id": f"pfr-{i}"}
+        for i in range(9, 181)
+    ])
+    picks = pd.DataFrame(columns=["pfr_player_id", "gsis_id"])
+    schedules = pd.DataFrame({
+        "season": [2024], "gameday": ["2024-09-05"],
+    })
+    monkeypatch.setattr(rankings, "ECR_SNAPSHOT_PATH", tmp_path / "missing.csv")
+    monkeypatch.setattr(rankings, "pull_rankings", lambda cache_dir: mirrored)
+    monkeypatch.setattr(rankings, "pull_player_ids", lambda cache_dir: xwalk)
+
+    # The mirror's 172/180 whole-pool rate passes, but its top-140 rate is
+    # 132/140. This only raises if consensus_for_season forwards the bound.
+    with pytest.raises(ValueError, match=r"94.3%.*rank <= 140"):
+        rankings.consensus_for_season(
+            2024, schedules, tmp_path, draft_picks=picks, draftable_ecr=140)
+
+
 def test_attach_gsis_counts_gsis_collisions():
     from ffmodel.data.rankings import attach_gsis, normalize_rankings
 
@@ -735,6 +817,41 @@ def test_ecr_guard_boundary_rank_180_counts_as_draftable():
     rows = [(180, "In Draft", "WR"), (181, "Out Of Draft", "WR")]
     with pytest.raises(ValueError, match="inside the draft"):
         normalize_ecr_snapshot(_snap(rows), _xw([("out of draft", "WR", "00-2")]))
+
+
+def test_short_draft_ecr_guard_includes_140_and_excludes_141():
+    rows = _snap([(140, "In Draft", "WR"), (141, "Out Of Draft", "WR")])
+    with pytest.raises(ValueError, match="rank <= 140"):
+        normalize_ecr_snapshot(rows, _xw([("out of draft", "WR", "00-2")]),
+                               draftable_ecr=140)
+    _, stats = normalize_ecr_snapshot(
+        rows, _xw([("in draft", "WR", "00-1")]), draftable_ecr=140)
+    assert stats["draftable_ranked"] == 1
+    assert stats["draftable_match_rate"] == 1.0
+    assert stats["unmatched"] == 1
+
+
+def test_generation_consensus_guard_cannot_dilute_short_draft_misses_with_depth_matches(
+        monkeypatch, tmp_path):
+    from ffmodel.data import rankings
+    from ffmodel.site.generate import _load_consensus
+
+    snapshot = _ecr_export(tmp_path, [(i, f"P{i}", "KC", f"WR{i}")
+                                      for i in range(1, 181)])
+    crosswalk = _xw([(f"p{i}", "WR", f"00-{i}") for i in range(9, 181)])
+    crosswalk["pfr_id"] = crosswalk["gsis_id"]
+    picks = pd.DataFrame(columns=["pfr_player_id", "gsis_id"])
+    schedules = pd.DataFrame({"season": [2026], "gameday": ["2026-09-09"]})
+    monkeypatch.setattr(rankings, "ECR_SNAPSHOT_PATH", snapshot)
+    monkeypatch.setattr(rankings, "pull_player_ids", lambda cache_dir: crosswalk)
+
+    # Eight misses inside the top 140: 172/180 passes the 180-player default,
+    # while 132/140 must fail a shorter draft's guard. Exercise both loader hops.
+    matched, stats = _load_consensus(2026, schedules, tmp_path, picks)
+    assert len(matched) == 172
+    assert stats["draftable_match_rate"] == 0.9556
+    with pytest.raises(ValueError, match=r"94.3%.*rank <= 140"):
+        _load_consensus(2026, schedules, tmp_path, picks, draftable_ecr=140)
 
 
 def test_ecr_position_key_disambiguates_two_IN_SCOPE_namesakes():
