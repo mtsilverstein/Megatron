@@ -589,41 +589,60 @@
     const survives = new Map(scored.map(e =>
       [e.player, survivesToNextPick(e.player, pool, future, ctx.pickNo, used) ? 1 : 0]));
     const safe = e => survives.get(e.player);
-    /* TRIED AND REVERTED 2026-09-07: a fourth tiebreak preferring a candidate
-       whose simulated `lineupRole` was not "bench". It looks obviously right.
-       At pick 67 of a real mock with both WR slots empty, every candidate
-       scored cost 0.00 and this chain recommended a backup QB (vorp 7, role
-       "bench") over a receiver filling a mandatory slot (vorp 0, role "WR2").
+    /* TWO ATTEMPTS TO REPLACE VORP AS THE LAST TIEBREAK. BOTH MEASURED
+       NEGATIVE. Read this before trying a third.
 
-       Measured on realized weekly points 2021-25, treatment vs control paired
-       exactly by (season, seed, slot, window) -- 480/480 pairs matched, same
-       field, same seats -- it cost Gabagool 16.7 pts/draft over the full
-       season, negative in 4 of 5 seasons, and changed the roster in 100% of
-       drafts. Reproduce: draft_sim.json (control) vs starter_TREAT_gabagool.json.
+       The complaint both were answering is real and reproduces. At pick 34 of
+       mock 1402727282350559232, holding McBride already, this chain took TE
+       Colston Loveland (rawCost 1.61, role FLEX, vorp 49) over RB Breece Hall
+       (rawCost 0.00, role RB2, vorp 32) -- the objective's own preference,
+       overruled. It happens because a gap under TIE_POINTS clamps to zero, so
+       both sit in the top band, and VORP decides. Loveland's 49 is value over
+       a replacement TIGHT END, a slot McBride already fills.
 
-       Read that as "no evidence it helps", NOT as a proven harm. Season is the
-       unit of independence here -- drafts within a season share the same
-       realized player performances -- and across 5 seasons the spread is wide
-       enough that the interval includes zero. What IS solid is the third fact:
-       it rewrites every roster, so it is not the narrow late-round nudge it
-       appears to be, and a change that large with no measured upside does not
-       ship.
+       ATTEMPT 1 (2026-09-07): prefer a candidate whose `lineupRole` is not
+       "bench", above `safe`.
+       ATTEMPT 2 (2026-09-07): insert `(b.points - a.points)` between `safe`
+       and VORP -- the objective itself as the last resort.
 
-       Two limits, stated so nobody re-derives them the hard way. The rule
-       tested was BROAD -- any non-bench role, even with the starting lineup
-       already full -- so the narrow rule the mock complaint actually points at
-       ("fills a currently EMPTY starting slot") remains untested. And the FAM
-       arm of that run is retired: it predates the 2026-09-07 config
-       correction and ran 14 rounds / 1 flex / 4-point passing TDs, a league
-       that does not exist.
+       Attempt 2, measured properly (control and treatment on IDENTICAL code,
+       paired on season/seed/slot/window, 2021-25 realized weekly points):
+         Gabagool  full -12.9 pts/draft, 3 of 5 seasons negative, 468/480
+                   drafts changed, season-level 95% CI [-34.4, +8.5]
+         FAM       full -19.2 pts/draft, 4 of 5 seasons negative, 386/400
+                   drafts changed, season-level 95% CI [-56.9, +18.5]
+       Neither is significant. Both point the wrong way and rewrite ~97% of
+       drafts, which is the disqualifying combination: enormous churn bought
+       with no measured gain. Artifacts: rawcost_{gab,fam}_{CONTROL,TREAT}*.json.
 
-       WHY VORP IS PLAUSIBLY RIGHT HERE: rosters are scored on the best legal
-       lineup RE-PICKED FROM ACTUAL WEEKLY POINTS. A backup QB is not dead
-       weight under that scoring -- he starts on the bye and in the weeks the
-       starter busts. `role` describes the PROJECTED lineup, not the realized
-       one, so preferring by role discards depth's option value. Do not re-add
-       the broad rule without beating those numbers; a narrow empty-slot rule
-       needs its own controlled run first. */
+       WHY VORP KEEPS WINNING, most likely. Rosters are scored on the best
+       legal lineup RE-PICKED FROM ACTUAL WEEKLY POINTS. `points` optimizes the
+       PROJECTED lineup, so it prices a player at his projected role and
+       discards option value -- but a tight end who can only flex still starts
+       in the weeks your RB2 busts, and a backup QB starts on the bye. VORP is
+       positional and therefore "wrong" for a filled slot, yet it is correlated
+       with exactly the upside the projected-lineup number cannot see. Two
+       independent attempts to remove it, from opposite directions, both lost.
+
+       ATTEMPT 1'S NUMBERS WERE NEVER VALID -- a correction. They were first
+       recorded here as "-16.7 pts/draft, 480/480 matched pairs", which read as
+       a clean paired result and was not one: the control artifact's content
+       came from commit 95bf205 (2026-08-31) while the treatment ran on
+       2026-09-06 code, with two optimizer commits and two harness commits in
+       between. Re-running that control on same-day code moved it -11.8 pts on
+       its own -- 71% of the effect that had been attributed to the tiebreak.
+       The pairs matched on (season, seed, slot, window), which is why it
+       looked rigorous. Attempt 1 is therefore UNRESOLVED, not measured harmful.
+
+       THE RULE THAT COSTS A DAY TO RELEARN: matching seeds and seats is not
+       provenance. A backtest artifact is only a control for code it was
+       generated by. Regenerate the control in the same session as the
+       treatment, and diff it against the committed one before trusting either
+       -- a file's mtime tracks the last `git checkout`, not its content.
+
+       Still untested: a NARROW rule keyed on a currently EMPTY starting slot,
+       rather than on `role` or on the objective. Both attempts above were
+       broad. Do not re-add either without beating the numbers above. */
     scored.sort((a, b) => {
       const ta = inTopBand(a), tb = inTopBand(b);
       if (ta !== tb) return ta ? -1 : 1;          // the band the model can see
