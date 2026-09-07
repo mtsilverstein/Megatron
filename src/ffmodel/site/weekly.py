@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pandas as pd
+from ffmodel.site.pick_sixes import add_pick_six_expectation
 
 from ffmodel.scoring import (
     HALF_PPR,
@@ -45,13 +46,16 @@ def _quantile_frames(future: pd.DataFrame, predictor) -> dict[str, pd.DataFrame 
 
 
 def build_weekly_projections(future: pd.DataFrame, predictor, season: int,
-                             week: int, data_through: str) -> dict:
+                             week: int, data_through: str, *,
+                             pick_six_prior: dict | None = None) -> dict:
     if future.empty:
         raise RuntimeError(
             f"no future rows for season {season} week {week} — "
             f"refusing to publish an empty weekly page"
         )
-    frames = _quantile_frames(future, predictor)
+    frames = add_pick_six_expectation(
+        _quantile_frames(future, predictor), future["position"],
+        None if pick_six_prior is None else pick_six_prior["rate"])
     # p10/p90 are sign-coherent floor/ceiling (fantasy_points_quantiles), so a
     # passer's ceiling isn't dragged down by his worst-case interceptions.
     points = {
@@ -86,5 +90,6 @@ def build_weekly_projections(future: pd.DataFrame, predictor, season: int,
         "season": season, "week": week,
         "model": predictor.name,
         "has_bands": frames["p10"] is not None,
+        **({"pick_six_forecast": dict(pick_six_prior)} if pick_six_prior is not None else {}),
         "players": players,
     }

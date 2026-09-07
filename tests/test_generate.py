@@ -687,8 +687,10 @@ def test_data_through_stamp_is_derived_from_data_and_lands_in_json(monkeypatch, 
 
     capture = {}
 
-    def fake_build_weekly_projections(future, predictor, season, week, data_through):
+    def fake_build_weekly_projections(future, predictor, season, week, data_through,
+                                      pick_six_prior=None):
         capture["data_through"] = data_through
+        capture["pick_six_prior"] = pick_six_prior
         return {"players": [], "data_through": data_through}
     monkeypatch.setattr(weekly_mod, "build_weekly_projections", fake_build_weekly_projections)
 

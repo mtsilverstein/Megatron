@@ -567,6 +567,10 @@ def main() -> None:
     # Build every payload first: a failure here must leave ALL existing
     # site files untouched (spec §9 fail-safe).
     payloads: dict[str, dict] = {}
+    from ffmodel.site.pick_sixes import load_pick_six_prior
+    pick_six_prior = load_pick_six_prior(args.season)
+    print(f"pick-six expected-cost rate: {pick_six_prior['rate']:.4%} "
+          f"({pick_six_prior['first_season']}–{pick_six_prior['through_season']})")
     if week is not None:
         combined, future = combined_future_features(weekly, schedules,
                                                     args.season, week,
@@ -574,7 +578,8 @@ def main() -> None:
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)
         payloads["weekly.json"] = build_weekly_projections(
-            future, predictor, args.season, week, data_through)
+            future, predictor, args.season, week, data_through,
+            pick_six_prior=pick_six_prior)
     if args.draft:
         returning = _load_returning(Path(args.returning), weekly, args.season)
         if returning:
@@ -585,7 +590,8 @@ def main() -> None:
             weekly, schedules, predictor, args.season, data_through, prefit=True,
             sleeper_players=sleeper_players, draft_picks=draft_picks,
             ecr=ecr, adp=adp, replacement_rank=replacement, returning=returning,
-            current_teams=current_teams, league=cfg.payload(), teams=cfg.teams)
+            current_teams=current_teams, league=cfg.payload(), teams=cfg.teams,
+            pick_six_prior=pick_six_prior)
         # Provenance, same rule as adp_source and draft_gsis_canonicalized
         # below: this override silently rewrites an input the model is
         # sensitive to, so how far it reached must be inspectable on the

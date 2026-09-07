@@ -147,8 +147,12 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     + `Receiving: ${weights.rec || 0}/catch, ${weights.rec_yd}/yard, ${weights.rec_td}/TD. `
     + `Lost fumbles: ${weights.fum_lost}.`;
   const longTDs = ["pass_td_50p", "rush_td_50p", "rec_td_50p"].some(k => weights[k]);
+  const pickSix = board.pick_six_forecast;
   document.getElementById("projection-limits").textContent =
-    "Projected points do not forecast pick-sixes thrown, two-point conversions, or return/recovery touchdowns"
+    (pickSix
+      ? `QB projections include an approximate pick-six expected-cost adjustment: ${(100 * pickSix.rate).toFixed(1)}% of estimated interceptions, using ${pickSix.first_season}–${pickSix.through_season} NFL history. This shifts the point bands; it does not simulate individual pick-sixes or their extra uncertainty. `
+      : "Projected points do not forecast pick-sixes thrown. ")
+    + "Projected points do not forecast two-point conversions or return/recovery touchdowns"
     + (longTDs ? ", or this league's 50+ yard TD bonuses" : "")
     + ". These rules still apply in Sleeper. K/DST reminders use ADP, not projected scoring.";
   // BEFORE any rendering and before DraftMode.init: the roster shape drives

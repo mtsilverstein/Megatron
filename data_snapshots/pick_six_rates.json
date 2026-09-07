@@ -1,0 +1,44 @@
+{
+  "source": "nflverse play-by-play release",
+  "method": "Pooled P(pick-six | credited passing interception) over completed regular seasons. Denominator: season_type=REG, interception=1, passer_player_id and interception_player_id present, and two_point_attempt!=1. Numerator additionally requires return_touchdown=1 and td_team=defteam.",
+  "seasons": [
+    {
+      "season": 2021,
+      "interceptions": 440,
+      "pick_sixes": 41,
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_2021.parquet",
+      "sha256": "333ad34378e5339d5172717cc83378e908daf02c8699416ab3e17c2ec10f78d8"
+    },
+    {
+      "season": 2022,
+      "interceptions": 418,
+      "pick_sixes": 38,
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_2022.parquet",
+      "sha256": "931121d8897779d7944e2a293e92ed8799c8e5cceef84096ac42339003fedc09"
+    },
+    {
+      "season": 2023,
+      "interceptions": 430,
+      "pick_sixes": 45,
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_2023.parquet",
+      "sha256": "bd3484731408def6b0ec93225bba2bd7b2c65769ca707a2b9444d891abdc6776"
+    },
+    {
+      "season": 2024,
+      "interceptions": 387,
+      "pick_sixes": 28,
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_2024.parquet",
+      "sha256": "3fd2896bc0b911b615142d2f1fabae54a4bbba5ab7b73b28187b118ef8af6a3b"
+    },
+    {
+      "season": 2025,
+      "interceptions": 380,
+      "pick_sixes": 28,
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_2025.parquet",
+      "sha256": "c6ecedd6d678cc37ed316b23ef84ee1ec6abb69c514bb11868a7ebd5a367df29"
+    }
+  ],
+  "interceptions": 2055,
+  "pick_sixes": 180,
+  "rate": 0.08759124087591241
+}

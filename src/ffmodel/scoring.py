@@ -72,9 +72,9 @@ STANDARD = ScoringRules(name="standard", reception=0.0)
 # in the wrong order, not merely on the wrong scale.
 #
 # Pick-sixes thrown are scored exactly on actuals when `passing_pick_sixes` is
-# observed, but projections do not currently predict that head, so the existing
-# SCORING_EXTRAS contract treats it as zero on model output. We do not estimate
-# or fabricate this rare event. 50+ yard TD bonuses (+2) also remain unmodelled.
+# observed. Raw model output has no such head; site generation separately adds
+# an explicitly labelled empirical expected-count approximation. Actual scoring
+# here never imputes missing counts. 50+ yard TD bonuses remain unmodelled.
 LEAGUE = ScoringRules(
     name="league", reception=1.0, pass_td=6.0, pass_int_td=-3.0,
 )

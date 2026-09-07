@@ -10,6 +10,7 @@ from ffmodel.data.future import combined_future_features
 from ffmodel.model.simulate import games_probs_from_counts, rho_from_icc, simulate_season
 from ffmodel.scoring import fantasy_points, fantasy_points_quantiles
 from ffmodel.site.board_rank import _assign_tiers, rank_board
+from ffmodel.site.pick_sixes import add_pick_six_expectation
 from ffmodel.site.weekly import BOARD_RULESET, RULESETS
 
 # 12-team league: points above the player at this positional rank define
@@ -26,7 +27,8 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       diagnostics: dict | None = None,
                       rho_by_position: dict[str, float] | None = None,
                       returning: set[str] | None = None,
-                      current_teams: dict[str, str] | None = None
+                      current_teams: dict[str, str] | None = None,
+                      pick_six_rate: float | None = None
                       ) -> pd.DataFrame:
     """All weeks seeded from the same pre-season history (spec §7).
 
@@ -83,14 +85,17 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)   # future rows live in this frame
         if has_quantiles:
-            qs = predictor.predict_quantiles(future)
+            qs = add_pick_six_expectation(
+                predictor.predict_quantiles(future), future["position"], pick_six_rate)
             # Sign-coherent floor/ceiling per week (fed into the season
             # simulation below); keeps a passer's ceiling from absorbing his
             # worst-case INTs.
             week_pts = {rn: fantasy_points_quantiles(qs, rules)
                         for rn, rules in RULESETS.items()}
         else:
-            pred = predictor.predict(future)
+            pred = add_pick_six_expectation(
+                {"p50": predictor.predict(future)}, future["position"],
+                pick_six_rate)["p50"]
             week_pts = {rn: {"p50": fantasy_points(pred, rules), "p10": None, "p90": None}
                         for rn, rules in RULESETS.items()}
         for idx, row in future.iterrows():
@@ -219,7 +224,7 @@ def _fit_frame(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
 
 
 def _rookie_frame(weekly, draft_picks, season, players, team_weeks, weeks_list,
-                  *, n_draws, seed, rookie_min_n):
+                  *, n_draws, seed, rookie_min_n, pick_six_rate=None):
     """Rookie rows for the target season's draft class, on the veterans'
     scale: cohort weekly triples -> simulate_season -> season quantiles.
     Dedupe: a drafted player already carrying weekly history (by gsis id,
@@ -258,6 +263,9 @@ def _rookie_frame(weekly, draft_picks, season, players, team_weeks, weeks_list,
             scheduled = len(weeks_list)                 # toy schedules: play on
         frames, games_probs = rookie_projection(
             cohorts, r["position"], int(r["round"]), int(r["pick"]))
+        frames = add_pick_six_expectation(
+            frames, pd.Series(r["position"], index=frames["p50"].index),
+            pick_six_rate)
         # nflreadpy's draft_picks occasionally has NaN gsis_id (undrafted-
         # supplemental-style rows, or a player nflverse hasn't assigned an id
         # to yet -- e.g. 7 of 80 in the 2026 class) -- a NaN player_id blows
@@ -388,11 +396,13 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                       replacement_rank: dict = REPLACEMENT_RANK,
                       returning: set[str] | None = None,
                       current_teams: dict[str, str] | None = None,
-                      league: dict | None = None, teams: int = 12) -> dict:
+                      league: dict | None = None, teams: int = 12,
+                      pick_six_prior: dict | None = None) -> dict:
+    pick_six_rate = None if pick_six_prior is None else pick_six_prior["rate"]
     players = season_projection(weekly, schedules, predictor, season, weeks, prefit=prefit,
                                 n_draws=n_draws, seed=seed, games_dist=games_dist,
                                 diagnostics=diagnostics, returning=returning,
-                                current_teams=current_teams)
+                                current_teams=current_teams, pick_six_rate=pick_six_rate)
     if players.empty:
         raise RuntimeError(
             f"no future games found for season {season} weeks {list(weeks)} — "
@@ -410,7 +420,8 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
     if draft_picks is not None:
         rookie_rows, rookie_prior_meta = _rookie_frame(
             weekly, draft_picks, season, players, team_weeks, weeks_list,
-            n_draws=n_draws, seed=seed, rookie_min_n=rookie_min_n)
+            n_draws=n_draws, seed=seed, rookie_min_n=rookie_min_n,
+            pick_six_rate=pick_six_rate)
         players = pd.concat([players, rookie_rows], ignore_index=True)
 
     def _bye(team: str):
@@ -428,6 +439,13 @@ def build_draft_board(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
                               n_draws, rookie_prior=rookie_prior_meta,
                               ecr=ecr, adp=adp, replacement_rank=replacement_rank,
                               league=league, teams=teams)
+    if pick_six_prior is not None:
+        payload["pick_six_forecast"] = dict(pick_six_prior)
+        if league is not None:
+            payload["league"] = dict(league)
+            payload["league"]["unprojected_scoring"] = {
+                k: v for k, v in league.get("unprojected_scoring", {}).items()
+                if k != "pass_int_td"}
     if sleeper_players is not None:
         # Deferred import keeps draft.py import-light for consumers that
         # never touch draft mode (board backtests, tests).

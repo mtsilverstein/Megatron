@@ -54,11 +54,18 @@ scoring or roster mismatch. Standalone mocks must be set up to match the league;
 Sleeper's mock defaults can differ, and mock scoring cannot be verified through
 a league ID.
 
-Projection limits are shown on each board. The trained model does not forecast
-pick-sixes, 50+ yard TD bonuses, two-point conversions, or return/recovery TDs.
-Recording their scoring rules does not make them projected. Pick-six scoring
-is exact when the observed count is supplied; absent historical counts remain
-zero. K/DST reminders use ADP, not model point projections.
+Projection limits are shown on each board. QB forecasts include an approximate
+pick-six expected-cost adjustment, using the observed NFL pick-six/interception
+rate from completed seasons in `data_snapshots/pick_six_rates.json`. Interception
+volume is estimated by integrating a nonnegative, piecewise-linear curve through
+the model's interception quantiles (point-only models use their point estimate).
+The expected penalty shifts all weekly band endpoints equally before the normal
+games-played simulation, including rookie QBs. It is not a trained pick-six head
+and does not add discrete pick-six uncertainty or player-specific return rates.
+Historical scoring is unchanged: an observed pick-six still costs the ordinary
+interception penalty plus the extra penalty; missing actual counts remain zero.
+50+ yard TD bonuses, two-point conversions, and return/recovery TDs remain
+unprojected. K/DST reminders use ADP, not model point projections.
 
 The manual draft refresh workflow rebuilds **both** leagues. Weekly refreshes
 build Gabagool only; `--league fam --week ...` is refused before any output is
