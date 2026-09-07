@@ -150,6 +150,17 @@ async function main() {
   }
   if (!Number.isInteger(args.slot)) throw new Error("--slot is required");
   const board = JSON.parse(fs.readFileSync(args.board, "utf8"));
+  // Point the optimizer at the board's OWN league before replaying anything.
+  // Without this the replay scores a second league's draft against the
+  // default (12-team, 2-flex) lineup -- the same silent misconfiguration the
+  // browser's connect guard exists to prevent, and it would make a correct
+  // recommendation look wrong or the reverse.
+  if (board.league && O.configure) {
+    O.configure(board.league);
+    const c = O.leagueConfig();
+    console.log(`league: ${board.league.name} — ${board.league.teams} teams, `
+      + `${c.FLEX_SLOTS} flex, ${c.ROLLOUT_PICKS} starters`);
+  }
   let picks, teams = args.teams, rounds = args.rounds;
   let reversal = args.reversal, type = "snake";
   if (args.draft) {

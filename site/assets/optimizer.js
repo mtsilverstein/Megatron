@@ -589,6 +589,26 @@
     const survives = new Map(scored.map(e =>
       [e.player, survivesToNextPick(e.player, pool, future, ctx.pickNo, used) ? 1 : 0]));
     const safe = e => survives.get(e.player);
+    /* TRIED AND MEASURED HARMFUL 2026-09-07: a fourth tiebreak preferring a
+       candidate who fills an OPEN STARTING SLOT over one landing on the bench.
+       It looks obviously right. At pick 67 of a real mock with both WR slots
+       empty, every candidate scored cost 0.00 and this chain recommended a
+       backup QB (vorp 7, role "bench") over a receiver filling a mandatory
+       slot (vorp 0, role "WR2").
+
+       Adding `starts` above `safe` cost points in BOTH leagues, on realized
+       weekly points across 2021-25, paired by (season, seed, slot):
+         Gabagool  -16.7 pts/draft, 4 of 5 seasons negative (n=480)
+         FAM        -2.3 pts/draft, 4 of 5 seasons negative (n=2400)
+       It also changed the roster in 100% of drafts, so it is not the narrow
+       late-round adjustment it appears to be.
+
+       WHY VORP IS RIGHT HERE, most likely: rosters are scored on the best
+       legal lineup RE-PICKED FROM ACTUAL WEEKLY POINTS. A backup QB is not
+       dead weight under that scoring -- he starts on the bye and in the weeks
+       the starter busts. `role` describes the PROJECTED lineup, not the
+       realized one, so preferring by role discards depth's option value.
+       Do not re-add this without beating those numbers. */
     scored.sort((a, b) => {
       const ta = inTopBand(a), tb = inTopBand(b);
       if (ta !== tb) return ta ? -1 : 1;          // the band the model can see
