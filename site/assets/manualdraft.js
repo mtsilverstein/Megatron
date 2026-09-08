@@ -125,16 +125,71 @@
     return { status: "unknown" };
   }
 
+  // ESPN exports do not always have Sleeper ids.  The rest of the draft UI
+  // deliberately speaks in `sleeper_id`, so give every board row a stable,
+  // local identity without mutating the JSON object shared by other leagues.
+  function prepareBoard(board) {
+    const out = Object.assign({}, board || {});
+    out.league = Object.assign({}, (board && board.league) || {});
+    out.players = ((board && board.players) || []).map((p, i) => {
+      const q = Object.assign({}, p);
+      if (q.sleeper_id == null || String(q.sleeper_id).trim() === "") {
+        const source = q.player_id == null || String(q.player_id).trim() === "" ? `row:${i}` : q.player_id;
+        q.sleeper_id = `board:${source}`;
+      } else q.sleeper_id = String(q.sleeper_id);
+      return q;
+    });
+    return out;
+  }
+
+  const SAVE_SCHEMA = 1;
+  function storageKey(board) {
+    const league = (board && board.league) || {};
+    const id = league.id || league.league_id || league.espn_league_id || league.slug;
+    const season = board && board.season;
+    if (id == null || season == null) return null;
+    return "megatron:manualdraft:" + encodeURIComponent(String(id)) + ":" + encodeURIComponent(String(season));
+  }
+
+  function validEntry(e) {
+    return !!e && typeof e === "object" && !Array.isArray(e)
+      && (e.player_id === null || typeof e.player_id === "string")
+      && typeof e.name === "string" && typeof e.position === "string";
+  }
+
+  function parseSave(raw, teams, maxPicks) {
+    if (typeof raw !== "string" || !raw) return { status: "empty" };
+    try {
+      const x = JSON.parse(raw);
+      if (!x || x.schema !== SAVE_SCHEMA || !Number.isInteger(x.revision) || x.revision < 0
+          || !Number.isInteger(x.seat) || x.seat < 1 || x.seat > teams
+          || !Array.isArray(x.entries) || x.entries.length > maxPicks
+          || !x.entries.every(validEntry)) return { status: "corrupt" };
+      const ids = x.entries.filter(e => e.player_id !== null).map(e => e.player_id);
+      if (new Set(ids).size !== ids.length) return { status: "corrupt" };
+      return { status: "ok", value: x };
+    } catch (_) { return { status: "corrupt" }; }
+  }
+
   /* The ordered pick list, plus the operations a person needs while typing.
      Deliberately a plain object with no DOM: the fixture drives this directly. */
-  function createLog() {
+  function createLog(initial) {
     const entries = [];
+    if (Array.isArray(initial)) entries.push(...initial.map(e => Object.assign({}, e)));
+    const undo = [];
+    const snapshot = () => entries.map(e => Object.assign({}, e));
+    const mutate = fn => { undo.push(snapshot()); fn(); return entries.length; };
     return {
       entries,
       size: () => entries.length,
-      add(entry) { entries.push(entry); return entries.length; },
-      removeLast() { return entries.pop() || null; },
-      clear() { entries.length = 0; },
+      add(entry) { return mutate(() => entries.push(entry)); },
+      insert(at, entry) { return mutate(() => entries.splice(at, 0, entry)); },
+      replace(at, entry) { return mutate(() => entries.splice(at, 1, entry)); },
+      remove(at) { let old = null; mutate(() => { old = entries.splice(at, 1)[0] || null; }); return old; },
+      batch(next) { return mutate(() => { entries.length = 0; entries.push(...next); }); },
+      removeLast() { if (!entries.length) return null; return this.remove(entries.length - 1); },
+      clear() { if (entries.length) mutate(() => { entries.length = 0; }); },
+      undo() { const old = undo.pop(); if (!old) return false; entries.length = 0; entries.push(...old); return true; },
       // Already-struck ids, so a double-typed name is caught rather than
       // consuming a second pick number.
       has(playerId) {
@@ -170,8 +225,15 @@
     const teams = cfg.board.league.teams;
     const rounds = cfg.board.league.rounds;
     const type = "snake";
-    const log = createLog();
+    const maxPicks = teams * rounds;
+    const key = storageKey(cfg.board);
+    let storedRaw = key && typeof localStorage === "object" ? localStorage.getItem(key) : null;
+    const restored = parseSave(storedRaw, teams, maxPicks);
+    let saveLocked = restored.status === "corrupt";
+    const log = createLog(restored.status === "ok" ? restored.value.entries : []);
     let mySlot = null;
+    if (restored.status === "ok") mySlot = restored.value.seat;
+    let revision = restored.status === "ok" ? restored.value.revision : 0;
     let scored = null;
 
     const boardPlayers = () => {
@@ -187,15 +249,55 @@
       if (html) { el.innerHTML = html; el.hidden = false; } else { el.hidden = true; }
     }
 
+    function save() {
+      if (!key || typeof localStorage !== "object") return true;
+      if (saveLocked) {
+        say(els.saveNote || els.resolve, "Saved draft is invalid; export/copy it, then reload. It was not overwritten.");
+        return false;
+      }
+      const now = localStorage.getItem(key);
+      if (now !== storedRaw) {
+        saveLocked = true;
+        say(els.saveNote || els.resolve, "Draft changed in another tab. Reload before editing; this tab did not overwrite it.");
+        return false;
+      }
+      const next = JSON.stringify({ schema: SAVE_SCHEMA, revision: ++revision, seat: mySlot, entries: log.entries });
+      localStorage.setItem(key, next);
+      storedRaw = next;
+      say(els.saveNote, "Saved locally · revision " + revision);
+      return true;
+    }
+
+    function history() {
+      if (!els.history) return;
+      els.history.innerHTML = log.entries.length ? "<ol>" + log.entries.map((e, i) =>
+        "<li>" + (i + 1) + ". seat " + snakeSlot(i + 1, teams, type) + " · "
+        + esc(e.name || e.position || "other") + " <button type=\"button\" data-delete=\"" + i
+        + "\" aria-label=\"Delete pick " + (i + 1) + "\">Delete</button></li>").join("") + "</ol>" : "";
+    }
+
     function render() {
       const picks = synthPicks(log.entries, { teams, type, mySlot, userId: ME });
       const rs = DM.rosterStateFromPicks(picks, mySlot, ME);
       cfg.onUpdate({ connected: true, drafted: rs.drafted, mine: rs.mine });
+      history();
 
       els.status.textContent = "— " + picks.length + " picks in"
         + (mySlot ? ", seat " + mySlot : "");
 
       const seat = { slot: mySlot, teams, rounds, reversalRound: 0, userId: ME };
+      // Render the roster before checking whether another pick remains.  At the
+      // end of the draft the final own pick must still appear in the roster.
+      const counts = rs.counts;
+      const mine = cfg.board.players.filter(p => p.sleeper_id && rs.mine.has(p.sleeper_id));
+      const open = OPT.openSlots(mine);
+      say(els.roster,
+        esc("Your roster: QB " + counts.QB + " · RB " + counts.RB
+            + " · WR " + counts.WR + " · TE " + counts.TE
+            + (counts.other ? " · +" + counts.other + " other" : ""))
+        + (open.length
+            ? " · <span class=\"roster-open\">still need " + esc(open.join(", ")) + "</span>"
+            : " · <span class=\"roster-set\">starters set</span>"));
       const blocked = DM.shortlistBlocker(seat, picks);
       if (blocked) {
         say(els.shortlist, "<p class=\"draft-blocked\">" + esc(blocked) + "</p>");
@@ -208,17 +310,6 @@
         say(els.late, null);
         return;
       }
-
-      const counts = rs.counts;
-      const mine = cfg.board.players.filter(p => p.sleeper_id && rs.mine.has(p.sleeper_id));
-      const open = OPT.openSlots(mine);
-      say(els.roster,
-        esc("Your roster: QB " + counts.QB + " · RB " + counts.RB
-            + " · WR " + counts.WR + " · TE " + counts.TE
-            + (counts.other ? " · +" + counts.other + " other" : ""))
-        + (open.length
-            ? " · <span class=\"roster-open\">still need " + esc(open.join(", ")) + "</span>"
-            : " · <span class=\"roster-set\">starters set</span>"));
 
       const available = boardPlayers().filter(
         p => !(p.sleeper_id && rs.drafted.has(p.sleeper_id)));
@@ -261,7 +352,33 @@
             + "man at his position.</p>"));
     }
 
-    function commit(entry) { log.add(entry); say(els.resolve, null); render(); }
+    function editSpec() {
+      const mode = els.editMode ? els.editMode.value : "append";
+      const n = els.editAt && els.editAt.value !== "" ? parseInt(els.editAt.value, 10) : null;
+      if (mode === "append" || n === null) return { mode: "append", at: log.size() };
+      if (!Number.isInteger(n) || n < 1 || (mode === "insert" ? n > log.size() + 1 : n > log.size())) return null;
+      return { mode, at: n - 1 };
+    }
+
+    function applyMutation(fn) {
+      if (saveLocked) { save(); return false; }
+      if (key && localStorage.getItem(key) !== storedRaw) { save(); return false; }
+      fn();
+      say(els.resolve, null);
+      save(); render(); return true;
+    }
+
+    function commit(entry) {
+      const spec = editSpec();
+      if (!spec) { say(els.resolve, "Pick number is outside the current history."); return; }
+      const resulting = log.size() + (spec.mode === "replace" ? 0 : 1);
+      if (resulting > maxPicks) { say(els.resolve, "This draft has at most " + maxPicks + " picks."); return; }
+      const duplicateAt = log.entries.findIndex((e, i) => e.player_id !== null && e.player_id === entry.player_id
+        && !(spec.mode === "replace" && i === spec.at));
+      if (duplicateAt >= 0) { say(els.resolve, "That player is already pick #" + (duplicateAt + 1) + "."); return; }
+      applyMutation(() => spec.mode === "replace" ? log.replace(spec.at, entry)
+        : spec.mode === "insert" ? log.insert(spec.at, entry) : log.add(entry));
+    }
 
     function submitName() {
       const typed = els.name.value;
@@ -285,11 +402,6 @@
         return;
       }
       const p = res.player;
-      if (log.has(p.sleeper_id)) {
-        say(els.resolve, "<strong>" + esc(p.name) + "</strong> is already struck "
-          + "— nothing added, so the pick count is unchanged.");
-        return;
-      }
       els.name.value = "";
       commit({ player_id: p.sleeper_id, name: p.name, position: p.position });
     }
@@ -298,7 +410,7 @@
       const b = e.target.closest && e.target.closest("button.manual-pick");
       if (!b) return;
       const p = cfg.board.players.find(x => String(x.sleeper_id) === b.dataset.id);
-      if (!p || log.has(p.sleeper_id)) { say(els.resolve, null); return; }
+      if (!p) { say(els.resolve, null); return; }
       els.name.value = "";
       commit({ player_id: p.sleeper_id, name: p.name, position: p.position });
     });
@@ -313,17 +425,14 @@
       els.entry.hidden = false;
       els.name.focus();
       say(els.resolve, null);
-      render();
+      save(); render();
     });
     els.name.addEventListener("keydown", e => {
       if (e.key === "Enter") { e.preventDefault(); submitName(); }
     });
     els.add.addEventListener("click", submitName);
     els.undo.addEventListener("click", () => {
-      if (!log.size()) return;
-      log.removeLast();
-      say(els.resolve, null);
-      render();
+      applyMutation(() => log.undo());
     });
     // These carry the typed name through when there is one. lateSlotTaken()
     // matches drafted kickers and defences BY NAME, so dropping it would leave
@@ -338,12 +447,66 @@
       });
     }
 
+    if (els.history) els.history.addEventListener("click", e => {
+      const b = e.target.closest && e.target.closest("button[data-delete]");
+      if (!b) return;
+      const at = parseInt(b.dataset.delete, 10);
+      if (!Number.isInteger(at) || !log.entries[at]) return;
+      if (typeof confirm === "function" && !confirm("Delete pick #" + (at + 1) + "? You can Undo.")) return;
+      applyMutation(() => log.remove(at));
+    });
+
+    function parseBulk(text) {
+      const lines = String(text || "").split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+      const added = [];
+      for (let i = 0; i < lines.length; i++) {
+        const special = /^(K|DEF|D\/ST|OTHER)\s*:\s*(.*)$/i.exec(lines[i]);
+        if (special) {
+          const pos = special[1].toUpperCase() === "K" ? "K" : /^(DEF|D\/ST)$/i.test(special[1]) ? "DEF" : "";
+          added.push({ player_id: null, name: special[2].trim(), position: pos }); continue;
+        }
+        const res = resolveName(lines[i], cfg.board.players);
+        if (res.status !== "ok") return { error: "Line " + (i + 1) + " is " + (res.status === "ambiguous" ? "ambiguous" : "not on the board") + ": " + lines[i] };
+        added.push({ player_id: res.player.sleeper_id, name: res.player.name, position: res.player.position });
+      }
+      const ids = log.entries.concat(added).filter(e => e.player_id !== null).map(e => e.player_id);
+      if (new Set(ids).size !== ids.length) return { error: "Bulk list contains a player already drafted or listed twice." };
+      if (log.size() + added.length > maxPicks) return { error: "Bulk list would exceed " + maxPicks + " picks." };
+      return { entries: added };
+    }
+    if (els.applyBulk) els.applyBulk.addEventListener("click", () => {
+      const result = parseBulk(els.bulk && els.bulk.value);
+      if (result.error) { say(els.resolve, result.error + " Nothing was added."); return; }
+      applyMutation(() => log.batch(log.entries.concat(result.entries)));
+    });
+    if (els.exportLog) els.exportLog.addEventListener("click", () => {
+      if (els.backup) els.backup.value = JSON.stringify({ schema: SAVE_SCHEMA, revision, seat: mySlot, entries: log.entries }, null, 2);
+      say(els.saveNote, "Backup copied to the box below.");
+    });
+    if (els.importLog) els.importLog.addEventListener("click", () => {
+      const parsed = parseSave(els.backup && els.backup.value, teams, maxPicks);
+      if (parsed.status !== "ok") { say(els.resolve, "Backup is invalid; nothing was imported."); return; }
+      if (key && localStorage.getItem(key) !== storedRaw && !saveLocked) { save(); return; }
+      // Explicit import is the recovery path for a corrupt local save.
+      saveLocked = false; storedRaw = key ? localStorage.getItem(key) : null;
+      mySlot = parsed.value.seat;
+      if (els.seat) els.seat.value = String(mySlot);
+      applyMutation(() => log.batch(parsed.value.entries));
+      els.entry.hidden = false;
+    });
+
     els.panel.hidden = false;
-    els.status.textContent = "— enter your seat to start";
+    if (restored.status === "ok") {
+      els.seat.value = String(mySlot); els.entry.hidden = false; render();
+      say(els.saveNote, "Restored " + log.size() + " picks from this league and season.");
+    } else if (restored.status === "corrupt") {
+      els.status.textContent = "— saved draft needs recovery";
+      say(els.saveNote || els.resolve, "Saved draft is invalid and was not overwritten. Export/copy it before recovery.");
+    } else els.status.textContent = "— enter your seat to start";
   }
 
   const api = { normName, nameKey, snakeSlot, synthPicks, resolveName, createLog,
-                initPanel };
+                prepareBoard, storageKey, parseSave, initPanel };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window === "object") window.ManualDraft = api;
 })();

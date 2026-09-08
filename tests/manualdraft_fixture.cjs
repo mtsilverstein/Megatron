@@ -143,3 +143,94 @@ assert.notStrictEqual(kicker[0].player_id, kicker[1].player_id,
   "two unnameable picks must not collide into one drafted id");
 
 console.log("manualdraft_fixture: unnameable picks retain name and position OK");
+
+/* ---- ESPN identities and save validation ----------------------------- */
+const prepared = MD.prepareBoard({ season: 2026, league: { league_id: "69827905" }, players: [
+  { player_id: "espn-7", name: "Mapped Only Locally" },
+  { player_id: "espn-8", sleeper_id: "sleep-8", name: "Already Mapped" },
+] });
+assert.strictEqual(prepared.players[0].sleeper_id, "board:espn-7");
+assert.strictEqual(prepared.players[1].sleeper_id, "sleep-8");
+assert.strictEqual(MD.storageKey(prepared), "megatron:manualdraft:69827905:2026");
+assert.strictEqual(MD.parseSave("not json", 13, 195).status, "corrupt");
+
+/* ---- panel persistence, edit, bulk, and conflict --------------------- */
+class El {
+  constructor(value = "") { this.value = value; this.hidden = false; this.textContent = ""; this.innerHTML = ""; this.handlers = {}; }
+  addEventListener(kind, fn) { (this.handlers[kind] ||= []).push(fn); }
+  fire(kind, extra = {}) { for (const fn of this.handlers[kind] || []) fn(Object.assign({ preventDefault() {}, target: this }, extra)); }
+  focus() {}
+}
+function elements() {
+  const names = ["panel", "status", "seat", "start", "entry", "name", "add", "addK", "addDef",
+    "addOther", "undo", "resolve", "roster", "late", "shortlist", "history", "bulk", "applyBulk",
+    "saveNote", "editAt", "editMode", "exportLog", "importLog", "backup"];
+  return Object.fromEntries(names.map(n => [n, new El()]));
+}
+const mem = new Map();
+global.localStorage = { getItem: k => mem.has(k) ? mem.get(k) : null,
+  setItem: (k, v) => mem.set(k, v), removeItem: k => mem.delete(k) };
+global.confirm = () => true;
+global.window = {
+  DraftMode: {
+    rosterStateFromPicks(picks, slot) {
+      const drafted = new Set(picks.map(p => p.player_id));
+      const mine = new Set(picks.filter(p => p.draft_slot === slot).map(p => p.player_id));
+      return { drafted, mine, counts: { QB: 0, RB: 0, WR: 0, TE: 0, other: 0 } };
+    },
+    shortlistBlocker: () => "fixture stop", planFromPicks: () => null,
+  },
+  Optimizer: { withValuePoints: x => x, seasonValue: () => 1, openSlots: () => [] },
+};
+const panelBoard = MD.prepareBoard({ season: 2026, league: { league_id: "69827905", teams: 2, rounds: 3 }, players: [
+  { player_id: "1", name: "Alpha Runner", position: "RB" },
+  { player_id: "2", name: "Beta Catcher", position: "WR" },
+  { player_id: "3", name: "Gamma Thrower", position: "QB" },
+] });
+let last;
+const e1 = elements();
+MD.initPanel({ board: panelBoard, els: e1, onUpdate: x => { last = x; } });
+e1.seat.value = "1"; e1.start.fire("click");
+e1.name.value = "Alpha Runner"; e1.add.fire("click");
+assert.strictEqual(last.drafted.size, 1, "successful entry renders and saves");
+let saved = JSON.parse(mem.get(MD.storageKey(panelBoard)));
+assert.strictEqual(saved.entries[0].player_id, "board:1", "unmapped ESPN identity survives the panel");
+
+e1.editMode.value = "insert"; e1.editAt.value = "1";
+e1.name.value = "Beta Catcher"; e1.add.fire("click");
+saved = JSON.parse(mem.get(MD.storageKey(panelBoard)));
+assert.deepStrictEqual(saved.entries.map(x => x.name), ["Beta Catcher", "Alpha Runner"], "numbered insertion works");
+e1.undo.fire("click");
+saved = JSON.parse(mem.get(MD.storageKey(panelBoard)));
+assert.deepStrictEqual(saved.entries.map(x => x.name), ["Alpha Runner"], "undo reverses the last insertion snapshot");
+
+e1.editMode.value = "append"; e1.editAt.value = "";
+e1.bulk.value = "Gamma Thrower\nUnknown Person"; e1.applyBulk.fire("click");
+assert.strictEqual(JSON.parse(mem.get(MD.storageKey(panelBoard))).entries.length, 1,
+  "an invalid bulk batch commits nothing");
+e1.bulk.value = "Gamma Thrower\nK: Brandon Aubrey\nDEF: Seattle"; e1.applyBulk.fire("click");
+saved = JSON.parse(mem.get(MD.storageKey(panelBoard)));
+assert.strictEqual(saved.entries.length, 4);
+assert.deepStrictEqual(saved.entries.slice(2).map(x => x.position), ["K", "DEF"]);
+
+const e2 = elements(); let restoredState;
+MD.initPanel({ board: panelBoard, els: e2, onUpdate: x => { restoredState = x; } });
+assert.strictEqual(restoredState.drafted.size, 4, "reload restores the league-season log before rendering");
+assert.strictEqual(e2.seat.value, "1");
+
+// A second tab advances the raw revision. This stale panel must not overwrite it.
+const beforeConflict = mem.get(MD.storageKey(panelBoard));
+const external = JSON.parse(beforeConflict); external.revision += 1;
+mem.set(MD.storageKey(panelBoard), JSON.stringify(external));
+e1.name.value = "Beta Catcher"; e1.add.fire("click");
+assert.strictEqual(mem.get(MD.storageKey(panelBoard)), JSON.stringify(external));
+assert.match(e1.saveNote.innerHTML, /another tab|Reload/i);
+
+// Corrupt storage is preserved byte-for-byte instead of being silently reset.
+const corruptBoard = MD.prepareBoard({ season: 2027, league: { league_id: "69827905", teams: 2, rounds: 2 }, players: [] });
+const corruptKey = MD.storageKey(corruptBoard); mem.set(corruptKey, "{broken");
+const ec = elements(); MD.initPanel({ board: corruptBoard, els: ec, onUpdate() {} });
+ec.seat.value = "1"; ec.start.fire("click");
+assert.strictEqual(mem.get(corruptKey), "{broken", "corrupt save is never silently overwritten");
+
+console.log("manualdraft_fixture: panel restore, edits, bulk atomicity, conflicts, ESPN ids OK");

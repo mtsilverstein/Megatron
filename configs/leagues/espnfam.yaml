@@ -8,9 +8,8 @@
 name: Fam Fantasy Football League (ESPN)
 # Suppresses the Sleeper-only draft/keeper/trade controls on the board page.
 platform: espn
-# ESPN league id not captured by the settings export. Unused here: league_id
-# only guards the Sleeper live-draft path, which this league cannot reach.
-league_id: "espn:unknown"
+# User-confirmed league id; scopes manual saved state, not a Sleeper endpoint.
+league_id: "69827905"
 # THIRTEEN teams. This is the single biggest difference from the other two
 # boards -- replacement level is set by 13 lineups, not 10, so every position's
 # value curve is flatter and starters run out sooner.

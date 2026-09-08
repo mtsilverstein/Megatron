@@ -83,7 +83,12 @@ def validate_board_contract(board: dict, cfg_payload: dict, *,
                     if key != "pass_int_td"
                 }
 
-    if board.get("league") != expected_league:
+    actual_league = deepcopy(board.get("league"))
+    # The two historical Sleeper boards predate platform; the UI uses the
+    # same narrow default. Never default a missing ESPN platform to ESPN.
+    if isinstance(actual_league, dict) and expected_league.get("platform") == "sleeper":
+        actual_league.setdefault("platform", "sleeper")
+    if actual_league != expected_league:
         errors.append("board league contract differs from configs/leagues source of truth")
     return errors
 

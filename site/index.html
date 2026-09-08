@@ -75,13 +75,20 @@
       number is what "your turn in N" is built from, so a pick left out shifts
       every recommendation after it. Use <em>+ K</em>, <em>+ D/ST</em> or
       <em>+ other</em> for a pick this board cannot name, and <em>Undo</em> to
-      take back the last one.</p>
+      take back your last change. Keep Gabagool in its own tab; this manual log
+      is saved separately in this browser. No picks are sent to ESPN.</p>
+      <p class="draft-note" id="manual-save-note" role="status" aria-live="polite"></p>
       <div class="draft-row">
         <label for="manual-seat">Your draft slot</label>
         <input id="manual-seat" type="number" min="1" step="1" inputmode="numeric">
         <button id="manual-start">Start</button>
       </div>
       <div class="draft-row" id="manual-entry" hidden>
+        <label for="manual-edit-mode">Action</label>
+        <select id="manual-edit-mode"><option value="append">Append next pick</option><option value="insert">Insert before pick</option><option value="replace">Replace pick</option></select>
+        <label for="manual-edit-at">Pick # (insert/replace)</label>
+        <input id="manual-edit-at" type="number" min="1" step="1" inputmode="numeric">
+        <label for="manual-name">Player drafted</label>
         <input id="manual-name" type="text" autocomplete="off"
                placeholder="name just drafted — press Enter">
         <button id="manual-add">Add</button>
@@ -94,6 +101,30 @@
       <p class="draft-roster" id="manual-roster" hidden></p>
       <p class="draft-late" id="manual-late" hidden></p>
       <div class="draft-shortlist-panel" id="manual-shortlist" hidden></div>
+      <details>
+        <summary>Catch up / bulk entry</summary>
+        <p class="draft-note">One full player name per line, in pick order. For unprojected picks use
+        <code>K: Brandon Aubrey</code>, <code>DEF: Seattle</code> or <code>OTHER: Name</code>.
+        The whole batch is checked before adding anything. Enter every team's picks, not just yours.</p>
+        <label for="manual-bulk">Picks to append</label>
+        <textarea id="manual-bulk" rows="6" style="width:100%;box-sizing:border-box"></textarea>
+        <button id="manual-apply-bulk">Append batch</button>
+      </details>
+      <details>
+        <summary>Numbered pick history / corrections</summary>
+        <p class="draft-note">Insert or replace using the Action and Pick # fields above.
+        Deleting a pick renumbers every following pick. Undo reverses the last change.</p>
+        <div id="manual-history" style="max-height:24rem;overflow:auto"></div>
+      </details>
+      <details>
+        <summary>Backup / restore</summary>
+        <p class="draft-note">Export fills this box with your saved draft. Copy it somewhere safe.
+        Restore replaces the current log only after validation; Undo can reverse it.</p>
+        <button id="manual-export">Export backup</button>
+        <button id="manual-import">Restore backup</button>
+        <label for="manual-backup">Draft backup JSON</label>
+        <textarea id="manual-backup" rows="4" style="width:100%;box-sizing:border-box"></textarea>
+      </details>
     </div>
   </details>
   <div class="filters" id="pos-filters" role="group" aria-label="Filter by position"></div>
@@ -162,13 +193,17 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   // ?league=<slug> selects the board. No parameter -- and "gabagool" -- keep
   // the existing filename, so every published link to this page is unchanged.
   const slug = FC.leagueNavigation();
-  const board = await FC.loadJSON(
+  let board = await FC.loadJSON(
     slug === "gabagool" ? "data/draft.json" : `data/draft-${slug}.json`);
   if (!board.league || board.league.slug !== slug) {
     throw new Error("This board does not match the selected league. Reload before drafting.");
   }
   if (!board.league.sleeper_scoring) {
     throw new Error("This board lacks the locked scoring settings. Regenerate it before drafting.");
+  }
+  // Manual-only identity bridge: never alter a Sleeper board's live IDs.
+  if (board.league.platform === "espn" && window.ManualDraft) {
+    board = ManualDraft.prepareBoard(board);
   }
   const weights = board.league.sleeper_scoring;
   document.getElementById("board-title").textContent = `${board.league.name} draft board`;
@@ -764,6 +799,15 @@ cohort priors — wide bands on purpose; see the about page.</footer>
             roster: document.getElementById("manual-roster"),
             late: document.getElementById("manual-late"),
             shortlist: document.getElementById("manual-shortlist"),
+            history: document.getElementById("manual-history"),
+            bulk: document.getElementById("manual-bulk"),
+            applyBulk: document.getElementById("manual-apply-bulk"),
+            saveNote: document.getElementById("manual-save-note"),
+            editAt: document.getElementById("manual-edit-at"),
+            editMode: document.getElementById("manual-edit-mode"),
+            exportLog: document.getElementById("manual-export"),
+            importLog: document.getElementById("manual-import"),
+            backup: document.getElementById("manual-backup"),
           },
           onUpdate: s => { draftState = s.connected ? s : null; render(rows); },
         });

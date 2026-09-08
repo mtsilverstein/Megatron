@@ -41,6 +41,20 @@ def test_dormant_board_without_forecast_keeps_full_contract():
                                    prior_loader=lambda season: None) == []
 
 
+def test_legacy_sleeper_platform_default_does_not_require_regeneration():
+    cfg = dict(_league(), platform="sleeper")
+    board = {"season": 2026, "league": _league()}
+    assert validate_board_contract(board, cfg) == []
+    assert "platform" not in board["league"]  # read-only validation
+
+
+def test_platform_default_never_accepts_espn_or_an_explicit_mismatch():
+    board = {"season": 2026, "league": _league()}
+    assert validate_board_contract(board, dict(_league(), platform="espn"))
+    board["league"]["platform"] = "espn"
+    assert validate_board_contract(board, dict(_league(), platform="sleeper"))
+
+
 def test_verified_forecast_allows_only_pick_six_to_leave_unprojected_scoring():
     seen = []
 
