@@ -325,9 +325,17 @@
       say(els.resolve, null);
       render();
     });
+    // These carry the typed name through when there is one. lateSlotTaken()
+    // matches drafted kickers and defences BY NAME, so dropping it would leave
+    // the K/DST suggestions recommending players already gone -- the exact
+    // failure the live panel was fixed for. The pick still counts either way.
     const extras = [[els.addK, "K"], [els.addDef, "DEF"], [els.addOther, ""]];
     for (const pair of extras) {
-      pair[0].addEventListener("click", () => commit({ player_id: null, position: pair[1] }));
+      pair[0].addEventListener("click", () => {
+        const name = (els.name.value || "").trim();
+        els.name.value = "";
+        commit({ player_id: null, name, position: pair[1] });
+      });
     }
 
     els.panel.hidden = false;

@@ -124,3 +124,22 @@ assert.strictEqual(log.size(), 0);
 assert.strictEqual(log.removeLast(), null, "undo on an empty log is not an error");
 
 console.log("manualdraft_fixture: seat arithmetic, pick synthesis, name resolution OK");
+
+/* ---- unnameable picks keep their name ---------------------------------
+   lateSlotTaken() matches drafted kickers and defences BY NAME. A "+ K"
+   entry that dropped the typed name would still consume its pick number --
+   the count stays right -- but the K/DST panel would go on recommending a
+   kicker who is already gone, which is the one job that panel has. */
+const kicker = MD.synthPicks(
+  [{ player_id: null, name: "Brandon Aubrey", position: "K" },
+   { player_id: null, name: "", position: "DEF" }],
+  { teams: T, type: "snake", mySlot: 9, userId: "ME" });
+assert.strictEqual(kicker[0].metadata.first_name, "Brandon");
+assert.strictEqual(kicker[0].metadata.last_name, "Aubrey");
+assert.strictEqual(kicker[0].metadata.position, "K");
+assert.strictEqual(kicker[1].metadata.position, "DEF",
+  "a nameless entry is still a real pick with a real position");
+assert.notStrictEqual(kicker[0].player_id, kicker[1].player_id,
+  "two unnameable picks must not collide into one drafted id");
+
+console.log("manualdraft_fixture: unnameable picks retain name and position OK");
