@@ -234,3 +234,97 @@ ec.seat.value = "1"; ec.start.fire("click");
 assert.strictEqual(mem.get(corruptKey), "{broken", "corrupt save is never silently overwritten");
 
 console.log("manualdraft_fixture: panel restore, edits, bulk atomicity, conflicts, ESPN ids OK");
+
+/* Recovery regressions: exercise actual panel event handlers. */
+const panelKey = MD.storageKey(panelBoard);
+const workingStorage = global.localStorage;
+const alpha = { player_id: "board:1", name: "Alpha Runner", position: "RB" };
+const beta = { player_id: "board:2", name: "Beta Catcher", position: "WR" };
+const backup = (seat, entries, revision = 1) => JSON.stringify({ schema: 1, revision, seat, entries });
+function mount() {
+  const els = elements(); let state;
+  MD.initPanel({ board: panelBoard, els, onUpdate: x => { state = x; } });
+  return { els, state: () => state };
+}
+mem.set(panelKey, backup(1, [alpha, beta]));
+const recovery = mount();
+recovery.els.backup.value = backup(2, [beta, alpha]);
+recovery.els.importLog.fire("click");
+assert.deepStrictEqual([...recovery.state().mine], ["board:1"]);
+recovery.els.undo.fire("click");
+assert.strictEqual(recovery.els.seat.value, "1", "Undo restores the imported seat and log together");
+assert.deepStrictEqual(JSON.parse(mem.get(panelKey)).entries, [alpha, beta]);
+assert.strictEqual(JSON.parse(mem.get(panelKey)).seat, 1);
+assert.deepStrictEqual([...mount().state().mine], ["board:1"], "restored ownership survives reload");
+recovery.els.seat.value = "2"; recovery.els.start.fire("click");
+assert.deepStrictEqual([...recovery.state().mine], ["board:2"]);
+recovery.els.undo.fire("click");
+assert.strictEqual(recovery.els.seat.value, "1", "seat-only changes also undo atomically");
+
+for (const detectFirst of [false, true]) {
+  const stale = mount();
+  const newer = backup(2, [beta], 100 + Number(detectFirst));
+  mem.set(panelKey, newer);
+  if (detectFirst) { stale.els.name.value = "Gamma Thrower"; stale.els.add.fire("click"); }
+  stale.els.backup.value = backup(1, [alpha]); stale.els.importLog.fire("click");
+  assert.strictEqual(mem.get(panelKey), newer, "Restore cannot bypass either new or established conflicts");
+  assert.match(stale.els.saveNote.innerHTML, /another tab/i);
+  stale.els.seat.value = "1"; stale.els.start.fire("click");
+  assert.strictEqual(mem.get(panelKey), newer, "seat changes cannot bypass conflicts");
+}
+
+ec.exportLog.fire("click");
+assert.strictEqual(ec.backup.value, "{broken", "corrupt original remains exportable");
+ec.backup.value = backup(1, []); ec.importLog.fire("click");
+assert.strictEqual(JSON.parse(mem.get(corruptKey)).seat, 1, "explicit recovery of unchanged corrupt save works");
+mem.set(panelKey, "{broken");
+const corruptStale = mount();
+const repairedElsewhere = backup(2, [beta]); mem.set(panelKey, repairedElsewhere);
+corruptStale.els.backup.value = backup(1, [alpha]); corruptStale.els.importLog.fire("click");
+assert.strictEqual(mem.get(panelKey), repairedElsewhere, "corrupt recovery cannot overwrite another tab's repair");
+
+mem.clear();
+const safeText = mount(); safeText.els.seat.value = "1"; safeText.els.start.fire("click");
+safeText.els.bulk.value = '<img src=x onerror="alert(1)">'; safeText.els.applyBulk.fire("click");
+assert.match(safeText.els.resolve.innerHTML, /&lt;img/);
+assert.ok(!safeText.els.resolve.innerHTML.includes("<img"), "bulk errors never create user-supplied markup");
+assert.strictEqual(safeText.state().drafted.size, 0);
+
+function assertSessionOnly() {
+  const session = mount();
+  session.els.seat.value = "1"; session.els.start.fire("click");
+  session.els.name.value = "Alpha Runner"; session.els.add.fire("click");
+  assert.ok(session.state().drafted.has("board:1"), "storage failure does not stop the working board");
+  session.els.exportLog.fire("click");
+  assert.deepStrictEqual(JSON.parse(session.els.backup.value).entries, [alpha]);
+  assert.match(session.els.saveNote.innerHTML, /session-only.*export/i);
+}
+global.localStorage = { getItem() { throw new Error("read denied"); }, setItem() { assert.fail("must not overwrite unreadable storage"); } };
+assertSessionOnly();
+Object.defineProperty(global, "localStorage", { configurable: true, get() { throw new Error("access denied"); } });
+assertSessionOnly();
+Object.defineProperty(global, "localStorage", { configurable: true, writable: true, value: workingStorage });
+mem.set(panelKey, backup(1, []));
+const beforeQuota = mem.get(panelKey);
+let writes = 0;
+global.localStorage = { getItem: workingStorage.getItem, setItem() { writes++; throw new Error("quota exceeded"); } };
+const quota = mount();
+quota.els.name.value = "Alpha Runner"; quota.els.add.fire("click");
+quota.els.name.value = "Beta Catcher"; quota.els.add.fire("click");
+assert.strictEqual(quota.state().drafted.size, 2, "failed saves still render all session picks");
+assert.strictEqual(mem.get(panelKey), beforeQuota, "failed save preserves the previous backup");
+assert.strictEqual(writes, 1, "unavailable storage stays disabled for this session");
+quota.els.exportLog.fire("click");
+assert.deepStrictEqual(JSON.parse(quota.els.backup.value).entries, [alpha, beta]);
+assert.match(quota.els.saveNote.innerHTML, /session-only/);
+global.localStorage = workingStorage;
+let readFails = false;
+global.localStorage = { getItem(k) { if (readFails) throw new Error("storage revoked"); return workingStorage.getItem(k); },
+  setItem() { assert.fail("must not save after a failed conflict check"); } };
+const revoked = mount(); readFails = true;
+revoked.els.name.value = "Alpha Runner"; revoked.els.add.fire("click");
+assert.ok(revoked.state().drafted.has("board:1"));
+assert.match(revoked.els.saveNote.innerHTML, /session-only/);
+assert.strictEqual(mem.get(panelKey), beforeQuota);
+global.localStorage = workingStorage;
+console.log("manualdraft_fixture: atomic recovery undo, stale restore, storage failures, escaped bulk errors OK");

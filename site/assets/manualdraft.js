@@ -227,14 +227,20 @@
     const type = "snake";
     const maxPicks = teams * rounds;
     const key = storageKey(cfg.board);
-    let storedRaw = key && typeof localStorage === "object" ? localStorage.getItem(key) : null;
+    let storage = null, storedRaw = null, storageUnavailable = !key;
+    try {
+      storage = typeof localStorage === "object" ? localStorage : null;
+      storageUnavailable = !key || !storage;
+      if (!storageUnavailable) storedRaw = storage.getItem(key);
+    } catch (_) { storageUnavailable = true; }
     const restored = parseSave(storedRaw, teams, maxPicks);
-    let saveLocked = restored.status === "corrupt";
+    let lockReason = restored.status === "corrupt" ? "corrupt" : null;
     const log = createLog(restored.status === "ok" ? restored.value.entries : []);
     let mySlot = null;
     if (restored.status === "ok") mySlot = restored.value.seat;
     let revision = restored.status === "ok" ? restored.value.revision : 0;
     let scored = null;
+    const undoStates = [];
 
     const boardPlayers = () => {
       if (!scored) {
@@ -249,20 +255,34 @@
       if (html) { el.innerHTML = html; el.hidden = false; } else { el.hidden = true; }
     }
 
-    function save() {
-      if (!key || typeof localStorage !== "object") return true;
-      if (saveLocked) {
+    function storageWarning() {
+      say(els.saveNote || els.resolve, "Local saving is unavailable. Changes are session-only: export a backup before closing or reloading this tab.");
+    }
+
+    function canMutate(allowRecovery = false) {
+      if (!storageUnavailable) {
+        try {
+          if (storage.getItem(key) !== storedRaw) lockReason = "conflict";
+        } catch (_) { storageUnavailable = true; }
+      }
+      if (lockReason === "conflict") {
+        say(els.saveNote || els.resolve, "Draft changed in another tab. Export this tab if needed, then reload before editing; this tab did not overwrite it.");
+        return false;
+      }
+      if (lockReason === "corrupt" && !allowRecovery) {
         say(els.saveNote || els.resolve, "Saved draft is invalid; export/copy it, then reload. It was not overwritten.");
         return false;
       }
-      const now = localStorage.getItem(key);
-      if (now !== storedRaw) {
-        saveLocked = true;
-        say(els.saveNote || els.resolve, "Draft changed in another tab. Reload before editing; this tab did not overwrite it.");
-        return false;
-      }
-      const next = JSON.stringify({ schema: SAVE_SCHEMA, revision: ++revision, seat: mySlot, entries: log.entries });
-      localStorage.setItem(key, next);
+      return true;
+    }
+
+    function save() {
+      if (!canMutate()) return false;
+      if (storageUnavailable) { storageWarning(); return false; }
+      const next = JSON.stringify({ schema: SAVE_SCHEMA, revision: revision + 1, seat: mySlot, entries: log.entries });
+      try { storage.setItem(key, next); }
+      catch (_) { storageUnavailable = true; storageWarning(); return false; }
+      revision += 1;
       storedRaw = next;
       say(els.saveNote, "Saved locally · revision " + revision);
       return true;
@@ -360,10 +380,16 @@
       return { mode, at: n - 1 };
     }
 
-    function applyMutation(fn) {
-      if (saveLocked) { save(); return false; }
-      if (key && localStorage.getItem(key) !== storedRaw) { save(); return false; }
+    function applyMutation(fn, { recordUndo = true, allowRecovery = false } = {}) {
+      if (!canMutate(allowRecovery)) return false;
+      // Seat and entries are one state: restoring a log must not reassign its
+      // players to a different owner when the user presses Undo.
+      if (recordUndo && mySlot !== null) undoStates.push({ seat: mySlot,
+        entries: log.entries.map(e => Object.assign({}, e)) });
+      if (allowRecovery) lockReason = null;
       fn();
+      els.seat.value = mySlot === null ? "" : String(mySlot);
+      els.entry.hidden = mySlot === null;
       say(els.resolve, null);
       save(); render(); return true;
     }
@@ -421,18 +447,19 @@
         say(els.resolve, "Seat must be a number from 1 to " + teams + ".");
         return;
       }
-      mySlot = v;
-      els.entry.hidden = false;
-      els.name.focus();
-      say(els.resolve, null);
-      save(); render();
+      if (applyMutation(() => { mySlot = v; })) els.name.focus();
     });
     els.name.addEventListener("keydown", e => {
       if (e.key === "Enter") { e.preventDefault(); submitName(); }
     });
     els.add.addEventListener("click", submitName);
     els.undo.addEventListener("click", () => {
-      applyMutation(() => log.undo());
+      if (!undoStates.length) return;
+      applyMutation(() => {
+        const previous = undoStates.pop();
+        mySlot = previous.seat;
+        log.batch(previous.entries);
+      }, { recordUndo: false });
     });
     // These carry the typed name through when there is one. lateSlotTaken()
     // matches drafted kickers and defences BY NAME, so dropping it would leave
@@ -476,23 +503,23 @@
     }
     if (els.applyBulk) els.applyBulk.addEventListener("click", () => {
       const result = parseBulk(els.bulk && els.bulk.value);
-      if (result.error) { say(els.resolve, result.error + " Nothing was added."); return; }
+      if (result.error) { say(els.resolve, esc(result.error) + " Nothing was added."); return; }
       applyMutation(() => log.batch(log.entries.concat(result.entries)));
     });
     if (els.exportLog) els.exportLog.addEventListener("click", () => {
-      if (els.backup) els.backup.value = JSON.stringify({ schema: SAVE_SCHEMA, revision, seat: mySlot, entries: log.entries }, null, 2);
+      if (els.backup) els.backup.value = lockReason === "corrupt" ? storedRaw
+        : JSON.stringify({ schema: SAVE_SCHEMA, revision, seat: mySlot, entries: log.entries }, null, 2);
       say(els.saveNote, "Backup copied to the box below.");
+      if (storageUnavailable) storageWarning();
     });
     if (els.importLog) els.importLog.addEventListener("click", () => {
       const parsed = parseSave(els.backup && els.backup.value, teams, maxPicks);
       if (parsed.status !== "ok") { say(els.resolve, "Backup is invalid; nothing was imported."); return; }
-      if (key && localStorage.getItem(key) !== storedRaw && !saveLocked) { save(); return; }
-      // Explicit import is the recovery path for a corrupt local save.
-      saveLocked = false; storedRaw = key ? localStorage.getItem(key) : null;
-      mySlot = parsed.value.seat;
-      if (els.seat) els.seat.value = String(mySlot);
-      applyMutation(() => log.batch(parsed.value.entries));
-      els.entry.hidden = false;
+      // Recovery can replace the original corrupt save, never a newer tab's save.
+      applyMutation(() => {
+        mySlot = parsed.value.seat;
+        log.batch(parsed.value.entries);
+      }, { allowRecovery: true });
     });
 
     els.panel.hidden = false;
@@ -503,6 +530,7 @@
       els.status.textContent = "— saved draft needs recovery";
       say(els.saveNote || els.resolve, "Saved draft is invalid and was not overwritten. Export/copy it before recovery.");
     } else els.status.textContent = "— enter your seat to start";
+    if (storageUnavailable) storageWarning();
   }
 
   const api = { normName, nameKey, snakeSlot, synthPicks, resolveName, createLog,
