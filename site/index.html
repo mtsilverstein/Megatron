@@ -63,6 +63,39 @@
       <p class="draft-note" id="draft-unmatched" hidden></p>
     </div>
   </details>
+  <details class="draft-panel" id="manual-panel" hidden>
+    <summary>Manual draft <span class="draft-status" id="manual-status">— off</span></summary>
+    <div class="draft-body">
+      <p class="draft-note">This league is not on Sleeper, so no pick can be read
+      automatically — but the shortlist never needed the API, only the answer to
+      "who is gone". Enter your draft slot, then type each name as it is called
+      and press Enter. Players get struck on the board and the recommendation
+      re-runs for your next pick, exactly as the live overlay does.</p>
+      <p class="draft-note"><strong>Type the picks in order.</strong> The pick
+      number is what "your turn in N" is built from, so a pick left out shifts
+      every recommendation after it. Use <em>+ K</em>, <em>+ D/ST</em> or
+      <em>+ other</em> for a pick this board cannot name, and <em>Undo</em> to
+      take back the last one.</p>
+      <div class="draft-row">
+        <label for="manual-seat">Your draft slot</label>
+        <input id="manual-seat" type="number" min="1" step="1" inputmode="numeric">
+        <button id="manual-start">Start</button>
+      </div>
+      <div class="draft-row" id="manual-entry" hidden>
+        <input id="manual-name" type="text" autocomplete="off"
+               placeholder="name just drafted — press Enter">
+        <button id="manual-add">Add</button>
+        <button id="manual-k">+ K</button>
+        <button id="manual-def">+ D/ST</button>
+        <button id="manual-other">+ other</button>
+        <button id="manual-undo">Undo</button>
+      </div>
+      <p class="draft-note" id="manual-resolve" hidden></p>
+      <p class="draft-roster" id="manual-roster" hidden></p>
+      <p class="draft-late" id="manual-late" hidden></p>
+      <div class="draft-shortlist-panel" id="manual-shortlist" hidden></div>
+    </div>
+  </details>
   <div class="filters" id="pos-filters" role="group" aria-label="Filter by position"></div>
   <div class="filters" id="scoring-filters" role="group" aria-label="Scoring format"></div>
   <div class="table-wrap">
@@ -122,6 +155,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/sleeper.js"></script>
 <script src="assets/optimizer.js"></script>
 <script src="assets/draftmode.js"></script>
+<script src="assets/manualdraft.js"></script>
 <script src="assets/keepers.js"></script>
 <script>
 (async () => {
@@ -708,7 +742,32 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     if (platform !== "sleeper") {
       DraftMode.disable(
         `— unavailable: ${board.league.name} is on ${platform.toUpperCase()}, `
-        + "and live draft mode reads Sleeper only. This board is static; strike picks yourself.");
+        + "and live draft mode reads Sleeper only. Use Manual draft below.");
+      // The optimizer needs the pick log, not the API that usually supplies it.
+      // Typing the picks reaches exactly the same shortlist.
+      if (window.ManualDraft) {
+        ManualDraft.initPanel({
+          board,
+          els: {
+            panel: document.getElementById("manual-panel"),
+            status: document.getElementById("manual-status"),
+            seat: document.getElementById("manual-seat"),
+            start: document.getElementById("manual-start"),
+            entry: document.getElementById("manual-entry"),
+            name: document.getElementById("manual-name"),
+            add: document.getElementById("manual-add"),
+            addK: document.getElementById("manual-k"),
+            addDef: document.getElementById("manual-def"),
+            addOther: document.getElementById("manual-other"),
+            undo: document.getElementById("manual-undo"),
+            resolve: document.getElementById("manual-resolve"),
+            roster: document.getElementById("manual-roster"),
+            late: document.getElementById("manual-late"),
+            shortlist: document.getElementById("manual-shortlist"),
+          },
+          onUpdate: s => { draftState = s.connected ? s : null; render(rows); },
+        });
+      }
     } else if (board.crosswalk) {
       DraftMode.init({
         board,
