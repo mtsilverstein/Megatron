@@ -77,11 +77,20 @@ def season_projection(weekly: pd.DataFrame, schedules: pd.DataFrame, predictor,
     # weeks the player appears in -- fed to simulate_season after the loop
     # instead of being summed into totals directly.
     bands_by_player: dict[str, dict[str, list]] = {}
+    # Newly admitted full-season absentees must not shift the shared season
+    # simulation RNG stream for every existing veteran. Append them after
+    # the normal eligible population; feature lookup remains index-based.
+    last_seasons = weekly.groupby("player_id")["season"].max()
+    inactive_returners = set(last_seasons[last_seasons < season - 1].index) & (returning or set())
     for week in weeks:
         combined, future = combined_future_features(weekly, schedules, season,
-                                                    week, current_teams)
+                                                    week, current_teams,
+                                                    eligible_inactive_ids=returning)
         if future.empty:
             continue
+        if inactive_returners:
+            inactive = future["player_id"].isin(inactive_returners)
+            future = pd.concat([future[~inactive], future[inactive]])
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)   # future rows live in this frame
         if has_quantiles:

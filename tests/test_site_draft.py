@@ -57,6 +57,24 @@ def test_season_projection_simulates_weeks():
     assert p1["games"] == 2
 
 
+def test_whitelisted_full_season_absentee_preserves_existing_veteran_draws():
+    weekly = _history()
+    older = weekly[weekly.player_id == "p1"].copy()
+    older["player_id"] = "a_before_everyone"
+    older["player_display_name"] = "Vetted Returner"
+    older["season"] = 2021
+    history = pd.concat([weekly, older], ignore_index=True)
+    kwargs = dict(weeks=[7, 8], rho_by_position={},
+                  games_dist={pos: np.eye(19)[2] for pos in ("QB", "RB", "WR", "TE")})
+    old = season_projection(history, _sched_with_future(), _QuantileStub(), 2023, **kwargs)
+    new = season_projection(history, _sched_with_future(), _QuantileStub(), 2023,
+                             returning={"a_before_everyone"}, **kwargs)
+    assert "a_before_everyone" not in set(old.player_id)
+    assert "a_before_everyone" in set(new.player_id)
+    pd.testing.assert_frame_equal(old.reset_index(drop=True),
+        new[new.player_id != "a_before_everyone"].reset_index(drop=True))
+
+
 def test_season_bands_are_sign_coherent_for_interceptions():
     # Regression pin on the DRAFT path (the third consumer of the band, after
     # harness and weekly): the simulation must consume the sign-coherent

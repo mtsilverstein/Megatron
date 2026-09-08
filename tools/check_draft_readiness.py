@@ -11,6 +11,7 @@ import math
 import subprocess
 import sys
 from collections import Counter
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urljoin
@@ -19,6 +20,7 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from ffmodel.league import load_league  # noqa: E402
+from ffmodel.site.pick_sixes import load_pick_six_prior  # noqa: E402
 
 API = "https://api.sleeper.app/v1"
 SLUGS = ("fam", "gabagool")
@@ -34,6 +36,58 @@ def read_url(url: str) -> dict:
         return json.load(response)
 def get_json(path: str) -> dict:
     return read_url(f"{API}{path}")
+
+
+def validate_board_contract(board: dict, cfg_payload: dict, *,
+                            prior_loader=None) -> list[str]:
+    """Validate a board's league contract and any pick-six provenance.
+
+    Older boards have no pick-six forecast and must retain the complete config
+    contract.  A forecast-aware board may omit ``pass_int_td`` from the list of
+    unprojected rules only after its metadata exactly matches the checked-in
+    prior for that board's season.
+    """
+    errors: list[str] = []
+    expected_league = deepcopy(cfg_payload)
+    if prior_loader is None:
+        prior_loader = load_pick_six_prior
+
+    if "pick_six_forecast" in board:
+        forecast = board["pick_six_forecast"]
+        season = board.get("season")
+        verified = False
+        if not isinstance(forecast, dict):
+            errors.append("board pick-six forecast metadata is not an object")
+        elif isinstance(season, bool) or not isinstance(season, int):
+            errors.append(f"board pick-six forecast has invalid season {season!r}")
+        else:
+            try:
+                expected_forecast = prior_loader(season)
+            except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+                errors.append(f"board pick-six forecast provenance could not be verified: {exc}")
+            else:
+                # Canonical JSON comparison keeps object key order irrelevant
+                # while rejecting type substitutions such as true for 1.
+                actual_json = json.dumps(forecast, sort_keys=True, separators=(",", ":"))
+                expected_json = json.dumps(expected_forecast, sort_keys=True,
+                                           separators=(",", ":"))
+                if actual_json != expected_json:
+                    errors.append("board pick-six forecast metadata differs from source prior")
+                else:
+                    verified = True
+        if verified:
+            unprojected = expected_league.get("unprojected_scoring")
+            if isinstance(unprojected, dict):
+                expected_league["unprojected_scoring"] = {
+                    key: value for key, value in unprojected.items()
+                    if key != "pass_int_td"
+                }
+
+    if board.get("league") != expected_league:
+        errors.append("board league contract differs from configs/leagues source of truth")
+    return errors
+
+
 def check_python(slug: str, site_url: str | None = None) -> dict:
     cfg = load_league(slug, ROOT / "configs" / "leagues")
     board_path = ROOT / "site" / "data" / cfg.board_file
@@ -46,8 +100,7 @@ def check_python(slug: str, site_url: str | None = None) -> dict:
         board = read_url(served_url)
         if board != local_board:
             errors.append(f"served board JSON differs from local {cfg.board_file}")
-    if board.get("league") != cfg.payload():
-        errors.append("board league contract differs from configs/leagues source of truth")
+    errors.extend(validate_board_contract(board, cfg.payload()))
 
     live_league = get_json(f"/league/{cfg.league_id}")
     draft_id = live_league.get("draft_id")

@@ -25,6 +25,44 @@ def validate_inputs(weekly: pd.DataFrame, schedules: pd.DataFrame, season: int) 
         raise RuntimeError(f"no schedule rows for season {season}")
 
 
+def validate_draftable_coverage(board: dict, ecr: dict | None,
+                                adp: dict | None, total_picks: int) -> dict:
+    """Check the FINAL actionable board, not merely raw-to-GSIS matching.
+
+    A perfect crosswalk can still lose a player in future-row eligibility or
+    the rookie join. Every mapped draftable market player must survive both.
+    """
+    import math
+    players = {p["player_id"]: p for p in board["players"]}
+    if len(players) != len(board["players"]):
+        raise RuntimeError("duplicate player ids in final draft board")
+    errors, required = [], set()
+    counts = {}
+    for key, ranks in (("ecr", ecr), ("adp", adp)):
+        wanted = {pid: rank for pid, rank in (ranks or {}).items()
+                  if rank is not None and math.isfinite(float(rank))
+                  and 0 < float(rank) <= total_picks}
+        counts[key] = len(wanted)
+        required.update(wanted)
+        for pid, rank in wanted.items():
+            row = players.get(pid)
+            if row is None:
+                errors.append(f"{pid}: absent ({key}={rank})")
+            elif row.get(key) is None or not math.isclose(float(row[key]), float(rank), abs_tol=.05):
+                errors.append(f"{row.get('name', pid)}: lost/changed {key}={rank}")
+    sleeper_ids = set()
+    for pid in required & players.keys():
+        row = players[pid]
+        sid = row.get("sleeper_id")
+        if not sid or sid in sleeper_ids:
+            errors.append(f"{row.get('name', pid)}: missing/duplicate Sleeper id")
+        sleeper_ids.add(sid)
+    if errors:
+        raise RuntimeError("draftable players lost from final board: " + "; ".join(errors))
+    return {"bound": total_picks, "ecr": counts["ecr"], "adp": counts["adp"],
+            "union": len(required), "represented": len(required), "missing": 0}
+
+
 def _atomic_write(path: Path, payload: dict) -> None:
     path = Path(path)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -183,7 +221,7 @@ def _bounded_stats(stats: dict) -> dict:
     return out
 
 
-def _canonicalize_draft_picks(draft_picks, data_dir):
+def _canonicalize_draft_picks(draft_picks, data_dir, *, target_season=None):
     """Rewrite draft-picks placeholder gsis ids to the identity feed's
     canonical id (`canonicalize_draft_gsis`), joined on PFR's stable id.
 
@@ -196,7 +234,7 @@ def _canonicalize_draft_picks(draft_picks, data_dir):
     from ffmodel.data.rankings import canonicalize_draft_gsis, pull_player_ids
 
     crosswalk = pull_player_ids(data_dir)
-    return canonicalize_draft_gsis(draft_picks, crosswalk)
+    return canonicalize_draft_gsis(draft_picks, crosswalk, target_season=target_season)
 
 
 def _load_adp(season, data_dir, draft_picks=None, *, teams: int = 12,
@@ -373,6 +411,11 @@ def _load_returning(path: Path, weekly: pd.DataFrame, season: int) -> set[str]:
     # Most recent appearance wins: a player who missed ALL of last season is
     # absent from it entirely, so his id has to come from an earlier one.
     hist = weekly.sort_values("season")
+    collisions = (hist[hist["player_display_name"].isin(names)]
+                  .groupby("player_display_name")["player_id"].nunique())
+    if (collisions > 1).any():
+        raise ValueError(f"{path}: ambiguous returning-player names "
+                         f"{list(collisions[collisions > 1].index)}")
     by_name = dict(zip(hist["player_display_name"], hist["player_id"]))
     resolved, missing = set(), []
     for n in names:
@@ -547,7 +590,7 @@ def main() -> None:
         # it does today; the two are then consistent, since anything still on
         # a placeholder id is on that same placeholder id on both sides.
         draft_picks, n_gsis_canonicalized = _canonicalize_draft_picks(
-            draft_picks, args.data_dir)
+            draft_picks, args.data_dir, target_season=args.season)
 
         ecr, adp, replacement, adp_source, consensus_stats = _draft_consensus(
             args.season, schedules, args.data_dir, draft_picks=draft_picks,
@@ -619,6 +662,8 @@ def main() -> None:
         # adp_source above: a silent data repair is a bug, so it must be
         # inspectable.
         board_payload["consensus"] = consensus_stats
+        board_payload["draftable_coverage"] = validate_draftable_coverage(
+            board_payload, ecr, adp, cfg.total_picks)
         # Keyed by the config: Gabagool keeps `draft.json` (its published URL
         # and the site's default fetch), every other league gets its own file
         # and can never overwrite another league's board.

@@ -452,7 +452,9 @@ def _backfill_draft_gsis(crosswalk: pd.DataFrame,
 
 
 def canonicalize_draft_gsis(draft_picks: pd.DataFrame,
-                            crosswalk: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+                            crosswalk: pd.DataFrame, *,
+                            target_season: int | None = None
+                            ) -> tuple[pd.DataFrame, int]:
     """Rewrite draft-picks placeholder gsis ids to the identity feed's canonical id.
 
     Inverse of `_backfill_draft_gsis`. nflverse's draft-picks feed still
@@ -464,13 +466,20 @@ def canonicalize_draft_gsis(draft_picks: pd.DataFrame,
     rewrites draft-picks' `gsis_id` -- never the identity feed, which stays
     authoritative -- joined on PFR's stable id, never a fuzzy name match.
 
-    A row is rewritten if and only if ALL of: its `gsis_id` is non-null; that
-    id is ABSENT from the set of non-null `gsis_id` values already in
-    `crosswalk` (i.e. it is provably not a real, known id); and its
-    `pfr_player_id` bridges to a non-null canonical `gsis_id` in `crosswalk`.
-    That second condition is load-bearing: it makes this a no-op for every
-    historical draft class (measured 2012-2025: zero rows qualify), so it
-    cannot silently move the prior `fit_rookie_cohorts` is fitted from.
+    The original repair remains unchanged: a non-null draft id absent from the
+    identity feed is rewritten when its PFR id bridges to one canonical id.
+    That known-id condition is load-bearing: it leaves historical valid ids
+    alone even if some other identity row shares their PFR id.
+
+    `target_season` enables two current-class repairs that are deliberately
+    unavailable to historical/backtest callers: fill a null draft id through
+    the same stable PFR bridge, then repair any still-unknown id through a
+    unique normalized (name, position) identity match in the SAME draft class.
+    The latter covers a
+    current rookie whose two feeds disagree on PFR id as well as placeholder
+    gsis id. Ambiguity raises rather than guessing. Missing optional name,
+    position, or season columns simply disables this current-class fallback,
+    preserving the older minimal-frame contract.
 
     The conflict check (a single PFR id mapping to >1 canonical gsis id --
     never guessed, always raised) is scoped to the PFR ids this call actually
@@ -497,6 +506,10 @@ def canonicalize_draft_gsis(draft_picks: pd.DataFrame,
     placeholder = out["gsis_id"].notna() & ~out["gsis_id"].isin(known_gsis)
 
     relevant_pfr = set(out.loc[placeholder, "pfr_player_id"].dropna())
+    if target_season is not None and "season" in out.columns:
+        null_current = (pd.to_numeric(out["season"], errors="coerce").eq(target_season)
+                        & out["gsis_id"].isna())
+        relevant_pfr.update(out.loc[null_current, "pfr_player_id"].dropna())
     cw = crosswalk[crosswalk["pfr_id"].isin(relevant_pfr)]
     cw = cw.dropna(subset=["pfr_id", "gsis_id"])[["pfr_id", "gsis_id"]].copy()
     conflicts = cw.groupby("pfr_id")["gsis_id"].nunique()
@@ -510,6 +523,58 @@ def canonicalize_draft_gsis(draft_picks: pd.DataFrame,
     rewritten = int(canonical.notna().sum())
     out.loc[placeholder, "gsis_id"] = canonical.where(
         canonical.notna(), out.loc[placeholder, "gsis_id"])
+
+    if target_season is None or "season" not in out.columns:
+        return out, rewritten
+
+    current = pd.to_numeric(out["season"], errors="coerce").eq(target_season)
+
+    # A current draft row may have a genuinely blank gsis id even though its
+    # stable PFR id is already in the identity feed (De'Zhaun Stribling in the
+    # 2026 feeds). The legacy path intentionally skipped nulls, so fill them
+    # only under the caller's explicit current-season boundary.
+    null_current = current & out["gsis_id"].isna()
+    if null_current.any():
+        null_canonical = out.loc[null_current, "pfr_player_id"].map(by_pfr)
+        n = int(null_canonical.notna().sum())
+        rewritten += n
+        out.loc[null_current, "gsis_id"] = null_canonical.where(
+            null_canonical.notna(), out.loc[null_current, "gsis_id"])
+
+    name_col = next((c for c in ("pfr_player_name", "player_name", "name")
+                     if c in out.columns), None)
+    crosswalk_name = next((c for c in ("merge_name", "name")
+                           if c in crosswalk.columns), None)
+    if name_col is None or crosswalk_name is None \
+            or "position" not in out.columns or "position" not in crosswalk.columns \
+            or "draft_year" not in crosswalk.columns:
+        return out, rewritten
+
+    from ffmodel.data.adp import norm
+
+    # A unique all-time namesake is NOT proof of rookie identity. Without an
+    # independently matching draft year, leave the row unresolved so final
+    # draftable coverage can reject it instead of silently adopting a retiree.
+    cw = crosswalk[pd.to_numeric(crosswalk["draft_year"], errors="coerce")
+                   .eq(target_season)].dropna(
+                       subset=[crosswalk_name, "position", "gsis_id"]).copy()
+    cw["_name_pos"] = list(zip(cw[crosswalk_name].map(norm), cw["position"]))
+    by_key = cw.groupby("_name_pos")["gsis_id"].agg(lambda s: set(s.dropna()))
+
+    unresolved = current & (out["gsis_id"].isna() | ~out["gsis_id"].isin(known_gsis))
+    if not unresolved.any():
+        return out, rewritten
+    keys = pd.Series(list(zip(out.loc[unresolved, name_col].map(norm),
+                              out.loc[unresolved, "position"])),
+                     index=out.index[unresolved])
+    ambiguous = sorted({key for key in keys if len(by_key.get(key, set())) > 1})
+    if ambiguous:
+        raise ValueError("identity crosswalk has conflicting gsis ids for "
+                         f"normalized name/position keys {ambiguous}")
+    resolved = keys.map(lambda key: next(iter(by_key.get(key, set())), None))
+    changed = resolved.notna() & (resolved != out.loc[unresolved, "gsis_id"])
+    rewritten += int(changed.sum())
+    out.loc[resolved.index[resolved.notna()], "gsis_id"] = resolved[resolved.notna()]
     return out, rewritten
 
 

@@ -20,7 +20,8 @@ _NAN_COLUMNS = PREDICTED_STATS + SCORING_EXTRAS + [
 
 def future_skeleton(weekly: pd.DataFrame, schedules: pd.DataFrame,
                     season: int, week: int,
-                    current_teams: dict[str, str] | None = None
+                    current_teams: dict[str, str] | None = None, *,
+                    eligible_inactive_ids: set[str] | None = None
                     ) -> pd.DataFrame:
     played = weekly[(weekly["season"] == season) & (weekly["week"] == week)]
     if not played.empty:
@@ -30,7 +31,10 @@ def future_skeleton(weekly: pd.DataFrame, schedules: pd.DataFrame,
         )
     ordered = weekly.sort_values(["player_id", "season", "week"])
     latest = ordered.groupby("player_id").tail(1)
-    active = latest[(latest["season"] >= season - 1) & (latest["season"] <= season)]
+    recent_or_eligible = latest["season"] >= season - 1
+    if eligible_inactive_ids is not None:
+        recent_or_eligible |= latest["player_id"].isin(eligible_inactive_ids)
+    active = latest[recent_or_eligible & (latest["season"] <= season)]
 
     games = schedules[(schedules["season"] == season) & (schedules["week"] == week)]
     home = games.rename(columns={"home_team": "team", "away_team": "opponent_team"})
@@ -64,9 +68,12 @@ def future_skeleton(weekly: pd.DataFrame, schedules: pd.DataFrame,
 
 def combined_future_features(weekly: pd.DataFrame, schedules: pd.DataFrame,
                              season: int, week: int,
-                             current_teams: dict[str, str] | None = None
+                             current_teams: dict[str, str] | None = None, *,
+                             eligible_inactive_ids: set[str] | None = None
                              ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    skeleton = future_skeleton(weekly, schedules, season, week, current_teams)
+    skeleton = future_skeleton(
+        weekly, schedules, season, week, current_teams,
+        eligible_inactive_ids=eligible_inactive_ids)
     combined = pd.concat([weekly, skeleton], ignore_index=True)
     features = build_features(combined, schedules)
     mask = (features["season"] == season) & (features["week"] == week) \
@@ -76,7 +83,9 @@ def combined_future_features(weekly: pd.DataFrame, schedules: pd.DataFrame,
 
 def build_future_features(weekly: pd.DataFrame, schedules: pd.DataFrame,
                           season: int, week: int,
-                          current_teams: dict[str, str] | None = None
+                          current_teams: dict[str, str] | None = None, *,
+                          eligible_inactive_ids: set[str] | None = None
                           ) -> pd.DataFrame:
     return combined_future_features(weekly, schedules, season, week,
-                                    current_teams)[1]
+                                    current_teams,
+                                    eligible_inactive_ids=eligible_inactive_ids)[1]

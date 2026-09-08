@@ -379,6 +379,9 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
         capture["teams"] = k.get("teams")
         return {"players": []}
     monkeypatch.setattr(draft_mod, "build_draft_board", fake_board)
+    # This helper deliberately replaces the whole board with an empty stub.
+    # The real final-board guard is exercised in test_market_coverage.py.
+    monkeypatch.setattr(gen_mod, "validate_draftable_coverage", lambda *a, **k: {})
     monkeypatch.setattr(about_mod, "build_about",
                         lambda *a, **k: {"site_model": "stub"})
     monkeypatch.setattr(gen_mod, "require_backtests", lambda paths: paths)

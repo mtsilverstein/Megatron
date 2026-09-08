@@ -457,6 +457,110 @@ def test_canonicalize_draft_gsis_leaves_a_null_gsis_id_alone():
     assert out["gsis_id"].iloc[0] is None or pd.isna(out["gsis_id"].iloc[0])
 
 
+def test_canonicalize_draft_gsis_fills_current_null_through_pfr():
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "StriDe01", "gsis_id": "00-0041035",
+         "merge_name": "dezhaun stribling", "position": "WR"},
+    ])
+    draft_picks = pd.DataFrame([
+        {"season": 2026, "pfr_player_id": "StriDe01", "gsis_id": None,
+         "pfr_player_name": "De'Zhaun Stribling", "position": "WR"},
+    ])
+
+    out, rewritten = canonicalize_draft_gsis(
+        draft_picks, crosswalk, target_season=2026)
+    assert rewritten == 1
+    assert list(out["gsis_id"]) == ["00-0041035"]
+
+
+def test_current_null_id_pfr_bridge_does_not_require_name_fallback():
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+    picks = pd.DataFrame([{"season": 2026, "pfr_player_id": "StriDe01", "gsis_id": None}])
+    ids = pd.DataFrame([{"pfr_id": "StriDe01", "gsis_id": "00-0041035"}])
+    out, count = canonicalize_draft_gsis(picks, ids, target_season=2026)
+    assert out.gsis_id.iloc[0] == "00-0041035" and count == 1
+
+
+def test_current_null_id_pfr_bridge_rejects_conflicting_ids():
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+    picks = pd.DataFrame([{"season": 2026, "pfr_player_id": "same", "gsis_id": None}])
+    ids = pd.DataFrame([{"pfr_id": "same", "gsis_id": "one"},
+                        {"pfr_id": "same", "gsis_id": "two"}])
+    with pytest.raises(ValueError, match="conflicting"):
+        canonicalize_draft_gsis(picks, ids, target_season=2026)
+
+
+def test_canonicalize_draft_gsis_current_name_position_fallback():
+    """Current rookie feeds can disagree on both placeholder and PFR id."""
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "WashMi21", "gsis_id": "WAS569019",
+         "merge_name": "mike washington", "position": "RB", "draft_year": 2026},
+    ])
+    draft_picks = pd.DataFrame([
+        {"season": 2026, "pfr_player_id": "WashMi00", "gsis_id": "WAS797326",
+         "pfr_player_name": "Mike Washington Jr.", "position": "RB"},
+    ])
+
+    out, rewritten = canonicalize_draft_gsis(
+        draft_picks, crosswalk, target_season=2026)
+    assert rewritten == 1
+    assert list(out["gsis_id"]) == ["WAS569019"]
+
+
+def test_canonicalize_draft_gsis_name_fallback_is_target_season_only():
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "Different00", "gsis_id": "00-0011111",
+         "merge_name": "historical player", "position": "RB"},
+    ])
+    draft_picks = pd.DataFrame([
+        {"season": 2025, "pfr_player_id": "Old00", "gsis_id": "OLDPLACE",
+         "pfr_player_name": "Historical Player", "position": "RB"},
+    ])
+
+    out, rewritten = canonicalize_draft_gsis(
+        draft_picks, crosswalk, target_season=2026)
+    assert rewritten == 0
+    assert list(out["gsis_id"]) == ["OLDPLACE"]
+
+
+def test_canonicalize_draft_gsis_name_fallback_refuses_ambiguity():
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+
+    crosswalk = pd.DataFrame([
+        {"pfr_id": "One00", "gsis_id": "00-0011111",
+         "merge_name": "same rookie", "position": "WR", "draft_year": 2026},
+        {"pfr_id": "Two00", "gsis_id": "00-0022222",
+         "merge_name": "same rookie", "position": "WR", "draft_year": 2026},
+    ])
+    draft_picks = pd.DataFrame([
+        {"season": 2026, "pfr_player_id": "Other00", "gsis_id": "UNKNOWN",
+         "pfr_player_name": "Same Rookie", "position": "WR"},
+    ])
+
+    with pytest.raises(ValueError, match="name/position"):
+        canonicalize_draft_gsis(draft_picks, crosswalk, target_season=2026)
+
+
+@pytest.mark.parametrize("old_year", [2000, None])
+def test_current_rookie_never_adopts_retired_or_unknown_class_namesake(old_year):
+    from ffmodel.data.rankings import canonicalize_draft_gsis
+    picks = pd.DataFrame([{"season": 2026, "pfr_player_id": "New00",
+        "gsis_id": "PLACEHOLDER", "player_name": "Same Player Jr.", "position": "WR"}])
+    ids = pd.DataFrame([{"pfr_id": "Old00", "gsis_id": "retired-id",
+        "merge_name": "same player", "position": "WR", "draft_year": old_year}])
+    out, count = canonicalize_draft_gsis(picks, ids, target_season=2026)
+    assert out.gsis_id.iloc[0] == "PLACEHOLDER" and count == 0
+    ids.loc[1] = ["NewOther00", "new-id", "same player", "WR", 2026]
+    out, count = canonicalize_draft_gsis(picks, ids, target_season=2026)
+    assert out.gsis_id.iloc[0] == "new-id" and count == 1
+
+
 def test_canonicalize_draft_gsis_raises_on_conflicting_pfr_mapping():
     """Mirrors `_backfill_draft_gsis`'s conflict discipline: a single PFR id
     that maps to more than one canonical gsis id in the crosswalk must raise,

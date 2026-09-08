@@ -72,6 +72,48 @@ def test_player_last_seen_two_seasons_ago_is_excluded():
     assert "old" not in set(sk["player_id"])
 
 
+def test_vetted_inactive_player_is_included_with_current_team_matchup():
+    old = make_weekly([{
+        "player_id": "old", "season": 2021, "week": 1,
+        "team": "AAA", "opponent_team": "BBB",
+    }])
+    weekly = pd.concat([old, _history()], ignore_index=True)
+
+    future = build_future_features(
+        weekly, _sched_with_future(), season=2023, week=7,
+        current_teams={"old": "BBB"}, eligible_inactive_ids={"old"})
+    player = future[future["player_id"] == "old"].iloc[0]
+
+    assert (player["team"], player["opponent_team"]) == ("BBB", "AAA")
+    assert player["is_home"] == 0
+
+
+def test_vetted_inactive_player_on_bye_still_drops_from_skeleton():
+    old = make_weekly([{"player_id": "old", "season": 2021, "week": 1}])
+    weekly = pd.concat([old, _history()], ignore_index=True)
+
+    sk = future_skeleton(
+        weekly, _sched_with_future(), season=2023, week=7,
+        current_teams={"old": "CCC"}, eligible_inactive_ids={"old"})
+
+    assert "old" not in set(sk["player_id"])
+
+
+def test_only_vetted_inactive_players_bypass_recency_cutoff():
+    inactive = make_weekly([
+        {"player_id": "eligible", "season": 2021, "week": 1},
+        {"player_id": "retired", "season": 2021, "week": 1},
+    ])
+    weekly = pd.concat([inactive, _history()], ignore_index=True)
+
+    sk = future_skeleton(
+        weekly, _sched_with_future(), season=2023, week=7,
+        eligible_inactive_ids={"eligible"})
+
+    assert "eligible" in set(sk["player_id"])
+    assert "retired" not in set(sk["player_id"])
+
+
 def test_combined_contains_future_rows_by_index():
     weekly = _history()
     combined, future = __import__("ffmodel.data.future", fromlist=["x"]) \
@@ -84,6 +126,17 @@ def test_player_with_later_season_games_is_excluded():
     later = make_weekly([{"player_id": "future_guy", "season": 2024, "week": 1}])
     weekly = pd.concat([_history(), later], ignore_index=True)
     sk = future_skeleton(weekly, _sched_with_future(), season=2023, week=7)
+    assert "future_guy" not in set(sk["player_id"])
+
+
+def test_vetted_id_with_history_beyond_target_season_is_still_excluded():
+    later = make_weekly([{"player_id": "future_guy", "season": 2024, "week": 1}])
+    weekly = pd.concat([_history(), later], ignore_index=True)
+
+    sk = future_skeleton(
+        weekly, _sched_with_future(), season=2023, week=7,
+        eligible_inactive_ids={"future_guy"})
+
     assert "future_guy" not in set(sk["player_id"])
 
 

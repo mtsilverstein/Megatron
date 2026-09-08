@@ -28,6 +28,17 @@
 season: 2026
 
 players:
+  # Added 2026-09-08: both missed ALL of 2025, so the usual prior-season
+  # eligibility window dropped them even though current rosters and Sept 7
+  # ECR/ADP include them. Explicit inclusion uses their real 2024 history;
+  # it does not fabricate played weeks. Their very short NFL histories make
+  # the bands especially uncertain. The pooled returner availability curve
+  # is an approximation here, not a player-specific medical prediction.
+  # https://www.panthers.com/news/for-jonathon-brooks-his-return-was-an-emotional-one-acl-rehab-first-game-back-buffalo
+  - Jonathon Brooks
+  # https://www.packers.com/news/rb-marshawn-lloyd-as-ready-as-he-s-ever-been-to-help-packers-sep-2-2026
+  - MarShawn Lloyd
+
   # 2025: 4 games (weeks 1-4), then a torn ACL. 2024 was a genuine WR1 rookie
   # season -- 170 targets, 1204 yards -- which is exactly what the model is
   # projecting off, and exactly why his floor needed this.
