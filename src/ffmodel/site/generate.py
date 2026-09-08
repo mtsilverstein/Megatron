@@ -302,13 +302,28 @@ def _load_adp(season, data_dir, draft_picks=None, *, teams: int = 12,
     return pull_adp(season, cache_dir=data_dir, teams=teams), {"source": "ffcalculator"}
 
 
+# League sizes FFCalculator will serve. Any other value returns HTTP 400 --
+# MEASURED 2026-09-08 against 8/10/12/13/14, when the 13-team ESPN board's
+# request failed and left its K/DST reminder empty in a league that starts one
+# of each. Snapping to the nearest supported size is sound because the same
+# measurement showed the responses are IDENTICAL across all four accepted
+# sizes (see _late_slots). Re-measure before treating this as a real parameter.
+_FFC_TEAM_SIZES = (8, 10, 12, 14)
+
+
+def _nearest_ffc_teams(teams: int) -> int:
+    """Nearest size FFCalculator serves; ties resolve to the smaller."""
+    return min(_FFC_TEAM_SIZES, key=lambda n: (abs(n - teams), n))
+
+
 def _late_slots(season, data_dir, teams: int = 12):
-    # MEASURED 2026-09-06: FFCalculator echoes `meta.teams` back correctly but
-    # returns the SAME K/DST ADPs for teams=10 and teams=12, so a 10-team board's
-    # late-slot reminder comes out identical to a 12-team one. That is upstream
-    # behaviour, not a dropped parameter -- verify against the API before
-    # "fixing" it. The argument is still passed because the endpoint accepts it
-    # and may start differentiating.
+    # MEASURED 2026-09-06, re-measured 2026-09-08: FFCalculator echoes
+    # `meta.teams` back correctly but returns the SAME K/DST ADPs for every
+    # size it accepts (8, 10, 12 and 14 all give Aubrey 126.4 / Seattle 80.5),
+    # so a 10-team board's late-slot reminder comes out identical to a 12-team
+    # one. That is upstream behaviour, not a dropped parameter -- verify
+    # against the API before "fixing" it. The argument is still passed because
+    # the endpoint accepts it and may start differentiating.
     """Raw K/DST ADP for the late-round slot reminder (display-only).
 
     `teams` sizes FFCalculator's mock-draft pool: a 10-team league's kickers
@@ -319,8 +334,12 @@ def _late_slots(season, data_dir, teams: int = 12):
 
     from ffmodel.data.adp import late_slot_adp
 
+    served = _nearest_ffc_teams(teams)
+    if served != teams:
+        print(f"K/DST ADP: FFCalculator does not serve {teams}-team leagues; "
+              f"using its {served}-team pool (measured identical across sizes)")
     url = ("https://fantasyfootballcalculator.com/api/v1/adp/ppr"
-           f"?teams={teams}&year={season}&position=all")
+           f"?teams={served}&year={season}&position=all")
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
@@ -611,9 +630,22 @@ def main() -> None:
     # site files untouched (spec §9 fail-safe).
     payloads: dict[str, dict] = {}
     from ffmodel.site.pick_sixes import load_pick_six_prior
-    pick_six_prior = load_pick_six_prior(args.season)
-    print(f"pick-six expected-cost rate: {pick_six_prior['rate']:.4%} "
-          f"({pick_six_prior['first_season']}–{pick_six_prior['through_season']})")
+    # The adjustment charges a QB the EXPECTED COST of the pick-sixes he will
+    # throw, so it is meaningful only where a pick-six actually costs something
+    # beyond the interception itself. A league that scores the return TD to the
+    # DEFENCE (ESPN's default) has pass_int_td == 0: the adjustment would be
+    # numerically zero, but attaching the forecast would still make the board
+    # claim -- in site/index.html's disclosure -- that it shifted the QB bands.
+    # Suppress both the math and the claim together, so they cannot disagree.
+    # Inert for both Sleeper leagues, which score pass_int_td -3.
+    pick_six_prior = (load_pick_six_prior(args.season)
+                      if cfg.rules.pass_int_td else None)
+    if pick_six_prior is None:
+        print(f"pick-six expected cost: not applied — {cfg.name} scores a "
+              f"returned interception to the defence (pass_int_td 0)")
+    else:
+        print(f"pick-six expected-cost rate: {pick_six_prior['rate']:.4%} "
+              f"({pick_six_prior['first_season']}–{pick_six_prior['through_season']})")
     if week is not None:
         combined, future = combined_future_features(weekly, schedules,
                                                     args.season, week,
