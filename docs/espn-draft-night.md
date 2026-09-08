@@ -40,3 +40,22 @@ The ESPN league is private. Its signed-in settings matched the board on
 2026-09-08, but its draft was still unscheduled at that check. Automatic capture
 has not been verified against a live ESPN draft room. Do not share ESPN login
 cookies, disable browser protections, or depend on an untested sync bridge.
+
+## If you draw slot 1 or slot 13
+
+Those are the only seats with back-to-back picks (13+14 and 26+27). Nothing is
+taken between your two picks, so the ORDER you take them in cannot change WHO
+you get -- only which pair you end up with.
+
+**At those two picks, take the highest-VORP player first and let the shortlist
+have the second one.** Measured 2026-09-08 on the refreshed board, 40 jittered
+fields: at slot 13 the shortlist's first pick lost to simply taking the VORP
+leader in 9 of 9 cases where the two differed, mean -3.79 and worst -10.0
+points on the tool's own objective. Concretely it offers Chase Brown and rates
+Brock Bowers a 17.4-point mistake, while its own rollout scores taking Bowers
+first higher.
+
+The cause is known (`.review` §3a): the rollout is greedy on immediate lineup
+gain, so it defers tight end until the good ones are gone. Slot 1 does not
+show it (2/2 the other way, +8.05). Everywhere except those two picks the
+shortlist is unaffected -- this needs adjacent picks to happen at all.
