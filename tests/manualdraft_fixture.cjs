@@ -20,9 +20,11 @@ assert.strictEqual(MD.snakeSlot(26, T, "snake"), 1, "end of round 2 comes back t
 assert.strictEqual(MD.snakeSlot(27, T, "snake"), 1, "seat 1 also picks back-to-back");
 assert.strictEqual(MD.snakeSlot(40, T, "snake"), 13, "pick 40 OPENS round 4, which runs backwards");
 assert.strictEqual(MD.snakeSlot(41, T, "snake"), 12, "and then walks down");
-// Round 15 is ODD, so it runs forwards and the final pick belongs to seat 13.
+// Round 15 is ODD, so it runs forwards; the new round 16 runs backwards.
 assert.strictEqual(MD.snakeSlot(183, T, "snake"), 1, "round 15 opens with seat 1");
-assert.strictEqual(MD.snakeSlot(195, T, "snake"), 13, "and the draft ends on seat 13");
+assert.strictEqual(MD.snakeSlot(195, T, "snake"), 13, "round 15 ends on seat 13");
+assert.strictEqual(MD.snakeSlot(196, T, "snake"), 13, "round 16 starts at the turn");
+assert.strictEqual(MD.snakeSlot(208, T, "snake"), 1, "16-round draft ends on seat 1");
 
 // Every seat appears exactly once per round, in both directions.
 for (const round of [1, 2, 3, 8]) {

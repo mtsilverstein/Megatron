@@ -38,6 +38,28 @@ def test_filters_positions_and_season_type():
     assert set(out["position"]).issubset(set(POSITIONS))
 
 
+def test_espn_two_way_receiver_repair_is_observed_scoped_and_idempotent():
+    from ffmodel.site.espn import HUNTER_ID, restore_hunter_history, espn_weekly_history
+
+    base = normalize_weekly(pd.DataFrame([_raw_row()]))
+    raw = pd.DataFrame([
+        _raw_row(player_id=HUNTER_ID, player_display_name="Travis Hunter",
+                 season=2025, position_group="DB", position="CB",
+                 receptions=6, receiving_yards=33, fantasy_points_ppr=999),
+        _raw_row(player_id=HUNTER_ID, season=2025, season_type="POST"),
+        _raw_row(player_id="other-defender", season=2025, position_group="DB"),
+    ])
+    out = restore_hunter_history(base, raw)
+    assert len(out) == len(base) + 1
+    hunter = out.loc[out.player_id.eq(HUNTER_ID)].iloc[0]
+    assert hunter.position == "WR"
+    assert hunter.receptions == 6
+    assert hunter.fantasy_points_ppr == pytest.approx(9.3)
+    pd.testing.assert_frame_equal(restore_hunter_history(out, raw), out)
+    assert espn_weekly_history(base, 2024) is base
+    assert espn_weekly_history(out, 2026) is out
+
+
 def test_sums_fumbles_and_two_point_conversions():
     raw = pd.DataFrame([_raw_row(
         rushing_fumbles_lost=1, receiving_fumbles_lost=1, sack_fumbles_lost=1,

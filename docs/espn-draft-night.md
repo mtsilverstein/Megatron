@@ -36,8 +36,12 @@ Avoid editing the same ESPN draft in two tabs. A stale tab refuses to overwrite
 a newer save; reload it to resume. Keep Gabagool and ESPN in separate tabs, not
 two competing editors for ESPN.
 
-The ESPN league is private. Its signed-in settings matched the board on
-2026-09-08, but its draft was still unscheduled at that check. Automatic capture
+The ESPN league is private. The signed-in settings refreshed on 2026-09-08 show
+13 teams, 6-point passing TDs, full PPR, -2 interceptions, two RB/WR/TE FLEX
+slots, and 16 draftable roster spots (10 starters + 6 bench, plus one IR slot).
+There is no extra QB pick-six penalty. The draft is scheduled for **8:00 PM EDT
+on September 8**, one hour before Gabagool; plan for possible overlap.
+Automatic capture
 has not been verified against a live ESPN draft room. Do not share ESPN login
 cookies, disable browser protections, or depend on an untested sync bridge.
 
@@ -47,8 +51,11 @@ Those are the only seats with back-to-back picks (13+14 and 26+27). Nothing is
 taken between your two picks, so the ORDER you take them in cannot change WHO
 you get -- only which pair you end up with.
 
-**At those two picks, take the highest-VORP player first and let the shortlist
-have the second one.** Measured 2026-09-08 on the refreshed board, 40 jittered
+The measurements below used the previous **one-FLEX, 4-point passing-TD**
+settings. They have not been rerun for the updated league and are not a blanket
+instruction to override the shortlist.
+
+Measured 2026-09-08 on the earlier board, 40 jittered
 fields: at slot 13 the shortlist's first pick lost to simply taking the VORP
 leader in 9 of 9 cases where the two differed, mean -3.79 and worst -10.0
 points on the tool's own objective. Concretely it offers Chase Brown and rates

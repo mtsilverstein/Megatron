@@ -538,6 +538,9 @@ def main() -> None:
 
     weekly = pull_weekly(list(range(args.first_season, args.season)),
                          cache_dir=args.data_dir)
+    if args.draft and cfg.slug == "espnfam":
+        from ffmodel.site.espn import espn_weekly_history
+        weekly = espn_weekly_history(weekly, args.season)
     schedules = pull_schedules(list(range(args.first_season, args.season + 1)),
                                cache_dir=args.data_dir)
     if args.week is not None:
@@ -673,6 +676,16 @@ def main() -> None:
         # published artifact rather than inferred.
         board_payload["roster_override"] = _roster_override_stats(
             board_payload, current_teams)
+        if cfg.slug == "espnfam" and args.season == 2026:
+            from ffmodel.site.espn import HUNTER_ID
+            board_payload["offensive_history_repair"] = {
+                "source": "nflreadpy.load_player_stats", "season": 2025,
+                "player_id": HUNTER_ID, "name": "Travis Hunter",
+                "source_position": "CB/DB", "modeled_position": "WR",
+                "observed_games": int(((weekly.player_id == HUNTER_ID)
+                                       & (weekly.season == 2025)).sum()),
+                "note": "Observed offensive stats only; defensive fantasy points excluded.",
+            }
         # Provenance: which ADP source actually fed the board (sleeper_snapshot
         # + its capture date, or the ffcalculator fallback) -- so the site can
         # say honestly where its market overlay came from.

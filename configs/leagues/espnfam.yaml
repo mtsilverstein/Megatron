@@ -1,5 +1,5 @@
 # Fam Fantasy Football League -- ESPN, not Sleeper. Settings transcribed from
-# the league's own settings page 2026-09-08 (League Settings PDF export).
+# the signed-in league settings page 2026-09-08, refreshed after roster/scoring edits.
 #
 # THIS LEAGUE HAS NO LIVE DRAFT PATH. draftmode.js speaks Sleeper's API only:
 # there is no ESPN client, no ESPN player-id crosswalk, and no ESPN draft
@@ -15,16 +15,17 @@ league_id: "69827905"
 # value curve is flatter and starters run out sooner.
 teams: 13
 roster: {QB: 1, RB: 2, WR: 2, TE: 1}
-# ONE flex, not two. 9 starters total: QB/RB/RB/WR/WR/TE/FLEX/K/DST.
-flex: 1
+# TWO flex. 10 starters total: QB/RB/RB/WR/WR/TE/FLEX/FLEX/K/DST.
+flex: 2
 flex_positions: [RB, WR, TE]
-# 15 roster spots (6 bench, 1 of them IR). Snake draft.
-rounds: 15
-# FOUR-point passing touchdowns, unlike both Sleeper leagues' six. ESPN scores
+# 16 draftable roster spots: 10 starters + 6 bench; 1 additional IR slot.
+# Snake draft, Sep 8 at 8:00 PM EDT; order randomized one hour beforehand.
+rounds: 16
+# SIX-point passing touchdowns, now matching both Sleeper leagues. ESPN scores
 # a QB's pick-six as a plain interception (-2); the +6 INTTD in the settings is
 # credited to the DEFENSE, so there is no pass_int_td here and no pick-six
 # adjustment applies to this board's quarterbacks.
-scoring: {reception: 1.0, pass_td: 4.0, interception: -2.0}
+scoring: {reception: 1.0, pass_td: 6.0, interception: -2.0}
 # Judgment-based tie-break caps carried over from the other leagues, NOT a
 # measured optimum and not ESPN's roster maximums (which are QB3/RB8/WR8/TE3).
 depth_cap: {QB: 2, RB: 6, WR: 6, TE: 2}
@@ -36,7 +37,7 @@ depth_cap: {QB: 2, RB: 6, WR: 6, TE: 2}
 # partial translation would misrepresent itself as a complete contract.
 sleeper_scoring:
   pass_yd: 0.04
-  pass_td: 4.0
+  pass_td: 6.0
   pass_int: -2.0
   pass_2pt: 2.0
   rush_yd: 0.1

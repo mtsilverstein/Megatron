@@ -29,6 +29,42 @@ def test_fam_derives_a_ten_team_contract():
     assert cfg.keeper_rules is None   # FAM's keeper rule is not implemented
 
 
+def test_espnfam_matches_september_8_live_settings_refresh():
+    cfg = load_league("espnfam")
+    assert cfg.platform == "espn"
+    assert cfg.league_id == "69827905"
+    assert cfg.teams == 13
+    assert cfg.roster == {"QB": 1, "RB": 2, "WR": 2, "TE": 1}
+    assert cfg.flex == 2
+    assert cfg.flex_positions == ("RB", "WR", "TE")
+    assert cfg.flex_slots == 26
+    assert cfg.starters == 8  # modeled skill starters; K and D/ST make 10
+    assert cfg.rounds == 16  # 10 starters + 6 bench; IR is not a draft pick
+    assert cfg.total_picks == 208
+    assert cfg.rules.pass_td == cfg.payload()["sleeper_scoring"]["pass_td"] == 6.0
+    assert cfg.rules.interception == -2.0
+    assert cfg.rules.reception == 1.0
+    assert cfg.rules.pass_int_td == 0.0
+    assert "pass_int_td" not in cfg.payload()["unprojected_scoring"]
+    assert cfg.keeper_rules is None
+    assert cfg.board_file == "draft-espnfam.json"
+
+
+def test_published_espnfam_board_matches_current_contract():
+    import json
+    from pathlib import Path
+
+    cfg = load_league("espnfam")
+    board = json.loads((Path("site/data") / cfg.board_file).read_text())
+    assert board["league"] == cfg.payload()
+    assert board["draftable_coverage"]["bound"] == cfg.total_picks
+    assert board["draftable_coverage"]["missing"] == 0
+    hunter = next(p for p in board["players"] if p["player_id"] == "00-0040718")
+    assert hunter["position"] == "WR"
+    assert hunter["sleeper_id"] == "12530"
+    assert hunter["season_points"]["league"]["p50"] > 0
+
+
 def test_board_ruleset_key_is_league_for_every_league():
     # season_points.league is a published payload key and optimizer.js's
     # VALUE_LENS_ORDER reads it. The key is constant; the YAML decides what
