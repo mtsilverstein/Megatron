@@ -48,6 +48,11 @@ class LeagueConfig:
     depth_cap: dict[str, int]
     keeper_rules: str | None = None
     sleeper_scoring: dict[str, float] | None = None
+    # Which site hosts this league. Live draft mode, the keeper panel and the
+    # trade panel all speak Sleeper's API and NOTHING else, so a non-Sleeper
+    # league gets a static board and the page must not offer it controls that
+    # cannot work. Defaults to "sleeper" so both existing configs are unchanged.
+    platform: str = "sleeper"
 
     @property
     def dedicated(self) -> dict[str, int]:
@@ -92,7 +97,7 @@ class LeagueConfig:
             "flex": self.flex, "flex_positions": list(self.flex_positions),
             "rounds": self.rounds, "starters": self.starters,
             "total_picks": self.total_picks, "depth_cap": dict(self.depth_cap),
-            "board_ruleset": BOARD_RULESET,
+            "board_ruleset": BOARD_RULESET, "platform": self.platform,
             "scoring": {k: v for k, v in asdict(self.rules).items() if k != "name"},
         }
         if self.sleeper_scoring is not None:
@@ -133,6 +138,7 @@ def load_league(slug: str, root: Path | None = None) -> LeagueConfig:
         flex=int(data["flex"]), flex_positions=tuple(data["flex_positions"]),
         rounds=int(data["rounds"]), scoring=dict(data["scoring"]),
         depth_cap=dict(data["depth_cap"]), keeper_rules=data.get("keeper_rules"),
+        platform=str(data.get("platform", "sleeper")),
         sleeper_scoring=(dict(data["sleeper_scoring"])
                          if "sleeper_scoring" in data else None))
     if cfg.sleeper_scoring is not None:

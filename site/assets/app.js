@@ -12,14 +12,14 @@ window.FC = (() => {
     // Keep the choice in each tab's URL, including the trip back from another
     // page. A shared stored preference would let one league change the other.
     const slug = new URLSearchParams(location.search).get("league") || "gabagool";
-    if (!["gabagool", "fam"].includes(slug)) {
-      throw new Error(`Unknown league "${slug}". Choose gabagool or fam.`);
+    if (!["gabagool", "fam", "espnfam"].includes(slug)) {
+      throw new Error(`Unknown league "${slug}". Choose gabagool, fam or espnfam.`);
     }
     document.querySelectorAll(".masthead nav a").forEach(link => {
       const url = new URL(link.getAttribute("href"), location.href);
       url.searchParams.set("league", slug);
       link.href = url.href;
-      if (slug === "fam" && /\/(trade|weekly)\.html$/.test(url.pathname)) {
+      if (slug !== "gabagool" && /\/(trade|weekly)\.html$/.test(url.pathname)) {
         link.textContent += " · Gabagool";
       }
     });

@@ -1,0 +1,56 @@
+# Fam Fantasy Football League -- ESPN, not Sleeper. Settings transcribed from
+# the league's own settings page 2026-09-08 (League Settings PDF export).
+#
+# THIS LEAGUE HAS NO LIVE DRAFT PATH. draftmode.js speaks Sleeper's API only:
+# there is no ESPN client, no ESPN player-id crosswalk, and no ESPN draft
+# contract check. This config exists to publish a STATIC board valued under
+# ESPN's scoring and replacement level. Do not connect it to a Sleeper draft.
+name: Fam Fantasy Football League (ESPN)
+# Suppresses the Sleeper-only draft/keeper/trade controls on the board page.
+platform: espn
+# ESPN league id not captured by the settings export. Unused here: league_id
+# only guards the Sleeper live-draft path, which this league cannot reach.
+league_id: "espn:unknown"
+# THIRTEEN teams. This is the single biggest difference from the other two
+# boards -- replacement level is set by 13 lineups, not 10, so every position's
+# value curve is flatter and starters run out sooner.
+teams: 13
+roster: {QB: 1, RB: 2, WR: 2, TE: 1}
+# ONE flex, not two. 9 starters total: QB/RB/RB/WR/WR/TE/FLEX/K/DST.
+flex: 1
+flex_positions: [RB, WR, TE]
+# 15 roster spots (6 bench, 1 of them IR). Snake draft.
+rounds: 15
+# FOUR-point passing touchdowns, unlike both Sleeper leagues' six. ESPN scores
+# a QB's pick-six as a plain interception (-2); the +6 INTTD in the settings is
+# credited to the DEFENSE, so there is no pass_int_td here and no pick-six
+# adjustment applies to this board's quarterbacks.
+scoring: {reception: 1.0, pass_td: 4.0, interception: -2.0}
+# Judgment-based tie-break caps carried over from the other leagues, NOT a
+# measured optimum and not ESPN's roster maximums (which are QB3/RB8/WR8/TE3).
+depth_cap: {QB: 2, RB: 6, WR: 6, TE: 2}
+# Key name is the published payload's contract (site/index.html requires it and
+# renders the scoring line from it); the WEIGHTS below are ESPN's, transcribed
+# from the settings page. Only the offensive categories the board actually
+# values are listed. ESPN's K and D/ST scoring is deliberately NOT translated:
+# its yards-allowed bands (YA100/YA199/.../YA550) have no Sleeper key, so a
+# partial translation would misrepresent itself as a complete contract.
+sleeper_scoring:
+  pass_yd: 0.04
+  pass_td: 4.0
+  pass_int: -2.0
+  pass_2pt: 2.0
+  rush_yd: 0.1
+  rush_td: 6.0
+  rush_2pt: 2.0
+  rec: 1.0
+  rec_yd: 0.1
+  rec_td: 6.0
+  rec_2pt: 2.0
+  fum_lost: -2.0
+  # Kick/punt return TDs (KRTD/PRTD) and a fumble recovered for a TD (FTD)
+  # score 6 for the player credited. Neither is a predicted head, so both
+  # surface in the board's unprojected_scoring disclosure.
+  st_td: 6.0
+  fum_rec_td: 6.0
+# keeper_rules omitted: "Use Keepers for 2026 Season: No".

@@ -27,6 +27,7 @@
   <nav class="league-links" aria-label="Draft league">
     <a href="index.html?league=fam">FAM FOOTBALL</a>
     <a href="index.html?league=gabagool">Gabagool Fools</a>
+    <a href="index.html?league=espnfam">Fam (ESPN)</a>
   </nav>
   <details class="draft-panel">
     <summary>League scoring and projection limits</summary>
@@ -154,7 +155,8 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       : "Projected points do not forecast pick-sixes thrown. ")
     + "Projected points do not forecast two-point conversions or return/recovery touchdowns"
     + (longTDs ? ", or this league's 50+ yard TD bonuses" : "")
-    + ". These rules still apply in Sleeper. K/DST reminders use ADP, not projected scoring.";
+    + `. These rules still apply in ${board.league.platform === "espn" ? "ESPN" : "Sleeper"}.`  // missing -> Sleeper
+    + " K/DST reminders use ADP, not projected scoring.";
   // BEFORE any rendering and before DraftMode.init: the roster shape drives
   // openSlots, the lineup rollout and the shortlist, so a render that ran
   // first would use another league's shape. The board carries the contract it
@@ -695,7 +697,19 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   }
 
   if (window.DraftMode) {
-    if (board.crosswalk) {
+    // Live draft mode reads Sleeper's API and nothing else: there is no ESPN
+    // client, no ESPN player-id crosswalk and no ESPN draft-contract check.
+    // Offering the connect box on a non-Sleeper board would invite pointing it
+    // at an unrelated Sleeper draft, so disable it and say why.
+    // A board built before `platform` existed carries no such key, and every
+    // one of those is a Sleeper league -- so MISSING must mean "sleeper", not
+    // "not sleeper". Defaulting the other way disabled both live boards.
+    const platform = (board.league && board.league.platform) || "sleeper";
+    if (platform !== "sleeper") {
+      DraftMode.disable(
+        `— unavailable: ${board.league.name} is on ${platform.toUpperCase()}, `
+        + "and live draft mode reads Sleeper only. This board is static; strike picks yourself.");
+    } else if (board.crosswalk) {
       DraftMode.init({
         board,
         els: {
