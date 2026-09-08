@@ -90,3 +90,23 @@ players:
   # returns. It is still far closer than the healthy-WR cohort, which is the
   # only alternative on offer.
   - Rashee Rice
+
+  # Added 2026-09-08, surfaced by the 13-team ESPN board: its 195-pick window
+  # reaches ADP 188, and the draftable-coverage fail-safe refused to publish a
+  # board that silently dropped a market-draftable player. The 10- and 12-team
+  # boards (150 and 180 picks) never reach him, so this was invisible until now.
+  #
+  # Dislocated knee with multiple torn ligaments in Week 16 of 2024; missed ALL
+  # of 2025, so the prior-season eligibility window in data/future.py drops him
+  # exactly as it dropped Brooks and Lloyd. Back on Houston's roster and being
+  # drafted (ADP 193 avg, ECR 243 / WR87 -- the experts have already discounted
+  # him heavily, which is the ranking working as designed).
+  #
+  # Fit to the fitted population is PARTIAL and worth stating: the curve was
+  # measured on players still productive per game in the season they lost, and
+  # Dell's lost season is 2025, in which he played nothing. His last played
+  # season, 2024, was 10.0 ppg over 14 games -- solid, not the 16.5 ppg he was
+  # running in 2023 before a fractured fibula ended that year too. Two
+  # season-ending injuries in three years is not what this curve encodes.
+  # It remains far closer than the healthy-WR cohort, which is the alternative.
+  - Tank Dell
