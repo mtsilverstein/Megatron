@@ -512,3 +512,14 @@ tr.detail > td { background: var(--sunken); border-bottom: 1px solid var(--rule)
    it qualifies so it reads as apparatus, not as another finding. */
 .detail-fine { font: 400 .66rem/1.45 "Source Sans 3", system-ui, sans-serif; color: var(--chalk-faint, var(--chalk-dim)); opacity: .72; margin: var(--s2) 0 0; }
 @media (max-width: 800px) { .detail-grid { grid-template-columns: 1fr; gap: var(--s3); } }
+
+/* Which opponent a league-wide suggestion belongs to. Sits above the offer so
+   the team is read before the assets: in a sweep the same package can be worth
+   trading with one manager and not another. */
+.trade-suggestions .trade-with {
+  display: block;
+  font: 600 0.78rem/1.4 "Barlow Condensed", system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted, #8a949c);
+}

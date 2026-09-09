@@ -87,6 +87,41 @@
   // Assembly: the one non-trivial pure-ish step, exported for the fixture.
   // ---------------------------------------------------------------------------
 
+  // --- the league-wide scan's turn logic -------------------------------------
+  //
+  // The scan walks a QUEUE of opponents. Everything expensive already exists
+  // and is unchanged -- Trade.suggestCandidates per team, Trade.scoreCandidate
+  // per candidate -- so the only new logic is deciding what a turn does. It is
+  // pure and lives up here, apart from the run loop, because the run loop needs
+  // a DOM and a live league and therefore has never been testable.
+  //
+  // A team can legitimately produce ZERO candidates: offerable() returns
+  // nothing when a side has no surplus to shop or nothing worth wanting. That
+  // case must hand off to the next team rather than sit on an exhausted list,
+  // or the panel hangs at "scored 0 of 0" with Stop as the only way out --
+  // indistinguishable, to the reader, from a search that is merely slow.
+  function scanNext(state) {
+    const { queue, t, cands, i } = state;
+    if (!Array.isArray(queue) || t >= queue.length) return { action: "done" };
+    if (cands == null) return { action: "prefilter", teamIndex: t };
+    if (i < cands.length) return { action: "score", teamIndex: t, candIndex: i };
+    if (t + 1 >= queue.length) return { action: "done" };
+    return { action: "prefilter", teamIndex: t + 1 };
+  }
+
+  // Honest progress across teams, on the same terms the single-team line
+  // already used: counts the reader can check against what is on screen, no
+  // percentage and no ETA. A one-team scan produces the ORIGINAL string
+  // exactly -- no "team 1 of 1" noise for the narrow-scope case.
+  function scanProgressText(state) {
+    const { queue, t, cands, i, found } = state;
+    const list = queue || [];
+    const where = list.length > 1
+      ? `team ${t + 1} of ${list.length} (${(list[t] || {}).name}) · ` : "";
+    return `${where}scored ${i} of ${(cands || []).length} package(s)`
+      + ` · ${found} offer(s) so far`;
+  }
+
   function teamName(user, rosterId) {
     const meta = user && user.metadata;
     return (meta && meta.team_name) || (user && user.display_name) || `Roster ${rosterId}`;
@@ -284,6 +319,10 @@
   let me = null, partner = null;
   let sides = null;                 // {mine, theirs}: {ul, team, assets, picked}
   let lastSuggestions = null;       // deduped as offers arrive; ONE list, one count
+  // The queue the CURRENT list was produced by, kept after the run ends so the
+  // finished panel still knows whether it is showing a sweep or one opponent.
+  // Read only for presentation; nothing numeric depends on it.
+  let lastRunQueue = null;
   let loadSeq = 0, gradeSeq = 0;    // generation tokens: a stale run can't win
   let note = "";                    // transient warning (bad discount, stale list)
 
@@ -393,27 +432,36 @@
     renderGrade();
   }
 
-  function onPartnerChange() {
-    // Same reason as onDiscount: a run in flight is scoring the OLD partner's
-    // packages, and both `partner` and ctx.keptElsewhere are about to move.
-    cancelSuggest();
-    partner = world.teams.find(t => String(t.rosterId) === els.partner.value)
-      || world.teams.find(t => t.rosterId !== me.rosterId);
-    if (!partner) { setStatus("this league has only one team — nobody to trade with"); return; }
+  // Point the two columns at an opponent and reprice the pool for him. Split
+  // out of onPartnerChange because a league-wide offer has to be loadable into
+  // the columns WITHOUT throwing away the suggestion list it came from -- the
+  // list is the thing the reader is working through.
+  function selectPartner(team) {
+    partner = team;
     els.partner.value = String(partner.rosterId);
     // Every OTHER team's keepers leave the pool. Derived here and nowhere else,
     // and recomputed on every partner change because the partner's own keepers
     // are decided inside the trade instead.
-    world.ctx.keptElsewhere = keptElsewhere(world.teams, world.ctx,
-                                            [me.rosterId, partner.rosterId]);
+    focusOpponent(partner);
     sides = {
       mine: { ul: els.mine, team: me, assets: [], picked: new Set() },
       theirs: { ul: els.theirs, team: partner, assets: [], picked: new Set() },
     };
-    lastSuggestions = null;
-    els.suggestions.hidden = true;
     drawSide(sides.mine);
     drawSide(sides.theirs);
+  }
+
+  function onPartnerChange() {
+    // Same reason as onDiscount: a run in flight is scoring the OLD partner's
+    // packages, and both `partner` and ctx.keptElsewhere are about to move.
+    cancelSuggest();
+    const team = world.teams.find(t => String(t.rosterId) === els.partner.value)
+      || world.teams.find(t => t.rosterId !== me.rosterId);
+    if (!team) { setStatus("this league has only one team — nobody to trade with"); return; }
+    selectPartner(team);
+    lastSuggestions = null;
+    lastRunQueue = null;
+    els.suggestions.hidden = true;
     renderGrade();
   }
 
@@ -608,7 +656,13 @@
   function endRun() {
     if (!run) return;
     els.suggest.disabled = false;
+    if (els.suggestAll) els.suggestAll.disabled = false;
     els.suggest.textContent = run.label;
+    // A sweep left ctx pointed at whichever opponent it stopped on. Everything
+    // the page renders afterwards -- the grade panel, a loaded offer -- is
+    // computed for the DISPLAYED partner, so put it back before anything reads
+    // it. Cheap, and skipping it would misprice the columns after every scan.
+    if (run.scanAll && partner) focusOpponent(partner);
     run = null;
   }
   // Anything that invalidates the numbers a run is producing must supersede it,
@@ -620,32 +674,70 @@
     endRun();
   }
 
-  function suggest() {
+  // EVERY OTHER TEAM'S keepers leave the draft pool, and the opponent in the
+  // trade is the one exception -- his keepers are decided inside the trade
+  // instead. onPartnerChange maintains that for the selected partner; a scan
+  // that walks several opponents has to re-derive it for EACH of them, at the
+  // moment that opponent's turn begins.
+  //
+  // Getting this wrong is silent, not loud: scoring team B while
+  // `keptElsewhere` still names team A would remove B's own keepers from the
+  // pool (they are not available to be traded for) and put A's back in. Every
+  // number the panel prints is a difference of two state values, so the whole
+  // column would simply be wrong by a plausible-looking amount. The keeper
+  // memo in trade.js keys on ctx.keptElsewhere, so re-deriving it here also
+  // invalidates that cache correctly rather than serving another team's rows.
+  function focusOpponent(team) {
+    world.ctx.keptElsewhere = keptElsewhere(world.teams, world.ctx,
+                                            [me.rosterId, team.rosterId]);
+  }
+
+  function suggest(scanAll) {
     if (!world || !partner) return;
     const seq = ++suggestSeq;
     endRun();
-    run = { seq, label: els.suggest.textContent, cands: null, i: 0, stopped: false };
+    const queue = scanAll
+      ? world.teams.filter(x => x.rosterId !== me.rosterId)
+      : [partner];
+    run = { seq, label: els.suggest.textContent, queue, t: 0,
+            cands: null, i: 0, stopped: false, scanAll: !!scanAll };
     els.suggest.disabled = true;
+    if (els.suggestAll) els.suggestAll.disabled = true;
     els.suggest.textContent = "Searching…";
     lastSuggestions = [];
-    setStatus(`searching for trades with ${partner.name}…`);
+    lastRunQueue = queue;
+    const who = scanAll ? `all ${queue.length} opponents` : partner.name;
+    setStatus(`searching for trades with ${who}…`);
     els.suggestions.hidden = false;
     els.suggestions.innerHTML = `<p class="draft-blocked">Looking for the `
       + `1-for-1, 2-for-1 and 2-for-2 packages worth scoring with `
-      + `${esc(partner.name)}. This first step values every player on both `
-      + `rosters and cannot be interrupted — about ${PREFILTER_SECONDS} seconds, `
-      + `and the page really is frozen for them. Scoring afterwards is not: `
-      + `offers appear as they are found, and you can stop at any point.</p>`;
+      + `${esc(who)}. This first step values every player on both `
+      + `rosters and cannot be interrupted — about ${PREFILTER_SECONDS} seconds`
+      + (scanAll ? ` PER TEAM, ${queue.length} times` : "")
+      + `, and the page really is frozen for them. Scoring afterwards is not: `
+      + `offers appear as they are found, and you can stop at any point.`
+      + (scanAll ? ` A full sweep takes about four minutes; the list is ranked `
+                 + `best-first across the teams searched so far, so a later team `
+                 + `can still outrank what is already on screen.` : "")
+      + `</p>`;
     // setTimeout so the disabled button, its label and that message actually
     // paint before the prefilter takes the thread.
-    setTimeout(() => {
-      if (!run || run.seq !== seq) return;
-      try {
-        run.cands = Trade.suggestCandidates(me.state, partner.state, world.ctx);
-      } catch (e) { failRun(e); throw e; }
-      renderSuggestions();
-      step(seq);
-    }, 0);
+    setTimeout(() => prefilter(seq, 0), 0);
+  }
+
+  // One opponent's cheap half. Separate turn from scoring so the panel repaints
+  // between teams -- otherwise a sweep would look identical to a hang for the
+  // whole ~6 s each team costs.
+  function prefilter(seq, teamIndex) {
+    if (!run || run.seq !== seq) return;
+    const team = run.queue[teamIndex];
+    run.t = teamIndex; run.i = 0; run.cands = null;
+    try {
+      focusOpponent(team);
+      run.cands = Trade.suggestCandidates(me.state, team.state, world.ctx);
+    } catch (e) { failRun(e); throw e; }
+    renderSuggestions();
+    step(seq);
   }
 
   // ONE candidate per turn, and that is the largest honest batch rather than a
@@ -658,14 +750,25 @@
   // noise, and it is the same scheduling primitive renderGrade already uses.
   function step(seq) {
     if (!run || run.seq !== seq) return;
-    if (run.stopped || run.i >= run.cands.length) { finishRun(); return; }
+    if (run.stopped) { finishRun(); return; }
+    // What this turn does -- score, move to the next opponent, or stop -- is
+    // decided by the pure scanNext above so the fixture can test it without a
+    // DOM. A team that yields no candidates hands off here rather than
+    // stalling the sweep on an exhausted list.
+    const next = scanNext(run);
+    if (next.action === "done") { finishRun(); return; }
+    if (next.action === "prefilter") {
+      setTimeout(() => prefilter(seq, next.teamIndex), 0);
+      return;
+    }
+    const team = run.queue[run.t];
     let s = null;
     try {
-      s = Trade.scoreCandidate(me.state, partner.state, run.cands[run.i], world.ctx);
+      s = Trade.scoreCandidate(me.state, team.state, run.cands[run.i], world.ctx);
     } catch (e) { failRun(e); throw e; }
     run.i++;
     if (s) {
-      lastSuggestions.push(Object.assign({ teamId: partner.rosterId }, s));
+      lastSuggestions.push(Object.assign({ teamId: team.rosterId }, s));
       // DEDUP HERE, ONCE, at the point an offer is accepted -- not at render
       // time. While the accumulator stayed raw and only the renderer deduped,
       // the panel printed two different counts for the same run: observed live
@@ -686,9 +789,12 @@
       //
       // The hide-generous toggle stays free: it filters this list at render
       // time and never needs the pre-dedup one.
+      // Every opponent in the sweep, not just the displayed one: dedupOffers
+      // keys on teamId and THROWS without a holdings list for a team it is
+      // asked about, and two teams must never collapse into each other.
       lastSuggestions = Trade.dedupOffers(lastSuggestions, world.ctx,
         { mine: me.state.picks,
-          theirs: new Map([[partner.rosterId, partner.state.picks]]) });
+          theirs: new Map(run.queue.map(x => [x.rosterId, x.state.picks])) });
       // Best-first at every moment, not only at the end -- the prefilter's
       // least-overpay-first order is NOT most-gain-first, so a late candidate
       // can outrank everything already on screen. Same comparator
@@ -711,18 +817,27 @@
   }
 
   function finishRun() {
-    const stopped = run.stopped, scored = run.i, total = run.cands.length;
+    const stopped = run.stopped, scored = run.i, total = (run.cands || []).length;
+    const sweep = run.queue.length > 1;
+    // A stopped sweep searched only PART of the league, and saying "with all 11
+    // opponents" would claim coverage it does not have.
+    const reached = run.t + (stopped ? 0 : 1);
+    const who = sweep
+      ? (stopped ? `${reached} of ${run.queue.length} opponents searched`
+                 : `all ${run.queue.length} opponents`)
+      : run.queue[0].name;
     endRun();                       // before the render, so no progress line
     renderSuggestions();
-    setStatus(`${lastSuggestions.length} offer(s) cleared both bars with ${partner.name}`
+    setStatus(`${lastSuggestions.length} offer(s) cleared both bars with ${who}`
       + (stopped ? ` — stopped after ${scored} of ${total} package(s)` : ""));
   }
 
   // Honest progress: what has actually been scored, out of a total that is
   // known exactly, and how many offers survived so far. Not a percentage of
   // anything, and not an ETA.
-  const progressText = () => `scored ${run.i} of ${run.cands.length} package(s)`
-    + ` · ${lastSuggestions.length} offer(s) so far`;
+  const progressText = () => scanProgressText({
+    queue: run.queue, t: run.t, cands: run.cands, i: run.i,
+    found: lastSuggestions.length });
 
   function renderProgress() {
     const el = run && run.cands ? document.getElementById("trade-progress") : null;
@@ -771,22 +886,39 @@
       bindSuggestionButtons(shown);
       return;
     }
+    // A sweep's offers come from different teams, so each row has to say WHOSE
+    // it is -- without that the list is a set of trades with nobody in
+    // particular, and "load into the columns" would silently change partner.
+    const sweep = !!(lastRunQueue && lastRunQueue.length > 1);
+    const nameFor = id => {
+      const team = (world.teams || []).find(x => x.rosterId === id);
+      return team ? team.name : `roster ${id}`;
+    };
     els.suggestions.innerHTML = head
-      + `<strong>Best offers to ${esc(partner.name)}</strong>`
+      + `<strong>${sweep ? "Best offers across the league"
+                         : `Best offers to ${esc(partner.name)}`}</strong>`
       + `<ol class="trade-suggestions">`
       + shown.map((s, i) => {
         const give = listOf(s.toThem) || "nothing";
         const get = listOf(s.toMe) || "nothing";
-        return `<li><span class="trade-offer">give <strong>${esc(give)}</strong>`
+        return `<li>`
+          + (sweep ? `<span class="trade-with">${esc(nameFor(s.teamId))}</span>` : "")
+          + `<span class="trade-offer">give <strong>${esc(give)}</strong>`
           + ` → get <strong>${esc(get)}</strong></span>`
           + `<span class="trade-nums">${gainSpan(s.myGain, "you")}`
           + ` · ${gainSpan(s.theirGain, "them")}`
           + ` · ${esc(marketPhrase(s.marketDelta))}</span>`
           + `<button type="button" class="trade-load" data-i="${i}">load into the columns</button></li>`;
       }).join("")
-      + `</ol><p class="draft-basis">Scored against ${esc(partner.name)} only — the `
-      + `search is quadratic in assets per side, so all eleven opponents at once takes `
-      + `about four minutes. Pick another team above and search again.</p>`;
+      + `</ol><p class="draft-basis">`
+      + (sweep
+        ? `Ranked best-first across every opponent searched. Loading an offer `
+          + `switches the columns to that team so its three numbers can be `
+          + `checked against the grader.`
+        : `Scored against ${esc(partner.name)} only — the search is quadratic in `
+          + `assets per side, so all eleven opponents at once takes about four `
+          + `minutes. Use “Scan all teams” for the whole league.`)
+      + `</p>`;
     bindSuggestionButtons(shown);
   }
 
@@ -805,6 +937,15 @@
   // checked against the grader instead of taken on trust. Refuses loudly rather
   // than loading half an offer.
   function loadOffer(s) {
+    // A sweep's offer belongs to whichever team produced it, which is usually
+    // NOT the one in the columns. Switch first: without this the asset lookup
+    // below simply fails to find their players and reports the offer as stale,
+    // which is true of the columns but not of the offer.
+    if (s.teamId != null && partner && s.teamId !== partner.rosterId) {
+      const team = (world.teams || []).find(x => x.rosterId === s.teamId);
+      if (!team) { setNote("couldn't load that offer — its team is no longer in the league"); return; }
+      selectPartner(team);
+    }
     const select = (side, offer) => {
       const wanted = (offer.players || []).concat(offer.picks || []);
       const picked = new Set();
@@ -841,11 +982,13 @@
     // per keystroke would make the field unusable.
     els.discount.addEventListener("change", onDiscount);
     els.hideGenerous.addEventListener("change", () => { if (lastSuggestions) renderSuggestions(); });
-    els.suggest.addEventListener("click", suggest);
+    els.suggest.addEventListener("click", () => suggest(false));
+    if (els.suggestAll) els.suggestAll.addEventListener("click", () => suggest(true));
     bindSide(els.mine, "mine");
     bindSide(els.theirs, "theirs");
   }
 
   return { init, leagueWorld, keptElsewhere, teamName,
+           scanNext, scanProgressText,
            PICK_SEASONS_AHEAD, SUGGEST_SHOW, MARKET_EPS };
 });

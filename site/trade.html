@@ -43,6 +43,7 @@
            step="0.05" value="0.8" style="width:5rem"></label>
     <label><input type="checkbox" id="trade-hide-generous" checked> hide trades that help them more</label>
     <button id="trade-suggest">Suggest trades</button>
+    <button id="trade-suggest-all" title="Searches every opponent in turn. About four minutes for a full league; offers appear as they are found and you can stop at any point.">Scan all teams</button>
   </div>
   <p class="draft-note" id="trade-warn" hidden></p>
   <div class="trade-cols" id="trade-cols" hidden>
@@ -77,6 +78,7 @@ In-season trading is a separate tool.</footer>
       discount: document.getElementById("trade-discount"),
       hideGenerous: document.getElementById("trade-hide-generous"),
       suggest: document.getElementById("trade-suggest"),
+      suggestAll: document.getElementById("trade-suggest-all"),
       warn: document.getElementById("trade-warn"),
       cols: document.getElementById("trade-cols"),
       mine: document.getElementById("trade-mine"),

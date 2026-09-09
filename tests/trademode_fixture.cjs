@@ -311,4 +311,65 @@ acheck("keptElsewhere does not depend on what ctx.keptElsewhere already held", a
   assert.deepStrictEqual(Array.from(after).sort(), Array.from(clean).sort());
 });
 
+// --- league-wide scan: which opponent runs next -----------------------------
+// The scan walks a QUEUE of opponents, and the only genuinely new logic is
+// deciding what happens on each turn: prefilter this team, score its next
+// candidate, move to the next team, or stop. It is pure and lives here rather
+// than inside the run loop because the run loop needs a DOM and a live league,
+// which is exactly why the single-team version of it has never been tested.
+acheck("scanNext walks opponents and never stalls on an empty one", async () => {
+  const q = [{ rosterId: 1 }, { rosterId: 2 }, { rosterId: 3 }];
+
+  assert.deepStrictEqual(TM.scanNext({ queue: [], t: 0, cands: null, i: 0 }),
+    { action: "done" }, "an empty queue is immediately done");
+
+  assert.deepStrictEqual(TM.scanNext({ queue: q, t: 0, cands: null, i: 0 }),
+    { action: "prefilter", teamIndex: 0 },
+    "a fresh team must be prefiltered before anything can be scored");
+
+  assert.deepStrictEqual(TM.scanNext({ queue: q, t: 1, cands: [{}, {}, {}], i: 1 }),
+    { action: "score", teamIndex: 1, candIndex: 1 },
+    "mid-team, score the next candidate");
+
+  assert.deepStrictEqual(TM.scanNext({ queue: q, t: 1, cands: [{}, {}], i: 2 }),
+    { action: "prefilter", teamIndex: 2 },
+    "candidates exhausted with teams left: advance to the next one");
+
+  assert.deepStrictEqual(TM.scanNext({ queue: q, t: 2, cands: [{}], i: 1 }),
+    { action: "done" }, "candidates exhausted on the LAST team ends the scan");
+
+  // THE STALL CASE. offerable() returns nothing when a team has no surplus to
+  // shop or nothing worth wanting, so an opponent can legitimately produce
+  // zero candidates. If that did not advance, the scan would spin on team 2
+  // forever and the panel would sit at "scored 0 of 0" with Stop as the only
+  // way out -- a hang that looks exactly like a slow search.
+  assert.deepStrictEqual(TM.scanNext({ queue: q, t: 1, cands: [], i: 0 }),
+    { action: "prefilter", teamIndex: 2 },
+    "a team with no candidates must hand off, not stall");
+  assert.deepStrictEqual(TM.scanNext({ queue: q, t: 2, cands: [], i: 0 }),
+    { action: "done" }, "and an empty LAST team ends the scan");
+
+  // A queue of one is the existing single-team behaviour, unchanged.
+  assert.deepStrictEqual(TM.scanNext({ queue: [q[0]], t: 0, cands: [{}], i: 1 }),
+    { action: "done" }, "one-team scan still terminates exactly as before");
+});
+
+// Progress has to be honest across teams the same way it already is within
+// one: a count the reader can check against what is on screen, plus WHICH
+// team is being worked and how many are left. It must never imply the ranking
+// is final while teams remain unscanned.
+acheck("scanProgressText reports team position and per-team scoring", async () => {
+  const q = [{ name: "Team A" }, { name: "Team B" }, { name: "Team C" }];
+  const s = TM.scanProgressText({ queue: q, t: 1, cands: [{}, {}, {}, {}], i: 2, found: 3 });
+  assert.ok(/team 2 of 3/i.test(s), `should say which team: ${s}`);
+  assert.ok(/Team B/.test(s), `should name the team: ${s}`);
+  assert.ok(/2 of 4/.test(s), `should keep the per-team scored count: ${s}`);
+  assert.ok(/3 offer/.test(s), `should keep the running offer count: ${s}`);
+
+  // Single-team scans keep the original wording: no "team 1 of 1" noise.
+  const one = TM.scanProgressText({ queue: [q[0]], t: 0, cands: [{}, {}], i: 1, found: 0 });
+  assert.ok(!/team 1 of 1/i.test(one), `one-team scan should not count teams: ${one}`);
+  assert.ok(/1 of 2/.test(one), `but still reports packages scored: ${one}`);
+});
+
 runAll();
