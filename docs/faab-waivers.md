@@ -18,7 +18,19 @@ Injury tags come from a session-cached Sleeper catalog, with its retrieval time 
 
 The September 9 Week 1 file is newly generated but uses historical data through 2025 Week 18. Rookies without historical weekly projections remain a coverage gap. The draft board and stash list retain them; the weekly swap model must not invent their value.
 
-## Bid interpretation
+## Research radar (second iteration)
+
+The new research queue combines current league availability with Sleeper's top-100 add/drop feeds over 24 hours. Counts are platform-wide, not league-specific; absent players are labeled "Not listed," never zero. Optional trend-feed failures leave the rest of the desk usable with an explicit warning. A trending player missing from the projection board can appear using catalog identity, but receives no invented ECR or projection.
+
+Roster-fit order puts players with unavailable injury tags last, then same-team RB research candidates, then preseason ECR, bye-fit count, and observed adds. This is an explicit research ordering, not an optimal buy ranking. A separate most-added order highlights market attention. Sharing an NFL RB room does not establish depth-chart order or an injury-beneficiary role; verify usage and team reports before acting.
+
+The bye view counts known active-roster players against dedicated QB/RB/WR/TE requirements through Week 17. It distinguishes a shortfall from merely having no spare. It does not force RBs into FLEX or treat today's injuries as permanent; future health is assumed. IR/taxi are excluded, unknown byes warned, and a changed NFL team invalidates an old board bye.
+
+The selected week's completed waiver transactions supply observed winning bids only. Free-agent moves are counted separately; pending, duplicate, missing-price, and non-waiver records do not become bid samples. No losing bids or minimum winning prices are inferred. This is evidence collection, not calibrated market pricing.
+
+Source: [Sleeper API documentation](https://docs.sleeper.com/#trending-players).
+
+## Bid interpretation (unchanged)
 
 Positive projected lineup gains below 2 points use a 1–3% starting-budget band; 2–5 use 4–10%; 5+ use 11–20%. The preseason proxy divides its gain by remaining weeks before applying those bands. These thresholds are **uncalibrated heuristics**, not market prices, winning-bid probabilities, or expected championship value. A zero-gain result does not mean a player lacks injury-contingent upside. Do not spend merely because budget remains.
 

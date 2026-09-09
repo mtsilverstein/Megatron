@@ -22,6 +22,8 @@
 #waiver-table caption { text-align: left; color: var(--chalk-dim); padding: .5rem 0; }
 #waiver-table td { white-space: normal; vertical-align: top; }
 #waiver-table th { text-align: left; }
+#waiver-radar { width: 100%; min-width: 700px; }
+#waiver-radar td, #waiver-radar th { text-align: left; white-space: normal; vertical-align: top; padding: .6rem; }
 .waiver-row-note { display: block; font-size: .85rem; }
 #waiver-backup { width: 100%; margin-top: .5rem; }
 .waiver-method { max-width: 90ch; margin-top: 2rem; }

@@ -21,7 +21,7 @@
   <p class="stamp">Read-only Sleeper connection · no claims or bids are submitted</p>
 </header>
 <main id="waiver-app">
-  <p class="eyebrow">In-season desk · Gabagool Fools · first release</p>
+  <p class="eyebrow">In-season desk · Gabagool Fools · research radar</p>
   <h1>Buy lineup improvement. Keep options open.</h1>
   <p class="waiver-intro">Compare available skill players against your actual roster.
     Bid ranges are transparent budgeting heuristics, <strong>not predicted winning bids</strong>.
@@ -37,16 +37,28 @@
   <section id="waiver-results" hidden>
     <div id="waiver-budget" class="waiver-budget" aria-label="FAAB budget"></div>
     <p id="waiver-source" class="waiver-source"></p>
+    <div class="waiver-toolbar">
+      <label>Position <select id="waiver-position"><option value="ALL">All skill positions</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option></select></label>
+      <button type="button" id="waiver-export">Export shortlist to text box</button>
+    </div>
+    <section aria-labelledby="waiver-intel-heading">
+      <h2 id="waiver-intel-heading">Find the next opportunity</h2>
+      <p>Research queue, not buy recommendations. Same-team RBs are possible insurance—not confirmed backups or beneficiaries. Popularity is not projected opportunity.</p>
+      <p id="waiver-intel-source"></p>
+      <ul id="waiver-byes"></ul>
+      <p>Bye counts cover dedicated positions only, assuming other active-roster players are healthy. FLEX coverage and unknown byes need separate review.</p>
+      <label>Research order <select id="waiver-radar-sort"><option value="fit">Roster fit first</option><option value="adds">Most added first</option></select></label>
+      <div class="table-wrap"><table id="waiver-radar"><caption>Available research candidates · position filter applies to both tables</caption>
+        <thead><tr><th>Player</th><th>Why investigate</th><th>Sleeper 24h adds / drops</th><th>Before bidding</th></tr></thead><tbody></tbody></table></div>
+      <p id="waiver-market"></p>
+      <p><a href="https://docs.sleeper.com/#trending-players">Trending data: Sleeper</a>. Counts are platform-wide activity, not Gabagool demand. “Not listed” is not zero. No net-add rate or winning-bid probability is inferred.</p>
+    </section>
     <details>
       <summary>Protect players from drop suggestions</summary>
       <p>These protections apply to this tab. Starters are protected initially; uncheck deliberately.
         IR/taxi players are not offered as drops. This is not an instruction to move anyone out of IR.</p>
       <div id="waiver-roster" class="waiver-roster"></div>
     </details>
-    <div class="waiver-toolbar">
-      <label>Position <select id="waiver-position"><option value="ALL">All skill positions</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option></select></label>
-      <button type="button" id="waiver-export">Export shortlist to text box</button>
-    </div>
     <p id="waiver-count"></p>
     <div class="table-wrap">
       <table id="waiver-table">
@@ -75,6 +87,7 @@
 <script src="assets/app.js"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/waivers.js"></script>
+<script src="assets/waiverintel.js"></script>
 <script src="assets/waivermode.js"></script>
 <script>WaiverMode.init();</script>
 </body>

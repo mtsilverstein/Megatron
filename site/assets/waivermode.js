@@ -46,10 +46,16 @@
     return { league, rosters, rosterId: mine[0].roster_id, transactions, fetchedAt: new Date().toISOString() };
   }
 
+  async function loadSignals(get = path => Sleeper.get(path)) {
+    const [add, drop] = await Promise.all(["add", "drop"].map(type =>
+      get(`/players/nfl/trending/${type}?lookback_hours=24&limit=100`).catch(() => null)));
+    return { add, drop, fetchedAt:new Date().toISOString() };
+  }
+
   function init() {
     const W = window.Waivers;
     const $ = id => document.getElementById(id);
-    let world = null, board = null, weekly = null, catalog = {}, result = null;
+    let world = null, board = null, weekly = null, catalog = {}, result = null, signals = {}, intel = null;
     let requestId = 0, protectedIds = new Set();
     const node = (tag, text, cls) => {
       const el = document.createElement(tag);
@@ -99,6 +105,37 @@
         tr.append(add, drop, gain, bid, why); body.append(tr);
       }
       renderWatchlist();
+      renderIntel();
+    }
+
+    function activeRadar() {
+      const position = $("waiver-position").value;
+      const rows = (intel?.radar || []).filter(p => position === "ALL" || p.position === position);
+      if ($("waiver-radar-sort").value === "adds") rows.sort((a,b) => (b.adds ?? -1)-(a.adds ?? -1));
+      return rows.slice(0,24);
+    }
+
+    function renderIntel() {
+      if (!intel) return;
+      $("waiver-intel-source").textContent = `Sleeper trends requested ${intel.fetchedAt || "unknown time"}. ${intel.warnings.join(" ")}`;
+      $("waiver-byes").replaceChildren();
+      for (const r of intel.byeRisks) $("waiver-byes").append(node("li", `Week ${r.week} ${r.position}: ${r.available} available for ${r.required} required — ${r.severity}. On bye: ${r.away.join(", ")}.`));
+      if (!intel.byeRisks.length) $("waiver-byes").append(node("li", "No dedicated-position bye shortfall or no-spare week found in known bye data."));
+      const body = $("waiver-radar").querySelector("tbody"); body.replaceChildren();
+      for (const p of activeRadar()) {
+        const reasons = [];
+        if (p.sameTeam.length) reasons.push(`Shares RB room with ${p.sameTeam.join(", ")}; verify role`);
+        if (p.byeCover.length) reasons.push(`Different bye in your thin ${p.position} weeks: ${p.byeCover.join(", ")}`);
+        if (!reasons.length) reasons.push("Market activity; investigate the cause");
+        const tr = node("tr");
+        tr.append(node("td", `${p.name} · ${p.position} · ${p.team}${p.status ? ` · ${p.status}` : ""}`),
+          node("td", reasons.join(". ")),
+          node("td", `${p.adds ?? "Not listed"} / ${p.drops ?? "Not listed"}`),
+          node("td", `${p.ecr === null ? "No preseason ECR" : `Preseason ECR ${p.ecr}`}. ${p.projectionCovered ? "Verify snaps, role, health and the cost of your drop." : "Not on projection board; research only, no modeled price."}`));
+        body.append(tr);
+      }
+      $("waiver-market").textContent = `Selected week ${$("waiver-week").value}: ${intel.bids.length} completed waiver transaction(s) with a disclosed bid; ${intel.freeAgentMoves} completed free-agent move(s). ` +
+        (intel.bids.length ? `Observed winning bids: ${intel.bids.slice(0,15).map(b => `${b.players.join(" + ") || "unknown player"} $${b.amount}`).join("; ")}. These are not minimum winning prices; losing bids are unknown.` : "No observed winning-bid sample to calibrate prices. Free-agent moves are not $0 waiver bids.");
     }
 
     function renderWatchlist() {
@@ -118,6 +155,7 @@
         const reserve = Number($("waiver-reserve").value);
         if (!Number.isInteger(reserve) || reserve < 0) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
         result = W.analyze({ board, ...world, weekly, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve });
+        intel = window.WaiverIntel.analyze({ board, ...world, catalog, signals, week:Number($("waiver-week").value) });
         const b = result.budget, mine = world.rosters.find(r => r.roster_id === world.rosterId);
         $("waiver-budget").replaceChildren();
         for (const [label, value] of [["Remaining", `$${b.remaining}`], ["Keep in reserve", `$${b.reserve}`], ["Spendable ceiling", `$${b.spendable}`], ["Tie priority", mine.settings?.waiver_position ?? "Unknown"]]) {
@@ -144,7 +182,9 @@
           window.FC.loadJSON("data/draft.json"),
           window.FC.loadJSON("data/weekly.json").catch(() => null),
         ]);
-        const nextWorld = await loadWorld({ username: $("waiver-user").value, board: rawBoard, week: Number($("waiver-week").value) });
+        const [nextWorld, nextSignals] = await Promise.all([
+          loadWorld({ username: $("waiver-user").value, board: rawBoard, week: Number($("waiver-week").value) }), loadSignals(),
+        ]);
         // Sleeper asks clients to avoid frequent bulk-catalog requests. This is
         // session-cached, explicitly dated below, not a live injury-news feed.
         if (!catalogPromise) catalogPromise = Sleeper.get("/players/nfl")
@@ -155,9 +195,8 @@
         catalog = nextCatalog;
         board = { ...rawBoard, players: rawBoard.players.map(p => ({ ...p,
           injury_status: catalog[p.sleeper_id]?.injury_status || null,
-          team: catalog[p.sleeper_id]?.team || p.team,
         })) };
-        weekly = loadedWeekly; world = nextWorld;
+        weekly = loadedWeekly; world = nextWorld; signals = nextSignals;
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
         protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
         renderRoster(); recompute();
@@ -170,18 +209,22 @@
     $("waiver-week").addEventListener("change", () => { ++requestId; world = null; result = null; $("waiver-results").hidden = true; $("waiver-load").disabled = false; status("Week changed. Load the league again."); });
     $("waiver-reserve").addEventListener("change", recompute);
     $("waiver-position").addEventListener("change", () => { if (result) renderRows(); });
+    $("waiver-radar-sort").addEventListener("change", () => { if (result) renderIntel(); });
     $("waiver-export").addEventListener("click", () => {
       if (!result) return;
       const lines = ["Gabagool FAAB shortlist — independent alternatives, not submitted claims", $("waiver-source").textContent,
         `Remaining $${result.budget.remaining}; reserve $${result.budget.reserve}; spendable $${result.budget.spendable}`,
         ...activeRows().map(r => `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label}); ${r.bid.canAfford === false ? r.bid.status : `heuristic bid $${r.bid.low}–$${r.bid.high}`}`),
+        "RESEARCH ONLY — not an add/drop plan or bid recommendation",
+        $("waiver-intel-source").textContent,
+        ...activeRadar().map(p => `${p.name} (${p.position}); Sleeper 24h adds ${p.adds ?? "not listed"}, drops ${p.drops ?? "not listed"}; same-team RBs: ${p.sameTeam.join(", ") || "none"}; different bye in thin weeks: ${p.byeCover.join(", ") || "none"}; status ${p.status || "verify"}`),
         "Verify injury/role updates, claim deadline, total spend and drop conflicts in Sleeper."];
       $("waiver-backup").value = lines.join("\n");
       $("waiver-backup").closest("details").open = true;
       $("waiver-backup").focus();
     });
   }
-  const api = { init, loadWorld, validateContract };
+  const api = { init, loadWorld, loadSignals, validateContract };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverMode = api;
 })();
