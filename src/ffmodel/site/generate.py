@@ -661,6 +661,8 @@ def main() -> None:
         payloads["weekly.json"]["league"] = cfg.payload()
         from ffmodel.site.roles import build_roles
         payloads["roles.json"] = build_roles(weekly, schedules, args.season, week)
+        from ffmodel.site.kickoffs import pull_kickoffs
+        payloads["kickoffs.json"] = pull_kickoffs(args.season, week)
     if args.draft:
         returning = _load_returning(Path(args.returning), weekly, args.season)
         if returning:

@@ -1,0 +1,166 @@
+{
+  "conditioning": {
+    "pair_rule": "all unordered pairs in the same season/week/position",
+    "projected_gap_points_lte": 3,
+    "each_player_projected_points_gte": 5,
+    "cutoff_rationale": "fixed plausible-starter screen; ECR was unavailable",
+    "projection_ties": "excluded (the model expressed no preference)",
+    "actual_ties": "excluded from accuracy; zero regret",
+    "population": "player-weeks with realized stat lines; not actual rosters",
+    "dependence": "pairs reuse players within cells; no naive binomial CI is reported"
+  },
+  "overall": {
+    "pairs": 97331,
+    "decided_pairs": 96967,
+    "actual_ties": 364,
+    "choice_accuracy": 0.5627,
+    "mean_regret_points": 3.5881,
+    "total_regret_points": 349231.52,
+    "p90_regret_points": 12.5,
+    "max_regret_points": 50.1
+  },
+  "by_position": {
+    "QB": {
+      "pairs": 15662,
+      "decided_pairs": 15654,
+      "actual_ties": 8,
+      "choice_accuracy": 0.564,
+      "mean_regret_points": 4.555,
+      "total_regret_points": 71340.12,
+      "p90_regret_points": 15.9,
+      "max_regret_points": 49.12
+    },
+    "RB": {
+      "pairs": 19857,
+      "decided_pairs": 19794,
+      "actual_ties": 63,
+      "choice_accuracy": 0.5668,
+      "mean_regret_points": 3.4362,
+      "total_regret_points": 68232.36,
+      "p90_regret_points": 12.2,
+      "max_regret_points": 44.3
+    },
+    "TE": {
+      "pairs": 7275,
+      "decided_pairs": 7241,
+      "actual_ties": 34,
+      "choice_accuracy": 0.5625,
+      "mean_regret_points": 2.9304,
+      "total_regret_points": 21318.72,
+      "p90_regret_points": 10,
+      "max_regret_points": 42
+    },
+    "WR": {
+      "pairs": 54537,
+      "decided_pairs": 54278,
+      "actual_ties": 259,
+      "choice_accuracy": 0.5609,
+      "mean_regret_points": 3.4534,
+      "total_regret_points": 188340.32,
+      "p90_regret_points": 11.9,
+      "max_regret_points": 50.1
+    }
+  },
+  "week_1": {
+    "pairs": 5439,
+    "decided_pairs": 5417,
+    "actual_ties": 22,
+    "choice_accuracy": 0.5723,
+    "mean_regret_points": 3.3355,
+    "total_regret_points": 18141.7,
+    "p90_regret_points": 11.604,
+    "max_regret_points": 33.14
+  },
+  "pair_universe": {
+    "played_player_weeks_before_projection_screen": 17908,
+    "eligible_player_weeks_after_projection_screen": 7736,
+    "eligible_week_position_cells": 216,
+    "warning": "The projection screen narrows the broad tail but is only a plausible-starter proxy; eligible players were not observed on the same fantasy roster."
+  },
+  "schema_version": 1,
+  "experiment": "close-start-sit-decisions",
+  "seasons": [
+    2023,
+    2024,
+    2025
+  ],
+  "run_parameters": {
+    "max_projected_gap": 3,
+    "min_projection": 5,
+    "feature_rows": 80090
+  },
+  "scoring": {
+    "name": "Gabagool Fools",
+    "pass_yd": 0.04,
+    "pass_td": 6,
+    "interception": -2,
+    "pass_int_td": -3,
+    "rush_yd": 0.1,
+    "rush_td": 6,
+    "rec_yd": 0.1,
+    "rec_td": 6,
+    "reception": 1,
+    "fumble_lost": -2,
+    "two_point": 2,
+    "st_td": 6
+  },
+  "artifacts": {
+    "roots": [
+      "models/transformer/v1",
+      "models/transformer/v1_s43",
+      "models/transformer/v1_s44"
+    ],
+    "folds": [
+      "through2022",
+      "through2023",
+      "through2024"
+    ]
+  },
+  "pick_six_forecast_priors": {
+    "2023": {
+      "method": "pooled_return_rate_expected_cost_v1",
+      "rate": 0.09207459207459208,
+      "interceptions": 858,
+      "pick_sixes": 79,
+      "first_season": 2021,
+      "through_season": 2022,
+      "source": "nflverse play-by-play release",
+      "volume_method": "nonnegative_piecewise_linear_int_quantile_mean",
+      "uncertainty": "expected cost only; discrete pick-six variance not simulated"
+    },
+    "2024": {
+      "method": "pooled_return_rate_expected_cost_v1",
+      "rate": 0.09627329192546584,
+      "interceptions": 1288,
+      "pick_sixes": 124,
+      "first_season": 2021,
+      "through_season": 2023,
+      "source": "nflverse play-by-play release",
+      "volume_method": "nonnegative_piecewise_linear_int_quantile_mean",
+      "uncertainty": "expected cost only; discrete pick-six variance not simulated"
+    },
+    "2025": {
+      "method": "pooled_return_rate_expected_cost_v1",
+      "rate": 0.09074626865671642,
+      "interceptions": 1675,
+      "pick_sixes": 152,
+      "first_season": 2021,
+      "through_season": 2024,
+      "source": "nflverse play-by-play release",
+      "volume_method": "nonnegative_piecewise_linear_int_quantile_mean",
+      "uncertainty": "expected cost only; discrete pick-six variance not simulated"
+    }
+  },
+  "scoring_coverage": {
+    "label": "modeled Gabagool scoring subset, not complete Sleeper scoring",
+    "prediction_pick_sixes": "deployed pooled expected-cost method using only completed seasons before each test season",
+    "actual_pick_sixes": "unavailable in normalized historical weekly caches; therefore realized pick-six penalties are zero here",
+    "omitted": [
+      "50+ yard passing TD bonus",
+      "50+ yard rushing TD bonus",
+      "50+ yard receiving TD bonus"
+    ]
+  },
+  "scope_note": "This measures pairwise choices among players who recorded a historical stat line. It does not reconstruct any fantasy roster.",
+  "ecr_note": "No ECR baseline is included; this run evaluates model choices only."
+}

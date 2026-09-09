@@ -1,0 +1,7 @@
+#start-sit { margin: 1.5rem 0 2rem; padding: 1rem; border: 1px solid var(--muted, #9aa3ab); }
+#ss-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
+#ss-form input, #ss-form button { font: inherit; padding: .5rem; }
+#ss-exclude { display: flex; flex-wrap: wrap; gap: .5rem 1rem; padding: .75rem 0; }
+#ss-exclude label { display: flex; align-items: center; gap: .35rem; }
+#ss-output th, #ss-output td { padding: .5rem; text-align: left; }
+#ss-status { overflow-wrap: anywhere; }

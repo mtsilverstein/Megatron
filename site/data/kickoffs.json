@@ -1,0 +1,122 @@
+{
+  "season": 2026,
+  "week": 1,
+  "generated_at": "2026-09-09T17:24:50+00:00",
+  "teams": [
+    "ARI",
+    "ATL",
+    "BAL",
+    "BUF",
+    "CAR",
+    "CHI",
+    "CIN",
+    "CLE",
+    "DAL",
+    "DEN",
+    "DET",
+    "GB",
+    "HOU",
+    "IND",
+    "JAX",
+    "KC",
+    "LA",
+    "LAC",
+    "LV",
+    "MIA",
+    "MIN",
+    "NE",
+    "NO",
+    "NYG",
+    "NYJ",
+    "PHI",
+    "PIT",
+    "SEA",
+    "SF",
+    "TB",
+    "TEN",
+    "WAS"
+  ],
+  "games": [
+    {
+      "home": "SEA",
+      "away": "NE",
+      "kickoff": "2026-09-10T00:20:00+00:00"
+    },
+    {
+      "home": "LA",
+      "away": "SF",
+      "kickoff": "2026-09-11T00:35:00+00:00"
+    },
+    {
+      "home": "CAR",
+      "away": "CHI",
+      "kickoff": "2026-09-13T17:00:00+00:00"
+    },
+    {
+      "home": "CIN",
+      "away": "TB",
+      "kickoff": "2026-09-13T17:00:00+00:00"
+    },
+    {
+      "home": "DET",
+      "away": "NO",
+      "kickoff": "2026-09-13T17:00:00+00:00"
+    },
+    {
+      "home": "HOU",
+      "away": "BUF",
+      "kickoff": "2026-09-13T17:00:00+00:00"
+    },
+    {
+      "home": "IND",
+      "away": "BAL",
+      "kickoff": "2026-09-13T17:00:00+00:00"
+    },
+    {
+      "home": "JAX",
+      "away": "CLE",
+      "kickoff": "2026-09-13T17:00:00+00:00"
+    },
+    {
+      "home": "PIT",
+      "away": "ATL",
+      "kickoff": "2026-09-13T17:00:00+00:00"
+    },
+    {
+      "home": "TEN",
+      "away": "NYJ",
+      "kickoff": "2026-09-13T17:00:00+00:00"
+    },
+    {
+      "home": "LAC",
+      "away": "ARI",
+      "kickoff": "2026-09-13T20:25:00+00:00"
+    },
+    {
+      "home": "LV",
+      "away": "MIA",
+      "kickoff": "2026-09-13T20:25:00+00:00"
+    },
+    {
+      "home": "MIN",
+      "away": "GB",
+      "kickoff": "2026-09-13T20:25:00+00:00"
+    },
+    {
+      "home": "PHI",
+      "away": "WAS",
+      "kickoff": "2026-09-13T20:25:00+00:00"
+    },
+    {
+      "home": "NYG",
+      "away": "DAL",
+      "kickoff": "2026-09-14T00:20:00+00:00"
+    },
+    {
+      "home": "KC",
+      "away": "DEN",
+      "kickoff": "2026-09-15T00:15:00+00:00"
+    }
+  ],
+  "source": "https://nflreadr.nflverse.com/articles/dictionary_schedules.html"
+}
