@@ -33,7 +33,9 @@ jobs:
               python -m ffmodel.site.generate $ARGS --league "$LEAGUE"
             done
           else
-            python -m ffmodel.site.generate $ARGS --league gabagool
+            for LEAGUE in gabagool fam; do
+              python -m ffmodel.site.generate $ARGS --league "$LEAGUE"
+            done
           fi
       - name: Commit refreshed data
         id: commit

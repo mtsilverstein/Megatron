@@ -32,6 +32,14 @@ check("missing budget never defaults to 100", () => {
   assert.throws(() => W.analyze({ ...base, league: { ...league, settings: {waiver_budget:null} } }), /waiver_budget/);
   assert.throws(() => W.analyze({ ...base, rosters: [{...rosters[0],settings:{}},rosters[1]] }), /waiver_budget_used/);
 });
+check("rolling waivers allow missing budgets and never fabricate dollar bids", () => {
+  const rollingLeague = {...league, settings:{waiver_type:0}};
+  const rollingRosters = rosters.map(r => ({...r, settings:{waiver_position:r.roster_id}}));
+  const out = W.analyze({...base, league:rollingLeague, rosters:rollingRosters});
+  assert.equal(out.budget, null);
+  assert.deepStrictEqual(out.waiver, {type:"rolling", priority:1, guidance:"Order claims by value and roster need; current priority is context, not a claim-success probability."});
+  assert.ok(out.rows.length > 0 && out.rows.every(r => r.bid === null));
+});
 check("complete league and unique ownership are mandatory", () => {
   assert.throws(() => W.analyze({ ...base, rosters: [rosters[0]] }), /every league roster/);
   const dup = [rosters[0], {...rosters[1], players:["2"]}];

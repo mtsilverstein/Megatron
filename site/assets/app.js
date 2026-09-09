@@ -8,6 +8,38 @@ window.FC = (() => {
     return res.json();
   }
 
+  function leagueDataPath(kind) {
+    const slug = new URLSearchParams(location.search).get("league") || "gabagool";
+    if (!["gabagool", "fam", "espnfam"].includes(slug)) throw Error("Unknown league");
+    if (!["draft", "weekly"].includes(kind)) throw Error("Unknown league data kind");
+    return `data/${kind}${slug === "gabagool" ? "" : `-${slug}`}.json`;
+  }
+
+  function mountLeagueContext(slug) {
+    if (!document.createElement || document.getElementById("league-context")) return;
+    const panel=document.createElement("section"), label=document.createElement("label"), select=document.createElement("select");
+    panel.id="league-context"; panel.className="league-links";
+    label.textContent="League "; select.setAttribute("aria-label","Selected league");
+    for(const [value,name] of [["gabagool","Gabagool · Sleeper"],["fam","FAM · Sleeper"],["espnfam","ESPN family · draft board only"]]) {
+      const option=document.createElement("option"); option.value=value; option.textContent=name; select.append(option);
+    }
+    select.value=slug;
+    select.addEventListener("change",()=>{const url=new URL(location.href);url.searchParams.set("league",select.value);location.assign(url.href);});
+    label.append(select);panel.append(label);
+    const note=document.createElement("p");
+    note.textContent=slug==="espnfam"?"ESPN: draft board supported; live in-season tools are not connected yet.":"Draft board, weekly/start-sit and waiver research use this league. Trade calculator remains Gabagool pre-draft only. No password needed.";
+    panel.append(note);document.querySelector("main")?.prepend(panel);
+    // Share a typed public username, not credentials or active league state.
+    const inputs=[...document.querySelectorAll("#draft-username, #trade-user, #waiver-user, #ss-user, .keeper-user")];
+    let saved="";try{saved=localStorage.getItem("megatron:sleeper-username")||"";}catch(_){}
+    for(const input of inputs){
+      if(!input.value)input.value=saved;
+      const remember=()=>{try{localStorage.setItem("megatron:sleeper-username",input.value.trim());}catch(_){}};
+      input.addEventListener("input",remember);input.addEventListener("change",remember);
+      input.closest("form")?.addEventListener("submit",remember);
+    }
+  }
+
   function leagueNavigation() {
     // Keep the choice in each tab's URL, including the trip back from another
     // page. A shared stored preference would let one league change the other.
@@ -19,7 +51,7 @@ window.FC = (() => {
       const url = new URL(link.getAttribute("href"), location.href);
       url.searchParams.set("league", slug);
       link.href = url.href;
-      if (slug !== "gabagool" && /\/(trade|weekly|waivers)\.html$/.test(url.pathname)) {
+      if (slug !== "gabagool" && /\/trade\.html$/.test(url.pathname)) {
         link.textContent += " · Gabagool";
       }
     });
@@ -28,6 +60,7 @@ window.FC = (() => {
       if (url.searchParams.get("league") === slug) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     });
+    mountLeagueContext(slug);
     return slug;
   }
 
@@ -175,6 +208,6 @@ window.FC = (() => {
     });
   }
 
-  return { POS_CLASS, loadJSON, leagueNavigation, stampHeader, staleBanner, fmt, makeSortable,
+  return { POS_CLASS, loadJSON, leagueDataPath, leagueNavigation, stampHeader, staleBanner, fmt, makeSortable,
            posFilter, esc, scoringFilter, LENS_LABEL };
 })();

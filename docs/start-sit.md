@@ -1,7 +1,7 @@
 # Weekly start/sit v1
 
-Open `weekly.html?league=gabagool`, enter a Sleeper username, and load the roster.
-The plan uses Gabagool's modeled weekly scoring regardless of the ranking-table
+Open `weekly.html?league=gabagool` or `weekly.html?league=fam`, enter a Sleeper username, and load the roster.
+The plan uses the selected league's modeled weekly scoring regardless of the ranking-table
 filters below it. It does not change any lineup in Sleeper.
 
 ## Decision contract

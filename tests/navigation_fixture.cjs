@@ -30,7 +30,7 @@ assert.strictEqual(fam.links[0].href, `${base}index.html?league=fam`,
 assert.strictEqual(fam.choices[0].current, "page");
 assert.strictEqual(fam.choices[1].current, null);
 assert.match(fam.links[1].textContent, /Gabagool/);
-assert.match(fam.links[2].textContent, /Gabagool/);
+assert.doesNotMatch(fam.links[2].textContent, /Gabagool/);
 for (const link of fam.links.slice(1)) {
   const otherPage = page(link.href);
   assert.strictEqual(otherPage.links[0].href, `${base}index.html?league=fam`,
@@ -56,10 +56,8 @@ assert.strictEqual(espn.choices[0].current, null);
 assert.strictEqual(espn.choices[1].current, null);
 assert.match(espn.links[1].textContent, /Gabagool/,
   "trade.html is Gabagool-only and must say so on the ESPN board");
-assert.match(espn.links[2].textContent, /Gabagool/,
-  "weekly.html is Gabagool-only and must say so on the ESPN board");
-assert.match(espn.links[4].textContent, /Gabagool/,
-  "waivers.html is Gabagool-only and must say so on the ESPN board");
+assert.doesNotMatch(espn.links[2].textContent, /Gabagool/);
+assert.doesNotMatch(espn.links[4].textContent, /Gabagool/);
 for (const link of espn.links.slice(1)) {
   const otherPage = page(link.href);
   assert.strictEqual(otherPage.links[0].href, `${base}index.html?league=espnfam`,
@@ -72,4 +70,9 @@ assert.doesNotMatch(gabLabels.links[1].textContent, /Gabagool/,
 assert.doesNotMatch(gabLabels.links[2].textContent, /Gabagool/);
 
 assert.throws(() => page(`${base}index.html?league=unknown`), /Unknown league/);
+page(`${base}weekly.html?league=fam`);
+assert.equal(FC.leagueDataPath("weekly"),"data/weekly-fam.json");
+assert.equal(FC.leagueDataPath("draft"),"data/draft-fam.json");
+page(`${base}weekly.html?league=gabagool`);
+assert.equal(FC.leagueDataPath("weekly"),"data/weekly.json");
 console.log("navigation_fixture: league selection and return paths OK");

@@ -1,6 +1,6 @@
 # Gabagool FAAB desk
 
-Open `waivers.html?league=gabagool`, enter your Sleeper username, and load the league. This is a read-only planning tool: it cannot submit bids, claims, or roster moves. No login token is needed or stored. Other leagues are intentionally unsupported.
+Open `waivers.html?league=gabagool` or `waivers.html?league=fam`, enter your Sleeper username, and load the league. This is a read-only planning tool: it cannot submit bids, claims, or roster moves. No login token is needed or stored. FAM uses rolling-priority guidance without dollar bids; Gabagool uses the FAAB guidance below. Other leagues remain unsupported. See `multi-league-tools.md` for coverage and the general-purpose roadmap.
 
 ## First release
 

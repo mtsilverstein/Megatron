@@ -100,10 +100,8 @@ def parse_and_validate(argv=None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.week is None and not args.draft:
         parser.error("provide --week and/or --draft")
-    if args.week is not None and args.league != "gabagool":
-        parser.error("--week currently supports only --league gabagool: "
-                     "weekly.json is shared and uses Gabagool scoring. "
-                     "For another league, use --draft without --week.")
+    if args.week is not None and args.league not in ("gabagool", "fam"):
+        parser.error("--week currently supports Sleeper leagues gabagool and fam only.")
     return args
 
 
@@ -655,10 +653,10 @@ def main() -> None:
                                                     current_teams)
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)
-        payloads["weekly.json"] = build_weekly_projections(
+        payloads[cfg.weekly_file] = build_weekly_projections(
             future, predictor, args.season, week, data_through,
             pick_six_prior=pick_six_prior)
-        payloads["weekly.json"]["league"] = cfg.payload()
+        payloads[cfg.weekly_file]["league"] = cfg.payload()
         from ffmodel.site.roles import build_roles
         payloads["roles.json"] = build_roles(weekly, schedules, args.season, week)
         from ffmodel.site.kickoffs import pull_kickoffs

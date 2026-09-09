@@ -89,6 +89,10 @@ class LeagueConfig:
         return ("draft.json" if self.slug == "gabagool"
                 else f"draft-{self.slug}.json")
 
+    @property
+    def weekly_file(self) -> str:
+        return "weekly.json" if self.slug == "gabagool" else f"weekly-{self.slug}.json"
+
     def payload(self) -> dict:
         """The block embedded in the board, and the browser's whole contract."""
         out = {

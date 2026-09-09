@@ -4,17 +4,20 @@
   const dep = (name, path) => typeof window !== "undefined" && window[name]
     ? window[name] : typeof require === "function" ? require(path) : null;
   const Sleeper = dep("Sleeper", "./sleeper.js");
-  const LEAGUE_ID = "1376245373244301312";
+  const KNOWN_LEAGUES = new Map([["1376245373244301312", "gabagool"], ["1389736745205002240", "fam"]]);
   let catalogPromise = null;
   let catalogFetchedAt = null;
 
-  function validateContract(board, league) {
-    if (!board || board.league?.slug !== "gabagool" || String(league?.league_id) !== LEAGUE_ID
-        || String(board.league.league_id) !== LEAGUE_ID) throw new Error("This desk supports Gabagool only; the loaded board/league does not match.");
+  function validateContract(board, league, { requireFaab = false } = {}) {
+    const boardId = String(board?.league?.league_id || ""), liveId = String(league?.league_id || "");
+    if (!KNOWN_LEAGUES.has(boardId) || KNOWN_LEAGUES.get(boardId) !== board?.league?.slug || liveId !== boardId)
+      throw new Error("The loaded board and live league must exactly match a supported Sleeper league.");
     if (Number(league.season) !== board.season) throw new Error("League and projection seasons differ.");
     if (league.status !== "in_season") throw new Error("The draft must be complete before using waiver recommendations.");
     if (Number(league.total_rosters) !== board.league.teams) throw new Error("League size changed; the board needs a rebuild.");
-    if (Number(league.settings?.waiver_type) !== 2) throw new Error("This desk requires a FAAB waiver league.");
+    const waiverType = Number(league.settings?.waiver_type);
+    if (requireFaab && waiverType !== 2) throw new Error("This feature requires a FAAB waiver league.");
+    if (waiverType !== 0 && waiverType !== 2) throw new Error("Only rolling-priority and FAAB waiver leagues are supported.");
     const expected = board.league.sleeper_scoring;
     const live = league.scoring_settings;
     if (!expected || !live) throw new Error("Scoring contract is missing; cannot value claims safely.");
@@ -34,15 +37,17 @@
   async function loadWorld({ username, board, week, get = path => Sleeper.get(path) }) {
     if (!String(username || "").trim()) throw new Error("Enter your Sleeper username.");
     if (!Number.isInteger(week) || week < 1 || week > 18) throw new Error("Week must be an integer from 1 to 18.");
+    const leagueId = String(board?.league?.league_id || "");
+    if (!KNOWN_LEAGUES.has(leagueId) || KNOWN_LEAGUES.get(leagueId) !== board?.league?.slug) throw new Error("The projection board is not for a supported Sleeper league.");
     const [league, rosters, user, transactions] = await Promise.all([
-      get(`/league/${LEAGUE_ID}`), get(`/league/${LEAGUE_ID}/rosters`),
-      get(`/user/${encodeURIComponent(username.trim())}`), get(`/league/${LEAGUE_ID}/transactions/${week}`),
+      get(`/league/${leagueId}`), get(`/league/${leagueId}/rosters`),
+      get(`/user/${encodeURIComponent(username.trim())}`), get(`/league/${leagueId}/transactions/${week}`),
     ]);
     validateContract(board, league);
     if (!user?.user_id) throw new Error("Sleeper username was not found.");
     if (!Array.isArray(rosters) || !Array.isArray(transactions)) throw new Error("Sleeper returned incomplete roster/transaction data.");
     const mine = rosters.filter(r => r.owner_id === user.user_id || (r.co_owners || []).includes(user.user_id));
-    if (mine.length !== 1) throw new Error("Could not uniquely match this account to a Gabagool roster.");
+    if (mine.length !== 1) throw new Error("Could not uniquely match this account to a roster in the selected league.");
     return { league, rosters, rosterId: mine[0].roster_id, transactions, fetchedAt: new Date().toISOString() };
   }
 
@@ -66,8 +71,15 @@
     const status = text => { $("waiver-status").textContent = text; };
     const playerName = id => catalog[id]?.full_name || board?.players.find(p => String(p.sleeper_id) === String(id))?.name || id;
     const activeRows = () => (result?.rows || []).filter(r => $("waiver-position").value === "ALL" || r.add.position === $("waiver-position").value).slice(0, 40);
-    try { window.FC.leagueNavigation(); }
+    let selectedLeague;
+    try { selectedLeague = window.FC.leagueNavigation(); }
     catch (error) { status(error.message); return; }
+    if (selectedLeague === "espnfam") {
+      $("waiver-connect").hidden = true;
+      $("waiver-results").hidden = true;
+      status("ESPN family waivers are not connected. Choose Gabagool or FAM to use this read-only Sleeper desk.");
+      return;
+    }
 
     function renderRoster() {
       const own = world.rosters.find(r => r.roster_id === world.rosterId);
@@ -96,9 +108,9 @@
         const drop = node("td", r.drop?.name || "Open roster spot");
         const gain = node("td", `+${r.lineupGain.toFixed(2)} pts`);
         gain.append(node("span", r.scoring.label, "waiver-row-note"));
-        const bid = node("td", r.bid.canAfford === false ? r.bid.status : `$${r.bid.low}–$${r.bid.high}`);
-        bid.append(node("span", r.bid.label, "waiver-row-note"));
-        const why = node("td", `${r.bid.tier} · ${r.valueEstimate.label}`);
+        const bid = r.bid ? node("td", r.bid.canAfford === false ? r.bid.status : `$${r.bid.low}–$${r.bid.high}`) : node("td", "Set claim order in Sleeper");
+        bid.append(node("span", r.bid ? r.bid.label : result.waiver.guidance, "waiver-row-note"));
+        const why = node("td", `${r.bid ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`);
         if (r.availability?.warning) why.append(node("span", r.availability.warning, "waiver-row-note"));
         if (r.warning) why.append(node("span", r.warning, "waiver-row-note"));
         if (r.warnings) for (const warning of r.warnings) why.append(node("span", warning, "waiver-row-note"));
@@ -142,8 +154,10 @@
           node("td", `${p.ecr === null ? "No preseason ECR" : `Preseason ECR ${p.ecr}`}. ${p.projectionCovered ? "Verify snaps, role, health and the cost of your drop." : "Not on projection board; research only, no modeled price."}`));
         body.append(tr);
       }
-      $("waiver-market").textContent = `Selected week ${$("waiver-week").value}: ${intel.bids.length} completed waiver transaction(s) with a disclosed bid; ${intel.freeAgentMoves} completed free-agent move(s). ` +
-        (intel.bids.length ? `Observed winning bids: ${intel.bids.slice(0,15).map(b => `${b.players.join(" + ") || "unknown player"} $${b.amount}`).join("; ")}. These are not minimum winning prices; losing bids are unknown.` : "No observed winning-bid sample to calibrate prices. Free-agent moves are not $0 waiver bids.");
+      $("waiver-market").textContent = result?.waiver.type === "rolling"
+        ? `Selected week ${$("waiver-week").value}: rolling priority is ${result.waiver.priority ?? "unknown"}. Research and rank claims by value; this desk does not estimate claim success.`
+        : `Selected week ${$("waiver-week").value}: ${intel.bids.length} completed waiver transaction(s) with a disclosed bid; ${intel.freeAgentMoves} completed free-agent move(s). ` +
+          (intel.bids.length ? `Observed winning bids: ${intel.bids.slice(0,15).map(b => `${b.players.join(" + ") || "unknown player"} $${b.amount}`).join("; ")}. These are not minimum winning prices; losing bids are unknown.` : "No observed winning-bid sample to calibrate prices. Free-agent moves are not $0 waiver bids.");
     }
 
     function renderWatchlist() {
@@ -159,14 +173,17 @@
     function recompute() {
       if (!world) return;
       try {
-        if (!$("waiver-reserve").value.trim()) throw new Error("Enter the budget amount to keep in reserve.");
-        const reserve = Number($("waiver-reserve").value);
-        if (!Number.isInteger(reserve) || reserve < 0) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
+        const rolling = Number(world.league.settings?.waiver_type) === 0;
+        const reserve = rolling ? undefined : Number($("waiver-reserve").value);
+        if (!rolling && (!$("waiver-reserve").value.trim() || !Number.isInteger(reserve) || reserve < 0)) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
         result = W.analyze({ board, ...world, weekly, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve });
         intel = window.WaiverIntel.analyze({ board, ...world, catalog, signals, roles, week:Number($("waiver-week").value) });
         const b = result.budget, mine = world.rosters.find(r => r.roster_id === world.rosterId);
+        $("waiver-reserve").closest("label").hidden = rolling;
         $("waiver-budget").replaceChildren();
-        for (const [label, value] of [["Remaining", `$${b.remaining}`], ["Keep in reserve", `$${b.reserve}`], ["Spendable ceiling", `$${b.spendable}`], ["Tie priority", mine.settings?.waiver_position ?? "Unknown"]]) {
+        const tiles = rolling ? [["Rolling priority", mine.settings?.waiver_position ?? "Unknown"], ["Guidance", "Rank claims"]]
+          : [["Remaining", `$${b.remaining}`], ["Keep in reserve", `$${b.reserve}`], ["Spendable ceiling", `$${b.spendable}`], ["Tie priority", mine.settings?.waiver_position ?? "Unknown"]];
+        for (const [label, value] of tiles) {
           const tile = node("div"); tile.append(node("strong", value), node("span", label)); $("waiver-budget").append(tile);
         }
         const warnings = [...result.warnings, "League eligibility and claim processing time must be checked in Sleeper. Pending bids are not visible through the public API.", `Injury tags are a session-cached catalog snapshot (${catalogFetchedAt || "unknown time"}), not live news. Verify current availability separately.`];
@@ -184,11 +201,12 @@
       event.preventDefault(); const thisRequest = ++requestId;
       world = null; result = null;
       $("waiver-load").disabled = true; $("waiver-results").hidden = true; $("waiver-warnings").hidden = true;
-      status("Reading current rosters, budget, scoring, and projections…");
+      status("Reading current rosters, waiver settings, scoring, and projections…");
       try {
+        const dataPath = kind => window.FC.leagueDataPath(kind);
         const [rawBoard, loadedWeekly, loadedRoles] = await Promise.all([
-          window.FC.loadJSON("data/draft.json"),
-          window.FC.loadJSON("data/weekly.json").catch(() => null),
+          window.FC.loadJSON(dataPath("draft")),
+          window.FC.loadJSON(dataPath("weekly")).catch(() => null),
           window.FC.loadJSON("data/roles.json").catch(() => null),
         ]);
         const [nextWorld, nextSignals] = await Promise.all([
@@ -205,6 +223,9 @@
         board = { ...rawBoard, players: rawBoard.players.map(p => ({ ...p,
           injury_status: catalog[p.sleeper_id]?.injury_status || null,
         })) };
+        const leagueLink = $("waiver-league-link");
+        leagueLink.href = `https://sleeper.com/leagues/${encodeURIComponent(board.league.league_id)}/team`;
+        leagueLink.textContent = `Open ${board.league.slug.toUpperCase()} in Sleeper`;
         weekly = loadedWeekly; roles = loadedRoles; world = nextWorld; signals = nextSignals;
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
         protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
@@ -221,9 +242,10 @@
     $("waiver-radar-sort").addEventListener("change", () => { if (result) renderIntel(); });
     $("waiver-export").addEventListener("click", () => {
       if (!result) return;
-      const lines = ["Gabagool FAAB shortlist — independent alternatives, not submitted claims", $("waiver-source").textContent,
-        `Remaining $${result.budget.remaining}; reserve $${result.budget.reserve}; spendable $${result.budget.spendable}`,
-        ...activeRows().map(r => `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label}); ${r.bid.canAfford === false ? r.bid.status : `heuristic bid $${r.bid.low}–$${r.bid.high}`}`),
+      const rolling = result.waiver.type === "rolling";
+      const lines = [`${board.league.slug.toUpperCase()} waiver shortlist — independent alternatives, not submitted claims`, $("waiver-source").textContent,
+        rolling ? `Current rolling priority ${result.waiver.priority ?? "unknown"}; rank claims in Sleeper` : `Remaining $${result.budget.remaining}; reserve $${result.budget.reserve}; spendable $${result.budget.spendable}`,
+        ...activeRows().map(r => `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label}); ${rolling ? "rank by value and roster need" : (r.bid.canAfford === false ? r.bid.status : `heuristic bid $${r.bid.low}–$${r.bid.high}`)}`),
         "RESEARCH ONLY — not an add/drop plan or bid recommendation",
         $("waiver-intel-source").textContent,
         intel.roleStatus,

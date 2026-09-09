@@ -55,7 +55,7 @@
 </main>
 <footer>Pre-draft only: this values players and draft picks before the draft.
 In-season trading is a separate tool.</footer>
-<script src="assets/app.js"></script>
+<script src="assets/app.js?v=leagues2"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/optimizer.js"></script>
 <script src="assets/keepers.js"></script>
@@ -63,7 +63,12 @@ In-season trading is a separate tool.</footer>
 <script src="assets/trademode.js"></script>
 <script>
 (async () => {
-  FC.leagueNavigation();
+  const slug=FC.leagueNavigation();
+  if(slug!=="gabagool") {
+    document.getElementById("trade-connect").hidden=true;
+    document.querySelector(".stamp").textContent="Trade advice is not available for this league yet. No Gabagool values are being loaded.";
+    return;
+  }
   const board = await FC.loadJSON("data/draft.json");
   FC.stampHeader(board);
   TradeMode.init({

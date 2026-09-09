@@ -159,6 +159,9 @@ td.num, th.num { text-align: right; font: var(--t-num);
 .filters button[aria-pressed="true"] { color: var(--chalk); border-color: var(--chalk); }
 
 .league-links { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
+#league-context { display: block; padding: 1rem; border: 1px solid var(--rule); }
+#league-context select { padding: .5rem; font: inherit; max-width: 100%; }
+#league-context p { margin-bottom: 0; }
 .league-links a {
   color: var(--chalk-dim); border: 1px solid var(--rule); border-radius: 4px;
   padding: .5rem .8rem; font: var(--t-chip); text-decoration: none;

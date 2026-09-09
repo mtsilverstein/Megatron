@@ -123,3 +123,8 @@ def test_mismatched_model_and_sleeper_scoring_refuses_generation(tmp_path):
     (tmp_path / "fam.yaml").write_text(yaml.safe_dump(data))
     with pytest.raises(ValueError, match="scoring.pass_td disagrees"):
         load_league("fam", tmp_path)
+
+
+def test_weekly_files_are_isolated():
+    assert load_league("fam").weekly_file == "weekly-fam.json"
+    assert load_league("gabagool").weekly_file == "weekly.json"

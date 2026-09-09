@@ -119,7 +119,7 @@ def test_parser_requires_week_or_draft():
 
 @pytest.mark.parametrize("extra", [["--week", "1"],
                                    ["--draft", "--week", "auto"]])
-def test_fam_weekly_run_refuses_before_io_or_scoring_changes(
+def test_espn_weekly_run_refuses_before_io_or_scoring_changes(
         monkeypatch, tmp_path, capsys, extra):
     import sys
     from ffmodel.site import generate, weekly
@@ -136,11 +136,11 @@ def test_fam_weekly_run_refuses_before_io_or_scoring_changes(
     monkeypatch.setattr(pull, "pull_weekly", unexpected_pull)
     monkeypatch.setattr(sys, "argv", ["gen", "--out", str(tmp_path),
                         "--model", "xgboost", "--season", "2026",
-                        "--league", "fam", *extra])
+                        "--league", "espnfam", *extra])
     with pytest.raises(SystemExit) as exc:
         generate.main()
     assert exc.value.code == 2
-    assert "--week currently supports only --league gabagool" in capsys.readouterr().err
+    assert "--week currently supports Sleeper leagues" in capsys.readouterr().err
     assert weekly.RULESETS["league"] is before
     assert target.read_text() == original
     assert sorted(p.name for p in tmp_path.iterdir()) == ["weekly.json"]
@@ -286,6 +286,9 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
     import ffmodel.site.about as about_mod
     import ffmodel.site.draft as draft_mod
     import ffmodel.site.generate as gen_mod
+    import ffmodel.site.kickoffs as kickoff_mod
+    monkeypatch.setattr(kickoff_mod, "pull_kickoffs", lambda season, week:
+                        {"season": season, "week": week, "games": [], "teams": []})
 
     weekly = make_weekly([{"week": w, "player_id": f"p{i}"}
                           for w in range(1, 7) for i in range(40)])
@@ -463,6 +466,24 @@ def test_weekly_only_run_never_touches_sleeper(monkeypatch, tmp_path):
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], capture,
                              pull_draft_picks=boom_draft_picks)
     assert (tmp_path / "out" / "weekly.json").exists()
+
+
+def test_fam_weekly_does_not_overwrite_gabagool(monkeypatch, tmp_path):
+    import ffmodel.data.future as future_mod
+    import ffmodel.site.weekly as weekly_mod
+    import json
+    monkeypatch.setattr(future_mod, "combined_future_features", lambda *a, **k: (None, None))
+    monkeypatch.setattr(weekly_mod, "build_weekly_projections", lambda *a, **k: {"players": []})
+    target = tmp_path / "out" / "weekly.json"
+    target.parent.mkdir(parents=True)
+    target.write_text('{"last_good":"gabagool"}')
+    before=weekly_mod.RULESETS["league"]
+    try:
+        _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6", "--league", "fam"], {})
+    finally:
+        weekly_mod.set_league_rules(before)
+    assert json.loads(target.read_text()) == {"last_good": "gabagool"}
+    assert json.loads((target.parent / "weekly-fam.json").read_text())["league"]["slug"] == "fam"
 
 
 def test_draft_run_aborts_before_writing_when_sleeper_pull_fails(monkeypatch, tmp_path):

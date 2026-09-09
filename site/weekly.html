@@ -25,10 +25,10 @@
 </header>
 <main>
   <p class="eyebrow" id="week-eyebrow">weekly projections</p>
-  <h1>Gabagool Fools — this week's slate</h1>
+  <h1 id="weekly-title">This week's slate</h1>
   <section id="start-sit" aria-labelledby="ss-title">
     <h2 id="ss-title">My start/sit plan · read-only</h2>
-    <p>Gabagool skill positions only; K/DST stay unchanged. This maximizes projected medians—not proven expected points or matchup win probability. Verify final injury reports and platform locks in Sleeper. Kickoffs use a dated schedule snapshot; postponements require refreshed data.</p>
+    <p>Selected Sleeper league's skill positions only; K/DST stay unchanged. This maximizes projected medians—not proven expected points or matchup win probability. Verify final injury reports and platform locks in Sleeper. Kickoffs use a dated schedule snapshot; postponements require refreshed data.</p>
     <form id="ss-form"><label>Sleeper username <input id="ss-user" required autocomplete="off"></label> <button>Load / refresh my lineup</button></form>
     <p id="ss-status" role="status">Load your roster for legal slots and close-call comparisons. The rankings below remain independent of this plan.</p>
     <details><summary>Manually exclude unavailable players</summary><p>Use current injury information. Excluding someone is not a recommendation to drop them. Game-started slots cannot be changed. Refreshing clears exclusions; reload the page to refresh the cached injury catalog.</p><div id="ss-exclude"></div></details>
@@ -62,16 +62,19 @@ consensus; at running back specifically it has measurably out-ranked
 consensus, and that edge replicated on a disjoint set of seasons — see the
 about page for the numbers.</footer>
 <script src="assets/bands.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/app.js?v=leagues2"></script>
 <script src="assets/sleeper.js"></script>
-<script src="assets/waivermode.js"></script>
+<script src="assets/waivermode.js?v=leagues1"></script>
 <script src="assets/startsit.js"></script>
-<script src="assets/startsitmode.js"></script>
+<script src="assets/startsitmode.js?v=leagues1"></script>
 <script>StartSitMode.init();</script>
 <script>
 (async () => {
-  FC.leagueNavigation();
-  const payload = await FC.loadJSON("data/weekly.json");
+  const slug=FC.leagueNavigation();
+  if(slug==="espnfam") { document.getElementById("ss-form").hidden=true; throw Error("ESPN weekly advice is not connected yet; use its draft board only."); }
+  const payload = await FC.loadJSON(FC.leagueDataPath("weekly"));
+  if(payload.league?.slug!==slug)throw Error("Weekly data does not match the selected league.");
+  document.getElementById("weekly-title").textContent=`${payload.league.name} — this week's slate`;
   FC.stampHeader(payload);
   document.getElementById("week-eyebrow").textContent =
     `Week ${payload.week} · ${payload.season} · ${payload.model}`;
@@ -152,7 +155,7 @@ about page for the numbers.</footer>
   if (/HTTP 40[34]/.test(String(e && e.message))) {
     stamp.textContent = "weekly projections start with week 1 — see the draft board";
   } else {
-    stamp.textContent = "weekly projections failed to load — this is a bug, not the offseason";
+    stamp.textContent = `Weekly advice unavailable: ${e.message}`;
     console.error("weekly page failed to render:", e);
   }
 });

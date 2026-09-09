@@ -26,7 +26,7 @@
     $("ss-form").addEventListener("submit",async e=>{
       e.preventDefault();const request=++sequence;snapshot=null;$("ss-output").replaceChildren();$("ss-exclude").replaceChildren();status("Reading roster, scoring, projections and kickoff times…");
       try {
-        const [board,weekly,kickoffs]=await Promise.all(["draft.json","weekly.json","kickoffs.json"].map(f=>FC.loadJSON(`data/${f}`)));
+        const [board,weekly,kickoffs]=await Promise.all([FC.leagueDataPath("draft"),FC.leagueDataPath("weekly"),"data/kickoffs.json"].map(f=>FC.loadJSON(f)));
         if(!catalogPromise)catalogPromise=Sleeper.get("/players/nfl").then(c=>{catalogTime=new Date().toISOString();return c;}).catch(e=>{catalogPromise=null;throw e;});
         const snapshotAt=Date.now(); // Conservative: a kickoff during retrieval needs another read.
         const [world,catalog,state]=await Promise.all([WaiverMode.loadWorld({username:$("ss-user").value,board,week:weekly.week}),catalogPromise,Sleeper.get("/state/nfl")]);

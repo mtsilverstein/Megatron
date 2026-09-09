@@ -146,14 +146,16 @@
     const mine = rosters.find(r => finite(r.roster_id) === rosterId);
     if (!mine) fail(`roster ${args.rosterId} was not found`);
     const starterSlots = slots(league);
-    const budgetTotal = finite(league.settings && league.settings.waiver_budget);
-    if (budgetTotal === null || budgetTotal < 0) fail("league.settings.waiver_budget is missing or invalid");
-    const used = finite(mine.settings && mine.settings.waiver_budget_used);
-    if (used === null || used < 0) fail("roster waiver_budget_used is missing or invalid");
-    const remaining = Math.max(0, budgetTotal - used);
-    const reserve = finite(args.budgetReserve === undefined ? 20 : args.budgetReserve);
-    if (reserve === null || reserve < 0) fail("budgetReserve must be non-negative");
-    const minBid = Math.max(0, finite(league.settings && league.settings.waiver_bid_min) || 0);
+    const waiverType = finite(league.settings && league.settings.waiver_type);
+    const rolling = waiverType === 0;
+    const budgetTotal = rolling ? null : finite(league.settings && league.settings.waiver_budget);
+    if (!rolling && (budgetTotal === null || budgetTotal < 0)) fail("league.settings.waiver_budget is missing or invalid");
+    const used = rolling ? null : finite(mine.settings && mine.settings.waiver_budget_used);
+    if (!rolling && (used === null || used < 0)) fail("roster waiver_budget_used is missing or invalid");
+    const remaining = rolling ? null : Math.max(0, budgetTotal - used);
+    const reserve = rolling ? null : finite(args.budgetReserve === undefined ? 20 : args.budgetReserve);
+    if (!rolling && (reserve === null || reserve < 0)) fail("budgetReserve must be non-negative");
+    const minBid = rolling ? null : Math.max(0, finite(league.settings && league.settings.waiver_bid_min) || 0);
     const protectedIds = validateIds(args.protectedIds || [], "protectedIds");
 
     const warnings = [], boardById = new Map(), boardByGsis = new Map();
@@ -239,13 +241,14 @@
         scoring: { source: weekly.fresh ? "weekly" : "preseason_proxy", label: weekly.fresh ? `week ${args.week} projection` : "ROUGH REST-OF-SEASON PRESEASON PROXY — not a live projection" },
         availability: { status: String(add.injury_status || add.status || "").toUpperCase() || null, actionableNow: !unavailable(add), warning: unavailable(add) ? "injury designation: stash/review, not an immediate-week recommendation" : null },
         valueEstimate: { points: valueEstimate, label: "board value estimate; not a FAAB price" },
-        bid: bidGuide(weekly.fresh ? gain : gain / remainingWeeks, budgetTotal, remaining, reserve, minBid)
+        bid: rolling ? null : bidGuide(weekly.fresh ? gain : gain / remainingWeeks, budgetTotal, remaining, reserve, minBid)
       });
     }));
     rows.sort((a, b) => b.lineupGain - a.lineupGain || (b.valueEstimate.points || -Infinity) - (a.valueEstimate.points || -Infinity));
     if (!rows.length) warnings.push("no positive legal skill-player swap found");
     return {
-      budget: { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },
+      waiver: { type: rolling ? "rolling" : "faab", priority: finite(mine.settings && mine.settings.waiver_position), guidance: rolling ? "Order claims by value and roster need; current priority is context, not a claim-success probability." : "Bid ranges are budgeting heuristics, not claim-success probabilities." },
+      budget: rolling ? null : { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },
       warnings, rows,
       roster: { rosterId, playerIds: [...validateIds(mine.players || [], "roster players")], protectedIds: [...protectedIds], lockedReserveTaxiIds: [...ownLocked], unknownOwnedIds: unknownOwned },
       coverage: { boardPlayers: board.players.length, ownedPlayers: owned.size, freeAgentsScored: freeAgents.length, dropCandidates: droppable.length, weeklyFresh: weekly.fresh, weeklyMatched: weekly.map.size, scoringLabel: weekly.fresh ? "fresh weekly projection" : "rough rest-of-season preseason proxy" }
