@@ -1,0 +1,29 @@
+#waiver-app { max-width: 1300px; }
+.waiver-intro { max-width: 85ch; color: var(--chalk-dim); }
+.waiver-controls, .waiver-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; margin: 1.2rem 0; }
+#waiver-app label { display: flex; flex-direction: column; gap: .25rem; }
+#waiver-app input, #waiver-app select, #waiver-app textarea, #waiver-app button { font: inherit; color: var(--chalk); background: var(--board-raised); border: 1px solid var(--rule); border-radius: 4px; padding: .5rem .7rem; }
+#waiver-app input[type=number] { width: 8rem; }
+#waiver-app button { cursor: pointer; }
+#waiver-load { border-color: var(--accent) !important; }
+#waiver-app button:disabled { opacity: .6; cursor: wait; }
+#waiver-status, .waiver-warnings { border-left: 3px solid var(--accent); padding: .7rem 1rem; background: var(--sunken); }
+.waiver-warnings ul { margin: 0; padding-left: 1rem; }
+.waiver-budget { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .8rem; margin: 1.5rem 0; }
+.waiver-budget div { background: var(--board-raised); border: 1px solid var(--rule); padding: 1rem; }
+.waiver-budget strong { display: block; font-size: 1.7rem; }
+.waiver-budget span, .waiver-source, .waiver-row-note { color: var(--chalk-dim); }
+#waiver-app details { margin: 1rem 0; border: 1px solid var(--rule); padding: .8rem 1rem; }
+#waiver-app summary { cursor: pointer; font-weight: 600; }
+.waiver-roster { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .5rem; }
+#waiver-app .waiver-roster label { flex-direction: row; align-items: center; }
+#waiver-app .waiver-roster input { width: auto; }
+#waiver-table { width: 100%; min-width: 740px; }
+#waiver-table caption { text-align: left; color: var(--chalk-dim); padding: .5rem 0; }
+#waiver-table td { white-space: normal; vertical-align: top; }
+#waiver-table th { text-align: left; }
+.waiver-row-note { display: block; font-size: .85rem; }
+#waiver-backup { width: 100%; margin-top: .5rem; }
+.waiver-method { max-width: 90ch; margin-top: 2rem; }
+.waiver-method li { margin-bottom: .55rem; }
+@media (max-width: 600px) { #waiver-app { padding: 1rem; } .waiver-controls { align-items: stretch; } .waiver-controls label:first-child { width: 100%; } #waiver-table { min-width: 700px; } }

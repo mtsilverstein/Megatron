@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Read-only Gabagool FAAB planning: available players, lineup upgrades, drop costs, and a budget guardrail.">
+<title>FAAB & waivers — Megatron</title>
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/waivers.css">
+</head>
+<body>
+<header class="masthead">
+  <h1 class="wordmark">Megatron</h1>
+  <nav aria-label="Main navigation">
+    <a href="index.html">Draft board</a>
+    <a href="trade.html">Trade calculator</a>
+    <a href="weekly.html">Weekly</a>
+    <a href="waivers.html" aria-current="page">FAAB & waivers</a>
+    <a href="about.html">About the model</a>
+  </nav>
+  <p class="stamp">Read-only Sleeper connection · no claims or bids are submitted</p>
+</header>
+<main id="waiver-app">
+  <p class="eyebrow">In-season desk · Gabagool Fools · first release</p>
+  <h1>Buy lineup improvement. Keep options open.</h1>
+  <p class="waiver-intro">Compare available skill players against your actual roster.
+    Bid ranges are transparent budgeting heuristics, <strong>not predicted winning bids</strong>.
+    Verify injuries, roles, waiver eligibility, and deadlines in Sleeper before acting.</p>
+  <form id="waiver-connect" class="waiver-controls">
+    <label>Sleeper username <input id="waiver-user" required autocomplete="off" placeholder="Your Sleeper username"></label>
+    <label>Week <input id="waiver-week" type="number" min="1" max="18" value="1" required></label>
+    <label>Budget to keep ($) <input id="waiver-reserve" type="number" min="0" step="1" value="20" required></label>
+    <button type="submit" id="waiver-load">Load / refresh league</button>
+  </form>
+  <p id="waiver-status" role="status" aria-live="polite">Load your roster to begin. Other leagues are not supported by this first release.</p>
+  <div id="waiver-warnings" class="waiver-warnings" hidden></div>
+  <section id="waiver-results" hidden>
+    <div id="waiver-budget" class="waiver-budget" aria-label="FAAB budget"></div>
+    <p id="waiver-source" class="waiver-source"></p>
+    <details>
+      <summary>Protect players from drop suggestions</summary>
+      <p>These protections apply to this tab. Starters are protected initially; uncheck deliberately.
+        IR/taxi players are not offered as drops. This is not an instruction to move anyone out of IR.</p>
+      <div id="waiver-roster" class="waiver-roster"></div>
+    </details>
+    <div class="waiver-toolbar">
+      <label>Position <select id="waiver-position"><option value="ALL">All skill positions</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option></select></label>
+      <button type="button" id="waiver-export">Export shortlist to text box</button>
+    </div>
+    <p id="waiver-count"></p>
+    <div class="table-wrap">
+      <table id="waiver-table">
+        <caption>Independent add/drop alternatives — do not submit every row as one plan</caption>
+        <thead><tr><th>Add</th><th>Drop alternative</th><th>Lineup improvement</th><th>Bid range / ceiling</th><th>Why / limitations</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <details open><summary>Available watchlist — preseason ECR, not a buy ranking</summary>
+      <p>These players are unrostered now. They may be stash candidates even without a projected lineup gain; role changes and injury contingencies are not priced by this version.</p>
+      <ol id="waiver-watchlist"></ol>
+    </details>
+    <details><summary>Copyable shortlist</summary><label for="waiver-backup">Select and copy this text; it is not sent anywhere.</label><textarea id="waiver-backup" rows="10" readonly></textarea></details>
+  </section>
+  <section class="waiver-method">
+    <h2>What this version knows — and what it doesn't</h2>
+    <ul>
+      <li>Availability means absent from every league roster, including IR/taxi. It does not prove a player is an immediate free agent rather than awaiting waivers.</li>
+      <li>Current-week projections are used only when fresh and aligned to the selected week. The longer-term estimate is a bye-aware preseason baseline, not a live rest-of-season forecast.</li>
+      <li>The budget reserve is your choice, not a measured optimum. Each suggested bid is capped to your remaining spendable budget. Multiple independent bids can still overspend or reuse a drop; order alternatives in Sleeper.</li>
+      <li>No inferred hidden bids, calibrated win probabilities, automated transactions, or K/DST projections. No keeper-value premium is priced yet.</li>
+    </ul>
+    <p><a href="https://sleeper.com/leagues/1376245373244301312/team">Open Gabagool in Sleeper</a> · <a href="https://docs.sleeper.com/">Read-only API documentation</a></p>
+  </section>
+</main>
+<script src="assets/app.js"></script>
+<script src="assets/sleeper.js"></script>
+<script src="assets/waivers.js"></script>
+<script src="assets/waivermode.js"></script>
+<script>WaiverMode.init();</script>
+</body>
+</html>

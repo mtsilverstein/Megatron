@@ -658,6 +658,7 @@ def main() -> None:
         payloads["weekly.json"] = build_weekly_projections(
             future, predictor, args.season, week, data_through,
             pick_six_prior=pick_six_prior)
+        payloads["weekly.json"]["league"] = cfg.payload()
     if args.draft:
         returning = _load_returning(Path(args.returning), weekly, args.season)
         if returning:

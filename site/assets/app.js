@@ -19,7 +19,7 @@ window.FC = (() => {
       const url = new URL(link.getAttribute("href"), location.href);
       url.searchParams.set("league", slug);
       link.href = url.href;
-      if (slug !== "gabagool" && /\/(trade|weekly)\.html$/.test(url.pathname)) {
+      if (slug !== "gabagool" && /\/(trade|weekly|waivers)\.html$/.test(url.pathname)) {
         link.textContent += " · Gabagool";
       }
     });

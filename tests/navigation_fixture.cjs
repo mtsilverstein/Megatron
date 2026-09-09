@@ -6,8 +6,8 @@ require("../site/assets/app.js");
 const FC = window.FC;
 
 function page(href) {
-  const names = ["Draft board", "Trade calculator", "Weekly", "About the model"];
-  const links = ["index.html", "trade.html", "weekly.html", "about.html"].map((path, i) => ({
+  const names = ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"];
+  const links = ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"].map((path, i) => ({
     href: path, textContent: names[i], getAttribute() { return this.href; },
   }));
   const choices = ["fam", "gabagool", "espnfam"].map(slug => ({
@@ -58,6 +58,8 @@ assert.match(espn.links[1].textContent, /Gabagool/,
   "trade.html is Gabagool-only and must say so on the ESPN board");
 assert.match(espn.links[2].textContent, /Gabagool/,
   "weekly.html is Gabagool-only and must say so on the ESPN board");
+assert.match(espn.links[4].textContent, /Gabagool/,
+  "waivers.html is Gabagool-only and must say so on the ESPN board");
 for (const link of espn.links.slice(1)) {
   const otherPage = page(link.href);
   assert.strictEqual(otherPage.links[0].href, `${base}index.html?league=espnfam`,
