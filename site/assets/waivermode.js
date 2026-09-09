@@ -209,6 +209,7 @@
           window.FC.loadJSON(dataPath("weekly")).catch(() => null),
           window.FC.loadJSON("data/roles.json").catch(() => null),
         ]);
+        if (rawBoard.league?.slug !== selectedLeague) throw new Error("Projection board does not match the selected league; reload before using advice.");
         const [nextWorld, nextSignals] = await Promise.all([
           loadWorld({ username: $("waiver-user").value, board: rawBoard, week: Number($("waiver-week").value) }), loadSignals(),
         ]);
