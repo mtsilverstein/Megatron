@@ -33,6 +33,32 @@ assert.deepEqual(out.bids,[{amount:0,players:["Player 6"]}]);
 assert.equal(out.freeAgentMoves,1);
 assert.throws(()=>I.analyze({...base,rosters:[base.rosters[0]]}),/every league roster/);
 assert.throws(()=>I.analyze({...base,week:0}),/week is invalid/);
+const roles = {schema_version:1,season:2026,before_week:4,generated_at:new Date().toISOString(),status:"observed",through_week:3,
+  completed_team_games:6,covered_team_games:6,players:[{player_id:"gsis6",team:"CLE",week:3,current_for_team:true,
+    latest:{targets:7,snap_pct:.7},delta:{snap_pct:.2},baseline_weeks:[1,2],flags:["snap share and opportunity share both increased"]}]};
+const roleBase = {...base,week:4,league:{...base.league,season:2026},board:{players:base.board.players.map(p=>({...p,player_id:p.sleeper_id==="6"?"gsis6":p.sleeper_id}))},roles};
+out=I.analyze(roleBase);
+assert.equal(out.radar.find(p=>p.id==="6").roleFlags.length,1);
+assert.match(out.roleStatus,/through week 3/);
+out=I.analyze({...roleBase,roles:{...roles,season:2025}});
+assert.equal(out.radar.find(p=>p.id==="6").role,null);
+assert.match(out.roleStatus,/withheld/);
+out=I.analyze({...roleBase,roles:{...roles,before_week:5}});
+assert.equal(out.radar.find(p=>p.id==="6").role,null);
+out=I.analyze({...roleBase,catalog:{6:{team:"NYJ"}}});
+assert.equal(out.radar.find(p=>p.id==="6").role,null);
+out=I.analyze({...roleBase,roles:{...roles,generated_at:"2020-01-01"}});
+assert.equal(out.radar.find(p=>p.id==="6").role,null);
+out=I.analyze({...roleBase,roles:{...roles,players:[{...roles.players[0],current_for_team:false}]}});
+assert.equal(out.radar.find(p=>p.id==="6").role,null);
+out=I.analyze({...roleBase,roles:{...roles,status:"awaiting_observations",players:[]}});
+assert.match(out.roleStatus,/Waiting for games/);
+out=I.analyze({...roleBase,roles:{...roles,status:"source_gap",players:[]}});
+assert.match(out.roleStatus,/observations are missing/);
+out=I.analyze({...roleBase,board:{players:roleBase.board.players.map(p=>p.sleeper_id==="6"?{...p,team:"LA"}:p)},catalog:{6:{team:"LAR"}},
+  roles:{...roles,players:[{...roles.players[0],team:"LA"}]}});
+assert.equal(out.radar.find(p=>p.id==="6").roleFlags.length,1);
+assert.deepEqual(out.radar.find(p=>p.id==="6").byeCover,[8]);
 (async()=>{
   const calls=[];
   const signals=await M.loadSignals(async path=>{calls.push(path);if(path.includes('/drop?'))throw Error('offline');return [];});

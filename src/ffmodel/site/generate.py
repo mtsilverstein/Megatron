@@ -659,6 +659,8 @@ def main() -> None:
             future, predictor, args.season, week, data_through,
             pick_six_prior=pick_six_prior)
         payloads["weekly.json"]["league"] = cfg.payload()
+        from ffmodel.site.roles import build_roles
+        payloads["roles.json"] = build_roles(weekly, schedules, args.season, week)
     if args.draft:
         returning = _load_returning(Path(args.returning), weekly, args.season)
         if returning:

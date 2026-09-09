@@ -55,7 +55,7 @@
   function init() {
     const W = window.Waivers;
     const $ = id => document.getElementById(id);
-    let world = null, board = null, weekly = null, catalog = {}, result = null, signals = {}, intel = null;
+    let world = null, board = null, weekly = null, roles = null, catalog = {}, result = null, signals = {}, intel = null;
     let requestId = 0, protectedIds = new Set();
     const node = (tag, text, cls) => {
       const el = document.createElement(tag);
@@ -112,12 +112,14 @@
       const position = $("waiver-position").value;
       const rows = (intel?.radar || []).filter(p => position === "ALL" || p.position === position);
       if ($("waiver-radar-sort").value === "adds") rows.sort((a,b) => (b.adds ?? -1)-(a.adds ?? -1));
+      if ($("waiver-radar-sort").value === "usage") rows.sort((a,b) => b.roleFlags.length-a.roleFlags.length || (b.role?.week || 0)-(a.role?.week || 0));
       return rows.slice(0,24);
     }
 
     function renderIntel() {
       if (!intel) return;
       $("waiver-intel-source").textContent = `Sleeper trends requested ${intel.fetchedAt || "unknown time"}. ${intel.warnings.join(" ")}`;
+      $("waiver-role-source").textContent = intel.roleStatus;
       $("waiver-byes").replaceChildren();
       for (const r of intel.byeRisks) $("waiver-byes").append(node("li", `Week ${r.week} ${r.position}: ${r.available} available for ${r.required} required — ${r.severity}. On bye: ${r.away.join(", ")}.`));
       if (!intel.byeRisks.length) $("waiver-byes").append(node("li", "No dedicated-position bye shortfall or no-spare week found in known bye data."));
@@ -127,9 +129,15 @@
         if (p.sameTeam.length) reasons.push(`Shares RB room with ${p.sameTeam.join(", ")}; verify role`);
         if (p.byeCover.length) reasons.push(`Different bye in your thin ${p.position} weeks: ${p.byeCover.join(", ")}`);
         if (!reasons.length) reasons.push("Market activity; investigate the cause");
+        if (p.roleFlags.length) reasons.push(...p.roleFlags);
         const tr = node("tr");
+        const pct = v => typeof v === "number" && Number.isFinite(v) ? `${(v*100).toFixed(1)}%` : "unknown";
+        const change = v => typeof v === "number" && Number.isFinite(v) ? `${v >= 0 ? "+" : ""}${(v*100).toFixed(1)} pp` : "not comparable";
+        const r = p.role;
+        const roleText = r ? `Observed W${r.week}: targets ${r.latest.targets ?? "unknown"}; carries ${r.latest.carries ?? "unknown"}; snap share ${pct(r.latest.snap_pct)}; target share ${pct(r.latest.target_share)}; carry share ${pct(r.latest.carry_share)}. Versus mean of prior observed weeks ${r.baseline_weeks.join(", ") || "none"}: snaps ${change(r.delta.snap_pct)}, target share ${change(r.delta.target_share)}, carry share ${change(r.delta.carry_share)}.` : "No comparable current-team usage row. Not zero opportunity.";
         tr.append(node("td", `${p.name} · ${p.position} · ${p.team}${p.status ? ` · ${p.status}` : ""}`),
           node("td", reasons.join(". ")),
+          node("td", roleText),
           node("td", `${p.adds ?? "Not listed"} / ${p.drops ?? "Not listed"}`),
           node("td", `${p.ecr === null ? "No preseason ECR" : `Preseason ECR ${p.ecr}`}. ${p.projectionCovered ? "Verify snaps, role, health and the cost of your drop." : "Not on projection board; research only, no modeled price."}`));
         body.append(tr);
@@ -155,7 +163,7 @@
         const reserve = Number($("waiver-reserve").value);
         if (!Number.isInteger(reserve) || reserve < 0) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
         result = W.analyze({ board, ...world, weekly, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve });
-        intel = window.WaiverIntel.analyze({ board, ...world, catalog, signals, week:Number($("waiver-week").value) });
+        intel = window.WaiverIntel.analyze({ board, ...world, catalog, signals, roles, week:Number($("waiver-week").value) });
         const b = result.budget, mine = world.rosters.find(r => r.roster_id === world.rosterId);
         $("waiver-budget").replaceChildren();
         for (const [label, value] of [["Remaining", `$${b.remaining}`], ["Keep in reserve", `$${b.reserve}`], ["Spendable ceiling", `$${b.spendable}`], ["Tie priority", mine.settings?.waiver_position ?? "Unknown"]]) {
@@ -178,9 +186,10 @@
       $("waiver-load").disabled = true; $("waiver-results").hidden = true; $("waiver-warnings").hidden = true;
       status("Reading current rosters, budget, scoring, and projections…");
       try {
-        const [rawBoard, loadedWeekly] = await Promise.all([
+        const [rawBoard, loadedWeekly, loadedRoles] = await Promise.all([
           window.FC.loadJSON("data/draft.json"),
           window.FC.loadJSON("data/weekly.json").catch(() => null),
+          window.FC.loadJSON("data/roles.json").catch(() => null),
         ]);
         const [nextWorld, nextSignals] = await Promise.all([
           loadWorld({ username: $("waiver-user").value, board: rawBoard, week: Number($("waiver-week").value) }), loadSignals(),
@@ -196,7 +205,7 @@
         board = { ...rawBoard, players: rawBoard.players.map(p => ({ ...p,
           injury_status: catalog[p.sleeper_id]?.injury_status || null,
         })) };
-        weekly = loadedWeekly; world = nextWorld; signals = nextSignals;
+        weekly = loadedWeekly; roles = loadedRoles; world = nextWorld; signals = nextSignals;
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
         protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
         renderRoster(); recompute();
@@ -217,6 +226,8 @@
         ...activeRows().map(r => `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label}); ${r.bid.canAfford === false ? r.bid.status : `heuristic bid $${r.bid.low}–$${r.bid.high}`}`),
         "RESEARCH ONLY — not an add/drop plan or bid recommendation",
         $("waiver-intel-source").textContent,
+        intel.roleStatus,
+        ...activeRadar().filter(p => p.role).map(p => `USAGE ${p.name}: W${p.role.week}; ${p.roleFlags.join("; ") || "no threshold flags"}; observed ${JSON.stringify(p.role.latest)}; change ${JSON.stringify(p.role.delta)}; baseline weeks ${p.role.baseline_weeks.join(",")}`),
         ...activeRadar().map(p => `${p.name} (${p.position}); Sleeper 24h adds ${p.adds ?? "not listed"}, drops ${p.drops ?? "not listed"}; same-team RBs: ${p.sameTeam.join(", ") || "none"}; different bye in thin weeks: ${p.byeCover.join(", ") || "none"}; status ${p.status || "verify"}`),
         "Verify injury/role updates, claim deadline, total spend and drop conflicts in Sleeper."];
       $("waiver-backup").value = lines.join("\n");

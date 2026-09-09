@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "season": 2026,
+  "before_week": 1,
+  "generated_at": "2026-09-09T13:07:28+00:00",
+  "through_week": null,
+  "status": "awaiting_observations",
+  "completed_team_games": 0,
+  "covered_team_games": 0,
+  "sources": [
+    "https://nflreadr.nflverse.com/reference/load_player_stats.html",
+    "https://nflreadr.nflverse.com/reference/load_snap_counts.html"
+  ],
+  "limitations": [
+    "Observed game rows only; absent rows are not zero usage.",
+    "Routes and red-zone usage unavailable in this layer.",
+    "Carry share uses tracked QB/RB/WR/TE carries.",
+    "Flags are uncalibrated research thresholds, not breakout probabilities or FAAB prices."
+  ],
+  "players": []
+}
