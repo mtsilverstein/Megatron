@@ -1655,4 +1655,64 @@ check("MONOTONICITY (roster): no player is worth less than nothing", () => {
     + `(${wide.length} of ${swept} removals):\n${wide.join("\n")}`);
 });
 
+// --- one ctx cannot be correct for two opponents ---------------------------
+//
+// `ctx.keptElsewhere` names the players the teams OUTSIDE this trade will
+// keep, so they are gone from the draft pool. The opponent IN the trade is
+// deliberately excluded from it, because his keepers are decided inside the
+// trade rather than assumed. That makes keptElsewhere a property of the PAIR,
+// not of the league -- and there is therefore no single value of it that is
+// correct for two different opponents at once.
+//
+// suggestTrades used to take one ctx and loop opponents against it. Scoring
+// team B under team A's ctx removes B's own keepers from the pool (they are
+// not available to be traded for) and puts A's back (they are). Every number
+// this module produces is a difference of two state values, so the result is
+// not an error -- it is a plausible-looking wrong number, which is worse.
+// Same reason dedupOffers throws without holdings rather than defaulting.
+const twoOpponents = () => {
+  const ctx = CTX();
+  const mine = [230, 206, 204].map((v, i) => withHistory(ctx,
+    P(`M${i + 1}`, "RB", v, { adp: [10, 24, 28][i], adp_round: Math.ceil([10, 24, 28][i] / 12) }), 10));
+  const mk = (tag, vals, adps) => vals.map((v, i) => withHistory(ctx,
+    P(`${tag}${i + 1}`, "WR", v, { adp: adps[i], adp_round: Math.ceil(adps[i] / 12) }), 10));
+  const aRoster = mk("A", [240, 150], [5, 150]);
+  const bRoster = mk("B", [238, 148], [6, 152]);
+  ctx.board = filler.concat(mine).concat(aRoster).concat(bRoster);
+  return { ctx, me: state(mine, allPicks()),
+           a: { teamId: 2, state: state(aRoster, allPicks()) },
+           b: { teamId: 3, state: state(bRoster, allPicks()) } };
+};
+
+check("suggestTrades refuses two opponents under one shared ctx", () => {
+  const { ctx, me, a, b } = twoOpponents();
+  assert.throws(() => T.suggestTrades(me, [a, b], ctx), /keptElsewhere/,
+    "two opponents under one ctx must fail loudly, not score one of them wrong");
+  // ONE opponent is still fine: the caller's ctx is correct for that pair by
+  // construction, which is what every existing call in this file relies on.
+  assert.doesNotThrow(() => T.suggestTrades(me, [a], ctx),
+    "the single-opponent contract is unchanged");
+});
+
+check("per-opponent ctx makes a sweep identical to separate runs", () => {
+  const { ctx, me, a, b } = twoOpponents();
+  // Two genuinely different pools: each opponent's ctx keeps the OTHER
+  // opponent's best receiver off the board, which is what the real caller
+  // derives per partner.
+  const ctxA = Object.assign({}, ctx, { keptElsewhere: new Set(["B1"]) });
+  const ctxB = Object.assign({}, ctx, { keptElsewhere: new Set(["A1"]) });
+
+  const sweep = T.suggestTrades(me, [Object.assign({ ctx: ctxA }, a),
+                                     Object.assign({ ctx: ctxB }, b)], ctx);
+  const alone = T.suggestTrades(me, [a], ctxA).concat(T.suggestTrades(me, [b], ctxB));
+
+  const key = s => `${s.teamId}|${s.myGain.toFixed(4)}|${s.theirGain.toFixed(4)}`;
+  assert.deepStrictEqual(sweep.map(key).sort(), alone.map(key).sort(),
+    "a sweep must score each opponent exactly as a run against that opponent alone");
+  // Teeth: a vacuous pass would be two empty lists.
+  assert.ok(sweep.length > 0, "the scenario must actually produce offers to compare");
+  assert.ok(new Set(sweep.map(s => s.teamId)).size === 2,
+    "and offers from BOTH opponents, or the comparison proves nothing");
+});
+
 console.log(`trade_fixture: ${n} groups OK`);

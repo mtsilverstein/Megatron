@@ -1117,18 +1117,53 @@
   // final-fixes-wave3-report.md), MODULO dedup (final-fixes-wave4.md): the raw
   // scored list is now deduped before the sort, so the return shape and sort
   // order are unchanged but padded duplicates are gone.
+  // ONE ctx CANNOT BE CORRECT FOR TWO OPPONENTS, so more than one requires each
+  // entry to bring its own.
+  //
+  // `ctx.keptElsewhere` names the players held by the teams OUTSIDE this trade,
+  // who are therefore gone from the draft pool. The opponent IN the trade is
+  // deliberately excluded from it: his keepers are decided inside the trade
+  // rather than assumed. That makes keptElsewhere a property of the PAIR, not
+  // of the league, and no single value of it is right for two opponents at
+  // once. Looping several opponents against one ctx scored every opponent but
+  // the intended one with his own keepers wrongly removed from the pool and the
+  // intended one's wrongly restored -- and since every number here is a
+  // difference of two state values, that surfaced as a plausible wrong number
+  // rather than an error. Measured live on a 12-team league: the same package
+  // (a running back for a 2026 R4) prices at +25.5 against one opponent and
+  // +5.5 against another, entirely through this term.
+  //
+  // Throwing rather than deriving it here is deliberate, and matches
+  // dedupOffers' own rule about holdings. This module cannot derive
+  // keptElsewhere honestly: it would need every team in the league, and
+  // `others` may legitimately be a subset -- so a derivation would quietly
+  // return the pool for a smaller league than the one being played.
+  //
+  // dedupOffers keeps the shared ctx on purpose: it only asks marketValue what
+  // a pick is worth, which reads ctx.board, teams, futureDiscount and season
+  // and never keptElsewhere. Padding is a property of the board, not the pair.
   function suggestTrades(me, others, ctx, opts = {}) {
     requireCtx(ctx);
+    const list = others || [];
+    if (list.length > 1 && list.some(o => !o || !o.ctx)) {
+      throw new Error(
+        "suggestTrades: with more than one opponent each entry needs its own "
+        + "`ctx` — ctx.keptElsewhere describes the teams outside the trade, so "
+        + "it is specific to the pair and one shared ctx would score every "
+        + "opponent but one against the wrong draft pool");
+    }
     const out = [];
-    for (const other of others) {
+    for (const other of list) {
+      const theirCtx = other.ctx || ctx;
+      requireCtx(theirCtx);
       const them = other.state;
-      for (const c of suggestCandidates(me, them, ctx, opts)) {
-        const s = scoreCandidate(me, them, c, ctx, opts);
+      for (const c of suggestCandidates(me, them, theirCtx, opts)) {
+        const s = scoreCandidate(me, them, c, theirCtx, opts);
         if (s) out.push(Object.assign({ teamId: other.teamId }, s));
       }
     }
     const deduped = dedupOffers(out, ctx,
-      { mine: me.picks, theirs: new Map(others.map(o => [o.teamId, o.state.picks])) });
+      { mine: me.picks, theirs: new Map(list.map(o => [o.teamId, o.state.picks])) });
     deduped.sort((a, b) => b.myGain - a.myGain);
     return deduped;
   }
