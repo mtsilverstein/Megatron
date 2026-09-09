@@ -1,4 +1,5 @@
 {
+  "league": {"slug":"gabagool","name":"Gabagool Fools","league_id":"1376245373244301312","teams":12,"roster":{"QB":1,"RB":2,"WR":2,"TE":1},"flex":2,"flex_positions":["RB","WR","TE"],"rounds":15,"starters":8,"total_picks":180,"depth_cap":{"QB":2,"RB":6,"WR":6,"TE":2},"board_ruleset":"league","platform":"sleeper","scoring":{"pass_yd":0.04,"pass_td":6,"interception":-2,"pass_int_td":-3,"rush_yd":0.1,"rush_td":6,"rec_yd":0.1,"rec_td":6,"reception":1,"fumble_lost":-2,"two_point":2,"st_td":6},"sleeper_scoring":{"pass_yd":0.04,"pass_td":6,"pass_int":-2,"pass_int_td":-3,"pass_2pt":2,"pass_td_50p":2,"rush_yd":0.1,"rush_td":6,"rush_2pt":2,"rush_td_50p":2,"rec":1,"rec_yd":0.1,"rec_td":6,"rec_2pt":2,"rec_td_50p":2,"fum_lost":-2,"fum_rec_td":6,"st_td":6,"st_fum_rec":1,"st_ff":1,"sack":1,"int":2,"ff":1,"fum_rec":2,"safe":2,"blk_kick":2,"def_td":6,"def_st_td":6,"def_st_fum_rec":1,"def_st_ff":1,"pts_allow_0":10,"pts_allow_1_6":7,"pts_allow_7_13":4,"pts_allow_14_20":1,"pts_allow_28_34":-1,"pts_allow_35p":-4,"fgm_yds":0.1,"fgmiss":-1,"xpm":1,"xpmiss":-1},"unprojected_scoring":{"pass_td_50p":2,"rush_td_50p":2,"rec_td_50p":2,"pass_2pt":2,"rush_2pt":2,"rec_2pt":2,"fum_rec_td":6,"st_td":6},"keeper_rules":"gabagool"},
   "generated_at": "2026-09-09T09:57:12+00:00",
   "data_through": "2025-wk18",
   "season": 2026,
@@ -372,17 +373,17 @@
         "ppr": {
           "p10": 5.24,
           "p50": 15.51,
-          "p90": 28.62
+          "p90": 28.63
         },
         "half_ppr": {
-          "p10": 5.26,
-          "p50": 15.52,
-          "p90": 28.57
+          "p10": 5.27,
+          "p50": 15.53,
+          "p90": 28.59
         },
         "standard": {
-          "p10": 5.28,
+          "p10": 5.29,
           "p50": 15.54,
-          "p90": 28.53
+          "p90": 28.54
         },
         "league": {
           "p10": 6.03,
@@ -391,11 +392,11 @@
         }
       },
       "stats_p50": {
-        "passing_yards": 245.05,
+        "passing_yards": 245.02,
         "passing_tds": 1.39,
         "passing_interceptions": 0.84,
-        "carries": 5.18,
-        "rushing_yards": 19.35,
+        "carries": 5.2,
+        "rushing_yards": 19.43,
         "rushing_tds": -0.0,
         "targets": -0.04,
         "receptions": -0.03,
@@ -1103,17 +1104,17 @@
         "ppr": {
           "p10": 4.21,
           "p50": 13.87,
-          "p90": 25.39
+          "p90": 25.38
         },
         "half_ppr": {
           "p10": 4.23,
           "p50": 13.87,
-          "p90": 25.33
+          "p90": 25.32
         },
         "standard": {
           "p10": 4.25,
           "p50": 13.87,
-          "p90": 25.26
+          "p90": 25.25
         },
         "league": {
           "p10": 4.96,
@@ -1122,11 +1123,11 @@
         }
       },
       "stats_p50": {
-        "passing_yards": 237.52,
+        "passing_yards": 237.62,
         "passing_tds": 1.32,
         "passing_interceptions": 0.8,
-        "carries": 2.59,
-        "rushing_yards": 7.77,
+        "carries": 2.58,
+        "rushing_yards": 7.72,
         "rushing_tds": -0.0,
         "targets": -0.04,
         "receptions": -0.01,
@@ -1617,36 +1618,36 @@
       "is_home": true,
       "points": {
         "ppr": {
-          "p10": 5.35,
-          "p50": 12.58,
-          "p90": 31.71
+          "p10": 5.34,
+          "p50": 12.56,
+          "p90": 31.69
         },
         "half_ppr": {
-          "p10": 4.66,
-          "p50": 10.85,
-          "p90": 28.82
+          "p10": 4.65,
+          "p50": 10.84,
+          "p90": 28.8
         },
         "standard": {
-          "p10": 3.97,
-          "p50": 9.13,
-          "p90": 25.93
+          "p10": 3.96,
+          "p50": 9.12,
+          "p90": 25.9
         },
         "league": {
-          "p10": 5.24,
-          "p50": 12.57,
-          "p90": 31.77
+          "p10": 5.23,
+          "p50": 12.56,
+          "p90": 31.75
         }
       },
       "stats_p50": {
         "passing_yards": 0.16,
         "passing_tds": -0.0,
         "passing_interceptions": 0.01,
-        "carries": 15.74,
-        "rushing_yards": 64.57,
+        "carries": 15.72,
+        "rushing_yards": 64.49,
         "rushing_tds": 0.0,
         "targets": 4.86,
-        "receptions": 3.45,
-        "receiving_yards": 26.47,
+        "receptions": 3.44,
+        "receiving_yards": 26.43,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -2488,7 +2489,7 @@
         },
         "standard": {
           "p10": 1.68,
-          "p50": 10.39,
+          "p50": 10.4,
           "p90": 24.59
         },
         "league": {
@@ -2498,11 +2499,11 @@
         }
       },
       "stats_p50": {
-        "passing_yards": 158.7,
+        "passing_yards": 158.76,
         "passing_tds": 0.71,
         "passing_interceptions": 0.47,
         "carries": 6.11,
-        "rushing_yards": 22.05,
+        "rushing_yards": 22.04,
         "rushing_tds": -0.0,
         "targets": -0.05,
         "receptions": -0.02,
@@ -2995,22 +2996,22 @@
         "ppr": {
           "p10": 3.78,
           "p50": 9.53,
-          "p90": 22.54
+          "p90": 22.55
         },
         "half_ppr": {
           "p10": 2.73,
-          "p50": 7.33,
-          "p90": 18.88
+          "p50": 7.34,
+          "p90": 18.9
         },
         "standard": {
           "p10": 1.68,
-          "p50": 5.13,
-          "p90": 15.23
+          "p50": 5.14,
+          "p90": 15.24
         },
         "league": {
-          "p10": 3.72,
-          "p50": 9.52,
-          "p90": 22.57
+          "p10": 3.73,
+          "p50": 9.53,
+          "p90": 22.58
         }
       },
       "stats_p50": {
@@ -3021,8 +3022,8 @@
         "rushing_yards": 0.01,
         "rushing_tds": -0.0,
         "targets": 6.94,
-        "receptions": 4.39,
-        "receiving_yards": 50.55,
+        "receptions": 4.4,
+        "receiving_yards": 50.6,
         "receiving_tds": 0.02,
         "fumbles_lost": -0.0
       }
@@ -4757,12 +4758,12 @@
       "points": {
         "ppr": {
           "p10": 2.07,
-          "p50": 7.52,
-          "p90": 20.88
+          "p50": 7.51,
+          "p90": 20.87
         },
         "half_ppr": {
-          "p10": 1.47,
-          "p50": 5.88,
+          "p10": 1.46,
+          "p50": 5.87,
           "p90": 17.92
         },
         "standard": {
@@ -4772,8 +4773,8 @@
         },
         "league": {
           "p10": 2.02,
-          "p50": 7.51,
-          "p90": 20.91
+          "p50": 7.5,
+          "p90": 20.9
         }
       },
       "stats_p50": {
@@ -4781,11 +4782,11 @@
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
         "carries": -0.01,
-        "rushing_yards": 0.01,
+        "rushing_yards": 0.0,
         "rushing_tds": -0.0,
-        "targets": 5.66,
-        "receptions": 3.28,
-        "receiving_yards": 41.71,
+        "targets": 5.65,
+        "receptions": 3.27,
+        "receiving_yards": 41.66,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -5014,24 +5015,24 @@
       "is_home": true,
       "points": {
         "ppr": {
-          "p10": 1.94,
-          "p50": 7.0,
-          "p90": 19.01
+          "p10": 1.95,
+          "p50": 7.02,
+          "p90": 19.05
         },
         "half_ppr": {
-          "p10": 1.35,
-          "p50": 5.32,
-          "p90": 15.95
+          "p10": 1.36,
+          "p50": 5.33,
+          "p90": 15.98
         },
         "standard": {
           "p10": 0.77,
-          "p50": 3.63,
-          "p90": 12.88
+          "p50": 3.65,
+          "p90": 12.91
         },
         "league": {
-          "p10": 1.9,
-          "p50": 6.99,
-          "p90": 19.04
+          "p10": 1.91,
+          "p50": 7.02,
+          "p90": 19.08
         }
       },
       "stats_p50": {
@@ -5041,9 +5042,9 @@
         "carries": -0.01,
         "rushing_yards": -0.03,
         "rushing_tds": -0.0,
-        "targets": 5.28,
-        "receptions": 3.37,
-        "receiving_yards": 35.89,
+        "targets": 5.29,
+        "receptions": 3.38,
+        "receiving_yards": 36.02,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -5057,36 +5058,36 @@
       "is_home": false,
       "points": {
         "ppr": {
-          "p10": 2.71,
-          "p50": 6.99,
-          "p90": 20.63
+          "p10": 2.7,
+          "p50": 6.98,
+          "p90": 20.61
         },
         "half_ppr": {
-          "p10": 2.43,
-          "p50": 6.15,
-          "p90": 18.92
+          "p10": 2.42,
+          "p50": 6.14,
+          "p90": 18.91
         },
         "standard": {
-          "p10": 2.15,
+          "p10": 2.14,
           "p50": 5.31,
-          "p90": 17.22
+          "p90": 17.21
         },
         "league": {
           "p10": 2.62,
-          "p50": 6.99,
-          "p90": 20.66
+          "p50": 6.98,
+          "p90": 20.65
         }
       },
       "stats_p50": {
-        "passing_yards": -0.05,
+        "passing_yards": -0.06,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
-        "carries": 11.23,
-        "rushing_yards": 45.0,
+        "carries": 11.2,
+        "rushing_yards": 44.89,
         "rushing_tds": 0.0,
         "targets": 2.26,
-        "receptions": 1.68,
-        "receiving_yards": 8.35,
+        "receptions": 1.67,
+        "receiving_yards": 8.36,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -6339,49 +6340,6 @@
       }
     },
     {
-      "player_id": "00-0038997",
-      "name": "Josh Downs",
-      "team": "IND",
-      "opponent": "BAL",
-      "position": "WR",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 1.13,
-          "p50": 5.74,
-          "p90": 17.63
-        },
-        "half_ppr": {
-          "p10": 0.77,
-          "p50": 4.37,
-          "p90": 14.98
-        },
-        "standard": {
-          "p10": 0.4,
-          "p50": 3.0,
-          "p90": 12.33
-        },
-        "league": {
-          "p10": 1.09,
-          "p50": 5.73,
-          "p90": 17.65
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 0.04,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": -0.01,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 4.5,
-        "receptions": 2.74,
-        "receiving_yards": 29.52,
-        "receiving_tds": 0.01,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0039847",
       "name": "Theo Johnson",
       "team": "NYG",
@@ -6420,6 +6378,49 @@
         "targets": 4.44,
         "receptions": 2.8,
         "receiving_yards": 28.98,
+        "receiving_tds": 0.01,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0038997",
+      "name": "Josh Downs",
+      "team": "IND",
+      "opponent": "BAL",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 1.13,
+          "p50": 5.72,
+          "p90": 17.62
+        },
+        "half_ppr": {
+          "p10": 0.76,
+          "p50": 4.36,
+          "p90": 14.98
+        },
+        "standard": {
+          "p10": 0.39,
+          "p50": 3.0,
+          "p90": 12.33
+        },
+        "league": {
+          "p10": 1.08,
+          "p50": 5.72,
+          "p90": 17.64
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": -0.01,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 4.49,
+        "receptions": 2.73,
+        "receiving_yards": 29.47,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -7424,7 +7425,7 @@
         "ppr": {
           "p10": 0.62,
           "p50": 4.92,
-          "p90": 16.77
+          "p90": 16.76
         },
         "half_ppr": {
           "p10": 0.38,
@@ -7451,7 +7452,7 @@
         "rushing_tds": -0.0,
         "targets": 3.94,
         "receptions": 2.34,
-        "receiving_yards": 25.3,
+        "receiving_yards": 25.29,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -8842,7 +8843,7 @@
       "points": {
         "ppr": {
           "p10": 0.27,
-          "p50": 4.04,
+          "p50": 4.05,
           "p90": 15.09
         },
         "half_ppr": {
@@ -9273,17 +9274,17 @@
         "ppr": {
           "p10": 0.32,
           "p50": 3.85,
-          "p90": 14.1
+          "p90": 14.09
         },
         "half_ppr": {
           "p10": 0.17,
           "p50": 2.92,
-          "p90": 12.05
+          "p90": 12.04
         },
         "standard": {
           "p10": 0.02,
           "p50": 1.98,
-          "p90": 10.0
+          "p90": 9.99
         },
         "league": {
           "p10": 0.28,
@@ -9299,7 +9300,7 @@
         "rushing_yards": -0.02,
         "rushing_tds": -0.0,
         "targets": 3.21,
-        "receptions": 1.88,
+        "receptions": 1.87,
         "receiving_yards": 19.44,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
@@ -10391,7 +10392,7 @@
         "ppr": {
           "p10": 0.97,
           "p50": 3.29,
-          "p90": 13.46
+          "p90": 13.45
         },
         "half_ppr": {
           "p10": 0.84,
@@ -10477,22 +10478,22 @@
         "ppr": {
           "p10": 0.44,
           "p50": 3.21,
-          "p90": 11.52
+          "p90": 11.54
         },
         "half_ppr": {
           "p10": 0.26,
-          "p50": 2.35,
-          "p90": 9.68
+          "p50": 2.36,
+          "p90": 9.69
         },
         "standard": {
-          "p10": 0.07,
-          "p50": 1.49,
-          "p90": 7.83
+          "p10": 0.08,
+          "p50": 1.5,
+          "p90": 7.85
         },
         "league": {
           "p10": 0.41,
-          "p50": 3.2,
-          "p90": 11.53
+          "p50": 3.21,
+          "p90": 11.55
         }
       },
       "stats_p50": {
@@ -10503,8 +10504,8 @@
         "rushing_yards": -0.02,
         "rushing_tds": -0.0,
         "targets": 2.69,
-        "receptions": 1.71,
-        "receiving_yards": 14.69,
+        "receptions": 1.72,
+        "receiving_yards": 14.72,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -10664,7 +10665,7 @@
         "league": {
           "p10": 0.16,
           "p50": 3.1,
-          "p90": 11.75
+          "p90": 11.74
         }
       },
       "stats_p50": {
@@ -10778,22 +10779,22 @@
         "ppr": {
           "p10": 0.41,
           "p50": 3.09,
-          "p90": 11.27
+          "p90": 11.29
         },
         "half_ppr": {
-          "p10": 0.23,
-          "p50": 2.26,
-          "p90": 9.47
+          "p10": 0.24,
+          "p50": 2.27,
+          "p90": 9.48
         },
         "standard": {
           "p10": 0.06,
           "p50": 1.44,
-          "p90": 7.66
+          "p90": 7.67
         },
         "league": {
           "p10": 0.38,
-          "p50": 3.08,
-          "p90": 11.29
+          "p50": 3.09,
+          "p90": 11.3
         }
       },
       "stats_p50": {
@@ -10805,7 +10806,7 @@
         "rushing_tds": -0.0,
         "targets": 2.6,
         "receptions": 1.65,
-        "receiving_yards": 14.22,
+        "receiving_yards": 14.24,
         "receiving_tds": 0.01,
         "fumbles_lost": -0.0
       }
@@ -16702,49 +16703,6 @@
       }
     },
     {
-      "player_id": "00-0040317",
-      "name": "Jacoby Jones",
-      "team": "WAS",
-      "opponent": "PHI",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.05,
-          "p50": 1.7,
-          "p90": 8.41
-        },
-        "half_ppr": {
-          "p10": -0.1,
-          "p50": 1.25,
-          "p90": 7.05
-        },
-        "standard": {
-          "p10": -0.16,
-          "p50": 0.79,
-          "p90": 5.68
-        },
-        "league": {
-          "p10": -0.09,
-          "p50": 1.69,
-          "p90": 8.43
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.04,
-        "passing_tds": -0.0,
-        "passing_interceptions": -0.0,
-        "carries": 0.0,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 1.7,
-        "receptions": 0.9,
-        "receiving_yards": 7.97,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0034418",
       "name": "Cedrick Wilson Jr.",
       "team": "MIA",
@@ -17744,17 +17702,17 @@
         "ppr": {
           "p10": 0.1,
           "p50": 1.37,
-          "p90": 8.81
+          "p90": 8.8
         },
         "half_ppr": {
           "p10": 0.05,
           "p50": 1.18,
-          "p90": 7.97
+          "p90": 7.96
         },
         "standard": {
           "p10": 0.0,
           "p50": 0.99,
-          "p90": 7.13
+          "p90": 7.12
         },
         "league": {
           "p10": 0.06,
@@ -17766,8 +17724,8 @@
         "passing_yards": 0.09,
         "passing_tds": 0.0,
         "passing_interceptions": 0.01,
-        "carries": 2.86,
-        "rushing_yards": 9.46,
+        "carries": 2.85,
+        "rushing_yards": 9.45,
         "rushing_tds": -0.0,
         "targets": 0.64,
         "receptions": 0.37,
@@ -18131,7 +18089,7 @@
         "ppr": {
           "p10": 0.02,
           "p50": 1.33,
-          "p90": 6.36
+          "p90": 6.37
         },
         "half_ppr": {
           "p10": -0.06,
@@ -18157,8 +18115,8 @@
         "rushing_yards": -0.02,
         "rushing_tds": -0.0,
         "targets": 1.25,
-        "receptions": 0.81,
-        "receiving_yards": 5.18,
+        "receptions": 0.82,
+        "receiving_yards": 5.19,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -19110,6 +19068,49 @@
       }
     },
     {
+      "player_id": "00-0040317",
+      "name": "Jacoby Jones",
+      "team": "WAS",
+      "opponent": "PHI",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.14,
+          "p50": 1.13,
+          "p90": 6.9
+        },
+        "half_ppr": {
+          "p10": -0.17,
+          "p50": 0.81,
+          "p90": 5.72
+        },
+        "standard": {
+          "p10": -0.21,
+          "p50": 0.49,
+          "p90": 4.55
+        },
+        "league": {
+          "p10": -0.18,
+          "p50": 1.13,
+          "p90": 6.91
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.04,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": 0.02,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 1.25,
+        "receptions": 0.64,
+        "receiving_yards": 4.99,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0039623",
       "name": "Mason Tipton",
       "team": "NO",
@@ -19335,7 +19336,7 @@
         "ppr": {
           "p10": 0.02,
           "p50": 1.09,
-          "p90": 7.19
+          "p90": 7.18
         },
         "half_ppr": {
           "p10": -0.06,
@@ -19357,12 +19358,12 @@
         "passing_yards": -0.05,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
-        "carries": 1.44,
-        "rushing_yards": 4.23,
+        "carries": 1.43,
+        "rushing_yards": 4.22,
         "rushing_tds": -0.0,
         "targets": 0.87,
         "receptions": 0.55,
-        "receiving_yards": 1.43,
+        "receiving_yards": 1.42,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -20066,22 +20067,22 @@
         "ppr": {
           "p10": -0.08,
           "p50": 0.93,
-          "p90": 5.59
+          "p90": 5.58
         },
         "half_ppr": {
           "p10": -0.13,
           "p50": 0.63,
-          "p90": 4.57
+          "p90": 4.56
         },
         "standard": {
           "p10": -0.18,
           "p50": 0.33,
-          "p90": 3.54
+          "p90": 3.53
         },
         "league": {
           "p10": -0.11,
-          "p50": 0.93,
-          "p90": 5.61
+          "p50": 0.92,
+          "p90": 5.6
         }
       },
       "stats_p50": {
@@ -20091,9 +20092,9 @@
         "carries": -0.01,
         "rushing_yards": -0.04,
         "rushing_tds": -0.0,
-        "targets": 1.0,
+        "targets": 0.99,
         "receptions": 0.6,
-        "receiving_yards": 3.38,
+        "receiving_yards": 3.36,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -20591,7 +20592,7 @@
         },
         "standard": {
           "p10": -0.19,
-          "p50": 0.4,
+          "p50": 0.41,
           "p90": 4.56
         },
         "league": {
@@ -20609,7 +20610,7 @@
         "rushing_tds": -0.0,
         "targets": 0.6,
         "receptions": 0.39,
-        "receiving_yards": 0.71,
+        "receiving_yards": 0.72,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
@@ -21255,6 +21256,49 @@
         "targets": 0.83,
         "receptions": 0.41,
         "receiving_yards": 2.82,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0037091",
+      "name": "Bo Melton",
+      "team": "GB",
+      "opponent": "MIN",
+      "position": "WR",
+      "is_home": false,
+      "points": {
+        "ppr": {
+          "p10": -0.23,
+          "p50": 0.68,
+          "p90": 5.54
+        },
+        "half_ppr": {
+          "p10": -0.24,
+          "p50": 0.48,
+          "p90": 4.58
+        },
+        "standard": {
+          "p10": -0.26,
+          "p50": 0.28,
+          "p90": 3.61
+        },
+        "league": {
+          "p10": -0.27,
+          "p50": 0.68,
+          "p90": 5.56
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.05,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 0.02,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 0.87,
+        "receptions": 0.4,
+        "receiving_yards": 2.91,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
@@ -23291,7 +23335,7 @@
         "ppr": {
           "p10": -0.25,
           "p50": 0.32,
-          "p90": 4.28
+          "p90": 4.27
         },
         "half_ppr": {
           "p10": -0.27,
@@ -23301,7 +23345,7 @@
         "standard": {
           "p10": -0.28,
           "p50": 0.15,
-          "p90": 3.09
+          "p90": 3.08
         },
         "league": {
           "p10": -0.28,
@@ -23314,7 +23358,7 @@
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
         "carries": 0.57,
-        "rushing_yards": 1.26,
+        "rushing_yards": 1.25,
         "rushing_tds": -0.0,
         "targets": 0.29,
         "receptions": 0.17,
@@ -23476,7 +23520,7 @@
           "p90": 2.25
         },
         "league": {
-          "p10": -0.22,
+          "p10": -0.23,
           "p50": 0.31,
           "p90": 3.61
         }
@@ -24313,6 +24357,49 @@
       }
     },
     {
+      "player_id": "00-0035021",
+      "name": "Ashton Dulin",
+      "team": "IND",
+      "opponent": "BAL",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.29,
+          "p50": 0.19,
+          "p90": 3.96
+        },
+        "half_ppr": {
+          "p10": -0.29,
+          "p50": 0.12,
+          "p90": 3.24
+        },
+        "standard": {
+          "p10": -0.28,
+          "p50": 0.05,
+          "p90": 2.52
+        },
+        "league": {
+          "p10": -0.33,
+          "p50": 0.18,
+          "p90": 3.98
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.05,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 0.0,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 0.43,
+        "receptions": 0.14,
+        "receiving_yards": 0.64,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0038409",
       "name": "Lew Nichols III",
       "team": "PIT",
@@ -24608,7 +24695,7 @@
         "rushing_tds": -0.0,
         "targets": 0.28,
         "receptions": 0.15,
-        "receiving_yards": 0.24,
+        "receiving_yards": 0.23,
         "receiving_tds": -0.0,
         "fumbles_lost": -0.0
       }
@@ -25355,7 +25442,7 @@
         "ppr": {
           "p10": -0.3,
           "p50": 0.08,
-          "p90": 2.71
+          "p90": 2.72
         },
         "half_ppr": {
           "p10": -0.3,
@@ -25525,28 +25612,28 @@
       "is_home": true,
       "points": {
         "ppr": {
-          "p10": -0.33,
+          "p10": -0.32,
           "p50": 0.07,
-          "p90": 3.5
+          "p90": 3.51
         },
         "half_ppr": {
           "p10": -0.31,
-          "p50": 0.03,
-          "p90": 2.87
+          "p50": 0.04,
+          "p90": 2.88
         },
         "standard": {
           "p10": -0.3,
           "p50": 0.0,
-          "p90": 2.23
+          "p90": 2.24
         },
         "league": {
           "p10": -0.36,
           "p50": 0.07,
-          "p90": 3.52
+          "p90": 3.53
         }
       },
       "stats_p50": {
-        "passing_yards": -0.03,
+        "passing_yards": -0.02,
         "passing_tds": -0.0,
         "passing_interceptions": 0.0,
         "carries": -0.01,
