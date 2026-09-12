@@ -128,11 +128,11 @@ def compare_baselines(pairs: pd.DataFrame, baseline: pd.DataFrame) -> dict:
     Canonical input must carry exact GSIS identity and pre-kickoff provenance.
     kickoff_at is the FIRST regular-season kickoff of that NFL week, not an
     individual player's kickoff. Date-only snapshot times are not sufficient.
-    ECR is ascending; projected FPTS is descending. Neither is rescored into
-    league points. Regret uses the diagnostic's realized league-score gaps.
+    ECR is ascending and never converted to league points. External projected
+    FPTS is ignored. Regret uses the diagnostic's realized league-score gaps.
     """
     keys = ["season", "week", "position", "player_id"]
-    required = set(keys + ["snapshot_at", "kickoff_at", "ecr", "projected_fpts"])
+    required = set(keys + ["snapshot_at", "kickoff_at", "ecr"])
     if required - set(baseline):
         raise ValueError(f"missing baseline columns: {sorted(required - set(baseline))}")
     if baseline[keys].isna().any().any() or baseline.duplicated(keys).any():
@@ -153,14 +153,13 @@ def compare_baselines(pairs: pd.DataFrame, baseline: pd.DataFrame) -> dict:
     joined = pairs.copy()
     for side, player in [("chosen", "chosen_player_id"), ("other", "other_player_id")]:
         renamed = source.rename(columns={"player_id": player,
-                                        "ecr": f"{side}_ecr",
-                                        "projected_fpts": f"{side}_projected_fpts"})
+                                        "ecr": f"{side}_ecr"})
         joined = joined.merge(renamed[["season", "week", "position", player,
-                                      f"{side}_ecr", f"{side}_projected_fpts"]],
+                                      f"{side}_ecr"]],
                               how="left", on=["season", "week", "position", player],
                               validate="many_to_one")
     results = {}
-    for metric, direction in [("ecr", -1), ("projected_fpts", 1)]:
+    for metric, direction in [("ecr", -1)]:
         a = pd.to_numeric(joined[f"chosen_{metric}"], errors="coerce")
         b = pd.to_numeric(joined[f"other_{metric}"], errors="coerce")
         covered = np.isfinite(a) & np.isfinite(b)

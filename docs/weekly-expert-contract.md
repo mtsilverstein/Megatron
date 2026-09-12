@@ -1,46 +1,55 @@
-# Weekly expert interface
+# Weekly ECR reference contract
 
-Start/sit owns the diagnostic and browser consumer. Consensus ingestion owns
-the source payload. Neither `rankings.py` nor `generate.py` was modified in
-this increment. Claude CLI reviewed the existing source adapters read-only;
-it confirmed the current normalizer does not retain projected FPTS.
+External projected FPTS is not an input, displayed reference, or diagnostic
+benchmark. Our model owns league-scored points. Weekly ECR is an independent
+reference; ROS is a separate horizon, not a weekly substitute or additive
+trade currency. No paid source dependency is required.
 
-## Browser payload: `site/data/weekly-ecr.json`
+## Browser payload
 
-Required top-level fields: `schema_version: 1`, integer `season` and `week`,
-`snapshot_at` (ISO timestamp), `source` (display label), `scoring_format`
-(`ppr`, `half_ppr`, `standard`), and `players`.
+site/data/weekly-ecr.json requires schema_version 2, horizon weekly,
+rank_scope position, integer season/week, snapshot_at, source,
+scoring_format (ppr, half_ppr, standard), and players. Players contain exact
+GSIS player_id, position, and positive or null ecr. The consumer discards
+external points. Wrong horizon, scope, week, schema, duplicate identity or
+stale data rejects the reference without changing the model lineup solver.
 
-Each player: exact GSIS `player_id`, `position`, positive numeric or null
-`ecr` (POSITIONAL, lower is better), numeric or null `projected_fpts`.
-Unknown fields must not be fabricated as zero. Unmatched identities must not
-be joined by display name in the consumer. Duplicate identities reject the
-payload. K/DEF references may be retained but no K/DEF lineup model is added.
+Date-only exports declare snapshot_precision date. Their filename date is
+not a verified capture time. Current freshness uses the date's UTC start
+conservatively. Historical evaluation rejects date-only timestamps.
+Positional ranks cannot compare different positions for FLEX.
 
-Weekly page rejects mismatched season/week, missing provenance and snapshots
-over seven days old or in the future. Optional-source failure does not break
-the model table. Reference points do not change with the model scoring lens
-and never enter the lineup optimizer. Positional ECR is not a cross-position
-FLEX comparison. The payload is not yet generated or published.
+## Manual fallback
+
+Run python -m ffmodel.site.weekly_experts with --scoring-format ppr,
+--out site/data/weekly-ecr.json and QB/RB/WR/TE export paths. User confirmed
+PPR for September 10 exports. Import ignores PROJ. FPTS entirely, including
+missing or malformed values. Normalized name plus position joins reject
+ambiguity and duplicate identities; unmatched players are reported.
+Original exports remain unchanged. ECR-only payload has 612 mapped players.
 
 ## Historical diagnostic
 
-`start_sit.py --baseline-json PATH` accepts a JSON array of canonical rows:
-`season`, `week`, `position`, `player_id`, `snapshot_at`, `kickoff_at`, `ecr`,
-`projected_fpts`. `kickoff_at` must be the first regular-season kickoff of the
-NFL week, consistently across all rows. Timestamps must have explicit zones.
-Date-only snapshots cannot prove an intraday cutoff and are excluded; a
-source adapter must handle date precision conservatively, never invent a
-capture time. Snapshots must precede kickoff and be at most seven days old.
+start_sit.py --baseline-json PATH accepts canonical rows: season, week,
+position, player_id, snapshot_at, kickoff_at, ecr. No FPTS required or used.
+Cutoff is the first regular-season kickoff of the week, consistently across
+rows. Snapshots need explicit timezones, must precede cutoff, and be no more
+than seven days old. Duplicate identities fail closed.
 
-Both entrants are compared on identical model-selected close-call pairs.
-Missing expert values and expert ties are accounted for separately; actual
-ties do not enter accuracy. Regret uses the diagnostic's existing realized
-league-score subset. This does not make expert FPTS league-specific and does
-not eliminate the existing played-player conditioning or dependent pairs.
-No new measured accuracy claim has been produced from real historical data.
+Model and ECR use identical model-selected close-call pairs, with coverage,
+baseline ties and actual ties reported separately. Regret uses the existing
+realized league-score subset. Played-player conditioning and pair dependence
+remain limitations; no new measured edge is claimed.
 
-Validation: 41 targeted Python tests passed (start/sit and weekly consensus),
-plus the new weekly-expert Node fixture. Browser integration has not yet been
-verified with a real source payload. Source ingestion, canonical identity
-mapping and the actual historical comparison run remain next steps.
+## Free automation investigation — September 12
+
+Live nflreadpy.load_ff_rankings('week') returned 1,095 rows dated September
+12, using NEW fields page, page_pos, fantasypros_id, player_name. It includes
+explicit ppr-rb, ppr-wr, ppr-te, plus qb and other positions. The historical
+page_type normalizer is incompatible. Ignore r2p_pts and other projection
+fields. A safe live adapter still needs week/provenance validation; automatic
+ROS coverage is not yet verified. Never label a current feed as an arbitrary
+requested week.
+
+rankings.py and generate.py remain untouched. No scheduled refresh has been
+enabled in this increment.

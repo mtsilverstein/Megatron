@@ -50,7 +50,6 @@
         <th data-key-lens="points.{lens}.p10" class="num">Floor</th>
         <th data-key-lens="points.{lens}.p90" class="num">Ceiling</th>
         <th class="num">Expert positional ECR</th>
-        <th class="num">Expert FPTS · source scoring</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -65,7 +64,7 @@ consensus; at running back specifically it has measurably out-ranked
 consensus, and that edge replicated on a disjoint set of seasons — see the
 about page for the numbers.</footer>
 <script src="assets/bands.js"></script>
-<script src="assets/weekly-experts.js?v=1"></script>
+<script src="assets/weekly-experts.js?v=2"></script>
 <script src="assets/app.js?v=leagues3"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/waivermode.js?v=leagues2"></script>
@@ -135,7 +134,7 @@ about page for the numbers.</footer>
         <td class="num">${FC.fmt(pts.p10)}</td>
         <td class="num">${FC.fmt(pts.p90)}</td>`;
       const expert=experts.get(p.player_id);
-      for(const key of ["ecr","projected_fpts"]){
+      for(const key of ["ecr"]){
         const cell=document.createElement("td"); cell.className="num";
         cell.textContent=expert?.position===p.position && expert[key]!==null ? FC.fmt(expert[key]) : "—";
         tr.append(cell);
@@ -159,7 +158,7 @@ about page for the numbers.</footer>
   render(rows);
   FC.loadJSON("data/weekly-ecr.json").then(source=>{
     experts=WeeklyExperts.prepare(source,payload);
-    document.getElementById("expert-status").textContent=`Expert reference: ${source.source} · ${source.scoring_format} · snapshot ${source.snapshot_at}. ECR is within position only. FPTS uses source scoring, not necessarily this league's settings. Neither replaces model lineup points.`;
+    document.getElementById("expert-status").textContent=`Expert reference: ${source.source} · ${source.scoring_format} · snapshot ${source.snapshot_at}${source.snapshot_precision==="date"?" (date only; capture time unverified)":""}. ECR is within position only, not a FLEX ranking. It does not replace or blend into model lineup points.`;
     render(rows);
   }).catch(error=>{
     document.getElementById("expert-status").textContent=`Expert reference unavailable: ${error.message}. Model advice is unchanged.`;

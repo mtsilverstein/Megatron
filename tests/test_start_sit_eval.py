@@ -85,7 +85,8 @@ def test_baseline_directions_and_identical_pair_cohort():
     assert result["ecr"]["baseline_accuracy"] == 1
     assert result["ecr"]["baseline_mean_regret"] == 0
     assert result["ecr"]["model_mean_regret_same_pairs"] == 6
-    assert result["projected_fpts"]["baseline_accuracy"] == 0
+    assert "projected_fpts" not in result
+    assert compare_baselines(pairs, source.drop(columns="projected_fpts"))["baselines"] == result
 
 
 @pytest.mark.parametrize("timestamp", ["bad", "2025-09-04", "2025-09-04T10:00:00", "2025-09-05T00:00:00Z", "2025-09-06T00:00:00Z", "2025-08-01T00:00:00Z"])
@@ -105,7 +106,7 @@ def test_baseline_ties_missing_metrics_and_duplicate_identity():
     result = compare_baselines(pairs, source)["baselines"]
     assert result["ecr"]["baseline_ties"] == 1
     assert result["ecr"]["comparable_pairs"] == 0
-    assert result["projected_fpts"]["missing_pairs"] == 1
+    assert "projected_fpts" not in result
     with pytest.raises(ValueError, match="duplicate"):
         compare_baselines(pairs, pd.concat([source, source]))
 
