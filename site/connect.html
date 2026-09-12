@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find my leagues — Megatron</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="masthead"><h1 class="wordmark">Megatron</h1><nav><a href="weekly.html?league=gabagool">Gabagool weekly</a><a href="weekly.html?league=fam">FAM weekly</a><a href="connect.html" aria-current="page">Find my leagues</a></nav></header>
+<main>
+<h1>Find my Sleeper leagues</h1>
+<p>Enter your public username to discover current-season leagues and inspect their settings. No password needed. Only your username is remembered on this device; opening one league does not switch another tab.</p>
+<form id="connect-form"><label for="connect-user">Sleeper username</label> <input id="connect-user" required autocomplete="off" spellcheck="false"> <button type="submit">Find / refresh leagues</button></form>
+<p id="connect-status" role="status">Gabagool and FAM use the same account: Max973.</p>
+<div id="connect-results"></div>
+<h2>What is supported?</h2>
+<p>Gabagool and FAM Sleeper have configured weekly/start-sit and waiver tools. Other Sleeper leagues can be discovered and inspected, but cannot receive advice yet. ESPN in-season tools and an in-season trade evaluator are not connected. The existing trade calculator is pre-draft only.</p>
+</main>
+<script src="assets/sleeper.js"></script>
+<script src="assets/connect.js?v=1"></script>
+<script>LeagueConnect.init();</script>
+</body>
+</html>

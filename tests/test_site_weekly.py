@@ -7,7 +7,7 @@ import pytest
 from ffmodel.baseline.naive import NaiveLast4
 from ffmodel.data.future import build_future_features
 from ffmodel.site.weekly import build_weekly_projections
-from ffmodel.scoring import PREDICTED_STATS
+from ffmodel.scoring import PREDICTED_STATS, fantasy_points
 
 from tests.test_future import _history, _sched_with_future
 
@@ -46,7 +46,32 @@ def test_payload_schema_and_scoring():
     assert top["points"]["standard"]["p50"] == pytest.approx(8.0)
     assert top["points"]["ppr"]["p10"] == pytest.approx(6.5)
     assert set(top["stats_p50"]) == set(PREDICTED_STATS)
+    assert payload["stat_projection_schema"] == {
+        "version": 1,
+        "band_method": (
+            "component stat quantiles; not calibrated custom-scoring intervals"
+        ),
+    }
+    assert set(top["stat_quantiles"]) == {"p10", "p50", "p90"}
+    assert set(top["stat_quantiles"]["p50"]) == set(PREDICTED_STATS)
     json.dumps(payload)  # strictly serializable
+
+
+def test_stat_quantiles_preserve_full_float_precision():
+    _, future = _future()
+
+    class _PrecisionStub(_QuantileStub):
+        def predict_quantiles(self, test):
+            frames = super().predict_quantiles(test)
+            frames["p50"]["receiving_yards"] = 80.1234567890123
+            return frames
+
+    payload = build_weekly_projections(
+        future, _PrecisionStub(), 2023, 7, "2023-10-15"
+    )
+    player = payload["players"][0]
+    assert player["stat_quantiles"]["p50"]["receiving_yards"] == 80.1234567890123
+    assert player["stats_p50"]["receiving_yards"] == 80.12
 
 
 def test_sorted_by_ppr_p50_desc():
@@ -84,6 +109,24 @@ def test_weekly_band_ceiling_is_sign_coherent_for_interceptions():
     assert pts["p10"] <= pts["p50"] <= pts["p90"]
 
 
+def test_raw_stat_quantiles_rescore_to_existing_p50_with_negative_ints():
+    _, future = _future()
+
+    class _IntPrecisionStub(_QuantileStub):
+        def predict_quantiles(self, test):
+            z = pd.DataFrame(0.0, index=test.index, columns=PREDICTED_STATS)
+            z["passing_yards"] = 250.125
+            z["passing_interceptions"] = 1.25
+            return {"p10": z.copy(), "p50": z.copy(), "p90": z.copy()}
+
+    payload = build_weekly_projections(
+        future, _IntPrecisionStub(), 2023, 7, "2023-10-15"
+    )
+    player = payload["players"][0]
+    raw = pd.DataFrame([player["stat_quantiles"]["p50"]])
+    assert round(float(fantasy_points(raw).iloc[0]), 2) == player["points"]["ppr"]["p50"]
+
+
 def test_point_only_predictor_has_null_bands():
     weekly, future = _future()
     from ffmodel.data.features import build_features
@@ -94,7 +137,46 @@ def test_point_only_predictor_has_null_bands():
     assert payload["has_bands"] is False
     top = payload["players"][0]
     assert top["points"]["ppr"]["p10"] is None and top["points"]["ppr"]["p90"] is None
+    assert top["stat_quantiles"]["p10"] is None
+    assert top["stat_quantiles"]["p90"] is None
+    assert top["stat_quantiles"]["p50"] is not None
     json.dumps(payload)
+
+
+def test_stat_quantiles_include_pick_six_enrichment():
+    _, future = _future()
+    future = future.copy()
+    future.loc[future.index[0], "position"] = "QB"
+
+    class _IntStub(_QuantileStub):
+        def predict_quantiles(self, test):
+            frames = super().predict_quantiles(test)
+            for frame in frames.values():
+                frame["passing_interceptions"] = 1.0
+            return frames
+
+    payload = build_weekly_projections(
+        future, _IntStub(), 2023, 7, "2023-10-15",
+        pick_six_prior={"rate": 0.1},
+    )
+    qb = next(player for player in payload["players"] if player["position"] == "QB")
+    assert qb["stat_quantiles"]["p50"]["passing_pick_sixes"] == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf])
+def test_stat_quantiles_reject_nonfinite_values(value):
+    _, future = _future()
+
+    class _NonfiniteStub(_QuantileStub):
+        def predict_quantiles(self, test):
+            frames = super().predict_quantiles(test)
+            frames["p50"].iloc[0, 0] = value
+            return frames
+
+    with pytest.raises(ValueError, match="nonfinite p50 stat projection"):
+        build_weekly_projections(
+            future, _NonfiniteStub(), 2023, 7, "2023-10-15"
+        )
 
 
 def test_empty_future_fails_loud():

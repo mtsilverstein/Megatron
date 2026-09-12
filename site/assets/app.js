@@ -28,7 +28,8 @@ window.FC = (() => {
     label.append(select);panel.append(label);
     const note=document.createElement("p");
     note.textContent=slug==="espnfam"?"ESPN: draft board supported; live in-season tools are not connected yet.":"Draft board, weekly/start-sit and waiver research use this league. Trade calculator remains Gabagool pre-draft only. No password needed.";
-    panel.append(note);document.querySelector("main")?.prepend(panel);
+    const connect=document.createElement("a"); connect.href="connect.html"; connect.textContent="Find my Sleeper leagues";
+    panel.append(note,connect);document.querySelector("main")?.prepend(panel);
     // Share a typed public username, not credentials or active league state.
     const inputs=[...document.querySelectorAll("#draft-username, #trade-user, #waiver-user, #ss-user, .keeper-user")];
     let saved="";try{saved=localStorage.getItem("megatron:sleeper-username")||"";}catch(_){}

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import numpy as np
 import pandas as pd
 from ffmodel.site.pick_sixes import add_pick_six_expectation
 
@@ -22,6 +23,13 @@ RULESETS = {"ppr": PPR, "half_ppr": HALF_PPR, "standard": STANDARD,
             "league": LEAGUE}
 # The ruleset the board's value curve, VORP and tiers are built from.
 BOARD_RULESET = "league"
+
+STAT_PROJECTION_SCHEMA = {
+    "version": 1,
+    "band_method": (
+        "component stat quantiles; not calibrated custom-scoring intervals"
+    ),
+}
 
 
 def set_league_rules(rules) -> None:
@@ -43,6 +51,22 @@ def _quantile_frames(future: pd.DataFrame, predictor) -> dict[str, pd.DataFrame 
         qs = predictor.predict_quantiles(future)
         return {"p10": qs["p10"], "p50": qs["p50"], "p90": qs["p90"]}
     return {"p10": None, "p50": predictor.predict(future), "p90": None}
+
+
+def _stat_quantiles(frames: dict[str, pd.DataFrame | None], idx) -> dict:
+    """Serialize enriched component projections without losing precision."""
+    result = {}
+    for quantile, frame in frames.items():
+        if frame is None:
+            result[quantile] = None
+            continue
+        values = {stat: float(value) for stat, value in frame.loc[idx].items()}
+        if not all(np.isfinite(value) for value in values.values()):
+            raise ValueError(
+                f"nonfinite {quantile} stat projection for player index {idx}"
+            )
+        result[quantile] = values
+    return result
 
 
 def build_weekly_projections(future: pd.DataFrame, predictor, season: int,
@@ -80,6 +104,7 @@ def build_weekly_projections(future: pd.DataFrame, predictor, season: int,
                 }
                 for rules_name, by_q in points.items()
             },
+            "stat_quantiles": _stat_quantiles(frames, idx),
             "stats_p50": {s: round(float(p50_stats.loc[idx, s]), 2)
                           for s in PREDICTED_STATS},
         })
@@ -90,6 +115,7 @@ def build_weekly_projections(future: pd.DataFrame, predictor, season: int,
         "season": season, "week": week,
         "model": predictor.name,
         "has_bands": frames["p10"] is not None,
+        "stat_projection_schema": dict(STAT_PROJECTION_SCHEMA),
         **({"pick_six_forecast": dict(pick_six_prior)} if pick_six_prior is not None else {}),
         "players": players,
     }

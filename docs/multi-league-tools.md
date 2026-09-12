@@ -26,7 +26,23 @@ does not make another league supported. Kickoffs and observed NFL workload
 are league-independent shared data. The close-decision diagnostic remains a
 modeled-Gabagool-scoring historical diagnostic, not a new FAM backtest.
 
-## General-purpose direction (not implemented yet)
+## Sleeper discovery and scoring foundation
+
+`connect.html` discovers current-season leagues from a public username and
+displays live roster/scoring settings. Configured league links still use the
+existing tools' contract checks. Unknown leagues have no advice links and do
+not inherit Gabagool values. Editing the username invalidates pending results.
+
+Newly generated weekly payloads include full-precision `stat_quantiles` with
+nullable outer bands and an explicit schema. Pick-six expectations, when
+available, are included. Existing rounded points and `stats_p50` stay unchanged.
+The pure `league-scoring.js` foundation scores supported linear categories,
+including pick-six penalties, from these components. Missing stats, nonfinite
+weights and unknown nonzero categories fail closed. It is not yet wired into
+arbitrary-league lineup advice; K/DST, bonuses and unmodeled scoring cannot be
+silently ignored. Custom-scoring bands do not inherit historical calibration.
+
+## Remaining general-purpose direction
 
 1. Platform connection: username-based Sleeper league discovery; separate
    authorized ESPN access/import rather than asking users to share passwords.
