@@ -2,7 +2,8 @@ import pandas as pd
 import pytest
 
 from ffmodel.eval.start_sit import (close_pairs, deployed_projected_points,
-                                    rules_from_league_config, summarize)
+                                    rules_from_league_config, summarize,
+                                    compare_baselines)
 
 
 def test_close_pairs_are_within_week_and_position_and_score_regret():
@@ -63,3 +64,62 @@ def test_projected_points_include_deployed_pick_six_expected_cost():
         frames, pd.Series(["QB"], index=index), rules, pick_six_rate=.1)
     # -2 for the interception and -0.3 for its expected pick-six cost.
     assert points.iloc[0] == pytest.approx(-2.3)
+
+
+def _comparison_inputs():
+    scored = pd.DataFrame([
+        [2025, 1, "RB", "a", 12., 8.],
+        [2025, 1, "RB", "b", 10., 14.],
+    ], columns=["season", "week", "position", "player_id", "predicted", "actual"])
+    source = pd.DataFrame([
+        [2025, 1, "RB", "a", "2025-09-04T10:00:00Z", "2025-09-05T00:00:00Z", 2., 11.],
+        [2025, 1, "RB", "b", "2025-09-04T10:00:00Z", "2025-09-05T00:00:00Z", 1., 9.],
+    ], columns=["season", "week", "position", "player_id", "snapshot_at", "kickoff_at", "ecr", "projected_fpts"])
+    return close_pairs(scored), source
+
+
+def test_baseline_directions_and_identical_pair_cohort():
+    pairs, source = _comparison_inputs()
+    result = compare_baselines(pairs, source)["baselines"]
+    assert result["ecr"]["model_accuracy_same_pairs"] == 0
+    assert result["ecr"]["baseline_accuracy"] == 1
+    assert result["ecr"]["baseline_mean_regret"] == 0
+    assert result["ecr"]["model_mean_regret_same_pairs"] == 6
+    assert result["projected_fpts"]["baseline_accuracy"] == 0
+
+
+@pytest.mark.parametrize("timestamp", ["bad", "2025-09-04", "2025-09-04T10:00:00", "2025-09-05T00:00:00Z", "2025-09-06T00:00:00Z", "2025-08-01T00:00:00Z"])
+def test_baseline_rejects_late_stale_or_missing_provenance(timestamp):
+    pairs, source = _comparison_inputs()
+    source.loc[0, "snapshot_at"] = timestamp
+    result = compare_baselines(pairs, source)
+    assert result["rejected_snapshot_rows"] == 1
+    assert result["baselines"]["ecr"]["missing_pairs"] == 1
+    assert result["baselines"]["ecr"]["model_accuracy_same_pairs"] is None
+
+
+def test_baseline_ties_missing_metrics_and_duplicate_identity():
+    pairs, source = _comparison_inputs()
+    source["ecr"] = 1.
+    source.loc[0, "projected_fpts"] = float("nan")
+    result = compare_baselines(pairs, source)["baselines"]
+    assert result["ecr"]["baseline_ties"] == 1
+    assert result["ecr"]["comparable_pairs"] == 0
+    assert result["projected_fpts"]["missing_pairs"] == 1
+    with pytest.raises(ValueError, match="duplicate"):
+        compare_baselines(pairs, pd.concat([source, source]))
+
+
+def test_empty_baseline_comparison_serializes_without_nan():
+    import json
+    pairs, source = _comparison_inputs()
+    result = compare_baselines(pairs.iloc[:0], source.iloc[:0])
+    json.dumps(result, allow_nan=False)
+    assert result["pair_universe"] == 0
+
+
+def test_individual_game_cutoffs_cannot_replace_first_week_kickoff():
+    pairs, source = _comparison_inputs()
+    source.loc[0, "kickoff_at"] = "2025-09-07T17:00:00Z"
+    with pytest.raises(ValueError, match="first-week kickoff"):
+        compare_baselines(pairs, source)

@@ -35,6 +35,7 @@
     <p>Historical close calls: 56.3% correct on 2023–2025 same-position, played-player pairs within 3 projected points (both projected ≥5). Not a roster, cross-position FLEX or expert-comparison backtest; actual pick-six penalties and long-TD bonuses are missing. Tiny differences are weak leans. <a href="data/start_sit_evaluation.json">Method and measured results</a>.</p>
     <div id="ss-output" class="table-wrap"></div>
   </section>
+  <p id="expert-status" role="status">Expert reference unavailable until a matching weekly source is published. Model advice does not depend on this reference.</p>
   <div class="filters" id="pos-filters" role="group" aria-label="Filter by position"></div>
   <div class="filters" id="scoring-filters" role="group" aria-label="Scoring format"></div>
   <div class="table-wrap">
@@ -48,6 +49,8 @@
         <th>Floor → ceiling</th>
         <th data-key-lens="points.{lens}.p10" class="num">Floor</th>
         <th data-key-lens="points.{lens}.p90" class="num">Ceiling</th>
+        <th class="num">Expert positional ECR</th>
+        <th class="num">Expert FPTS · source scoring</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -62,6 +65,7 @@ consensus; at running back specifically it has measurably out-ranked
 consensus, and that edge replicated on a disjoint set of seasons — see the
 about page for the numbers.</footer>
 <script src="assets/bands.js"></script>
+<script src="assets/weekly-experts.js?v=1"></script>
 <script src="assets/app.js?v=leagues3"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/waivermode.js?v=leagues2"></script>
@@ -82,6 +86,7 @@ about page for the numbers.</footer>
   let scoring = "league";
   let pos = "ALL";
   let rows = payload.players.slice();
+  let experts = new Map();
 
   // "points", not "season_points" -- weekly nests its quantiles differently.
   // boardDomain keeps the lens pinning this page already had (weekly.html:66
@@ -129,6 +134,12 @@ about page for the numbers.</footer>
         <td></td>
         <td class="num">${FC.fmt(pts.p10)}</td>
         <td class="num">${FC.fmt(pts.p90)}</td>`;
+      const expert=experts.get(p.player_id);
+      for(const key of ["ecr","projected_fpts"]){
+        const cell=document.createElement("td"); cell.className="num";
+        cell.textContent=expert?.position===p.position && expert[key]!==null ? FC.fmt(expert[key]) : "—";
+        tr.append(cell);
+      }
       tr.children[5].appendChild(bandCell(pts, p.position));
       tbody.appendChild(tr);
     }
@@ -146,6 +157,13 @@ about page for the numbers.</footer>
     `Proj (p50, ${FC.LENS_LABEL[scoring].toLowerCase()})`;
   FC.makeSortable(document.getElementById("slate"), rows, render);
   render(rows);
+  FC.loadJSON("data/weekly-ecr.json").then(source=>{
+    experts=WeeklyExperts.prepare(source,payload);
+    document.getElementById("expert-status").textContent=`Expert reference: ${source.source} · ${source.scoring_format} · snapshot ${source.snapshot_at}. ECR is within position only. FPTS uses source scoring, not necessarily this league's settings. Neither replaces model lineup points.`;
+    render(rows);
+  }).catch(error=>{
+    document.getElementById("expert-status").textContent=`Expert reference unavailable: ${error.message}. Model advice is unchanged.`;
+  });
 })().catch(e => {
   // A MISSING payload is the preseason state and is expected until week 1.
   // Anything else is a real failure, and it must not wear the preseason

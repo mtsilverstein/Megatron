@@ -122,9 +122,79 @@ def summarize(pairs: pd.DataFrame, max_projected_gap: float,
     }
 
 
+def compare_baselines(pairs: pd.DataFrame, baseline: pd.DataFrame) -> dict:
+    """Compare experts on the SAME model-selected pairs, never a new cohort.
+
+    Canonical input must carry exact GSIS identity and pre-kickoff provenance.
+    kickoff_at is the FIRST regular-season kickoff of that NFL week, not an
+    individual player's kickoff. Date-only snapshot times are not sufficient.
+    ECR is ascending; projected FPTS is descending. Neither is rescored into
+    league points. Regret uses the diagnostic's realized league-score gaps.
+    """
+    keys = ["season", "week", "position", "player_id"]
+    required = set(keys + ["snapshot_at", "kickoff_at", "ecr", "projected_fpts"])
+    if required - set(baseline):
+        raise ValueError(f"missing baseline columns: {sorted(required - set(baseline))}")
+    if baseline[keys].isna().any().any() or baseline.duplicated(keys).any():
+        raise ValueError("missing or duplicate baseline identity")
+    source = baseline.copy()
+    snapshot = pd.to_datetime(source["snapshot_at"], utc=True, errors="coerce", format="ISO8601")
+    kickoff = pd.to_datetime(source["kickoff_at"], utc=True, errors="coerce", format="ISO8601")
+    valid_time = snapshot.notna() & kickoff.notna() & (snapshot < kickoff)
+    for column in ["snapshot_at", "kickoff_at"]:
+        valid_time &= source[column].astype(str).str.contains(
+            r"T\d{2}:\d{2}.*(?:Z|[+-]\d{2}:\d{2})$", regex=True)
+    if (source.groupby(["season", "week"])["kickoff_at"].nunique() > 1).any():
+        raise ValueError("baseline must use one first-week kickoff cutoff per season/week")
+    # Match the existing weekly consensus freshness policy (seven days).
+    from ffmodel.eval.weekly_rankings import MAX_STALE_DAYS
+    valid_time &= (kickoff - snapshot) <= pd.Timedelta(days=MAX_STALE_DAYS)
+    source = source.loc[valid_time]
+    joined = pairs.copy()
+    for side, player in [("chosen", "chosen_player_id"), ("other", "other_player_id")]:
+        renamed = source.rename(columns={"player_id": player,
+                                        "ecr": f"{side}_ecr",
+                                        "projected_fpts": f"{side}_projected_fpts"})
+        joined = joined.merge(renamed[["season", "week", "position", player,
+                                      f"{side}_ecr", f"{side}_projected_fpts"]],
+                              how="left", on=["season", "week", "position", player],
+                              validate="many_to_one")
+    results = {}
+    for metric, direction in [("ecr", -1), ("projected_fpts", 1)]:
+        a = pd.to_numeric(joined[f"chosen_{metric}"], errors="coerce")
+        b = pd.to_numeric(joined[f"other_{metric}"], errors="coerce")
+        covered = np.isfinite(a) & np.isfinite(b)
+        if metric == "ecr":
+            covered &= (a > 0) & (b > 0)
+        tied = covered & (a == b)
+        comparable = covered & ~tied
+        actual = joined.loc[comparable, "actual_gap"].astype(float)
+        preference = np.sign((a[comparable] - b[comparable]) * direction)
+        expert_gap = actual * preference
+        decisive = actual != 0
+        results[metric] = {
+            "covered_pairs": int(covered.sum()),
+            "missing_pairs": int((~covered).sum()),
+            "baseline_ties": int(tied.sum()),
+            "comparable_pairs": int(comparable.sum()),
+            "actual_ties": int((~decisive).sum()),
+            "model_accuracy_same_pairs": float((actual[decisive] > 0).mean()) if decisive.any() else None,
+            "baseline_accuracy": float((expert_gap[decisive] > 0).mean()) if decisive.any() else None,
+            "model_mean_regret_same_pairs": float((-actual).clip(lower=0).mean()) if len(actual) else None,
+            "baseline_mean_regret": float((-expert_gap).clip(lower=0).mean()) if len(actual) else None,
+        }
+    return {"pair_universe": int(len(pairs)),
+            "rejected_snapshot_rows": int((~valid_time).sum()),
+            "scope": "Same model-selected close pairs; source scoring is not league-rescored. "
+                     "Baseline ties excluded from both entrants' comparison. "
+                     "Pairs are dependent; no naive confidence interval.",
+            "baselines": results}
+
+
 def evaluate(features: pd.DataFrame, seasons: list[int], roots: list[Path],
              rules: ScoringRules, max_projected_gap: float = 3.0,
-             min_projection: float = 5.0) -> tuple[pd.DataFrame, dict]:
+             min_projection: float = 5.0, *,
+             baseline: pd.DataFrame | None = None) -> tuple[pd.DataFrame, dict]:
     """Run committed walk-forward artifacts; never trains or tunes a model."""
     from ffmodel.eval.splits import walk_forward_splits
     from ffmodel.model.predictor import TransformerPredictor
@@ -184,6 +254,9 @@ def evaluate(features: pd.DataFrame, seasons: list[int], roots: list[Path],
                       "historical stat line. It does not reconstruct any fantasy roster.",
         "ecr_note": "No ECR baseline is included; this run evaluates model choices only.",
     })
+    if baseline is not None:
+        report["baseline_comparison"] = compare_baselines(pairs, baseline)
+        report["ecr_note"] = "Baseline comparison included with explicit coverage and snapshot exclusions."
     return pairs, report
 
 
@@ -198,6 +271,8 @@ def main() -> None:
     parser.add_argument("--max-gap", type=float, default=3.0)
     parser.add_argument("--min-projection", type=float, default=5.0)
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--baseline-json", type=Path,
+                        help="Canonical expert rows with exact player IDs and pre-week-kickoff timestamps")
     args = parser.parse_args()
     from ffmodel.data.features import build_features
     from ffmodel.data.pull import pull_schedules, pull_weekly
@@ -208,7 +283,9 @@ def main() -> None:
                               pull_schedules(span, cache_dir=args.data_dir))
     _, report = evaluate(features, seasons, args.root or DEFAULT_ROOTS,
                          rules_from_league_config(args.league_config), args.max_gap,
-                         args.min_projection)
+                         args.min_projection,
+                         baseline=(pd.DataFrame(json.loads(args.baseline_json.read_text()))
+                                   if args.baseline_json else None))
     rendered = json.dumps(report, indent=2)
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
