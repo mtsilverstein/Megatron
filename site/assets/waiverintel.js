@@ -27,6 +27,12 @@
         : roles.status === "source_gap" ? "Completed games exist but usage observations are missing; no role-growth claims."
         : `Observed ${roles.season} usage through week ${roles.through_week}; ${roles.covered_team_games}/${roles.completed_team_games} completed team-games represented. Built ${roles.generated_at}. Missing rows are not zero usage.`;
     } else if (roles) roleStatus = "Usage file is stale or does not match this season/week; role-growth flags withheld.";
+    const catalogGsisOwners = new Map();
+    for (const [sid, c] of Object.entries(catalog)) {
+      if (typeof c?.gsis_id !== "string" || !c.gsis_id.trim()) continue;
+      const gsis = c.gsis_id.trim();
+      catalogGsisOwners.set(gsis, catalogGsisOwners.has(gsis) ? null : sid);
+    }
     for (const type of ["add", "drop"]) {
       trends[type] = new Map();
       if (!Array.isArray(signals[type])) { warnings.push(`Sleeper ${type} trend feed unavailable; counts are unknown.`); continue; }
@@ -34,7 +40,11 @@
         const count = num(row?.count), id = String(row?.player_id || "");
         if (!id || count === null || count < 0 || !Number.isInteger(count)) continue;
         trends[type].set(id, Math.max(count, trends[type].get(id) || 0));
-        if (!players.has(id) && catalog[id]) players.set(id, { id, sleeper_id:id, name:catalog[id].full_name, position:catalog[id].position });
+        if (!players.has(id) && catalog[id]) {
+          const c = catalog[id], gsis = typeof c.gsis_id === "string" ? c.gsis_id.trim() : null;
+          players.set(id, { id, sleeper_id:id, name:c.full_name, position:c.position,
+            player_id:gsis && catalogGsisOwners.get(gsis) === id ? gsis : null });
+        }
       }
     }
     for (const p of players.values()) {

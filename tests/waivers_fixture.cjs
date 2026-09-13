@@ -4,15 +4,19 @@ delete global.window;
 const W = require("../site/assets/waivers.js");
 assert.strictEqual(global.window, undefined, "CommonJS load must not require/mutate window");
 
-const p = (id, pos, pts, extra = {}) => ({ sleeper_id: String(id), player_id: `g${id}`, name: `${pos}${id}`, position: pos, value_points: pts, ...extra });
-const board = { players: [p(1,"QB",20),p(2,"RB",10),p(3,"WR",11),p(4,"TE",8),p(5,"K",7),p(6,"DEF",6),p(7,"RB",18),p(8,"WR",7),p(9,"QB",25),p(10,"TE",13),p(99,"RB",30)] };
+const TEST_NOW = Date.parse("2026-09-10T12:00:00Z");
+const p = (id, pos, pts, extra = {}) => ({ sleeper_id: String(id), player_id: `g${id}`, name: `${pos}${id}`, position: pos, team:"A", value_points: pts, ...extra });
+const board = { players: [p(1,"QB",20),p(2,"RB",10),p(3,"WR",11),p(4,"TE",8),p(5,"K",7),p(6,"DEF",6),p(7,"RB",18),p(8,"WR",7),p(9,"QB",25),p(10,"TE",13),p(11,"K",1),p(99,"RB",30)] };
 const league = { league_id:"L1", season: 2026, total_rosters: 2, scoring_settings:{pass_td:4,rec:1}, roster_positions: ["QB","RB","WR","TE","FLEX","K","DEF","BN","IR","TAXI"], settings: { waiver_budget: 100, waiver_bid_min: 1 } };
 const weeklyLeague={league_id:"L1",slug:"fixture",sleeper_scoring:{pass_td:4,rec:1}};
+const futureKickoffs = {season:2026,week:1,generated_at:new Date(TEST_NOW).toISOString(),teams:["A","B"],games:[{home:"A",away:"B",kickoff:new Date(TEST_NOW+3600000).toISOString()}]};
+const freshWeekly = (players=board.players) => ({season:2026,week:1,generated_at:new Date(TEST_NOW).toISOString(),league:weeklyLeague,players:players.map(x=>({player_id:x.player_id,team:Object.hasOwn(x,"current_team")?x.current_team:x.team,points:{league:{p50:x.value_points}}}))});
 const rosters = [
-  { roster_id: 1, players: ["1","2","3","4","5","6","8","404"], reserve: ["99"], taxi: [], settings: { waiver_budget_used: 40 } },
+  { roster_id: 1, players: ["1","2","3","4","5","6","8","404"], starters:["1","2","3","4","8","5","6"], reserve: ["99"], taxi: [], settings: { waiver_budget_used: 40 } },
   { roster_id: 2, players: ["9"], reserve: [], taxi: ["10"], settings: { waiver_budget_used: 0 } }
 ];
-const base = { board, league, rosters, rosterId: 1, weekly: null, week: 1, protectedIds: [], budgetReserve: 20, transactions: [] };
+const freshRosters = [{...rosters[0],players:rosters[0].players.map(x=>x==="404"?"11":x)},rosters[1]];
+const base = { board, league, rosters, rosterId: 1, weekly: null, kickoffs:futureKickoffs, snapshotAt:TEST_NOW, now:TEST_NOW, week: 1, protectedIds: [], budgetReserve: 20, transactions: [] };
 let n = 0;
 function check(name, fn) { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; throw e; } }
 
@@ -56,8 +60,8 @@ check("flex scoring finds marginal starter improvement and preserves lone QB TE 
   assert.ok(out.rows.every(r => !["1","4","5","6"].includes(r.drop.id)));
 });
 check("fresh weekly joins GSIS and stale weekly labels proxy", () => {
-  const fresh = { season:2026, week:1, generated_at:new Date().toISOString(), league:weeklyLeague, players: board.players.map(x => ({player_id:x.player_id,points:{league:{p50:x.sleeper_id === "7" ? 40 : x.value_points}}})) };
-  let out = W.analyze({...base, weekly:fresh});
+  const fresh = freshWeekly().valueOf(); fresh.players.find(x=>x.player_id==="g7").points.league.p50=40;
+  let out = W.analyze({...base, rosters:freshRosters, weekly:fresh});
   assert.strictEqual(out.coverage.weeklyFresh, true); assert.strictEqual(out.rows[0].scoring.source, "weekly");
   out = W.analyze({...base, weekly:{...fresh,generated_at:"2026-01-01T00:00:00Z"}});
   assert.strictEqual(out.coverage.weeklyFresh, false); assert.match(out.warnings.join(" "), /stale.*preseason proxy/);
@@ -69,8 +73,8 @@ check("invalid ids and protected players", () => {
 });
 check("injured adds are not immediate weekly recommendations", () => {
   const hurtBoard = {...board,players:board.players.map(x => x.sleeper_id === "7" ? {...x,injury_status:"Out"} : x)};
-  const fresh = { season:2026, week:1, generated_at:new Date().toISOString(), league:weeklyLeague, players: hurtBoard.players.map(x => ({player_id:x.player_id,points:{league:{p50:x.value_points}}})) };
-  const out = W.analyze({...base,board:hurtBoard,weekly:fresh});
+  const fresh = freshWeekly(hurtBoard.players);
+  const out = W.analyze({...base,rosters:freshRosters,board:hurtBoard,weekly:fresh});
   assert.ok(out.rows.every(r => r.add.id !== "7")); assert.match(out.warnings.join(" "), /stash value/);
 });
 check("unknown owned players are retained loudly", () => {
@@ -79,10 +83,10 @@ check("unknown owned players are retained loudly", () => {
 });
 check("real board ids, unmapped rows, weekly gaps, IR and byes stay honest", () => {
   const realBoard = {players: board.players.concat([{player_id:"gX",sleeper_id:null,name:"Unmapped",position:"RB",value_points:999},p(12,"RB",16)]).map(x => x.sleeper_id === "7" ? {...x,bye:1} : x)};
-  const fresh = {season:2026,week:1,generated_at:new Date().toISOString(),league:weeklyLeague,players:realBoard.players.filter(x => x.sleeper_id !== "12").map(x => ({player_id:x.player_id,points:{league:{p50:x.value_points}}}))};
-  const out = W.analyze({...base,board:realBoard,weekly:fresh});
+  const fresh = freshWeekly(realBoard.players.filter(x => x.sleeper_id !== "12"));
+  const out = W.analyze({...base,rosters:freshRosters,board:realBoard,weekly:fresh});
   assert.strictEqual(out.coverage.weeklyMatched, board.players.length);
-  assert.ok(out.rows.every(r => r.add.name !== "Unmapped" && r.drop.id !== "99"));
+  assert.ok(out.rows.every(r => r.add.name !== "Unmapped" && r.drop?.id !== "99"));
   assert.match(out.warnings.join(" "), /lack a Sleeper id/);
   assert.match(out.warnings.join(" "), /lack a current weekly projection/);
 });
@@ -134,19 +138,20 @@ check("large board analysis stays bounded", () => {
 
 check("fresh-week unavailable owned players score zero", () => {
   const hurtBoard={players:board.players.map(x=>x.sleeper_id==="8"?{...x,injury_status:"Out"}:x)};
-  const fresh={season:2026,week:1,generated_at:new Date().toISOString(),league:weeklyLeague,players:hurtBoard.players.map(x=>({player_id:x.player_id,points:{league:{p50:x.value_points}}}))};
-  const out=W.analyze({...base,board:hurtBoard,weekly:fresh});
+  const fresh=freshWeekly(hurtBoard.players);
+  const out=W.analyze({...base,rosters:freshRosters,board:hurtBoard,weekly:fresh});
   const upgrade=out.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
   assert.ok(upgrade && upgrade.lineupGain>=18, `unavailable owned player retained healthy points: ${upgrade&&upgrade.lineupGain}`);
 });
 
 check("missing weekly scores protect owned players from drops", () => {
-  const fresh={season:2026,week:1,generated_at:new Date().toISOString(),league:weeklyLeague,players:board.players.filter(x=>x.sleeper_id!=="8").map(x=>({player_id:x.player_id,points:{league:{p50:x.value_points}}}))};
+  const fresh=freshWeekly(board.players.filter(x=>x.sleeper_id!=="8"));
   // The other known skill players can fill the lineup only after adding, but
   // the unprojected owned player must never appear as a zero-cost drop.
-  assert.throws(()=>W.analyze({...base,weekly:fresh}),/cannot fill every required/);
+  assert.throws(()=>W.analyze({...base,rosters:freshRosters,weekly:fresh}),/cannot fill every required/);
   const roomyLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN"]};
-  const out=W.analyze({...base,league:roomyLeague,weekly:fresh});
+  const roomyRosters=[{...freshRosters[0],starters:["1","2","3","4","5","6"]},freshRosters[1]];
+  const out=W.analyze({...base,rosters:roomyRosters,league:roomyLeague,weekly:fresh});
   assert.ok(out.rows.every(r=>r.drop.id!=="8"));
   assert.match(out.warnings.join(" "),/protected from drops/);
 });
@@ -181,8 +186,8 @@ check("minimum bid above spendable returns no illegal range", () => {
 });
 
 check("weekly league and scoring contracts prevent cross-league reuse", () => {
-  const players=board.players.map(x=>({player_id:x.player_id,points:{league:{p50:x.value_points}}}));
-  const common={season:2026,week:1,generated_at:new Date().toISOString(),players};
+  const players=freshWeekly().players;
+  const common={season:2026,week:1,generated_at:new Date(TEST_NOW).toISOString(),players};
   let out=W.analyze({...base,weekly:{...common,league:{...weeklyLeague,league_id:"OTHER"}}});
   assert.strictEqual(out.coverage.weeklyFresh,false); assert.match(out.warnings.join(" "),/league id.*preseason proxy/);
   out=W.analyze({...base,weekly:{...common,league:{...weeklyLeague,sleeper_scoring:{pass_td:6,rec:1}}}});
@@ -192,10 +197,9 @@ check("weekly league and scoring contracts prevent cross-league reuse", () => {
 });
 
 check("zero-only scoring extras preserve the weekly contract", () => {
-  const weekly = { season:2026, week:1, generated_at:new Date().toISOString(), league:weeklyLeague,
-    players:board.players.map(x=>({player_id:x.player_id,points:{league:{p50:x.value_points}}})) };
+  const weekly = freshWeekly();
   const live = {...league, scoring_settings:{...league.scoring_settings, extra_zero:0}};
-  assert.equal(W.analyze({...base,league:live,weekly}).coverage.weeklyFresh,true);
+  assert.equal(W.analyze({...base,rosters:freshRosters,league:live,weekly}).coverage.weeklyFresh,true);
   live.scoring_settings.extra_zero=1;
   assert.equal(W.analyze({...base,league:live,weekly}).coverage.weeklyFresh,false);
   live.scoring_settings.extra_zero=null;
@@ -207,6 +211,66 @@ check("affordable minimum exceeds heuristic band without illegal bids", () => {
   const out=W.analyze({...base,league:costly,budgetReserve:0});
   assert.ok(out.rows.length>0);
   assert.ok(out.rows.every(r=>r.bid.low>=25&&r.bid.high>=25&&r.bid.high<=60));
+});
+
+check("started starters lock their exact full-lineup slot and cancel without a projection", () => {
+  const timedBoard={players:board.players.map(x=>({...x,current_team:x.sleeper_id==="8"?"A":"C"}))};
+  const timedKickoffs={season:2026,week:1,generated_at:new Date(TEST_NOW).toISOString(),teams:["A","B","C","D"],games:[
+    {home:"A",away:"B",kickoff:new Date(TEST_NOW-3600000).toISOString()},
+    {home:"C",away:"D",kickoff:new Date(TEST_NOW+3600000).toISOString()}]};
+  const weekly=freshWeekly(timedBoard.players).valueOf();
+  weekly.players=weekly.players.filter(x=>x.player_id!=="g8");
+  const out=W.analyze({...base,board:timedBoard,rosters:freshRosters,weekly,kickoffs:timedKickoffs});
+  assert.ok(out.rows.some(r=>r.add.id==="7" && r.lineupGain===8),"expected legal RB upgrade while FLEX remains locked");
+  assert.ok(out.rows.filter(r=>r.add.id==="7").every(r=>r.lineupGain<=8),"an unlocked add incorrectly replaced the locked FLEX starter");
+  assert.ok(out.rows.every(r=>r.drop?.id!=="8"),"started starter was droppable");
+});
+
+check("kickoff after roster snapshot requires refresh", () => {
+  const started={...futureKickoffs,games:[{home:"A",away:"B",kickoff:new Date(TEST_NOW-1000).toISOString()}]};
+  assert.throws(()=>W.analyze({...base,rosters:freshRosters,weekly:freshWeekly(),kickoffs:started,snapshotAt:TEST_NOW-2000}),/started since.*refresh/);
+});
+
+check("started bench players and free agents cannot enter weekly transactions", () => {
+  const timedBoard={players:board.players.map(x=>({...x,current_team:["7","11"].includes(x.sleeper_id)?"A":"C",position:x.sleeper_id==="11"?"RB":x.position}))};
+  const timedKickoffs={season:2026,week:1,generated_at:new Date(TEST_NOW).toISOString(),teams:["A","B","C","D"],games:[
+    {home:"A",away:"B",kickoff:new Date(TEST_NOW-1000).toISOString()},
+    {home:"C",away:"D",kickoff:new Date(TEST_NOW+3600000).toISOString()}]};
+  const out=W.analyze({...base,board:timedBoard,rosters:freshRosters,weekly:freshWeekly(timedBoard.players),kickoffs:timedKickoffs});
+  assert.ok(out.rows.every(r=>r.add.id!=="7"),"started free agent was addable");
+  assert.ok(out.rows.every(r=>r.drop?.id!=="11"),"started bench player was droppable");
+});
+
+check("weekly team identity fails closed for owned players and excludes unknown free agents", () => {
+  const unknownOwn={players:board.players.map(x=>x.sleeper_id==="8"?{...x,current_team:null}:{...x,current_team:"A"})};
+  assert.throws(()=>W.analyze({...base,board:unknownOwn,rosters:freshRosters,weekly:freshWeekly(unknownOwn.players)}),/unknown team\/schedule/);
+  const unknownFree={players:board.players.map(x=>x.sleeper_id==="7"?{...x,current_team:null}:{...x,current_team:"A"})};
+  let out=W.analyze({...base,board:unknownFree,rosters:freshRosters,weekly:freshWeekly(unknownFree.players)});
+  assert.ok(out.rows.every(r=>r.add.id!=="7"));
+  const tradedWeekly=freshWeekly(); tradedWeekly.players.find(x=>x.player_id==="g7").team="B";
+  out=W.analyze({...base,rosters:freshRosters,weekly:tradedWeekly});
+  assert.ok(out.rows.every(r=>r.add.id!=="7"),"stale prior-team projection was used");
+});
+
+check("invalid kickoff contracts fail closed for otherwise-fresh weekly scoring", () => {
+  assert.throws(()=>W.analyze({...base,weekly:freshWeekly(),kickoffs:{...futureKickoffs,week:2}}),/kickoff week.*refresh required/);
+  assert.throws(()=>W.analyze({...base,weekly:freshWeekly(),kickoffs:{...futureKickoffs,generated_at:"2026-01-01T00:00:00Z"}}),/kickoff coverage is stale.*refresh required/);
+});
+
+check("covered bye free agents cannot be immediate weekly upgrades", () => {
+  const byeBoard={players:board.players.map(x=>x.sleeper_id==="7"?{...x,current_team:"BYE"}:x)};
+  const out=W.analyze({...base,board:byeBoard,rosters:freshRosters,weekly:freshWeekly(byeBoard.players),kickoffs:{...futureKickoffs,teams:[...futureKickoffs.teams,"BYE"]}});
+  assert.ok(out.rows.every(r=>r.add.id!=="7"));
+});
+
+check("malformed live starters cannot establish legal kickoff locks", () => {
+  for (const starters of [
+    ["1","2","3","4","3","5","6"],
+    ["1","2","3","4","10","5","6"],
+    ["1","2","3","4","99","5","6"],
+  ]) {
+    assert.throws(()=>W.analyze({...base,weekly:freshWeekly(),rosters:[{...freshRosters[0],starters},freshRosters[1]]}),/current starters/);
+  }
 });
 
 console.log(`waivers_fixture: ${n} groups OK`);

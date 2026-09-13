@@ -57,10 +57,29 @@
     return { add, drop, fetchedAt:new Date().toISOString() };
   }
 
+  function hydrateBoard(rawBoard, catalog) {
+    const players = rawBoard.players.map(p => ({ ...p,
+      injury_status: catalog[p.sleeper_id]?.injury_status || null,
+      current_team: catalog[p.sleeper_id]?.team || null,
+    }));
+    const mapped = new Set(players.map(p => String(p.sleeper_id)));
+    // K/DEF still occupy roster slots even though the skill-player board does
+    // not project them. Carry identity only; never invent a score for them.
+    for (const [sid, p] of Object.entries(catalog)) {
+      if (!mapped.has(sid) && ["K", "DEF"].includes(p?.position)) players.push({
+        sleeper_id: sid, name: p.full_name || sid, position: p.position,
+        team: p.team || null, current_team: p.team || null,
+        injury_status: p.injury_status || null,
+      });
+    }
+    return { ...rawBoard, players };
+  }
+
   function init() {
     const W = window.Waivers;
     const $ = id => document.getElementById(id);
     let world = null, board = null, weekly = null, roles = null, catalog = {}, result = null, signals = {}, intel = null;
+    let kickoffs = null, snapshotAt = null;
     let requestId = 0, protectedIds = new Set();
     const node = (tag, text, cls) => {
       const el = document.createElement(tag);
@@ -173,10 +192,11 @@
     function recompute() {
       if (!world) return;
       try {
+        if (Date.now() - Date.parse(world.fetchedAt) > 60000) throw new Error("Roster snapshot expired. Refresh before using waiver recommendations.");
         const rolling = Number(world.league.settings?.waiver_type) === 0;
         const reserve = rolling ? undefined : Number($("waiver-reserve").value);
         if (!rolling && (!$("waiver-reserve").value.trim() || !Number.isInteger(reserve) || reserve < 0)) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
-        result = W.analyze({ board, ...world, weekly, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve });
+        result = W.analyze({ board, ...world, weekly, kickoffs, snapshotAt, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve });
         intel = window.WaiverIntel.analyze({ board, ...world, catalog, signals, roles, week:Number($("waiver-week").value) });
         const b = result.budget, mine = world.rosters.find(r => r.roster_id === world.rosterId);
         $("waiver-reserve").closest("label").hidden = rolling;
@@ -197,6 +217,7 @@
       } catch (error) { result = null; $("waiver-results").hidden = true; status(error.message); }
     }
 
+    setInterval(() => { if (world && result) recompute(); }, 15000);
     $("waiver-connect").addEventListener("submit", async event => {
       event.preventDefault(); const thisRequest = ++requestId;
       world = null; result = null;
@@ -204,12 +225,14 @@
       status("Reading current rosters, waiver settings, scoring, and projections…");
       try {
         const dataPath = kind => window.FC.leagueDataPath(kind);
-        const [rawBoard, loadedWeekly, loadedRoles] = await Promise.all([
+        const [rawBoard, loadedWeekly, loadedRoles, loadedKickoffs] = await Promise.all([
           window.FC.loadJSON(dataPath("draft")),
           window.FC.loadJSON(dataPath("weekly")).catch(() => null),
           window.FC.loadJSON("data/roles.json").catch(() => null),
+          window.FC.loadJSON("data/kickoffs.json").catch(() => null),
         ]);
         if (rawBoard.league?.slug !== selectedLeague) throw new Error("Projection board does not match the selected league; reload before using advice.");
+        const loadedAt = Date.now();
         const [nextWorld, nextSignals] = await Promise.all([
           loadWorld({ username: $("waiver-user").value, board: rawBoard, week: Number($("waiver-week").value) }), loadSignals(),
         ]);
@@ -221,13 +244,12 @@
         const nextCatalog = await catalogPromise;
         if (thisRequest !== requestId) return;
         catalog = nextCatalog;
-        board = { ...rawBoard, players: rawBoard.players.map(p => ({ ...p,
-          injury_status: catalog[p.sleeper_id]?.injury_status || null,
-        })) };
+        board = hydrateBoard(rawBoard, catalog);
         const leagueLink = $("waiver-league-link");
         leagueLink.href = `https://sleeper.com/leagues/${encodeURIComponent(board.league.league_id)}/team`;
         leagueLink.textContent = `Open ${board.league.slug.toUpperCase()} in Sleeper`;
         weekly = loadedWeekly; roles = loadedRoles; world = nextWorld; signals = nextSignals;
+        kickoffs = loadedKickoffs; snapshotAt = loadedAt;
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
         protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
         renderRoster(); recompute();
@@ -242,6 +264,7 @@
     $("waiver-position").addEventListener("change", () => { if (result) renderRows(); });
     $("waiver-radar-sort").addEventListener("change", () => { if (result) renderIntel(); });
     $("waiver-export").addEventListener("click", () => {
+      recompute();
       if (!result) return;
       const rolling = result.waiver.type === "rolling";
       const lines = [`${board.league.slug.toUpperCase()} waiver shortlist — independent alternatives, not submitted claims`, $("waiver-source").textContent,
@@ -258,7 +281,7 @@
       $("waiver-backup").focus();
     });
   }
-  const api = { init, loadWorld, loadSignals, validateContract };
+  const api = { init, loadWorld, loadSignals, validateContract, hydrateBoard };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverMode = api;
 })();

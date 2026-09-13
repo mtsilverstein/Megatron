@@ -37,6 +37,15 @@ const roles = {schema_version:1,season:2026,before_week:4,generated_at:new Date(
   completed_team_games:6,covered_team_games:6,players:[{player_id:"gsis6",team:"CLE",week:3,current_for_team:true,
     latest:{targets:7,snap_pct:.7},delta:{snap_pct:.2},baseline_weeks:[1,2],flags:["snap share and opportunity share both increased"]}]};
 const roleBase = {...base,week:4,league:{...base.league,season:2026},board:{players:base.board.players.map(p=>({...p,player_id:p.sleeper_id==="6"?"gsis6":p.sleeper_id}))},roles};
+const discovery = {...roleBase,catalog:{90:{full_name:"New rookie",position:"WR",team:"DEN",gsis_id:"gsis90"}},
+  roles:{...roles,players:[{...roles.players[0],player_id:"gsis90",team:"DEN"}]}};
+out=I.analyze(discovery);
+assert.equal(out.radar.find(p=>p.id==="90").roleFlags.length,1);
+assert.equal(out.radar.find(p=>p.id==="90").projectionCovered,false);
+out=I.analyze({...discovery,catalog:{...discovery.catalog,91:{gsis_id:"gsis90"}}});
+assert.equal(out.radar.find(p=>p.id==="90").role,null);
+out=I.analyze({...discovery,catalog:{90:{...discovery.catalog[90],team:"NYJ"}}});
+assert.equal(out.radar.find(p=>p.id==="90").role,null);
 out=I.analyze(roleBase);
 assert.equal(out.radar.find(p=>p.id==="6").roleFlags.length,1);
 assert.match(out.roleStatus,/through week 3/);

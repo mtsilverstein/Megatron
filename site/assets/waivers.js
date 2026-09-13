@@ -25,6 +25,8 @@
     const v = String(p && (p.position || p.pos) || "").toUpperCase();
     return v === "DST" ? "DEF" : v;
   }
+  function team(x) { return ({ LAR: "LA", WSH: "WAS" })[String(x || "").toUpperCase()] || String(x || "").toUpperCase(); }
+  function playerTeam(p) { return team(p && Object.hasOwn(p, "current_team") ? p.current_team : p && p.team); }
   function boardPoints(p) {
     const vp = finite(p && p.value_points);
     if (vp !== null) return vp;
@@ -92,10 +94,10 @@
     });
     return seen;
   }
-  function weeklyMap(weekly, league, week, boardByGsis, warnings) {
-    if (!weekly) return { fresh: false, map: new Map(), reason: "weekly projections unavailable" };
+  function weeklyMap(weekly, league, week, boardByGsis, warnings, now) {
+    if (!weekly) return { fresh: false, map: new Map(), invalidTeamIds: new Set(), reason: "weekly projections unavailable" };
     const generated = Date.parse(weekly.generated_at);
-    const age = Date.now() - generated;
+    const age = now - generated;
     const season = finite(weekly.season), expectedSeason = finite(league.season);
     const gotWeek = finite(weekly.week), expectedWeek = finite(week);
     let reason = null;
@@ -115,15 +117,40 @@
     else if (gotWeek === null || expectedWeek === null || gotWeek !== expectedWeek) reason = "weekly week does not match requested week";
     else if (!Number.isFinite(generated) || age < -3600000 || age > 72 * 3600000) reason = "weekly projections are stale (over 72 hours old)";
     else if (!Array.isArray(weekly.players)) reason = "weekly players are missing";
-    if (reason) { warnings.push(`${reason}; using preseason proxy`); return { fresh: false, map: new Map(), reason }; }
-    const map = new Map();
+    if (reason) { warnings.push(`${reason}; using preseason proxy`); return { fresh: false, map: new Map(), invalidTeamIds: new Set(), reason }; }
+    const map = new Map(), invalidTeamIds = new Set();
     weekly.players.forEach(w => {
       const bp = boardByGsis.get(id(w.player_id));
       const p50 = finite(w.points && w.points.league && w.points.league.p50);
-      const pid = playerId(bp);
-      if (bp && pid !== null && pid !== undefined && p50 !== null) map.set(id(pid), p50);
+      const pid = playerId(bp), boardTeam = playerTeam(bp), projectionTeam = team(w.team);
+      if (bp && pid !== null && pid !== undefined) {
+        if (!boardTeam || !projectionTeam || projectionTeam !== boardTeam) invalidTeamIds.add(id(pid));
+        else if (p50 !== null) map.set(id(pid), p50);
+      }
     });
-    return { fresh: true, map, reason: null };
+    return { fresh: true, map, invalidTeamIds, reason: null };
+  }
+  function kickoffMap(kickoffs, league, week, now) {
+    let reason = null;
+    const season = finite(kickoffs && kickoffs.season), expectedSeason = finite(league.season);
+    const gotWeek = finite(kickoffs && kickoffs.week), expectedWeek = finite(week);
+    const generated = Date.parse(kickoffs && kickoffs.generated_at);
+    const age = now - generated;
+    if (!kickoffs) reason = "kickoff coverage unavailable";
+    else if (season === null || expectedSeason === null || season !== expectedSeason) reason = "kickoff season does not match league season";
+    else if (gotWeek === null || expectedWeek === null || gotWeek !== expectedWeek) reason = "kickoff week does not match requested week";
+    else if (!Number.isFinite(generated) || age < -3600000 || age > 72 * 3600000) reason = "kickoff coverage is stale (over 72 hours old)";
+    else if (!Array.isArray(kickoffs.games) || !Array.isArray(kickoffs.teams)) reason = "kickoff coverage is incomplete";
+    const starts = new Map(), covered = new Set();
+    if (!reason) {
+      kickoffs.teams.forEach(t => { const v = team(t); if (v) covered.add(v); });
+      for (const g of kickoffs.games) for (const t0 of [g && g.home, g && g.away]) {
+        const t = team(t0), at = Date.parse(g && g.kickoff);
+        if (!t || !Number.isFinite(at) || starts.has(t) || !covered.has(t)) { reason = "kickoff coverage contains an invalid game"; break; }
+        starts.set(t, at);
+      }
+    }
+    return { fresh: !reason, starts, covered, reason };
   }
   function bidGuide(gain, total, remaining, reserve, minBid) {
     let pct = [0, 0], tier = "no bid";
@@ -152,6 +179,10 @@
     const mine = rosters.find(r => finite(r.roster_id) === rosterId);
     if (!mine) fail(`roster ${args.rosterId} was not found`);
     const starterSlots = slots(league);
+    const fullStarterSlots = league.roster_positions.map(s => String(s).toUpperCase()).filter(s => !BENCH.has(s));
+    const now = finite(args.now === undefined ? Date.now() : args.now);
+    const snapshotAt = finite(args.snapshotAt === undefined ? now : args.snapshotAt);
+    if (now === null || snapshotAt === null) fail("now and snapshotAt must be millisecond timestamps");
     const waiverType = finite(league.settings && league.settings.waiver_type);
     const rolling = waiverType === 0;
     const budgetTotal = rolling ? null : finite(league.settings && league.settings.waiver_budget);
@@ -203,16 +234,23 @@
         });
       }
     });
+    const weekly = weeklyMap(args.weekly, league, args.week, boardByGsis, warnings, now);
+    const kickoffs = weekly.fresh ? kickoffMap(args.kickoffs, league, args.week, now) : { fresh:false, starts:new Map(), covered:new Set(), reason:null };
+    if (weekly.fresh && !kickoffs.fresh) fail(`${kickoffs.reason}; refresh required`);
+    if (weekly.fresh && unknownOwned.length) fail(`${unknownOwned.length} owned player(s) missing from board; refresh player data`);
+    if (weekly.fresh && ownActive.some(p => SKILL.has(position(p)) && (!playerTeam(p) || !kickoffs.covered.has(playerTeam(p))))) fail("unknown team/schedule for owned player; refresh player data");
+    if (weekly.fresh && ownActive.some(p => SKILL.has(position(p)) && weekly.invalidTeamIds.has(id(playerId(p))))) fail("owned player projection team does not match current team; refresh projections");
     if (unknownOwned.length) warnings.push(`${unknownOwned.length} owned player(s) missing from board; excluded from drops and lineup analysis may be incomplete`);
-    const weekly = weeklyMap(args.weekly, league, args.week, boardByGsis, warnings);
     if (!weekly.fresh && !warnings.some(w => /preseason proxy/.test(w))) warnings.push(`${weekly.reason}; using preseason proxy`);
-    if (weekly.fresh && weekly.map.size < boardById.size) warnings.push(`${boardById.size - weekly.map.size} board player(s) lack a current weekly projection and are excluded from weekly comparisons`);
+    const missingWeekly = [...boardById.values()].filter(p => SKILL.has(position(p)) && !weekly.map.has(id(playerId(p)))).length;
+    if (weekly.fresh && missingWeekly) warnings.push(`${missingWeekly} skill player(s) lack a current weekly projection and are excluded from weekly comparisons`);
     const unavailable = p => UNAVAILABLE.has(String(p.injury_status || p.status || "").toUpperCase());
     const remainingWeeks = Math.max(1, 18 - (finite(args.week) || 1));
     const score = p => {
       const pid = id(playerId(p));
       if (weekly.fresh) {
         if (unavailable(p)) return 0;
+        if (kickoffs.covered.has(playerTeam(p)) && !kickoffs.starts.has(playerTeam(p))) return 0;
         return weekly.map.has(pid) ? weekly.map.get(pid) : null;
       }
       const v = boardPoints(p);
@@ -222,23 +260,56 @@
         ? remainingWeeks - 1 : remainingWeeks;
       return (v / 17) * Math.max(0, playableWeeks);
     };
-    const baseline = lineupScore(ownActive, starterSlots, score);
+    const started = new Set(), startedBench = new Set(), lockedStarterIds = new Set(), lockedModeledSlots = new Set();
+    if (weekly.fresh) {
+      if (!Array.isArray(mine.starters) || mine.starters.length !== fullStarterSlots.length) fail("current starters must align with every starting roster position");
+      const starters = mine.starters.map(id);
+      const realStarters = starters.filter(pid => pid !== "0");
+      if (new Set(realStarters).size !== realStarters.length) fail("current starters contain duplicate player ids");
+      if (realStarters.some(pid => !validateIds(mine.players || [], "roster players").has(pid) || ownLocked.has(pid))) fail("current starters must be owned active non-reserve players");
+      ownActive.filter(p => SKILL.has(position(p))).forEach(p => {
+        const pid = id(playerId(p)), t = playerTeam(p);
+        if (!t || !kickoffs.covered.has(t)) fail(`unknown team/schedule for owned player ${p.name || pid}`);
+        const at = kickoffs.starts.get(t);
+        if (at === undefined || now < at) return; // no game is a covered bye
+        if (snapshotAt < at) fail("a game started since the roster was loaded; refresh required");
+        started.add(pid);
+        const fullIndex = starters.indexOf(pid);
+        if (fullIndex < 0) { startedBench.add(pid); return; }
+        const slot = fullStarterSlots[fullIndex];
+        if (!SLOT_ELIGIBLE[slot] || !SLOT_ELIGIBLE[slot].has(position(p))) fail(`started player ${p.name || pid} is in an incompatible lineup slot`);
+        lockedStarterIds.add(pid);
+        if (slot !== "K" && slot !== "DEF") {
+          const modeledIndex = fullStarterSlots.slice(0, fullIndex + 1).filter(s => s !== "K" && s !== "DEF").length - 1;
+          lockedModeledSlots.add(modeledIndex);
+        }
+      });
+      if (lockedStarterIds.size) warnings.push(`${lockedStarterIds.size} started starter(s) locked to their exact lineup slots; their constant contribution cancels from transaction gains`);
+    }
+    const remainingStarterSlots = starterSlots.filter((s, i) => !lockedModeledSlots.has(i));
+    const availableOwn = ownActive.filter(p => !startedBench.has(id(playerId(p))) && !lockedStarterIds.has(id(playerId(p))));
+    const baseline = lineupScore(availableOwn, remainingStarterSlots, score);
     if (!Number.isFinite(baseline)) fail("owned roster cannot fill every required starting position with known finite scores");
     const mapped = p => playerId(p) !== null && playerId(p) !== undefined;
     const injuredFreeAgents = board.players.filter(p => mapped(p) && !owned.has(id(playerId(p))) && SKILL.has(position(p)) && unavailable(p));
     // An injury designation is not a ROS forecast. In a fresh upcoming-week
     // view it does, however, make the add non-actionable; stash analysis is a
     // separate user decision and must not masquerade as immediate improvement.
-    const freeAgents = board.players.filter(p => mapped(p) && !owned.has(id(playerId(p))) && SKILL.has(position(p)) && score(p) !== null && !(weekly.fresh && unavailable(p)));
+    const freeAgents = board.players.filter(p => {
+      if (!mapped(p) || owned.has(id(playerId(p))) || !SKILL.has(position(p)) || score(p) === null || (weekly.fresh && unavailable(p))) return false;
+      if (!weekly.fresh) return true;
+      const t = playerTeam(p), at = kickoffs.starts.get(t);
+      return !!t && kickoffs.covered.has(t) && at !== undefined && now < at;
+    });
     if (weekly.fresh && injuredFreeAgents.length) warnings.push(`${injuredFreeAgents.length} unavailable free agent(s) excluded from immediate weekly recommendations; review separately for stash value`);
     const missingDropScores = ownActive.filter(p => SKILL.has(position(p)) && score(p) === null);
     if (weekly.fresh && missingDropScores.length) warnings.push(`${missingDropScores.length} owned player(s) lack a current weekly projection and are protected from drops`);
-    const droppable = ownActive.filter(p => SKILL.has(position(p)) && score(p) !== null && !protectedIds.has(id(playerId(p))) && !ownLocked.has(id(playerId(p))));
+    const droppable = ownActive.filter(p => SKILL.has(position(p)) && score(p) !== null && !started.has(id(playerId(p))) && !protectedIds.has(id(playerId(p))) && !ownLocked.has(id(playerId(p))));
     const hasOpenSlot = ownActiveCount < activeRosterCapacity(league);
     const rows = [];
     const compare = (add, drop) => {
-      const next = ownActive.filter(p => id(playerId(p)) !== id(playerId(drop))).concat([add]);
-      const result = lineupScore(next, starterSlots, score);
+      const next = availableOwn.filter(p => !drop || id(playerId(p)) !== id(playerId(drop))).concat([add]);
+      const result = lineupScore(next, remainingStarterSlots, score);
       if (!Number.isFinite(result)) return;
       const gain = Math.round((result - baseline) * 100) / 100;
       if (gain <= 0) return;

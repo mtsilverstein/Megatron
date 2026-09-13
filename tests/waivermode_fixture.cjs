@@ -2,6 +2,14 @@ const assert = require("node:assert/strict");
 const M = require("../site/assets/waivermode.js");
 const board = require("../site/data/draft.json");
 const famBoard = require("../site/data/draft-fam.json");
+const hydrated = M.hydrateBoard({players:[{sleeper_id:"1",team:"DEN",position:"RB"}]}, {
+  "1":{position:"RB",team:"NYJ"}, "2":{position:"K",full_name:"Kicker",team:"DEN"},
+  MIN:{position:"DEF",team:"MIN"}, "3":{position:"RB",team:"DEN"},
+});
+assert.equal(hydrated.players[0].team,"DEN", "retain projection provenance team");
+assert.equal(hydrated.players[0].current_team,"NYJ");
+assert.deepEqual(hydrated.players.map(p=>p.sleeper_id),["1","2","MIN"]);
+assert.ok(hydrated.players.slice(1).every(p=>p.value_points===undefined && p.season_points===undefined), "identity-only K/DEF must not invent scores");
 const id = "1376245373244301312";
 const league = { league_id: id, season: "2026", status: "in_season", total_rosters: 12, settings: { waiver_type: 2 },
   scoring_settings: { ...board.league.sleeper_scoring, fum: 0 },
