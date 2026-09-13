@@ -88,6 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
                               "models/transformer/v1_s44) to average as a seed ensemble")
     parser.add_argument("--season", type=int, required=True)
     parser.add_argument("--week", type=str, default=None)
+    parser.add_argument("--remaining", action="store_true",
+                        help="also build experimental frozen-history remaining-week scenarios; requires --week")
     parser.add_argument("--draft", action="store_true")
     parser.add_argument("--returning", default=str(RETURNING_CONFIG),
                         help="YAML list of players returning from a "
@@ -661,6 +663,8 @@ def main() -> None:
 
     week = (resolve_week(args.week, weekly, schedules, args.season)
             if args.week is not None else None)
+    if args.remaining and week is None:
+        raise ValueError("--remaining requires --week")
 
     features = build_features(weekly, schedules)
     predictor = _make_predictor(args, features)
@@ -701,6 +705,12 @@ def main() -> None:
         payloads["roles.json"] = build_roles(weekly, schedules, args.season, week)
         from ffmodel.site.kickoffs import pull_kickoffs
         payloads["kickoffs.json"] = pull_kickoffs(args.season, week)
+        if args.remaining:
+            from ffmodel.site.remaining import build_remaining
+            payloads[f"remaining-{cfg.slug}.json"] = build_remaining(
+                weekly, schedules, predictor, args.season, week,
+                current_teams=current_teams, league=cfg.payload(),
+                end_week=max(week, 17), pick_six_prior=pick_six_prior)
     if args.draft:
         returning = _load_returning(Path(args.returning), weekly, args.season)
         if returning:
