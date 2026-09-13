@@ -40,12 +40,17 @@ jobs:
               python -m ffmodel.site.generate $ARGS --league "$LEAGUE"
             done
           fi
+      - name: Refresh optional free weekly ECR (never external FPTS)
+        if: inputs.draft != true
+        continue-on-error: true
+        run: python -m ffmodel.site.live_experts
       - name: Commit refreshed data
         id: commit
         run: |
           git config user.name "weekly-update-bot"
           git config user.email "actions@users.noreply.github.com"
           git add site/data
+          if [ -d data_snapshots/weekly_ecr ]; then git add data_snapshots/weekly_ecr; fi
           git diff --cached --quiet && echo "no changes" && exit 0
           git commit -m "data: weekly site refresh"
           git push

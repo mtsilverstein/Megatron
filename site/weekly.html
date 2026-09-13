@@ -158,7 +158,7 @@ about page for the numbers.</footer>
   render(rows);
   FC.loadJSON("data/weekly-ecr.json").then(source=>{
     experts=WeeklyExperts.prepare(source,payload);
-    document.getElementById("expert-status").textContent=`Expert reference: ${source.source} · ${source.scoring_format} · snapshot ${source.snapshot_at}${source.snapshot_precision==="date"?" (date only; capture time unverified)":""}. ECR is within position only, not a FLEX ranking. It does not replace or blend into model lineup points.`;
+    document.getElementById("expert-status").textContent=`Expert reference: ${source.source} · ${source.scoring_format} · snapshot ${source.snapshot_at}${source.snapshot_precision==="date"?" (date only; capture time unverified)":""}.${source.period_attribution==="inferred_from_schedule_opponents"?" Week inferred from matching scheduled opponents, not declared by source.":""} ECR is within position only, not a FLEX ranking. It does not replace or blend into model lineup points.`;
     render(rows);
   }).catch(error=>{
     document.getElementById("expert-status").textContent=`Expert reference unavailable: ${error.message}. Model advice is unchanged.`;

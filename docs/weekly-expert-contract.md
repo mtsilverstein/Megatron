@@ -51,5 +51,28 @@ fields. A safe live adapter still needs week/provenance validation; automatic
 ROS coverage is not yet verified. Never label a current feed as an arbitrary
 requested week.
 
-rankings.py and generate.py remain untouched. No scheduled refresh has been
-enabled in this increment.
+## Free weekly refresh — September 13
+
+`python -m ffmodel.site.live_experts` now fetches the free weekly mirror.
+The twice-daily weekly-update workflow runs it after both league projections
+and kickoffs are generated. An optional-source failure preserves the last
+good ECR payload and does not block projection deployment. The workflow step
+reports the failure; browser freshness checks still expire old references.
+
+Only qb, ppr-rb, ppr-wr and ppr-te pages are accepted. Every scheduled team's
+opponent must agree with the kickoff slate, with a bounded date window,
+72-hour freshness, minimum positional coverage and 95% identity-match floor.
+This is explicitly INFERRED period attribution, not source-declared season
+or week. The weekly page discloses that distinction. Date-only observations
+remain ineligible for historical pre-kickoff evaluation.
+
+Rank-only snapshots are content-addressed under data_snapshots/weekly_ecr;
+unchanged ranks/date do not duplicate the archive on each retrieval.
+External points are never serialized. Manual CSV import remains available.
+The live September 13 run matched 574 players and all 32 scheduled teams;
+ambiguous/unmatched identities were excluded and reported.
+
+Free ROS pages were confirmed in load_ff_rankings('all'), including explicit
+ros-ppr-overall and positional ros URLs. ROS ingestion and trade consumption
+remain a separate pending step; weekly rankings are never reused as ROS.
+rankings.py and generate.py remain untouched.
