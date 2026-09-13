@@ -73,6 +73,7 @@ The live September 13 run matched 574 players and all 32 scheduled teams;
 ambiguous/unmatched identities were excluded and reported.
 
 Free ROS pages were confirmed in load_ff_rankings('all'), including explicit
-ros-ppr-overall and positional ros URLs. ROS ingestion and trade consumption
-remain a separate pending step; weekly rankings are never reused as ROS.
+ros-ppr-overall and positional ros URLs. Automatic ROS ingestion and the
+waiver research reference are documented in inseason-consensus.md. In-season
+trade valuation remains pending; weekly rankings are never reused as ROS.
 rankings.py and generate.py remain untouched.

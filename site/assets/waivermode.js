@@ -79,7 +79,7 @@
     const W = window.Waivers;
     const $ = id => document.getElementById(id);
     let world = null, board = null, weekly = null, roles = null, catalog = {}, result = null, signals = {}, intel = null;
-    let kickoffs = null, snapshotAt = null;
+    let kickoffs = null, snapshotAt = null, ros = null;
     let requestId = 0, protectedIds = new Set();
     const node = (tag, text, cls) => {
       const el = document.createElement(tag);
@@ -144,12 +144,13 @@
       const rows = (intel?.radar || []).filter(p => position === "ALL" || p.position === position);
       if ($("waiver-radar-sort").value === "adds") rows.sort((a,b) => (b.adds ?? -1)-(a.adds ?? -1));
       if ($("waiver-radar-sort").value === "usage") rows.sort((a,b) => b.roleFlags.length-a.roleFlags.length || (b.role?.week || 0)-(a.role?.week || 0));
+      if ($("waiver-radar-sort").value === "ros") rows.sort((a,b) => (a.rosRank ?? Infinity)-(b.rosRank ?? Infinity));
       return rows.slice(0,24);
     }
 
     function renderIntel() {
       if (!intel) return;
-      $("waiver-intel-source").textContent = `Sleeper trends requested ${intel.fetchedAt || "unknown time"}. ${intel.warnings.join(" ")}`;
+      $("waiver-intel-source").textContent = `Sleeper trends requested ${intel.fetchedAt || "unknown time"}. ${intel.rosStatus} ${intel.warnings.join(" ")}`;
       $("waiver-role-source").textContent = intel.roleStatus;
       $("waiver-byes").replaceChildren();
       for (const r of intel.byeRisks) $("waiver-byes").append(node("li", `Week ${r.week} ${r.position}: ${r.available} available for ${r.required} required — ${r.severity}. On bye: ${r.away.join(", ")}.`));
@@ -159,7 +160,7 @@
         const reasons = [];
         if (p.sameTeam.length) reasons.push(`Shares RB room with ${p.sameTeam.join(", ")}; verify role`);
         if (p.byeCover.length) reasons.push(`Different bye in your thin ${p.position} weeks: ${p.byeCover.join(", ")}`);
-        if (!reasons.length) reasons.push("Market activity; investigate the cause");
+        if (!reasons.length) reasons.push(p.adds !== null || p.drops !== null ? "Market activity; investigate the cause" : "Consensus watchlist; verify role and availability");
         if (p.roleFlags.length) reasons.push(...p.roleFlags);
         const tr = node("tr");
         const pct = v => typeof v === "number" && Number.isFinite(v) ? `${(v*100).toFixed(1)}%` : "unknown";
@@ -170,7 +171,7 @@
           node("td", reasons.join(". ")),
           node("td", roleText),
           node("td", `${p.adds ?? "Not listed"} / ${p.drops ?? "Not listed"}`),
-          node("td", `${p.ecr === null ? "No preseason ECR" : `Preseason ECR ${p.ecr}`}. ${p.projectionCovered ? "Verify snaps, role, health and the cost of your drop." : "Not on projection board; research only, no modeled price."}`));
+          node("td", `${p.rosRank === null ? "No matching live ROS rank" : `ROS PPR overall ${p.rosRank}`}. ${p.ecr === null ? "No preseason ECR" : `Preseason ECR ${p.ecr}`}. ${p.projectionCovered ? "Verify snaps, role, health and the cost of your drop." : "Not on projection board; research only, no modeled price."}`));
         body.append(tr);
       }
       $("waiver-market").textContent = result?.waiver.type === "rolling"
@@ -197,7 +198,7 @@
         const reserve = rolling ? undefined : Number($("waiver-reserve").value);
         if (!rolling && (!$("waiver-reserve").value.trim() || !Number.isInteger(reserve) || reserve < 0)) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
         result = W.analyze({ board, ...world, weekly, kickoffs, snapshotAt, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve });
-        intel = window.WaiverIntel.analyze({ board, ...world, catalog, signals, roles, week:Number($("waiver-week").value) });
+        intel = window.WaiverIntel.analyze({ board, ...world, catalog, signals, roles, ros, week:Number($("waiver-week").value) });
         const b = result.budget, mine = world.rosters.find(r => r.roster_id === world.rosterId);
         $("waiver-reserve").closest("label").hidden = rolling;
         $("waiver-budget").replaceChildren();
@@ -225,11 +226,12 @@
       status("Reading current rosters, waiver settings, scoring, and projections…");
       try {
         const dataPath = kind => window.FC.leagueDataPath(kind);
-        const [rawBoard, loadedWeekly, loadedRoles, loadedKickoffs] = await Promise.all([
+        const [rawBoard, loadedWeekly, loadedRoles, loadedKickoffs, loadedRos] = await Promise.all([
           window.FC.loadJSON(dataPath("draft")),
           window.FC.loadJSON(dataPath("weekly")).catch(() => null),
           window.FC.loadJSON("data/roles.json").catch(() => null),
           window.FC.loadJSON("data/kickoffs.json").catch(() => null),
+          window.FC.loadJSON("data/ros-ecr.json").catch(() => null),
         ]);
         if (rawBoard.league?.slug !== selectedLeague) throw new Error("Projection board does not match the selected league; reload before using advice.");
         const loadedAt = Date.now();
@@ -249,7 +251,7 @@
         leagueLink.href = `https://sleeper.com/leagues/${encodeURIComponent(board.league.league_id)}/team`;
         leagueLink.textContent = `Open ${board.league.slug.toUpperCase()} in Sleeper`;
         weekly = loadedWeekly; roles = loadedRoles; world = nextWorld; signals = nextSignals;
-        kickoffs = loadedKickoffs; snapshotAt = loadedAt;
+        kickoffs = loadedKickoffs; snapshotAt = loadedAt; ros = loadedRos;
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
         protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
         renderRoster(); recompute();
@@ -274,7 +276,7 @@
         $("waiver-intel-source").textContent,
         intel.roleStatus,
         ...activeRadar().filter(p => p.role).map(p => `USAGE ${p.name}: W${p.role.week}; ${p.roleFlags.join("; ") || "no threshold flags"}; observed ${JSON.stringify(p.role.latest)}; change ${JSON.stringify(p.role.delta)}; baseline weeks ${p.role.baseline_weeks.join(",")}`),
-        ...activeRadar().map(p => `${p.name} (${p.position}); Sleeper 24h adds ${p.adds ?? "not listed"}, drops ${p.drops ?? "not listed"}; same-team RBs: ${p.sameTeam.join(", ") || "none"}; different bye in thin weeks: ${p.byeCover.join(", ") || "none"}; status ${p.status || "verify"}`),
+        ...activeRadar().map(p => `${p.name} (${p.position}); ROS PPR overall ${p.rosRank ?? "unavailable"}; Sleeper 24h adds ${p.adds ?? "not listed"}, drops ${p.drops ?? "not listed"}; same-team RBs: ${p.sameTeam.join(", ") || "none"}; different bye in thin weeks: ${p.byeCover.join(", ") || "none"}; status ${p.status || "verify"}`),
         "Verify injury/role updates, claim deadline, total spend and drop conflicts in Sleeper."];
       $("waiver-backup").value = lines.join("\n");
       $("waiver-backup").closest("details").open = true;

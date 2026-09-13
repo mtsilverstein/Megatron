@@ -2,10 +2,26 @@
 (function () {
   "use strict";
   const skill = new Set(["QB", "RB", "WR", "TE"]);
-  const teamCode = t => ({LAR:"LA", WSH:"WAS"}[t] || t || null);
+  const teamCode = t => ({LAR:"LA", JAC:"JAX", WSH:"WAS"}[t] || t || null);
   const num = x => x === null || x === undefined || typeof x === "boolean" || String(x).trim() === "" ? null : Number.isFinite(Number(x)) ? Number(x) : null;
   const ids = r => [...new Set([...(r.players || []), ...(r.reserve || []), ...(r.taxi || [])].map(String))];
-  function analyze({ board, league, rosters, rosterId, catalog = {}, week, signals = {}, transactions = [], roles = null }) {
+  function prepareRos(source, season, now=Date.now()) {
+    if (source?.schema_version !== 1 || source.horizon !== "ros" || source.rank_scope !== "overall"
+        || source.scoring_format !== "ppr" || source.season !== Number(season) || !source.source)
+      throw new Error("ROS source contract does not match this season/PPR horizon.");
+    const age = now - Date.parse(source.snapshot_at);
+    if (!Number.isFinite(age) || age < 0 || age > 7*86400000 || !Array.isArray(source.players) || !source.players.length)
+      throw new Error("ROS reference is stale, future-dated or empty.");
+    const result = new Map();
+    for (const p of source.players) {
+      if (typeof p.player_id !== "string" || !p.player_id.trim() || result.has(p.player_id)
+          || !skill.has(p.position) || typeof p.ros_rank !== "number" || !Number.isFinite(p.ros_rank) || p.ros_rank <= 0)
+        throw new Error("Invalid or duplicate ROS player identity/rank.");
+      result.set(p.player_id, {position:p.position, team:teamCode(p.team), ros_rank:p.ros_rank});
+    }
+    return result;
+  }
+  function analyze({ board, league, rosters, rosterId, catalog = {}, week, signals = {}, transactions = [], roles = null, ros = null }) {
     if (!Array.isArray(rosters) || rosters.length !== Number(league.total_rosters)) throw new Error("Research requires every league roster.");
     if (!Number.isInteger(week) || week < 1 || week > 18) throw new Error("Research week is invalid.");
     const mine = rosters.find(r => String(r.roster_id) === String(rosterId));
@@ -16,6 +32,13 @@
     // Add genuinely trending players absent from the projection board. Missing
     // projections must not hide new rookies; they remain research-only entries.
     const warnings = [], trends = {}, usage = new Map();
+    let rosRanks = new Map(), rosStatus = "Live ROS reference unavailable; preseason ECR remains separately labeled.";
+    if (ros) {
+      try {
+        rosRanks = prepareRos(ros, league.season);
+        rosStatus = `ROS reference: ${ros.source}, PPR overall, snapshot ${ros.snapshot_at} (date only). Independent consensus ranks—not league-specific points, trade prices or bid amounts.`;
+      } catch (error) { rosStatus = `${error.message} ROS ranks withheld.`; }
+    }
     let roleStatus = "Observed usage unavailable; no role-growth claims.";
     const age = roles ? Date.now() - Date.parse(roles.generated_at) : Infinity;
     if (roles && roles.schema_version === 1 && Number(roles.season) === Number(league.season)
@@ -81,10 +104,12 @@
       const observed = usage.get(String(p.player_id));
       const role = observed && teamCode(observed.team) === p.team ? observed : null;
       const roleFlags = role && Array.isArray(role.flags) ? role.flags : [];
-      if (!sameTeam.length && !byeCover.length && adds === null && drops === null && !roleFlags.length) continue;
-      if (num(p.ecr) === null && adds === null && drops === null && !roleFlags.length) continue;
+      const reference = rosRanks.get(String(p.player_id));
+      const rosRank = reference && reference.position === p.position && reference.team && reference.team === p.team ? reference.ros_rank : null;
+      if (!sameTeam.length && !byeCover.length && adds === null && drops === null && !roleFlags.length && rosRank === null) continue;
+      if (num(p.ecr) === null && adds === null && drops === null && !roleFlags.length && rosRank === null) continue;
       radar.push({ id:p.id, name:p.name || p.id, position:p.position, team:p.team || "Unknown", status:p.injury_status || null,
-        ecr:num(p.ecr), adds, drops, sameTeam, byeCover, role, roleFlags, projectionCovered:board.players.some(b => String(b.sleeper_id) === p.id) });
+        ecr:num(p.ecr), rosRank, adds, drops, sameTeam, byeCover, role, roleFlags, projectionCovered:board.players.some(b => String(b.sleeper_id) === p.id) });
     }
     const unavailable = p => ["IR", "OUT", "SUSPENDED", "PUP", "DOUBTFUL"].includes(String(p.status || "").toUpperCase());
     radar.sort((a,b) => Number(unavailable(a))-Number(unavailable(b)) || Number(!!b.sameTeam.length)-Number(!!a.sameTeam.length) || (a.ecr ?? Infinity)-(b.ecr ?? Infinity) || b.byeCover.length-a.byeCover.length || (b.adds ?? -1)-(a.adds ?? -1) || a.id.localeCompare(b.id));
@@ -98,9 +123,9 @@
       if (t.type !== "waiver" || amount === null || amount < 0 || !Number.isInteger(amount)) continue;
       bids.push({ amount, players:Object.keys(t.adds || {}).map(id => catalog[id]?.full_name || players.get(id)?.name || id) });
     }
-    return { radar, byeRisks, bids, freeAgentMoves, warnings, roleStatus, fetchedAt:signals.fetchedAt || null };
+    return { radar, byeRisks, bids, freeAgentMoves, warnings, roleStatus, rosStatus, fetchedAt:signals.fetchedAt || null };
   }
-  const api = Object.freeze({ analyze });
+  const api = Object.freeze({ analyze, prepareRos });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverIntel = api;
 })();

@@ -8,6 +8,18 @@ const base = {board:{players:[p(1,"NO",8),p(2,"NYG",8),p(3,"TB",7),p(4,"MIN",6),
   signals:{add:[{player_id:"6",count:120},{player_id:"7",count:500},{player_id:"90",count:20}],drop:[{player_id:"5",count:5}],fetchedAt:"now"},
   catalog:{90:{full_name:"New rookie",position:"WR",team:"DEN"}}, transactions:[]};
 let out=I.analyze(base);
+const rosNow=Date.now(), ros={schema_version:1,horizon:"ros",rank_scope:"overall",scoring_format:"ppr",season:2026,
+  source:"ROS fixture",snapshot_at:new Date(rosNow).toISOString(),players:[{player_id:"g6",position:"RB",team:"CLE",ros_rank:42,projected_fpts:999}]};
+assert.equal(I.prepareRos(ros,2026,rosNow).get("g6").ros_rank,42);
+assert.equal(I.prepareRos(ros,2026,rosNow).get("g6").projected_fpts,undefined);
+for (const change of [{horizon:"weekly"},{rank_scope:"position"},{season:2025},{scoring_format:"standard"},
+  {snapshot_at:new Date(rosNow-8*86400000).toISOString()},{players:[...ros.players,...ros.players]},
+  {players:[{...ros.players[0],ros_rank:0}]}]) assert.throws(()=>I.prepareRos({...ros,...change},2026,rosNow));
+const rosBase={...base,league:{...base.league,season:"2026"},board:{players:base.board.players.map(p=>({...p,player_id:`g${p.sleeper_id}`}))},ros};
+assert.equal(I.analyze(rosBase).radar.find(p=>p.id==="6").rosRank,42);
+assert.equal(I.analyze({...rosBase,catalog:{6:{team:"NYJ"}}}).radar.find(p=>p.id==="6").rosRank,null);
+assert.equal(I.analyze({...rosBase,ros:{...ros,horizon:"weekly"}}).radar.find(p=>p.id==="6").rosRank,null);
+assert.match(I.analyze({...rosBase,ros:{...ros,horizon:"weekly"}}).rosStatus,/withheld/);
 assert.deepEqual(out.byeRisks,[{week:8,position:"RB",required:2,available:2,away:["Player 1","Player 2"],severity:"no spare"}]);
 assert.ok(out.radar.every(x=>!["1","2","3","4","7","8"].includes(x.id)));
 assert.deepEqual(out.radar.find(x=>x.id==="5").sameTeam,["Player 1"]);
