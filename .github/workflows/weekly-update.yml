@@ -1,7 +1,7 @@
 name: weekly site update
 on:
   schedule:
-    - cron: "23 5 * 9-12,1 3"   # Wed 05:23 UTC (Tue night ET), Sep-Jan
+    - cron: "23 5,17 * 9-12,1 *"   # Twice daily; keep 72-hour consumers fresh
   workflow_dispatch:
     inputs:
       draft:
@@ -14,6 +14,9 @@ env:
   # appends through{year} to each and averages the quantiles
   ARTIFACT_ROOT: "models/transformer/v1,models/transformer/v1_s43,models/transformer/v1_s44"
   SEASON: "2026"
+concurrency:
+  group: weekly-site-refresh
+  cancel-in-progress: false
 jobs:
   regenerate:
     runs-on: ubuntu-latest

@@ -17,6 +17,10 @@ def validate_inputs(weekly: pd.DataFrame, schedules: pd.DataFrame, season: int) 
     if weekly.empty:
         raise RuntimeError("weekly frame is empty — refusing to generate")
     counts = weekly.groupby("season").size()
+    if {"home_score", "away_score"} <= set(schedules):
+        validate_completed_games(weekly, schedules, season)
+        # A legitimate Thursday-only current season can have <200 rows.
+        counts = counts.drop(season, errors="ignore")
     thin = counts[counts < MIN_ROWS_PER_SEASON]
     if not thin.empty:
         raise RuntimeError(f"suspiciously few rows in season(s) {list(thin.index)} "
@@ -105,15 +109,50 @@ def parse_and_validate(argv=None) -> argparse.Namespace:
     return args
 
 
+def validate_completed_games(weekly, schedules, season):
+    """Reject successful but incomplete pulls of completed team-games."""
+    games = schedules[schedules["season"] == season]
+    if "game_type" in games:
+        games = games[games["game_type"] == "REG"]
+    if not {"home_score", "away_score"} <= set(games):
+        raise RuntimeError("schedule final scores required for safe week selection")
+    complete = games[games["home_score"].notna() & games["away_score"].notna()]
+    if complete.empty:
+        return
+    if "team" not in weekly:
+        raise RuntimeError("weekly team identity missing for completed-game coverage")
+    observed = set(zip(weekly.loc[weekly.season == season, "week"],
+                       weekly.loc[weekly.season == season, "team"]))
+    missing = [(int(row.week), team) for row in complete.itertuples()
+               for team in (row.home_team, row.away_team)
+               if (row.week, team) not in observed]
+    if missing:
+        raise RuntimeError(f"completed team-games missing weekly stats: {missing}")
+
+
 def resolve_week(week, weekly: pd.DataFrame, schedules: pd.DataFrame, season: int) -> int:
     if week != "auto":
         return int(week)
-    played = set(weekly[weekly["season"] == season]["week"])
-    scheduled = sorted(set(schedules[schedules["season"] == season]["week"]))
-    remaining = [w for w in scheduled if w not in played]
+    validate_completed_games(weekly, schedules, season)
+    games = schedules[schedules["season"] == season]
+    if "game_type" in games:
+        games = games[games["game_type"] == "REG"]
+    remaining = [w for w, group in games.groupby("week", sort=True)
+                 if not (group.home_score.notna() & group.away_score.notna()).all()]
     if not remaining:
         raise RuntimeError(f"season {season} has no unplayed scheduled weeks left")
     return int(remaining[0])
+
+
+def history_before_week(weekly, season, week):
+    """Freeze weekly features before the slate, including during partial weeks."""
+    history = weekly[(weekly.season < season) |
+                     ((weekly.season == season) & (weekly.week < week))].copy()
+    if history.empty:
+        raise RuntimeError("no pre-slate history available")
+    last_season = int(history.season.max())
+    last_week = int(history.loc[history.season == last_season, "week"].max())
+    return history, f"{last_season}-wk{last_week}"
 
 
 def _season_has_completed_game(schedules: pd.DataFrame, season: int) -> bool:
@@ -648,13 +687,14 @@ def main() -> None:
         print(f"pick-six expected-cost rate: {pick_six_prior['rate']:.4%} "
               f"({pick_six_prior['first_season']}–{pick_six_prior['through_season']})")
     if week is not None:
-        combined, future = combined_future_features(weekly, schedules,
+        projection_history, projection_through = history_before_week(weekly, args.season, week)
+        combined, future = combined_future_features(projection_history, schedules,
                                                     args.season, week,
                                                     current_teams)
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)
         payloads[cfg.weekly_file] = build_weekly_projections(
-            future, predictor, args.season, week, data_through,
+            future, predictor, args.season, week, projection_through,
             pick_six_prior=pick_six_prior)
         payloads[cfg.weekly_file]["league"] = cfg.payload()
         from ffmodel.site.roles import build_roles

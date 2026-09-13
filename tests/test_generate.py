@@ -149,9 +149,9 @@ def test_espn_weekly_run_refuses_before_io_or_scoring_changes(
 def test_week_auto_resolves_first_unplayed():
     from ffmodel.site.generate import resolve_week
 
-    weekly = make_weekly([{"week": w, "player_id": f"p{i}"}
-                          for w in (1, 2) for i in range(3)])
-    sched = make_schedules(4)
+    weekly = make_weekly([{"week": w, "player_id": f"{t}{w}", "team": t}
+                          for w in (1, 2) for t in ("AAA", "BBB")])
+    sched = _sched_with_scores(4, season=2023, completed_rows={0:(10,7),1:(10,7)})
     assert resolve_week("auto", weekly, sched, season=2023) == 3
     assert resolve_week(4, weekly, sched, season=2023) == 4
 
@@ -159,9 +159,9 @@ def test_week_auto_resolves_first_unplayed():
 def test_week_auto_errors_when_season_complete():
     from ffmodel.site.generate import resolve_week
 
-    weekly = make_weekly([{"week": w, "player_id": f"p{i}"}
-                          for w in (1, 2, 3, 4) for i in range(3)])
-    sched = make_schedules(4)
+    weekly = make_weekly([{"week": w, "player_id": f"{t}{w}", "team": t}
+                          for w in (1, 2, 3, 4) for t in ("AAA", "BBB")])
+    sched = _sched_with_scores(4, season=2023, completed_rows={i:(10,7) for i in range(4)})
     with pytest.raises(RuntimeError, match="2023"):
         resolve_week("auto", weekly, sched, season=2023)
 
@@ -176,6 +176,38 @@ def _sched_with_scores(weeks=4, season=2026, completed_rows=None):
         sched.loc[idx, "home_score"] = home
         sched.loc[idx, "away_score"] = away
     return sched
+
+
+def test_auto_keeps_partial_week_and_rejects_incomplete_stats():
+    from ffmodel.site.generate import resolve_week
+    sched = _sched_with_scores(3, season=2023, completed_rows={0:(10,7)})
+    sched.loc[1, "week"] = 1  # remaining game in same week
+    sched.loc[1, "home_team"] = "CCC"
+    sched.loc[1, "away_team"] = "DDD"
+    weekly = make_weekly([{"team":t} for t in ("AAA","BBB")])
+    assert resolve_week("auto", weekly, sched, 2023) == 1
+    with pytest.raises(RuntimeError, match="completed team-games"):
+        resolve_week("auto", weekly.iloc[:1], sched, 2023)
+    with pytest.raises(RuntimeError, match="final scores"):
+        resolve_week("auto", weekly, sched.drop(columns="home_score"), 2023)
+
+
+def test_small_current_season_allowed_only_with_complete_team_coverage():
+    sched = _sched_with_scores(2, season=2023, completed_rows={0:(10,7)})
+    weekly = make_weekly([{"team":t} for t in ("AAA","BBB")])
+    validate_inputs(weekly, sched, 2023)
+    with pytest.raises(RuntimeError, match="completed team-games"):
+        validate_inputs(weekly.iloc[:1], sched, 2023)
+
+
+def test_partial_slate_features_exclude_current_and_future_outcomes():
+    from ffmodel.site.generate import history_before_week
+    weekly = make_weekly([{"week":1},{"week":2},{"week":3}])
+    history, through = history_before_week(weekly, 2023, 2)
+    assert history.week.tolist() == [1]
+    assert through == "2023-wk1"
+    with pytest.raises(RuntimeError, match="pre-slate history"):
+        history_before_week(weekly, 2023, 1)
 
 
 def test_season_has_completed_game_false_when_all_scores_missing():
@@ -702,7 +734,7 @@ def test_data_through_stamp_is_derived_from_data_and_lands_in_json(monkeypatch, 
     frame's max (season, week) -- not a constant, not missing -- and that the
     value reaches the written weekly.json. `_run_generate_with_stubs`'s fixed
     weekly frame (tests/test_features.py::make_weekly, season 2023, weeks
-    1..6) makes the expected stamp "2023-wk6"; a hardcoded placeholder like
+    1..6) makes the week-6 pre-slate stamp "2023-wk5"; a hardcoded placeholder like
     "unknown" would not match and would fail this test."""
     import ffmodel.data.future as future_mod
     import ffmodel.site.weekly as weekly_mod
@@ -721,10 +753,10 @@ def test_data_through_stamp_is_derived_from_data_and_lands_in_json(monkeypatch, 
     _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], capture)
 
     assert capture["data_through"] not in (None, "", "unknown")
-    assert capture["data_through"] == "2023-wk6"
+    assert capture["data_through"] == "2023-wk5"
 
     written = json.loads((tmp_path / "out" / "weekly.json").read_text())
-    assert written["data_through"] == "2023-wk6"
+    assert written["data_through"] == "2023-wk5"
 
 
 def test_load_adp_backfills_rookie_gsis_from_draft_picks(monkeypatch):

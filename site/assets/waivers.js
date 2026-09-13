@@ -49,6 +49,12 @@
     if (!out.length) fail("league has no supported starting positions");
     return out;
   }
+  function activeRosterCapacity(league) {
+    return league.roster_positions.reduce((n, s0) => {
+      const s = String(s0).toUpperCase();
+      return n + (s === "IR" || s === "TAXI" ? 0 : 1);
+    }, 0);
+  }
   function lineupScore(players, starterSlots, scoreOf) {
     // Exact for the supported laminar slot family: dedicated position sets are
     // disjoint, FLEX contains RB/WR/TE, and SUPER_FLEX contains all of them.
@@ -174,6 +180,7 @@
     });
     if (unmappedBoard) warnings.push(`${unmappedBoard} board player(s) lack a Sleeper id and cannot be waiver candidates`);
     const owned = new Set(), ownActive = [], ownLocked = new Set(), unknownOwned = [];
+    let ownActiveCount = 0;
     const rosterIds = new Set();
     rosters.forEach(r => {
       const rid = finite(r && r.roster_id);
@@ -191,6 +198,7 @@
         reserveSet.forEach(pid => ownLocked.add(pid)); taxiSet.forEach(pid => ownLocked.add(pid));
         active.forEach(pid => {
           if (ownLocked.has(pid)) return;
+          ownActiveCount++;
           const p = boardById.get(pid); if (p) ownActive.push(p); else unknownOwned.push(pid);
         });
       }
@@ -226,8 +234,9 @@
     const missingDropScores = ownActive.filter(p => SKILL.has(position(p)) && score(p) === null);
     if (weekly.fresh && missingDropScores.length) warnings.push(`${missingDropScores.length} owned player(s) lack a current weekly projection and are protected from drops`);
     const droppable = ownActive.filter(p => SKILL.has(position(p)) && score(p) !== null && !protectedIds.has(id(playerId(p))) && !ownLocked.has(id(playerId(p))));
+    const hasOpenSlot = ownActiveCount < activeRosterCapacity(league);
     const rows = [];
-    freeAgents.forEach(add => droppable.forEach(drop => {
+    const compare = (add, drop) => {
       const next = ownActive.filter(p => id(playerId(p)) !== id(playerId(drop))).concat([add]);
       const result = lineupScore(next, starterSlots, score);
       if (!Number.isFinite(result)) return;
@@ -236,16 +245,20 @@
       const valueEstimate = boardPoints(add);
       rows.push({
         add: { id: id(playerId(add)), name: add.name || add.full_name || id(playerId(add)), position: position(add) },
-        drop: { id: id(playerId(drop)), name: drop.name || drop.full_name || id(playerId(drop)), position: position(drop) },
+        drop: drop ? { id: id(playerId(drop)), name: drop.name || drop.full_name || id(playerId(drop)), position: position(drop) } : null,
         lineupGain: gain,
         scoring: { source: weekly.fresh ? "weekly" : "preseason_proxy", label: weekly.fresh ? `week ${args.week} projection` : "ROUGH REST-OF-SEASON PRESEASON PROXY — not a live projection" },
         availability: { status: String(add.injury_status || add.status || "").toUpperCase() || null, actionableNow: !unavailable(add), warning: unavailable(add) ? "injury designation: stash/review, not an immediate-week recommendation" : null },
         valueEstimate: { points: valueEstimate, label: "board value estimate; not a FAAB price" },
         bid: rolling ? null : bidGuide(weekly.fresh ? gain : gain / remainingWeeks, budgetTotal, remaining, reserve, minBid)
       });
-    }));
+    };
+    freeAgents.forEach(add => {
+      if (hasOpenSlot) compare(add, null);
+      else droppable.forEach(drop => compare(add, drop));
+    });
     rows.sort((a, b) => b.lineupGain - a.lineupGain || (b.valueEstimate.points || -Infinity) - (a.valueEstimate.points || -Infinity));
-    if (!rows.length) warnings.push("no positive legal skill-player swap found");
+    if (!rows.length) warnings.push("no positive legal skill-player waiver transaction found");
     return {
       waiver: { type: rolling ? "rolling" : "faab", priority: finite(mine.settings && mine.settings.waiver_position), guidance: rolling ? "Order claims by value and roster need; current priority is context, not a claim-success probability." : "Bid ranges are budgeting heuristics, not claim-success probabilities." },
       budget: rolling ? null : { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },

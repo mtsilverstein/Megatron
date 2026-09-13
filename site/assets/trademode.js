@@ -132,6 +132,7 @@
   // fields. `warnings` is the loud half: anything the caller must SAY rather
   // than silently absorb.
   async function leagueWorld(league, board, opts = {}) {
+    if (league.status !== "pre_draft") throw new Error("This calculator is pre-draft only. In-season trade valuation is not available yet.");
     const season = board.season;
     const players = Optimizer.withValuePoints(board.players)
       .filter(p => Number.isFinite(Optimizer.seasonValue(p)));

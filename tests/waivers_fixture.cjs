@@ -151,6 +151,27 @@ check("missing weekly scores protect owned players from drops", () => {
   assert.match(out.warnings.join(" "),/protected from drops/);
 });
 
+check("open active roster slots allow adds without forced drops", () => {
+  const slotLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN","IR","TAXI"]};
+  const slotRosters=[
+    {roster_id:1,players:["1","2","3","4","5","6","99"],reserve:["99"],taxi:[],settings:{waiver_budget_used:40}},
+    {roster_id:2,players:["9"],reserve:[],taxi:["10"],settings:{waiver_budget_used:0}}
+  ];
+  const out=W.analyze({...base,league:slotLeague,rosters:slotRosters,protectedIds:["1","2","3","4"]});
+  assert.ok(out.rows.some(r=>r.add.id==="7"&&r.drop===null),"open active slot should not force a drop");
+  assert.ok(out.rows.every(r=>r.drop===null||!["1","2","3","4"].includes(r.drop.id)));
+});
+
+check("full active rosters still require a legal drop", () => {
+  const fullLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN"]};
+  const fullRosters=[
+    {roster_id:1,players:["1","2","3","4","5","6","8"],reserve:[],taxi:[],settings:{waiver_budget_used:40}},
+    {roster_id:2,players:["9"],reserve:[],taxi:["10"],settings:{waiver_budget_used:0}}
+  ];
+  const out=W.analyze({...base,league:fullLeague,rosters:fullRosters,protectedIds:["1","2","3","4","8"]});
+  assert.ok(out.rows.every(r=>r.drop!==null),"full roster emitted an add-only claim");
+});
+
 check("minimum bid above spendable returns no illegal range", () => {
   const costly={...league,settings:{waiver_budget:100,waiver_bid_min:25}};
   const out=W.analyze({...base,league:costly,budgetReserve:50}); // remaining 60, spendable 10

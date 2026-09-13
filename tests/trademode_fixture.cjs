@@ -61,7 +61,7 @@ function league(opts) {
     routes[`/league/${o.prev}/drafts`] = [{ draft_id: "D1", status: "complete", season: "2025" }];
     routes["/draft/D1/picks"] = o.drafted;
   }
-  return { league_id: o.id, name: "Test league", previous_league_id: o.prev };
+  return { league_id: o.id, name: "Test league", previous_league_id: o.prev, status:"pre_draft" };
 }
 
 const teamsOf = (rosterIds, players) => rosterIds.map((rid, i) => ({
@@ -74,6 +74,11 @@ const teamsOf = (rosterIds, players) => rosterIds.map((rid, i) => ({
 // version of this file read another test's draft picks and asserted R12 where
 // it had set up R1 -- a green-looking test measuring the wrong league.)
 const queued = [];
+queued.push({label:"reject non-predraft leagues", fn:async () => {
+  for(const status of ["in_season","drafting","complete",undefined]) {
+    await assert.rejects(()=>TM.leagueWorld({status},board()), /pre-draft only/);
+  }
+}});
 const acheck = (label, fn) => queued.push({ label, fn });
 async function runAll() {
   for (const t of queued) {
