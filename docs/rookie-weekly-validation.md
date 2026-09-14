@@ -112,3 +112,37 @@ Only the Gabagool transformer probe was executed for this milestone. The CLI
 supports FAM, but the prior last-four-veteran reports for both leagues are not
 being relabeled as transformer results. Next validation is later-season origins,
 where rookie usage exists and a frozen draft-capital prior may be inadequate.
+
+## Later-season transformer result
+
+`rookie_transformer_inseason_gabagool.json` extends the test to origins 5 and 9,
+horizons 1 and 4, and held-out classes 2023–2025. It still compares the unchanged
+capital prior with the position-only rookie prior, holding transformer veteran
+forecasts fixed. It does **not** update rookie forecasts from their observed games.
+
+| Position | History group | Evaluated pairs | Capital minus position-only mean regret |
+| --- | --- | ---: | ---: |
+| QB | Zero recorded games | 80 | -0.245 |
+| RB | Zero recorded games | 184 | +0.059 |
+| WR | Zero recorded games | 443 | -0.222 |
+| TE | Zero recorded games | 88 | -0.018 |
+| QB | One to three recorded games | 323 | -0.397 |
+| RB | One to three recorded games | 977 | -0.135 |
+| WR | One to three recorded games | 2,133 | +0.004 |
+| TE | One to three recorded games | 526 | -0.001 |
+
+Negative regret differences favor the capital prior. These dependent pair counts
+are not independent sample sizes. The low-history QB improvement came entirely
+from 2023; low-history RB regret worsened in 2025 despite aggregate improvement.
+Zero-history RBs worsened overall, driven by 2024. Thus the week-one RB result is
+not evidence for a universal in-season fallback.
+
+Both configured Sleeper leagues were checked to have identical complete rules
+objects after disabling pick-six scoring for this diagnostic. The single stored
+run is labeled Gabagool; it is not a second independent FAM experiment, and this
+equivalence does not claim that every platform scoring event is modeled.
+
+Decision: keep live coverage guards unchanged. Next compare pre-origin observed
+rookie stat averages against the frozen capital prior for the one-to-three-game
+group, on the same candidate pairs. Do not select a blend weight against these
+held-out results or quietly assign zero to rookies who have no NFL record.
