@@ -1,0 +1,351 @@
+{
+  "schema_version": 1,
+  "diagnostic": "frozen_history_horizons",
+  "advice_eligible": false,
+  "league": {
+    "slug": "gabagool",
+    "name": "Gabagool Fools",
+    "league_id": "1376245373244301312",
+    "teams": 12,
+    "roster": {
+      "QB": 1,
+      "RB": 2,
+      "WR": 2,
+      "TE": 1
+    },
+    "flex": 2,
+    "flex_positions": [
+      "RB",
+      "WR",
+      "TE"
+    ],
+    "rounds": 15,
+    "starters": 8,
+    "total_picks": 180,
+    "depth_cap": {
+      "QB": 2,
+      "RB": 6,
+      "WR": 6,
+      "TE": 2
+    },
+    "board_ruleset": "league",
+    "platform": "sleeper",
+    "scoring": {
+      "pass_yd": 0.04,
+      "pass_td": 6.0,
+      "interception": -2.0,
+      "pass_int_td": -3.0,
+      "rush_yd": 0.1,
+      "rush_td": 6.0,
+      "rec_yd": 0.1,
+      "rec_td": 6.0,
+      "reception": 1.0,
+      "fumble_lost": -2.0,
+      "two_point": 2.0,
+      "st_td": 6.0
+    },
+    "sleeper_scoring": {
+      "pass_yd": 0.04,
+      "pass_td": 6.0,
+      "pass_int": -2.0,
+      "pass_int_td": -3.0,
+      "pass_2pt": 2.0,
+      "pass_td_50p": 2.0,
+      "rush_yd": 0.1,
+      "rush_td": 6.0,
+      "rush_2pt": 2.0,
+      "rush_td_50p": 2.0,
+      "rec": 1.0,
+      "rec_yd": 0.1,
+      "rec_td": 6.0,
+      "rec_2pt": 2.0,
+      "rec_td_50p": 2.0,
+      "fum_lost": -2.0,
+      "fum_rec_td": 6.0,
+      "st_td": 6.0,
+      "st_fum_rec": 1.0,
+      "st_ff": 1.0,
+      "sack": 1.0,
+      "int": 2.0,
+      "ff": 1.0,
+      "fum_rec": 2.0,
+      "safe": 2.0,
+      "blk_kick": 2.0,
+      "def_td": 6.0,
+      "def_st_td": 6.0,
+      "def_st_fum_rec": 1.0,
+      "def_st_ff": 1.0,
+      "pts_allow_0": 10.0,
+      "pts_allow_1_6": 7.0,
+      "pts_allow_7_13": 4.0,
+      "pts_allow_14_20": 1.0,
+      "pts_allow_28_34": -1.0,
+      "pts_allow_35p": -4.0,
+      "fgm_yds": 0.1,
+      "fgmiss": -1.0,
+      "xpm": 1.0,
+      "xpmiss": -1.0
+    },
+    "unprojected_scoring": {
+      "pass_int_td": -3.0,
+      "pass_td_50p": 2.0,
+      "rush_td_50p": 2.0,
+      "rec_td_50p": 2.0,
+      "pass_2pt": 2.0,
+      "rush_2pt": 2.0,
+      "rec_2pt": 2.0,
+      "fum_rec_td": 6.0,
+      "st_td": 6.0
+    },
+    "keeper_rules": "gabagool"
+  },
+  "season": 2025,
+  "origin_week": 8,
+  "training_through": 2024,
+  "model": "transformer",
+  "reports": [
+    {
+      "season": 2025,
+      "origin_week": 8,
+      "target_week": 8,
+      "horizon": 1,
+      "overall": {
+        "forecast_players": 579,
+        "observed_actuals": 289,
+        "missing_actuals": 290,
+        "team_or_position_changed": 1,
+        "evaluated": 288,
+        "mae": 4.750034722222223,
+        "bias": -2.8227430555555557
+      },
+      "by_position": {
+        "QB": {
+          "forecast_players": 72,
+          "observed_actuals": 33,
+          "missing_actuals": 39,
+          "team_or_position_changed": 0,
+          "evaluated": 33,
+          "mae": 8.495454545454544,
+          "bias": -3.6306060606060613
+        },
+        "RB": {
+          "forecast_players": 153,
+          "observed_actuals": 82,
+          "missing_actuals": 71,
+          "team_or_position_changed": 0,
+          "evaluated": 82,
+          "mae": 5.0667073170731705,
+          "bias": -3.406707317073171
+        },
+        "TE": {
+          "forecast_players": 120,
+          "observed_actuals": 58,
+          "missing_actuals": 62,
+          "team_or_position_changed": 0,
+          "evaluated": 58,
+          "mae": 3.2113793103448276,
+          "bias": -1.9137931034482758
+        },
+        "WR": {
+          "forecast_players": 234,
+          "observed_actuals": 116,
+          "missing_actuals": 118,
+          "team_or_position_changed": 1,
+          "evaluated": 115,
+          "mae": 4.225478260869566,
+          "bias": -2.6329565217391306
+        }
+      },
+      "pick_six_evaluated": false,
+      "origin_cohort": 704,
+      "scheduled_origin_players": 579,
+      "unprojected_scheduled_players": 0
+    },
+    {
+      "season": 2025,
+      "origin_week": 8,
+      "target_week": 9,
+      "horizon": 2,
+      "overall": {
+        "forecast_players": 608,
+        "observed_actuals": 308,
+        "missing_actuals": 300,
+        "team_or_position_changed": 7,
+        "evaluated": 301,
+        "mae": 4.537607973421927,
+        "bias": -2.7342857142857144
+      },
+      "by_position": {
+        "QB": {
+          "forecast_players": 77,
+          "observed_actuals": 30,
+          "missing_actuals": 47,
+          "team_or_position_changed": 0,
+          "evaluated": 30,
+          "mae": 10.082666666666666,
+          "bias": -5.73
+        },
+        "RB": {
+          "forecast_players": 162,
+          "observed_actuals": 83,
+          "missing_actuals": 79,
+          "team_or_position_changed": 1,
+          "evaluated": 82,
+          "mae": 3.9395121951219507,
+          "bias": -2.3697560975609755
+        },
+        "TE": {
+          "forecast_players": 128,
+          "observed_actuals": 66,
+          "missing_actuals": 62,
+          "team_or_position_changed": 2,
+          "evaluated": 64,
+          "mae": 4.09671875,
+          "bias": -2.9245312500000002
+        },
+        "WR": {
+          "forecast_players": 241,
+          "observed_actuals": 129,
+          "missing_actuals": 112,
+          "team_or_position_changed": 4,
+          "evaluated": 125,
+          "mae": 3.82488,
+          "bias": -2.15704
+        }
+      },
+      "pick_six_evaluated": false,
+      "origin_cohort": 704,
+      "scheduled_origin_players": 608,
+      "unprojected_scheduled_players": 0
+    },
+    {
+      "season": 2025,
+      "origin_week": 8,
+      "target_week": 11,
+      "horizon": 4,
+      "overall": {
+        "forecast_players": 661,
+        "observed_actuals": 320,
+        "missing_actuals": 341,
+        "team_or_position_changed": 12,
+        "evaluated": 308,
+        "mae": 4.585357142857143,
+        "bias": -2.0417207792207797
+      },
+      "by_position": {
+        "QB": {
+          "forecast_players": 83,
+          "observed_actuals": 36,
+          "missing_actuals": 47,
+          "team_or_position_changed": 1,
+          "evaluated": 35,
+          "mae": 7.949142857142858,
+          "bias": -0.45714285714285735
+        },
+        "RB": {
+          "forecast_players": 178,
+          "observed_actuals": 87,
+          "missing_actuals": 91,
+          "team_or_position_changed": 2,
+          "evaluated": 85,
+          "mae": 5.109294117647058,
+          "bias": -3.9544705882352935
+        },
+        "TE": {
+          "forecast_players": 138,
+          "observed_actuals": 67,
+          "missing_actuals": 71,
+          "team_or_position_changed": 4,
+          "evaluated": 63,
+          "mae": 3.1768253968253966,
+          "bias": -1.4253968253968254
+        },
+        "WR": {
+          "forecast_players": 262,
+          "observed_actuals": 130,
+          "missing_actuals": 132,
+          "team_or_position_changed": 5,
+          "evaluated": 125,
+          "mae": 3.9971199999999993,
+          "bias": -1.49536
+        }
+      },
+      "pick_six_evaluated": false,
+      "origin_cohort": 704,
+      "scheduled_origin_players": 661,
+      "unprojected_scheduled_players": 0
+    },
+    {
+      "season": 2025,
+      "origin_week": 8,
+      "target_week": 15,
+      "horizon": 8,
+      "overall": {
+        "forecast_players": 704,
+        "observed_actuals": 332,
+        "missing_actuals": 372,
+        "team_or_position_changed": 20,
+        "evaluated": 312,
+        "mae": 5.106346153846154,
+        "bias": -2.8025
+      },
+      "by_position": {
+        "QB": {
+          "forecast_players": 89,
+          "observed_actuals": 35,
+          "missing_actuals": 54,
+          "team_or_position_changed": 2,
+          "evaluated": 33,
+          "mae": 9.649696969696969,
+          "bias": -5.30969696969697
+        },
+        "RB": {
+          "forecast_players": 188,
+          "observed_actuals": 93,
+          "missing_actuals": 95,
+          "team_or_position_changed": 2,
+          "evaluated": 91,
+          "mae": 4.889560439560439,
+          "bias": -2.9526373626373634
+        },
+        "TE": {
+          "forecast_players": 147,
+          "observed_actuals": 68,
+          "missing_actuals": 79,
+          "team_or_position_changed": 4,
+          "evaluated": 64,
+          "mae": 4.860468750000001,
+          "bias": -3.43515625
+        },
+        "WR": {
+          "forecast_players": 280,
+          "observed_actuals": 136,
+          "missing_actuals": 144,
+          "team_or_position_changed": 12,
+          "evaluated": 124,
+          "mae": 4.183225806451613,
+          "bias": -1.698548387096775
+        }
+      },
+      "pick_six_evaluated": false,
+      "origin_cohort": 704,
+      "scheduled_origin_players": 704,
+      "unprojected_scheduled_players": 0
+    }
+  ],
+  "scoring_scope": "Predicted stat components only; pick-six costs excluded from BOTH sides when actual counts are unavailable. Not complete platform scoring.",
+  "limitations": [
+    "Retrospective diagnostic, not a captured point-in-time roster backtest.",
+    "Cohort and teams are last observed before origin; no future roster information used.",
+    "Metrics condition on observed same-team stat rows; absent actuals are not zero.",
+    "Target schedules are retrospectively known; schedule revisions are not reconstructed.",
+    "Availability, traded players and cold-start omissions need separate evaluation.",
+    "No retraining, hyperparameter selection, statistical superiority or trade-readiness claim."
+  ],
+  "artifact_roots": [
+    "models\\transformer\\v1",
+    "models\\transformer\\v1_s43",
+    "models\\transformer\\v1_s44"
+  ],
+  "history_first_season": 2012
+}

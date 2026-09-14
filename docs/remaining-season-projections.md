@@ -33,3 +33,31 @@ Limitations that must be resolved before advice:
 Next steps: horizon-specific retrospective evaluation, availability handling,
 then roster-aware remaining-week trade comparisons. The old pre-draft trade
 engine remains blocked in season.
+
+## Fixed-origin diagnostic
+
+`python -m ffmodel.eval.remaining --season 2025 --origin 8 --horizons 1 2 4 8 --league gabagool --out models/diagnostics/remaining_2025_w8_gabagool.json`
+
+The diagnostic uses the normal enriched historical data loader and loads
+prior-season model artifacts. It freezes the cohort and last-observed team
+before the origin; today's roster map is never used. Each horizon gets an
+independent feature build from the same history. The report includes cohort,
+scheduled and forecast counts, missing actual rows, changed-team/position
+rows, and conditional MAE/bias by position.
+
+No absent player-week is imputed as zero. Scoring uses only predicted stat
+components. If historical pick-six counts are absent, that cost is excluded
+from both forecasts and actuals. Retrospective schedule knowledge and
+conditioning on recorded, same-team stat lines remain limitations.
+
+This is a diagnostic, not a promotion gate or a new accuracy claim. A single
+origin is a smoke check; multiple origins/seasons, availability evaluation,
+and suitable baselines are needed before enabling trade verdicts.
+
+Initial 2025 Week 8 smoke run (three deployed seed roots, trained through
+2024; Gabagool predicted-stat scoring subset): conditional MAE was 4.750,
+4.538, 4.585 and 5.106 at horizons 1, 2, 4 and 8. Comparable player counts
+were 288, 301, 308 and 312, respectively. These changing cohorts prevent
+interpreting the difference as a clean paired horizon-degradation estimate.
+Approximately half the broad forecast cohort lacked recorded target-week
+actuals; this is not a calibrated estimate of injury or participation risk.
