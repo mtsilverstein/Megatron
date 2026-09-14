@@ -21,7 +21,7 @@ def draft_identity_frame(picks):
     return picks
 
 
-def evaluate(weekly, picks, *, season, origins, horizons, rules):
+def evaluate(weekly, picks, *, season, origins, horizons, rules, decisions=False):
     if (not origins or not horizons or len(set(origins)) != len(origins)
             or len(set(horizons)) != len(horizons)
             or any(type(o) is not int or o < 1 for o in origins)
@@ -56,6 +56,9 @@ def evaluate(weekly, picks, *, season, origins, horizons, rules):
         history = weekly[(weekly.season < season) |
                          ((weekly.season == season) & (weekly.week < origin))]
         counts = history.groupby("player_id").size()
+        if decisions:
+            from ffmodel.eval.rookie_decisions import veteran_pool, compare
+            veterans = veteran_pool(history, set(cls.gsis_id), season, rules)
         for horizon in sorted(horizons):
             week = origin + horizon - 1
             actual = weekly[(weekly.season == season) & (weekly.week == week)].copy()
@@ -69,8 +72,10 @@ def evaluate(weekly, picks, *, season, origins, horizons, rules):
                 history_group = "zero_history" if games == 0 else "one_to_three_recorded_games"
                 key = (r.position, history_group)
                 g = groups.setdefault(key, {"forecast_players": 0, "missing_actuals": 0,
-                                            "position_mismatch": 0, "errors": []})
+                                            "position_mismatch": 0, "errors": [], "rookies": []})
                 g["forecast_players"] += 1
+                g["rookies"].append(dict(player_id=r.gsis_id, position=r.position,
+                    bucketed=forecasts[r.gsis_id][0], baseline=forecasts[r.gsis_id][1]))
                 if r.gsis_id not in actual.index:
                     g["missing_actuals"] += 1
                     continue
@@ -82,6 +87,9 @@ def evaluate(weekly, picks, *, season, origins, horizons, rules):
                 g["errors"].append((abs(bucketed-row.actual), abs(baseline-row.actual)))
             for (position, history_group), g in sorted(groups.items()):
                 errors = g.pop("errors")
+                rookies = g.pop("rookies")
+                if decisions:
+                    g["decisions"] = compare(rookies, veterans[veterans.position == position], actual)
                 n = len(errors)
                 cells.append(dict(season=season, origin=origin, horizon=horizon,
                     target_week=week, position=position, history_group=history_group,
@@ -113,6 +121,7 @@ def main():
     parser.add_argument("--origins", nargs="+", type=int, default=[1, 5, 9])
     parser.add_argument("--horizons", nargs="+", type=int, default=[1, 2, 4, 8])
     parser.add_argument("--league", default="gabagool")
+    parser.add_argument("--decisions", action="store_true", help="Compare rookies with pre-origin veteran pools")
     parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args()
@@ -130,7 +139,7 @@ def main():
     cells = []
     for season in args.seasons:
         cells.extend(evaluate(weekly, picks, season=season, origins=args.origins,
-                              horizons=args.horizons, rules=rules))
+                              horizons=args.horizons, rules=rules, decisions=args.decisions))
     report = dict(schema_version=1, diagnostic="rookie_weekly", advice_eligible=False,
                   league=args.league, seasons=args.seasons, origins=args.origins,
                   scoring_rules=asdict(replace(rules, pass_int_td=0)),
@@ -144,6 +153,13 @@ def main():
                                "Component-stat medians scored with the same supported-stat league rules; pick-six cost excluded on both sides.",
                                "Repeated players/windows are dependent. Descriptive comparison, not a promotion gate or calibrated uncertainty."])
     args.out.parent.mkdir(parents=True, exist_ok=True)
+    if args.decisions:
+        from ffmodel.eval.rookie_decisions import summarize as summarize_decisions, POOL_SIZE
+        report["decision_summary"] = summarize_decisions(cells)
+        report["decision_summary_by_season"] = {str(s): summarize_decisions(
+            [c for c in cells if c["season"] == s]) for s in args.seasons}
+        report["veteran_pool_sizes"] = POOL_SIZE
+        report["limitations"].append("Same-position rookie/veteran pairs, not real rosters or a FLEX optimizer. Veterans have four recorded games and use frozen last-four-game means in both methods. Veteran team/position changes are excluded; rookie position must match. No veteran transformer forecasts are tested here.")
     atomic_write(args.out, json.dumps(report, indent=2, allow_nan=False))
     print(json.dumps(report["summary"], indent=2))
 

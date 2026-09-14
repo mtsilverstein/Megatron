@@ -41,3 +41,31 @@ lineup choices against established players, audit per-season/horizon stability,
 and preserve explicit participation assumptions. A separate solution is still
 needed for veteran history gaps and live identity conflicts. The production
 coverage guard remains unchanged.
+
+## Rookie-versus-veteran decision probe
+
+Add `--decisions` and use a separate `rookie_decisions_<league>.json` output.
+Veterans are selected before the origin from the fixed QB24/RB60/WR72/TE24 pools,
+ranked by their last four recorded games. They need at least four history rows
+and a record from the current or previous season. Their frozen last-four-game
+mean is held constant between the two rookie-prior methods. Each eligible rookie
+is paired with each same-position veteran; this is not a historical roster
+replay, full lineup optimization, or a test against transformer veteran forecasts.
+
+Both players must have target records. Changed veteran teams/positions and
+changed rookie positions are excluded. Ties in either forecast exclude the pair
+from both methods; actual ties have zero regret but do not count toward accuracy.
+Regret is the observed point loss from choosing the worse of the two players.
+
+In the initial Gabagool run, zero-history RB pairwise accuracy rose from 74.0%
+to 76.1%, with mean regret dropping from 1.93 to 1.70 points. WR mean regret fell
+only from 1.83 to 1.81; QB and TE choices were unchanged. There were just 154 RB
+and 37 WR disagreements, despite thousands of repeated pair comparisons.
+Those changed choices involved only nine distinct zero-history RBs and seven WRs.
+
+The RB benefit was not uniform: mean regret improved by about 0.33 points in
+2023 and 2025 but worsened by 0.02 in 2024. Reports retain per-season summaries
+and the identities of rookies involved in changed decisions to expose
+concentration. Do not interpret aggregate pair counts as independent evidence
+or these descriptive gains as expected real-roster points. This is not sufficient
+to enable a general-purpose rookie fallback in live advice.

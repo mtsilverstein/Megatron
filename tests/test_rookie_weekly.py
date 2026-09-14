@@ -66,3 +66,16 @@ def test_unidentified_draftees_keep_distinct_coverage_identities():
     result = R.draft_identity_frame(picks)
     assert result.gsis_id.tolist() == ["unresolved_draft:2025:10", "unresolved_draft:2025:11"]
     assert picks.gsis_id.isna().all()
+
+
+def test_decision_integration_preserves_error_diagnostic():
+    weekly, picks = _toy_world()
+    weekly["team"] = "A"
+    kwargs = dict(season=2022, origins=[1], horizons=[1], rules=RULESETS["ppr"])
+    original = R.evaluate(weekly, picks, **kwargs)
+    with_decisions = R.evaluate(weekly, picks, **kwargs, decisions=True)
+    assert with_decisions[0]["decisions"]["candidate_pairs"] > 0
+    assert with_decisions[0]["decisions"]["unobserved_or_changed_pairs"] > 0
+    for cell in with_decisions:
+        cell.pop("decisions")
+    assert with_decisions == original
