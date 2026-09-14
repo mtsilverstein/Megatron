@@ -23,6 +23,35 @@ def test_empty_comparable_cohort_has_null_metrics():
     assert out["overall"]["missing_actuals"]==1
 
 
+def test_baseline_uses_last_four_recorded_games_and_paired_rows():
+    from ffmodel.eval.remaining import recent_game_baseline
+    from ffmodel.scoring import PREDICTED_STATS, PPR
+    rows=pd.DataFrame([dict(player_id="a",season=2024,week=w,**dict.fromkeys(PREDICTED_STATS,0.)) for w in range(1,6)])
+    rows["receptions"]=[100.,2.,4.,6.,8.]
+    assert recent_game_baseline(rows,PPR)["a"]==5.
+    with pytest.raises(ValueError,match="duplicate baseline"):
+        recent_game_baseline(pd.concat([rows,rows.iloc[:1]]),PPR)
+    predictions=pd.DataFrame([dict(player_id="a",position="RB",team="A",predicted=10.,baseline=5.),
+                              dict(player_id="missing",position="RB",team="A",predicted=999.,baseline=0.)])
+    actuals=pd.DataFrame([dict(player_id="a",position="RB",team="A",actual=6.)])
+    out=score_horizon(predictions,actuals,season=2025,origin=8,week=8)["overall"]
+    assert out["paired_players"]==1
+    assert out["baseline_mae"]==1.
+    assert out["paired_mae_delta"]==3.
+
+
+def test_matrix_uses_paired_counts_not_mean_of_cell_means():
+    from ffmodel.eval.remaining_matrix import summarize
+    cells=[dict(paired_players=n,mae=m,baseline_mae=b,paired_mae_delta=m-b,forecast_players=n+1,missing_actuals=1)
+           for n,m,b in [(1,10.,8.),(3,2.,4.)]]
+    reports=[{"reports":[dict(horizon=1,overall=c,by_position={"RB":c})]} for c in cells]
+    result=next(r for r in summarize(reports) if r["position"]=="ALL")
+    assert result["paired_player_forecasts"]==4
+    assert result["model_mae"]==4.
+    assert result["baseline_mae"]==5.
+    assert result["paired_mae_delta"]==-1.
+
+
 def test_horizon_validation_precedes_model_loading():
     for origin,horizons in [(18,[1]),(16,[4]),(1,[1,1]),(1,[])]:
         with pytest.raises(ValueError):

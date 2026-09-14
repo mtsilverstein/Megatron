@@ -61,3 +61,47 @@ were 288, 301, 308 and 312, respectively. These changing cohorts prevent
 interpreting the difference as a clean paired horizon-degradation estimate.
 Approximately half the broad forecast cohort lacked recorded target-week
 actuals; this is not a calibrated estimate of injury or participation risk.
+
+## Expanded baseline comparison
+
+`python -m ffmodel.eval.remaining_matrix --league gabagool --out models/diagnostics/remaining_matrix_gabagool.json`
+
+Defaults are seasons 2023–2025, origins 5 and 9, horizons 1/2/4/8. The
+predeclared baseline is mean league-scored production in the last four
+recorded pre-origin games (all games if fewer than four). It stays frozen
+through every horizon and never inserts zeros for absent games. Model and
+baseline errors use identical observed same-team players; negative paired
+MAE delta favors the model. Aggregate summaries weight by paired forecast
+count, not by equally weighting large and small cells.
+
+Repeated players and overlapping windows are dependent. These descriptive
+comparisons are not significance tests, an independent holdout for model
+selection, or evidence that the forecast is ready to value trades. The
+supported scoring-rule subset currently matches for Gabagool and FAM; roster
+requirements, keeper rules and platform-specific omitted events are not
+evaluated by this player-level diagnostic.
+
+Historical roster source quality is checked separately with
+`python -m ffmodel.eval.roster_availability --rosters data/raw/rosters_weekly_raw_2012_2025.parquet --weekly data/raw/weekly_v2_2012_2025.parquet --out models/diagnostics/roster_availability_source.json`.
+This audits status coverage and conflicting identities. ACT is not treated
+as proof of participation, and source capture timing remains unverified.
+
+Expanded run results (descriptive, not significance-tested):
+
+| Horizon | Model MAE | Four-game mean MAE | Paired forecasts |
+| --- | ---: | ---: | ---: |
+| 1 | 4.612 | 4.815 | 1,817 |
+| 2 | 4.452 | 4.722 | 1,791 |
+| 4 | 4.663 | 4.873 | 1,829 |
+| 8 | 4.800 | 4.987 | 1,834 |
+
+The aggregate advantage is small. At horizon 8, RB MAE is slightly worse
+than baseline (4.834 versus 4.759). Neither the aggregate nor this subgroup
+result is permission to tune the model on these evaluation observations.
+
+The source audit uniquely matched 77,947/80,090 historical stat rows
+(97.32%); 885 matched conflicting roster identities and 1,258 were unmatched.
+Missing-ID source rows are preserved individually because duplicates cannot
+be established without identity. Conflicting rows expose no arbitrarily
+selected team/status. Timing verification remains a prerequisite to using
+these statuses as forecasting features or participation labels.

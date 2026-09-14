@@ -1,0 +1,402 @@
+{
+  "schema_version": 1,
+  "diagnostic": "historical_roster_availability_source_audit",
+  "advice_eligible": false,
+  "scope": {
+    "game_type": "REG",
+    "positions": [
+      "QB",
+      "RB",
+      "WR",
+      "TE"
+    ]
+  },
+  "records": 172040,
+  "seasons": [
+    {
+      "season": 2012,
+      "records": 8295,
+      "statuses": {
+        "ACT": 7003,
+        "AMBIGUOUS": 389,
+        "CUT": 97,
+        "DEV": 21,
+        "RES": 770,
+        "RSN": 15
+      },
+      "ambiguous_player_weeks": 389,
+      "missing_player_id": 0,
+      "unknown_records": 0
+    },
+    {
+      "season": 2013,
+      "records": 8255,
+      "statuses": {
+        "ACT": 6959,
+        "AMBIGUOUS": 561,
+        "CUT": 87,
+        "DEV": 18,
+        "RES": 598,
+        "RSN": 21,
+        "RSR": 7,
+        "SUS": 4
+      },
+      "ambiguous_player_weeks": 561,
+      "missing_player_id": 0,
+      "unknown_records": 0
+    },
+    {
+      "season": 2014,
+      "records": 8188,
+      "statuses": {
+        "ACT": 6994,
+        "AMBIGUOUS": 423,
+        "CUT": 105,
+        "DEV": 60,
+        "RES": 587,
+        "RSN": 3,
+        "RSR": 5,
+        "SUS": 7,
+        "UNKNOWN": 4
+      },
+      "ambiguous_player_weeks": 423,
+      "missing_player_id": 0,
+      "unknown_records": 4
+    },
+    {
+      "season": 2015,
+      "records": 8214,
+      "statuses": {
+        "ACT": 6603,
+        "AMBIGUOUS": 594,
+        "CUT": 122,
+        "DEV": 22,
+        "NWT": 9,
+        "RES": 812,
+        "RSN": 25,
+        "RSR": 12,
+        "SUS": 15
+      },
+      "ambiguous_player_weeks": 594,
+      "missing_player_id": 0,
+      "unknown_records": 0
+    },
+    {
+      "season": 2016,
+      "records": 10060,
+      "statuses": {
+        "ACT": 8537,
+        "CUT": 36,
+        "DEV": 19,
+        "PUP": 112,
+        "RES": 1314,
+        "RSN": 13,
+        "SUS": 29
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 0,
+      "unknown_records": 0
+    },
+    {
+      "season": 2017,
+      "records": 15893,
+      "statuses": {
+        "ACT": 8210,
+        "CUT": 4153,
+        "DEV": 1835,
+        "EXE": 4,
+        "NWT": 75,
+        "PUP": 23,
+        "RES": 1471,
+        "RSN": 33,
+        "SUS": 89
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 0,
+      "unknown_records": 0
+    },
+    {
+      "season": 2018,
+      "records": 16135,
+      "statuses": {
+        "ACT": 8026,
+        "CUT": 4510,
+        "DEV": 1989,
+        "NWT": 33,
+        "PUP": 111,
+        "RES": 1347,
+        "RSN": 38,
+        "SUS": 50,
+        "UNKNOWN": 31
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 31,
+      "unknown_records": 31
+    },
+    {
+      "season": 2019,
+      "records": 15696,
+      "statuses": {
+        "ACT": 7201,
+        "CUT": 3851,
+        "DEV": 2018,
+        "EXE": 5,
+        "INA": 923,
+        "NWT": 70,
+        "PUP": 62,
+        "RES": 1484,
+        "RSN": 32,
+        "SUS": 49,
+        "UNKNOWN": 1
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 1,
+      "unknown_records": 1
+    },
+    {
+      "season": 2020,
+      "records": 13213,
+      "statuses": {
+        "ACT": 7298,
+        "CUT": 279,
+        "DEV": 2741,
+        "EXE": 15,
+        "INA": 1172,
+        "NWT": 116,
+        "PUP": 12,
+        "RES": 1401,
+        "RFA": 2,
+        "RSN": 32,
+        "RSR": 46,
+        "SUS": 29,
+        "TRC": 13,
+        "TRD": 5,
+        "UFA": 52
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 0,
+      "unknown_records": 0
+    },
+    {
+      "season": 2021,
+      "records": 13925,
+      "statuses": {
+        "ACT": 7613,
+        "CUT": 192,
+        "DEV": 3034,
+        "E14": 17,
+        "INA": 1086,
+        "RES": 1839,
+        "RET": 115,
+        "TRC": 9,
+        "TRD": 2,
+        "UNKNOWN": 18
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 18,
+      "unknown_records": 18
+    },
+    {
+      "season": 2022,
+      "records": 13607,
+      "statuses": {
+        "ACT": 7560,
+        "CUT": 307,
+        "DEV": 2973,
+        "INA": 1157,
+        "RES": 1479,
+        "RET": 102,
+        "TRC": 4,
+        "TRD": 1,
+        "UNKNOWN": 24
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 24,
+      "unknown_records": 24
+    },
+    {
+      "season": 2023,
+      "records": 13404,
+      "statuses": {
+        "ACT": 7508,
+        "CUT": 298,
+        "DEV": 2904,
+        "E01": 2,
+        "EXE": 11,
+        "INA": 1093,
+        "PUP": 1,
+        "RES": 1433,
+        "RET": 147,
+        "TRC": 4,
+        "TRD": 3
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 0,
+      "unknown_records": 0
+    },
+    {
+      "season": 2024,
+      "records": 13466,
+      "statuses": {
+        "ACT": 7508,
+        "CUT": 332,
+        "DEV": 3097,
+        "EXE": 1,
+        "INA": 1069,
+        "RES": 1321,
+        "RET": 136,
+        "TRC": 1,
+        "TRD": 1
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 0,
+      "unknown_records": 0
+    },
+    {
+      "season": 2025,
+      "records": 13689,
+      "statuses": {
+        "ACT": 7514,
+        "CUT": 319,
+        "DEV": 3008,
+        "EXE": 2,
+        "INA": 1174,
+        "RES": 1580,
+        "RET": 79,
+        "TRC": 2,
+        "TRD": 2,
+        "UNKNOWN": 9
+      },
+      "ambiguous_player_weeks": 0,
+      "missing_player_id": 9,
+      "unknown_records": 9
+    }
+  ],
+  "limitations": [
+    "Roster status is reported as supplied; ACT is not treated as evidence of participation.",
+    "Missing stat rows are not converted to zero production.",
+    "Historical source capture timing is unverified, so this audit is not a point-in-time decision input.",
+    "Conflicting player-week claims are labeled AMBIGUOUS; no status priority is guessed."
+  ],
+  "weekly_stat_coverage": {
+    "stat_rows": 80090,
+    "uniquely_matched_roster_row": 77947,
+    "ambiguous_roster_match": 885,
+    "unmatched_roster_row": 1258,
+    "unique_match_rate": 0.9732426020726682,
+    "by_season": [
+      {
+        "season": 2012,
+        "stat_rows": 5620,
+        "uniquely_matched_roster_row": 5113,
+        "ambiguous_roster_match": 160,
+        "unmatched_roster_row": 347,
+        "unique_match_rate": 0.9097864768683274
+      },
+      {
+        "season": 2013,
+        "stat_rows": 5516,
+        "uniquely_matched_roster_row": 4963,
+        "ambiguous_roster_match": 241,
+        "unmatched_roster_row": 312,
+        "unique_match_rate": 0.899746192893401
+      },
+      {
+        "season": 2014,
+        "stat_rows": 5599,
+        "uniquely_matched_roster_row": 5160,
+        "ambiguous_roster_match": 203,
+        "unmatched_roster_row": 236,
+        "unique_match_rate": 0.9215931416324343
+      },
+      {
+        "season": 2015,
+        "stat_rows": 5618,
+        "uniquely_matched_roster_row": 5086,
+        "ambiguous_roster_match": 281,
+        "unmatched_roster_row": 251,
+        "unique_match_rate": 0.9053043787824848
+      },
+      {
+        "season": 2016,
+        "stat_rows": 5563,
+        "uniquely_matched_roster_row": 5557,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 6,
+        "unique_match_rate": 0.9989214452633471
+      },
+      {
+        "season": 2017,
+        "stat_rows": 5641,
+        "uniquely_matched_roster_row": 5614,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 27,
+        "unique_match_rate": 0.9952136146073391
+      },
+      {
+        "season": 2018,
+        "stat_rows": 5520,
+        "uniquely_matched_roster_row": 5490,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 30,
+        "unique_match_rate": 0.9945652173913043
+      },
+      {
+        "season": 2019,
+        "stat_rows": 5530,
+        "uniquely_matched_roster_row": 5513,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 17,
+        "unique_match_rate": 0.9969258589511754
+      },
+      {
+        "season": 2020,
+        "stat_rows": 5670,
+        "uniquely_matched_roster_row": 5661,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 9,
+        "unique_match_rate": 0.9984126984126984
+      },
+      {
+        "season": 2021,
+        "stat_rows": 5987,
+        "uniquely_matched_roster_row": 5972,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 15,
+        "unique_match_rate": 0.9974945715717388
+      },
+      {
+        "season": 2022,
+        "stat_rows": 5918,
+        "uniquely_matched_roster_row": 5918,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 0,
+        "unique_match_rate": 1.0
+      },
+      {
+        "season": 2023,
+        "stat_rows": 5893,
+        "uniquely_matched_roster_row": 5888,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 5,
+        "unique_match_rate": 0.9991515357203462
+      },
+      {
+        "season": 2024,
+        "stat_rows": 5920,
+        "uniquely_matched_roster_row": 5917,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 3,
+        "unique_match_rate": 0.9994932432432433
+      },
+      {
+        "season": 2025,
+        "stat_rows": 6095,
+        "uniquely_matched_roster_row": 6095,
+        "ambiguous_roster_match": 0,
+        "unmatched_roster_row": 0,
+        "unique_match_rate": 1.0
+      }
+    ]
+  }
+}

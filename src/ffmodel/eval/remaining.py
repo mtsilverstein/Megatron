@@ -17,6 +17,18 @@ from ffmodel.site.pick_sixes import load_pick_six_prior
 from ffmodel.site.weekly import build_weekly_projections, set_league_rules, RULESETS
 
 
+def recent_game_baseline(history, rules, *, include_pick_six=False):
+    """Predeclared baseline: mean points in last four recorded games, no zeros."""
+    if history.duplicated(["player_id","season","week"]).any():
+        raise ValueError("duplicate baseline player-week history")
+    columns = PREDICTED_STATS + (["passing_pick_sixes"] if include_pick_six else [])
+    recent = history.sort_values(["season", "week"]).groupby("player_id").tail(4).copy()
+    if recent[columns].isna().any().any():
+        raise ValueError("baseline history has missing stat components")
+    recent["baseline"] = fantasy_points(recent[columns], rules)
+    return recent.groupby("player_id").baseline.mean()
+
+
 def score_horizon(predictions, actuals, *, season, origin, week):
     """Score observed same-team rows only; missing rows stay explicitly unknown."""
     needed = {"player_id", "position", "team", "predicted"}
@@ -26,18 +38,26 @@ def score_horizon(predictions, actuals, *, season, origin, week):
         raise ValueError("duplicate evaluation identity")
     if not np.isfinite(predictions.predicted).all() or not np.isfinite(actuals.actual).all():
         raise ValueError("nonfinite evaluation points")
+    if "baseline" in predictions and not np.isfinite(predictions.baseline).all():
+        raise ValueError("nonfinite baseline points")
     joined = predictions.merge(actuals, on="player_id", how="left", suffixes=("", "_actual"), indicator=True)
     def summarize(g):
         observed = g._merge.eq("both")
         same = observed & g.team.eq(g.team_actual) & g.position.eq(g.position_actual)
         evaluated = g[same]
         error = evaluated.predicted-evaluated.actual
-        return {"forecast_players": len(g), "observed_actuals": int(observed.sum()),
+        result = {"forecast_players": len(g), "observed_actuals": int(observed.sum()),
                 "missing_actuals": int((~observed).sum()),
                 "team_or_position_changed": int((observed & ~same).sum()),
                 "evaluated": len(evaluated),
                 "mae": float(error.abs().mean()) if len(error) else None,
                 "bias": float(error.mean()) if len(error) else None}
+        if "baseline" in evaluated:
+            baseline_error = evaluated.baseline-evaluated.actual
+            result.update({"baseline_mae": float(baseline_error.abs().mean()) if len(error) else None,
+                           "paired_mae_delta": float((error.abs()-baseline_error.abs()).mean()) if len(error) else None,
+                           "paired_players": len(error)})
+        return result
     return {"season": season, "origin_week": origin, "target_week": week,
             "horizon": week-origin+1, "overall": summarize(joined),
             "by_position": {pos:summarize(g) for pos,g in joined.groupby("position")}}
@@ -71,6 +91,7 @@ def _evaluate_origin(weekly, schedules, *, season, origin, horizons, league, pre
     rules = league.rules if pick_six_observed else replace(league.rules, pass_int_td=0)
     set_league_rules(rules)
     prior = load_pick_six_prior(season) if rules.pass_int_td else None
+    baseline = recent_game_baseline(history, rules, include_pick_six=bool(pick_six_observed))
     reports = []
     for horizon in sorted(horizons):
         week = origin+horizon-1
@@ -91,6 +112,7 @@ def _evaluate_origin(weekly, schedules, *, season, origin, horizons, league, pre
                                            pick_six_prior=prior)
         predictions = pd.DataFrame([{k:p[k] for k in ("player_id","position","team")} |
                                    {"predicted":p["points"]["league"]["p50"]} for p in payload["players"]])
+        predictions["baseline"] = predictions.player_id.map(baseline)
         scheduled = {pid for pid,t in teams.items() if t in playing}
         if not set(predictions.player_id) <= scheduled:
             raise ValueError("forecast cohort escaped frozen origin")
@@ -112,6 +134,8 @@ def _evaluate_origin(weekly, schedules, *, season, origin, horizons, league, pre
     return {"schema_version":1, "diagnostic":"frozen_history_horizons", "advice_eligible":False,
             "league":league.payload(), "season":season, "origin_week":origin,
             "training_through":season-1, "model":model.name, "reports":reports,
+            "baseline":"Mean of last four recorded pre-origin games (or all if fewer); frozen across horizons; no absence imputation.",
+            "comparison":"Model minus baseline absolute error on identical observed same-team rows; negative favors model. No significance claim.",
             "scoring_scope":"Predicted stat components only; pick-six costs excluded from BOTH sides when actual counts are unavailable. Not complete platform scoring.",
             "limitations":["Retrospective diagnostic, not a captured point-in-time roster backtest.",
                            "Cohort and teams are last observed before origin; no future roster information used.",
