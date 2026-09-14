@@ -21,7 +21,10 @@ def draft_identity_frame(picks):
     return picks
 
 
-def evaluate(weekly, picks, *, season, origins, horizons, rules, decisions=False):
+def evaluate(weekly, picks, *, season, origins, horizons, rules, decisions=False,
+             schedules=None, predictor_factory=None):
+    if predictor_factory is not None and (not decisions or schedules is None):
+        raise ValueError("transformer probe requires decisions and schedules")
     if (not origins or not horizons or len(set(origins)) != len(origins)
             or len(set(horizons)) != len(horizons)
             or any(type(o) is not int or o < 1 for o in origins)
@@ -59,8 +62,14 @@ def evaluate(weekly, picks, *, season, origins, horizons, rules, decisions=False
         if decisions:
             from ffmodel.eval.rookie_decisions import veteran_pool, compare
             veterans = veteran_pool(history, set(cls.gsis_id), season, rules)
+            if predictor_factory is not None:
+                from ffmodel.eval.rookie_veteran_model import forecaster
+                predict_veterans = forecaster(history, schedules, season, rules, predictor_factory)
         for horizon in sorted(horizons):
             week = origin + horizon - 1
+            if decisions:
+                target_veterans = (predict_veterans(veterans, week)
+                                   if predictor_factory is not None else veterans)
             actual = weekly[(weekly.season == season) & (weekly.week == week)].copy()
             actual["actual"] = fantasy_points(actual[PREDICTED_STATS], rules)
             actual = actual.set_index("player_id")
@@ -89,7 +98,7 @@ def evaluate(weekly, picks, *, season, origins, horizons, rules, decisions=False
                 errors = g.pop("errors")
                 rookies = g.pop("rookies")
                 if decisions:
-                    g["decisions"] = compare(rookies, veterans[veterans.position == position], actual)
+                    g["decisions"] = compare(rookies, target_veterans[target_veterans.position == position], actual)
                 n = len(errors)
                 cells.append(dict(season=season, origin=origin, horizon=horizon,
                     target_week=week, position=position, history_group=history_group,
@@ -122,9 +131,12 @@ def main():
     parser.add_argument("--horizons", nargs="+", type=int, default=[1, 2, 4, 8])
     parser.add_argument("--league", default="gabagool")
     parser.add_argument("--decisions", action="store_true", help="Compare rookies with pre-origin veteran pools")
+    parser.add_argument("--veteran-model", choices=["last4", "transformer"], default="last4")
     parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args()
+    if args.veteran_model == "transformer" and not args.decisions:
+        parser.error("--veteran-model transformer requires --decisions")
     if len(set(args.seasons)) != len(args.seasons):
         parser.error("duplicate seasons")
     from ffmodel.data.pull import pull_weekly, pull_draft_picks
@@ -136,10 +148,19 @@ def main():
     unidentified = raw_picks[raw_picks.gsis_id.isna()]
     picks = draft_identity_frame(raw_picks)
     rules = load_league(args.league).rules
+    schedules = None
+    factory = None
+    roots = [Path("models/transformer/v1"), Path("models/transformer/v1_s43"), Path("models/transformer/v1_s44")]
+    if args.veteran_model == "transformer":
+        from ffmodel.data.pull import pull_schedules
+        from ffmodel.model.predictor import TransformerPredictor
+        schedules = pull_schedules(span, cache_dir=args.data_dir)
+        factory = lambda f: TransformerPredictor(roots, f)
     cells = []
     for season in args.seasons:
         cells.extend(evaluate(weekly, picks, season=season, origins=args.origins,
-                              horizons=args.horizons, rules=rules, decisions=args.decisions))
+                              horizons=args.horizons, rules=rules, decisions=args.decisions,
+                              schedules=schedules, predictor_factory=factory))
     report = dict(schema_version=1, diagnostic="rookie_weekly", advice_eligible=False,
                   league=args.league, seasons=args.seasons, origins=args.origins,
                   scoring_rules=asdict(replace(rules, pass_int_td=0)),
@@ -159,7 +180,11 @@ def main():
         report["decision_summary_by_season"] = {str(s): summarize_decisions(
             [c for c in cells if c["season"] == s]) for s in args.seasons}
         report["veteran_pool_sizes"] = POOL_SIZE
-        report["limitations"].append("Same-position rookie/veteran pairs, not real rosters or a FLEX optimizer. Veterans have four recorded games and use frozen last-four-game means in both methods. Veteran team/position changes are excluded; rookie position must match. No veteran transformer forecasts are tested here.")
+        report["veteran_model"] = args.veteran_model
+        if factory is not None:
+            report["artifact_roots"] = [str(r) for r in roots]
+            report["limitations"].append("Transformer artifacts selected through season S-1; frozen pre-origin observations at every horizon. Schedules are retrospective, not reconstructed as-of snapshots. Unprojected veterans remain explicit excluded pairs, never zero or last-four fallback.")
+        report["limitations"].append("Same-position rookie/veteran pairs, not real rosters or a FLEX optimizer. Veteran pools use frozen last-four-game means; veteran forecasts use the declared veteran_model identically in both rookie methods. Veteran team/position changes are excluded; rookie position must match.")
     atomic_write(args.out, json.dumps(report, indent=2, allow_nan=False))
     print(json.dumps(report["summary"], indent=2))
 

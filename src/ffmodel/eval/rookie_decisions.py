@@ -1,6 +1,7 @@
 """Conditional rookie-versus-veteran slot decisions, not historical rosters."""
 from ffmodel.eval.starter_decisions import POOL_SIZE, starter_pool
 from ffmodel.scoring import PREDICTED_STATS, fantasy_points
+from math import isfinite
 
 
 def veteran_pool(history, rookie_ids, season, rules):
@@ -20,7 +21,7 @@ def veteran_pool(history, rookie_ids, season, rules):
 
 def compare(rookies, veterans, actual):
     """Same candidate pairs for both priors; no target-derived pool selection."""
-    result = dict(candidate_pairs=0, unobserved_or_changed_pairs=0,
+    result = dict(candidate_pairs=0, unobserved_or_changed_pairs=0, unprojected_pairs=0,
                   forecast_tie_pairs=0, decisive_pairs=0, actual_ties=0,
                   bucketed_correct=0, baseline_correct=0, disagreements=0,
                   bucketed_rookie_choices=0, baseline_rookie_choices=0,
@@ -30,6 +31,9 @@ def compare(rookies, veterans, actual):
     for rookie in rookies:
         for veteran in veterans.itertuples():
             result["candidate_pairs"] += 1
+            if not isfinite(veteran.predicted):
+                result["unprojected_pairs"] += 1
+                continue
             rid, vid = rookie["player_id"], veteran.player_id
             if (rid not in actual.index or vid not in actual.index
                     or actual.loc[rid].position != rookie["position"]

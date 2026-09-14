@@ -69,3 +69,46 @@ and the identities of rookies involved in changed decisions to expose
 concentration. Do not interpret aggregate pair counts as independent evidence
 or these descriptive gains as expected real-roster points. This is not sufficient
 to enable a general-purpose rookie fallback in live advice.
+
+## Transformer veteran comparison
+
+Use `--decisions --veteran-model transformer` to replace veteran last-four-game
+forecasts with the deployed three-seed transformer ensemble. Pool selection
+remains based on pre-origin last-four-game averages; it does not change to favor
+the transformer. Both rookie-prior methods face identical veteran forecasts.
+The adapter loads artifacts through the previous season, freezes history before
+the origin, and rebuilds each target horizon independently. It uses the weekly
+page's component scoring path with the diagnostic's supported-stat rules.
+
+Missing veteran predictions (including byes) are counted as `unprojected_pairs`,
+never filled from the last-four baseline or treated as zero. This counter is
+separate from missing/changed actual records. No live roster lookup is used;
+historical schedule revisions are not reconstructed.
+
+The first bounded run uses classes 2023–2025, origin week 1, and horizons 1/4:
+`python -m ffmodel.eval.rookie_weekly --decisions --veteran-model transformer --origins 1 --horizons 1 4 --out models/diagnostics/rookie_transformer_probe_gabagool.json`.
+It is a week-one feasibility probe, not the full origins 1/5/9 matrix or a test
+of low-history in-season updates. Live forecasts remain unchanged.
+
+The completed Gabagool probe compared capital-prior versus position-only rookies
+against the same transformer veteran forecasts:
+
+| Position | Evaluated pairs | Capital mean regret | Position-only mean regret |
+| --- | ---: | ---: | ---: |
+| QB | 305 | 3.36 | 3.45 |
+| RB | 2,544 | 1.51 | 2.23 |
+| WR | 6,020 | 1.72 | 1.86 |
+| TE | 638 | 1.74 | 1.75 |
+
+RB regret improved in each of the three seasons (approximately 0.77/0.65/0.71
+points per evaluated pair). WR worsened in 2023 despite improving in aggregate;
+TE worsened in 2023/2024 and QB worsened in 2025. There were only five changed QB
+choices. The stored report includes all per-season counts and changed rookie IDs.
+None of these pairs are independent real-roster trials. This run does not prove
+a gain from replacing the veteran baseline with the transformer: the measured
+contrast is between the two rookie priors with transformer veterans held fixed.
+
+Only the Gabagool transformer probe was executed for this milestone. The CLI
+supports FAM, but the prior last-four-veteran reports for both leagues are not
+being relabeled as transformer results. Next validation is later-season origins,
+where rookie usage exists and a frozen draft-capital prior may be inadequate.
