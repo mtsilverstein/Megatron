@@ -1,0 +1,52 @@
+# Local conditional trade prototype
+
+This is a read-only experimental engine, not the published pre-draft trade
+calculator. It does not send trades, give a verdict, price keeper/pick assets,
+or claim expected realized points. Live advice remains disabled.
+
+Generate a fresh remaining-season artifact with the existing generator's
+`--remaining --week auto` flags into a local output directory. Then create
+a scenario JSON file, using actual roster IDs and Sleeper player IDs:
+
+```json
+{
+  "remainingPath": "C:/path/to/remaining-gabagool.json",
+  "rosterIds": [1, 2],
+  "give": ["PLAYER_YOU_SEND"],
+  "receive": ["PLAYER_YOU_RECEIVE"],
+  "drops": {"1": [], "2": []},
+  "excludeWeeks": {},
+  "assumeAvailable": true
+}
+```
+
+Run `node tools/seasontrade.cjs scenario.json`. It fetches current league,
+rosters, catalog and NFL state read-only, verifies the scoring contract, and
+prints before/after starting lineups for both teams for each future week.
+Only weeks after both the current week and the projection origin are compared.
+A 60-second roster age limit and
+72-hour projection age limit apply. Use the other league's own artifact for
+FAM; cross-league scoring or identities cannot be substituted.
+The CLI uses the league's checked-in draft board only as an identity
+crosswalk, never as a source of points or rankings. Leading/trailing spaces
+in catalog GSIS IDs are normalized. Relevant player position/ID conflicts
+remain blocking rather than being guessed away.
+
+`excludeWeeks` maps a Sleeper ID to weeks deliberately assumed unavailable,
+for example `{"1234": [3, 4]}`. Every other active player is explicitly
+assumed available, even if an injury tag exists. This is a user-defined
+scenario, not an injury or return-date prediction. IR/taxi players cannot
+be traded by this first version. Missing projections block scoring rather
+than counting as zero. A bye or deliberately excluded week is labeled zero.
+
+Uneven trades require explicit legal drops if roster capacity would be
+exceeded. Dropped players remain in the baseline but leave the changed roster,
+so losing their lineup contribution counts against the trade.
+K/DEF occupy roster spaces but have no modeled points. Missing starting
+positions fail instead of inventing replacement production. Supported skill
+slots include dedicated positions, FLEX and SUPER_FLEX.
+
+The summed delta is a sum of conditional weekly lineup differences—not a
+season median, calibrated interval, or additive player price. Bench insurance,
+future waivers, keeper/pick premiums, trade processing time and opponent
+acceptance are not modeled. Future team changes are also unknown.
