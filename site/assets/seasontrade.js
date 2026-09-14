@@ -120,16 +120,33 @@
       const row=rows[0],excluded=(excludeWeeks[id]||[]).includes(week);
       let points=0,status=excluded?"assumed_unavailable":row.status;
       if (!excluded&&row.status!=="bye") {
-        require(row.status==="conditional_projection"&&typeof row.points?.league?.p50==="number"&&Number.isFinite(row.points.league.p50),"Missing finite projection; unknown is not zero");
+        require(row.status==="conditional_projection"&&typeof row.points?.league?.p50==="number"&&Number.isFinite(row.points.league.p50),`Missing finite projection; unknown is not zero (${row.reason||row.status})`);
         points=row.points.league.p50;
       }
       return {id,name:c.full_name||id,position:c.position,points,status,reportedInjury:c.injury_status||null};
     };
+    // Audit the entire selected roster horizon before optimizing. Report every
+    // gap together; never drop an unknown bench player or turn it into zero.
+    const resolved=new Map(),coverageIssues=[];
+    for(let week=first;week<=remaining.end_week;week++) {
+      const players=new Map();
+      for(const id of relevant) {
+        try { players.set(id,resolve(id,week)); }
+        catch(error) { coverageIssues.push({id,name:catalog[id]?.full_name||id,week,reason:error.message}); }
+      }
+      resolved.set(week,players);
+    }
+    if(coverageIssues.length) {
+      const error=new Error(`Projection coverage blocked: ${new Set(coverageIssues.map(x=>x.id)).size} players, ${coverageIssues.length} player-weeks. ${coverageIssues[0].reason}`);
+      error.name="ProjectionCoverageError";
+      error.coverageIssues=coverageIssues;
+      throw error;
+    }
     const weeks=[];
     for(let week=first;week<=remaining.end_week;week++) {
       const sides=selected.map((rid,i)=>{
-        const b=lineup(before[i].map(id=>resolve(id,week)).filter(Boolean),slots);
-        const a=lineup(after[i].map(id=>resolve(id,week)).filter(Boolean),slots);
+        const b=lineup(before[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots);
+        const a=lineup(after[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots);
         return {rosterId:rosterMap.get(rid).roster_id,before:b,after:a,delta:a.total-b.total};
       });
       weeks.push({week,sides});

@@ -44,7 +44,25 @@ def test_frozen_history_missing_and_bye_distinct(monkeypatch):
     unknown=out["players"][1]
     assert [w["status"] for w in unknown["weeks"]]==["unmodeled","bye"]
     assert all(w["points"] is None for w in unknown["weeks"])
+    assert unknown["history_status"] == "no_observed_history"
+    assert unknown["last_observed_season"] is None
+    assert unknown["weeks"][0]["reason"] == "no_observed_history"
     assert "season_points" not in out["players"][0]
+
+
+def test_missing_history_reasons_use_only_pre_origin_rows(monkeypatch):
+    args, _ = setup(monkeypatch)
+    args["weekly"] = pd.concat([args["weekly"], pd.DataFrame([
+        dict(player_id="old", season=2023, week=4),
+        dict(player_id="recent", season=2025, week=4),
+        dict(player_id="future", season=2026, week=2),
+    ])], ignore_index=True)
+    args["current_teams"].update({pid: "A" for pid in ("old", "recent", "future")})
+    players = {p["player_id"]: p for p in R.build_remaining(**args)["players"]}
+    assert players["old"]["weeks"][0]["reason"] == "outside_recent_history_window"
+    assert players["recent"]["weeks"][0]["reason"] == "missing_model_output"
+    assert players["future"]["weeks"][0]["reason"] == "no_observed_history"
+    assert players["old"]["last_observed_season"] == 2023
 
 
 @pytest.mark.parametrize("change", [{"end_week":19},{"start_week":3},{"current_teams":{}},

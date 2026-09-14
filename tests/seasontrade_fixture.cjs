@@ -55,4 +55,17 @@ assert.deepEqual(analyze({...base,currentWeek:2}).weeks.map(w=>w.week),[3]);
 assert.throws(()=>analyze({...base,board:{...identityBoard,season:2025}}),/board league\/season/);
 assert.throws(()=>analyze({...base,board:identityBoard,catalog:{...catalog,a:{...catalog.a,gsis_id:'different'}}}),/identity disagreement/);
 assert.throws(()=>analyze({...base,league:{...league,scoring_settings:{rec:1,pass_td:6}}}),/Scoring mismatch/);
+const gaps=clone(base);
+for(const p of gaps.remaining.players.filter(p=>['ga','gd'].includes(p.player_id))) {
+  for(const w of p.weeks) { w.status='unmodeled';w.points=null;w.reason='no_observed_history'; }
+}
+assert.throws(()=>analyze(gaps),error=>{
+  assert.equal(error.name,'ProjectionCoverageError');
+  assert.deepEqual(error.coverageIssues.map(x=>[x.id,x.week]),[['a',2],['d',2],['a',3],['d',3]]);
+  assert.ok(error.coverageIssues.every(x=>x.reason.includes('no_observed_history')));
+  return true;
+});
+// Explicit exclusions can cover an unmodeled week but never repair identity.
+assert.doesNotThrow(()=>analyze({...gaps,excludeWeeks:{a:[2,3],d:[2,3]}}));
+assert.throws(()=>analyze({...gaps,catalog:{...catalog,a:{...catalog.a,gsis_id:null}},excludeWeeks:{a:[2,3],d:[2,3]}}),/GSIS/);
 console.log('seasontrade_fixture: ownership, capacity, scoring, freshness, exclusions, missingness and symmetric lineup changes OK');

@@ -34,6 +34,14 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
         raise ValueError("current team outside schedule coverage")
     records = {str(pid): {"player_id": str(pid), "team": t, "weeks": []}
                for pid, t in current_teams.items()}
+    latest_seasons = history.groupby("player_id").season.max().to_dict()
+    for pid, record in records.items():
+        last_season = latest_seasons.get(pid)
+        record["history_status"] = (
+            "no_observed_history" if last_season is None else
+            "outside_recent_history_window" if last_season < season - 1 else
+            "recent_observed_history")
+        record["last_observed_season"] = None if last_season is None else int(last_season)
     for week in range(start_week, end_week + 1):
         games = schedule[schedule.week == week]
         playing = list(games.home_team) + list(games.away_team)
@@ -60,7 +68,11 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
             if record["team"] not in playing:
                 row = {"week": week, "status": "bye", "points": None}
             elif p is None:
-                row = {"week": week, "status": "unmodeled", "points": None}
+                reason = record["history_status"]
+                if reason == "recent_observed_history":
+                    reason = "missing_model_output"
+                row = {"week": week, "status": "unmodeled", "points": None,
+                       "reason": reason}
             else:
                 if p["team"] != record["team"]:
                     raise ValueError("projection team does not match current team")

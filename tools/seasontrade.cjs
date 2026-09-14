@@ -23,4 +23,7 @@ async function main(){
   const result=analyze({...request,remaining,board,league,rosters,catalog,currentWeek:Number(state.week),snapshotAt,now:Date.now()});
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
 }
-main().catch(error=>{process.stderr.write(error.message+'\n');process.exitCode=1;});
+main().catch(error=>{
+  const report=error.coverageIssues ? JSON.stringify({advice_eligible:false,error:error.message,coverageIssues:error.coverageIssues},null,2) : error.message;
+  process.stderr.write(report+'\n');process.exitCode=1;
+});

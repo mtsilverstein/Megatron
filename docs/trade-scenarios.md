@@ -39,6 +39,16 @@ scenario, not an injury or return-date prediction. IR/taxi players cannot
 be traded by this first version. Missing projections block scoring rather
 than counting as zero. A bye or deliberately excluded week is labeled zero.
 
+Coverage failures produce a nonzero exit and a JSON report on stderr containing
+every affected player and future week (`coverageIssues`), not a partial score.
+New remaining-season artifacts distinguish no observed NFL history, history
+outside the recent-season window, and missing model output. These reasons use
+only observations before the forecast origin. Older artifacts still work but
+may report only `unmodeled`. Rookies are not assigned arbitrary points, and
+unknown bench players are not silently removed to force a comparison through.
+Do not use availability exclusions merely to suppress coverage errors: an
+exclusion is an explicit scenario assumption that the player cannot contribute.
+
 Uneven trades require explicit legal drops if roster capacity would be
 exceeded. Dropped players remain in the baseline but leave the changed roster,
 so losing their lineup contribution counts against the trade.
