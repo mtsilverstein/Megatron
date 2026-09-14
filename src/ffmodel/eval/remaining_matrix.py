@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from ffmodel.eval.remaining import evaluate_origin
+from ffmodel.eval.starter_decisions import summarize_decisions
 from ffmodel.site.live_experts import atomic_write
 
 
@@ -54,6 +55,7 @@ def main():
     payload=dict(schema_version=1,diagnostic="remaining_matrix",advice_eligible=False,
                  seasons=args.seasons,origins=args.origins,horizons=args.horizons,
                  artifact_roots=[str(r) for r in roots],summary=summarize(reports),reports=reports,
+                 starter_summary=summarize_decisions(reports),
                  limitation="Repeated players and overlapping forecast windows are dependent. Weighted descriptive errors, not independent trials, causal estimates or a promotion gate.")
     args.out.parent.mkdir(parents=True,exist_ok=True)
     atomic_write(args.out,json.dumps(payload,indent=2,allow_nan=False))

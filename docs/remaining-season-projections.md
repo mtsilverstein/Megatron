@@ -105,3 +105,43 @@ Missing-ID source rows are preserved individually because duplicates cannot
 be established without identity. Conflicting rows expose no arbitrarily
 selected team/status. Timing verification remains a prerequisite to using
 these statuses as forecasting features or participation labels.
+
+## Starter-pool decision check
+
+The matrix also reports within-position decision accuracy and regret for a
+frozen pool selected by pre-origin four-game-average rank: QB24, RB60, WR72,
+TE24. These fixed broad starter/depth limits are not tuned from evaluation
+outcomes and do not represent observed fantasy rosters. All within-position
+pairs are compared, not only favorable disagreements. Pairs tied by either
+forecast are excluded for both methods; actual ties have zero regret and
+are excluded from accuracy. Missing or changed-team actuals stay excluded
+and counted. Repeated-player pairs are dependent, not independent trials.
+
+Availability provenance was checked against the official
+[roster builder](https://github.com/nflverse/nflverse-rosters/blob/main/R/rosters.R):
+through 2015, weekly dataexchange rows receive season-level Shield statuses
+via a player-ID join. Multiple statuses can fan out across the same weekly
+identity; none should be chosen as weekly availability truth. From 2016,
+[NGS queries](https://github.com/nflverse/nflverse-rosters/blob/main/R/rosters_ngs.R)
+are week-specific, but record capture times are not established. Daily
+release updates do not establish pre-origin knowledge. Status remains an
+unusable pregame feature until genuinely timestamped source snapshots exist.
+Postgame snap/participation evidence can support retrospective outcome
+labels, but cannot be substituted for a pregame input.
+
+Starter-pool run results across the same six season/origin cells:
+
+| Horizon | Model choice accuracy | Baseline accuracy | Model mean regret | Baseline mean regret |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 63.53% | 60.85% | 2.883 | 3.252 |
+| 2 | 64.87% | 62.21% | 2.449 | 2.758 |
+| 4 | 64.67% | 61.23% | 2.585 | 3.058 |
+| 8 | 64.70% | 60.99% | 2.737 | 3.312 |
+
+Regret is the point loss from choosing the lower actual scorer in a pair,
+averaged over common forecast-nontied pairs (actual ties contribute zero).
+Actual ties do not enter choice accuracy. Aggregate improvement does not
+hold in every subgroup: two-week QB mean regret is about 0.286 points worse
+than baseline. These are correlated hypothetical player comparisons, not
+demonstrated gains for actual fantasy rosters. No superiority test or
+availability-adjusted trade conclusion follows from these results.

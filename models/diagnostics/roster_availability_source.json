@@ -2,6 +2,17 @@
   "schema_version": 1,
   "diagnostic": "historical_roster_availability_source_audit",
   "advice_eligible": false,
+  "source_provenance": {
+    "through_2015": "Weekly dataexchange rows receive season-level Shield statuses via player-ID join; not weekly availability truth.",
+    "from_2016": "NGS week-specific query, but row capture time and pre-origin availability are unverified.",
+    "publication_time": "Release/workflow update time is not row observation time.",
+    "sources": [
+      "https://github.com/nflverse/nflverse-rosters/blob/main/R/rosters.R",
+      "https://github.com/nflverse/nflverse-rosters/blob/main/R/rosters_dataexchange.R",
+      "https://github.com/nflverse/nflverse-rosters/blob/main/R/rosters_ngs.R",
+      "https://github.com/nflverse/nflverse-rosters/blob/main/.github/workflows/update_rosters.yaml"
+    ]
+  },
   "scope": {
     "game_type": "REG",
     "positions": [

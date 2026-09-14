@@ -15,6 +15,7 @@ from ffmodel.scoring import PREDICTED_STATS, fantasy_points
 from ffmodel.site.live_experts import atomic_write
 from ffmodel.site.pick_sixes import load_pick_six_prior
 from ffmodel.site.weekly import build_weekly_projections, set_league_rules, RULESETS
+from ffmodel.eval.starter_decisions import starter_pool, decision_pairs, POOL_SIZE
 
 
 def recent_game_baseline(history, rules, *, include_pick_six=False):
@@ -92,6 +93,7 @@ def _evaluate_origin(weekly, schedules, *, season, origin, horizons, league, pre
     set_league_rules(rules)
     prior = load_pick_six_prior(season) if rules.pass_int_td else None
     baseline = recent_game_baseline(history, rules, include_pick_six=bool(pick_six_observed))
+    pool = starter_pool(latest, baseline)
     reports = []
     for horizon in sorted(horizons):
         week = origin+horizon-1
@@ -126,6 +128,7 @@ def _evaluate_origin(weekly, schedules, *, season, origin, horizons, league, pre
             raise ValueError("actual stat components missing")
         actual["actual"] = fantasy_points(actual[columns], rules)
         report = score_horizon(predictions, actual, season=season, origin=origin, week=week)
+        report["starter_decisions"] = decision_pairs(predictions, actual, pool)
         report["pick_six_evaluated"] = bool(pick_six_observed)
         report["origin_cohort"] = len(teams)
         report["scheduled_origin_players"] = len(scheduled)
@@ -135,6 +138,8 @@ def _evaluate_origin(weekly, schedules, *, season, origin, horizons, league, pre
             "league":league.payload(), "season":season, "origin_week":origin,
             "training_through":season-1, "model":model.name, "reports":reports,
             "baseline":"Mean of last four recorded pre-origin games (or all if fewer); frozen across horizons; no absence imputation.",
+            "starter_pool":{"selection":"Top pre-origin four-game averages per position; deterministic player-ID tiebreak. Frozen across horizons.","position_limits":POOL_SIZE,
+                            "comparison":"All within-position pairs with actual same-team rows; pairs tied by either forecast excluded for both methods. Not actual fantasy rosters or independent trials."},
             "comparison":"Model minus baseline absolute error on identical observed same-team rows; negative favors model. No significance claim.",
             "scoring_scope":"Predicted stat components only; pick-six costs excluded from BOTH sides when actual counts are unavailable. Not complete platform scoring.",
             "limitations":["Retrospective diagnostic, not a captured point-in-time roster backtest.",
