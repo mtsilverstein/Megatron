@@ -79,3 +79,30 @@ def test_decision_integration_preserves_error_diagnostic():
     for cell in with_decisions:
         cell.pop("decisions")
     assert with_decisions == original
+
+
+def test_observed_update_is_pre_origin_and_keeps_original_comparison():
+    weekly, picks = _toy_world()
+    weekly["team"] = "A"
+    weekly.loc[(weekly.season == 2022) & (weekly.week == 1), "rushing_yards"] = 20
+    kwargs = dict(season=2022, origins=[2], horizons=[1], rules=RULESETS["ppr"], decisions=True)
+    original = R.evaluate(weekly, picks, **kwargs)
+    updated = R.evaluate(weekly, picks, **kwargs, observed_update=True)
+    low = next(c for c in updated if c["history_group"] == "one_to_three_recorded_games")
+    assert low["observed_update"]["observed_mae"] == 6
+    assert low["observed_update"]["capital_mae"] == 0
+    assert low["observed_update"]["evaluated"] == low["evaluated"] == 30
+    zero = next(c for c in updated if c["history_group"] == "zero_history")
+    assert "observed_update" not in zero
+    weekly.loc[(weekly.season == 2022) & (weekly.week > 2), "rushing_yards"] = 99999
+    assert R.evaluate(weekly, picks, **kwargs, observed_update=True) == updated
+    for cell in updated:
+        cell.pop("observed_update", None)
+    assert updated == original
+
+
+def test_observed_update_requires_decision_mode():
+    weekly, picks = _toy_world()
+    with pytest.raises(ValueError, match="requires decisions"):
+        R.evaluate(weekly, picks, season=2022, origins=[1], horizons=[1],
+                   rules=RULESETS["ppr"], observed_update=True)

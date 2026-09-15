@@ -146,3 +146,48 @@ Decision: keep live coverage guards unchanged. Next compare pre-origin observed
 rookie stat averages against the frozen capital prior for the one-to-three-game
 group, on the same candidate pairs. Do not select a blend weight against these
 held-out results or quietly assign zero to rookies who have no NFL record.
+
+## Observed-production comparison
+
+Add `--observed-update` to a decision run to compare the mean of pre-origin
+observed rookie component stats against the unchanged draft-capital prior.
+Only rookies with one to three recorded NFL games enter this additional test.
+There is no inferred zero for an absent week, no blend weight, and no target-week
+data in the averages. Each horizon uses the same frozen origin history.
+
+The original capital-versus-position-only reports remain intact. Additional
+`observed_update` sections hold errors and decision counters for the new
+comparison. Their reused internal counter names are explicitly mapped by
+`observed_update_metric_labels`: `bucketed` is the observed-stat mean and
+`baseline` is the capital prior in these sections only. The top-level original
+decision sections retain their original meanings. Both methods face identical
+veteran forecasts; forecast ties in either method exclude the same pairs.
+
+Reproduce the bounded transformer run with
+`python -m ffmodel.eval.rookie_weekly --decisions --observed-update --veteran-model transformer --origins 5 9 --horizons 1 4 --out models/diagnostics/rookie_observed_update_gabagool.json`.
+This tests a candidate decision rule, not a participation model or a solution
+for the genuinely zero-history players blocking live trade comparisons.
+
+The completed 2023–2025 run at origins 5/9 and horizons 1/4 increased pooled
+decision regret at every position:
+
+| Position | Evaluated pairs | Observed-mean regret | Capital-prior regret |
+| --- | ---: | ---: | ---: |
+| QB | 323 | 3.00 | 1.22 |
+| RB | 977 | 1.09 | 1.00 |
+| WR | 2,132 | 0.94 | 0.70 |
+| TE | 526 | 1.28 | 0.77 |
+
+Results also varied by season. For example, observed RB production improved
+regret in 2023/2024 but worsened it by 1.33 points per evaluated pair in 2025.
+The original capital-versus-position-only summary and every original cell
+reproduced the prior stored run exactly after removing the new update sections.
+The WR pair count differs between comparisons because each comparison uses its
+own common non-tied forecast pairs; no claim compares errors across unequal sets.
+
+Decision: reject an unconditional switch to the raw one-to-three-game mean.
+This result does not establish that draft capital is sufficient, nor that all
+uses of recent performance are harmful. Do not tune a blend on these repeatedly
+inspected held-out years. Any new usage-aware method needs development data and
+a declared validation protocol before another promotion test. No live model or
+trade coverage guard was changed by this work.

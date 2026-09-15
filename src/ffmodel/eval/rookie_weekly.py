@@ -22,7 +22,9 @@ def draft_identity_frame(picks):
 
 
 def evaluate(weekly, picks, *, season, origins, horizons, rules, decisions=False,
-             schedules=None, predictor_factory=None):
+             schedules=None, predictor_factory=None, observed_update=False):
+    if observed_update and not decisions:
+        raise ValueError("observed update requires decisions")
     if predictor_factory is not None and (not decisions or schedules is None):
         raise ValueError("transformer probe requires decisions and schedules")
     if (not origins or not horizons or len(set(origins)) != len(origins)
@@ -59,6 +61,9 @@ def evaluate(weekly, picks, *, season, origins, horizons, rules, decisions=False
         history = weekly[(weekly.season < season) |
                          ((weekly.season == season) & (weekly.week < origin))]
         counts = history.groupby("player_id").size()
+        if observed_update:
+            means = history.groupby("player_id")[PREDICTED_STATS].mean()
+            observed_points = fantasy_points(means, rules)
         if decisions:
             from ffmodel.eval.rookie_decisions import veteran_pool, compare
             veterans = veteran_pool(history, set(cls.gsis_id), season, rules)
@@ -81,10 +86,14 @@ def evaluate(weekly, picks, *, season, origins, horizons, rules, decisions=False
                 history_group = "zero_history" if games == 0 else "one_to_three_recorded_games"
                 key = (r.position, history_group)
                 g = groups.setdefault(key, {"forecast_players": 0, "missing_actuals": 0,
-                                            "position_mismatch": 0, "errors": [], "rookies": []})
+                                            "position_mismatch": 0, "errors": [], "rookies": [],
+                                            "observed_rookies": [], "observed_errors": []})
                 g["forecast_players"] += 1
                 g["rookies"].append(dict(player_id=r.gsis_id, position=r.position,
                     bucketed=forecasts[r.gsis_id][0], baseline=forecasts[r.gsis_id][1]))
+                if observed_update and games:
+                    g["observed_rookies"].append(dict(player_id=r.gsis_id, position=r.position,
+                        bucketed=float(observed_points[r.gsis_id]), baseline=forecasts[r.gsis_id][0]))
                 if r.gsis_id not in actual.index:
                     g["missing_actuals"] += 1
                     continue
@@ -94,11 +103,22 @@ def evaluate(weekly, picks, *, season, origins, horizons, rules, decisions=False
                     continue
                 bucketed, baseline = forecasts[r.gsis_id]
                 g["errors"].append((abs(bucketed-row.actual), abs(baseline-row.actual)))
+                if observed_update and games:
+                    g["observed_errors"].append(abs(float(observed_points[r.gsis_id])-row.actual))
             for (position, history_group), g in sorted(groups.items()):
                 errors = g.pop("errors")
                 rookies = g.pop("rookies")
+                observed_rookies = g.pop("observed_rookies")
+                observed_errors = g.pop("observed_errors")
                 if decisions:
                     g["decisions"] = compare(rookies, target_veterans[target_veterans.position == position], actual)
+                    if observed_update and history_group == "one_to_three_recorded_games":
+                        g["observed_update"] = dict(
+                            observed_mae=float(np.mean(observed_errors)) if observed_errors else None,
+                            capital_mae=float(np.mean([e[0] for e in errors])) if errors else None,
+                            evaluated=len(observed_errors),
+                            decisions=compare(observed_rookies,
+                                target_veterans[target_veterans.position == position], actual))
                 n = len(errors)
                 cells.append(dict(season=season, origin=origin, horizon=horizon,
                     target_week=week, position=position, history_group=history_group,
@@ -132,11 +152,14 @@ def main():
     parser.add_argument("--league", default="gabagool")
     parser.add_argument("--decisions", action="store_true", help="Compare rookies with pre-origin veteran pools")
     parser.add_argument("--veteran-model", choices=["last4", "transformer"], default="last4")
+    parser.add_argument("--observed-update", action="store_true", help="Also compare observed rookie stat means with capital priors for 1-3-game players")
     parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args()
     if args.veteran_model == "transformer" and not args.decisions:
         parser.error("--veteran-model transformer requires --decisions")
+    if args.observed_update and not args.decisions:
+        parser.error("--observed-update requires --decisions")
     if len(set(args.seasons)) != len(args.seasons):
         parser.error("duplicate seasons")
     from ffmodel.data.pull import pull_weekly, pull_draft_picks
@@ -158,9 +181,11 @@ def main():
         factory = lambda f: TransformerPredictor(roots, f)
     cells = []
     for season in args.seasons:
+        print(f"Evaluating rookie class {season}", flush=True)
         cells.extend(evaluate(weekly, picks, season=season, origins=args.origins,
                               horizons=args.horizons, rules=rules, decisions=args.decisions,
-                              schedules=schedules, predictor_factory=factory))
+                              schedules=schedules, predictor_factory=factory,
+                              observed_update=args.observed_update))
     report = dict(schema_version=1, diagnostic="rookie_weekly", advice_eligible=False,
                   league=args.league, seasons=args.seasons, origins=args.origins,
                   scoring_rules=asdict(replace(rules, pass_int_td=0)),
@@ -181,12 +206,24 @@ def main():
             [c for c in cells if c["season"] == s]) for s in args.seasons}
         report["veteran_pool_sizes"] = POOL_SIZE
         report["veteran_model"] = args.veteran_model
+        if args.observed_update:
+            update_cells = [dict(c, decisions=c["observed_update"]["decisions"])
+                            for c in cells if "observed_update" in c]
+            report["observed_update_summary"] = summarize_decisions(update_cells)
+            report["observed_update_by_season"] = {str(s): summarize_decisions(
+                [c for c in update_cells if c["season"] == s]) for s in args.seasons}
+            report["observed_update_metric_labels"] = {
+                "bucketed": "observed pre-origin mean component stats, scored with diagnostic rules",
+                "baseline": "frozen draft-capital component-stat median prior"}
+            report["limitations"].append("Observed-update metrics reuse decision counter names: bucketed means observed stat mean; baseline means capital prior, ONLY within observed_update sections. One-to-three-recorded-game rookies only; no absent-game zeros, blend tuning, or participation forecast. Original capital-versus-position-only results are unchanged.")
         if factory is not None:
             report["artifact_roots"] = [str(r) for r in roots]
             report["limitations"].append("Transformer artifacts selected through season S-1; frozen pre-origin observations at every horizon. Schedules are retrospective, not reconstructed as-of snapshots. Unprojected veterans remain explicit excluded pairs, never zero or last-four fallback.")
         report["limitations"].append("Same-position rookie/veteran pairs, not real rosters or a FLEX optimizer. Veteran pools use frozen last-four-game means; veteran forecasts use the declared veteran_model identically in both rookie methods. Veteran team/position changes are excluded; rookie position must match.")
     atomic_write(args.out, json.dumps(report, indent=2, allow_nan=False))
-    print(json.dumps(report["summary"], indent=2))
+    print(json.dumps({"metric_labels": report["observed_update_metric_labels"],
+                      "decision_summary": report["observed_update_summary"]}
+                     if args.observed_update else report["summary"], indent=2))
 
 
 if __name__ == "__main__":
