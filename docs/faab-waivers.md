@@ -10,13 +10,14 @@ Open `waivers.html?league=gabagool` or `waivers.html?league=fam`, enter your Sle
 - Protects starters initially and always excludes IR/taxi and unmapped players from drops.
 - Compares legal skill-position lineups before and after individual add/drop swaps. K/DST are outside this model.
 - Uses weekly projections only when their league/scoring, season, week, and timestamp match. Missing player projections are excluded, never replaced with season totals in the same comparison.
-- Otherwise labels its remaining-season estimate as a rough preseason proxy. This is not a live role forecast or a week-by-week schedule optimizer.
+- In-season stale, missing or misaligned weekly data withholds lineup gains and bid recommendations. Research/watchlists remain available. The pure engine retains a labeled preseason proxy outside in-season mode; the live desk requires an in-season league.
+- An unprojected owned player who could contribute to an unstarted lineup blocks comparisons, even when other players can fill every slot. Protecting that player from drops alone would not make an incomplete baseline reliable.
 - Lists available preseason-ECR players separately for stash review. Ownership is live at refresh time; waiver eligibility and claim deadlines must still be checked in Sleeper.
 - Exports a copyable shortlist. Alternatives can reuse a drop or collectively overspend: they are not a combined claim queue.
 
 Injury tags come from a session-cached Sleeper catalog, with its retrieval time displayed. They are not a live injury-news service. Refreshing rosters does not refresh that bulk catalog; reload the page if a new catalog is needed. Independently verify current game status and role.
 
-The September 9 Week 1 file is newly generated but uses historical data through 2025 Week 18. Rookies without historical weekly projections remain a coverage gap. The draft board and stash list retain them; the weekly swap model must not invent their value.
+The September 9 Week 1 file used historical data through 2025 Week 18; that was a point-in-time limitation, not the current refresh state. The September 15 audit found deployed Week 2 projections through 2026 Week 1. Players without weekly projections remain a coverage gap. The draft board and stash list retain them; the weekly swap model must not invent their value.
 
 ## Research radar (second iteration)
 
@@ -63,5 +64,26 @@ Positive projected lineup gains below 2 points use a 1–3% starting-budget band
 The first release is the safe ownership/budget/lineup foundation for this work, not evidence that those advantages have already been achieved.
 
 ## Validation
+
+September 15 read-only audit: both Max973 Sleeper leagues loaded against deployed
+Week 2 data and live rosters. With current starters protected, Gabagool produced
+10 independent alternatives; FAM produced no positive modeled swaps. These are
+snapshot-specific outputs, not recommendations to submit all alternatives.
+Research contained 205/220 available players, respectively, with observed usage
+attached to 122/141. The roles payload covered 32/32 Week 1 team-games. Simulating
+a missing weekly payload withheld recommendation rows while retaining the inputs
+needed for research. This was an engine/API integration check, not a visual
+browser or actual claim-submission test. No platform writes occurred.
+
+The recommendation, adapter and research fixtures passed, as did 17 Python
+weekly/roles/kickoff tests. Claude Sonnet performed a bounded read-only review of
+ownership, drop protection and budgets; the additional stale-data and incomplete
+baseline guards came from integration review. The waiver stack has no dependency
+on the experimental remaining-season trade engine. Its rookie coverage problem
+is shared in concept, but it does not need to wait for trade development.
+
+Remaining priorities: browser interaction checks, explicit roster-specific
+coverage display, and claim-group conflict/budget planning. Bid bands remain
+uncalibrated; these checks do not establish forecast accuracy or a FAAB edge.
 
 `node tests/waivers_fixture.cjs` checks scoring, ownership, protected/locked players, freshness, roster legality, budgeting, randomized brute-force lineup equivalence, and a full-size performance bound. `node tests/waivermode_fixture.cjs` checks the read-only adapter contract. All `tests/*_fixture.cjs` files are discovered by CI.

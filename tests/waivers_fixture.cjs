@@ -148,12 +148,26 @@ check("missing weekly scores protect owned players from drops", () => {
   const fresh=freshWeekly(board.players.filter(x=>x.sleeper_id!=="8"));
   // The other known skill players can fill the lineup only after adding, but
   // the unprojected owned player must never appear as a zero-cost drop.
-  assert.throws(()=>W.analyze({...base,rosters:freshRosters,weekly:fresh}),/cannot fill every required/);
+  const blocked=W.analyze({...base,rosters:freshRosters,weekly:fresh});
+  assert.equal(blocked.rows.length,0);
+  assert.match(blocked.recommendationBlock,/contribution is unknown/);
   const roomyLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN"]};
   const roomyRosters=[{...freshRosters[0],starters:["1","2","3","4","5","6"]},freshRosters[1]];
   const out=W.analyze({...base,rosters:roomyRosters,league:roomyLeague,weekly:fresh});
   assert.ok(out.rows.every(r=>r.drop.id!=="8"));
+  assert.equal(out.rows.length,0,"unknown bench value must not inflate an apparent upgrade");
   assert.match(out.warnings.join(" "),/protected from drops/);
+});
+
+check("in-season stale or missing weekly data is research-only, never preseason bids", () => {
+  for (const weekly of [null, {...freshWeekly(),generated_at:"2026-01-01"}, {...freshWeekly(),week:2}]) {
+    const out=W.analyze({...base,league:{...league,status:"in_season"},weekly});
+    assert.equal(out.rows.length,0);
+    assert.match(out.recommendationBlock,/fresh aligned weekly data required/);
+    assert.match(out.coverage.scoringLabel,/RESEARCH ONLY/);
+    assert.equal(out.budget.remaining,60);
+    assert.ok(out.roster.playerIds.length);
+  }
 });
 
 check("open active roster slots allow adds without forced drops", () => {

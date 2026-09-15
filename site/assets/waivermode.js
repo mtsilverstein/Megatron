@@ -120,7 +120,7 @@
       const body = $("waiver-table").querySelector("tbody"); body.replaceChildren();
       const rows = activeRows();
       $("waiver-count").textContent = rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against your current roster, not after other claims.`
-        : "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.";
+        : result.recommendationBlock || "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.";
       for (const r of rows) {
         const tr = node("tr");
         const add = node("td", r.add.name); add.append(node("span", r.add.position, "waiver-row-note"));

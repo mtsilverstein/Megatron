@@ -235,6 +235,15 @@
       }
     });
     const weekly = weeklyMap(args.weekly, league, args.week, boardByGsis, warnings, now);
+    const blocked = reason => ({
+      recommendationBlock: reason, rows: [], warnings: [...warnings, reason],
+      waiver: { type: rolling ? "rolling" : "faab", priority: finite(mine.settings && mine.settings.waiver_position), guidance: "Research only; immediate claim recommendations withheld." },
+      budget: rolling ? null : { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },
+      roster: { rosterId, playerIds: [...validateIds(mine.players || [], "roster players")], protectedIds: [...protectedIds], lockedReserveTaxiIds: [...ownLocked], unknownOwnedIds: unknownOwned },
+      coverage: { boardPlayers: board.players.length, ownedPlayers: owned.size, freeAgentsScored: 0, dropCandidates: 0, weeklyFresh: weekly.fresh, weeklyMatched: weekly.map.size, scoringLabel: "RESEARCH ONLY — immediate recommendations withheld" }
+    });
+    if (!weekly.fresh && league.status === "in_season")
+      return blocked(`${weekly.reason}; fresh aligned weekly data required for in-season recommendations. No preseason-based bids or lineup gains supplied.`);
     const kickoffs = weekly.fresh ? kickoffMap(args.kickoffs, league, args.week, now) : { fresh:false, starts:new Map(), covered:new Set(), reason:null };
     if (weekly.fresh && !kickoffs.fresh) fail(`${kickoffs.reason}; refresh required`);
     if (weekly.fresh && unknownOwned.length) fail(`${unknownOwned.length} owned player(s) missing from board; refresh player data`);
@@ -288,6 +297,8 @@
     }
     const remainingStarterSlots = starterSlots.filter((s, i) => !lockedModeledSlots.has(i));
     const availableOwn = ownActive.filter(p => !startedBench.has(id(playerId(p))) && !lockedStarterIds.has(id(playerId(p))));
+    const unknownContributors = weekly.fresh ? availableOwn.filter(p => SKILL.has(position(p)) && score(p) === null) : [];
+    if (unknownContributors.length) return blocked(`Owned players lack a current weekly projection: ${unknownContributors.map(p => p.name || playerId(p)).join(", ")}. They are protected from drops; lineup gains withheld because their contribution is unknown.`);
     const baseline = lineupScore(availableOwn, remainingStarterSlots, score);
     if (!Number.isFinite(baseline)) fail("owned roster cannot fill every required starting position with known finite scores");
     const mapped = p => playerId(p) !== null && playerId(p) !== undefined;
