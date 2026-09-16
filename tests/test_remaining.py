@@ -143,6 +143,13 @@ def test_load_evaluation_borrows_reference_only_when_scoring_matches(tmp_path):
                              reference_scoring={"pass_td": 4, "rec": 1})
     assert same["source"] == "models/diagnostics/remaining_matrix_gabagool.json"
     assert same["scoring_scope"] == "evaluated under gabagool scoring, which matches this league"
+    # Unmodeled keys (kicker distance bands vs a flat fgm_yds field) must not
+    # block the borrow: the diagnostic only scores modeled stat components.
+    unmodeled_diff = R.load_evaluation(
+        "fam", {"rec": 1, "pass_td": 4, "fgm_0_19": 3}, diagnostics_dir=d,
+        reference_scoring={"rec": 1, "pass_td": 4, "fgm_yds": 0.1})
+    assert unmodeled_diff["scoring_scope"] == "evaluated under gabagool scoring, which matches this league"
+    # A difference on a MODELED key still blocks the borrow.
     assert R.load_evaluation("fam", {"rec": 0.5}, diagnostics_dir=d,
                              reference_scoring={"rec": 1}) is None
     assert R.load_evaluation("fam", {"rec": 1}, diagnostics_dir=d) is None  # no reference scoring given

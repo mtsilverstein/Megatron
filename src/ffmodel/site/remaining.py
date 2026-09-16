@@ -19,8 +19,11 @@ def load_evaluation(slug, league_scoring, diagnostics_dir=DIAGNOSTICS_DIR,
     """The measured remaining-season evaluation for this league, or None.
 
     Read from the committed `remaining_matrix_<slug>.json`, never typed in.
-    Another league's diagnostic is borrowed only when the two leagues' Sleeper
-    scoring dicts are equal, and then says so in `scoring_scope`."""
+    Another league's diagnostic is borrowed only when the two leagues agree on
+    every MODELED scoring key (`ffmodel.league.SLEEPER_RULE_FIELDS`), and then
+    says so in `scoring_scope`. The diagnostic scores predicted stat components
+    only, so kicker distance bands, `fgm_yds`, and 50-yard-TD bonuses cannot
+    move it and must not block the borrow."""
     diagnostics_dir = Path(diagnostics_dir)
     path = diagnostics_dir / f"remaining_matrix_{slug}.json"
     scope = None
@@ -48,8 +51,13 @@ def load_evaluation(slug, league_scoring, diagnostics_dir=DIAGNOSTICS_DIR,
 
 
 def _scoring_equal(a, b):
-    keys = set(a or {}) | set(b or {})
-    return bool(keys) and all(float((a or {}).get(k, 0)) == float((b or {}).get(k, 0)) for k in keys)
+    """Compare only the scoring keys the diagnostic's model actually predicts.
+
+    `SLEEPER_RULE_FIELDS` are the stat components the transformer forecasts;
+    anything else (kicker distance bands, `fgm_yds`, 50-yard-TD bonuses) is
+    unmodeled and cannot change whether a borrowed diagnostic still applies."""
+    keys = set(SLEEPER_RULE_FIELDS)
+    return all(float((a or {}).get(k, 0)) == float((b or {}).get(k, 0)) for k in keys)
 
 
 def build_remaining(weekly, schedules, predictor, season, start_week, *,

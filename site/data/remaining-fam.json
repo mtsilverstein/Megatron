@@ -2,11 +2,51 @@
   "schema_version": 1,
   "horizon": "remaining_season",
   "status": "experimental",
-  "evaluation": null,
+  "evaluation": {
+    "source": "models/diagnostics/remaining_matrix_gabagool.json",
+    "baseline": "mean league-scored production in the last four recorded pre-origin games",
+    "seasons": [
+      2023,
+      2024,
+      2025
+    ],
+    "origins": [
+      5,
+      9
+    ],
+    "horizons": [
+      {
+        "horizon": 1,
+        "model_mae": 4.612,
+        "baseline_mae": 4.815,
+        "paired_forecasts": 1817
+      },
+      {
+        "horizon": 2,
+        "model_mae": 4.452,
+        "baseline_mae": 4.722,
+        "paired_forecasts": 1791
+      },
+      {
+        "horizon": 4,
+        "model_mae": 4.663,
+        "baseline_mae": 4.873,
+        "paired_forecasts": 1829
+      },
+      {
+        "horizon": 8,
+        "model_mae": 4.8,
+        "baseline_mae": 4.987,
+        "paired_forecasts": 1834
+      }
+    ],
+    "limitation": "Repeated players and overlapping forecast windows are dependent. Weighted descriptive errors, not independent trials, causal estimates or a promotion gate.",
+    "scoring_scope": "evaluated under gabagool scoring, which matches this league"
+  },
   "season": 2026,
   "start_week": 2,
   "end_week": 17,
-  "generated_at": "2026-09-16T23:37:24.598505+00:00",
+  "generated_at": "2026-09-16T23:48:41.034352+00:00",
   "data_through": "2026-wk01",
   "league": {
     "slug": "fam",
