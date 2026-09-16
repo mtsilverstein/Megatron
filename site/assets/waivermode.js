@@ -88,27 +88,46 @@
   // the exact strings. A withheld bid (low/high null) must never print as dollars.
   function rowText(r, result) {
     const weak = r.signal.strength === "weak";
-    // Unassessed drop cost withholds spend guidance exactly like a weak signal;
-    // the gain stays visible and the tag says why nothing is suggested.
-    const held = !weak && r.dropCost?.status === "unassessed";
+    const dc = r.dropCost || {};
+    const priced = Number.isFinite(dc.rosDelta);
+    const negative = dc.status === "priced" && Number.isFinite(r.signal.moveValue) && r.signal.moveValue <= 0;
+    const held = !weak && !negative && dc.status === "unassessed";
+    const sign = x => `${x < 0 ? "−" : "+"}${Math.abs(x).toFixed(2)}`;
     const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? `$${r.bid.low}–$${r.bid.high}` : null;
-    const bid = r.bid ? (dollars ?? r.bid.status ?? "No bid suggested") : (weak || held ? "No priority claim suggested" : "Set claim order in Sleeper");
-    const bidNote = r.bid ? r.bid.label : (weak || held ? r.signal.guidance : result.waiver.guidance);
+    const withheld = weak || held || negative;
+    const bid = r.bid ? (dollars ?? r.bid.status ?? "No bid suggested") : (withheld ? "No priority claim suggested" : "Set claim order in Sleeper");
+    const bidNote = r.bid ? r.bid.label : (withheld ? r.signal.guidance : result.waiver.guidance);
     const exportBid = r.bid ? (dollars ? `heuristic bid ${dollars}` : bid) : r.signal.guidance;
+    const rosPart = priced ? ` this week · ROS ${sign(dc.rosDelta)}` : "";
+    const tag = weak ? " · weak signal" : held ? " · drop cost unassessed" : negative ? " · drop costs more than the add returns" : "";
+    const exportRos = priced ? `; ROS ${sign(dc.rosDelta)} (wk ${(dc.endWeek - dc.futureWeeks) + 1}–${dc.endWeek})` : "";
+    const exportTag = weak ? "WEAK SIGNAL" : held ? "DROP COST UNASSESSED" : negative ? "DROP COSTS MORE THAN ADD RETURNS" : "modeled";
     return {
-      gain: `+${r.lineupGain.toFixed(2)} pts${weak ? " · weak signal" : held ? " · drop cost unassessed" : ""}`,
+      gain: `+${r.lineupGain.toFixed(2)} pts${rosPart}${tag}`,
       bid, bidNote,
       why: `${r.bid ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`,
-      dropCostNote: held ? r.dropCost.label : null,
-      exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label}); ${weak ? "WEAK SIGNAL" : held ? "DROP COST UNASSESSED" : "modeled"}; ${exportBid}; ${r.rosterCost}${held ? `; ${r.dropCost.label}` : ""}`,
+      dropCostNote: held ? `${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : dc.status === "priced" ? dc.label : null,
+      exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label})${exportRos}; ${exportTag}; ${exportBid}; ${r.rosterCost}${held ? `; ${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : ""}`,
     };
+  }
+
+  function evaluationText(evaluation) {
+    if (!evaluation || !Array.isArray(evaluation.horizons)) return ["no measured evaluation for this league's scoring"];
+    const seasons = (evaluation.seasons || []), origins = (evaluation.origins || []);
+    const span = seasons.length ? `${seasons[0]}–${seasons[seasons.length - 1]}` : "the evaluation seasons";
+    const originText = origins.length ? ` (origins week ${origins.join(" and ")})` : "";
+    const lines = [`Measured on ${span}${originText} against ${evaluation.baseline}:`];
+    for (const h of evaluation.horizons) lines.push(`${h.horizon} week${h.horizon === 1 ? "" : "s"} ahead: model MAE ${h.model_mae.toFixed(2)} vs baseline ${h.baseline_mae.toFixed(2)} (${h.paired_forecasts.toLocaleString("en-US")} paired forecasts)`);
+    if (evaluation.scoring_scope) lines.push(evaluation.scoring_scope);
+    if (evaluation.limitation) lines.push(evaluation.limitation);
+    return lines;
   }
 
   function init() {
     const W = window.Waivers;
     const $ = id => document.getElementById(id);
     let world = null, board = null, weekly = null, roles = null, catalog = {}, result = null, signals = {}, intel = null;
-    let kickoffs = null, snapshotAt = null, ros = null;
+    let kickoffs = null, snapshotAt = null, ros = null, remaining = null;
     let requestId = 0, protectedIds = new Set(), autoWeek = true;
     const node = (tag, text, cls) => {
       const el = document.createElement(tag);
@@ -150,7 +169,9 @@
       const rows = activeRows();
       const weakCount = rows.filter(r => r.signal.strength === "weak").length;
       const heldCount = rows.filter(r => r.signal.strength !== "weak" && r.dropCost?.status === "unassessed").length;
-      $("waiver-count").textContent = rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against your current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals (under ${rows[0].signal.thresholdPerWeek.toFixed(1)} projected pt/week) kept for research; no bid or priority spend is suggested for them.` : ""}${heldCount ? ` ${heldCount} require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them.` : ""}`
+      const negativeCount = rows.filter(r => r.dropCost?.status === "priced" && r.signal.moveValue <= 0).length;
+      const pricedCount = rows.filter(r => r.dropCost?.status === "priced" && r.signal.moveValue > 0).length;
+      $("waiver-count").textContent = rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against your current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals (under ${rows[0].signal.thresholdPerWeek.toFixed(1)} projected pt/week) kept for research; no bid or priority spend is suggested for them.` : ""}${heldCount ? ` ${heldCount} require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them.` : ""}${pricedCount ? ` ${pricedCount} required-drop alternatives are priced on this week's gain plus the rest-of-season lineup change.` : ""}${negativeCount ? ` ${negativeCount} would forfeit more rest-of-season lineup value than the add returns; no bid or priority spend is suggested for them.` : ""}`
         : result.recommendationBlock || "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.";
       for (const r of rows) {
         const text = rowText(r, result);
@@ -232,7 +253,7 @@
         const rolling = Number(world.league.settings?.waiver_type) === 0;
         const reserve = rolling ? undefined : Number($("waiver-reserve").value);
         if (!rolling && (!$("waiver-reserve").value.trim() || !Number.isInteger(reserve) || reserve < 0)) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
-        result = W.analyze({ board, ...world, weekly, kickoffs, snapshotAt, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve });
+        result = W.analyze({ board, ...world, weekly, kickoffs, snapshotAt, remaining, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve });
         intel = window.WaiverIntel.analyze({ board, ...world, catalog, signals, roles, ros, week:Number($("waiver-week").value) });
         const b = result.budget, mine = world.rosters.find(r => r.roster_id === world.rosterId);
         $("waiver-reserve").closest("label").hidden = rolling;
@@ -251,6 +272,15 @@
         $("waiver-coverage").textContent = coverage.weeklyFresh
           ? `Your active skill roster: ${coverage.projectedOwnedSkills}/${coverage.activeOwnedSkills} have matching weekly projections. ${coverage.missingOwnedWeekly.length ? `No matching projection: ${coverage.missingOwnedWeekly.map(p => p.name).join(", ")}. ` : ""}IR/taxi and K/DEF are excluded from this count; byes and unavailable players may not need a score. ${coverage.unmappedOwnedIds.length ? `Unmapped owned IDs: ${coverage.unmappedOwnedIds.join(", ")}. ` : ""}${result.recommendationBlock || "Coverage alone does not establish forecast accuracy or player availability."}`
           : "Your roster projection coverage cannot be assessed until fresh, aligned weekly data is available. Research is not bid advice.";
+        // Named rosCoverage, not `ros`: the outer `ros` closure var (ROS-ECR
+        // watchlist data) is already referenced earlier in this function, and a
+        // same-scope `const ros` here would TDZ-break that reference.
+        const rosCoverage = coverage.ros || {};
+        $("waiver-ros").textContent = rosCoverage.fresh
+          ? `Rest-of-season projections: weeks ${rosCoverage.endWeek - rosCoverage.futureWeeks + 1}–${rosCoverage.endWeek}, generated ${rosCoverage.generatedAt}, data through ${rosCoverage.dataThrough || "unknown"}; ${rosCoverage.pricedOwned}/${coverage.activeOwnedSkills} roster players priced.${rosCoverage.unmodeledOwned.length ? ` No rest-of-season projection: ${rosCoverage.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} Values assume participation; injuries and returns are not forecast.`
+          : `Rest-of-season projections unavailable${rosCoverage.reason ? ` (${rosCoverage.reason})` : ""}; drop costs are unassessed and spend guidance is limited to open-slot adds.`;
+        const ev = $("waiver-evaluation"); ev.replaceChildren();
+        for (const line of evaluationText(rosCoverage.evaluation)) ev.append(node("p", line));
         $("waiver-results").hidden = false;
         status(`Connected read-only · roster ${world.rosterId} · refreshed ${new Date(world.fetchedAt).toLocaleTimeString()}. Refresh again before placing a claim.`);
         renderRows();
@@ -265,12 +295,13 @@
       status("Reading current rosters, waiver settings, scoring, and projections…");
       try {
         const dataPath = kind => window.FC.leagueDataPath(kind);
-        const [rawBoard, loadedWeekly, loadedRoles, loadedKickoffs, loadedRos] = await Promise.all([
+        const [rawBoard, loadedWeekly, loadedRoles, loadedKickoffs, loadedRos, loadedRemaining] = await Promise.all([
           window.FC.loadJSON(dataPath("draft")),
           window.FC.loadJSON(dataPath("weekly")).catch(() => null),
           window.FC.loadJSON("data/roles.json").catch(() => null),
           window.FC.loadJSON("data/kickoffs.json").catch(() => null),
           window.FC.loadJSON("data/ros-ecr.json").catch(() => null),
+          window.FC.loadJSON(dataPath("remaining")).catch(() => null),
         ]);
         if (rawBoard.league?.slug !== selectedLeague) throw new Error("Projection board does not match the selected league; reload before using advice.");
         const nflState = autoWeek ? await Sleeper.get("/state/nfl") : null;
@@ -293,7 +324,7 @@
         leagueLink.href = `https://sleeper.com/leagues/${encodeURIComponent(board.league.league_id)}/team`;
         leagueLink.textContent = `Open ${board.league.slug.toUpperCase()} in Sleeper`;
         weekly = loadedWeekly; roles = loadedRoles; world = nextWorld; signals = nextSignals;
-        kickoffs = loadedKickoffs; snapshotAt = loadedAt; ros = loadedRos;
+        kickoffs = loadedKickoffs; snapshotAt = loadedAt; ros = loadedRos; remaining = loadedRemaining;
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
         protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
         renderRoster(); recompute();
@@ -325,7 +356,7 @@
       $("waiver-backup").focus();
     });
   }
-  const api = { init, loadWorld, loadSignals, validateContract, hydrateBoard, requestedWeek, rowText };
+  const api = { init, loadWorld, loadSignals, validateContract, hydrateBoard, requestedWeek, rowText, evaluationText };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverMode = api;
 })();

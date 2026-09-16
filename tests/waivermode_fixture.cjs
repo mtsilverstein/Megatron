@@ -42,6 +42,50 @@ assert.match(heldRolling.exportLine, /; DROP COST UNASSESSED; research only: no 
 assert.doesNotMatch(heldRolling.exportLine, /\$|null|Set claim order|; modeled;|preseason/);
 const openSlot = M.rowText({ ...rowBase, drop:null, rosterCost:"uses an open roster spot; future roster flexibility is not priced", dropCost:{status:"open_slot",label:"no drop required; future roster flexibility is not priced"}, bid:null, signal:{strength:"modeled",guidance:"rank by value and roster need"} }, rolling);
 assert.equal(openSlot.bid, "Set claim order in Sleeper"); assert.match(openSlot.exportLine, /DROP none; .*; modeled; rank by value and roster need; uses an open roster spot/);
+// Priced rows print the split; net-negative rows print both numbers and never a dollar.
+const pricedDrop = M.rowText({ ...rowBase, lineupGain:11, rosterCost:"dropping B forfeits 0.00 projected lineup points over weeks 2–3; A adds 14.00 in his place",
+  dropCost:{status:"priced",label:"priced: rest-of-season lineup change over weeks 2–3, assuming participation",addContributes:14,dropForfeits:0,rosDelta:14,futureWeeks:2,endWeek:3},
+  signal:{strength:"modeled",guidance:"heuristic bid range",moveValue:25,basis:"move",perWeekGain:8.33},
+  bid:{low:11,high:20,tier:"impact",canAfford:true,status:null,label:"heuristic, not calibrated and not a win probability"} }, faab);
+assert.equal(pricedDrop.gain, "+11.00 pts this week · ROS +14.00");
+assert.equal(pricedDrop.bid, "$11–$20");
+assert.equal(pricedDrop.why, "impact · board value estimate; not a FAAB price");
+assert.equal(pricedDrop.dropCostNote, "priced: rest-of-season lineup change over weeks 2–3, assuming participation");
+assert.match(pricedDrop.exportLine, /^ADD A; DROP B; \+11\.00 \(week 2 projection\); ROS \+14\.00 \(wk 2–3\); modeled; heuristic bid \$11–\$20; dropping B forfeits 0\.00/);
+const negative = M.rowText({ ...rowBase, lineupGain:2, rosterCost:"dropping B forfeits 18.00 projected lineup points over weeks 2–3; A adds 0.00 in his place",
+  dropCost:{status:"priced",label:"priced: rest-of-season lineup change over weeks 2–3, assuming participation",addContributes:0,dropForfeits:18,rosDelta:-18,futureWeeks:2,endWeek:3},
+  signal:{strength:"modeled",guidance:"no bid suggested; dropping B forfeits 18.00 rest-of-season lineup points against 0.00 from A",moveValue:-16,basis:"move",perWeekGain:-5.33},
+  bid:{low:null,high:null,tier:"drop costs more than the add returns",canAfford:true,status:"no bid suggested: dropping B forfeits 18.00 rest-of-season lineup points against 0.00 from A",label:"heuristic, not calibrated and not a win probability"} }, faab);
+assert.equal(negative.gain, "+2.00 pts this week · ROS −18.00 · drop costs more than the add returns");
+assert.equal(negative.bid, "no bid suggested: dropping B forfeits 18.00 rest-of-season lineup points against 0.00 from A");
+for (const s of [negative.gain, negative.bid, negative.bidNote, negative.why, negative.exportLine]) assert.doesNotMatch(s, /\$|null|undefined|wrong/);
+assert.match(negative.exportLine, /; ROS −18\.00 \(wk 2–3\); DROP COSTS MORE THAN ADD RETURNS; no bid suggested: dropping B/);
+const negativeRolling = M.rowText({ ...rowBase, lineupGain:2, bid:null, dropCost:{status:"priced",label:"x",addContributes:0,dropForfeits:18,rosDelta:-18,futureWeeks:2,endWeek:3},
+  signal:{strength:"modeled",guidance:"research only: no priority claim suggested; dropping B forfeits 18.00 rest-of-season lineup points against 0.00 from A",moveValue:-16,basis:"move",perWeekGain:-5.33} }, rolling);
+assert.equal(negativeRolling.bid, "No priority claim suggested"); assert.doesNotMatch(negativeRolling.exportLine, /Set claim order/);
+// Unassessed rows with a reason keep the reason visible.
+const reasoned = M.rowText({ ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"no bid suggested; the dropped player's rest-of-season cost is not priced, so assess the drop cost independently before any move",basis:"this_week",perWeekGain:3,moveValue:null},
+  dropCost:{status:"unassessed",label:"drop cost unassessed: the dropped player's rest-of-season value is not priced, so no spend guidance is offered",reason:"A has no rest-of-season projection"},
+  bid:{low:null,high:null,tier:"drop cost unassessed",canAfford:true,status:"no bid suggested: drop cost unassessed — A has no rest-of-season projection",label:"heuristic, not calibrated and not a win probability"} }, faab);
+assert.equal(reasoned.gain, "+3.00 pts · drop cost unassessed");
+assert.equal(reasoned.dropCostNote, "drop cost unassessed: the dropped player's rest-of-season value is not priced, so no spend guidance is offered — A has no rest-of-season projection");
+assert.doesNotMatch(reasoned.exportLine, /ROS/);
+// Open slot with a priced add shows the ROS contribution; without one, nothing extra.
+const openPriced = M.rowText({ ...rowBase, drop:null, lineupGain:8, rosterCost:"uses an open roster spot; A adds 4.00 over weeks 2–3; roster flexibility is not priced",
+  dropCost:{status:"open_slot",label:"no drop required; roster flexibility is not priced",addContributes:4,rosDelta:4,futureWeeks:2,endWeek:3},
+  signal:{strength:"modeled",guidance:"heuristic bid range",basis:"move",moveValue:12,perWeekGain:4}, bid:{low:4,high:10,tier:"useful",canAfford:true,status:null,label:"heuristic, not calibrated and not a win probability"} }, faab);
+assert.equal(openPriced.gain, "+8.00 pts this week · ROS +4.00");
+assert.match(openPriced.exportLine, /DROP none; \+8\.00 \(week 2 projection\); ROS \+4\.00 \(wk 2–3\); modeled; heuristic bid \$4–\$10; uses an open roster spot/);
+// Evaluation text is built from the payload block, never typed.
+assert.deepEqual(M.evaluationText(null), ["no measured evaluation for this league's scoring"]);
+assert.deepEqual(M.evaluationText({ source:"models/diagnostics/remaining_matrix_gabagool.json", baseline:"mean league-scored production in the last four recorded pre-origin games", seasons:[2023,2024,2025], origins:[5,9],
+  horizons:[{horizon:1,model_mae:4.612,baseline_mae:4.815,paired_forecasts:1817},{horizon:8,model_mae:4.8,baseline_mae:4.987,paired_forecasts:1834}], limitation:"Dependent windows.", scoring_scope:"evaluated under gabagool scoring, which matches this league" }), [
+  "Measured on 2023–2025 (origins week 5 and 9) against mean league-scored production in the last four recorded pre-origin games:",
+  "1 week ahead: model MAE 4.61 vs baseline 4.82 (1,817 paired forecasts)",
+  "8 weeks ahead: model MAE 4.80 vs baseline 4.99 (1,834 paired forecasts)",
+  "evaluated under gabagool scoring, which matches this league",
+  "Dependent windows.",
+]);
 const id = "1376245373244301312";
 const league = { league_id: id, season: "2026", status: "in_season", total_rosters: 12, settings: { waiver_type: 2 },
   scoring_settings: { ...board.league.sleeper_scoring, fum: 0 },
