@@ -4,7 +4,7 @@ const now=Date.parse('2026-09-14T12:00:00Z');
 const catalog=Object.fromEntries(['a','b','c','d'].map(id=>[id,{gsis_id:'g'+id,position:'RB',team:'A',full_name:id}]));
 const value={a:10,b:5,c:20,d:2};
 const league={league_id:'L',season:'2026',status:'in_season',total_rosters:2,roster_positions:['RB','BN'],scoring_settings:{rec:1}};
-const remaining={schema_version:1,horizon:'remaining_season',status:'experimental',advice_eligible:false,season:2026,start_week:1,end_week:3,
+const remaining={schema_version:1,horizon:'remaining_season',status:'experimental',evaluation:null,season:2026,start_week:1,end_week:3,
   generated_at:new Date(now).toISOString(),league:{league_id:'L',sleeper_scoring:{rec:1}},players:Object.keys(catalog).map(id=>({player_id:'g'+id,team:'A',position:'RB',weeks:[2,3].map(week=>({week,status:'conditional_projection',points:{league:{p50:value[id]}}}))}))};
 const base={remaining,league,catalog,rosters:[{roster_id:1,players:['a','b']},{roster_id:2,players:['c','d']}],rosterIds:[1,2],give:['a'],receive:['c'],currentWeek:1,assumeAvailable:true,now,snapshotAt:now};
 const clone=x=>JSON.parse(JSON.stringify(x));

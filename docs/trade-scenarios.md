@@ -2,7 +2,10 @@
 
 This is a read-only experimental engine, not the published pre-draft trade
 calculator. It does not send trades, give a verdict, price keeper/pick assets,
-or claim expected realized points. Live advice remains disabled.
+or claim expected realized points. Live advice remains disabled. The
+remaining-season artifact no longer carries an advice_eligible flag; it
+carries a measured evaluation block (see remaining-season-projections.md),
+and this prototype still returns advice_eligible:false for its own output.
 
 Generate a fresh remaining-season artifact with the existing generator's
 `--remaining --week auto` flags into a local output directory. Then create
