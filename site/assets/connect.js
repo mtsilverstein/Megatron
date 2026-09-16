@@ -49,7 +49,7 @@
           details.append(node("pre", JSON.stringify(league.scoring_settings || {}, null, 2))); section.append(details);
           if (slug) {
             section.append(node("p", "Configured league. Each tool rechecks live settings against its projections before giving advice; discovery alone does not confirm data freshness or compatibility."));
-            for (const [page, label] of [["weekly", "Weekly / start-sit"], ["waivers", "Waiver research"]]) {
+            for (const [page, label] of [["index", "Draft board"], ["weekly", "Weekly / start-sit"], ["waivers", "Waiver research"]]) {
               const link = node("a", label); link.href = `${page}.html?league=${slug}`;
               const p = node("p", ""); p.append(link); section.append(p);
             }

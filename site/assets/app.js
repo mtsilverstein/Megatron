@@ -28,8 +28,17 @@ window.FC = (() => {
     label.append(select);panel.append(label);
     const note=document.createElement("p");
     note.textContent=slug==="espnfam"?"ESPN: draft board supported; live in-season tools are not connected yet.":"Draft board, weekly/start-sit and waiver research use this league. Trade calculator remains Gabagool pre-draft only. No password needed.";
-    const connect=document.createElement("a"); connect.href="connect.html"; connect.textContent="Find my Sleeper leagues";
-    panel.append(note,connect);document.querySelector("main")?.prepend(panel);
+    panel.append(note);
+    // The connect page already IS "Find my Sleeper leagues" -- a link back to
+    // itself from its own league panel would be a dead, redundant nav entry.
+    if (!/\/connect\.html$/.test(location.pathname)) {
+      const connect=document.createElement("a");
+      const connectUrl=new URL("connect.html", location.href);
+      connectUrl.searchParams.set("league", slug);
+      connect.href=connectUrl.href; connect.textContent="Find my Sleeper leagues";
+      panel.append(connect);
+    }
+    document.querySelector("main")?.prepend(panel);
     // Share a typed public username, not credentials or active league state.
     const inputs=[...document.querySelectorAll("#draft-username, #trade-user, #waiver-user, #ss-user, .keeper-user")];
     let saved="";try{saved=localStorage.getItem("megatron:sleeper-username")||"";}catch(_){}
@@ -48,18 +57,28 @@ window.FC = (() => {
     if (!["gabagool", "fam", "espnfam"].includes(slug)) {
       throw new Error(`Unknown league "${slug}". Choose gabagool, fam or espnfam.`);
     }
+    // Suffixes are stripped before recompute so a second call against the
+    // SAME <a> elements (repeated init) stays deterministic instead of
+    // stacking " · Gabagool only · Gabagool only".
+    const SUFFIXES = [" · Gabagool only", " · not connected"];
     document.querySelectorAll(".masthead nav a").forEach(link => {
       const url = new URL(link.getAttribute("href"), location.href);
+      // The URL keeps THIS tab's league -- clicking trade or an ESPN
+      // weekly/waivers link must never silently switch you to another
+      // league just because that's the only one the destination supports.
       url.searchParams.set("league", slug);
       link.href = url.href;
+      let label = link.textContent;
+      for (const suf of SUFFIXES) if (label.endsWith(suf)) label = label.slice(0, -suf.length);
       if (slug !== "gabagool" && /\/trade\.html$/.test(url.pathname)) {
-        link.textContent += " · Gabagool";
+        // Trade is Gabagool-only, but the href above still points at THIS
+        // league -- so the label says the tool is restricted, not that
+        // clicking it will open Gabagool.
+        label += " · Gabagool only";
+      } else if (slug === "espnfam" && /\/(weekly|waivers)\.html$/.test(url.pathname)) {
+        label += " · not connected";
       }
-    });
-    document.querySelectorAll(".league-links a").forEach(link => {
-      const url = new URL(link.getAttribute("href"), location.href);
-      if (url.searchParams.get("league") === slug) link.setAttribute("aria-current", "page");
-      else link.removeAttribute("aria-current");
+      link.textContent = label;
     });
     mountLeagueContext(slug);
     return slug;

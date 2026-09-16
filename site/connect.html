@@ -7,7 +7,17 @@
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-<header class="masthead"><h1 class="wordmark">Megatron</h1><nav><a href="weekly.html?league=gabagool">Gabagool weekly</a><a href="weekly.html?league=fam">FAM weekly</a><a href="connect.html" aria-current="page">Find my leagues</a></nav></header>
+<header class="masthead">
+  <h1 class="wordmark"><svg class="logo" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M5 52 Q11 52 14 40 Q17 13 22 13 Q28 13 33 26 Q41 47 59 51 L59 52 Z" fill="#E8A33D"/><rect x="26" y="20" width="3" height="32" rx="1.5" fill="#E9E4D8"/><rect x="5" y="52" width="54" height="3" rx="1.5" fill="#9AA3AB"/></svg>Megatron</h1>
+  <nav aria-label="Main navigation">
+    <a href="index.html">Draft board</a>
+    <a href="trade.html">Trade calculator</a>
+    <a href="weekly.html">Weekly</a>
+    <a href="waivers.html">FAAB &amp; waivers</a>
+    <a href="about.html">About the model</a>
+  </nav>
+  <p class="stamp">Read-only Sleeper discovery · no claims or bids are submitted</p>
+</header>
 <main>
 <h1>Find my Sleeper leagues</h1>
 <p>Enter your public username to discover current-season leagues and inspect their settings. No password needed. Only your username is remembered on this device; opening one league does not switch another tab.</p>
@@ -17,8 +27,14 @@
 <h2>What is supported?</h2>
 <p>Gabagool and FAM Sleeper have configured weekly/start-sit and waiver tools. Other Sleeper leagues can be discovered and inspected, but cannot receive advice yet. ESPN in-season tools and an in-season trade evaluator are not connected. The existing trade calculator is pre-draft only.</p>
 </main>
+<script src="assets/app.js?v=interface4"></script>
 <script src="assets/sleeper.js"></script>
-<script src="assets/connect.js?v=1"></script>
-<script>LeagueConnect.init();</script>
+<script src="assets/connect.js?v=2"></script>
+<script>
+// Set up the shared masthead/league-context nav first so a bad ?league=
+// value fails safely into the discovery form instead of blocking it.
+try { FC.leagueNavigation(); } catch (e) { console.error(e); }
+LeagueConnect.init();
+</script>
 </body>
 </html>

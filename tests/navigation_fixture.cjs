@@ -9,17 +9,17 @@ function page(href) {
   const names = ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"];
   const links = ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"].map((path, i) => ({
     href: path, textContent: names[i], getAttribute() { return this.href; },
-  }));
-  const choices = ["fam", "gabagool", "espnfam"].map(slug => ({
-    href: `index.html?league=${slug}`, current: null,
-    getAttribute() { return this.href; },
-    setAttribute(_, value) { this.current = value; },
-    removeAttribute() { this.current = null; },
+    // Still-enabled links must not be marked aria-disabled -- catches a link
+    // that reads as clickable but is silently inert to assistive tech.
+    setAttribute(name) { if (name === "aria-disabled") this.disabledAttrSet = true; },
   }));
   global.location = new URL(href);
+  // The shared league selector is a <select>, not a list of <a> chips, so
+  // leagueNavigation has nothing else to query -- mountLeagueContext itself
+  // no-ops here because this fake `document` has no createElement.
   global.document = { querySelectorAll: selector =>
-    selector === ".masthead nav a" ? links : choices };
-  return { slug: FC.leagueNavigation(), links, choices };
+    selector === ".masthead nav a" ? links : [] };
+  return { slug: FC.leagueNavigation(), links };
 }
 
 const base = "https://example.test/Megatron/";
@@ -27,10 +27,15 @@ const fam = page(`${base}index.html?league=fam`);
 assert.strictEqual(fam.slug, "fam");
 assert.strictEqual(fam.links[0].href, `${base}index.html?league=fam`,
   "clicking the current draft tab must not switch leagues");
-assert.strictEqual(fam.choices[0].current, "page");
-assert.strictEqual(fam.choices[1].current, null);
 assert.match(fam.links[1].textContent, /Gabagool/);
 assert.doesNotMatch(fam.links[2].textContent, /Gabagool/);
+// The trade href must still carry FAM, not silently jump to Gabagool -- the
+// label says the tool is restricted, the URL never switches leagues for you.
+assert.strictEqual(fam.links[1].href, `${base}trade.html?league=fam`,
+  "trade's label may say Gabagool only, but its href must not switch leagues");
+assert.strictEqual(fam.links[1].textContent, "Trade calculator · Gabagool only");
+assert.ok(!fam.links[1].disabledAttrSet,
+  "trade must stay a real, enabled link -- not one dressed up as disabled");
 for (const link of fam.links.slice(1)) {
   const otherPage = page(link.href);
   assert.strictEqual(otherPage.links[0].href, `${base}index.html?league=fam`,
@@ -38,26 +43,28 @@ for (const link of fam.links.slice(1)) {
 }
 const gab = page(`${base}index.html`);
 assert.strictEqual(gab.slug, "gabagool");
-assert.strictEqual(gab.choices[1].current, "page");
 assert.strictEqual(gab.links[0].href, `${base}index.html?league=gabagool`);
 assert.strictEqual(page(fam.links[0].href).slug, "fam",
   "opening Gabagool in another tab must not alter FAM's URL");
 
-// The ESPN league is a third board with no live draft path. It must select and
-// round-trip like any other, and -- because trade.html and weekly.html are
-// built for Gabagool alone -- it must carry the same "· Gabagool" label FAM
-// does. That label rule keys on "not Gabagool", not on "is FAM".
+// The ESPN league is a third board with no live draft path. It must select
+// and round-trip like any other, and -- because trade.html is Gabagool-only
+// -- it must carry the same "Gabagool only" label FAM does. That label rule
+// keys on "not Gabagool", not on "is FAM".
 const espn = page(`${base}index.html?league=espnfam`);
 assert.strictEqual(espn.slug, "espnfam");
 assert.strictEqual(espn.links[0].href, `${base}index.html?league=espnfam`,
   "clicking the current draft tab must not switch leagues");
-assert.strictEqual(espn.choices[2].current, "page");
-assert.strictEqual(espn.choices[0].current, null);
-assert.strictEqual(espn.choices[1].current, null);
 assert.match(espn.links[1].textContent, /Gabagool/,
   "trade.html is Gabagool-only and must say so on the ESPN board");
 assert.doesNotMatch(espn.links[2].textContent, /Gabagool/);
 assert.doesNotMatch(espn.links[4].textContent, /Gabagool/);
+// ESPN's live weekly/waivers aren't connected -- say so plainly, and don't
+// claim they'd open Gabagool (they wouldn't; nothing is connected for ESPN).
+assert.strictEqual(espn.links[2].textContent, "Weekly · not connected");
+assert.strictEqual(espn.links[4].textContent, "FAAB & waivers · not connected");
+assert.strictEqual(espn.links[2].href, `${base}weekly.html?league=espnfam`,
+  "the link must still carry the ESPN league, not switch it");
 for (const link of espn.links.slice(1)) {
   const otherPage = page(link.href);
   assert.strictEqual(otherPage.links[0].href, `${base}index.html?league=espnfam`,
@@ -75,4 +82,24 @@ assert.equal(FC.leagueDataPath("weekly"),"data/weekly-fam.json");
 assert.equal(FC.leagueDataPath("draft"),"data/draft-fam.json");
 page(`${base}weekly.html?league=gabagool`);
 assert.equal(FC.leagueDataPath("weekly"),"data/weekly.json");
+
+// leagueNavigation running twice against the SAME <a> elements (a defensive
+// re-init) must not stack suffixes -- "· Gabagool only · Gabagool only" would
+// be the tell that the label mutation isn't idempotent.
+{
+  const names = ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"];
+  const repeatedLinks = ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"]
+    .map((path, i) => ({ href: path, textContent: names[i], getAttribute() { return this.href; } }));
+  global.location = new URL(`${base}index.html?league=espnfam`);
+  global.document = { querySelectorAll: selector =>
+    selector === ".masthead nav a" ? repeatedLinks : [] };
+  FC.leagueNavigation();
+  FC.leagueNavigation();
+  assert.strictEqual(repeatedLinks[1].textContent, "Trade calculator · Gabagool only",
+    "repeated init must not stack the Gabagool-only suffix");
+  assert.strictEqual(repeatedLinks[2].textContent, "Weekly · not connected",
+    "repeated init must not stack the not-connected suffix");
+  assert.strictEqual(repeatedLinks[1].href, `${base}trade.html?league=espnfam`,
+    "repeated init must keep preserving the URL's league context");
+}
 console.log("navigation_fixture: league selection and return paths OK");

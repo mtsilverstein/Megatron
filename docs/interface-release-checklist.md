@@ -33,7 +33,11 @@ in-season advice remains unsupported and must be labeled as such.
    The possible displayed-versus-restored username mismatch needs a focused test.
 8. Review About's redundant league control and waiver header/source presentation.
 
-Items 1–4 are assigned to Claude Sonnet in the bounded interface task. Opus's
+Items 1–5 are implemented. Claude Sonnet handled the bounded navigation patch;
+root reviewed it and aligned shared asset cache versions. Navigation, discovery,
+and shared-asset fixtures pass. The 22 existing JavaScript fixtures passed before
+the navigation patch; affected navigation/discovery fixtures passed again afterward.
+Opus's
 audit was static, not proof that every reported visual symptom was reproduced.
 One wordmark heading plus one page heading is not itself proof of duplicate
 runtime headers; inspect the rendered layout before removing branding.
