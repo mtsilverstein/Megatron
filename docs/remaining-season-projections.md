@@ -1,9 +1,14 @@
 # Remaining-season projection foundation (experimental)
 
-The generator's opt-in `--remaining` flag, together with `--week auto`,
-produces `remaining-<league>.json`. The normal scheduled update is unchanged.
-Use a separate `--out` directory for validation. This is not consumed by
-waiver bids or the trade engine and is explicitly `advice_eligible: false`.
+The generator's `--remaining` flag, together with `--week auto`, produces
+`remaining-<league>.json`; the weekly workflow now passes it for both leagues, as an
+optional payload — a failure there is printed and skipped and never blocks the weekly
+slate. Weekly rows keep only the league-lens `p10/p50/p90` (no other lenses, no stat
+quantiles). The payload carries a measured `evaluation` block (model MAE against the
+four-game-mean baseline by horizon, read from the committed
+`models/diagnostics/remaining_matrix_<league>.json`) in place of the former
+`advice_eligible` boolean. It is consumed by the waiver desk to price drop cost
+(`faab-waivers.md`, "Bid ranges"); the pre-draft trade engine still does not read it.
 
 Every future week is generated independently with the existing model and
 league scoring, using only observations before the starting slate. Earlier

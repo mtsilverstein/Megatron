@@ -249,3 +249,11 @@ above; items are struck only where the log records the evidence):
 No claims or bids are submitted in testing. Model accuracy, winning-bid
 calibration, and general-purpose arbitrary-league support are separate release
 claims, not consequences of passing interface tests.
+
+Drop-cost pricing (September 16, Opus): required-drop rows are now priced from the
+remaining-season payload as a roster-aware lineup change (spec
+`docs/superpowers/specs/2026-09-16-waiver-drop-cost-design.md`). Fixture-verified:
+priced, net-negative, unassessed-with-reason, stale/misaligned payload, bye vs
+unmodeled, precedence, decomposition identity, performance bound. Browser check
+against live Gabagool/FAM rows is pending for root, as is the first cron-published
+payload (the committed payloads were generated locally).
