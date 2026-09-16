@@ -88,15 +88,19 @@
   // the exact strings. A withheld bid (low/high null) must never print as dollars.
   function rowText(r, result) {
     const weak = r.signal.strength === "weak";
+    // Unassessed drop cost withholds spend guidance exactly like a weak signal;
+    // the gain stays visible and the tag says why nothing is suggested.
+    const held = !weak && r.dropCost?.status === "unassessed";
     const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? `$${r.bid.low}–$${r.bid.high}` : null;
-    const bid = r.bid ? (dollars ?? r.bid.status ?? "No bid suggested") : (weak ? "No priority claim suggested" : "Set claim order in Sleeper");
-    const bidNote = r.bid ? r.bid.label : (weak ? r.signal.guidance : result.waiver.guidance);
+    const bid = r.bid ? (dollars ?? r.bid.status ?? "No bid suggested") : (weak || held ? "No priority claim suggested" : "Set claim order in Sleeper");
+    const bidNote = r.bid ? r.bid.label : (weak || held ? r.signal.guidance : result.waiver.guidance);
     const exportBid = r.bid ? (dollars ? `heuristic bid ${dollars}` : bid) : r.signal.guidance;
     return {
-      gain: `+${r.lineupGain.toFixed(2)} pts${weak ? " · weak signal" : ""}`,
+      gain: `+${r.lineupGain.toFixed(2)} pts${weak ? " · weak signal" : held ? " · drop cost unassessed" : ""}`,
       bid, bidNote,
       why: `${r.bid ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`,
-      exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label}); ${weak ? "WEAK SIGNAL" : "modeled"}; ${exportBid}; ${r.rosterCost}`,
+      dropCostNote: held ? r.dropCost.label : null,
+      exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label}); ${weak ? "WEAK SIGNAL" : held ? "DROP COST UNASSESSED" : "modeled"}; ${exportBid}; ${r.rosterCost}${held ? `; ${r.dropCost.label}` : ""}`,
     };
   }
 
@@ -145,7 +149,8 @@
       const body = $("waiver-table").querySelector("tbody"); body.replaceChildren();
       const rows = activeRows();
       const weakCount = rows.filter(r => r.signal.strength === "weak").length;
-      $("waiver-count").textContent = rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against your current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals (under ${rows[0].signal.thresholdPerWeek.toFixed(1)} projected pt/week) kept for research; no bid or priority spend is suggested for them.` : ""}`
+      const heldCount = rows.filter(r => r.signal.strength !== "weak" && r.dropCost?.status === "unassessed").length;
+      $("waiver-count").textContent = rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against your current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals (under ${rows[0].signal.thresholdPerWeek.toFixed(1)} projected pt/week) kept for research; no bid or priority spend is suggested for them.` : ""}${heldCount ? ` ${heldCount} require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them.` : ""}`
         : result.recommendationBlock || "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.";
       for (const r of rows) {
         const text = rowText(r, result);
@@ -159,6 +164,7 @@
         bid.append(node("span", text.bidNote, "waiver-row-note"));
         const why = node("td", text.why);
         why.append(node("span", r.rosterCost, "waiver-row-note"));
+        if (text.dropCostNote) why.append(node("span", text.dropCostNote, "waiver-row-note"));
         if (r.availability?.warning) why.append(node("span", r.availability.warning, "waiver-row-note"));
         if (r.warning) why.append(node("span", r.warning, "waiver-row-note"));
         if (r.warnings) for (const warning of r.warnings) why.append(node("span", warning, "waiver-row-note"));

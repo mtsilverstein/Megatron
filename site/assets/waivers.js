@@ -158,7 +158,19 @@
   // small are distinguishable from projection error has not been measured.
   const WEAK_SIGNAL_PTS = 1;
   const BID_LABEL = "heuristic, not calibrated and not a win probability";
-  function bidGuide(gain, total, remaining, reserve, minBid, weak) {
+  // Drop-cost gate. Rest-of-season value is not priced here, and the preseason
+  // board is stale evidence of what a rostered player costs to give up today,
+  // so a weekly gain alone never earns spend guidance on a swap that requires
+  // a drop — however the add and drop compared on the preseason board. Every
+  // required-drop row is "unassessed": the row and its lineup gain stay
+  // visible for research, but no bid range or priority claim is suggested.
+  // Only open-slot adds, which sacrifice no one, bypass the gate. This does
+  // not claim the drop is wrong; it says the cost has not been assessed.
+  function dropCostOf(drop) {
+    if (!drop) return { status: "open_slot", label: "no drop required; future roster flexibility is not priced" };
+    return { status: "unassessed", label: "drop cost unassessed: the dropped player's rest-of-season value is not priced, so no spend guidance is offered" };
+  }
+  function bidGuide(gain, total, remaining, reserve, minBid, weak, dropCost) {
     let pct = [0, 0], tier = "no bid";
     if (gain > 0 && gain < 2) { pct = [0.01, 0.03]; tier = "small"; }
     else if (gain >= 2 && gain < 5) { pct = [0.04, 0.10]; tier = "useful"; }
@@ -169,6 +181,9 @@
     }
     if (weak) {
       return { low: null, high: null, tier: "weak signal", affordable, canAfford: true, status: `no bid suggested: modeled gain is under ${WEAK_SIGNAL_PTS.toFixed(1)} pt/week`, label: BID_LABEL };
+    }
+    if (dropCost && dropCost.status === "unassessed") {
+      return { low: null, high: null, tier: "drop cost unassessed", affordable, canAfford: true, status: "no bid suggested: drop cost unassessed, rest-of-season value is not priced", label: BID_LABEL };
     }
     let low = Math.min(affordable, Math.ceil(total * pct[0]));
     let high = Math.min(affordable, Math.ceil(total * pct[1]));
@@ -344,6 +359,8 @@
       const valueEstimate = boardPoints(add);
       const perWeekGain = weekly.fresh ? gain : Math.round((gain / remainingWeeks) * 100) / 100;
       const weak = perWeekGain < WEAK_SIGNAL_PTS;
+      const dropCost = dropCostOf(drop);
+      const unassessed = dropCost.status === "unassessed";
       const signal = {
         strength: weak ? "weak" : "modeled", perWeekGain, thresholdPerWeek: WEAK_SIGNAL_PTS,
         label: weak
@@ -351,7 +368,9 @@
           : "modeled lineup gain; projection error is not quantified and no claim-success probability is implied",
         guidance: weak
           ? (rolling ? "research only: no priority claim suggested; assess the drop cost independently before any move" : "no bid suggested; assess the drop cost independently before any move")
-          : (rolling ? "rank by value and roster need" : "heuristic bid range")
+          : unassessed
+            ? (rolling ? "research only: no priority claim suggested; the dropped player's rest-of-season cost is not priced, so assess the drop cost independently before any move" : "no bid suggested; the dropped player's rest-of-season cost is not priced, so assess the drop cost independently before any move")
+            : (rolling ? "rank by value and roster need" : "heuristic bid range")
       };
       const rosterCost = drop
         ? `dropping ${drop.name || drop.full_name || id(playerId(drop))} costs their rest-of-season value, which this desk does not price`
@@ -363,8 +382,8 @@
         scoring: { source: weekly.fresh ? "weekly" : "preseason_proxy", label: weekly.fresh ? `week ${args.week} projection` : "ROUGH REST-OF-SEASON PRESEASON PROXY — not a live projection" },
         availability: { status: String(add.injury_status || add.status || "").toUpperCase() || null, actionableNow: !unavailable(add), warning: unavailable(add) ? "injury designation: stash/review, not an immediate-week recommendation" : null },
         valueEstimate: { points: valueEstimate, label: "board value estimate; not a FAAB price" },
-        signal, rosterCost,
-        bid: rolling ? null : bidGuide(weekly.fresh ? gain : gain / remainingWeeks, budgetTotal, remaining, reserve, minBid, weak)
+        signal, rosterCost, dropCost,
+        bid: rolling ? null : bidGuide(weekly.fresh ? gain : gain / remainingWeeks, budgetTotal, remaining, reserve, minBid, weak, dropCost)
       });
     };
     freeAgents.forEach(add => {
@@ -375,6 +394,8 @@
     if (!rows.length) warnings.push("no positive legal skill-player waiver transaction found");
     const weakRows = rows.filter(r => r.signal.strength === "weak").length;
     if (weakRows) warnings.push(`${weakRows} alternative(s) gain under ${WEAK_SIGNAL_PTS.toFixed(1)} projected pt/week and are shown for research only; no bid or priority spend is suggested for them`);
+    const unassessedRows = rows.filter(r => r.signal.strength !== "weak" && r.dropCost.status === "unassessed").length;
+    if (unassessedRows) warnings.push(`${unassessedRows} alternative(s) require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them`);
     return {
       waiver: { type: rolling ? "rolling" : "faab", priority: finite(mine.settings && mine.settings.waiver_position), guidance: rolling ? "Order claims by value and roster need; current priority is context, not a claim-success probability." : "Bid ranges are budgeting heuristics, not claim-success probabilities." },
       budget: rolling ? null : { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },

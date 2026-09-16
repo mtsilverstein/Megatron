@@ -52,6 +52,15 @@ runtime headers; inspect the rendered layout before removing branding.
 
 ## Still required before full interface sign-off
 
+September 16 root browser check of deployed 645a523: Max973 Gabagool roster 9
+and FAM roster 1 both loaded Week 2 with 13/13 skill coverage in separate tabs.
+Gabagool weak rows and export withheld bids; FAM displayed rolling priority and
+no positive swaps under default protections. Explicit Week 1 blocked advice;
+FAM discovery round trip preserved its URL. Invalid-league recovery and ESPN
+unsupported messaging were visible. At 390px, controls and warnings fit, but
+the tall masthead/intro needs polish. Viewport restored afterward. This is not
+a full keyboard audit or browser verification of the subsequent drop-cost patch.
+
 September 16 hierarchy pass: all six mastheads put weekly/waivers first;
 waiver alternatives precede research, provenance is collapsed but coverage stays
 visible, and the league panel is more compact. Local browser verified Gabagool
@@ -74,6 +83,51 @@ come from the pure `WaiverMode.rowText` helper, which the waiver fixtures pin
 for weak FAAB, modeled FAAB and weak rolling rows, including that a withheld
 bid never renders as `$null–$null`. Not yet re-verified in a browser against
 live Gabagool/FAM data.
+
+Drop-cost gate (September 16, Opus release check; corrected after root
+review): a modeled weekly gain cannot justify dropping a rostered player,
+because rest-of-season value is unpriced, and a higher preseason board value
+for the add is stale evidence of today's ROS cost, not a reason to approve the
+drop. An earlier draft of this gate priced swaps where the add out-ranked the
+drop on the preseason board (`consistent`); that selective gate was rejected
+and removed. `Waivers.analyze` now attaches `dropCost` to every row with only
+two states: `open_slot` (no drop required; the only rows that receive a bid
+range or claim-order guidance) and `unassessed` (every alternative that
+requires a drop, whatever the preseason board says about either player). No
+preseason comparison fields or wording remain in the model, table, export,
+or page copy. Unassessed rows keep their lineup gain and board value estimate
+for research but get `bid.low/high = null`, tier `drop cost unassessed`,
+status "no bid suggested: drop cost unassessed…", FAAB guidance "no bid
+suggested; the dropped player's rest-of-season cost is not priced, so assess
+the drop cost independently…", and in rolling leagues "research only: no
+priority claim suggested; …" instead of "Set claim order in Sleeper". The
+wording does not say the swap is wrong or recommend any drop, and no
+calibrated edge is implied. Precedence is unchanged: an unaffordable minimum
+bid reports as such first, then weak-signal wording, then the drop gate.
+Fixtures pin: an add valued 60 on the preseason board against a drop valued 7
+is still withheld in FAAB and in rolling; every required-drop row on the
+fixture roster is withheld; weak-signal and affordability precedence; and a
+strong open-slot add keeps its heuristic (FAAB `impact` range, rolling "Set
+claim order in Sleeper"). `rowText` fixtures pin that withheld rows never
+print dollars, `null`, "modeled", or "preseason", and the priced `rowText`
+case is now an open-slot row. Cache versions bumped to
+`waivers.js?v=dropcost2` and `waivermode.js?v=dropcost2` on waivers.html and
+weekly.html. Re-run after the correction: waivers, waivermode, shared_assets
+and interface_hierarchy fixtures pass.
+
+Evidence provenance for this gate, kept separate: (a) root's local browser
+verification covers Max973's own rosters (Gabagool week 2, roster 9; see the
+hierarchy pass above) and is the only browser/mobile evidence; nothing in this
+check re-ran it against the corrected gate. (b) The Opus check's own evidence
+was a static, read-only Sleeper API sampling of rosters other than Max973's,
+run under the earlier selective gate: Gabagool week 2 produced 26 rows, all
+already weak; FAM week 2 produced 120 rows (100 weak, 12 gated, 8 priced);
+Gabagool roster 3 failed closed with "1 owned player(s) missing from board"
+(pre-existing). Those 12/8 counts are superseded — under the corrected gate
+all 20 non-weak FAM rows require a drop and would be withheld — and the
+sampling was not re-run after the correction. Browser verification of the
+corrected wording against live Gabagool/FAM data is still pending and is
+root's to perform.
 
 - Browser round trips across supported leagues and connect, including multiple tabs.
 - Explicit unsupported-tool and invalid-league recovery tests.

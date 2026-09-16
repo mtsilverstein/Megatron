@@ -29,7 +29,7 @@ check("ownership excludes all active reserve and taxi players", () => {
 check("budget is explicit and reserve caps guidance", () => {
   const out = W.analyze(base);
   assert.deepStrictEqual(out.budget, { total:100, used:40, remaining:60, reserve:20, spendable:40 });
-  assert.ok(out.rows.every(r => r.bid.high <= 40 && /not calibrated/.test(r.bid.label)));
+  assert.ok(out.rows.every(r => (r.bid.high === null || r.bid.high <= 40) && /not calibrated/.test(r.bid.label)));
   assert.match(out.rows[0].valueEstimate.label, /not a FAAB price/);
 });
 check("missing budget never defaults to 100", () => {
@@ -94,7 +94,7 @@ check("real board ids, unmapped rows, weekly gaps, IR and byes stay honest", () 
 check("zero budgets and no improvements remain honest", () => {
   const zeroLeague = {...league,settings:{waiver_budget:0,waiver_bid_min:0}};
   let out = W.analyze({...base,league:zeroLeague,rosters:[{...rosters[0],settings:{waiver_budget_used:0}},rosters[1]]});
-  assert.strictEqual(out.budget.spendable,0); assert.ok(out.rows.every(r => r.bid.high === 0 || (r.bid.high === null && r.signal.strength === "weak")));
+  assert.strictEqual(out.budget.spendable,0); assert.ok(out.rows.every(r => r.bid.high === 0 || (r.bid.high === null && (r.signal.strength === "weak" || r.dropCost.status === "unassessed"))));
   const weakBoard = {...board,players:board.players.map(x => x.sleeper_id === "7" ? {...x,value_points:1} : x)};
   out = W.analyze({...base,board:weakBoard}); assert.strictEqual(out.rows.length,0); assert.match(out.warnings.join(" "), /no positive/);
 });
@@ -227,11 +227,13 @@ check("zero-only scoring extras preserve the weekly contract", () => {
 });
 
 check("affordable minimum exceeds heuristic band without illegal bids", () => {
-  const costly={...league,settings:{waiver_budget:100,waiver_bid_min:25}};
+  // Open-slot adds are the only rows that still carry a priced range.
+  const costly={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN","IR","TAXI"],settings:{waiver_budget:100,waiver_bid_min:25}};
+  const slotRosters=[{roster_id:1,players:["1","2","3","4","5","6","99"],reserve:["99"],taxi:[],settings:{waiver_budget_used:40}},rosters[1]];
   const strongBoard={players:board.players.map(x=>x.sleeper_id==="7"?{...x,value_points:60}:x)};
-  const out=W.analyze({...base,league:costly,board:strongBoard,budgetReserve:0});
+  const out=W.analyze({...base,league:costly,rosters:slotRosters,board:strongBoard,budgetReserve:0});
   const priced=out.rows.filter(r=>r.signal.strength==="modeled");
-  assert.ok(priced.length>0);
+  assert.ok(priced.length>0 && priced.every(r=>r.drop===null));
   assert.ok(priced.every(r=>r.bid.low>=25&&r.bid.high>=25&&r.bid.high<=60));
 });
 
@@ -257,16 +259,16 @@ check("weak signals stay visible but never become bids or priority spend", () =>
   assert.match(weakText.why,/^weak signal · board value estimate/);
   assert.match(weakText.exportLine,/^ADD RB7; DROP WR8; \+0\.40 \(week 1 projection\); WEAK SIGNAL; no bid suggested.*; dropping WR8 costs their rest-of-season value/);
   assert.doesNotMatch(weakText.exportLine,/\$|null|heuristic bid/);
-  // Above the cutoff the row is priced exactly as before.
+  // Above the cutoff the signal is modeled, but a required drop still withholds
+  // the range (drop-cost gate); the priced path is exercised on open-slot adds.
   weekly.players.find(x=>x.player_id==="g7").points.league.p50=8.5;
   out=W.analyze({...base,rosters:freshRosters,weekly});
   const modeled=out.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
-  assert.equal(modeled.signal.strength,"modeled"); assert.equal(modeled.bid.tier,"small"); assert.ok(modeled.bid.low>=1);
-  assert.ok(!out.warnings.some(w=>/research only; no bid/.test(w)));
+  assert.equal(modeled.signal.strength,"modeled"); assert.equal(modeled.bid.tier,"drop cost unassessed"); assert.equal(modeled.bid.low,null);
+  assert.ok(!out.warnings.some(w=>/under 1\.0 projected pt\/week/.test(w)));
   const modeledText=M.rowText(modeled,out);
-  assert.equal(modeledText.gain,"+1.50 pts");
-  assert.equal(modeledText.bid,`$${modeled.bid.low}–$${modeled.bid.high}`);
-  assert.match(modeledText.exportLine,new RegExp(`; modeled; heuristic bid \\$${modeled.bid.low}–\\$${modeled.bid.high}; dropping WR8`));
+  assert.equal(modeledText.gain,"+1.50 pts · drop cost unassessed");
+  assert.doesNotMatch(modeledText.bid,/\$/); assert.doesNotMatch(modeledText.exportLine,/\$|; modeled;/);
   // Preseason proxy uses per-week gain; rolling leagues get research-only guidance
   // that neither suggests priority spend nor an optional free-agent move.
   const rollingLeague={...league,settings:{waiver_type:0}};
@@ -282,18 +284,90 @@ check("weak signals stay visible but never become bids or priority spend", () =>
   assert.match(proxyText.why,/^board value estimate/);
   assert.match(proxyText.exportLine,/; WEAK SIGNAL; research only: no priority claim suggested; assess the drop cost independently before any move; dropping WR8/);
   assert.doesNotMatch(proxyText.exportLine,/\$|null/);
-  // Modeled rolling rows keep the league-level ordering guidance.
-  const strongRolling=W.analyze({...base,league:rollingLeague,rosters:rollingRosters,board:{players:board.players.map(x=>x.sleeper_id==="7"?{...x,value_points:60}:x)}});
-  const strongRow=strongRolling.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
-  assert.equal(strongRow.signal.strength,"modeled");
-  const strongText=M.rowText(strongRow,strongRolling);
-  assert.equal(strongText.bid,"Set claim order in Sleeper"); assert.match(strongText.bidNote,/Order claims by value/);
-  assert.match(strongText.exportLine,/; modeled; rank by value and roster need; dropping WR8/);
-  // Open-slot adds still disclose the unpriced roster cost.
+  // Modeled rolling open-slot rows keep the league-level ordering guidance.
   const slotLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN","IR","TAXI"]};
   const slotRosters=[{roster_id:1,players:["1","2","3","4","5","6","99"],reserve:["99"],taxi:[],settings:{waiver_budget_used:40}},rosters[1]];
+  const strongRolling=W.analyze({...base,league:{...slotLeague,settings:{waiver_type:0}},rosters:slotRosters.map(r=>({...r,settings:{waiver_position:r.roster_id}})),board:{players:board.players.map(x=>x.sleeper_id==="7"?{...x,value_points:60}:x)}});
+  const strongRow=strongRolling.rows.find(r=>r.add.id==="7");
+  assert.equal(strongRow.drop,null); assert.equal(strongRow.signal.strength,"modeled");
+  const strongText=M.rowText(strongRow,strongRolling);
+  assert.equal(strongText.bid,"Set claim order in Sleeper"); assert.match(strongText.bidNote,/Order claims by value/);
+  assert.match(strongText.exportLine,/; modeled; rank by value and roster need; uses an open roster spot/);
+  // Open-slot adds still disclose the unpriced roster cost.
   out=W.analyze({...base,league:slotLeague,rosters:slotRosters,protectedIds:["1","2","3","4"]});
   assert.match(out.rows.find(r=>r.drop===null).rosterCost,/open roster spot/);
+});
+
+check("every required drop withholds spend guidance regardless of preseason board value", () => {
+  // Fresh weekly: free agent RB7 is re-valued to preseason 60 and projects 30
+  // this week; the bench drop WR8 stays at preseason 7 and projects 7. The add
+  // beats the drop on every board number, yet preseason value is stale evidence
+  // of today's rest-of-season cost, so no bid range or priority claim may be
+  // suggested for any swap that requires a drop. The gain stays visible.
+  const weekOf = (players, overrides) => { const w=freshWeekly(players); for (const [g,v] of Object.entries(overrides)) w.players.find(x=>x.player_id===g).points.league.p50=v; return w; };
+  const richAddBoard={players:board.players.map(x=>x.sleeper_id==="7"?{...x,value_points:60}:x)};
+  const weekly=weekOf(richAddBoard.players,{g7:30,g8:7});
+  let out=W.analyze({...base,rosters:freshRosters,board:richAddBoard,weekly});
+  const held=out.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
+  assert.ok(held && held.lineupGain===23, "gated row must remain researchable with its modeled gain");
+  assert.equal(held.signal.strength,"modeled"); assert.equal(held.valueEstimate.points,60);
+  assert.deepEqual(Object.keys(held.dropCost).sort(),["label","status"], "no preseason comparison fields may be exported");
+  assert.equal(held.dropCost.status,"unassessed");
+  assert.match(held.dropCost.label,/^drop cost unassessed: the dropped player's rest-of-season value is not priced/);
+  assert.doesNotMatch(held.dropCost.label,/wrong|noise|preseason|board value|\$/);
+  assert.deepEqual([held.bid.low,held.bid.high,held.bid.tier,held.bid.canAfford],[null,null,"drop cost unassessed",true]);
+  assert.match(held.bid.status,/^no bid suggested: drop cost unassessed/);
+  assert.match(held.signal.guidance,/^no bid suggested; the dropped player's rest-of-season cost is not priced, so assess the drop cost independently/);
+  assert.match(out.warnings.join(" "),/require a drop whose rest-of-season cost is not priced.*no bid or priority spend/);
+  assert.ok(!out.warnings.concat(held.signal.guidance,held.bid.status,held.dropCost.label).some(s=>/preseason board|valued at least|consistent/.test(s)));
+  const heldText=M.rowText(held,out);
+  assert.equal(heldText.gain,"+23.00 pts · drop cost unassessed");
+  assert.match(heldText.bid,/^no bid suggested: drop cost unassessed/); assert.doesNotMatch(heldText.bid,/\$/);
+  assert.match(heldText.why,/^drop cost unassessed · board value estimate/);
+  assert.match(heldText.dropCostNote,/^drop cost unassessed/);
+  assert.match(heldText.exportLine,/^ADD RB7; DROP WR8; \+23\.00 \(week 1 projection\); DROP COST UNASSESSED; no bid suggested: drop cost unassessed.*; dropping WR8 costs their rest-of-season value.*; drop cost unassessed: the dropped player's rest-of-season value is not priced/);
+  assert.doesNotMatch(heldText.exportLine,/\$|null|heuristic bid|; modeled;|preseason/);
+  // Every required-drop alternative on the roster is withheld, not just this one.
+  const drops=out.rows.filter(r=>r.drop!==null);
+  assert.ok(drops.length>1 && drops.every(r=>r.dropCost.status==="unassessed" && r.bid.low===null && r.bid.high===null));
+  assert.ok(out.rows.every(r=>r.dropCost.status!=="consistent"));
+  // Weak-signal wording keeps precedence; both withhold spend.
+  const weakHeld=W.analyze({...base,rosters:freshRosters,board:richAddBoard,weekly:weekOf(richAddBoard.players,{g7:7.4,g8:7})}).rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
+  assert.equal(weakHeld.signal.strength,"weak"); assert.equal(weakHeld.bid.tier,"weak signal"); assert.equal(weakHeld.dropCost.status,"unassessed");
+  assert.equal(M.rowText(weakHeld,out).gain,"+0.40 pts · weak signal");
+  // Affordability keeps precedence over the gate: an unaffordable minimum is reported as such.
+  const costly=W.analyze({...base,league:{...league,settings:{waiver_budget:100,waiver_bid_min:25}},budgetReserve:50,rosters:freshRosters,board:richAddBoard,weekly}).rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
+  assert.equal(costly.dropCost.status,"unassessed"); assert.equal(costly.bid.canAfford,false); assert.match(costly.bid.status,/minimum bid/);
+  // Rolling leagues: the same rich add against the same cheap drop gets research-only guidance, not a claim order.
+  const rollingLeague={...league,settings:{waiver_type:0}};
+  const rollingRosters=freshRosters.map(r=>({...r,settings:{waiver_position:r.roster_id}}));
+  out=W.analyze({...base,league:rollingLeague,rosters:rollingRosters,board:richAddBoard,weekly});
+  const rollingHeld=out.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
+  assert.equal(rollingHeld.bid,null); assert.equal(rollingHeld.dropCost.status,"unassessed");
+  assert.match(rollingHeld.signal.guidance,/^research only: no priority claim suggested; the dropped player's rest-of-season cost is not priced/);
+  const rollingText=M.rowText(rollingHeld,out);
+  assert.equal(rollingText.bid,"No priority claim suggested"); assert.equal(rollingText.bidNote,rollingHeld.signal.guidance);
+  assert.match(rollingText.exportLine,/; DROP COST UNASSESSED; research only: no priority claim suggested; the dropped player's rest-of-season cost is not priced/);
+  assert.doesNotMatch(rollingText.exportLine,/\$|null|Set claim order|preseason/);
+  assert.ok(out.rows.filter(r=>r.drop!==null).every(r=>/^research only: no priority claim suggested/.test(r.signal.guidance)));
+  // Open-slot adds sacrifice no one: a strong add keeps its heuristic in FAAB
+  // (range) and rolling (claim order), and stays distinguishable from drops.
+  const slotLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN","IR","TAXI"]};
+  const slotRosters=[{roster_id:1,players:["1","2","3","4","5","6","99"],starters:["1","2","3","4","5","6"],reserve:["99"],taxi:[],settings:{waiver_budget_used:40}},rosters[1]];
+  const openOut=W.analyze({...base,league:slotLeague,rosters:slotRosters,board:richAddBoard,weekly:weekOf(richAddBoard.players,{g7:30}),protectedIds:["1","2","3","4"]});
+  const open=openOut.rows.find(r=>r.add.id==="7");
+  assert.ok(open && open.drop===null && open.lineupGain>=5);
+  assert.deepEqual(open.dropCost,{status:"open_slot",label:"no drop required; future roster flexibility is not priced"});
+  assert.match(open.rosterCost,/open roster spot/);
+  assert.equal(open.bid.tier,"impact"); assert.ok(open.bid.low>=1 && open.bid.high>=open.bid.low && open.bid.canAfford);
+  const openText=M.rowText(open,openOut);
+  assert.equal(openText.gain,`+${open.lineupGain.toFixed(2)} pts`); assert.equal(openText.bid,`$${open.bid.low}–$${open.bid.high}`);
+  assert.equal(openText.dropCostNote,null); assert.match(openText.exportLine,/DROP none; .*; modeled; heuristic bid \$/);
+  assert.ok(!openOut.warnings.some(w=>/require a drop/.test(w)));
+  const openRolling=W.analyze({...base,league:{...slotLeague,settings:{waiver_type:0}},rosters:slotRosters.map(r=>({...r,settings:{waiver_position:r.roster_id}})),board:richAddBoard,weekly:weekOf(richAddBoard.players,{g7:30}),protectedIds:["1","2","3","4"]});
+  const openRollingRow=openRolling.rows.find(r=>r.add.id==="7");
+  assert.equal(openRollingRow.dropCost.status,"open_slot"); assert.equal(openRollingRow.signal.guidance,"rank by value and roster need");
+  assert.equal(M.rowText(openRollingRow,openRolling).bid,"Set claim order in Sleeper");
 });
 
 check("started starters lock their exact full-lineup slot and cancel without a projection", () => {

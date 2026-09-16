@@ -23,18 +23,24 @@ const rolling = { waiver:{type:"rolling",guidance:"Order claims by value and ros
 for (const [name, row] of [
   ["weak", { ...rowBase, signal:{strength:"weak",guidance:"no bid suggested; assess the drop cost independently before any move"}, bid:{low:null,high:null,tier:"weak signal",canAfford:true,status:"no bid suggested: modeled gain is under 1.0 pt/week",label:"heuristic, not calibrated and not a win probability"} }],
   ["unaffordable", { ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"heuristic bid range"}, bid:{low:null,high:null,tier:"useful",canAfford:false,status:"minimum bid exceeds spendable budget",label:"heuristic, not calibrated and not a win probability"} }],
+  ["drop cost unassessed", { ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"no bid suggested; the dropped player's rest-of-season cost is not priced, so assess the drop cost independently before any move"}, dropCost:{status:"unassessed",label:"drop cost unassessed: the dropped player's rest-of-season value is not priced, so no spend guidance is offered"}, bid:{low:null,high:null,tier:"drop cost unassessed",canAfford:true,status:"no bid suggested: drop cost unassessed, rest-of-season value is not priced",label:"heuristic, not calibrated and not a win probability"} }],
 ]) {
   const t = M.rowText(row, faab);
   for (const s of [t.gain, t.bid, t.bidNote, t.why, t.exportLine]) assert.doesNotMatch(s, /\$|null|undefined/, `${name}: ${s}`);
   assert.equal(t.bid, row.bid.status);
   assert.match(t.exportLine, new RegExp(`; ${row.bid.status.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}; dropping B`));
 }
-const priced = M.rowText({ ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"heuristic bid range"}, bid:{low:2,high:5,tier:"useful",canAfford:true,status:null,label:"heuristic, not calibrated and not a win probability"} }, faab);
-assert.equal(priced.bid, "$2–$5"); assert.match(priced.exportLine, /; modeled; heuristic bid \$2–\$5; dropping B/);
+// Only open-slot adds carry a priced range; the analyzer never prices a required drop.
+const priced = M.rowText({ ...rowBase, drop:null, rosterCost:"uses an open roster spot; future roster flexibility is not priced", dropCost:{status:"open_slot",label:"no drop required; future roster flexibility is not priced"}, lineupGain:3, signal:{strength:"modeled",guidance:"heuristic bid range"}, bid:{low:2,high:5,tier:"useful",canAfford:true,status:null,label:"heuristic, not calibrated and not a win probability"} }, faab);
+assert.equal(priced.bid, "$2–$5"); assert.equal(priced.gain, "+3.00 pts"); assert.match(priced.exportLine, /DROP none; .*; modeled; heuristic bid \$2–\$5; uses an open roster spot/);
 const weakRolling = M.rowText({ ...rowBase, bid:null, signal:{strength:"weak",guidance:"research only: no priority claim suggested; assess the drop cost independently before any move"} }, rolling);
 assert.equal(weakRolling.bid, "No priority claim suggested"); assert.doesNotMatch(weakRolling.exportLine, /\$|null|free-agent/);
 assert.match(weakRolling.exportLine, /^ADD A; DROP B; \+0\.40 \(week 2 projection\); WEAK SIGNAL; research only: no priority claim suggested; assess the drop cost independently before any move; dropping B/);
-const openSlot = M.rowText({ ...rowBase, drop:null, rosterCost:"uses an open roster spot; future roster flexibility is not priced", bid:null, signal:{strength:"modeled",guidance:"rank by value and roster need"} }, rolling);
+const heldRolling = M.rowText({ ...rowBase, lineupGain:3, bid:null, dropCost:{status:"unassessed",label:"drop cost unassessed: the dropped player's rest-of-season value is not priced, so no spend guidance is offered"}, signal:{strength:"modeled",guidance:"research only: no priority claim suggested; the dropped player's rest-of-season cost is not priced, so assess the drop cost independently before any move"} }, rolling);
+assert.equal(heldRolling.bid, "No priority claim suggested"); assert.equal(heldRolling.gain, "+3.00 pts · drop cost unassessed");
+assert.match(heldRolling.exportLine, /; DROP COST UNASSESSED; research only: no priority claim suggested; .*; dropping B .*; drop cost unassessed: the dropped player's rest-of-season value is not priced/);
+assert.doesNotMatch(heldRolling.exportLine, /\$|null|Set claim order|; modeled;|preseason/);
+const openSlot = M.rowText({ ...rowBase, drop:null, rosterCost:"uses an open roster spot; future roster flexibility is not priced", dropCost:{status:"open_slot",label:"no drop required; future roster flexibility is not priced"}, bid:null, signal:{strength:"modeled",guidance:"rank by value and roster need"} }, rolling);
 assert.equal(openSlot.bid, "Set claim order in Sleeper"); assert.match(openSlot.exportLine, /DROP none; .*; modeled; rank by value and roster need; uses an open roster spot/);
 const id = "1376245373244301312";
 const league = { league_id: id, season: "2026", status: "in_season", total_rosters: 12, settings: { waiver_type: 2 },

@@ -51,7 +51,7 @@ Before 2026 Week 1, the real source returns no current-season observations. The 
 
 ## Bid ranges
 
-Positive projected lineup gains below 2 points use a 1–3% starting-budget band; 2–5 use 4–10%; 5+ use 11–20%. The preseason proxy divides its gain by remaining weeks before applying those bands. These thresholds are **uncalibrated heuristics**, not market prices, winning-bid probabilities, or expected championship value. A zero-gain result does not mean a player lacks injury-contingent upside. Do not spend merely because budget remains.
+Spend guidance is withheld for every alternative requiring a drop: the player's rest-of-season cost is unpriced, and preseason value cannot clear that gate. Gains remain visible for research. Open-slot adds below 1 projected point/week also receive no spend guidance, using an explicitly unvalidated product cutoff. Eligible open-slot gains from 1 to below 2 points use a 1–3% starting-budget band; 2–5 use 4–10%; 5+ use 11–20%. The preseason proxy divides its gain by remaining weeks before applying those bands. These thresholds are **uncalibrated heuristics**, not market prices, winning-bid probabilities, or expected championship value. A zero-gain result does not mean a player lacks injury-contingent upside. Do not spend merely because budget remains.
 
 ## Building the actual in-season edge next
 
