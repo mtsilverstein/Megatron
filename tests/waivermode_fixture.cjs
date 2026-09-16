@@ -16,6 +16,26 @@ assert.equal(hydrated.players[0].team,"DEN", "retain projection provenance team"
 assert.equal(hydrated.players[0].current_team,"NYJ");
 assert.deepEqual(hydrated.players.map(p=>p.sleeper_id),["1","2","MIN"]);
 assert.ok(hydrated.players.slice(1).every(p=>p.value_points===undefined && p.season_points===undefined), "identity-only K/DEF must not invent scores");
+// rowText: a withheld bid (low/high null) must never print dollars in the table or export.
+const rowBase = { add:{name:"A"}, drop:{name:"B"}, lineupGain:0.4, scoring:{label:"week 2 projection"}, valueEstimate:{label:"board value estimate; not a FAAB price"}, rosterCost:"dropping B costs their rest-of-season value, which this desk does not price" };
+const faab = { waiver:{type:"faab",guidance:"Bid ranges are budgeting heuristics, not claim-success probabilities."} };
+const rolling = { waiver:{type:"rolling",guidance:"Order claims by value and roster need; current priority is context, not a claim-success probability."} };
+for (const [name, row] of [
+  ["weak", { ...rowBase, signal:{strength:"weak",guidance:"no bid suggested; assess the drop cost independently before any move"}, bid:{low:null,high:null,tier:"weak signal",canAfford:true,status:"no bid suggested: modeled gain is under 1.0 pt/week",label:"heuristic, not calibrated and not a win probability"} }],
+  ["unaffordable", { ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"heuristic bid range"}, bid:{low:null,high:null,tier:"useful",canAfford:false,status:"minimum bid exceeds spendable budget",label:"heuristic, not calibrated and not a win probability"} }],
+]) {
+  const t = M.rowText(row, faab);
+  for (const s of [t.gain, t.bid, t.bidNote, t.why, t.exportLine]) assert.doesNotMatch(s, /\$|null|undefined/, `${name}: ${s}`);
+  assert.equal(t.bid, row.bid.status);
+  assert.match(t.exportLine, new RegExp(`; ${row.bid.status.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}; dropping B`));
+}
+const priced = M.rowText({ ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"heuristic bid range"}, bid:{low:2,high:5,tier:"useful",canAfford:true,status:null,label:"heuristic, not calibrated and not a win probability"} }, faab);
+assert.equal(priced.bid, "$2–$5"); assert.match(priced.exportLine, /; modeled; heuristic bid \$2–\$5; dropping B/);
+const weakRolling = M.rowText({ ...rowBase, bid:null, signal:{strength:"weak",guidance:"research only: no priority claim suggested; assess the drop cost independently before any move"} }, rolling);
+assert.equal(weakRolling.bid, "No priority claim suggested"); assert.doesNotMatch(weakRolling.exportLine, /\$|null|free-agent/);
+assert.match(weakRolling.exportLine, /^ADD A; DROP B; \+0\.40 \(week 2 projection\); WEAK SIGNAL; research only: no priority claim suggested; assess the drop cost independently before any move; dropping B/);
+const openSlot = M.rowText({ ...rowBase, drop:null, rosterCost:"uses an open roster spot; future roster flexibility is not priced", bid:null, signal:{strength:"modeled",guidance:"rank by value and roster need"} }, rolling);
+assert.equal(openSlot.bid, "Set claim order in Sleeper"); assert.match(openSlot.exportLine, /DROP none; .*; modeled; rank by value and roster need; uses an open roster spot/);
 const id = "1376245373244301312";
 const league = { league_id: id, season: "2026", status: "in_season", total_rosters: 12, settings: { waiver_type: 2 },
   scoring_settings: { ...board.league.sleeper_scoring, fum: 0 },

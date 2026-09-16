@@ -152,19 +152,28 @@
     }
     return { fresh: !reason, starts, covered, reason };
   }
-  function bidGuide(gain, total, remaining, reserve, minBid) {
+  // Conservative product threshold, not a validated noise or confidence cutoff:
+  // a modeled gain under one projected point per week stays visible for
+  // research but never becomes a bid or a priority claim. Whether gains this
+  // small are distinguishable from projection error has not been measured.
+  const WEAK_SIGNAL_PTS = 1;
+  const BID_LABEL = "heuristic, not calibrated and not a win probability";
+  function bidGuide(gain, total, remaining, reserve, minBid, weak) {
     let pct = [0, 0], tier = "no bid";
     if (gain > 0 && gain < 2) { pct = [0.01, 0.03]; tier = "small"; }
     else if (gain >= 2 && gain < 5) { pct = [0.04, 0.10]; tier = "useful"; }
     else if (gain >= 5) { pct = [0.11, 0.20]; tier = "impact"; }
     const affordable = Math.max(0, remaining - reserve);
     if (gain > 0 && affordable < minBid) {
-      return { low: null, high: null, tier, affordable, canAfford: false, status: "minimum bid exceeds spendable budget", label: "heuristic, not calibrated and not a win probability" };
+      return { low: null, high: null, tier, affordable, canAfford: false, status: "minimum bid exceeds spendable budget", label: BID_LABEL };
+    }
+    if (weak) {
+      return { low: null, high: null, tier: "weak signal", affordable, canAfford: true, status: `no bid suggested: modeled gain is under ${WEAK_SIGNAL_PTS.toFixed(1)} pt/week`, label: BID_LABEL };
     }
     let low = Math.min(affordable, Math.ceil(total * pct[0]));
     let high = Math.min(affordable, Math.ceil(total * pct[1]));
     if (gain > 0) { low = Math.max(minBid, low); high = Math.max(low, high); }
-    return { low, high, tier, affordable, canAfford: true, status: null, label: "heuristic, not calibrated and not a win probability" };
+    return { low, high, tier, affordable, canAfford: true, status: null, label: BID_LABEL };
   }
 
   function analyze(args) {
@@ -333,6 +342,20 @@
       const gain = Math.round((result - baseline) * 100) / 100;
       if (gain <= 0) return;
       const valueEstimate = boardPoints(add);
+      const perWeekGain = weekly.fresh ? gain : Math.round((gain / remainingWeeks) * 100) / 100;
+      const weak = perWeekGain < WEAK_SIGNAL_PTS;
+      const signal = {
+        strength: weak ? "weak" : "modeled", perWeekGain, thresholdPerWeek: WEAK_SIGNAL_PTS,
+        label: weak
+          ? `weak signal: under ${WEAK_SIGNAL_PTS.toFixed(1)} projected pt/week, below the conservative product threshold — research only, not a bid or priority claim`
+          : "modeled lineup gain; projection error is not quantified and no claim-success probability is implied",
+        guidance: weak
+          ? (rolling ? "research only: no priority claim suggested; assess the drop cost independently before any move" : "no bid suggested; assess the drop cost independently before any move")
+          : (rolling ? "rank by value and roster need" : "heuristic bid range")
+      };
+      const rosterCost = drop
+        ? `dropping ${drop.name || drop.full_name || id(playerId(drop))} costs their rest-of-season value, which this desk does not price`
+        : "uses an open roster spot; future roster flexibility is not priced";
       rows.push({
         add: { id: id(playerId(add)), name: add.name || add.full_name || id(playerId(add)), position: position(add) },
         drop: drop ? { id: id(playerId(drop)), name: drop.name || drop.full_name || id(playerId(drop)), position: position(drop) } : null,
@@ -340,7 +363,8 @@
         scoring: { source: weekly.fresh ? "weekly" : "preseason_proxy", label: weekly.fresh ? `week ${args.week} projection` : "ROUGH REST-OF-SEASON PRESEASON PROXY — not a live projection" },
         availability: { status: String(add.injury_status || add.status || "").toUpperCase() || null, actionableNow: !unavailable(add), warning: unavailable(add) ? "injury designation: stash/review, not an immediate-week recommendation" : null },
         valueEstimate: { points: valueEstimate, label: "board value estimate; not a FAAB price" },
-        bid: rolling ? null : bidGuide(weekly.fresh ? gain : gain / remainingWeeks, budgetTotal, remaining, reserve, minBid)
+        signal, rosterCost,
+        bid: rolling ? null : bidGuide(weekly.fresh ? gain : gain / remainingWeeks, budgetTotal, remaining, reserve, minBid, weak)
       });
     };
     freeAgents.forEach(add => {
@@ -349,6 +373,8 @@
     });
     rows.sort((a, b) => b.lineupGain - a.lineupGain || (b.valueEstimate.points || -Infinity) - (a.valueEstimate.points || -Infinity));
     if (!rows.length) warnings.push("no positive legal skill-player waiver transaction found");
+    const weakRows = rows.filter(r => r.signal.strength === "weak").length;
+    if (weakRows) warnings.push(`${weakRows} alternative(s) gain under ${WEAK_SIGNAL_PTS.toFixed(1)} projected pt/week and are shown for research only; no bid or priority spend is suggested for them`);
     return {
       waiver: { type: rolling ? "rolling" : "faab", priority: finite(mine.settings && mine.settings.waiver_position), guidance: rolling ? "Order claims by value and roster need; current priority is context, not a claim-success probability." : "Bid ranges are budgeting heuristics, not claim-success probabilities." },
       budget: rolling ? null : { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },

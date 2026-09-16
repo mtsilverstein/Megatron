@@ -57,8 +57,23 @@ waiver alternatives precede research, provenance is collapsed but coverage stays
 visible, and the league panel is more compact. Local browser verified Gabagool
 Week 2, roster 9, 13/13 projection coverage and the reordered results. Static
 hierarchy, navigation, waiver adapter and shared-asset fixtures pass.
-Observed follow-up: alternatives with 0.09–0.11 point gains remain displayed;
-review weak-signal and drop-cost presentation before claiming actionable edge.
+Observed follow-up: alternatives with 0.09–0.11 point gains remained displayed
+with $1–$3 bid heuristics. Weak-signal pass (September 16): any alternative
+gaining under 1.0 projected point per week (fresh weekly gain, or proxy gain
+divided by remaining weeks) is tagged `signal.strength = "weak"`, keeps its row
+for research, and receives no FAAB range (`bid.low/high = null`, status "no bid
+suggested") and, in rolling leagues, "research only: no priority claim
+suggested" guidance that also tells the user to assess drop cost independently
+(no optional free-agent move is suggested, since drop cost is unpriced). Every
+row carries a `rosterCost` line stating that the dropped player's rest-of-season
+value (or the open roster spot) is not priced. The 1.0-point cutoff is a
+conservative product convention; it is not a validated noise or confidence
+threshold and the text no longer claims sub-point gains *are* noise. Quantiles
+are still not presented as claim-success probabilities. Table and export wording
+come from the pure `WaiverMode.rowText` helper, which the waiver fixtures pin
+for weak FAAB, modeled FAAB and weak rolling rows, including that a withheld
+bid never renders as `$null–$null`. Not yet re-verified in a browser against
+live Gabagool/FAM data.
 
 - Browser round trips across supported leagues and connect, including multiple tabs.
 - Explicit unsupported-tool and invalid-league recovery tests.

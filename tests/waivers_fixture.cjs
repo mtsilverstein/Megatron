@@ -3,6 +3,7 @@ const assert = require("assert");
 delete global.window;
 const W = require("../site/assets/waivers.js");
 assert.strictEqual(global.window, undefined, "CommonJS load must not require/mutate window");
+const M = require("../site/assets/waivermode.js"); // pure rowText formatter shared by table and export
 
 const TEST_NOW = Date.parse("2026-09-10T12:00:00Z");
 const p = (id, pos, pts, extra = {}) => ({ sleeper_id: String(id), player_id: `g${id}`, name: `${pos}${id}`, position: pos, team:"A", value_points: pts, ...extra });
@@ -93,7 +94,7 @@ check("real board ids, unmapped rows, weekly gaps, IR and byes stay honest", () 
 check("zero budgets and no improvements remain honest", () => {
   const zeroLeague = {...league,settings:{waiver_budget:0,waiver_bid_min:0}};
   let out = W.analyze({...base,league:zeroLeague,rosters:[{...rosters[0],settings:{waiver_budget_used:0}},rosters[1]]});
-  assert.strictEqual(out.budget.spendable,0); assert.ok(out.rows.every(r => r.bid.high === 0));
+  assert.strictEqual(out.budget.spendable,0); assert.ok(out.rows.every(r => r.bid.high === 0 || (r.bid.high === null && r.signal.strength === "weak")));
   const weakBoard = {...board,players:board.players.map(x => x.sleeper_id === "7" ? {...x,value_points:1} : x)};
   out = W.analyze({...base,board:weakBoard}); assert.strictEqual(out.rows.length,0); assert.match(out.warnings.join(" "), /no positive/);
 });
@@ -227,9 +228,72 @@ check("zero-only scoring extras preserve the weekly contract", () => {
 
 check("affordable minimum exceeds heuristic band without illegal bids", () => {
   const costly={...league,settings:{waiver_budget:100,waiver_bid_min:25}};
-  const out=W.analyze({...base,league:costly,budgetReserve:0});
-  assert.ok(out.rows.length>0);
-  assert.ok(out.rows.every(r=>r.bid.low>=25&&r.bid.high>=25&&r.bid.high<=60));
+  const strongBoard={players:board.players.map(x=>x.sleeper_id==="7"?{...x,value_points:60}:x)};
+  const out=W.analyze({...base,league:costly,board:strongBoard,budgetReserve:0});
+  const priced=out.rows.filter(r=>r.signal.strength==="modeled");
+  assert.ok(priced.length>0);
+  assert.ok(priced.every(r=>r.bid.low>=25&&r.bid.high>=25&&r.bid.high<=60));
+});
+
+check("weak signals stay visible but never become bids or priority spend", () => {
+  // Fresh weekly: RB7 edges out WR8 in FLEX by 0.4 points this week.
+  const weekly=freshWeekly(); weekly.players.find(x=>x.player_id==="g7").points.league.p50=7.4;
+  let out=W.analyze({...base,rosters:freshRosters,weekly});
+  const weak=out.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
+  assert.ok(weak && weak.lineupGain===0.4, "weak row must remain researchable");
+  assert.equal(weak.signal.strength,"weak"); assert.equal(weak.signal.perWeekGain,0.4); assert.equal(weak.signal.thresholdPerWeek,1);
+  assert.match(weak.signal.label,/weak signal.*below the conservative product threshold.*not a bid or priority claim/);
+  assert.doesNotMatch(weak.signal.label,/noise/, "cutoff is unvalidated; must not claim the gain is noise");
+  assert.deepEqual([weak.bid.low,weak.bid.high,weak.bid.tier,weak.bid.canAfford],[null,null,"weak signal",true]);
+  assert.match(weak.bid.status,/no bid suggested/); assert.match(weak.bid.label,/not calibrated/);
+  assert.match(weak.signal.guidance,/no bid suggested.*drop cost independently/);
+  assert.match(weak.rosterCost,/WR8.*rest-of-season value.*not price/);
+  assert.match(out.warnings.join(" "),/weak|research only/);
+  // Rendered/exported wording for the weak FAAB row: never dollars, never "$null".
+  const weakText=M.rowText(weak,out);
+  assert.equal(weakText.gain,"+0.40 pts · weak signal");
+  assert.match(weakText.bid,/^no bid suggested/); assert.doesNotMatch(weakText.bid,/\$/);
+  assert.match(weakText.bidNote,/not calibrated/);
+  assert.match(weakText.why,/^weak signal · board value estimate/);
+  assert.match(weakText.exportLine,/^ADD RB7; DROP WR8; \+0\.40 \(week 1 projection\); WEAK SIGNAL; no bid suggested.*; dropping WR8 costs their rest-of-season value/);
+  assert.doesNotMatch(weakText.exportLine,/\$|null|heuristic bid/);
+  // Above the cutoff the row is priced exactly as before.
+  weekly.players.find(x=>x.player_id==="g7").points.league.p50=8.5;
+  out=W.analyze({...base,rosters:freshRosters,weekly});
+  const modeled=out.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
+  assert.equal(modeled.signal.strength,"modeled"); assert.equal(modeled.bid.tier,"small"); assert.ok(modeled.bid.low>=1);
+  assert.ok(!out.warnings.some(w=>/research only; no bid/.test(w)));
+  const modeledText=M.rowText(modeled,out);
+  assert.equal(modeledText.gain,"+1.50 pts");
+  assert.equal(modeledText.bid,`$${modeled.bid.low}–$${modeled.bid.high}`);
+  assert.match(modeledText.exportLine,new RegExp(`; modeled; heuristic bid \\$${modeled.bid.low}–\\$${modeled.bid.high}; dropping WR8`));
+  // Preseason proxy uses per-week gain; rolling leagues get research-only guidance
+  // that neither suggests priority spend nor an optional free-agent move.
+  const rollingLeague={...league,settings:{waiver_type:0}};
+  const rollingRosters=rosters.map(r=>({...r,settings:{waiver_position:r.roster_id}}));
+  out=W.analyze({...base,league:rollingLeague,rosters:rollingRosters});
+  const proxy=out.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
+  assert.equal(proxy.signal.strength,"weak"); assert.equal(proxy.bid,null);
+  assert.ok(Math.abs(proxy.signal.perWeekGain-proxy.lineupGain/17)<0.01);
+  assert.match(proxy.signal.guidance,/^research only: no priority claim suggested; assess the drop cost independently/);
+  assert.doesNotMatch(proxy.signal.guidance,/free-agent move|optional/);
+  const proxyText=M.rowText(proxy,out);
+  assert.equal(proxyText.bid,"No priority claim suggested"); assert.equal(proxyText.bidNote,proxy.signal.guidance);
+  assert.match(proxyText.why,/^board value estimate/);
+  assert.match(proxyText.exportLine,/; WEAK SIGNAL; research only: no priority claim suggested; assess the drop cost independently before any move; dropping WR8/);
+  assert.doesNotMatch(proxyText.exportLine,/\$|null/);
+  // Modeled rolling rows keep the league-level ordering guidance.
+  const strongRolling=W.analyze({...base,league:rollingLeague,rosters:rollingRosters,board:{players:board.players.map(x=>x.sleeper_id==="7"?{...x,value_points:60}:x)}});
+  const strongRow=strongRolling.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
+  assert.equal(strongRow.signal.strength,"modeled");
+  const strongText=M.rowText(strongRow,strongRolling);
+  assert.equal(strongText.bid,"Set claim order in Sleeper"); assert.match(strongText.bidNote,/Order claims by value/);
+  assert.match(strongText.exportLine,/; modeled; rank by value and roster need; dropping WR8/);
+  // Open-slot adds still disclose the unpriced roster cost.
+  const slotLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN","IR","TAXI"]};
+  const slotRosters=[{roster_id:1,players:["1","2","3","4","5","6","99"],reserve:["99"],taxi:[],settings:{waiver_budget_used:40}},rosters[1]];
+  out=W.analyze({...base,league:slotLeague,rosters:slotRosters,protectedIds:["1","2","3","4"]});
+  assert.match(out.rows.find(r=>r.drop===null).rosterCost,/open roster spot/);
 });
 
 check("started starters lock their exact full-lineup slot and cancel without a projection", () => {

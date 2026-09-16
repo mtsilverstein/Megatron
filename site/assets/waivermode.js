@@ -84,6 +84,22 @@
     return { ...rawBoard, players };
   }
 
+  // Pure row wording shared by the table and the text export so fixtures can pin
+  // the exact strings. A withheld bid (low/high null) must never print as dollars.
+  function rowText(r, result) {
+    const weak = r.signal.strength === "weak";
+    const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? `$${r.bid.low}–$${r.bid.high}` : null;
+    const bid = r.bid ? (dollars ?? r.bid.status ?? "No bid suggested") : (weak ? "No priority claim suggested" : "Set claim order in Sleeper");
+    const bidNote = r.bid ? r.bid.label : (weak ? r.signal.guidance : result.waiver.guidance);
+    const exportBid = r.bid ? (dollars ? `heuristic bid ${dollars}` : bid) : r.signal.guidance;
+    return {
+      gain: `+${r.lineupGain.toFixed(2)} pts${weak ? " · weak signal" : ""}`,
+      bid, bidNote,
+      why: `${r.bid ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`,
+      exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label}); ${weak ? "WEAK SIGNAL" : "modeled"}; ${exportBid}; ${r.rosterCost}`,
+    };
+  }
+
   function init() {
     const W = window.Waivers;
     const $ = id => document.getElementById(id);
@@ -128,17 +144,21 @@
     function renderRows() {
       const body = $("waiver-table").querySelector("tbody"); body.replaceChildren();
       const rows = activeRows();
-      $("waiver-count").textContent = rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against your current roster, not after other claims.`
+      const weakCount = rows.filter(r => r.signal.strength === "weak").length;
+      $("waiver-count").textContent = rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against your current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals (under ${rows[0].signal.thresholdPerWeek.toFixed(1)} projected pt/week) kept for research; no bid or priority spend is suggested for them.` : ""}`
         : result.recommendationBlock || "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.";
       for (const r of rows) {
+        const text = rowText(r, result);
         const tr = node("tr");
         const add = node("td", r.add.name); add.append(node("span", r.add.position, "waiver-row-note"));
         const drop = node("td", r.drop?.name || "Open roster spot");
-        const gain = node("td", `+${r.lineupGain.toFixed(2)} pts`);
+        const gain = node("td", text.gain);
         gain.append(node("span", r.scoring.label, "waiver-row-note"));
-        const bid = r.bid ? node("td", r.bid.canAfford === false ? r.bid.status : `$${r.bid.low}–$${r.bid.high}`) : node("td", "Set claim order in Sleeper");
-        bid.append(node("span", r.bid ? r.bid.label : result.waiver.guidance, "waiver-row-note"));
-        const why = node("td", `${r.bid ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`);
+        gain.append(node("span", r.signal.label, "waiver-row-note"));
+        const bid = node("td", text.bid);
+        bid.append(node("span", text.bidNote, "waiver-row-note"));
+        const why = node("td", text.why);
+        why.append(node("span", r.rosterCost, "waiver-row-note"));
         if (r.availability?.warning) why.append(node("span", r.availability.warning, "waiver-row-note"));
         if (r.warning) why.append(node("span", r.warning, "waiver-row-note"));
         if (r.warnings) for (const warning of r.warnings) why.append(node("span", warning, "waiver-row-note"));
@@ -287,7 +307,7 @@
       const rolling = result.waiver.type === "rolling";
       const lines = [`${board.league.slug.toUpperCase()} waiver shortlist — independent alternatives, not submitted claims`, $("waiver-source").textContent,
         rolling ? `Current rolling priority ${result.waiver.priority ?? "unknown"}; rank claims in Sleeper` : `Remaining $${result.budget.remaining}; reserve $${result.budget.reserve}; spendable $${result.budget.spendable}`,
-        ...activeRows().map(r => `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label}); ${rolling ? "rank by value and roster need" : (r.bid.canAfford === false ? r.bid.status : `heuristic bid $${r.bid.low}–$${r.bid.high}`)}`),
+        ...activeRows().map(r => rowText(r, result).exportLine),
         "RESEARCH ONLY — not an add/drop plan or bid recommendation",
         $("waiver-intel-source").textContent,
         intel.roleStatus,
@@ -299,7 +319,7 @@
       $("waiver-backup").focus();
     });
   }
-  const api = { init, loadWorld, loadSignals, validateContract, hydrateBoard, requestedWeek };
+  const api = { init, loadWorld, loadSignals, validateContract, hydrateBoard, requestedWeek, rowText };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverMode = api;
 })();
