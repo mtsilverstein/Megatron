@@ -33,6 +33,14 @@ in-season advice remains unsupported and must be labeled as such.
    The possible displayed-versus-restored username mismatch needs a focused test.
 8. Review About's redundant league control and waiver header/source presentation.
 
+September 16 follow-up: item 6 now renders explicit same-page recovery links
+before rejecting the invalid league. Regression tests verify no fallback data
+path and no duplicate panel. For item 7, static review confirms successful draft
+restore sets the draft username field; the draft fixture passes. Divergent shared
+and per-league storage plus keeper-field identity still need browser coverage.
+The preceding release (30b28d9) passed CI and Pages deployment.
+See interface-polish-plan.md for the bounded visual pass and acceptance checks.
+
 Items 1–5 are implemented. Claude Sonnet handled the bounded navigation patch;
 root reviewed it and aligned shared asset cache versions. Navigation, discovery,
 and shared-asset fixtures pass. The 22 existing JavaScript fixtures passed before

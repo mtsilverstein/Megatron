@@ -76,7 +76,48 @@ assert.doesNotMatch(gabLabels.links[1].textContent, /Gabagool/,
   "Gabagool's own trade tab must not be labelled with its own name");
 assert.doesNotMatch(gabLabels.links[2].textContent, /Gabagool/);
 
-assert.throws(() => page(`${base}index.html?league=unknown`), /Unknown league/);
+// Invalid URLs remain hard failures so no advice can accidentally be loaded
+// for the default league, but they also render explicit recovery links for the
+// same page. The fake DOM records enough structure to exercise that panel.
+{
+  function element(tagName) {
+    return {
+      tagName, children: [], textContent: "", className: "", id: "",
+      append(...nodes) { this.children.push(...nodes); },
+      prepend(...nodes) { this.children.unshift(...nodes); },
+    };
+  }
+  const main = element("main");
+  global.location = new URL(`${base}weekly.html?league=unknown&week=2`);
+  global.document = {
+    createElement: element,
+    querySelector(selector) { return selector === "main" ? main : null; },
+    querySelectorAll() { return []; },
+    getElementById(id) {
+      const find = node => node.id === id ? node : node.children.map(find).find(Boolean);
+      return find(main);
+    },
+  };
+  assert.throws(() => FC.leagueNavigation(), /Unknown league/,
+    "unknown league must still block page initialization");
+  assert.throws(() => FC.leagueDataPath("weekly"), /Unknown league/,
+    "unknown league must not resolve to Gabagool's advice data");
+  assert.strictEqual(main.children.length, 1, "recovery panel must be visible in the page main area");
+  const recovery = main.children[0];
+  assert.strictEqual(recovery.id, "league-recovery");
+  assert.match(recovery.children[1].textContent, /No league data was loaded/);
+  const links = recovery.children[2].children.map(item => item.children[0]);
+  assert.deepStrictEqual(links.map(link => link.href), [
+    `${base}weekly.html?league=gabagool&week=2`,
+    `${base}weekly.html?league=fam&week=2`,
+    `${base}weekly.html?league=espnfam&week=2`,
+  ], "recovery links must preserve this page and its other query parameters");
+  assert.deepStrictEqual(links.map(link => link.textContent), [
+    "Gabagool · Sleeper", "FAM · Sleeper", "ESPN family · draft board only",
+  ]);
+  assert.throws(() => FC.leagueNavigation(), /Unknown league/);
+  assert.strictEqual(main.children.length, 1, "repeated init must not duplicate recovery panels");
+}
 page(`${base}weekly.html?league=fam`);
 assert.equal(FC.leagueDataPath("weekly"),"data/weekly-fam.json");
 assert.equal(FC.leagueDataPath("draft"),"data/draft-fam.json");

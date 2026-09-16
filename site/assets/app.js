@@ -1,6 +1,9 @@
 /* Megatron — shared utilities. No framework, no build. */
 window.FC = (() => {
   const POS_CLASS = { QB: "pos-qb", RB: "pos-rb", WR: "pos-wr", TE: "pos-te" };
+  const LEAGUES = [["gabagool", "Gabagool · Sleeper"], ["fam", "FAM · Sleeper"],
+                   ["espnfam", "ESPN family · draft board only"]];
+  const LEAGUE_SLUGS = LEAGUES.map(([slug]) => slug);
 
   async function loadJSON(path) {
     const res = await fetch(path, { cache: "no-cache" });
@@ -10,7 +13,7 @@ window.FC = (() => {
 
   function leagueDataPath(kind) {
     const slug = new URLSearchParams(location.search).get("league") || "gabagool";
-    if (!["gabagool", "fam", "espnfam"].includes(slug)) throw Error("Unknown league");
+    if (!LEAGUE_SLUGS.includes(slug)) throw Error("Unknown league");
     if (!["draft", "weekly"].includes(kind)) throw Error("Unknown league data kind");
     return `data/${kind}${slug === "gabagool" ? "" : `-${slug}`}.json`;
   }
@@ -20,7 +23,7 @@ window.FC = (() => {
     const panel=document.createElement("section"), label=document.createElement("label"), select=document.createElement("select");
     panel.id="league-context"; panel.className="league-links";
     label.textContent="League "; select.setAttribute("aria-label","Selected league");
-    for(const [value,name] of [["gabagool","Gabagool · Sleeper"],["fam","FAM · Sleeper"],["espnfam","ESPN family · draft board only"]]) {
+    for(const [value,name] of LEAGUES) {
       const option=document.createElement("option"); option.value=value; option.textContent=name; select.append(option);
     }
     select.value=slug;
@@ -50,11 +53,43 @@ window.FC = (() => {
     }
   }
 
+  // An invalid URL must never be treated as a request for the default league:
+  // callers still get an error below and therefore cannot load league advice.
+  // This panel only gives the visitor an explicit, safe way back to a supported
+  // league while retaining the page (and any non-league query parameters).
+  function mountInvalidLeagueRecovery(slug) {
+    if (!document.createElement || document.getElementById("league-recovery")) return;
+    const panel = document.createElement("section");
+    const heading = document.createElement("h2");
+    const note = document.createElement("p");
+    const list = document.createElement("ul");
+    panel.id = "league-recovery";
+    panel.className = "league-links";
+    heading.textContent = "Choose a supported league";
+    note.textContent = `"${slug}" is not a supported league. No league data was loaded.`;
+    panel.append(heading, note);
+    for (const [value, name] of LEAGUES) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      const url = new URL(location.href);
+      url.searchParams.set("league", value);
+      link.href = url.href;
+      link.textContent = name;
+      item.append(link);
+      list.append(item);
+    }
+    panel.append(list);
+    const main = document.querySelector("main");
+    if (main?.prepend) main.prepend(panel);
+    else document.body?.append(panel);
+  }
+
   function leagueNavigation() {
     // Keep the choice in each tab's URL, including the trip back from another
     // page. A shared stored preference would let one league change the other.
     const slug = new URLSearchParams(location.search).get("league") || "gabagool";
-    if (!["gabagool", "fam", "espnfam"].includes(slug)) {
+    if (!LEAGUE_SLUGS.includes(slug)) {
+      mountInvalidLeagueRecovery(slug);
       throw new Error(`Unknown league "${slug}". Choose gabagool, fam or espnfam.`);
     }
     // Suffixes are stripped before recompute so a second call against the
