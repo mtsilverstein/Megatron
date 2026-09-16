@@ -101,8 +101,10 @@ reads only `points.league.p50`, `status`, `week`, `team`). Measured: 24.3 MB →
 The numbers are **read from the committed diagnostic JSON at generate time**
 (`summary` rows with `position == "ALL"`), never typed into code. If the diagnostic
 file for the league is absent, the generator uses the Gabagool diagnostic **only if**
-the league's `sleeper_scoring` equals Gabagool's (the doc records that the supported
-scoring subset currently matches for Gabagool and FAM) and records
+the league's `sleeper_scoring` equals Gabagool's on every **modeled** key — the keys of
+`ffmodel.league.SLEEPER_RULE_FIELDS`, the only scoring events the diagnostic scores
+(kicker bands and 50-yard TD bonuses are unmodeled and cannot move it; FAM and Gabagool
+differ only there) — and records
 `"scoring_scope": "evaluated under gabagool scoring, which matches this league"`;
 otherwise `evaluation` is `null` and the desk says so.
 
