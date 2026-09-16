@@ -706,11 +706,22 @@ def main() -> None:
         from ffmodel.site.kickoffs import pull_kickoffs
         payloads["kickoffs.json"] = pull_kickoffs(args.season, week)
         if args.remaining:
-            from ffmodel.site.remaining import build_remaining
-            payloads[f"remaining-{cfg.slug}.json"] = build_remaining(
-                weekly, schedules, predictor, args.season, week,
-                current_teams=current_teams, league=cfg.payload(),
-                end_week=max(week, 17), pick_six_prior=pick_six_prior)
+            # Optional payload, fail-soft: a remaining-season failure must never
+            # block the weekly slate. The previously published file stays put and
+            # the waiver desk's own 72-hour freshness guard withholds drop pricing.
+            from ffmodel.site import remaining as remaining_mod
+            try:
+                reference = load_league("gabagool")
+                evaluation = remaining_mod.load_evaluation(
+                    cfg.slug, cfg.sleeper_scoring,
+                    reference_scoring=reference.sleeper_scoring)
+                payloads[f"remaining-{cfg.slug}.json"] = remaining_mod.build_remaining(
+                    weekly, schedules, predictor, args.season, week,
+                    current_teams=current_teams, league=cfg.payload(),
+                    end_week=max(week, 17), pick_six_prior=pick_six_prior,
+                    evaluation=evaluation)
+            except Exception as exc:  # noqa: BLE001 — optional payload, reported not raised
+                print(f"remaining-season payload skipped: {exc}")
     if args.draft:
         returning = _load_returning(Path(args.returning), weekly, args.season)
         if returning:
