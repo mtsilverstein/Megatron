@@ -222,11 +222,29 @@ Final pre-push check (September 16, Opus; root reviews):
   navigation, connect re-run individually). Deployed-build check follows
   the push.
 
-- Browser round trips across supported leagues and connect, including multiple tabs.
-- Explicit unsupported-tool and invalid-league recovery tests.
-- Form refresh, automatic/manual week, filters, exports, and stale-session flows.
-- Responsive layout and keyboard navigation; no full accessibility claim yet.
-- Deployed build/CI verification after changes land.
+Status of the sign-off items (September 16 reconciliation against the log
+above; items are struck only where the log records the evidence):
+
+- ~~Browser round trips across supported leagues and connect, including
+  multiple tabs.~~ Done: Gabagool/FAM in separate tabs, FAM discovery round
+  trip, URL preserved (September 16 root browser check of 645a523).
+- ~~Explicit unsupported-tool and invalid-league recovery tests.~~ Done:
+  1507c8a recovery links plus regression tests; ESPN unsupported messaging
+  observed live.
+- Form refresh, automatic/manual week, filters, exports, and stale-session
+  flows. Mostly done: automatic Week 2, explicit Week 1 blocked, exports and
+  stale-snapshot expiry observed live. Still open: manual week override
+  round trip and weekly-page filters/sorting in a browser.
+- Responsive layout and keyboard navigation. Layout done at 390px on all six
+  pages (masthead 159–185px, no horizontal overflow). Keyboard still open:
+  only programmatic focus was possible; real Tab/Enter/Space/arrow traversal
+  with visible rings is pending, and no accessibility claim is made.
+- ~~Deployed build/CI verification after changes land.~~ Done for 268f019:
+  tests, weekly update and Pages deploy all green; deployed
+  `style.css?v=mobile1` and `waivers.js?v=dropcost2` confirmed on
+  mtsilverstein.github.io/Megatron/waivers.html (September 16).
+- Still fixture-only: the non-weak "drop cost unassessed" row has never been
+  observed against a live league (Max973's rosters produce only weak rows).
 
 No claims or bids are submitted in testing. Model accuracy, winning-bid
 calibration, and general-purpose arbitrary-league support are separate release
