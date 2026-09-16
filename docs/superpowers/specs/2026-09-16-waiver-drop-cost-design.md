@@ -40,10 +40,18 @@ to that number instead of to this week's gain alone.
   full active skill roster):
 
   ```
-  dropForfeits   = rosValue(R)          − rosValue(R − D)      (≥ 0)
-  addContributes = rosValue(R − D + A)  − rosValue(R − D)      (≥ 0)
-  rosDelta       = rosValue(R − D + A)  − rosValue(R)          (= addContributes − dropForfeits)
+  addContributes = rosValue(R + A)      − rosValue(R)          (≥ 0)
+  dropForfeits   = rosValue(R + A)      − rosValue(R + A − D)  (≥ 0)
+  rosDelta       = rosValue(R + A − D)  − rosValue(R)          (= addContributes − dropForfeits)
   ```
+
+  The split is taken against `R + A` rather than `R − D` on purpose: `R − D` may be
+  unable to field a legal lineup (a roster with exactly enough skill players), while
+  `R + A` is legal whenever `R` is. It also reads correctly — what the drop forfeits
+  *given the add is on the roster* is the marginal that matters for a swap. If any of
+  the three `rosValue` terms is non-finite (a future week's lineup cannot be filled
+  from modeled players), the pair is `unassessed` with reason
+  `"roster cannot field a full lineup from modeled players in every future week"`.
 
   For an open-slot add (`D = null`): `dropForfeits = 0`, `rosDelta = addContributes`.
 - **Move value** (season points remaining): `moveValue = lineupGain + rosDelta`.
@@ -179,20 +187,24 @@ calibrated and not a win probability".
 `bidGuide` precedence, first match wins:
 
 1. affordability: `gain > 0 && affordable < minBid` → unchanged status
-2. `dropCost.status === "unassessed"` → `tier "drop cost unassessed"`, status
-   `"no bid suggested: drop cost unassessed — <reason>"`
-3. `moveValue <= 0` → `tier "drop costs more than the add returns"`, status
+2. priced and `moveValue <= 0` → `tier "drop costs more than the add returns"`, status
    `"no bid suggested: dropping <D> forfeits <dropForfeits> rest-of-season lineup points against <addContributes> from <A>"`
-4. `perWeekValue < WEAK_SIGNAL_PTS` → weak (unchanged wording, now on the per-week
-   move value)
+3. `perWeekValue < WEAK_SIGNAL_PTS` → weak (unchanged wording; the number is the
+   per-week move value, or this week's gain under the §1 fallback — so with no payload
+   today's weak rows stay weak)
+4. `dropCost.status === "unassessed"` → `tier "drop cost unassessed"`, status
+   `"no bid suggested: drop cost unassessed — <reason>"`
 5. otherwise bands on `perWeekValue`
 
 Rolling leagues get the parallel guidance strings ("research only: no priority claim
 suggested; …" for 2–4, "rank by value and roster need" for 5).
 
-**Note the order change:** today weak precedes the drop gate. With a priced drop the
-gate is no longer a blanket withhold, so the informative reason (unassessed / net
-negative) is reported before the generic weak label. Fixtures pin the new order.
+Weak still precedes unassessed, exactly as shipped, so every existing fixture pin on
+weak rows holds when no payload is present. Net-negative precedes weak because a
+negative per-week value is not "weak" — it is a loss, and the two numbers say why.
+
+**Preseason-proxy mode** (`weekly` not fresh, league not in season): no ROS pricing
+at all — `dropCost` behaves as today and `perWeekGain` keeps its proxy meaning.
 
 `signal.label` for a modeled row states the basis:
 `"modeled lineup gain this week plus rest-of-season lineup change; projection error is not quantified and no claim-success probability is implied"`.
