@@ -201,21 +201,13 @@
   // small are distinguishable from projection error has not been measured.
   const WEAK_SIGNAL_PTS = 1;
   const BID_LABEL = "heuristic, not calibrated and not a win probability";
-  // Drop-cost gate. Rest-of-season value is not priced here, and the preseason
-  // board is stale evidence of what a rostered player costs to give up today,
-  // so a weekly gain alone never earns spend guidance on a swap that requires
-  // a drop — however the add and drop compared on the preseason board. Every
-  // required-drop row is "unassessed": the row and its lineup gain stay
-  // visible for research, but no bid range or priority claim is suggested.
-  // Only open-slot adds, which sacrifice no one, bypass the gate. This does
-  // not claim the drop is wrong; it says the cost has not been assessed.
   const r2 = x => Math.round(x * 100) / 100;
   const fmt = x => x.toFixed(2);
   // Three states, fixed key sets (the fixture asserts them). Pricing is the
   // roster-aware rest-of-season lineup change, split against R+A: what the add
   // contributes to the roster, and what the drop then forfeits given the add
   // is on it. A bench player who never starts forfeits ~0 whatever his total.
-  function dropCostOf(drop, add, ros) {
+  function dropCostOf(drop, add, ros, withAdd) {
     const names = x => x.name || x.full_name || id(playerId(x));
     if (!ros || !ros.fresh) {
       if (!drop) return { status:"open_slot", label:"no drop required; future roster flexibility is not priced", addContributes:null, rosDelta:null, futureWeeks:null, endWeek:null };
@@ -227,7 +219,8 @@
       if (!drop) return { status:"open_slot", label:"no drop required; future roster flexibility is not priced", addContributes:null, rosDelta:null, futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
       return { status:"unassessed", label:"drop cost unassessed: the dropped player's rest-of-season value is not priced, so no spend guidance is offered", reason };
     }
-    const withAdd = ros.value(ros.roster.concat([add]));
+    // withAdd (R+A) depends only on the add, not the drop — the caller computes
+    // it once per add (§3.5) and every drop candidate for that add reuses it.
     const addContributes = withAdd - ros.baseline;
     if (!drop) {
       if (!Number.isFinite(addContributes)) return { status:"open_slot", label:"no drop required; future roster flexibility is not priced", addContributes:null, rosDelta:null, futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
@@ -446,7 +439,7 @@
     if (weekly.fresh && !rosMap.fresh) warnings.push(`${rosMap.reason}; drop costs unassessed, spend guidance limited to open-slot adds`);
     if (rosUnmodeledOwned.length) warnings.push(`${rosUnmodeledOwned.length} roster player(s) have no rest-of-season projection and are excluded from future lineups: ${rosUnmodeledOwned.map(x => x.name).join(", ")}`);
     const rows = [];
-    const compare = (add, drop) => {
+    const compare = (add, drop, withAdd) => {
       const next = availableOwn.filter(p => !drop || id(playerId(p)) !== id(playerId(drop))).concat([add]);
       const result = lineupScore(next, remainingStarterSlots, score);
       if (!Number.isFinite(result)) return;
@@ -455,7 +448,7 @@
       const valueEstimate = boardPoints(add);
       const addName = add.name || add.full_name || id(playerId(add));
       const dropName = drop ? (drop.name || drop.full_name || id(playerId(drop))) : null;
-      const dropCost = dropCostOf(drop, add, ros);
+      const dropCost = dropCostOf(drop, add, ros, withAdd);
       const priced = dropCost.rosDelta !== null && dropCost.rosDelta !== undefined;
       const moveValue = priced ? r2(gain + dropCost.rosDelta) : null;
       const basis = !weekly.fresh ? "proxy" : priced ? "move" : "this_week";
@@ -500,8 +493,11 @@
       });
     };
     freeAgents.forEach(add => {
-      if (hasOpenSlot) compare(add, null);
-      else droppable.forEach(drop => compare(add, drop));
+      // R+A is the same roster value whichever drop is under consideration;
+      // compute it once per add rather than once per (add, drop) pair.
+      const withAdd = ros.fresh && !ros.isUnmodeled(add) ? ros.value(ros.roster.concat([add])) : null;
+      if (hasOpenSlot) compare(add, null, withAdd);
+      else droppable.forEach(drop => compare(add, drop, withAdd));
     });
     rows.sort((a, b) => b.lineupGain - a.lineupGain || (b.valueEstimate.points || -Infinity) - (a.valueEstimate.points || -Infinity));
     if (!rows.length) warnings.push("no positive legal skill-player waiver transaction found");

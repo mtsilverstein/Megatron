@@ -500,6 +500,13 @@ check("unmodeled add or drop is unassessed with the player named, never priced a
   out = W.analyze({ ...rosBase(), remaining: remainingFor(future) });
   row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
   assert.equal(row.dropCost.reason, "WR8 has no rest-of-season projection");
+  // Dropping RB2 instead leaves WR8 (unmodeled) as the roster's only other
+  // FLEX-eligible player: with WR8 excluded from every future week's pools,
+  // neither R+A nor R+A-D can fill FLEX, so this is unassessed for a
+  // different reason than a named missing add/drop.
+  const unfillable = out.rows.find(r => r.add.id==="7" && r.drop.id==="2");
+  assert.equal(unfillable.dropCost.status, "unassessed");
+  assert.equal(unfillable.dropCost.reason, "roster cannot field a full lineup from modeled players in every future week");
   out = W.analyze({ ...rosBase(), remaining: remainingFor({ ...future, g7:[null,null] }) });
   row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
   assert.equal(row.dropCost.reason, "RB7 and WR8 have no rest-of-season projection");
