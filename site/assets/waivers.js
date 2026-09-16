@@ -117,7 +117,7 @@
     else if (gotWeek === null || expectedWeek === null || gotWeek !== expectedWeek) reason = "weekly week does not match requested week";
     else if (!Number.isFinite(generated) || age < -3600000 || age > 72 * 3600000) reason = "weekly projections are stale (over 72 hours old)";
     else if (!Array.isArray(weekly.players)) reason = "weekly players are missing";
-    if (reason) { warnings.push(`${reason}; using preseason proxy`); return { fresh: false, map: new Map(), invalidTeamIds: new Set(), reason }; }
+    if (reason) { return { fresh: false, map: new Map(), invalidTeamIds: new Set(), reason }; }
     const map = new Map(), invalidTeamIds = new Set();
     weekly.players.forEach(w => {
       const bp = boardByGsis.get(id(w.player_id));
@@ -235,12 +235,20 @@
       }
     });
     const weekly = weeklyMap(args.weekly, league, args.week, boardByGsis, warnings, now);
+    const activeSkills = ownActive.filter(p => SKILL.has(position(p)));
+    const ownedCoverage = {
+      activeOwnedSkills: activeSkills.length,
+      projectedOwnedSkills: weekly.fresh ? activeSkills.filter(p => weekly.map.has(id(playerId(p)))).length : null,
+      missingOwnedWeekly: weekly.fresh ? activeSkills.filter(p => !weekly.map.has(id(playerId(p))))
+        .map(p => ({id:id(playerId(p)), name:p.name || p.full_name || id(playerId(p))})) : [],
+      unmappedOwnedIds: [...unknownOwned]
+    };
     const blocked = reason => ({
       recommendationBlock: reason, rows: [], warnings: [...warnings, reason],
       waiver: { type: rolling ? "rolling" : "faab", priority: finite(mine.settings && mine.settings.waiver_position), guidance: "Research only; immediate claim recommendations withheld." },
       budget: rolling ? null : { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },
       roster: { rosterId, playerIds: [...validateIds(mine.players || [], "roster players")], protectedIds: [...protectedIds], lockedReserveTaxiIds: [...ownLocked], unknownOwnedIds: unknownOwned },
-      coverage: { boardPlayers: board.players.length, ownedPlayers: owned.size, freeAgentsScored: 0, dropCandidates: 0, weeklyFresh: weekly.fresh, weeklyMatched: weekly.map.size, scoringLabel: "RESEARCH ONLY — immediate recommendations withheld" }
+      coverage: { ...ownedCoverage, boardPlayers: board.players.length, ownedPlayers: owned.size, freeAgentsScored: 0, dropCandidates: 0, weeklyFresh: weekly.fresh, weeklyMatched: weekly.map.size, scoringLabel: "RESEARCH ONLY — immediate recommendations withheld" }
     });
     if (!weekly.fresh && league.status === "in_season")
       return blocked(`${weekly.reason}; fresh aligned weekly data required for in-season recommendations. No preseason-based bids or lineup gains supplied.`);
@@ -346,7 +354,7 @@
       budget: rolling ? null : { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },
       warnings, rows,
       roster: { rosterId, playerIds: [...validateIds(mine.players || [], "roster players")], protectedIds: [...protectedIds], lockedReserveTaxiIds: [...ownLocked], unknownOwnedIds: unknownOwned },
-      coverage: { boardPlayers: board.players.length, ownedPlayers: owned.size, freeAgentsScored: freeAgents.length, dropCandidates: droppable.length, weeklyFresh: weekly.fresh, weeklyMatched: weekly.map.size, scoringLabel: weekly.fresh ? "fresh weekly projection" : "rough rest-of-season preseason proxy" }
+      coverage: { ...ownedCoverage, boardPlayers: board.players.length, ownedPlayers: owned.size, freeAgentsScored: freeAgents.length, dropCandidates: droppable.length, weeklyFresh: weekly.fresh, weeklyMatched: weekly.map.size, scoringLabel: weekly.fresh ? "fresh weekly projection" : "rough rest-of-season preseason proxy" }
     };
   }
   return Object.freeze({ analyze });

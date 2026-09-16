@@ -8,6 +8,15 @@
   let catalogPromise = null;
   let catalogFetchedAt = null;
 
+  function requestedWeek(value, state, season) {
+    const automatic = !String(value ?? "").trim();
+    if (automatic && (String(state?.season) !== String(season) || state?.season_type !== "regular"))
+      throw new Error("Current NFL week unavailable for this season. Choose a week explicitly for research.");
+    const week = Number(automatic ? state?.week : value);
+    if (!Number.isInteger(week) || week < 1 || week > 18) throw new Error("Week must be an integer from 1 to 18.");
+    return week;
+  }
+
   function validateContract(board, league, { requireFaab = false } = {}) {
     const boardId = String(board?.league?.league_id || ""), liveId = String(league?.league_id || "");
     if (!KNOWN_LEAGUES.has(boardId) || KNOWN_LEAGUES.get(boardId) !== board?.league?.slug || liveId !== boardId)
@@ -80,7 +89,7 @@
     const $ = id => document.getElementById(id);
     let world = null, board = null, weekly = null, roles = null, catalog = {}, result = null, signals = {}, intel = null;
     let kickoffs = null, snapshotAt = null, ros = null;
-    let requestId = 0, protectedIds = new Set();
+    let requestId = 0, protectedIds = new Set(), autoWeek = true;
     const node = (tag, text, cls) => {
       const el = document.createElement(tag);
       if (text !== undefined) el.textContent = text;
@@ -212,6 +221,10 @@
         for (const warning of warnings) ul.append(node("li", warning));
         $("waiver-warnings").append(ul); $("waiver-warnings").hidden = false;
         $("waiver-source").textContent = `Roster snapshot ${world.fetchedAt}. Week ${$("waiver-week").value}. Weekly file: ${weekly?.generated_at || "unavailable"}, data through ${weekly?.data_through || "unknown"}. Preseason baseline: ${board.generated_at}. ${result.coverage.scoringLabel}`;
+        const coverage = result.coverage;
+        $("waiver-coverage").textContent = coverage.weeklyFresh
+          ? `Your active skill roster: ${coverage.projectedOwnedSkills}/${coverage.activeOwnedSkills} have matching weekly projections. ${coverage.missingOwnedWeekly.length ? `No matching projection: ${coverage.missingOwnedWeekly.map(p => p.name).join(", ")}. ` : ""}IR/taxi and K/DEF are excluded from this count; byes and unavailable players may not need a score. ${coverage.unmappedOwnedIds.length ? `Unmapped owned IDs: ${coverage.unmappedOwnedIds.join(", ")}. ` : ""}${result.recommendationBlock || "Coverage alone does not establish forecast accuracy or player availability."}`
+          : "Your roster projection coverage cannot be assessed until fresh, aligned weekly data is available. Research is not bid advice.";
         $("waiver-results").hidden = false;
         status(`Connected read-only · roster ${world.rosterId} · refreshed ${new Date(world.fetchedAt).toLocaleTimeString()}. Refresh again before placing a claim.`);
         renderRows();
@@ -234,9 +247,11 @@
           window.FC.loadJSON("data/ros-ecr.json").catch(() => null),
         ]);
         if (rawBoard.league?.slug !== selectedLeague) throw new Error("Projection board does not match the selected league; reload before using advice.");
+        const nflState = autoWeek ? await Sleeper.get("/state/nfl") : null;
+        const week = requestedWeek(autoWeek ? "" : $("waiver-week").value, nflState, rawBoard.season);
         const loadedAt = Date.now();
         const [nextWorld, nextSignals] = await Promise.all([
-          loadWorld({ username: $("waiver-user").value, board: rawBoard, week: Number($("waiver-week").value) }), loadSignals(),
+          loadWorld({ username: $("waiver-user").value, board: rawBoard, week }), loadSignals(),
         ]);
         // Sleeper asks clients to avoid frequent bulk-catalog requests. This is
         // session-cached, explicitly dated below, not a live injury-news feed.
@@ -245,6 +260,7 @@
           .catch(error => { catalogPromise = null; throw error; });
         const nextCatalog = await catalogPromise;
         if (thisRequest !== requestId) return;
+        $("waiver-week").value = String(week);
         catalog = nextCatalog;
         board = hydrateBoard(rawBoard, catalog);
         const leagueLink = $("waiver-league-link");
@@ -261,7 +277,7 @@
       } finally { if (thisRequest === requestId) $("waiver-load").disabled = false; }
     });
     $("waiver-user").addEventListener("input", () => { ++requestId; world = null; result = null; $("waiver-results").hidden = true; $("waiver-load").disabled = false; status("Account changed. Load the league again."); });
-    $("waiver-week").addEventListener("change", () => { ++requestId; world = null; result = null; $("waiver-results").hidden = true; $("waiver-load").disabled = false; status("Week changed. Load the league again."); });
+    $("waiver-week").addEventListener("change", () => { autoWeek = !$("waiver-week").value.trim(); ++requestId; world = null; result = null; $("waiver-results").hidden = true; $("waiver-load").disabled = false; status("Week changed. Load the league again. Clear the week to follow the current NFL week automatically."); });
     $("waiver-reserve").addEventListener("change", recompute);
     $("waiver-position").addEventListener("change", () => { if (result) renderRows(); });
     $("waiver-radar-sort").addEventListener("change", () => { if (result) renderIntel(); });
@@ -283,7 +299,7 @@
       $("waiver-backup").focus();
     });
   }
-  const api = { init, loadWorld, loadSignals, validateContract, hydrateBoard };
+  const api = { init, loadWorld, loadSignals, validateContract, hydrateBoard, requestedWeek };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverMode = api;
 })();

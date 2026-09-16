@@ -28,7 +28,7 @@
     Verify injuries, roles, waiver eligibility, and deadlines in Sleeper before acting.</p>
   <form id="waiver-connect" class="waiver-controls">
     <label>Sleeper username <input id="waiver-user" required autocomplete="off" placeholder="Your Sleeper username"></label>
-    <label>Week <input id="waiver-week" type="number" min="1" max="18" value="1" required></label>
+    <label>Week <input id="waiver-week" type="number" min="1" max="18" placeholder="Auto" title="Automatically follows the current NFL week. Enter a number to override; clear to restore automatic selection."></label>
     <label>Budget to keep ($) <input id="waiver-reserve" type="number" min="0" step="1" value="20" required></label>
     <button type="submit" id="waiver-load">Load / refresh league</button>
   </form>
@@ -37,6 +37,7 @@
   <section id="waiver-results" hidden>
     <div id="waiver-budget" class="waiver-budget" aria-label="Waiver budget or rolling priority"></div>
     <p id="waiver-source" class="waiver-source"></p>
+    <p id="waiver-coverage" class="waiver-source" aria-live="polite"></p>
     <div class="waiver-toolbar">
       <label>Position <select id="waiver-position"><option value="ALL">All skill positions</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option></select></label>
       <button type="button" id="waiver-export">Export shortlist to text box</button>
@@ -89,9 +90,9 @@
 </main>
 <script src="assets/app.js?v=leagues3"></script>
 <script src="assets/sleeper.js"></script>
-<script src="assets/waivers.js?v=coverage2"></script>
+<script src="assets/waivers.js?v=coverage3"></script>
 <script src="assets/waiverintel.js?v=ros1"></script>
-<script src="assets/waivermode.js?v=coverage2"></script>
+<script src="assets/waivermode.js?v=coverage3"></script>
 <script>WaiverMode.init();</script>
 </body>
 </html>

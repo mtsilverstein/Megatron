@@ -151,6 +151,9 @@ check("missing weekly scores protect owned players from drops", () => {
   const blocked=W.analyze({...base,rosters:freshRosters,weekly:fresh});
   assert.equal(blocked.rows.length,0);
   assert.match(blocked.recommendationBlock,/contribution is unknown/);
+  assert.equal(blocked.coverage.activeOwnedSkills,5);
+  assert.equal(blocked.coverage.projectedOwnedSkills,4);
+  assert.deepEqual(blocked.coverage.missingOwnedWeekly,[{id:"8",name:"WR8"}]);
   const roomyLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN"]};
   const roomyRosters=[{...freshRosters[0],starters:["1","2","3","4","5","6"]},freshRosters[1]];
   const out=W.analyze({...base,rosters:roomyRosters,league:roomyLeague,weekly:fresh});
@@ -165,6 +168,8 @@ check("in-season stale or missing weekly data is research-only, never preseason 
     assert.equal(out.rows.length,0);
     assert.match(out.recommendationBlock,/fresh aligned weekly data required/);
     assert.match(out.coverage.scoringLabel,/RESEARCH ONLY/);
+    assert.equal(out.coverage.projectedOwnedSkills,null);
+    assert.ok(!out.warnings.some(w=>w.includes("using preseason proxy")));
     assert.equal(out.budget.remaining,60);
     assert.ok(out.roster.playerIds.length);
   }

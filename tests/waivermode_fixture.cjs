@@ -1,5 +1,11 @@
 const assert = require("node:assert/strict");
 const M = require("../site/assets/waivermode.js");
+assert.equal(M.requestedWeek("",{season:"2026",season_type:"regular",week:2},2026),2);
+assert.equal(M.requestedWeek("3",null,2026),3);
+assert.equal(M.requestedWeek("",{season:"2026",season_type:"regular",week:3},2026),3);
+assert.throws(()=>M.requestedWeek("",{season:"2025",season_type:"regular",week:2},2026),/Current NFL week/);
+assert.throws(()=>M.requestedWeek("",null,2026),/Current NFL week/);
+assert.throws(()=>M.requestedWeek("2.5",null,2026),/integer/);
 const board = require("../site/data/draft.json");
 const famBoard = require("../site/data/draft-fam.json");
 const hydrated = M.hydrateBoard({players:[{sleeper_id:"1",team:"DEN",position:"RB"}]}, {
