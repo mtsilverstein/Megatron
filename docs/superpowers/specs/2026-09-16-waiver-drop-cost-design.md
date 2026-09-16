@@ -280,7 +280,7 @@ board, weekly and kickoff builders):
 - open-slot add: `rosDelta = addContributes`; a one-week fill (add projected only this
   week, 0 after) yields a smaller `perWeekValue` than the same weekly gain from a
   season-long add;
-- precedence: affordability > unassessed > net-negative > weak > bands;
+- precedence: affordability > net-negative (priced only) > weak > unassessed > bands;
 - decomposition identity `rosDelta === addContributes − dropForfeits` (to 1e-6) on a
   randomized roster, and `rosValue` equals a brute-force per-week `lineupScore` sum;
 - `dropCost` key sets are exactly the three fixed sets;
