@@ -8,7 +8,7 @@
 <title>Draft board — Megatron</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Bruno+Ace&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=hierarchy1">
+<link rel="stylesheet" href="assets/style.css?v=mobile1">
 </head>
 <body>
 <header class="masthead">
@@ -41,9 +41,9 @@
       taking the market's best available by ADP — and reporting the best starting
       lineup you could still finish. Read-only, no login — works on mock drafts too.</p>
       <div class="draft-row" id="draft-connect">
-        <input id="draft-username" type="text" placeholder="Sleeper username" autocomplete="off">
+        <input id="draft-username" type="text" placeholder="Sleeper username" aria-label="Sleeper username" autocomplete="off">
         <button id="draft-find">Find my drafts</button>
-        <input id="draft-id-input" type="text" placeholder="…or paste a draft URL / id">
+        <input id="draft-id-input" type="text" placeholder="…or paste a draft URL / id" aria-label="Draft URL or id">
         <button id="draft-connect-id">Connect</button>
       </div>
       <div class="draft-row" id="draft-list"></div>
@@ -147,16 +147,16 @@
     <p class="keeper-help">Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (cost drops one round for each year you keep him). Once a keeper's cost would reach round 2 he goes back into the draft pool. A player keeps his original draft round even if he was dropped and later picked back up — only players never drafted in this league cost R12. A kept waiver player decays too — R12 the first year you keep him, R11 the next. Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
     <label class="keeper-depletion"><input class="keeper-depletion-toggle" type="checkbox" checked /> assume 12 teams keep 2 each (24 players off the board)</label>
     <div class="keeper-load">
-      <input class="keeper-user" placeholder="Sleeper username" autocomplete="off" />
+      <input class="keeper-user" placeholder="Sleeper username" aria-label="Sleeper username" autocomplete="off" />
       <button type="button" class="keeper-load-btn">Load from Sleeper</button>
       <span class="keeper-load-status" role="status"></span>
       <div class="keeper-league-picker"></div>
       <span class="keeper-skip-note"></span>
     </div>
     <form class="keeper-add">
-      <input class="keeper-name" placeholder="Player (start typing)" list="playerlist" autocomplete="off" />
-      <input class="keeper-round" type="number" min="1" max="20" placeholder="Original round" />
-      <input class="keeper-year" type="number" min="2000" max="2100" placeholder="Year drafted" />
+      <input class="keeper-name" placeholder="Player (start typing)" aria-label="Keeper player name" list="playerlist" autocomplete="off" />
+      <input class="keeper-round" type="number" min="1" max="20" placeholder="Original round" aria-label="Original draft round" />
+      <input class="keeper-year" type="number" min="2000" max="2100" placeholder="Year drafted" aria-label="Year drafted" />
       <label><input class="keeper-waiver" type="checkbox" /> never drafted in this league (R12)</label>
       <button type="submit">Add</button>
       <span class="keeper-msg" role="alert"></span>

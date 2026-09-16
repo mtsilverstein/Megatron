@@ -15,4 +15,14 @@ for (const {page, html} of sources) {
   assert.equal((html.match(/src="assets\/app\.js(?:\?[^"]*)?"/g) || []).length, 1,
     `${page}: exactly one shared app script required`);
 }
+// The shared stylesheet is cache-busted by query string; a page left on an
+// old version would render the previous masthead while the others moved on.
+{
+  const hrefs = sources.map(({page, html}) => {
+    const m = html.match(/<link\b[^>]*href="(assets\/style\.css(?:\?[^"]*)?)"/);
+    assert.ok(m, `${page}: shared stylesheet link missing`);
+    return m[1];
+  });
+  assert.equal(new Set(hrefs).size, 1, `style.css: inconsistent cache versions across pages: ${[...new Set(hrefs)].join(', ')}`);
+}
 console.log('shared_assets_fixture: shared controller versions and single app inclusion OK');

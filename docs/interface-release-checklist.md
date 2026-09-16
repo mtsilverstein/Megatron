@@ -129,6 +129,99 @@ sampling was not re-run after the correction. Browser verification of the
 corrected wording against live Gabagool/FAM data is still pending and is
 root's to perform.
 
+Mobile masthead and final UI check (September 16, Opus; root reviews): local
+browser at 390×844 measured the waivers masthead at 262px tall (five links on
+three rows plus stamp; league panel ended at 460px; username form began at
+840px, off the first screen). CSS-only fix inside the existing 560px media
+block: tighter masthead row gaps and padding, wordmark 1.15rem, nav gap
+.15rem/.7rem at .82rem, stamp .7rem, league panel padding .6rem/.8rem, h1
+1.55rem. Nothing is hidden and no controls were added: every link, its
+"· Gabagool only"/"· not connected" suffix, the active-page marker, the
+league URL and the stamp remain visible; links wrap rather than scroll.
+Measured afterwards at 390px on all six pages: masthead 159px (two nav rows)
+or 185px (three rows for FAM/ESPN suffixes), league panel ends 303–399px, no
+horizontal overflow, and the waiver username form starts at 653px. Desktop
+computed values unchanged (nav 15.2px, wordmark 21.6px, h1 32px, one row).
+`style.css?v=mobile1` on all six pages; waivers.html wordmark now carries the
+logo like the other five. Screenshots: `.review/shots/before-waivers-390.png`,
+`after-waivers-390.png`, `after-weekly-espn-390.png`, `after-index-fam-390.png`.
+
+Drop-cost gate, live read-only browser check of the corrected wording
+(local build, Max973, separate tabs): Gabagool week 2, roster 9, 13/13
+coverage, 10 alternatives — all weak-signal (precedence over the drop gate),
+table and export print "no bid suggested…" and the rosterCost line, no `$`,
+`null`, "modeled FAAB" or "preseason" in any ADD row; the FAAB header still
+reports Remaining/reserve/spendable dollars, as intended. FAM week 2, roster
+1, 13/13 coverage, rolling priority 2, zero positive swaps under default
+protections; export has no bid lines. The Gabagool tab kept `?league=gabagool`
+while FAM loaded. Consequence: Max973's own rosters never produce a
+non-weak required-drop row, so the "drop cost unassessed" wording itself is
+still only fixture-verified, not observed live. Also observed: the Gabagool
+snapshot expired after a few minutes, hiding results with "Roster snapshot
+expired. Refresh…" (designed stale-session behaviour; refresh restored them).
+Pre-existing, out of scope: the export's research `USAGE` lines serialize raw
+JSON including `"targets":null` when no prior-week baseline exists.
+
+Keyboard/accessibility: the browser tool refused synthetic key presses, so
+this is NOT a real Tab-key traversal. Instead, sequential-focus candidates
+were enumerated in DOM order and each was focused programmatically on the
+loaded waivers (24 stops), weekly (24, incl. filter chips with aria-pressed
+and sortable headers with tabindex + Enter/Space), draft board (roving row
+tabindex, arrow keys), trade, about and connect pages; every stop accepted
+focus and order matched the visual order. One concrete defect fixed:
+`#trade-user`, `#draft-username`, `#draft-id-input` and the four keeper
+inputs had placeholder-only accessible names, and the shared username
+auto-fill hides that placeholder (draft-username loaded with "Max973"); each
+now carries an `aria-label`. No controller changes. New static regressions:
+every non-checkbox input on the six pages must have an aria-label, wrapping
+<label> or label[for] (fails against the pre-change tree); the mobile
+masthead block must not hide or scroll the nav or hide the stamp; style.css
+cache versions must match across pages. All 24 JavaScript fixtures pass.
+Still pending for root: real keyboard traversal (Tab/Enter/Space/arrow) with
+visible focus rings on links and buttons, and a deployed-build check.
+
+Final pre-push check (September 16, Opus; root reviews):
+
+- Non-weak required-drop wording, observed in the real waivers controller
+  (table and export) against a **clearly labeled synthetic ownership fixture**,
+  because Max973's live rosters cannot produce that row. Local build,
+  `waivers.html?league=gabagool`, real committed `data/draft.json`,
+  `data/weekly.json` (week 2, generated 2026-09-16) and `data/kickoffs.json`;
+  only the Sleeper side was stubbed in-page (`window.Sleeper.get` replaced
+  before submit: league `SYNTHETIC FIXTURE (not live)` with the real Gabagool
+  id/scoring/slots, 12 synthetic rosters, user `synthetic-fixture`, catalog
+  built from the board, trending refused). No request reached Sleeper and
+  no league was mutated; the page carried a red "SYNTHETIC OWNERSHIP FIXTURE"
+  banner. Roster 1 held mid-ranked starters, five near-zero bench players and
+  a full 15-man roster, so every alternative required a drop. FAAB
+  (`waiver_type 2`, $70 remaining): 40 displayed rows, all `+8.79 pts · drop
+  cost unassessed`, claim guidance "no bid suggested: drop cost unassessed,
+  rest-of-season value is not priced", why-column tier `drop cost unassessed`
+  plus the rosterCost and dropCost notes; summary line "40 require a drop
+  whose rest-of-season cost is not priced…"; warnings counted 165 weak and
+  355 unassessed alternatives; no `$`, `null`, "modeled FAAB" or "preseason"
+  in any row; the header still shows Remaining/reserve/spendable. Export: 40
+  `ADD …; DROP COST UNASSESSED; no bid suggested: drop cost unassessed…`
+  lines, no dollars, details opened and textarea focused. Rolling
+  (`waiver_type 0`, same world): reserve field hidden, tiles "Rolling
+  priority 1 / Rank claims", every row "No priority claim suggested" with the
+  "research only… rest-of-season cost is not priced" guidance, no "Set claim
+  order in Sleeper", export header "Current rolling priority 1; rank claims
+  in Sleeper" and all ADD lines `DROP COST UNASSESSED; research only…`.
+  Screenshots: `.review/shots/synthetic-dropcost-faab-table.png`,
+  `synthetic-dropcost-rolling-table.png`. This is fixture-driven evidence
+  that the shipped controller renders the gate; it is not live-league data.
+- Keyboard: the browser integration denied a real Tab key press; per the
+  brief no alternate automation was used. Source check only: one global
+  `:focus-visible { outline: 2px solid var(--te); outline-offset: 2px }`
+  (`style.css:42`) and no `outline` override anywhere in `site/assets/*.css`.
+  Real Tab/Enter/Space/arrow traversal with visible rings remains pending
+  for root.
+- No UI defects found in this pass; no code changed. All 24 JavaScript
+  fixtures pass (waivers, waivermode, shared_assets, interface_hierarchy,
+  navigation, connect re-run individually). Deployed-build check follows
+  the push.
+
 - Browser round trips across supported leagues and connect, including multiple tabs.
 - Explicit unsupported-tool and invalid-league recovery tests.
 - Form refresh, automatic/manual week, filters, exports, and stale-session flows.

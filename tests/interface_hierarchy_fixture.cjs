@@ -36,6 +36,36 @@ for (const [page, current] of pages) {
   if (current) assert.equal(currentLinks[0][2], current, `${page} marks its own destination current`);
 }
 
+// Every text-entry control needs an accessible name that survives typing. A
+// placeholder alone disappears the moment the shared username auto-fill puts
+// a value in the box, so an input must carry aria-label, sit inside a <label>,
+// or be referenced by label[for].
+for (const [page] of pages) {
+  const html = readPage(page);
+  for (const match of html.matchAll(/<input\b[^>]*>/gi)) {
+    const tag = match[0];
+    if (/\btype=["'](checkbox|radio|hidden|submit)["']/i.test(tag)) continue;
+    if (/\baria-label=["'][^"']+["']/i.test(tag)) continue;
+    const id = (tag.match(/\bid=["']([^"']+)["']/i) || [])[1];
+    if (id && new RegExp(`<label\\b[^>]*for=["']${id}["']`, "i").test(html)) continue;
+    const before = html.slice(0, match.index);
+    const openLabel = before.lastIndexOf("<label");
+    const closeLabel = before.lastIndexOf("</label>");
+    assert.ok(openLabel > closeLabel, `${page}: input lacks an accessible name beyond its placeholder: ${tag}`);
+  }
+}
+
+// The compact mobile masthead tightens spacing; it must not hide the nav or
+// the "data as of" stamp, which are load-bearing for support disclosure.
+{
+  const css = fs.readFileSync(path.join(root, "site", "assets", "style.css"), "utf8");
+  const mobile = css.match(/@media \(max-width: 560px\) \{[\s\S]*?\.masthead nav \{[^}]*\}[\s\S]*?\n\}/);
+  assert.ok(mobile, "mobile masthead rules live in the 560px block");
+  assert.doesNotMatch(mobile[0], /\.masthead nav[^{]*\{[^}]*(display:\s*none|overflow(-x)?:\s*(auto|scroll|hidden))/,
+    "mobile nav must wrap, not hide or scroll links out of view");
+  assert.doesNotMatch(mobile[0], /\.stamp[^{]*\{[^}]*display:\s*none/, "mobile stamp stays visible");
+}
+
 const waivers = readPage("waivers.html");
 const ids = [...waivers.matchAll(/\bid=["']([^"']+)["']/gi)].map((match) => match[1]);
 const duplicates = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
