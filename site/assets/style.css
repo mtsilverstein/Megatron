@@ -159,9 +159,16 @@ td.num, th.num { text-align: right; font: var(--t-num);
 .filters button[aria-pressed="true"] { color: var(--chalk); border-color: var(--chalk); }
 
 .league-links { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
-#league-context { display: block; padding: 1rem; border: 1px solid var(--rule); }
+#league-context { display: flex; align-items: center; gap: .6rem 1rem; padding: .8rem 1rem; border: 1px solid var(--rule); }
+main #league-context > label { display: flex; flex-direction: row; align-items: center; gap: .6rem; min-width: 0; }
 #league-context select { padding: .5rem; font: inherit; max-width: 100%; }
-#league-context p { margin-bottom: 0; }
+#league-context p { flex-basis: 100%; order: 2; margin: 0; font-size: .85rem; color: var(--chalk-dim); }
+#league-context > a { margin-left: auto; }
+@media (max-width: 560px) {
+  #league-context > label { width: 100%; }
+  #league-context select { min-width: 0; flex: 1; }
+  #league-context > a { margin-left: 0; }
+}
 .league-links a {
   color: var(--chalk-dim); border: 1px solid var(--rule); border-radius: 4px;
   padding: .5rem .8rem; font: var(--t-chip); text-decoration: none;

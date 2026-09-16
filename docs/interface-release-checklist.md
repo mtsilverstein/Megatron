@@ -52,6 +52,14 @@ runtime headers; inspect the rendered layout before removing branding.
 
 ## Still required before full interface sign-off
 
+September 16 hierarchy pass: all six mastheads put weekly/waivers first;
+waiver alternatives precede research, provenance is collapsed but coverage stays
+visible, and the league panel is more compact. Local browser verified Gabagool
+Week 2, roster 9, 13/13 projection coverage and the reordered results. Static
+hierarchy, navigation, waiver adapter and shared-asset fixtures pass.
+Observed follow-up: alternatives with 0.09–0.11 point gains remain displayed;
+review weak-signal and drop-cost presentation before claiming actionable edge.
+
 - Browser round trips across supported leagues and connect, including multiple tabs.
 - Explicit unsupported-tool and invalid-league recovery tests.
 - Form refresh, automatic/manual week, filters, exports, and stale-session flows.

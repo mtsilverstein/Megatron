@@ -5,17 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Read-only Sleeper waiver planning: available players, lineup upgrades, drop costs, FAAB guardrails, and rolling priority guidance.">
 <title>Waivers — Megatron</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=hierarchy1">
 <link rel="stylesheet" href="assets/waivers.css">
 </head>
 <body>
 <header class="masthead">
   <h1 class="wordmark">Megatron</h1>
   <nav aria-label="Main navigation">
-    <a href="index.html">Draft board</a>
-    <a href="trade.html">Trade calculator</a>
     <a href="weekly.html">Weekly</a>
     <a href="waivers.html" aria-current="page">FAAB & waivers</a>
+    <a href="index.html">Draft board</a>
+    <a href="trade.html">Trade calculator</a>
     <a href="about.html">About the model</a>
   </nav>
   <p class="stamp">Read-only Sleeper connection · no claims or bids are submitted</p>
@@ -36,12 +36,29 @@
   <div id="waiver-warnings" class="waiver-warnings" hidden></div>
   <section id="waiver-results" hidden>
     <div id="waiver-budget" class="waiver-budget" aria-label="Waiver budget or rolling priority"></div>
-    <p id="waiver-source" class="waiver-source"></p>
     <p id="waiver-coverage" class="waiver-source" aria-live="polite"></p>
+    <details>
+      <summary>Data sources and timestamps</summary>
+      <p id="waiver-source" class="waiver-source"></p>
+    </details>
     <div class="waiver-toolbar">
       <label>Position <select id="waiver-position"><option value="ALL">All skill positions</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option></select></label>
       <button type="button" id="waiver-export">Export shortlist to text box</button>
     </div>
+    <p id="waiver-count"></p>
+    <div class="table-wrap">
+      <table id="waiver-table">
+        <caption>Independent add/drop alternatives — do not submit every row as one plan</caption>
+        <thead><tr><th>Add</th><th>Drop alternative</th><th>Lineup improvement</th><th>Claim guidance</th><th>Why / limitations</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <details>
+      <summary>Protect players from drop suggestions</summary>
+      <p>These protections apply to this tab. Starters are protected initially; uncheck deliberately.
+        IR/taxi players are not offered as drops. This is not an instruction to move anyone out of IR.</p>
+      <div id="waiver-roster" class="waiver-roster"></div>
+    </details>
     <section aria-labelledby="waiver-intel-heading">
       <h2 id="waiver-intel-heading">Find the next opportunity</h2>
       <p>Research queue, not buy recommendations. Same-team RBs are possible insurance—not confirmed backups or beneficiaries. Popularity is not projected opportunity.</p>
@@ -57,21 +74,7 @@
       <p id="waiver-market"></p>
       <p><a href="https://docs.sleeper.com/#trending-players">Trending data: Sleeper</a>. Counts are platform-wide activity, not selected-league demand. “Not listed” is not zero. No net-add rate or claim-success probability is inferred.</p>
     </section>
-    <details>
-      <summary>Protect players from drop suggestions</summary>
-      <p>These protections apply to this tab. Starters are protected initially; uncheck deliberately.
-        IR/taxi players are not offered as drops. This is not an instruction to move anyone out of IR.</p>
-      <div id="waiver-roster" class="waiver-roster"></div>
-    </details>
-    <p id="waiver-count"></p>
-    <div class="table-wrap">
-      <table id="waiver-table">
-        <caption>Independent add/drop alternatives — do not submit every row as one plan</caption>
-        <thead><tr><th>Add</th><th>Drop alternative</th><th>Lineup improvement</th><th>Claim guidance</th><th>Why / limitations</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <details open><summary>Available watchlist — preseason ECR, not a buy ranking</summary>
+    <details><summary>Available watchlist — preseason ECR, not a buy ranking</summary>
       <p>These players are unrostered now. They may be stash candidates even without a projected lineup gain; role changes and injury contingencies are not priced by this version.</p>
       <ol id="waiver-watchlist"></ol>
     </details>
