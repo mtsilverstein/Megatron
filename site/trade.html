@@ -80,7 +80,7 @@
   </section>
 </main>
 <footer>Pre-draft: values players and draft picks before the draft. In season: conditional lineup scenarios only — no trade grades.</footer>
-<script src="assets/app.js?v=recovery5"></script>
+<script src="assets/app.js?v=recovery6"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/optimizer.js"></script>
 <script src="assets/keepers.js"></script>
@@ -98,12 +98,12 @@
   const NOT_AVAILABLE = "Trade advice is not available for this league yet. No Gabagool values are being loaded.";
   if (slug === "espnfam") { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
   const board = await FC.loadJSON(FC.leagueDataPath("draft"));
-  FC.stampHeader(board);
   const league = await Sleeper.get(`/league/${board.league.league_id}`);
   if (league.status === "pre_draft") {
     // The pre-draft grader prices keepers and a simulated draft; only Gabagool
     // has that model. FAM pre-draft keeps today's message.
     if (slug !== "gabagool") { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
+    FC.stampHeader(board);
     TradeMode.init({
       board,
       els: {
@@ -133,6 +133,8 @@
     hide(["trade-eyebrow", "trade-note", "trade-connect", "trade-league-picker", "trade-controls",
           "trade-warn", "trade-cols", "trade-grade", "trade-suggestions"]);
     $("season-trade").hidden = false;
+    FC.loadJSON(FC.leagueDataPath("remaining")).then(r => FC.stampHeader(r))
+      .catch(() => { document.querySelector(".stamp").textContent = "remaining-season projections not published yet"; });
     SeasonTradeMode.init({
       board, league, slug,
       els: {

@@ -157,6 +157,7 @@
       loading = true;
       try {
         hideResult();
+        els.provenance.textContent = "";
         els.controls.hidden = true; els.cols.hidden = true; els.compare.disabled = true; els.warn.hidden = true;
         setStatus("looking up user…");
         const user = await get(`/user/${encodeURIComponent(username)}`);

@@ -25,7 +25,7 @@ Regenerate weekly payloads before using the new raw-stat contract in browser
 advice. Do not strip live scoring keys merely to pass the strict scorer;
 unmodeled categories need explicit capability handling. Custom bands do not
 inherit historical calibrated coverage. General waivers need league-valued
-season projections; the existing trade calculator is still pre-draft only.
+season projections; the trade page is a pre-draft grader before the draft and an in-season conditional lineup scenario (no grade) once the league is in season (2026-09-17).
 
 The September 10 weekly and ROS ranking snapshots are present but have not
 been ingested or evaluated as part of this checkpoint.
