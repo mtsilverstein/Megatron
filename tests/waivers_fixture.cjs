@@ -313,7 +313,7 @@ check("every required drop withholds spend guidance regardless of preseason boar
   assert.equal(held.signal.strength,"modeled"); assert.equal(held.valueEstimate.points,60);
   assert.deepEqual(Object.keys(held.dropCost).sort(),["label","reason","status"], "no preseason comparison fields may be exported");
   assert.equal(held.dropCost.status,"unassessed");
-  assert.match(held.dropCost.label,/^drop cost unassessed: the dropped player's rest-of-season value is not priced/);
+  assert.match(held.dropCost.label,/^drop cost unassessed: the rest-of-season change is not priced for this swap/);
   assert.doesNotMatch(held.dropCost.label,/wrong|noise|preseason|board value|\$/);
   assert.deepEqual([held.bid.low,held.bid.high,held.bid.tier,held.bid.canAfford],[null,null,"drop cost unassessed",true]);
   assert.match(held.bid.status,/^no bid suggested: drop cost unassessed/);
@@ -325,7 +325,7 @@ check("every required drop withholds spend guidance regardless of preseason boar
   assert.match(heldText.bid,/^no bid suggested: drop cost unassessed/); assert.doesNotMatch(heldText.bid,/\$/);
   assert.match(heldText.why,/^drop cost unassessed · board value estimate/);
   assert.match(heldText.dropCostNote,/^drop cost unassessed/);
-  assert.match(heldText.exportLine,/^ADD RB7; DROP WR8; \+23\.00 \(week 1 projection\); DROP COST UNASSESSED; no bid suggested: drop cost unassessed.*; dropping WR8 costs their rest-of-season value.*; drop cost unassessed: the dropped player's rest-of-season value is not priced/);
+  assert.match(heldText.exportLine,/^ADD RB7; DROP WR8; \+23\.00 \(week 1 projection\); DROP COST UNASSESSED; no bid suggested: drop cost unassessed.*; dropping WR8 costs their rest-of-season value.*; drop cost unassessed: the rest-of-season change is not priced for this swap/);
   assert.doesNotMatch(heldText.exportLine,/\$|null|heuristic bid|; modeled;|preseason/);
   // Every required-drop alternative on the roster is withheld, not just this one.
   const drops=out.rows.filter(r=>r.drop!==null);
@@ -467,6 +467,17 @@ check("priced swap: bench drop forfeits nothing, add's future contribution sets 
   assert.equal(out.coverage.ros.pricedOwned, 5); assert.deepEqual(out.coverage.ros.unmodeledOwned, []);
   assert.equal(out.coverage.ros.evaluation, null);
   assert.ok(!out.warnings.some(w => /rest-of-season cost is not priced/.test(w)));
+});
+
+check("final analysed week has no future weeks: pricing is zero and the span reads as such, not W+1–W", () => {
+  const out = W.analyze({ ...rosBase(), remaining: remainingFor(steadyFuture(), { end_week: 1 }) });
+  const row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  assert.equal(row.dropCost.status, "priced");
+  assert.equal(row.dropCost.rosDelta, 0);
+  assert.equal(row.signal.basis, "move");
+  assert.equal(row.signal.perWeekGain, row.lineupGain); // moveValue / (futureWeeks + 1) === moveValue / 1
+  assert.match(row.rosterCost, /no future weeks remain/);
+  assert.doesNotMatch(row.rosterCost, /weeks 2–1/);
 });
 
 check("net-negative swap reports both numbers and withholds spend", () => {

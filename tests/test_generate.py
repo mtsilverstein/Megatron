@@ -101,6 +101,18 @@ def test_atomic_write_happy_path(tmp_path):
     assert json.loads(target.read_text()) == {"ok": 1}
 
 
+def test_atomic_write_compact_has_no_indent(tmp_path):
+    target = tmp_path / "remaining-gabagool.json"
+    _atomic_write(target, {"a": [1, 2]}, compact=True)
+    assert target.read_text() == '{"a":[1,2]}'
+
+
+def test_atomic_write_default_is_still_indented(tmp_path):
+    target = tmp_path / "draft.json"
+    _atomic_write(target, {"a": [1, 2]})
+    assert target.read_text() == json.dumps({"a": [1, 2]}, indent=2, allow_nan=False)
+
+
 def test_require_backtests_rejects_empty():
     from ffmodel.site.generate import require_backtests
 

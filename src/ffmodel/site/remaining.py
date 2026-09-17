@@ -10,7 +10,7 @@ from ffmodel.site.weekly import build_weekly_projections, RULESETS
 from ffmodel.league import SLEEPER_RULE_FIELDS
 from ffmodel.scoring import PREDICTED_STATS
 
-DIAGNOSTICS_DIR = Path("models/diagnostics")
+DIAGNOSTICS_DIR = Path(__file__).resolve().parents[3] / "models" / "diagnostics"
 BASELINE_DESCRIPTION = "mean league-scored production in the last four recorded pre-origin games"
 
 
@@ -39,7 +39,9 @@ def load_evaluation(slug, league_scoring, diagnostics_dir=DIAGNOSTICS_DIR,
     data = json.loads(path.read_text(encoding="utf-8"))
     horizons = [{"horizon": int(r["horizon"]), "model_mae": round(float(r["model_mae"]), 3),
                  "baseline_mae": round(float(r["baseline_mae"]), 3),
-                 "paired_forecasts": int(r["paired_player_forecasts"])}
+                 "paired_forecasts": int(r["paired_player_forecasts"]),
+                 "forecast_players": int(r["forecast_players"]),
+                 "missing_actuals": int(r["missing_actuals"])}
                 for r in data.get("summary", []) if r.get("position") == "ALL"]
     horizons.sort(key=lambda r: r["horizon"])
     out = {"source": f"models/diagnostics/{path.name}", "baseline": BASELINE_DESCRIPTION,
@@ -76,7 +78,7 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
     if history.empty:
         raise ValueError("no observed pre-slate history")
     last = history.sort_values(["season", "week"]).iloc[-1]
-    through = f"{int(last.season)}-wk{int(last.week):02d}"
+    through = f"{int(last.season)}-wk{int(last.week)}"
     schedule = schedules[schedules.season == season].copy()
     if "game_type" in schedule:
         schedule = schedule[schedule.game_type == "REG"]
@@ -137,7 +139,8 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
             record["weeks"].append(row)
     return {"schema_version": 1, "horizon": "remaining_season", "status": "experimental",
             "evaluation": evaluation, "season": season, "start_week": start_week,
-            "end_week": end_week, "generated_at": datetime.now(timezone.utc).isoformat(),
+            "end_week": end_week,
+            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "data_through": through, "league": league, "model": predictor.name,
             "forecast_cutoff": f"before {season} week {start_week}",
             "observed_target_rows_ignored": int(((weekly.season == season) & (weekly.week >= start_week)).sum()),

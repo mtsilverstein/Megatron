@@ -117,9 +117,12 @@ def _write_diagnostic(tmp_path, name="remaining_matrix_gabagool.json"):
         "seasons": [2023, 2024, 2025], "origins": [5, 9], "horizons": [1, 2],
         "limitation": "Dependent windows; descriptive only.",
         "summary": [
-            {"horizon": 1, "position": "ALL", "model_mae": 4.6121, "baseline_mae": 4.8154, "paired_player_forecasts": 1817},
-            {"horizon": 1, "position": "QB", "model_mae": 7.9, "baseline_mae": 8.1, "paired_player_forecasts": 195},
-            {"horizon": 2, "position": "ALL", "model_mae": 4.4521, "baseline_mae": 4.7221, "paired_player_forecasts": 1791},
+            {"horizon": 1, "position": "ALL", "model_mae": 4.6121, "baseline_mae": 4.8154, "paired_player_forecasts": 1817,
+             "forecast_players": 3701, "missing_actuals": 1857},
+            {"horizon": 1, "position": "QB", "model_mae": 7.9, "baseline_mae": 8.1, "paired_player_forecasts": 195,
+             "forecast_players": 400, "missing_actuals": 200},
+            {"horizon": 2, "position": "ALL", "model_mae": 4.4521, "baseline_mae": 4.7221, "paired_player_forecasts": 1791,
+             "forecast_players": 3650, "missing_actuals": 1830},
         ]}))
     return tmp_path
 
@@ -131,8 +134,10 @@ def test_load_evaluation_reads_committed_diagnostic(tmp_path):
     assert out["baseline"] == "mean league-scored production in the last four recorded pre-origin games"
     assert out["seasons"] == [2023, 2024, 2025] and out["origins"] == [5, 9]
     assert out["horizons"] == [
-        {"horizon": 1, "model_mae": 4.612, "baseline_mae": 4.815, "paired_forecasts": 1817},
-        {"horizon": 2, "model_mae": 4.452, "baseline_mae": 4.722, "paired_forecasts": 1791}]
+        {"horizon": 1, "model_mae": 4.612, "baseline_mae": 4.815, "paired_forecasts": 1817,
+         "forecast_players": 3701, "missing_actuals": 1857},
+        {"horizon": 2, "model_mae": 4.452, "baseline_mae": 4.722, "paired_forecasts": 1791,
+         "forecast_players": 3650, "missing_actuals": 1830}]
     assert out["limitation"] == "Dependent windows; descriptive only."
     assert "scoring_scope" not in out
 

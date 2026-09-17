@@ -211,13 +211,13 @@
     const names = x => x.name || x.full_name || id(playerId(x));
     if (!ros || !ros.fresh) {
       if (!drop) return { status:"open_slot", label:"no drop required; future roster flexibility is not priced", addContributes:null, rosDelta:null, futureWeeks:null, endWeek:null };
-      return { status:"unassessed", label:"drop cost unassessed: the dropped player's rest-of-season value is not priced, so no spend guidance is offered", reason: ros ? ros.reason : "remaining-season projections unavailable" };
+      return { status:"unassessed", label:"drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered", reason: ros ? ros.reason : "remaining-season projections unavailable" };
     }
     const missing = [add, drop].filter(x => x && ros.isUnmodeled(x));
     if (missing.length) {
       const reason = `${missing.map(names).join(" and ")} ${missing.length > 1 ? "have" : "has"} no rest-of-season projection`;
       if (!drop) return { status:"open_slot", label:"no drop required; future roster flexibility is not priced", addContributes:null, rosDelta:null, futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
-      return { status:"unassessed", label:"drop cost unassessed: the dropped player's rest-of-season value is not priced, so no spend guidance is offered", reason };
+      return { status:"unassessed", label:"drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered", reason };
     }
     // withAdd (R+A) depends only on the add, not the drop — the caller computes
     // it once per add (§3.5) and every drop candidate for that add reuses it.
@@ -229,8 +229,9 @@
     const after = ros.value(ros.roster.filter(x => id(playerId(x)) !== id(playerId(drop))).concat([add]));
     const dropForfeits = withAdd - after, rosDelta = after - ros.baseline;
     if (![withAdd, after, ros.baseline].every(Number.isFinite))
-      return { status:"unassessed", label:"drop cost unassessed: the dropped player's rest-of-season value is not priced, so no spend guidance is offered", reason:"roster cannot field a full lineup from modeled players in every future week" };
-    return { status:"priced", label:`priced: rest-of-season lineup change over weeks ${ros.firstWeek}–${ros.endWeek}, assuming participation`,
+      return { status:"unassessed", label:"drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered", reason:"roster cannot field a full lineup from modeled players in every future week" };
+    const weekSpan = ros.futureWeeks === 0 ? "no future weeks remain" : `weeks ${ros.firstWeek}–${ros.endWeek}`;
+    return { status:"priced", label:`priced: rest-of-season lineup change over ${weekSpan}, assuming participation`,
              addContributes:r2(addContributes), dropForfeits:r2(dropForfeits), rosDelta:r2(rosDelta), futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
   }
   // `gain` is the per-week value the bands read (move value per week, or this
@@ -457,7 +458,7 @@
       const netNegative = dropCost.status === "priced" && moveValue <= 0;
       const weak = !netNegative && perWeekGain < WEAK_SIGNAL_PTS;
       const unassessed = dropCost.status === "unassessed";
-      const span = priced ? `weeks ${firstFuture}–${dropCost.endWeek}` : null;
+      const span = priced ? (dropCost.futureWeeks === 0 ? "no future weeks remain" : `weeks ${firstFuture}–${dropCost.endWeek}`) : null;
       const signal = {
         strength: weak ? "weak" : "modeled", perWeekGain, thresholdPerWeek: WEAK_SIGNAL_PTS, moveValue, basis,
         label: weak

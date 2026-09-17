@@ -67,11 +67,15 @@ def validate_draftable_coverage(board: dict, ecr: dict | None,
             "union": len(required), "represented": len(required), "missing": 0}
 
 
-def _atomic_write(path: Path, payload: dict) -> None:
+def _atomic_write(path: Path, payload: dict, *, compact: bool = False) -> None:
     path = Path(path)
     tmp = path.with_suffix(path.suffix + ".tmp")
     try:
-        tmp.write_text(json.dumps(payload, indent=2, allow_nan=False))
+        if compact:
+            text = json.dumps(payload, separators=(",", ":"), allow_nan=False)
+        else:
+            text = json.dumps(payload, indent=2, allow_nan=False)
+        tmp.write_text(text)
         os.replace(tmp, path)
     finally:
         if tmp.exists():
@@ -783,7 +787,7 @@ def main() -> None:
 
     args.out.mkdir(parents=True, exist_ok=True)
     for name, payload in payloads.items():
-        _atomic_write(args.out / name, payload)
+        _atomic_write(args.out / name, payload, compact=name.startswith("remaining-"))
         print(f"{name}: written"
               + (f" ({len(payload['players'])} players)" if "players" in payload else ""))
 
