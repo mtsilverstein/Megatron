@@ -38,6 +38,11 @@ A replacement in-season engine needs:
 - Fresh read-only roster/scoring contracts and tests for asymmetric trades,
   surplus depth, scarce positions and two-for-one roster consequences.
 
-Until those inputs and tests exist, no in-season win/win trade verdict is
-available. Current-week impact and ROS rank context must remain labeled as
-partial evidence, not a complete remaining-season valuation.
+The page now ships the conditional scenario those requirements describe
+(`trade-scenarios.md`, "The page"): remaining-week league-scored lineups for both
+sides, explicit drops, unknown never zero, user-stated availability assumptions, keeper
+and pick effects disclosed as excluded. It still does not produce a win/win verdict,
+a grade, suggestions or a league scan; the promotion test that would unlock a
+player-only grade is specified in
+`docs/superpowers/specs/2026-09-17-inseason-trade-scenario-design.md` §8 and has not
+been run.

@@ -13,10 +13,9 @@ tab's URL, so using FAM cannot change an open Gabagool tab.
 | Draft board | League-specific | League-specific | League-specific manual draft |
 | Weekly/start-sit | Live roster, own scoring | Live roster, own scoring | Not connected |
 | Waiver research | FAAB budget guidance | Rolling priority, no dollar bids | Not connected |
-| Existing trade calculator | Pre-draft only | Not supported | Not supported |
+| Trade calculator | Pre-draft grader; in-season conditional lineup scenario | In-season conditional lineup scenario | Not supported |
 
-Unsupported tools do not silently switch to Gabagool. The trade calculator
-is not an in-season trade evaluator even for Gabagool. All tools remain
+Unsupported tools do not silently switch to Gabagool. In season the trade page shows a conditional lineup scenario, not a trade evaluation or grade. All tools remain
 read-only; managers submit changes in their platform.
 
 Weekly payloads are isolated: `weekly.json` and `weekly-fam.json`. The scheduled
