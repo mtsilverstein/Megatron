@@ -68,4 +68,60 @@ assert.throws(()=>analyze(gaps),error=>{
 // Explicit exclusions can cover an unmodeled week but never repair identity.
 assert.doesNotThrow(()=>analyze({...gaps,excludeWeeks:{a:[2,3],d:[2,3]}}));
 assert.throws(()=>analyze({...gaps,catalog:{...catalog,a:{...catalog.a,gsis_id:null}},excludeWeeks:{a:[2,3],d:[2,3]}}),/GSIS/);
-console.log('seasontrade_fixture: ownership, capacity, scoring, freshness, exclusions, missingness and symmetric lineup changes OK');
+// --- consensus cases ---------------------------------------------------------
+// 2-for-1 with the explicit drop on the RECEIVING side: roster 2 takes a and b for c,
+// must drop d to fit, and d's contribution counts against the trade for roster 2.
+{
+  const two = clone(base);
+  two.league.roster_positions = ['RB', 'RB', 'BN'];            // capacity 3, two starters
+  two.rosters = [{ roster_id: 1, players: ['a', 'b', 'e'] }, { roster_id: 2, players: ['c', 'd', 'f'] }];
+  two.catalog = { ...catalog, e: { gsis_id: 'ge', position: 'RB', team: 'A', full_name: 'e' }, f: { gsis_id: 'gf', position: 'RB', team: 'A', full_name: 'f' } };
+  const v2 = { ...value, e: 1, f: 3 };
+  two.remaining.players = Object.keys(two.catalog).map(id => ({ player_id: 'g' + id, team: 'A', position: 'RB', weeks: [2, 3].map(week => ({ week, status: 'conditional_projection', points: { league: { p50: v2[id] } } })) }));
+  two.give = ['a', 'b']; two.receive = ['c'];
+  assert.throws(() => analyze(two), /capacity/, 'roster 2 would hold four with a three-man capacity');
+  const out2 = analyze({ ...two, drops: { 2: ['d'] } });
+  // roster 1 before: a10+b5=15 → after: c20+e1=21 (+6/wk); roster 2 before: c20+f3=23 → after: a10+b5=15 (−8/wk), d gone.
+  assert.deepEqual(out2.weeks.map(w => w.sides.map(s => s.delta)), [[6, -8], [6, -8]]);
+  assert.deepEqual(out2.sides.map(s => s.delta), [12, -16]);
+  assert.throws(() => analyze({ ...two, drops: { 2: ['c'] } }), /retained owned player, not trade asset/);
+}
+// Scarce position: the only TE on a roster cannot be traded away without a replacement.
+{
+  const te = clone(base);
+  te.league.roster_positions = ['RB', 'TE', 'BN'];
+  te.catalog = { ...catalog, t: { gsis_id: 'gt', position: 'TE', team: 'A', full_name: 't' } };
+  te.rosters = [{ roster_id: 1, players: ['a', 't'] }, { roster_id: 2, players: ['c', 'd'] }];
+  te.remaining.players.push({ player_id: 'gt', team: 'A', position: 'TE', weeks: [2, 3].map(week => ({ week, status: 'conditional_projection', points: { league: { p50: 7 } } })) });
+  te.give = ['t']; te.receive = ['d'];
+  assert.throws(() => analyze(te), /cannot fill required TE slot/);
+}
+// A bye and an exclusion in the same week are both zero, labeled differently.
+// Corrected from the brief's draft: with only one RB slot (the base league) the
+// solver benches whichever player scores less, so a 0-point bye/excluded player
+// never surfaces in `lineup`, and roster 2's own pre-trade total also drops --
+// excluding c zeroes it on BOTH sides that reference it (already established
+// above: "unavailable c also changes partner's baseline"). Two RB slots, matching
+// each side's exact headcount, forces every player into the lineup so both
+// statuses are directly observable instead of one being silently benched.
+{
+  const bye = clone(base);
+  bye.league.roster_positions = ['RB', 'RB', 'BN'];
+  bye.remaining.players.find(p => p.player_id === 'ga').weeks[0] = { week: 2, status: 'bye', points: null };
+  const outBye = analyze({ ...bye, excludeWeeks: { c: [2] } });
+  const wk2 = outBye.weeks[0];
+  assert.equal(wk2.week, 2);
+  // roster 1 before: a(bye,0)+b5=5 → after: b5+c(excluded,0)=5, delta 0.
+  // roster 2 before: c(excluded,0)+d2=2 → after: d2+a(bye,0)=2, delta 0.
+  assert.deepEqual(wk2.sides.map(s => s.delta), [0, 0]);
+  assert.equal(wk2.sides[0].after.lineup.find(p => p.id === 'c').status, 'assumed_unavailable');
+  assert.equal(wk2.sides[1].after.lineup.find(p => p.id === 'a').status, 'bye');
+}
+// Duplicate week rows are a contract violation, not a silent double count.
+{
+  const dup = clone(base);
+  const p = dup.remaining.players.find(p => p.player_id === 'ga');
+  p.weeks.push({ ...p.weeks[0] });
+  assert.throws(() => analyze(dup), /Missing\/duplicate projection week/);
+}
+console.log('seasontrade_fixture: OK');
