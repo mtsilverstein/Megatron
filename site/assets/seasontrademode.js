@@ -105,7 +105,10 @@
     };
     const setStatus = t => { els.status.textContent = t; };
     const leagueName = (board.league && board.league.name) || league.name || slug;
-    let loadSeq = 0, busy = false;
+    let loadSeq = 0, busy = false, loading = false;
+    // Bumped by every input change and every load: a compare whose fetches
+    // were in flight when it moved must not render under the new inputs.
+    let compareSeq = 0;
     // Everything loaded for the current league snapshot. Reset wholesale on load.
     const S = { rosters: [], users: new Map(), state: null, remaining: null, catalog: null, owned: null, picksUnknown: false, me: null, partner: null, loadedProvenance: "" };
     const first = () => Math.max(Number(S.state.week), S.remaining.start_week) + 1;
@@ -149,7 +152,9 @@
       const username = els.user.value.trim();
       if (!username) { setStatus("enter your Sleeper username"); return; }
       const seq = ++loadSeq;
+      compareSeq++;
       const stale = () => seq !== loadSeq;
+      loading = true;
       try {
         hideResult();
         els.controls.hidden = true; els.cols.hidden = true; els.compare.disabled = true; els.warn.hidden = true;
@@ -186,6 +191,8 @@
         setStatus(`${rosters.length} teams loaded — you are ${rosterName(me.roster_id)}`);
       } catch (e) {
         setStatus(e instanceof PreflightError ? e.message : `load failed: ${e.message}`);
+      } finally {
+        if (!stale()) loading = false;
       }
     }
 
@@ -247,16 +254,17 @@
         side.ul.replaceChildren();
         const heading = side.ul.parentElement && side.ul.parentElement.querySelector("h2");
         if (heading) heading.textContent = `${side === sides.mine ? "You give" : "You get"} — ${sideName(side)}`;
-        const skill = [], other = [], locked = [];
+        const skill = [], other = [], locked = [], missing = [];
         const lockedSet = new Set([...(side.roster.reserve || []), ...(side.roster.taxi || [])].map(String));
         for (const id of (side.roster.players || []).map(String)) {
           const pos = (S.catalog[id] || {}).position;
-          (lockedSet.has(id) ? locked : SKILL.has(pos) ? skill : other).push(id);
+          (lockedSet.has(id) ? locked : !S.catalog[id] ? missing : SKILL.has(pos) ? skill : other).push(id);
         }
         const order = { QB: 0, RB: 1, WR: 2, TE: 3 };
         skill.sort((a, b) => (order[S.catalog[a].position] - order[S.catalog[b].position]) || playerName(a).localeCompare(playerName(b)));
         for (const id of skill) side.ul.append(playerRow(side, id));
         for (const id of other) side.ul.append(disabledRow(id, "no modeled points"));
+        for (const id of missing) side.ul.append(disabledRow(id, "not in the player catalog — reload the page"));
         for (const id of locked) side.ul.append(disabledRow(id, "IR/taxi — not tradeable in this version"));
         for (const li of pickRows(side)) side.ul.append(li);
       }
@@ -371,8 +379,9 @@
     }
 
     // --- gate ---------------------------------------------------------------
-    function canCompare() {
-      if (busy || !S.me || !S.partner) return false;
+    // The gate proper, independent of whether a compare is already running.
+    function inputsValid() {
+      if (!S.me || !S.partner) return false;
       if (!els.ack.checked) return false;
       if (sides.mine.players.size + sides.theirs.players.size === 0) return false;
       for (const s of [sides.mine, sides.theirs]) {
@@ -381,9 +390,10 @@
       }
       return true;
     }
+    const canCompare = () => !busy && inputsValid();
     const refreshCompare = () => { els.compare.disabled = !canCompare(); };
     // Any input change: the scenario on screen no longer describes the inputs.
-    function onInputChange() { hideResult(); refreshCompare(); }
+    function onInputChange() { compareSeq++; hideResult(); refreshCompare(); }
     function hideResult() {
       els.result.hidden = true;
       els.result.replaceChildren();
@@ -397,7 +407,11 @@
       hideResult();
       setStatus("comparing lineups…");
       try {
+        const seq = compareSeq;
         const [rosters, state] = await Promise.all([get(`/league/${lid}/rosters`), get("/state/nfl")]);
+        // Inputs stayed live during the await; anything that moved (ack, a
+        // checkbox, partner, a reload) invalidates this run outright.
+        if (seq !== compareSeq || !inputsValid()) { if (!loading) setStatus("inputs changed during the comparison — compare again"); return; }
         const snapshotAt = Date.now();
         const week = Number(state && state.week);
         if (!Number.isInteger(week) || week !== S.remaining.start_week) { setStatus(weekMismatch(S.remaining.start_week, state && state.week)); return; }

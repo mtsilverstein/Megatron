@@ -150,7 +150,7 @@
       weeks,sides:selected.map((r,i)=>({rosterId:rosterMap.get(r).roster_id,delta:weeks.reduce((n,w)=>n+w.sides[i].delta,0)})),
       assumptions:{assumeAvailable:true,excludeWeeks,currentWeekSkipped:currentWeek,scoringScope:remaining.scoring_scope||"Supported model stat subset only"},
       availabilityFlags:[...relevant].filter(id=>catalog[id]?.injury_status).map(id=>({id,name:catalog[id].full_name||id,status:catalog[id].injury_status,interpretation:"Reported catalog tag; no return-date inference"})),
-      warnings:["All non-excluded active players are assumed available, including reported injuries; availability is not predicted.","No keeper, future-pick, waiver-replacement, bench insurance or opponent acceptance value.","Sum of weekly lineup central scenarios, not a season median or calibrated uncertainty interval.","Current-week games are excluded. Verify processing time, platform eligibility and future roster constraints."]};
+      warnings:["All non-excluded active players are assumed available, including reported injuries; availability is not predicted.","No keeper, future-pick, waiver-replacement, bench insurance or the other side's willingness to deal.","Sum of weekly lineup central scenarios, not a season median or calibrated uncertainty interval.","Current-week games are excluded. Verify processing time, platform eligibility and future roster constraints."]};
   }
   const api=Object.freeze({analyze});
   if(typeof module!=="undefined"&&module.exports)module.exports=api;

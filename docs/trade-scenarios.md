@@ -61,5 +61,5 @@ slots include dedicated positions, FLEX and SUPER_FLEX.
 
 The summed delta is a sum of conditional weekly lineup differences—not a
 season median, calibrated interval, or additive player price. Bench insurance,
-future waivers, keeper/pick premiums, trade processing time and opponent
-acceptance are not modeled. Future team changes are also unknown.
+future waivers, keeper/pick premiums, trade processing time and the other
+side's willingness to deal are not modeled. Future team changes are also unknown.
