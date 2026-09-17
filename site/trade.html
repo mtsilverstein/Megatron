@@ -23,9 +23,9 @@
   <p class="stamp">loading…</p>
 </header>
 <main>
-  <p class="eyebrow">Gabagool Fools only · 2026 pre-draft · players and picks</p>
+  <p class="eyebrow" id="trade-eyebrow">Gabagool Fools only · 2026 pre-draft · players and picks</p>
   <h1>Trade calculator</h1>
-  <p class="draft-note">Every number is season points in your best STARTING
+  <p class="draft-note" id="trade-note">Every number is season points in your best STARTING
   LINEUP, measured by playing the rest of your draft out from the post-trade
   roster. Keepers are worked out for both sides — a player you acquire competes
   for one of your two slots, he does not add one. A player whose keeper cost
@@ -52,9 +52,34 @@
   </div>
   <div class="draft-shortlist-panel" id="trade-grade" hidden></div>
   <div class="draft-shortlist-panel" id="trade-suggestions" hidden></div>
+  <section id="season-trade" hidden>
+    <p class="eyebrow" id="season-eyebrow"></p>
+    <p class="draft-note" id="season-note">The number is starting-lineup points
+    over the remaining weeks for both rosters, week by week, before and after
+    the named players change hands. It assumes every player plays every
+    remaining week unless you mark weeks unavailable for him. It leaves out
+    keeper value, draft picks, the current week, and any injury you have not
+    marked.</p>
+    <div class="draft-row" id="season-connect">
+      <input id="season-user" type="text" placeholder="Sleeper username" aria-label="Sleeper username" autocomplete="off">
+      <button id="season-load">Load my league</button>
+      <span class="draft-status" id="season-status">— not loaded</span>
+    </div>
+    <div class="draft-row" id="season-controls" hidden>
+      <label>Trade with <select id="season-partner"></select></label>
+      <label><input type="checkbox" id="season-ack"> All players not marked unavailable are assumed to play every remaining week.</label>
+      <button id="season-compare" disabled>Compare lineups</button>
+    </div>
+    <p class="draft-note" id="season-warn" hidden></p>
+    <div class="trade-cols" id="season-cols" hidden>
+      <div><h2>You give</h2><p class="trade-col-note" id="season-mine-drops" hidden></p><ul class="trade-assets" id="season-mine"></ul></div>
+      <div><h2>You get</h2><p class="trade-col-note" id="season-theirs-drops" hidden></p><ul class="trade-assets" id="season-theirs"></ul></div>
+    </div>
+    <div class="draft-shortlist-panel" id="season-result" hidden></div>
+    <p class="draft-note" id="season-provenance"></p>
+  </section>
 </main>
-<footer>Pre-draft only: this values players and draft picks before the draft.
-In-season trading is a separate tool.</footer>
+<footer>Pre-draft: values players and draft picks before the draft. In season: conditional lineup scenarios only — no trade grades.</footer>
 <script src="assets/app.js?v=recovery5"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/optimizer.js"></script>
@@ -62,37 +87,77 @@ In-season trading is a separate tool.</footer>
 <script src="assets/trade.js"></script>
 <script src="assets/ros.js?v=1"></script>
 <script src="assets/trademode.js?v=season-guard1"></script>
+<script src="assets/seasontrade.js?v=page1"></script>
+<script src="assets/seasontrademode.js?v=page1"></script>
 <script>
 (async () => {
-  const slug=FC.leagueNavigation();
-  if(slug!=="gabagool") {
-    document.getElementById("trade-connect").hidden=true;
-    document.querySelector(".stamp").textContent="Trade advice is not available for this league yet. No Gabagool values are being loaded.";
+  const slug = FC.leagueNavigation();
+  const $ = id => document.getElementById(id);
+  const stamp = t => { document.querySelector(".stamp").textContent = t; };
+  const hide = ids => { for (const id of ids) { const n = $(id); if (n) n.hidden = true; } };
+  const NOT_AVAILABLE = "Trade advice is not available for this league yet. No Gabagool values are being loaded.";
+  if (slug === "espnfam") { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
+  const board = await FC.loadJSON(FC.leagueDataPath("draft"));
+  FC.stampHeader(board);
+  const league = await Sleeper.get(`/league/${board.league.league_id}`);
+  if (league.status === "pre_draft") {
+    // The pre-draft grader prices keepers and a simulated draft; only Gabagool
+    // has that model. FAM pre-draft keeps today's message.
+    if (slug !== "gabagool") { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
+    TradeMode.init({
+      board,
+      els: {
+        user: document.getElementById("trade-user"),
+        load: document.getElementById("trade-load"),
+        status: document.getElementById("trade-status"),
+        picker: document.getElementById("trade-league-picker"),
+        controls: document.getElementById("trade-controls"),
+        partner: document.getElementById("trade-partner"),
+        discount: document.getElementById("trade-discount"),
+        hideGenerous: document.getElementById("trade-hide-generous"),
+        suggest: document.getElementById("trade-suggest"),
+        suggestAll: document.getElementById("trade-suggest-all"),
+        warn: document.getElementById("trade-warn"),
+        cols: document.getElementById("trade-cols"),
+        mine: document.getElementById("trade-mine"),
+        theirs: document.getElementById("trade-theirs"),
+        grade: document.getElementById("trade-grade"),
+        suggestions: document.getElementById("trade-suggestions"),
+      },
+    });
     return;
   }
-  const board = await FC.loadJSON("data/draft.json");
-  FC.stampHeader(board);
-  TradeMode.init({
-    board,
-    els: {
-      user: document.getElementById("trade-user"),
-      load: document.getElementById("trade-load"),
-      status: document.getElementById("trade-status"),
-      picker: document.getElementById("trade-league-picker"),
-      controls: document.getElementById("trade-controls"),
-      partner: document.getElementById("trade-partner"),
-      discount: document.getElementById("trade-discount"),
-      hideGenerous: document.getElementById("trade-hide-generous"),
-      suggest: document.getElementById("trade-suggest"),
-      suggestAll: document.getElementById("trade-suggest-all"),
-      warn: document.getElementById("trade-warn"),
-      cols: document.getElementById("trade-cols"),
-      mine: document.getElementById("trade-mine"),
-      theirs: document.getElementById("trade-theirs"),
-      grade: document.getElementById("trade-grade"),
-      suggestions: document.getElementById("trade-suggestions"),
-    },
-  });
+  if (league.status === "in_season") {
+    // In season the pre-draft engine is never called (spec §6.6): its blocks
+    // are hidden and the conditional lineup scenario takes the page.
+    hide(["trade-eyebrow", "trade-note", "trade-connect", "trade-league-picker", "trade-controls",
+          "trade-warn", "trade-cols", "trade-grade", "trade-suggestions"]);
+    $("season-trade").hidden = false;
+    SeasonTradeMode.init({
+      board, league, slug,
+      els: {
+        eyebrow: $("season-eyebrow"),
+        user: $("season-user"),
+        load: $("season-load"),
+        status: $("season-status"),
+        controls: $("season-controls"),
+        partner: $("season-partner"),
+        ack: $("season-ack"),
+        compare: $("season-compare"),
+        warn: $("season-warn"),
+        cols: $("season-cols"),
+        mine: $("season-mine"),
+        theirs: $("season-theirs"),
+        mineDrops: $("season-mine-drops"),
+        theirsDrops: $("season-theirs-drops"),
+        result: $("season-result"),
+        provenance: $("season-provenance"),
+      },
+    });
+    return;
+  }
+  hide(["trade-connect"]);
+  stamp(`Trade tools are available before the draft and during the regular season; this league is ${league.status}.`);
 })().catch(e => {
   document.querySelector(".stamp").textContent = `failed to load: ${e.message}`;
 });

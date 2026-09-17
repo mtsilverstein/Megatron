@@ -57,4 +57,9 @@ check("no forbidden word leaves the text builders outside the two allowed senten
   const other = M.coverageText(new Error("Scoring mismatch"));
   assert.equal(other.headline, "Comparison blocked"); assert.deepEqual(other.rows, ["Scoring mismatch"]);
 });
+check("requiring the module in node leaves window untouched and exports a callable init", () => {
+  assert.equal(typeof global.window, "undefined", "the UMD wrapper must not create a global window in node");
+  assert.equal(typeof M.init, "function");
+  assert.ok(Object.isFrozen(M));
+});
 console.log(`seasontrademode_fixture: ${n} groups OK`);

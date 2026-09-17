@@ -464,6 +464,31 @@ tr.mine td:nth-child(3) { text-decoration: none; }
    dropdown and two empty asset columns before a league was ever loaded. */
 [hidden] { display: none !important; }
 
+/* -- in-season trade scenario (trade.html, #season-trade) ---------------- */
+/* Rows are checkbox labels, not click-to-toggle items, and each may carry an
+   "assume unavailable weeks" field that wraps under the name. */
+#season-trade .trade-assets li { flex-wrap: wrap; cursor: default; }
+#season-trade .trade-assets li label { display: flex; align-items: center; gap: .35rem;
+  cursor: pointer; flex: 1 1 auto; color: var(--chalk); }
+#season-trade .trade-assets li.season-disabled { opacity: .55; }
+#season-trade .trade-assets li.season-disabled label { cursor: not-allowed; }
+.season-weeks { flex: 1 1 100%; background: var(--board-raised); border: 1px solid var(--rule);
+  color: var(--chalk); padding: .25rem .4rem; border-radius: 4px;
+  font: 400 .8rem/1.3 "Source Sans 3", sans-serif; }
+.season-weeks-error { flex: 1 1 100%; color: var(--te); font-size: .72rem; }
+.season-drop-prompt { display: block; color: var(--chalk); margin-bottom: .25rem; }
+.season-drop { display: block; cursor: pointer; }
+#season-result { margin-top: 1rem; }
+#season-result h3 { margin: .8rem 0 .2rem; font: 600 .8rem/1.2 "Barlow Condensed", sans-serif;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--chalk-dim); }
+.season-headline { margin: 0; }
+.season-headline strong { font: 700 1.2rem/1.2 "Barlow Condensed", sans-serif; color: var(--chalk); }
+.season-subline { margin: .3rem 0 .6rem; }
+.season-table { margin: .4rem 0 .8rem; }
+.season-table th, .season-table td { white-space: normal; font-size: .78rem; padding: .3rem .5rem; }
+.season-list { margin: .2rem 0; padding-left: 1.2rem; }
+.season-eval { margin: .15rem 0; }
+
 /* -- keeper panel ------------------------------------------------------ */
 .keeper-panel {
   background: var(--sunken); border: 1px solid var(--rule);

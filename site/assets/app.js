@@ -33,7 +33,7 @@ window.FC = (() => {
     select.addEventListener("change",()=>{const url=new URL(location.href);url.searchParams.set("league",select.value);location.assign(url.href);});
     label.append(select);panel.append(label);
     const note=document.createElement("p");
-    note.textContent=slug==="espnfam"?"ESPN: draft board supported; live in-season tools are not connected yet.":"Draft board, weekly/start-sit and waiver research use this league. Trade calculator remains Gabagool pre-draft only. No password needed.";
+    note.textContent=slug==="espnfam"?"ESPN: draft board supported; live in-season tools are not connected yet.":"Draft board, weekly/start-sit, waiver research and in-season trade scenarios use this league. Pre-draft trade values remain Gabagool only. No password needed.";
     panel.append(note);
     // The connect page already IS "Find my Sleeper leagues" -- a link back to
     // itself from its own league panel would be a dead, redundant nav entry.
@@ -46,7 +46,7 @@ window.FC = (() => {
     }
     document.querySelector("main")?.prepend(panel);
     // Share a typed public username, not credentials or active league state.
-    const inputs=[...document.querySelectorAll("#draft-username, #trade-user, #waiver-user, #ss-user, .keeper-user")];
+    const inputs=[...document.querySelectorAll("#draft-username, #trade-user, #season-user, #waiver-user, #ss-user, .keeper-user")];
     let saved="";try{saved=localStorage.getItem("megatron:sleeper-username")||"";}catch(_){}
     for(const input of inputs){
       if(!input.value)input.value=saved;
@@ -97,7 +97,8 @@ window.FC = (() => {
     }
     // Suffixes are stripped before recompute so a second call against the
     // SAME <a> elements (repeated init) stays deterministic instead of
-    // stacking " · Gabagool only · Gabagool only".
+    // stacking " · not connected · not connected". " · Gabagool only" is the
+    // retired trade label, still stripped so stale markup cannot keep it.
     const SUFFIXES = [" · Gabagool only", " · not connected"];
     document.querySelectorAll(".masthead nav a").forEach(link => {
       const url = new URL(link.getAttribute("href"), location.href);
@@ -108,12 +109,12 @@ window.FC = (() => {
       link.href = url.href;
       let label = link.textContent;
       for (const suf of SUFFIXES) if (label.endsWith(suf)) label = label.slice(0, -suf.length);
-      if (slug !== "gabagool" && /\/trade\.html$/.test(url.pathname)) {
-        // Trade is Gabagool-only, but the href above still points at THIS
-        // league -- so the label says the tool is restricted, not that
-        // clicking it will open Gabagool.
-        label += " · Gabagool only";
-      } else if (slug === "espnfam" && /\/(weekly|waivers)\.html$/.test(url.pathname)) {
+      // Trade, weekly and waivers are live Sleeper tools: Gabagool and FAM
+      // both have them (trade is pre-draft for Gabagool, an in-season lineup
+      // scenario for either), ESPN has none. The href above still points at
+      // THIS league, so the label says the tool is not connected rather than
+      // implying a click will switch leagues.
+      if (slug === "espnfam" && /\/(trade|weekly|waivers)\.html$/.test(url.pathname)) {
         label += " · not connected";
       }
       link.textContent = label;

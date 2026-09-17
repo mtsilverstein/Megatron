@@ -27,13 +27,18 @@ const fam = page(`${base}index.html?league=fam`);
 assert.strictEqual(fam.slug, "fam");
 assert.strictEqual(fam.links[0].href, `${base}index.html?league=fam`,
   "clicking the current draft tab must not switch leagues");
-assert.match(fam.links[1].textContent, /Gabagool/);
+// FAM has the in-season trade page (conditional lineup scenarios), so its
+// trade link carries NO restriction suffix -- neither the retired "Gabagool
+// only" nor "not connected".
+assert.doesNotMatch(fam.links[1].textContent, /Gabagool/,
+  "FAM's trade link must not claim the tool is Gabagool-only any more");
+assert.doesNotMatch(fam.links[1].textContent, /not connected/);
 assert.doesNotMatch(fam.links[2].textContent, /Gabagool/);
 // The trade href must still carry FAM, not silently jump to Gabagool -- the
-// label says the tool is restricted, the URL never switches leagues for you.
+// URL never switches leagues for you.
 assert.strictEqual(fam.links[1].href, `${base}trade.html?league=fam`,
-  "trade's label may say Gabagool only, but its href must not switch leagues");
-assert.strictEqual(fam.links[1].textContent, "Trade calculator · Gabagool only");
+  "trade's href must not switch leagues");
+assert.strictEqual(fam.links[1].textContent, "Trade calculator");
 assert.ok(!fam.links[1].disabledAttrSet,
   "trade must stay a real, enabled link -- not one dressed up as disabled");
 for (const link of fam.links.slice(1)) {
@@ -48,15 +53,20 @@ assert.strictEqual(page(fam.links[0].href).slug, "fam",
   "opening Gabagool in another tab must not alter FAM's URL");
 
 // The ESPN league is a third board with no live draft path. It must select
-// and round-trip like any other, and -- because trade.html is Gabagool-only
-// -- it must carry the same "Gabagool only" label FAM does. That label rule
-// keys on "not Gabagool", not on "is FAM".
+// and round-trip like any other, and -- because no live Sleeper tool is
+// connected for it -- its trade link carries the same " · not connected"
+// suffix its weekly/waivers links do. The label rule keys on "is ESPN", not
+// on "not Gabagool": FAM is a Sleeper league and gets no suffix.
 const espn = page(`${base}index.html?league=espnfam`);
 assert.strictEqual(espn.slug, "espnfam");
 assert.strictEqual(espn.links[0].href, `${base}index.html?league=espnfam`,
   "clicking the current draft tab must not switch leagues");
-assert.match(espn.links[1].textContent, /Gabagool/,
-  "trade.html is Gabagool-only and must say so on the ESPN board");
+assert.doesNotMatch(espn.links[1].textContent, /Gabagool/,
+  "ESPN's trade label must not imply a click opens Gabagool");
+assert.strictEqual(espn.links[1].textContent, "Trade calculator · not connected",
+  "trade.html is not connected for ESPN and must say so");
+assert.strictEqual(espn.links[1].href, `${base}trade.html?league=espnfam`,
+  "the trade link must still carry the ESPN league, not switch it");
 assert.doesNotMatch(espn.links[2].textContent, /Gabagool/);
 assert.doesNotMatch(espn.links[4].textContent, /Gabagool/);
 // ESPN's live weekly/waivers aren't connected -- say so plainly, and don't
@@ -70,10 +80,11 @@ for (const link of espn.links.slice(1)) {
   assert.strictEqual(otherPage.links[0].href, `${base}index.html?league=espnfam`,
     "returning from another page must restore the ESPN board");
 }
-// The Gabagool board must NOT pick up the label the other two carry.
+// The Gabagool board must NOT pick up any restriction label.
 const gabLabels = page(`${base}index.html?league=gabagool`);
 assert.doesNotMatch(gabLabels.links[1].textContent, /Gabagool/,
   "Gabagool's own trade tab must not be labelled with its own name");
+assert.strictEqual(gabLabels.links[1].textContent, "Trade calculator");
 assert.doesNotMatch(gabLabels.links[2].textContent, /Gabagool/);
 
 // Invalid URLs remain hard failures so no advice can accidentally be loaded
@@ -127,19 +138,21 @@ assert.equal(FC.leagueDataPath("weekly"),"data/weekly.json");
 assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
 
 // leagueNavigation running twice against the SAME <a> elements (a defensive
-// re-init) must not stack suffixes -- "· Gabagool only · Gabagool only" would
-// be the tell that the label mutation isn't idempotent.
+// re-init) must not stack suffixes -- "· not connected · not connected" would
+// be the tell that the label mutation isn't idempotent. A link that arrives
+// already carrying the retired "· Gabagool only" label must lose it.
 {
   const names = ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"];
   const repeatedLinks = ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"]
     .map((path, i) => ({ href: path, textContent: names[i], getAttribute() { return this.href; } }));
+  repeatedLinks[1].textContent += " · Gabagool only";
   global.location = new URL(`${base}index.html?league=espnfam`);
   global.document = { querySelectorAll: selector =>
     selector === ".masthead nav a" ? repeatedLinks : [] };
   FC.leagueNavigation();
   FC.leagueNavigation();
-  assert.strictEqual(repeatedLinks[1].textContent, "Trade calculator · Gabagool only",
-    "repeated init must not stack the Gabagool-only suffix");
+  assert.strictEqual(repeatedLinks[1].textContent, "Trade calculator · not connected",
+    "repeated init must not stack the not-connected suffix, and must strip the retired Gabagool-only label");
   assert.strictEqual(repeatedLinks[2].textContent, "Weekly · not connected",
     "repeated init must not stack the not-connected suffix");
   assert.strictEqual(repeatedLinks[1].href, `${base}trade.html?league=espnfam`,
