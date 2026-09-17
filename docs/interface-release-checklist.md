@@ -135,9 +135,11 @@ three rows plus stamp; league panel ended at 460px; username form began at
 840px, off the first screen). CSS-only fix inside the existing 560px media
 block: tighter masthead row gaps and padding, wordmark 1.15rem, nav gap
 .15rem/.7rem at .82rem, stamp .7rem, league panel padding .6rem/.8rem, h1
-1.55rem. Nothing is hidden and no controls were added: every link, its
-"· Gabagool only"/"· not connected" suffix, the active-page marker, the
-league URL and the stamp remain visible; links wrap rather than scroll.
+1.55rem. Nothing is hidden and no controls were added: every link, its nav
+suffix (the trade link now carries none for FAM and "· not connected" for
+ESPN; "· Gabagool only" survives in app.js only as a stripped legacy string),
+the active-page marker, the league URL and the stamp remain visible; links
+wrap rather than scroll.
 Measured afterwards at 390px on all six pages: masthead 159px (two nav rows)
 or 185px (three rows for FAM/ESPN suffixes), league panel ends 303–399px, no
 horizontal overflow, and the waiver username form starts at 653px. Desktop
@@ -257,3 +259,17 @@ priced, net-negative, unassessed-with-reason, stale/misaligned payload, bye vs
 unmodeled, precedence, decomposition identity, performance bound. Browser check
 against live Gabagool/FAM rows is pending for root, as is the first cron-published
 payload (the committed payloads were generated locally).
+
+In-season trade scenario (September 17, Claude/astra consensus): trade.html
+branches on live league status; in season it renders both sides' week-by-week
+lineup change from the remaining-season payload with user-stated availability
+exclusions, explicit drops, picks listed as not valued, and no grade, verdict,
+suggestions or scan (spec `docs/superpowers/specs/2026-09-17-inseason-trade-scenario-design.md`).
+The engine's excluded-factors warning in `trade-scenarios.md` was reworded to
+name "the other side's willingness to deal" alongside bench insurance, future
+waivers, keeper/pick premiums and trade processing time. Fixture-verified:
+shared solver parity (ros_fixture brute force, waivers 43
+groups, seasontrade incl. 2-for-1 drops / scarce TE / bye+exclusion / duplicate
+weeks), controller helpers incl. the forbidden-word scan. Pending for root: a
+live browser round trip on Gabagool and FAM (load, exclude weeks, uneven trade
+with drops, coverage-blocked case), and mobile layout of the new section.

@@ -85,4 +85,18 @@ assert.ok(sourcesAt >= 0 && sourceAt > sourcesAt, "source provenance is inside t
 assert.ok(coverageAt >= 0 && coverageAt < sourcesAt, "coverage remains visible outside the data-sources disclosure");
 assert.doesNotMatch(waivers, /<details\b[^>]*\bopen\b[^>]*>\s*<summary>Available watchlist/i, "preseason watchlist starts collapsed");
 
+// The in-season branch must stamp the masthead from the remaining-season
+// payload, not the draft board's -- a `FC.stampHeader(board)` call outside
+// the pre_draft branch would show the wrong league's "data as of" and could
+// trigger a false stale banner over live in-season numbers.
+{
+  const trade = readPage("trade.html");
+  const stampCalls = [...trade.matchAll(/FC\.stampHeader\(board\)/g)];
+  assert.equal(stampCalls.length, 1, "trade.html: FC.stampHeader(board) must be called exactly once");
+  const preDraftAt = trade.indexOf("pre_draft");
+  assert.ok(preDraftAt >= 0, "trade.html: pre_draft branch is present");
+  assert.ok(stampCalls[0].index > preDraftAt,
+    "trade.html: FC.stampHeader(board) must only run in the pre_draft branch, not in_season");
+}
+
 console.log("interface hierarchy fixture passed");

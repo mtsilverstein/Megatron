@@ -5,6 +5,7 @@
   if (typeof module !== "undefined" && module.exports) module.exports = W;
 })(this, function () {
   "use strict";
+  const ROS = (typeof module !== "undefined" && module.exports) ? require("./ros.js") : window.ROS;
 
   const SKILL = new Set(["QB", "RB", "WR", "TE"]);
   const SLOT_ELIGIBLE = {
@@ -57,35 +58,8 @@
       return n + (s === "IR" || s === "TAXI" ? 0 : 1);
     }, 0);
   }
-  function lineupScore(players, starterSlots, scoreOf) {
-    // Exact for the supported laminar slot family: dedicated position sets are
-    // disjoint, FLEX contains RB/WR/TE, and SUPER_FLEX contains all of them.
-    // Taking the best mandatory players first cannot hurt a broader slot; the
-    // remaining broader slots then take the best remaining eligible scores.
-    const need = { QB: 0, RB: 0, WR: 0, TE: 0, FLEX: 0, SUPER_FLEX: 0 };
-    starterSlots.forEach(s => need[s]++);
-    const pools = { QB: [], RB: [], WR: [], TE: [] };
-    players.forEach(p => {
-      const pos = position(p), value = scoreOf(p);
-      if (pools[pos] && value !== null) pools[pos].push(value);
-    });
-    Object.values(pools).forEach(xs => xs.sort((a, b) => b - a));
-    let total = 0;
-    for (const pos of ["QB", "RB", "WR", "TE"]) {
-      if (pools[pos].length < need[pos]) return -Infinity;
-      for (let i = 0; i < need[pos]; i++) total += pools[pos].shift();
-    }
-    let flex = pools.RB.concat(pools.WR, pools.TE).sort((a, b) => b - a);
-    if (flex.length < need.FLEX) return -Infinity;
-    for (let i = 0; i < need.FLEX; i++) total += flex.shift();
-    // Remove FLEX selections from their positional pools by multiset value.
-    const remainingFlex = flex.slice();
-    const qb = pools.QB;
-    const superFlex = qb.concat(remainingFlex).sort((a, b) => b - a);
-    if (superFlex.length < need.SUPER_FLEX) return -Infinity;
-    for (let i = 0; i < need.SUPER_FLEX; i++) total += superFlex[i];
-    return total;
-  }
+  // Lineup solver moved to ros.js (shared with seasontrade.js/waivermode.js).
+  const lineupScore = ROS.lineupScore;
   function validateIds(values, label) {
     const seen = new Set();
     (values || []).forEach(v => {

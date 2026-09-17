@@ -1,4 +1,20 @@
-# Local conditional trade prototype
+# In-season trade scenarios
+
+## The page (2026-09-17)
+
+`trade.html?league=gabagool` and `?league=fam` switch to an in-season branch when the
+Sleeper league is `in_season`. Enter your username, pick a partner, tick the players
+on each side, mark any weeks a player should be assumed unavailable (your assumption —
+the page never fills one in from an injury tag), acknowledge that everyone else is
+assumed to play, add explicit drops when a side would exceed roster capacity, and
+press "Compare lineups". The result is both sides' week-by-week and remaining-season
+starting-lineup change from the model's remaining-season projections, labeled
+"Conditional lineup scenario — not a trade verdict." Picks in the offer are listed as
+not valued; keeper value is not modeled; the current week is excluded because trades
+may process after games start. No suggestions, no league scan, no grade: those are
+gated behind the roster-level promotion test recorded in
+`docs/superpowers/specs/2026-09-17-inseason-trade-scenario-design.md` §8. The pre-draft
+calculator is unchanged and still refuses in-season leagues.
 
 This is a read-only experimental engine, not the published pre-draft trade
 calculator. It does not send trades, give a verdict, price keeper/pick assets,
@@ -61,5 +77,5 @@ slots include dedicated positions, FLEX and SUPER_FLEX.
 
 The summed delta is a sum of conditional weekly lineup differences—not a
 season median, calibrated interval, or additive player price. Bench insurance,
-future waivers, keeper/pick premiums, trade processing time and opponent
-acceptance are not modeled. Future team changes are also unknown.
+future waivers, keeper/pick premiums, trade processing time and the other
+side's willingness to deal are not modeled. Future team changes are also unknown.

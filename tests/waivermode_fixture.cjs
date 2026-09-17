@@ -76,28 +76,6 @@ const openPriced = M.rowText({ ...rowBase, drop:null, lineupGain:8, rosterCost:"
   signal:{strength:"modeled",guidance:"heuristic bid range",basis:"move",moveValue:12,perWeekGain:4}, bid:{low:4,high:10,tier:"useful",canAfford:true,status:null,label:"heuristic, not calibrated and not a win probability"} }, faab);
 assert.equal(openPriced.gain, "+8.00 pts this week · ROS +4.00");
 assert.match(openPriced.exportLine, /DROP none; \+8\.00 \(week 2 projection\); ROS \+4\.00 \(wk 2–3\); modeled; heuristic bid \$4–\$10; uses an open roster spot/);
-// Evaluation text is built from the payload block, never typed.
-assert.deepEqual(M.evaluationText(null), ["no measured evaluation for this league's scoring"]);
-assert.deepEqual(M.evaluationText({ source:"models/diagnostics/remaining_matrix_gabagool.json", baseline:"mean league-scored production in the last four recorded pre-origin games", seasons:[2023,2024,2025], origins:[5,9],
-  horizons:[{horizon:1,model_mae:4.612,baseline_mae:4.815,paired_forecasts:1817},{horizon:8,model_mae:4.8,baseline_mae:4.987,paired_forecasts:1834}], limitation:"Dependent windows.", scoring_scope:"evaluated under gabagool scoring, which matches this league" }), [
-  "Measured on 2023–2025 (origins week 5 and 9) against mean league-scored production in the last four recorded pre-origin games:",
-  "1 week ahead: model MAE 4.61 vs baseline 4.82 (1,817 paired forecasts)",
-  "8 weeks ahead: model MAE 4.80 vs baseline 4.99 (1,834 paired forecasts)",
-  "Horizons beyond 8 weeks are not measured; errors are over players who recorded a game.",
-  "evaluated under gabagool scoring, which matches this league",
-  "Dependent windows.",
-]);
-// Older payloads without forecast_players/missing_actuals omit the parenthetical
-// (asserted above); a current payload with those fields includes it, keyed to
-// the horizon-1 row, and a malformed numeric field renders "n/a" without throwing.
-assert.deepEqual(M.evaluationText({ baseline:"x", seasons:[], origins:[],
-  horizons:[{horizon:1,model_mae:null,baseline_mae:4.815,paired_forecasts:1817,forecast_players:3701,missing_actuals:1857},
-            {horizon:2,model_mae:4.452,baseline_mae:4.722,paired_forecasts:1791,forecast_players:3650,missing_actuals:1830}] }), [
-  "Measured on the evaluation seasons against x:",
-  "1 week ahead: model MAE n/a vs baseline 4.82 (1,817 paired forecasts)",
-  "2 weeks ahead: model MAE 4.45 vs baseline 4.72 (1,791 paired forecasts)",
-  "Horizons beyond 2 weeks are not measured; errors are over players who recorded a game (1,817 of 3,701 forecasts at 1 week ahead had an outcome).",
-]);
 const id = "1376245373244301312";
 const league = { league_id: id, season: "2026", status: "in_season", total_rosters: 12, settings: { waiver_type: 2 },
   scoring_settings: { ...board.league.sleeper_scoring, fum: 0 },

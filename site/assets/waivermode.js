@@ -1,6 +1,7 @@
 /* Read-only live league adapter and rendering for the FAAB desk. */
 (function () {
   "use strict";
+  const ROS = (typeof module !== "undefined" && module.exports) ? require("./ros.js") : window.ROS;
   const dep = (name, path) => typeof window !== "undefined" && window[name]
     ? window[name] : typeof require === "function" ? require(path) : null;
   const Sleeper = dep("Sleeper", "./sleeper.js");
@@ -111,31 +112,10 @@
     };
   }
 
-  function evaluationText(evaluation) {
-    if (!evaluation || !Array.isArray(evaluation.horizons)) return ["no measured evaluation for this league's scoring"];
-    const seasons = (evaluation.seasons || []), origins = (evaluation.origins || []);
-    const span = seasons.length ? `${seasons[0]}–${seasons[seasons.length - 1]}` : "the evaluation seasons";
-    const originText = origins.length ? ` (origins week ${origins.join(" and ")})` : "";
-    const lines = [`Measured on ${span}${originText} against ${evaluation.baseline}:`];
-    const num = x => Number.isFinite(x) ? x.toFixed(2) : "n/a";
-    const count = n => Number.isFinite(n) ? n.toLocaleString("en-US") : "n/a";
-    for (const h of evaluation.horizons) lines.push(`${h.horizon} week${h.horizon === 1 ? "" : "s"} ahead: model MAE ${num(h.model_mae)} vs baseline ${num(h.baseline_mae)} (${count(h.paired_forecasts)} paired forecasts)`);
-    // The desk prices every horizon out to the roster's remaining schedule,
-    // but only these measured horizons have a checked error; the diagnostic's
-    // MAE is also only over players who recorded a game, not every forecast.
-    const maxHorizon = evaluation.horizons.reduce((m, h) => Number.isFinite(h.horizon) && h.horizon > m ? h.horizon : m, -Infinity);
-    if (Number.isFinite(maxHorizon)) {
-      const outcomeRow = evaluation.horizons.find(h => h.horizon === 1) || evaluation.horizons[0];
-      let scope = `Horizons beyond ${maxHorizon} weeks are not measured; errors are over players who recorded a game`;
-      if (outcomeRow && Number.isFinite(outcomeRow.forecast_players)) {
-        scope += ` (${count(outcomeRow.paired_forecasts)} of ${count(outcomeRow.forecast_players)} forecasts at ${outcomeRow.horizon} week${outcomeRow.horizon === 1 ? "" : "s"} ahead had an outcome)`;
-      }
-      lines.push(`${scope}.`);
-    }
-    if (evaluation.scoring_scope) lines.push(evaluation.scoring_scope);
-    if (evaluation.limitation) lines.push(evaluation.limitation);
-    return lines;
-  }
+  // Moved to ros.js (shared with waivers.js/seasontrade.js); kept under this
+  // name so window.WaiverMode.evaluationText and every call in init() below
+  // keep working unchanged.
+  const evaluationText = ROS.evaluationText;
 
   function init() {
     const W = window.Waivers;
