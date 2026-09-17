@@ -5,6 +5,10 @@
   const eligible = {QB:["QB"],RB:["RB"],WR:["WR"],TE:["TE"],FLEX:["RB","WR","TE"],SUPER_FLEX:["QB","RB","WR","TE"]};
   const team = t => ({LAR:"LA",JAC:"JAX",WSH:"WAS"}[t] || t);
   const require = (ok,msg) => { if (!ok) throw Error(msg); };
+  // NB: this file's own `require` above is an assertion helper, not Node's
+  // module loader (shadowed for the rest of this scope) -- resolve ros.js via
+  // module.require, the loader function Node always attaches to `module`.
+  const ROS = (typeof module !== "undefined" && module.exports) ? module.require("./ros.js") : window.ROS;
   function ids(values,label) {
     require(Array.isArray(values),`${label} must be an array`);
     require(values.every(v => (typeof v==="string" && v.trim()) || (typeof v==="number" && Number.isFinite(v))),`${label} contains invalid identity`);
@@ -12,17 +16,8 @@
     require(new Set(out).size===out.length,`${label} contains duplicate identity`);
     return out;
   }
-  function lineup(players,slots) {
-    const available=players.slice().sort((a,b)=>b.points-a.points || a.id.localeCompare(b.id));
-    const order=slots.map((slot,i)=>({slot,i})).sort((a,b)=>eligible[a.slot].length-eligible[b.slot].length);
-    const chosen=Array(slots.length);
-    for (const {slot,i} of order) {
-      const index=available.findIndex(p=>eligible[slot].includes(p.position));
-      require(index>=0,`Roster cannot fill required ${slot} slot; no replacement score assumed`);
-      chosen[i]={...available.splice(index,1)[0],slot};
-    }
-    return {total:chosen.reduce((n,p)=>n+p.points,0),lineup:chosen};
-  }
+  // Lineup solver moved to ros.js (shared with waivers.js/waivermode.js).
+  const asLineup=r=>{require(Number.isFinite(r.total),`Roster cannot fill required ${r.unfillable} slot; no replacement score assumed`);return {total:r.total,lineup:r.starters.map(s=>({...s.player,slot:s.slot}))};};
   function analyze({remaining,league,rosters,catalog,board,rosterIds,give=[],receive=[],drops={},excludeWeeks={},currentWeek,assumeAvailable,now=Date.now(),snapshotAt}) {
     catalog=Object.fromEntries(Object.entries(catalog||{}).map(([id,c])=>[id,{...c,gsis_id:typeof c.gsis_id==="string"?c.gsis_id.trim():null}]));
     require(assumeAvailable===true,"Explicit conditional-availability assumption required");
@@ -145,8 +140,8 @@
     const weeks=[];
     for(let week=first;week<=remaining.end_week;week++) {
       const sides=selected.map((rid,i)=>{
-        const b=lineup(before[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots);
-        const a=lineup(after[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots);
+        const b=asLineup(ROS.bestLineup(before[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots,p=>p.points));
+        const a=asLineup(ROS.bestLineup(after[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots,p=>p.points));
         return {rosterId:rosterMap.get(rid).roster_id,before:b,after:a,delta:a.total-b.total};
       });
       weeks.push({week,sides});
