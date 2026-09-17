@@ -1,5 +1,7 @@
 """Experimental frozen-history future-week scenarios, not calibrated ROS advice."""
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pandas as pd
 
@@ -8,9 +10,60 @@ from ffmodel.site.weekly import build_weekly_projections, RULESETS
 from ffmodel.league import SLEEPER_RULE_FIELDS
 from ffmodel.scoring import PREDICTED_STATS
 
+DIAGNOSTICS_DIR = Path(__file__).resolve().parents[3] / "models" / "diagnostics"
+BASELINE_DESCRIPTION = "mean league-scored production in the last four recorded pre-origin games"
+
+
+def load_evaluation(slug, league_scoring, diagnostics_dir=DIAGNOSTICS_DIR,
+                    reference_slug="gabagool", reference_scoring=None):
+    """The measured remaining-season evaluation for this league, or None.
+
+    Read from the committed `remaining_matrix_<slug>.json`, never typed in.
+    Another league's diagnostic is borrowed only when the two leagues agree on
+    every MODELED scoring key (`ffmodel.league.SLEEPER_RULE_FIELDS`), and then
+    says so in `scoring_scope`. The diagnostic scores predicted stat components
+    only, so kicker distance bands, `fgm_yds`, and 50-yard-TD bonuses cannot
+    move it and must not block the borrow."""
+    diagnostics_dir = Path(diagnostics_dir)
+    path = diagnostics_dir / f"remaining_matrix_{slug}.json"
+    scope = None
+    if not path.exists():
+        if reference_scoring is None or slug == reference_slug:
+            return None
+        if not _scoring_equal(league_scoring, reference_scoring):
+            return None
+        path = diagnostics_dir / f"remaining_matrix_{reference_slug}.json"
+        if not path.exists():
+            return None
+        scope = f"evaluated under {reference_slug} scoring, which matches this league"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    horizons = [{"horizon": int(r["horizon"]), "model_mae": round(float(r["model_mae"]), 3),
+                 "baseline_mae": round(float(r["baseline_mae"]), 3),
+                 "paired_forecasts": int(r["paired_player_forecasts"]),
+                 "forecast_players": int(r["forecast_players"]),
+                 "missing_actuals": int(r["missing_actuals"])}
+                for r in data.get("summary", []) if r.get("position") == "ALL"]
+    horizons.sort(key=lambda r: r["horizon"])
+    out = {"source": f"models/diagnostics/{path.name}", "baseline": BASELINE_DESCRIPTION,
+           "seasons": list(data.get("seasons", [])), "origins": list(data.get("origins", [])),
+           "horizons": horizons, "limitation": data.get("limitation")}
+    if scope:
+        out["scoring_scope"] = scope
+    return out
+
+
+def _scoring_equal(a, b):
+    """Compare only the scoring keys the diagnostic's model actually predicts.
+
+    `SLEEPER_RULE_FIELDS` are the stat components the transformer forecasts;
+    anything else (kicker distance bands, `fgm_yds`, 50-yard-TD bonuses) is
+    unmodeled and cannot change whether a borrowed diagnostic still applies."""
+    keys = set(SLEEPER_RULE_FIELDS)
+    return all(float((a or {}).get(k, 0)) == float((b or {}).get(k, 0)) for k in keys)
+
 
 def build_remaining(weekly, schedules, predictor, season, start_week, *,
-                    current_teams, league, end_week=17, pick_six_prior=None):
+                    current_teams, league, end_week=17, pick_six_prior=None, evaluation=None):
     if not 1 <= start_week <= end_week <= 18:
         raise ValueError("invalid remaining-week horizon")
     if not current_teams or not league.get("league_id") or not league.get("sleeper_scoring"):
@@ -25,7 +78,7 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
     if history.empty:
         raise ValueError("no observed pre-slate history")
     last = history.sort_values(["season", "week"]).iloc[-1]
-    through = f"{int(last.season)}-wk{int(last.week):02d}"
+    through = f"{int(last.season)}-wk{int(last.week)}"
     schedule = schedules[schedules.season == season].copy()
     if "game_type" in schedule:
         schedule = schedule[schedule.game_type == "REG"]
@@ -77,13 +130,17 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
                 if p["team"] != record["team"]:
                     raise ValueError("projection team does not match current team")
                 record.update({"name": p["name"], "position": p["position"]})
+                points = p.get("points") or {}
+                if not isinstance(points.get("league"), dict):
+                    raise ValueError("league lens missing from weekly projection")
                 row = {"week": week, "status": "conditional_projection",
-                       "opponent": p["opponent"], "points": p["points"],
-                       "stat_quantiles": p["stat_quantiles"]}
+                       "opponent": p["opponent"],
+                       "points": {"league": dict(points["league"])}}
             record["weeks"].append(row)
     return {"schema_version": 1, "horizon": "remaining_season", "status": "experimental",
-            "advice_eligible": False, "season": season, "start_week": start_week,
-            "end_week": end_week, "generated_at": datetime.now(timezone.utc).isoformat(),
+            "evaluation": evaluation, "season": season, "start_week": start_week,
+            "end_week": end_week,
+            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "data_through": through, "league": league, "model": predictor.name,
             "forecast_cutoff": f"before {season} week {start_week}",
             "observed_target_rows_ignored": int(((weekly.season == season) & (weekly.week >= start_week)).sum()),

@@ -121,8 +121,10 @@ assert.doesNotMatch(gabLabels.links[2].textContent, /Gabagool/);
 page(`${base}weekly.html?league=fam`);
 assert.equal(FC.leagueDataPath("weekly"),"data/weekly-fam.json");
 assert.equal(FC.leagueDataPath("draft"),"data/draft-fam.json");
+assert.equal(FC.leagueDataPath("remaining"),"data/remaining-fam.json");
 page(`${base}weekly.html?league=gabagool`);
 assert.equal(FC.leagueDataPath("weekly"),"data/weekly.json");
+assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
 
 // leagueNavigation running twice against the SAME <a> elements (a defensive
 // re-init) must not stack suffixes -- "· Gabagool only · Gabagool only" would

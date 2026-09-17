@@ -101,6 +101,18 @@ def test_atomic_write_happy_path(tmp_path):
     assert json.loads(target.read_text()) == {"ok": 1}
 
 
+def test_atomic_write_compact_has_no_indent(tmp_path):
+    target = tmp_path / "remaining-gabagool.json"
+    _atomic_write(target, {"a": [1, 2]}, compact=True)
+    assert target.read_text() == '{"a":[1,2]}'
+
+
+def test_atomic_write_default_is_still_indented(tmp_path):
+    target = tmp_path / "draft.json"
+    _atomic_write(target, {"a": [1, 2]})
+    assert target.read_text() == json.dumps({"a": [1, 2]}, indent=2, allow_nan=False)
+
+
 def test_require_backtests_rejects_empty():
     from ffmodel.site.generate import require_backtests
 
@@ -998,3 +1010,48 @@ def test_a_non_default_league_builds_its_own_board_file(monkeypatch, tmp_path):
     assert capture["replacement_rank"]["QB"] == 11
     assert (tmp_path / "out" / "draft-fam.json").exists()
     assert not (tmp_path / "out" / "draft.json").exists()
+
+
+def test_remaining_failure_is_skipped_not_fatal(monkeypatch, tmp_path, capsys):
+    import json
+    import ffmodel.data.future as future_mod
+    import ffmodel.site.weekly as weekly_mod
+    import ffmodel.site.remaining as remaining_mod
+    monkeypatch.setattr(future_mod, "combined_future_features", lambda *a, **k: (None, None))
+    monkeypatch.setattr(weekly_mod, "build_weekly_projections", lambda *a, **k: {"players": []})
+
+    def boom(*a, **k):
+        raise ValueError("no observed pre-slate history")
+    monkeypatch.setattr(remaining_mod, "build_remaining", boom)
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6", "--remaining"], {})
+    out = tmp_path / "out"
+    assert (out / "weekly.json").exists()
+    assert not (out / "remaining-gabagool.json").exists()
+    assert "remaining-season payload skipped: no observed pre-slate history" in capsys.readouterr().out
+
+
+def test_remaining_success_is_published_with_evaluation(monkeypatch, tmp_path):
+    import json
+    import ffmodel.data.future as future_mod
+    import ffmodel.site.weekly as weekly_mod
+    import ffmodel.site.remaining as remaining_mod
+    monkeypatch.setattr(future_mod, "combined_future_features", lambda *a, **k: (None, None))
+    monkeypatch.setattr(weekly_mod, "build_weekly_projections", lambda *a, **k: {"players": []})
+    seen = {}
+
+    def fake_build(weekly, schedules, predictor, season, start_week, **kw):
+        seen.update(kw)
+        return {"schema_version": 1, "players": [], "evaluation": kw.get("evaluation")}
+    monkeypatch.setattr(remaining_mod, "build_remaining", fake_build)
+    monkeypatch.setattr(remaining_mod, "load_evaluation", lambda *a, **k: {"source": "stub"})
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6", "--remaining"], {})
+    payload = json.loads((tmp_path / "out" / "remaining-gabagool.json").read_text())
+    assert payload["evaluation"] == {"source": "stub"}
+    assert seen["evaluation"] == {"source": "stub"}
+    assert seen["league"]["slug"] == "gabagool"
+
+
+def test_weekly_workflow_publishes_remaining_for_both_leagues():
+    text = Path(".github/workflows/weekly-update.yml").read_text(encoding="utf-8")
+    assert 'ARGS="$ARGS --week auto --remaining"' in text
+    assert "for LEAGUE in gabagool fam; do" in text

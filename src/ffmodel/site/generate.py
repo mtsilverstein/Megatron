@@ -67,11 +67,15 @@ def validate_draftable_coverage(board: dict, ecr: dict | None,
             "union": len(required), "represented": len(required), "missing": 0}
 
 
-def _atomic_write(path: Path, payload: dict) -> None:
+def _atomic_write(path: Path, payload: dict, *, compact: bool = False) -> None:
     path = Path(path)
     tmp = path.with_suffix(path.suffix + ".tmp")
     try:
-        tmp.write_text(json.dumps(payload, indent=2, allow_nan=False))
+        if compact:
+            text = json.dumps(payload, separators=(",", ":"), allow_nan=False)
+        else:
+            text = json.dumps(payload, indent=2, allow_nan=False)
+        tmp.write_text(text)
         os.replace(tmp, path)
     finally:
         if tmp.exists():
@@ -706,11 +710,22 @@ def main() -> None:
         from ffmodel.site.kickoffs import pull_kickoffs
         payloads["kickoffs.json"] = pull_kickoffs(args.season, week)
         if args.remaining:
-            from ffmodel.site.remaining import build_remaining
-            payloads[f"remaining-{cfg.slug}.json"] = build_remaining(
-                weekly, schedules, predictor, args.season, week,
-                current_teams=current_teams, league=cfg.payload(),
-                end_week=max(week, 17), pick_six_prior=pick_six_prior)
+            # Optional payload, fail-soft: a remaining-season failure must never
+            # block the weekly slate. The previously published file stays put and
+            # the waiver desk's own 72-hour freshness guard withholds drop pricing.
+            from ffmodel.site import remaining as remaining_mod
+            try:
+                reference = load_league("gabagool")
+                evaluation = remaining_mod.load_evaluation(
+                    cfg.slug, cfg.sleeper_scoring,
+                    reference_scoring=reference.sleeper_scoring)
+                payloads[f"remaining-{cfg.slug}.json"] = remaining_mod.build_remaining(
+                    weekly, schedules, predictor, args.season, week,
+                    current_teams=current_teams, league=cfg.payload(),
+                    end_week=max(week, 17), pick_six_prior=pick_six_prior,
+                    evaluation=evaluation)
+            except Exception as exc:  # noqa: BLE001 — optional payload, reported not raised
+                print(f"remaining-season payload skipped: {exc}")
     if args.draft:
         returning = _load_returning(Path(args.returning), weekly, args.season)
         if returning:
@@ -772,7 +787,7 @@ def main() -> None:
 
     args.out.mkdir(parents=True, exist_ok=True)
     for name, payload in payloads.items():
-        _atomic_write(args.out / name, payload)
+        _atomic_write(args.out / name, payload, compact=name.startswith("remaining-"))
         print(f"{name}: written"
               + (f" ({len(payload['players'])} players)" if "players" in payload else ""))
 

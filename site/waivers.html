@@ -37,9 +37,11 @@
   <section id="waiver-results" hidden>
     <div id="waiver-budget" class="waiver-budget" aria-label="Waiver budget or rolling priority"></div>
     <p id="waiver-coverage" class="waiver-source" aria-live="polite"></p>
+    <p id="waiver-ros" class="waiver-source" aria-live="polite"></p>
     <details>
       <summary>Data sources and timestamps</summary>
       <p id="waiver-source" class="waiver-source"></p>
+      <div id="waiver-evaluation" class="waiver-source" aria-label="Remaining-season projection evaluation"></div>
     </details>
     <div class="waiver-toolbar">
       <label>Position <select id="waiver-position"><option value="ALL">All skill positions</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option></select></label>
@@ -87,8 +89,8 @@
       <li>Current-week recommendations require fresh aligned projections and a complete modeled roster baseline. Otherwise recommendations are withheld; research lists are not bid advice.</li>
       <li>For FAAB, the budget reserve is your choice, not a measured optimum. For rolling waivers, no dollar amounts are invented: current priority is context and add/drop alternatives remain value-based.</li>
       <li>Weak signals: an alternative gaining under 1.0 projected point per week stays listed for research but gets no bid range and no priority-claim suggestion. The 1.0-point cutoff is a conservative product convention, not a validated noise or confidence threshold, and projection quantiles are not claim-success probabilities.</li>
-      <li>Drop cost beyond the selected week is not priced. A swap that helps this week can still cost the dropped player's rest-of-season value; no ROS prices are invented here. Weak signals in rolling leagues are research only: assess the drop cost yourself before any free-agent move.</li>
-      <li>Drop-cost gate: any alternative that requires a drop shows its lineup gain for research but gets no bid range or priority claim, because the dropped player's rest-of-season cost is not priced and preseason board value is stale evidence of today's cost, whichever side it favors. Only open-slot adds, which sacrifice no one, receive heuristic guidance. A withheld row does not say the swap is wrong.</li>
+      <li>Drop cost is priced as the change in your own lineup's projected points over the remaining weeks, from the model's remaining-season projections: what the add contributes to your roster, and what the drop then forfeits with the add on it. A bench player who never starts forfeits little whatever his season total. Values assume participation; injuries and returns are not forecast. The measured accuracy of those projections against a four-game average is shown under "Data sources and timestamps".</li>
+      <li>Spend guidance reads this week's gain plus that rest-of-season change, averaged per remaining week, through the same uncalibrated bands as before. A swap whose drop forfeits more than the add returns shows both numbers and gets no bid or priority claim; it is not called wrong. When a player has no rest-of-season projection, or the projections are stale or misaligned, the drop cost is unassessed and no spend guidance is offered for that swap — unknown is never priced as zero.</li>
       <li>No inferred hidden bids, calibrated win probabilities, automated transactions, or K/DST projections. No keeper-value premium is priced yet.</li>
     </ul>
     <p><a id="waiver-league-link" href="https://sleeper.com/">Open selected league in Sleeper</a> · <a href="https://docs.sleeper.com/">Read-only API documentation</a></p>
@@ -96,9 +98,9 @@
 </main>
 <script src="assets/app.js?v=recovery5"></script>
 <script src="assets/sleeper.js"></script>
-<script src="assets/waivers.js?v=dropcost2"></script>
+<script src="assets/waivers.js?v=dropcost3"></script>
 <script src="assets/waiverintel.js?v=ros1"></script>
-<script src="assets/waivermode.js?v=dropcost2"></script>
+<script src="assets/waivermode.js?v=dropcost3"></script>
 <script>WaiverMode.init();</script>
 </body>
 </html>

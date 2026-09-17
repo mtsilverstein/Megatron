@@ -14,7 +14,10 @@ window.FC = (() => {
   function leagueDataPath(kind) {
     const slug = new URLSearchParams(location.search).get("league") || "gabagool";
     if (!LEAGUE_SLUGS.includes(slug)) throw Error("Unknown league");
-    if (!["draft", "weekly"].includes(kind)) throw Error("Unknown league data kind");
+    if (!["draft", "weekly", "remaining"].includes(kind)) throw Error("Unknown league data kind");
+    // remaining-<slug>.json is named per league for every league, including
+    // Gabagool; the bare-name convention applies to draft/weekly only.
+    if (kind === "remaining") return `data/remaining-${slug}.json`;
     return `data/${kind}${slug === "gabagool" ? "" : `-${slug}`}.json`;
   }
 

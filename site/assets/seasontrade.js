@@ -28,7 +28,7 @@
     require(assumeAvailable===true,"Explicit conditional-availability assumption required");
     require(Number.isFinite(now)&&Number.isFinite(snapshotAt)&&now>=snapshotAt&&now-snapshotAt<=60000,"Roster snapshot stale or invalid; reload");
     require(league?.status==="in_season","In-season league required");
-    require(remaining?.schema_version===1&&remaining.horizon==="remaining_season"&&remaining.status==="experimental"&&remaining.advice_eligible===false,"Experimental remaining-season contract required");
+    require(remaining?.schema_version===1&&remaining.horizon==="remaining_season"&&remaining.status==="experimental"&&remaining.evaluation!==undefined,"Experimental remaining-season contract required");
     require(Number.isInteger(currentWeek)&&currentWeek>=1&&currentWeek<=18,"Current NFL week required");
     require(Number.isInteger(remaining.start_week)&&Number.isInteger(remaining.end_week)&&remaining.start_week>=1&&remaining.end_week<=18&&remaining.start_week<=remaining.end_week,"Invalid projection horizon");
     require(String(remaining.league?.league_id)===String(league.league_id)&&league.league_id&&remaining.season===Number(league.season),"Projection league or season mismatch");

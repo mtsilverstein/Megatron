@@ -311,9 +311,9 @@ check("every required drop withholds spend guidance regardless of preseason boar
   const held=out.rows.find(r=>r.add.id==="7"&&r.drop.id==="8");
   assert.ok(held && held.lineupGain===23, "gated row must remain researchable with its modeled gain");
   assert.equal(held.signal.strength,"modeled"); assert.equal(held.valueEstimate.points,60);
-  assert.deepEqual(Object.keys(held.dropCost).sort(),["label","status"], "no preseason comparison fields may be exported");
+  assert.deepEqual(Object.keys(held.dropCost).sort(),["label","reason","status"], "no preseason comparison fields may be exported");
   assert.equal(held.dropCost.status,"unassessed");
-  assert.match(held.dropCost.label,/^drop cost unassessed: the dropped player's rest-of-season value is not priced/);
+  assert.match(held.dropCost.label,/^drop cost unassessed: the rest-of-season change is not priced for this swap/);
   assert.doesNotMatch(held.dropCost.label,/wrong|noise|preseason|board value|\$/);
   assert.deepEqual([held.bid.low,held.bid.high,held.bid.tier,held.bid.canAfford],[null,null,"drop cost unassessed",true]);
   assert.match(held.bid.status,/^no bid suggested: drop cost unassessed/);
@@ -325,7 +325,7 @@ check("every required drop withholds spend guidance regardless of preseason boar
   assert.match(heldText.bid,/^no bid suggested: drop cost unassessed/); assert.doesNotMatch(heldText.bid,/\$/);
   assert.match(heldText.why,/^drop cost unassessed · board value estimate/);
   assert.match(heldText.dropCostNote,/^drop cost unassessed/);
-  assert.match(heldText.exportLine,/^ADD RB7; DROP WR8; \+23\.00 \(week 1 projection\); DROP COST UNASSESSED; no bid suggested: drop cost unassessed.*; dropping WR8 costs their rest-of-season value.*; drop cost unassessed: the dropped player's rest-of-season value is not priced/);
+  assert.match(heldText.exportLine,/^ADD RB7; DROP WR8; \+23\.00 \(week 1 projection\); DROP COST UNASSESSED; no bid suggested: drop cost unassessed.*; dropping WR8 costs their rest-of-season value.*; drop cost unassessed: the rest-of-season change is not priced for this swap/);
   assert.doesNotMatch(heldText.exportLine,/\$|null|heuristic bid|; modeled;|preseason/);
   // Every required-drop alternative on the roster is withheld, not just this one.
   const drops=out.rows.filter(r=>r.drop!==null);
@@ -357,7 +357,7 @@ check("every required drop withholds spend guidance regardless of preseason boar
   const openOut=W.analyze({...base,league:slotLeague,rosters:slotRosters,board:richAddBoard,weekly:weekOf(richAddBoard.players,{g7:30}),protectedIds:["1","2","3","4"]});
   const open=openOut.rows.find(r=>r.add.id==="7");
   assert.ok(open && open.drop===null && open.lineupGain>=5);
-  assert.deepEqual(open.dropCost,{status:"open_slot",label:"no drop required; future roster flexibility is not priced"});
+  assert.deepEqual(open.dropCost,{status:"open_slot",label:"no drop required; future roster flexibility is not priced",addContributes:null,rosDelta:null,futureWeeks:null,endWeek:null});
   assert.match(open.rosterCost,/open roster spot/);
   assert.equal(open.bid.tier,"impact"); assert.ok(open.bid.low>=1 && open.bid.high>=open.bid.low && open.bid.canAfford);
   const openText=M.rowText(open,openOut);
@@ -428,6 +428,224 @@ check("malformed live starters cannot establish legal kickoff locks", () => {
   ]) {
     assert.throws(()=>W.analyze({...base,weekly:freshWeekly(),rosters:[{...freshRosters[0],starters},freshRosters[1]]}),/current starters/);
   }
+});
+
+// --- rest-of-season drop cost --------------------------------------------------
+// Week 1 is the analysed week; weeks 2 and 3 are the priced future. Fixture
+// roster 1 (fresh) starts QB1 RB2 WR3 TE4 and FLEX WR8; free agent RB7 is the add.
+const remainingLeague = { league_id:"L1", slug:"fixture", sleeper_scoring:{pass_td:4,rec:1} };
+const rosRow = (week, p50) => p50 === "bye" ? { week, status:"bye", points:null }
+  : p50 === null ? { week, status:"unmodeled", points:null, reason:"no_observed_history" }
+  : { week, status:"conditional_projection", opponent:"B", points:{ league:{ p10:p50-3, p50, p90:p50+3 } } };
+const remainingFor = (future, overrides={}) => ({
+  schema_version:1, horizon:"remaining_season", status:"experimental", season:2026, start_week:1, end_week:3,
+  generated_at:new Date(TEST_NOW).toISOString(), data_through:"2026-wk00", league:remainingLeague, evaluation:null,
+  players: Object.entries(future).map(([gsis, [w2, w3, team]]) => ({ player_id:gsis, team: team || "A", weeks:[rosRow(1, 1), rosRow(2, w2), rosRow(3, w3)] })),
+  ...overrides,
+});
+// Everyone keeps their weekly number in weeks 2–3 unless overridden.
+const steadyFuture = () => ({ g1:[20,20], g2:[10,10], g3:[11,11], g4:[8,8], g8:[5,5], g7:[12,12], g9:[25,25], g10:[13,13], g99:[30,30] });
+const rosBase = () => ({ ...base, rosters:freshRosters, weekly:freshWeekly() });
+
+check("priced swap: bench drop forfeits nothing, add's future contribution sets the band", () => {
+  const out = W.analyze({ ...rosBase(), remaining: remainingFor(steadyFuture()) });
+  const row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  assert.equal(row.lineupGain, 11);
+  assert.deepEqual(Object.keys(row.dropCost).sort(), ["addContributes","dropForfeits","endWeek","futureWeeks","label","rosDelta","status"]);
+  assert.equal(row.dropCost.status, "priced");
+  // R per future week 54; R+RB7 per week 61 (RB7 takes FLEX over WR8); R+RB7−WR8 still 61.
+  assert.equal(row.dropCost.addContributes, 14); assert.equal(row.dropCost.dropForfeits, 0); assert.equal(row.dropCost.rosDelta, 14);
+  assert.deepEqual([row.dropCost.futureWeeks, row.dropCost.endWeek], [2, 3]);
+  assert.equal(row.signal.moveValue, 25); assert.equal(row.signal.basis, "move");
+  assert.ok(Math.abs(row.signal.perWeekGain - 25/3) < 0.01);
+  assert.match(row.signal.label, /^modeled lineup gain this week plus rest-of-season lineup change; projection error is not quantified/);
+  assert.equal(row.rosterCost, "dropping WR8 forfeits 0.00 projected lineup points over weeks 2–3; RB7 adds 14.00 in his place");
+  assert.deepEqual([row.bid.tier, row.bid.low, row.bid.high, row.bid.status], ["impact", 11, 20, null]);
+  assert.equal(row.bid.label, "heuristic, not calibrated and not a win probability");
+  assert.ok(out.coverage.ros.fresh); assert.equal(out.coverage.ros.reason, null);
+  assert.deepEqual([out.coverage.ros.endWeek, out.coverage.ros.futureWeeks, out.coverage.ros.dataThrough], [3, 2, "2026-wk00"]);
+  assert.equal(out.coverage.ros.pricedOwned, 5); assert.deepEqual(out.coverage.ros.unmodeledOwned, []);
+  assert.equal(out.coverage.ros.evaluation, null);
+  assert.ok(!out.warnings.some(w => /rest-of-season cost is not priced/.test(w)));
+});
+
+check("final analysed week has no future weeks: pricing is zero and the span reads as such, not W+1–W", () => {
+  const out = W.analyze({ ...rosBase(), remaining: remainingFor(steadyFuture(), { end_week: 1 }) });
+  const row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  assert.equal(row.dropCost.status, "priced");
+  assert.equal(row.dropCost.rosDelta, 0);
+  assert.equal(row.signal.basis, "move");
+  assert.equal(row.signal.perWeekGain, row.lineupGain); // moveValue / (futureWeeks + 1) === moveValue / 1
+  assert.match(row.rosterCost, /no future weeks remain/);
+  assert.doesNotMatch(row.rosterCost, /weeks 2–1/);
+});
+
+check("net-negative swap reports both numbers and withholds spend", () => {
+  // Free agent RB12 scores 12 this week but ~1 afterwards; dropping RB2 (10 every week) loses the season.
+  const richBoard = { players: board.players.concat([p(12,"RB",4)]) };
+  const weekly = freshWeekly(richBoard.players); weekly.players.find(x => x.player_id==="g12").points.league.p50 = 12;
+  const out = W.analyze({ ...rosBase(), board:richBoard, weekly, remaining: remainingFor({ ...steadyFuture(), g12:[1,1] }) });
+  const row = out.rows.find(r => r.add.id==="12" && r.drop.id==="2");
+  assert.equal(row.lineupGain, 2);
+  // R+RB12 per week: RB slot 10, FLEX max(WR8 5, RB12 1) = 5 → 54, adds 0; without RB2: RB slot 1 → 45, forfeits 9/week.
+  assert.deepEqual([row.dropCost.status, row.dropCost.addContributes, row.dropCost.dropForfeits, row.dropCost.rosDelta], ["priced", 0, 18, -18]);
+  assert.equal(row.signal.moveValue, -16);
+  assert.deepEqual([row.bid.low, row.bid.high, row.bid.tier, row.bid.canAfford], [null, null, "drop costs more than the add returns", true]);
+  assert.equal(row.bid.status, "no bid suggested: dropping RB2 forfeits 18.00 rest-of-season lineup points against 0.00 from RB12");
+  assert.match(row.signal.guidance, /^no bid suggested; dropping RB2 forfeits 18\.00/);
+  assert.doesNotMatch(row.bid.status + row.signal.guidance + row.rosterCost, /wrong|right|\$/);
+  // RB12 for RB2, WR3 or WR8 all lose the season: three net-negative rows.
+  assert.match(out.warnings.join(" "), /3 alternative\(s\) would forfeit more rest-of-season lineup value than the add returns/);
+});
+
+check("unmodeled add or drop is unassessed with the player named, never priced at zero", () => {
+  const future = steadyFuture();
+  let out = W.analyze({ ...rosBase(), remaining: remainingFor({ ...future, g7:[null,12] }) });
+  let row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  assert.deepEqual(Object.keys(row.dropCost).sort(), ["label","reason","status"]);
+  assert.equal(row.dropCost.status, "unassessed"); assert.equal(row.dropCost.reason, "RB7 has no rest-of-season projection");
+  assert.equal(row.signal.basis, "this_week"); assert.equal(row.signal.perWeekGain, 11);
+  assert.deepEqual([row.bid.low, row.bid.high, row.bid.tier], [null, null, "drop cost unassessed"]);
+  assert.equal(row.bid.status, "no bid suggested: drop cost unassessed — RB7 has no rest-of-season projection");
+  delete future.g8;
+  out = W.analyze({ ...rosBase(), remaining: remainingFor(future) });
+  row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  assert.equal(row.dropCost.reason, "WR8 has no rest-of-season projection");
+  // Dropping RB2 instead leaves WR8 (unmodeled) as the roster's only other
+  // FLEX-eligible player: with WR8 excluded from every future week's pools,
+  // neither R+A nor R+A-D can fill FLEX, so this is unassessed for a
+  // different reason than a named missing add/drop.
+  const unfillable = out.rows.find(r => r.add.id==="7" && r.drop.id==="2");
+  assert.equal(unfillable.dropCost.status, "unassessed");
+  assert.equal(unfillable.dropCost.reason, "roster cannot field a full lineup from modeled players in every future week");
+  out = W.analyze({ ...rosBase(), remaining: remainingFor({ ...future, g7:[null,null] }) });
+  row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  assert.equal(row.dropCost.reason, "RB7 and WR8 have no rest-of-season projection");
+  assert.deepEqual(out.coverage.ros.unmodeledOwned, [{ id:"8", name:"WR8" }]);
+  assert.equal(out.coverage.ros.pricedOwned, 4);
+  assert.match(out.warnings.join(" "), /1 roster player\(s\) have no rest-of-season projection and are excluded from future lineups: WR8/);
+});
+
+check("bye weeks count as zero, not unmodeled; a team mismatch is unmodeled", () => {
+  let out = W.analyze({ ...rosBase(), remaining: remainingFor({ ...steadyFuture(), g7:["bye",12] }) });
+  let row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  // Week 2: RB7 on bye → FLEX WR8 5 → 54; week 3: 61 → adds 7. Without WR8 the bye week's FLEX
+  // is RB7's 0 → 49, so the drop forfeits 5 and the net is +2: byes are real weeks, not gaps.
+  assert.deepEqual([row.dropCost.status, row.dropCost.addContributes, row.dropCost.dropForfeits, row.dropCost.rosDelta], ["priced", 7, 5, 2]);
+  out = W.analyze({ ...rosBase(), remaining: remainingFor({ ...steadyFuture(), g7:[12,12,"Z"] }) });
+  row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  assert.equal(row.dropCost.status, "unassessed"); assert.equal(row.dropCost.reason, "RB7 has no rest-of-season projection");
+});
+
+check("stale or misaligned remaining payload withholds drop pricing with the reason; open slots keep this week's basis", () => {
+  const cases = [
+    [undefined, "remaining-season projections unavailable"],
+    [remainingFor(steadyFuture(), { league:{ ...remainingLeague, league_id:"L2" } }), "remaining-season league id does not match live league"],
+    [remainingFor(steadyFuture(), { league:{ ...remainingLeague, sleeper_scoring:{ pass_td:6, rec:1 } } }), "remaining-season scoring contract is incomplete or does not match live league"],
+    [remainingFor(steadyFuture(), { season:2025 }), "remaining-season season does not match league season"],
+    [remainingFor(steadyFuture(), { start_week:2 }), "remaining-season start week does not match requested week"],
+    [remainingFor(steadyFuture(), { generated_at:new Date(TEST_NOW - 73*3600000).toISOString() }), "remaining-season projections are stale (over 72 hours old)"],
+    [remainingFor(steadyFuture(), { generated_at:new Date(TEST_NOW + 2*3600000).toISOString() }), "remaining-season projections are stale (over 72 hours old)"],
+    [remainingFor(steadyFuture(), { players:null }), "remaining-season payload is incomplete"],
+    [remainingFor(steadyFuture(), { end_week:0 }), "remaining-season payload is incomplete"],
+  ];
+  for (const [remaining, reason] of cases) {
+    const out = W.analyze({ ...rosBase(), remaining });
+    const row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+    assert.equal(out.coverage.ros.fresh, false, reason); assert.equal(out.coverage.ros.reason, reason);
+    assert.equal(row.dropCost.status, "unassessed", reason); assert.equal(row.dropCost.reason, reason);
+    assert.equal(row.bid.tier, "drop cost unassessed", reason);
+    assert.match(out.warnings.join(" "), new RegExp(`${reason.replace(/[()]/g, "\\$&")}; drop costs unassessed, spend guidance limited to open-slot adds`));
+  }
+  // Open slot with no payload: unchanged behaviour, rosDelta null, this week's basis.
+  const slotLeague = { ...league, roster_positions:["QB","RB","WR","TE","K","DEF","BN","IR","TAXI"] };
+  const slotRosters = [{ roster_id:1, players:["1","2","3","4","5","6","99"], starters:["1","2","3","4","5","6"], reserve:["99"], taxi:[], settings:{ waiver_budget_used:40 } }, rosters[1]];
+  const out = W.analyze({ ...base, league:slotLeague, rosters:slotRosters, weekly:freshWeekly(), protectedIds:["1","2","3","4"] });
+  const open = out.rows.find(r => r.add.id==="7");
+  assert.equal(open.drop, null);
+  assert.deepEqual(Object.keys(open.dropCost).sort(), ["addContributes","endWeek","futureWeeks","label","rosDelta","status"]);
+  assert.deepEqual([open.dropCost.status, open.dropCost.rosDelta, open.dropCost.addContributes], ["open_slot", null, null]);
+  assert.equal(open.signal.basis, "this_week"); assert.equal(open.signal.perWeekGain, open.lineupGain);
+  assert.match(open.rosterCost, /^uses an open roster spot; RB7's rest-of-season contribution is not priced/);
+});
+
+check("open-slot adds move to the total-value basis when priced; a one-week fill earns less than a season-long add", () => {
+  const slotLeague = { ...league, roster_positions:["QB","RB","WR","TE","K","DEF","BN","IR","TAXI"] };
+  const slotRosters = [{ roster_id:1, players:["1","2","3","4","5","6","99"], starters:["1","2","3","4","5","6"], reserve:["99"], taxi:[], settings:{ waiver_budget_used:40 } }, rosters[1]];
+  const run = future => W.analyze({ ...base, league:slotLeague, rosters:slotRosters, weekly:freshWeekly(), protectedIds:["1","2","3","4"], remaining: remainingFor({ g1:[20,20], g2:[10,10], g3:[11,11], g4:[8,8], g7:future }) });
+  const season = run([12,12]).rows.find(r => r.add.id==="7");
+  const oneWeek = run([0,0]).rows.find(r => r.add.id==="7");
+  // No FLEX: RB7 (18 this week) displaces RB2 (10) → gain 8; future RB slot 12 vs 10 → +2/week.
+  assert.equal(season.lineupGain, 8); assert.deepEqual([season.dropCost.status, season.dropCost.addContributes, season.dropCost.rosDelta], ["open_slot", 4, 4]);
+  assert.equal(season.signal.moveValue, 12); assert.ok(Math.abs(season.signal.perWeekGain - 4) < 0.01);
+  assert.equal(oneWeek.lineupGain, 8); assert.equal(oneWeek.dropCost.rosDelta, 0);
+  assert.ok(Math.abs(oneWeek.signal.perWeekGain - 8/3) < 0.01);
+  assert.ok(season.signal.perWeekGain > oneWeek.signal.perWeekGain);
+  assert.equal(season.rosterCost, "uses an open roster spot; RB7 adds 4.00 over weeks 2–3; roster flexibility is not priced");
+  assert.deepEqual([season.bid.tier, oneWeek.bid.tier], ["useful", "useful"]);
+});
+
+check("guidance precedence: affordability, then net-negative, then weak, then unassessed, then bands", () => {
+  const rich = { players: board.players.concat([p(12,"RB",4)]) };
+  const weekly = freshWeekly(rich.players); weekly.players.find(x => x.player_id==="g12").points.league.p50 = 12;
+  const remaining = remainingFor({ ...steadyFuture(), g12:[1,1] });
+  // 1. affordability beats everything, including a net-negative swap.
+  let out = W.analyze({ ...rosBase(), board:rich, weekly, remaining, league:{ ...league, settings:{ waiver_budget:100, waiver_bid_min:50 } } });
+  let row = out.rows.find(r => r.add.id==="12" && r.drop.id==="2");
+  assert.deepEqual([row.bid.canAfford, row.bid.status], [false, "minimum bid exceeds spendable budget"]);
+  // 2. net-negative beats weak: perWeekValue is negative, but the row is not called weak.
+  out = W.analyze({ ...rosBase(), board:rich, weekly, remaining });
+  row = out.rows.find(r => r.add.id==="12" && r.drop.id==="2");
+  assert.equal(row.signal.strength, "modeled"); assert.equal(row.bid.tier, "drop costs more than the add returns");
+  // 3. weak beats unassessed: a tiny gain with no payload is still "weak signal", as shipped.
+  const small = freshWeekly(); small.players.find(x => x.player_id==="g7").points.league.p50 = 7.4;
+  out = W.analyze({ ...rosBase(), weekly:small });
+  row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  assert.equal(row.signal.strength, "weak"); assert.equal(row.bid.tier, "weak signal"); assert.equal(row.dropCost.status, "unassessed");
+  // 4. a priced move can be weak on the per-week number even when this week's gain is not.
+  out = W.analyze({ ...rosBase(), weekly:(() => { const w = freshWeekly(); w.players.find(x => x.player_id==="g7").points.league.p50 = 9; return w; })(), remaining: remainingFor({ ...steadyFuture(), g7:[5,5] }) });
+  row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+  assert.equal(row.lineupGain, 2); assert.equal(row.dropCost.rosDelta, 0); assert.ok(Math.abs(row.signal.perWeekGain - 2/3) < 0.01);
+  assert.equal(row.signal.strength, "weak");
+});
+
+check("rosValue decomposition identity and brute-force equivalence on random rosters", () => {
+  let seed = 7; const rand = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  for (let trial = 0; trial < 40; trial++) {
+    const future = {}; for (const k of Object.keys(steadyFuture())) future[k] = [Math.round(rand()*20), Math.round(rand()*20)];
+    const out = W.analyze({ ...rosBase(), remaining: remainingFor(future) });
+    for (const r of out.rows.filter(r => r.dropCost.status === "priced")) {
+      assert.ok(Math.abs(r.dropCost.rosDelta - (r.dropCost.addContributes - r.dropCost.dropForfeits)) < 1e-6);
+      assert.ok(r.dropCost.dropForfeits >= -1e-9 && r.dropCost.addContributes >= -1e-9);
+    }
+    // Brute force the headline row: RB7 for WR8.
+    const row = out.rows.find(r => r.add.id==="7" && r.drop.id==="8");
+    if (!row) continue;
+    const pts = (g, w) => future[g][w-2];
+    const val = (ids, w) => { // QB, RB, WR, TE, FLEX(best remaining RB/WR/TE)
+      const by = { QB:[], RB:[], WR:[], TE:[] }; for (const i of ids) by[board.players.find(x => x.sleeper_id===i).position].push(pts(`g${i}`, w));
+      for (const k in by) by[k].sort((a,b)=>b-a);
+      const flex = [...by.RB.slice(1), ...by.WR.slice(1), ...by.TE.slice(1)].sort((a,b)=>b-a);
+      return by.QB[0] + by.RB[0] + by.WR[0] + by.TE[0] + (flex[0] ?? -Infinity);
+    };
+    const R = ["1","2","3","4","8"], RA = R.concat("7"), RAD = RA.filter(i => i !== "8");
+    const ros = ids => val(ids,2) + val(ids,3);
+    assert.ok(Math.abs(row.dropCost.addContributes - (ros(RA) - ros(R))) < 1e-6);
+    assert.ok(Math.abs(row.dropCost.dropForfeits - (ros(RA) - ros(RAD))) < 1e-6);
+  }
+});
+
+check("priced path stays inside the existing performance bound", () => {
+  const bigBoard = { players: Array.from({ length: 700 }, (_, i) => p(1000 + i, ["QB","RB","WR","TE"][i % 4], 5 + (i % 30))) };
+  const big = { league_id:"L1", season:2026, total_rosters:2, scoring_settings:{pass_td:4,rec:1}, roster_positions:["QB","RB","RB","WR","WR","TE","FLEX","FLEX","K","DEF","BN","BN","BN","BN","BN","IR"], settings:{ waiver_budget:100, waiver_bid_min:1 } };
+  const mine = bigBoard.players.slice(0, 15).map(x => x.sleeper_id);
+  const bigRosters = [{ roster_id:1, players:mine, starters:mine.slice(0, 8).concat(["0","0"]), reserve:[], taxi:[], settings:{ waiver_budget_used:0 } }, { roster_id:2, players:[], reserve:[], taxi:[], settings:{ waiver_budget_used:0 } }];
+  const future = {}; for (const x of bigBoard.players) future[x.player_id] = Array.from({ length: 2 }, () => x.value_points);
+  const remaining = remainingFor(future, { end_week: 17, players: bigBoard.players.map(x => ({ player_id:x.player_id, team:"A", weeks: Array.from({ length: 17 }, (_, i) => rosRow(i + 1, x.value_points)) })) });
+  const t0 = Date.now();
+  const out = W.analyze({ ...base, board:bigBoard, league:big, rosters:bigRosters, weekly:freshWeekly(bigBoard.players), remaining, protectedIds:[] });
+  assert.ok(out.rows.length > 0 && out.rows.some(r => r.dropCost.status === "priced"));
+  assert.ok(Date.now() - t0 < 4000, `priced analysis took ${Date.now() - t0} ms`);
 });
 
 console.log(`waivers_fixture: ${n} groups OK`);
