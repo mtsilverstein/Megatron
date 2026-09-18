@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-18T09:54:58+00:00",
+  "generated_at": "2026-09-18T19:45:27+00:00",
   "data_through": "2026-wk1",
   "season": 2026,
   "week": 2,
@@ -52831,6 +52831,93 @@
       }
     },
     {
+      "player_id": "00-0039650",
+      "name": "Bryce Oliver",
+      "team": "HOU",
+      "opponent": "CIN",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.29,
+          "p50": 0.19,
+          "p90": 3.95
+        },
+        "half_ppr": {
+          "p10": -0.29,
+          "p50": 0.11,
+          "p90": 3.23
+        },
+        "standard": {
+          "p10": -0.28,
+          "p50": 0.04,
+          "p90": 2.5
+        },
+        "league": {
+          "p10": -0.33,
+          "p50": 0.19,
+          "p90": 3.97
+        }
+      },
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.2670514015375147,
+          "passing_tds": -0.018597651339429255,
+          "passing_interceptions": -0.010458094015815711,
+          "carries": -0.03399238652571124,
+          "rushing_yards": -0.07534991316796025,
+          "rushing_tds": -0.011832086484278526,
+          "targets": -0.003935994375805052,
+          "receptions": -0.013505549549288176,
+          "receiving_yards": 0.056435086364272635,
+          "receiving_tds": -0.012900189546790869,
+          "fumbles_lost": -0.01708308689191884,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": -0.08162287622690201,
+          "passing_tds": -0.002575322287157178,
+          "passing_interceptions": 0.002431851578876376,
+          "carries": -0.0023030152078717947,
+          "rushing_yards": -0.028189441189169884,
+          "rushing_tds": -0.0015023412415757775,
+          "targets": 0.4561941623687744,
+          "receptions": 0.15421850979328156,
+          "receiving_yards": 0.5988240242004395,
+          "receiving_tds": 0.0005356802721507847,
+          "fumbles_lost": -0.0025089585687965155,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.2603494195816544,
+          "passing_tds": 0.007332904362952511,
+          "passing_interceptions": 0.006027014164104858,
+          "carries": 0.17485069435113204,
+          "rushing_yards": 0.4214667705315604,
+          "rushing_tds": 0.018295253196581197,
+          "targets": 2.121733931699067,
+          "receptions": 1.455494432372163,
+          "receiving_yards": 17.791148092134964,
+          "receiving_tds": 0.07860318312855058,
+          "fumbles_lost": 0.015835641475951005,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.08,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 0.46,
+        "receptions": 0.15,
+        "receiving_yards": 0.6,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0040009",
       "name": "Savion Williams",
       "team": "GB",
@@ -53349,93 +53436,6 @@
         "receptions": 0.19,
         "receiving_yards": 0.21,
         "receiving_tds": -0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
-      "player_id": "00-0039650",
-      "name": "Bryce Oliver",
-      "team": "CLE",
-      "opponent": "TB",
-      "position": "WR",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.3,
-          "p50": 0.17,
-          "p90": 3.8
-        },
-        "half_ppr": {
-          "p10": -0.29,
-          "p50": 0.09,
-          "p90": 3.08
-        },
-        "standard": {
-          "p10": -0.28,
-          "p50": 0.01,
-          "p90": 2.37
-        },
-        "league": {
-          "p10": -0.33,
-          "p50": 0.16,
-          "p90": 3.81
-        }
-      },
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.26337033420610556,
-          "passing_tds": -0.018715786734036843,
-          "passing_interceptions": -0.01077995032342352,
-          "carries": -0.03419530721975794,
-          "rushing_yards": -0.07662301206964128,
-          "rushing_tds": -0.012151784814025235,
-          "targets": -0.004888383030824173,
-          "receptions": -0.011943076008222864,
-          "receiving_yards": 0.029581104231037436,
-          "receiving_tds": -0.012900187945640212,
-          "fumbles_lost": -0.017819102880846982,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": -0.07904097437858582,
-          "passing_tds": -0.002435514936223626,
-          "passing_interceptions": 0.0023948943708091974,
-          "carries": -0.004152058158069849,
-          "rushing_yards": -0.031633611768484116,
-          "rushing_tds": -0.0016845104983076453,
-          "targets": 0.438029408454895,
-          "receptions": 0.151089608669281,
-          "receiving_yards": 0.3782425820827484,
-          "receiving_tds": 0.0003946349024772644,
-          "fumbles_lost": -0.0028537502512335777,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.2611063937174896,
-          "passing_tds": 0.00743924827637692,
-          "passing_interceptions": 0.006468109775126805,
-          "carries": 0.178303261306582,
-          "rushing_yards": 0.46393313096572464,
-          "rushing_tds": 0.018887642271733836,
-          "targets": 2.054893646281333,
-          "receptions": 1.4272765778475338,
-          "receiving_yards": 16.721495616778856,
-          "receiving_tds": 0.07360097452100563,
-          "fumbles_lost": 0.015535044854328956,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.08,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.03,
-        "rushing_tds": -0.0,
-        "targets": 0.44,
-        "receptions": 0.15,
-        "receiving_yards": 0.38,
-        "receiving_tds": 0.0,
         "fumbles_lost": -0.0
       }
     },
