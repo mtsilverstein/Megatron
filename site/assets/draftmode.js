@@ -5,6 +5,11 @@ window.DraftMode = (() => {
   const Sleeper = (typeof window !== "undefined" && window.Sleeper)
     ? window.Sleeper
     : (typeof require !== "undefined" ? require("./sleeper.js") : null);
+  // Who you are comes from the shared session (session.js), never from an
+  // input on this panel. Resolved lazily: the fixture installs window.Session
+  // after this module loads, and the page loads session.js first either way.
+  const sess = () => (typeof window !== "undefined" && window.Session) || null;
+  const currentIdentity = () => { const S = sess(); return S ? S.identity() : null; };
   // Was the bare "fc-draft-mode". One key across every league meant connecting
   // to one league's draft left the OTHER league's page auto-restoring it on
   // load -- a FAM draft resurrected on the Gabagool board on draft night.
@@ -84,13 +89,14 @@ window.DraftMode = (() => {
   }
 
   async function findDrafts() {
-    const username = cfg.els.username.value.trim();
-    if (!username) { setStatus("enter a username"); return; }
+    // The session already resolved the username to a user id, so discovery is
+    // one round trip instead of two.
+    const identity = currentIdentity();
+    if (!identity) { setStatus("identify yourself in the league panel first"); return; }
+    const { username, userId } = identity;
     try {
-      setStatus("looking up user…");
-      const user = await api(`/user/${encodeURIComponent(username)}`);
-      if (!user || !user.user_id) throw new Error("user not found");
-      const drafts = await api(`/user/${user.user_id}/drafts/nfl/${cfg.board.season}`) || [];
+      setStatus("looking up drafts…");
+      const drafts = await api(`/user/${encodeURIComponent(userId)}/drafts/nfl/${cfg.board.season}`) || [];
       if (!drafts.length) {
         setStatus(`no ${cfg.board.season} drafts for ${username} — paste a draft id instead`);
         return;
@@ -100,7 +106,7 @@ window.DraftMode = (() => {
         const b = document.createElement("button");
         const when = d.start_time ? new Date(d.start_time).toLocaleDateString() : "unscheduled";
         b.textContent = `${d.metadata && d.metadata.name || d.type} · ${d.status} · ${when}`;
-        b.addEventListener("click", () => connect(username, user.user_id, d.draft_id));
+        b.addEventListener("click", () => connect(username, userId, d.draft_id));
         cfg.els.list.appendChild(b);
       }
       setStatus(`${drafts.length} draft(s) — pick one`);
@@ -124,18 +130,12 @@ window.DraftMode = (() => {
     const raw = cfg.els.idInput.value.trim();
     const m = raw.match(/(\d{6,})/);          // raw id or any sleeper.com draft URL
     if (!m) { setStatus("that doesn't look like a draft id"); return; }
-    const attempt = beginConnect();
-    // Username optional here — without it, picks still strike but none are "yours".
-    let userId = null;
-    const username = cfg.els.username.value.trim();
-    if (username) {
-      try {
-        const user = await api(`/user/${encodeURIComponent(username)}`);
-        userId = user && user.user_id || null;
-      } catch (e) { /* non-fatal: connect without highlight */ }
-    }
-    if (attempt !== pollSeq) return;
-    return connect(username || null, userId, m[1], attempt);
+    // Identity optional here -- anonymous mode. Without a session identity
+    // the picks still strike but none are "yours"; identifying in the league
+    // panel later reconnects with your seat (see syncIdentity).
+    const identity = currentIdentity();
+    return connect(identity ? identity.username : null,
+                   identity ? identity.userId : null, m[1]);
   }
 
   // Sleeper normally publishes integers, but equivalent numeric strings must
@@ -313,11 +313,11 @@ window.DraftMode = (() => {
       startHeartbeat();
       localStorage.setItem(storeKey(), JSON.stringify({ username, userId, draftId }));
       state.connected = true;
-      if (username) cfg.els.username.value = username;   // survives a reload
       // Keep the connect row up when we don't know WHO you are — the shortlist
-      // is blocked until you supply a username, and mid-draft is the wrong
-      // moment to make someone disconnect first to fix that. The draft id is
-      // still in its box, so typing a name and hitting Connect resolves it.
+      // is blocked until the session has an identity, and mid-draft is the
+      // wrong moment to make someone disconnect first to fix that. Identifying
+      // in the league panel reconnects this draft with your seat (syncIdentity);
+      // the draft id is still in its box for a manual Connect too.
       cfg.els.connect.hidden = !!userId;
       cfg.els.list.innerHTML = "";
       cfg.els.live.hidden = false;
@@ -873,7 +873,7 @@ window.DraftMode = (() => {
   // a panel with no opinion.
   function shortlistBlocker(seat, picks) {
     if (!seat.userId) {
-      return "Enter your Sleeper username above and reconnect — without it the "
+      return "Enter your Sleeper username in the league panel — without it the "
         + "board can't tell which seat is yours, and the shortlist is entirely "
         + "about what falls to YOUR next pick. Picks still strike either way.";
     }
@@ -971,10 +971,62 @@ window.DraftMode = (() => {
     return openPicksBetween(current, after, used);
   }
 
+  /* The shared identity moved while a draft is live. Re-run connect() with the
+     new identity: it claims a fresh pollSeq via beginConnect(), so the running
+     poll chain retires at its next bail check and startPolling() starts the
+     one replacement -- never a second poller -- and it re-reads draft_order,
+     which is where your SEAT comes from, so "mine" is re-derived for the new
+     account and the restore record is rewritten. forget() lands here with a
+     null identity: the draft keeps streaming anonymously, no seat highlighted.
+
+     `identifying` is skipped: Session.identify() clears the identity FIRST and
+     fires, then fires again with the result. Reconnecting on the first fire
+     would cost two full reconnects per identity change on a live 3-second
+     clock; the resolution fire (success, or failure leaving anonymous) is the
+     one that carries the answer. */
+  function syncIdentity(snapshot) {
+    if (!session) return;
+    if (snapshot && snapshot.state === "identifying") return;
+    const identity = currentIdentity();
+    const userId = identity ? identity.userId : null;
+    if (sameUser(session.userId, userId)) return;
+    connect(identity ? identity.username : null, userId, session.draftId);
+  }
+  // Sleeper ids are strings; older restore records may hold whatever the API
+  // returned at the time, so compare as strings and treat every empty as anonymous.
+  const sameUser = (a, b) => (a ? String(a) : null) === (b ? String(b) : null);
+
+  /* A saved draft session whose userId is not the session's. Auto-connecting
+     it would highlight ANOTHER account's seat as yours on a board that says
+     "live", so it is not restored: the panel says whose it was and offers the
+     two honest reconnects. Each goes through connect(), which rewrites the
+     record for whichever identity it actually connected with. */
+  function offerRestoreChoice(parsed, identity) {
+    const list = cfg.els.list;
+    list.innerHTML = "";
+    const who = parsed.username || parsed.userId;
+    const note = document.createElement("span");
+    note.className = "draft-note";
+    note.textContent = `Saved draft session belongs to a different account (${who}).`;
+    list.appendChild(note);
+    const asMe = document.createElement("button");
+    asMe.textContent = `Reconnect as ${identity.displayName || identity.username}`;
+    asMe.addEventListener("click", () => {
+      // Read the identity at click time: it may have moved since the offer.
+      const now = currentIdentity();
+      connect(now ? now.username : null, now ? now.userId : null, parsed.draftId);
+    });
+    list.appendChild(asMe);
+    const anon = document.createElement("button");
+    anon.textContent = "View anonymously";
+    anon.addEventListener("click", () => connect(null, null, parsed.draftId));
+    list.appendChild(anon);
+    setStatus("saved session is another account's — choose how to reconnect");
+  }
+
   function init(options) {
     cfg = options;
     cfg.els.find.addEventListener("click", findDrafts);
-    cfg.els.username.addEventListener("keydown", e => { if (e.key === "Enter") findDrafts(); });
     cfg.els.connectId.addEventListener("click", connectById);
     cfg.els.idInput.addEventListener("keydown", e => { if (e.key === "Enter") connectById(); });
     cfg.els.disconnect.addEventListener("click", disconnect);
@@ -985,13 +1037,22 @@ window.DraftMode = (() => {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden && session) startPolling();  // supersedes any pending chain
     });
+    if (sess()) sess().onChange(syncIdentity);
     const stored = localStorage.getItem(storeKey());
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
         if (parsed && parsed.draftId) {
           document.getElementById("draft-panel").open = true;
-          connect(parsed.username, parsed.userId, parsed.draftId);
+          const identity = currentIdentity();
+          // Same account, an anonymous record, or no session identity: restore
+          // as before. Two different accounts: never auto-highlight the stored one.
+          if (parsed.userId && identity && identity.userId
+              && !sameUser(parsed.userId, identity.userId)) {
+            offerRestoreChoice(parsed, identity);
+          } else {
+            connect(parsed.username, parsed.userId, parsed.draftId);
+          }
         } else {
           localStorage.removeItem(storeKey());   // incomplete blob: clear, don't 404
         }

@@ -41,7 +41,6 @@
       taking the market's best available by ADP — and reporting the best starting
       lineup you could still finish. Read-only, no login — works on mock drafts too.</p>
       <div class="draft-row" id="draft-connect">
-        <input id="draft-username" type="text" placeholder="Sleeper username" aria-label="Sleeper username" autocomplete="off">
         <button id="draft-find">Find my drafts</button>
         <input id="draft-id-input" type="text" placeholder="…or paste a draft URL / id" aria-label="Draft URL or id">
         <button id="draft-connect-id">Connect</button>
@@ -180,7 +179,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/app.js?v=session1"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/optimizer.js"></script>
-<script src="assets/draftmode.js"></script>
+<script src="assets/draftmode.js?v=session1"></script>
 <script src="assets/manualdraft.js"></script>
 <script src="assets/keepers.js?v=session1"></script>
 <script>
@@ -815,7 +814,6 @@ cohort priors — wide bands on purpose; see the about page.</footer>
         els: {
           status: document.getElementById("draft-status"),
           connect: document.getElementById("draft-connect"),
-          username: document.getElementById("draft-username"),
           find: document.getElementById("draft-find"),
           idInput: document.getElementById("draft-id-input"),
           connectId: document.getElementById("draft-connect-id"),

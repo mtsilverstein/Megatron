@@ -28,6 +28,23 @@ global.window.Sleeper = { get: async (path) => {
 } };
 require("../site/assets/draftmode.js");
 const D = global.window.DraftMode;
+// The shared session: draftmode.js reads identity from window.Session (lazily,
+// so installing it after the require is fine). Its Sleeper calls go through
+// the same stub, so `/user/<name>` resolves to SLEEPER.user.
+const Session = require("../site/assets/session.js");
+global.window.Session = Session;
+Session._get(global.window.Sleeper.get);
+// One storage object shared by the controller (global.localStorage) and the
+// session (Session._storage), as in a browser: forget() deletes the draft
+// restore record through the same store the controller rewrites it in.
+const fakeStore = () => {
+  const m = new Map();
+  return { getItem: k => (m.has(k) ? m.get(k) : null),
+           setItem: (k, v) => m.set(k, String(v)),
+           removeItem: k => m.delete(k),
+           key: i => [...m.keys()][i], get length() { return m.size; },
+           has: k => m.has(k), get: k => m.get(k), set: (k, v) => m.set(k, v) };
+};
 
 const SCORING = { pass_yd: 0.04, pass_td: 6, pass_int: -2,
                   pass_int_td: -3, rec: 1 };
@@ -556,8 +573,11 @@ const until = async (pred, what, ms = 2000) => {
     connect: el(), connectId: el(), disconnect: el(), find: el(), hide: el(),
     idInput: el(), late: el(), list: el(), live: el(), note: el(),
     picksCount: el(), roster: el(), shortlist: el(), status: el(),
-    ticker: el(), username: el(),
+    ticker: el(),
   };
+  const store = fakeStore();
+  global.localStorage = store;
+  Session._storage(store);          // cold session, no identity, listeners cleared
   // Capture the real click handlers: init() is the only thing that wires
   // connect/disconnect, and they are closure-private otherwise. Driving the
   // handlers IS driving the buttons.
@@ -605,17 +625,56 @@ const until = async (pred, what, ms = 2000) => {
                 "a reconnect to an unchanged draft to rebuild the board");
 
     /* The second entry into the same defect, and the one connect() names:
-       Connect with no username (picks strike, but none are yours), then type
-       your name and hit Connect AGAIN. There is no disconnect on this path, so
+       Connect with no identity (picks strike, but none are yours), then
+       identify in the league panel. There is no disconnect on this path, so
        only connect()'s own reset can clear the fingerprint -- without it the
        reconnect never re-renders and your roster never appears, which is the
-       whole reason you reconnected. */
+       whole reason you reconnected.
+
+       The identity now arrives through Session.onChange, and the reconnect
+       must happen EXACTLY once: identify() fires twice (identity cleared,
+       then resolved), and a controller that reconnected on both would run two
+       full connects per identity change against a live 3-second clock. */
+    assert.strictEqual(JSON.parse(store.get("fc-draft-mode:default")).userId, null,
+      "an anonymous pasted-id connect stored an identity it did not have");
+    assert.ok(!SLEEPER.calls.some(p => /^\/user\//.test(p)),
+      "anonymous connect must not look a user up");
     SLEEPER.user = { user_id: "U1" };
     SLEEPER.draft = Object.assign({}, SLEEPER.draft, { draft_order: { U1: 2 } });
-    els.username.value = "me";
-    await handlers.connectId();
+    const before = SLEEPER.calls.length;
+    await Session.identify("me");
     await until(() => last.mine.size === 1,
-                "reconnecting WITH a username to pick up your roster");
+                "identifying while connected to pick up your roster");
+    const connects = SLEEPER.calls.slice(before).filter(p => p === "/draft/1234567");
+    assert.strictEqual(connects.length, 1,
+      `identity change reconnected ${connects.length} times, expected exactly once`);
+    assert.strictEqual(last.connected, true);
+    assert.deepStrictEqual(
+      JSON.parse(store.get("fc-draft-mode:default")),
+      { username: "me", userId: "U1", draftId: "1234567" },
+      "the restore record was not rewritten with the session identity");
+
+    /* forget() while live: the draft keeps streaming, nothing is "mine" any
+       more, and the record is rewritten without an identity -- a reload must
+       not resurrect the forgotten account's highlights. */
+    const beforeForget = SLEEPER.calls.length;
+    Session.forget();
+    await until(() => last.connected && last.mine.size === 0 && last.drafted.size === 2
+                      && store.has("fc-draft-mode:default"),
+                "forget to keep the draft live with no seat highlighted");
+    const after = SLEEPER.calls.slice(beforeForget);
+    assert.strictEqual(after.filter(p => p === "/draft/1234567").length, 1,
+      "forget must reconnect anonymously exactly once");
+    assert.ok(after.some(p => p === "/draft/1234567/picks"),
+      "the pick log was not polled after forget");
+    assert.strictEqual(JSON.parse(store.get("fc-draft-mode:default")).userId, null,
+      "forget left the forgotten account in the restore record");
+    // Nothing further to reconcile: a state move with the SAME identity is a no-op.
+    const idle = SLEEPER.calls.length;
+    Session.forget();
+    await new Promise(r => setImmediate(r));
+    assert.strictEqual(SLEEPER.calls.slice(idle).filter(p => p === "/draft/1234567").length, 0,
+      "an unchanged identity triggered a reconnect");
 
     handlers.disconnect();   // stops the poll chain + heartbeat so node exits
   })();
@@ -629,17 +688,15 @@ const until = async (pred, what, ms = 2000) => {
    And a draft id pasted into the wrong board was accepted silently, optimizing
    a 10-team draft against 12-team VORP with nothing on screen to say so. */
 {
-  (async () => {
+  var twoLeaguesFixtureDone = (async () => {
     // Must not start touching cfg/session/SLEEPER until the previous block's
     // async chain has fully settled -- see the comment on reconnectFixtureDone.
     await reconnectFixtureDone;
+    SLEEPER.calls.length = 0;         // the previous block's identify() is not this block's
 
-    const store = new Map();
-    global.localStorage = {
-      getItem: k => (store.has(k) ? store.get(k) : null),
-      setItem: (k, v) => store.set(k, String(v)),
-      removeItem: k => store.delete(k),
-    };
+    const store = fakeStore();
+    global.localStorage = store;
+    Session._storage(store);          // cold session again; the old init's listener is gone
     const GAB = { slug: "gabagool", name: "Gabagool Fools", league_id: "1376245373244301312", teams: 12, rounds: 15,
                   roster: { QB: 1, RB: 2, WR: 2, TE: 1 }, flex: 2,
                   flex_positions: ["RB", "WR", "TE"], starters: 8,
@@ -654,7 +711,7 @@ const until = async (pred, what, ms = 2000) => {
       connect: el(), connectId: el(), disconnect: el(), find: el(), hide: el(),
       idInput: el(), late: el(), list: el(), live: el(), note: el(),
       picksCount: el(), roster: el(), shortlist: el(), status: el(),
-      ticker: el(), username: el(),
+      ticker: el(),
     };
     const handlers = {};
     for (const [name, node] of Object.entries(els)) {
@@ -743,6 +800,14 @@ const until = async (pred, what, ms = 2000) => {
       "the session was not stored under a league-scoped key");
     assert.ok(!store.has("fc-draft-mode"),
       "still writing the un-scoped global session key");
+    // Anonymous pasted-id mode, exactly as before the shared session: no
+    // identity, no user lookup, userId null in the record, nothing "mine".
+    assert.strictEqual(Session.identity(), null);
+    assert.strictEqual(JSON.parse(store.get("fc-draft-mode:gabagool")).userId, null,
+      "an anonymous connect recorded a userId");
+    assert.strictEqual(last.mine.size, 0, "anonymous connect highlighted a seat");
+    assert.ok(!SLEEPER.calls.some(p => /^\/user\//.test(p)),
+      "anonymous connect must not look a user up");
 
     // 3. The other league's stored session is untouched, and would not be
     //    restored onto this board.
@@ -766,7 +831,10 @@ const until = async (pred, what, ms = 2000) => {
       SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
         league_id: GAB.league_id, draft_order: { U1: "2" },
         settings: { teams: "12", rounds: "15", reversal_round: "0", slots_flex: "2" } };
-      els.username.value = "me";
+      SLEEPER.user = { user_id: "U1" };
+      await Session.identify("me");    // not connected: identifying here connects nothing
+      assert.ok(!SLEEPER.calls.some(p => /^\/draft\//.test(p)),
+        "identifying while disconnected must not connect anything");
       await handlers.connectId();
       await until(() => pendingPoll && last.connected, "numeric-string draft to connect");
       assert.ok(!/No pick left|doesn&#39;t report its size/.test(els.shortlist.innerHTML),
@@ -873,6 +941,161 @@ const until = async (pred, what, ms = 2000) => {
       handlers.disconnect();
       global.setTimeout = realSetTimeout;
     }
+  })();
+  twoLeaguesFixtureDone.catch(e => { console.error(e.message); process.exit(1); });
+}
+
+/* --- restore: a saved session that is not YOUR account -------------------
+   The restore record `fc-draft-mode:<slug>` carries the userId it was
+   connected under. The shared session now says who you are, and the two can
+   disagree: someone else identified on this device, or you changed account
+   in the league panel since draft night. Auto-restoring the record would
+   highlight THEIR seat as "mine" under a status reading "live" -- so it must
+   not connect at all until you choose: reconnect as the session's account,
+   or view the draft anonymously. Every other combination restores exactly as
+   before (same account, an anonymous record, or no session identity). */
+{
+  (async () => {
+    await twoLeaguesFixtureDone;
+    SLEEPER.calls.length = 0;
+
+    const GAB = require("../site/data/draft.json").league;
+    const league = { ...GAB, sleeper_scoring: SCORING };
+    const el = () => ({
+      value: "", textContent: "", innerHTML: "", hidden: false, checked: false,
+      open: false, className: "", children: [],
+      addEventListener() {}, querySelectorAll: () => [],
+      appendChild(n) { this.children.push(n); },
+    });
+    // offerRestoreChoice builds its note and buttons with createElement; the
+    // restore path opens #draft-panel. Neither exists in the module-level stub.
+    const panel = { open: false };
+    global.document.getElementById = id => (id === "draft-panel" ? panel : null);
+    global.document.createElement = tag => {
+      const n = el();
+      n.tag = tag;
+      n.addEventListener = (ev, fn) => { if (ev === "click") n.click = fn; };
+      return n;
+    };
+    const board = { league, players: [
+      { player_id: "a", sleeper_id: "9509", name: "P1", position: "RB", adp: 1,
+        bye: 5, value_points: 300, vorp: 90, position_rank: 1 },
+      { player_id: "b", sleeper_id: "4034", name: "P2", position: "WR", adp: 2,
+        bye: 7, value_points: 290, vorp: 85, position_rank: 1 },
+    ] };
+    SLEEPER.league = { league_id: league.league_id, scoring_settings: { ...SCORING } };
+    SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
+      league_id: league.league_id, draft_order: { U1: 2, U2: 1 },
+      settings: { rounds: 15, teams: 12, slots_qb: 1, slots_rb: 2,
+                  slots_wr: 2, slots_te: 1, slots_flex: 2 } };
+    SLEEPER.picks = [
+      { pick_no: 1, draft_slot: 1, player_id: "9509", picked_by: "U2" },
+      { pick_no: 2, draft_slot: 2, player_id: "4034", picked_by: "U1" },
+    ];
+    SLEEPER.user = { user_id: "U1", display_name: "Me" };
+    const KEY = "fc-draft-mode:gabagool";
+    const connects = () => SLEEPER.calls.filter(p => p === "/draft/D1").length;
+    const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
+
+    // Fresh controller + fresh session per scenario. `record` is what the
+    // previous visit left in storage; `identity` is whether this visitor has
+    // identified in the league panel.
+    async function visit(record, identity) {
+      const store = fakeStore();
+      global.localStorage = store;
+      Session._storage(store);
+      if (identity) await Session.identify(identity);
+      if (record) store.set(KEY, JSON.stringify(record));
+      panel.open = false;
+      SLEEPER.calls.length = 0;
+      const els = {
+        connect: el(), connectId: el(), disconnect: el(), find: el(), hide: el(),
+        idInput: el(), late: el(), list: el(), live: el(), note: el(),
+        picksCount: el(), roster: el(), shortlist: el(), status: el(), ticker: el(),
+      };
+      const handlers = {};
+      for (const [name, node] of Object.entries(els)) {
+        node.addEventListener = (ev, fn) => { if (ev === "click") handlers[name] = fn; };
+      }
+      let last = null;
+      D.init({ board, els, onUpdate: st => { last = st; } });
+      return { store, els, handlers, state: () => last };
+    }
+
+    // 1. MISMATCH: the record is U2's, the session is U1. No connect, two choices.
+    let v = await visit({ username: "stranger", userId: "U2", draftId: "D1" }, "me");
+    await settle();
+    assert.strictEqual(connects(), 0, "a mismatched restore record auto-connected");
+    assert.strictEqual(v.state(), null, "a mismatched restore emitted state");
+    assert.ok(panel.open, "the draft panel was not opened to show the choice");
+    const kids = v.els.list.children;
+    assert.strictEqual(kids.length, 3, `expected note + two buttons, got ${kids.length}`);
+    assert.match(kids[0].textContent, /different account \(stranger\)/);
+    assert.strictEqual(kids[1].tag, "button");
+    assert.strictEqual(kids[1].textContent, "Reconnect as Me");
+    assert.strictEqual(kids[2].tag, "button");
+    assert.strictEqual(kids[2].textContent, "View anonymously");
+    assert.match(v.els.status.textContent, /another account/);
+    assert.strictEqual(v.store.get(KEY),
+      JSON.stringify({ username: "stranger", userId: "U2", draftId: "D1" }),
+      "the record was rewritten before the visitor chose");
+
+    // 1a. "View anonymously": connects with no seat; record loses its identity.
+    kids[2].click();
+    await until(() => v.state() && v.state().connected && v.state().drafted.size === 2,
+                "the anonymous view to connect");
+    assert.strictEqual(connects(), 1);
+    assert.strictEqual(v.state().mine.size, 0, "anonymous view highlighted a seat");
+    assert.deepStrictEqual(JSON.parse(v.store.get(KEY)),
+      { username: null, userId: null, draftId: "D1" });
+    assert.strictEqual(Session.identity().userId, "U1",
+      "viewing anonymously must not forget the session identity");
+    v.handlers.disconnect();
+
+    // 1b. "Reconnect as Me": connects as the SESSION's account, never the record's.
+    v = await visit({ username: "stranger", userId: "U2", draftId: "D1" }, "me");
+    await settle();
+    assert.strictEqual(connects(), 0);
+    v.els.list.children[1].click();
+    await until(() => v.state() && v.state().connected && v.state().mine.size === 1,
+                "reconnecting as the session identity to pick up its seat");
+    assert.ok(v.state().mine.has("4034") && !v.state().mine.has("9509"),
+      "highlighted the stored account's pick instead of the session's");
+    assert.deepStrictEqual(JSON.parse(v.store.get(KEY)),
+      { username: "me", userId: "U1", draftId: "D1" });
+    v.handlers.disconnect();
+
+    // 2. SAME account: restores as before, no choice offered.
+    v = await visit({ username: "me", userId: "U1", draftId: "D1" }, "me");
+    await until(() => v.state() && v.state().connected && v.state().mine.size === 1,
+                "a matching record to auto-restore");
+    assert.strictEqual(connects(), 1);
+    assert.strictEqual(v.els.list.children.length, 0, "a matching restore offered a choice");
+    v.handlers.disconnect();
+
+    // 3. ANONYMOUS record with a session identity: restores as before (anonymously).
+    v = await visit({ draftId: "D1" }, "me");
+    await until(() => v.state() && v.state().connected && v.state().drafted.size === 2,
+                "an anonymous record to auto-restore");
+    assert.strictEqual(v.state().mine.size, 0);
+    assert.strictEqual(v.els.list.children.length, 0);
+    v.handlers.disconnect();
+
+    // 4. NO session identity: nothing to compare against, restores as before.
+    v = await visit({ username: "stranger", userId: "U2", draftId: "D1" }, null);
+    await until(() => v.state() && v.state().connected && v.state().mine.size === 1,
+                "a record to auto-restore when the session has no identity");
+    assert.ok(v.state().mine.has("9509"));
+    assert.strictEqual(v.els.list.children.length, 0);
+    // ...and identifying now as U1 reconciles the live draft to the session, once.
+    SLEEPER.calls.length = 0;
+    await Session.identify("me");
+    await until(() => v.state().mine.has("4034") && !v.state().mine.has("9509"),
+                "identifying to move the seat to the session's account");
+    assert.strictEqual(connects(), 1, "identity change reconnected more than once");
+    assert.strictEqual(JSON.parse(v.store.get(KEY)).userId, "U1");
+    v.handlers.disconnect();
+
     console.log("draftmode_fixture: OK");
-  })().catch(e => { console.error(e.message); process.exit(1); });
+  })().catch(e => { console.error(e.stack || e.message); process.exit(1); });
 }
