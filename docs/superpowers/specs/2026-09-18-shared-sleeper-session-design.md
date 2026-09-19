@@ -199,7 +199,7 @@ Sleeper calls, existing "not connected" note.
 | --- | --- | --- | --- | --- |
 | `megatron:session:identity` | `{ username, userId, displayName, storedAt }` | `Session.identify` | until forget | deleted |
 | `megatron:sleeper-username` | *(legacy)* | — | **migrated**: read once into identity on first load, then deleted | deleted |
-| `fc-draft-mode:<slug>` | `{ username, userId, draftId }` | `draftmode` (unchanged shape) | until draft ends / forget | **deleted for every slug** |
+| `fc-draft-mode:<slug>` | `{ username, userId, draftId }` | `draftmode` (unchanged shape) | until draft ends / forget | **deleted for every slug**; a draft that is live at that moment re-creates an anonymous record (`username:null, userId:null, draftId`) for its own slug so a reload keeps the connection without any account data |
 
 League, roster, user and catalog data are never persisted. All reads validate JSON
 shape and fall back to `anonymous` on parse failure; storage that throws (private mode,
