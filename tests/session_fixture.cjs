@@ -476,6 +476,134 @@ const sorted = a => a.slice().sort();
     await assert.rejects(Session.leaguesFor(), /username|identify/i);
   });
 
+  await check("17. refresh({also}): runs pre-commit in the same generation; rejection commits nothing; result rides as bundle.extra", async () => {
+    Session._storage(fakeStorage());
+    const r = routes();
+    const { get, calls } = fakeGet(r);
+    Session._get(get);
+    await Session.identify("max973");
+    const b1 = await Session.ready({ slug: "gabagool", board });
+    assert.equal(b1.extra, null, "no hook, no extra");
+    await pause(5);
+    // Rejecting hook: the old bundle stays BY REFERENCE, timestamps included,
+    // state back to ready, rejection propagates.
+    let seenParts = null;
+    const boomP = Session.refresh({ scope: "rosters", also: async (parts, g) => {
+      seenParts = parts;
+      assert.equal(g, get, "the hook receives the session's getter");
+      assert.equal(Session.bundle(), b1, "the hook runs BEFORE the new bundle is committed");
+      await g(`/league/${L}/transactions/3`);
+    } });
+    await assert.rejects(boomP, /unrouted .*transactions/);
+    assert.equal(Session.bundle(), b1);
+    assert.equal(Session.bundle().rostersFetchedAt, b1.rostersFetchedAt);
+    assert.equal(Session.state(), "ready");
+    assert.equal(Session.error(), null);
+    assert.deepEqual(Object.keys(seenParts).sort(), ["league", "rosters", "rostersFetchedAt", "rostersRequestedAt", "state", "users"]);
+    assert.equal(seenParts.rosters, rosters);
+    assert.ok(seenParts.rostersRequestedAt <= seenParts.rostersFetchedAt);
+    assert.ok(seenParts.rostersFetchedAt > b1.rostersFetchedAt, "the hook sees the fresh timestamps that were NOT committed");
+    // Resolving hook: its value is attached as bundle.extra on the new bundle.
+    r[`/league/${L}/transactions/3`] = [{ transaction_id: "t1" }];
+    const b2 = await Session.refresh({ also: (parts, g) => g(`/league/${L}/transactions/3`) });
+    assert.notEqual(b2, b1);
+    assert.deepEqual(b2.extra, [{ transaction_id: "t1" }]);
+    assert.ok(b2.rostersFetchedAt > b1.rostersFetchedAt);
+    assert.ok(calls.includes(`/league/${L}/transactions/3`));
+    assert.equal(Session.state(), "ready");
+    // Superseded: a hook still pending when a newer ready() commits never lands.
+    const dHook = deferred();
+    const pStale = Session.refresh({ also: () => dHook.promise });
+    const fired = [];
+    const off = Session.onChange(() => fired.push(Session.state()));
+    const bFresh = await Session.ready({ slug: "gabagool", board });
+    const firedAfterReady = fired.length;
+    dHook.resolve({ should: "never land" });
+    await assert.rejects(pStale, e => e.superseded === true);
+    await pause(2);
+    assert.equal(Session.bundle(), bFresh);
+    assert.equal(Session.bundle().extra, null);
+    assert.equal(fired.length, firedAfterReady, "the stale hook result fired nothing");
+    assert.equal(Session.state(), "ready");
+    off();
+    // A hook on an ESPN bundle never runs (no Sleeper session to extend).
+    await Session.ready({ slug: "espnfam", board: { league: { league_id: "69827905" } } });
+    let ran = false;
+    const e = await Session.refresh({ also: () => { ran = true; } });
+    assert.equal(ran, false); assert.equal(e.registry.platform, "espn");
+  });
+
+  await check("18. identity and league errors are separate slots; a league result never clears an identity error", async () => {
+    Session._storage(fakeStorage());
+    const d = deferred();
+    const r = routes(); r[`/league/${L}/rosters`] = () => d.promise; r["/user/bad"] = null;
+    const { get } = fakeGet(r);
+    Session._get(get);
+    const pReady = Session.ready({ slug: "gabagool", board });
+    await assert.rejects(Session.identify("bad"), /was not found/);
+    assert.equal(Session.state(), "error");
+    d.resolve(rosters);
+    const b = await pReady;
+    assert.ok(b && b.registry.slug === "gabagool", "the league load itself succeeds");
+    assert.equal(Session.bundle(), b);
+    assert.equal(Session.error(), "Sleeper username was not found.", "ready() clears only the league error");
+    assert.equal(Session.state(), "error", "the chip keeps showing the identity error until the user acts");
+    assert.equal(b.myRosterStatus, "anonymous");
+    // A successful identify clears it; state falls through to the league flow.
+    await Session.identify("max973");
+    assert.equal(Session.error(), null);
+    assert.equal(Session.state(), "ready");
+    // A league error alongside a good identity: identify() does not clear it.
+    await assert.rejects(Session.ready({ slug: "gabagool", board: { league: { league_id: "999" } } }), /does not match/);
+    assert.match(Session.error(), /does not match/);
+    await Session.identify("max973");
+    assert.match(Session.error(), /does not match/, "identify() clears only the identity error");
+    assert.equal(Session.state(), "error");
+    // Both set: identity error is reported first; forget clears both.
+    await assert.rejects(Session.identify("bad"), /was not found/);
+    assert.equal(Session.error(), "Sleeper username was not found.");
+    Session.forget();
+    assert.equal(Session.error(), null);
+    assert.equal(Session.state(), "anonymous");
+    // A failed refresh is not an error state: the committed bundle stays valid.
+    const r2 = routes(); const g2 = fakeGet(r2).get; Session._get(g2);
+    await Session.ready({ slug: "gabagool", board });
+    r2[`/league/${L}/rosters`] = new Error("HTTP 503");
+    await assert.rejects(Session.refresh(), /503/);
+    assert.equal(Session.error(), null);
+    assert.equal(Session.state(), "ready");
+  });
+
+  await check("19. leaguesFor({season}) needs no bundle; identity is still required", async () => {
+    Session._storage(fakeStorage());
+    const r = routes(); r["/user/u1/leagues/nfl/2026"] = [{ league_id: L }];
+    const { get, calls } = fakeGet(r);
+    Session._get(get);
+    await assert.rejects(Session.leaguesFor({ season: "2026" }), /username/i);
+    await Session.identify("max973");
+    assert.equal(Session.bundle(), null);
+    calls.length = 0;
+    const leagues = await Session.leaguesFor({ season: 2026 });
+    assert.deepEqual(calls, ["/user/u1/leagues/nfl/2026"]);
+    assert.equal(leagues.length, 1);
+    await assert.rejects(Session.leaguesFor(), /league/i, "omitting season still requires a bundle");
+    await assert.rejects(Session.leaguesFor({ season: "" }), /league/i, "an empty season is the same as omitting it");
+  });
+
+  await check("20. ready({get}) is per-call; empty username copy", async () => {
+    Session._storage(fakeStorage());
+    Session._get(null);
+    const { get, calls } = fakeGet(routes());
+    await Session.ready({ slug: "gabagool", board, get });
+    calls.length = 0;
+    await assert.rejects(Session.refresh(), /Sleeper client unavailable/, "a getter passed to ready() must not become the document's getter");
+    assert.deepEqual(calls, []);
+    assert.equal(Session.bundle() && Session.bundle().registry.slug, "gabagool", "a failed refresh keeps the bundle");
+    Session._get(get);
+    await assert.rejects(Session.identify("   "), { message: "Enter a Sleeper username." });
+    assert.equal(Session.error(), "Enter a Sleeper username.");
+  });
+
   await check("registry and module hygiene", () => {
     assert.equal(typeof global.window, "undefined", "session.js must not create a global window in node");
     assert.ok(Object.isFrozen(Session));

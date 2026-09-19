@@ -17,7 +17,17 @@
    - every Sleeper call goes through Sleeper.get (cache-busted, no-store, 4 s
      abort); `Sleeper` is resolved lazily so this module loads under node;
    - storage that throws degrades to a memory-only identity; corrupt JSON is
-     anonymous; nothing here ever throws because of storage. */
+     anonymous; nothing here ever throws because of storage.
+
+   Errors live in TWO slots. `identityError` is set by a failed identify() and
+   cleared only by identify()/forget(); `leagueError` is set by a failed
+   ready() and cleared only by ready()/forget(). state() reports "error"
+   while EITHER slot is set (identity first), otherwise the flow state
+   (anonymous / identifying / identified / loadingLeague / ready /
+   refreshing) -- so a league load that completes after a bad username keeps
+   the chip on "username was not found" until the user acts. A failed
+   refresh() is NOT an error state: the committed bundle stays valid and
+   the rejection goes to the caller. */
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -120,8 +130,9 @@
   }
 
   // ---- session state ------------------------------------------------------------
-  let stateName = "anonymous";
-  let errorReason = null;
+  let flow = "anonymous";      // the state-machine position, before error slots
+  let identityError = null;    // failed identify(); cleared by identify()/forget()
+  let leagueError = null;      // failed ready(); cleared by ready()/forget()
   let identityRec = null;      // { username, userId, displayName }
   let identityLoaded = false;  // storage read lazily on first use
   let pendingName = null;      // migrated legacy username awaiting identify()
@@ -138,12 +149,13 @@
     e.superseded = true;
     return e;
   }
-  function setState(name, reason) {
-    stateName = name;
-    errorReason = name === "error" ? String(reason || "") : null;
-  }
+  const currentError = () => identityError || leagueError;
+  const currentState = () => (currentError() ? "error" : flow);
+  // The flow position after an identity change: a committed bundle is
+  // usable, otherwise identified/anonymous by whether an account is known.
+  const restingFlow = () => (committed ? "ready" : identityRec ? "identified" : "anonymous");
   function fire() {
-    const snapshot = { state: stateName, bundle: committed, identity: identityRec, error: errorReason };
+    const snapshot = { state: currentState(), bundle: committed, identity: identityRec, error: currentError() };
     for (const fn of [...listeners]) {
       try { fn(snapshot); } catch (e) { if (typeof console !== "undefined" && console.error) console.error(e); }
     }
@@ -155,7 +167,7 @@
     identityRec = readIdentity(store);
     const legacy = migrateLegacy(store);
     if (!identityRec && legacy) pendingName = legacy;
-    if (identityRec && stateName === "anonymous") stateName = "identified";
+    if (identityRec && flow === "anonymous") flow = "identified";
   }
   function persistIdentity(rec) {
     try {
@@ -189,7 +201,7 @@
     b.warnings = Object.freeze((b.warnings || []).slice());
     return Object.freeze(b);
   }
-  function buildBundle(entry, parts, gen) {
+  function buildBundle(entry, parts, gen, extra) {
     const identity = identityRec;
     const { league, users, rosters, state } = parts;
     const warnings = [];
@@ -197,15 +209,15 @@
     if (state && state.season_type !== "regular") warnings.push(`NFL season type is ${state.season_type}, not regular.`);
     return freezeBundle({
       registry: entry, identity, league, users, rosters, state,
-      rostersRequestedAt: parts.requestedAt, rostersFetchedAt: parts.fetchedAt,
-      ...deriveRoster(entry, rosters, identity), warnings, generation: gen,
+      rostersRequestedAt: parts.rostersRequestedAt, rostersFetchedAt: parts.rostersFetchedAt,
+      ...deriveRoster(entry, rosters, identity), warnings, extra: extra === undefined ? null : extra, generation: gen,
     });
   }
   function espnBundle(entry, gen) {
     return freezeBundle({
       registry: entry, identity: identityRec, league: null, users: null, rosters: null, state: null,
       rostersRequestedAt: null, rostersFetchedAt: null, myRoster: null, myRosterStatus: "anonymous",
-      warnings: [], generation: gen,
+      warnings: [], extra: null, generation: gen,
     });
   }
   // Same league data, identity re-derived (identify/forget never refetch).
@@ -224,16 +236,16 @@
     const full = scope === "league" || !base;
     const leagueP = full ? get(`/league/${id}`) : Promise.resolve(base.league);
     const usersP = full ? get(`/league/${id}/users`) : Promise.resolve(base.users);
-    const requestedAt = Date.now();
-    let fetchedAt = null;
-    const rostersP = get(`/league/${id}/rosters`).then(r => { fetchedAt = Date.now(); return r; });
+    const rostersRequestedAt = Date.now();
+    let rostersFetchedAt = null;
+    const rostersP = get(`/league/${id}/rosters`).then(r => { rostersFetchedAt = Date.now(); return r; });
     const stateP = get("/state/nfl");
     const [league, users, rosters, state] = await Promise.all([leagueP, usersP, rostersP, stateP]);
     if (!league || typeof league !== "object" || league.league_id === undefined || league.league_id === null) throw new Error("Sleeper returned a malformed league.");
     if (!Array.isArray(users)) throw new Error("Sleeper returned malformed league users.");
     if (!Array.isArray(rosters)) throw new Error("Sleeper returned malformed rosters.");
     if (!state || typeof state !== "object" || state.season === undefined || state.season === null) throw new Error("Sleeper returned a malformed NFL state.");
-    return { league, users, rosters, state, requestedAt, fetchedAt };
+    return { league, users, rosters, state, rostersRequestedAt, rostersFetchedAt };
   }
 
   // ---- API ----------------------------------------------------------------------
@@ -245,17 +257,19 @@
     // and a failure does not silently bring that account back.
     identityRec = null;
     pendingName = null;
+    identityError = null;        // only the identity slot; a league error is not ours to clear
     committed = rederive(committed);
-    setState("identifying");
+    flow = "identifying";
     fire();
     let user;
     try {
-      if (!name) throw new Error("Enter a Sleeper username, not a password.");
+      if (!name) throw new Error("Enter a Sleeper username.");
       user = await resolveGet(opts)(`/user/${encodeURIComponent(name)}`);
       if (!user || typeof user !== "object" || !user.user_id) throw new Error(NOT_FOUND);
     } catch (e) {
       if (gen !== identityGen) throw superseded();
-      setState("error", e.message);
+      identityError = String(e.message || e);
+      flow = restingFlow();
       fire();
       throw e;
     }
@@ -267,7 +281,7 @@
     };
     persistIdentity(identityRec);
     committed = rederive(committed);
-    setState(committed ? "ready" : "identified");
+    flow = restingFlow();
     fire();
     return { ...identityRec };
   }
@@ -279,7 +293,9 @@
     pendingName = null;
     deleteKeys();
     committed = rederive(committed);
-    setState("anonymous");
+    identityError = null;
+    leagueError = null;
+    flow = "anonymous";
     fire();
   }
 
@@ -289,7 +305,8 @@
     const gen = ++leagueGen;
     refreshPromise = null;       // an in-flight refresh belongs to the old league
     committed = null;            // no prior bundle stays usable while a new league loads
-    setState("loadingLeague");
+    leagueError = null;          // only the league slot; an identity error outlives us
+    flow = "loadingLeague";
     fire();
     let bundle;
     try {
@@ -298,8 +315,7 @@
       if (entry.platform !== "sleeper") {
         bundle = espnBundle(entry, gen);   // ESPN never creates a Sleeper session
       } else {
-        const get = resolveGet(opts);
-        if (opts && typeof opts.get === "function") injectedGet = opts.get;
+        const get = resolveGet(opts);   // per-call only: never installed document-wide
         const parts = await fetchLeague(entry, get, "league", null);
         const staticId = board && board.league ? board.league.league_id : undefined;
         if (staticId === undefined || staticId === null || String(parts.league.league_id) !== String(staticId)) throw new Error(ID_MISMATCH);
@@ -309,13 +325,14 @@
     } catch (e) {
       if (gen !== leagueGen) throw superseded();
       committed = null;
-      setState("error", e.message);
+      leagueError = String(e.message || e);
+      flow = restingFlow();
       fire();
       throw e;
     }
     if (gen !== leagueGen) throw superseded();
     committed = bundle;
-    setState("ready");
+    flow = "ready";
     fire();
     return bundle;
   }
@@ -324,28 +341,39 @@
     ensureLoaded();
     if (refreshPromise) return refreshPromise;
     const scope = (opts && opts.scope) || "rosters";
+    const also = opts && typeof opts.also === "function" ? opts.also : null;
     const base = committed;
     if (!base) return Promise.reject(new Error("No league is loaded to refresh."));
     if (base.registry.platform !== "sleeper") return Promise.resolve(base);
     let get;
     try { get = resolveGet(opts); } catch (e) { return Promise.reject(e); }
     const gen = ++leagueGen;
-    setState("refreshing");
+    flow = "refreshing";
     fire();
     const p = (async () => {
       try {
         const parts = await fetchLeague(base.registry, get, scope, base);
         if (gen !== leagueGen) throw superseded();
         if (String(parts.league.league_id) !== String(base.league.league_id)) throw new Error(ID_MISMATCH);
-        const bundle = buildBundle(base.registry, parts, gen);
+        // The controller's extra fetch (e.g. the waiver desk's week
+        // transactions) runs in THIS generation, BEFORE the commit: if it
+        // rejects, nothing is committed and rostersFetchedAt does not move;
+        // if it resolves, its value rides along as bundle.extra.
+        let extra = null;
+        if (also) {
+          extra = await also(Object.freeze({ ...parts }), get);
+          if (gen !== leagueGen) throw superseded();
+        }
+        const bundle = buildBundle(base.registry, parts, gen, extra);
         committed = bundle;
-        setState("ready");
+        flow = "ready";
         fire();
         return bundle;
       } catch (e) {
         if (gen !== leagueGen) throw superseded();
         // The old bundle -- and its timestamps -- stay exactly as they were.
-        setState("ready");
+        // Not an error state: the committed bundle is still valid.
+        flow = "ready";
         fire();
         throw e;
       }
@@ -369,12 +397,16 @@
     return p;
   }
 
+  // `season` may be passed by a caller with no board (connect.js fetches
+  // /state/nfl itself); otherwise it comes from the committed bundle's state.
   async function leaguesFor(opts) {
     ensureLoaded();
-    const bundle = committed;
-    if (!bundle || !bundle.state) throw new Error("Load a league first; the NFL season comes from its live state.");
     if (!identityRec) throw new Error("Enter a Sleeper username first.");
-    return resolveGet(opts)(`/user/${encodeURIComponent(identityRec.userId)}/leagues/nfl/${encodeURIComponent(String(bundle.state.season))}`);
+    const given = opts && opts.season !== undefined && opts.season !== null ? String(opts.season).trim() : "";
+    const bundle = committed;
+    const season = given || (bundle && bundle.state && bundle.state.season !== undefined && bundle.state.season !== null ? String(bundle.state.season) : "");
+    if (!season) throw new Error("Load a league first or pass a season; the NFL season comes from live state.");
+    return resolveGet(opts)(`/user/${encodeURIComponent(identityRec.userId)}/leagues/nfl/${encodeURIComponent(season)}`);
   }
 
   function onChange(fn) {
@@ -387,7 +419,7 @@
   // Inject a storage object and reset the document's session to a cold start.
   function _storage(obj) {
     injectedStorage = obj === undefined ? null : obj;
-    stateName = "anonymous"; errorReason = null;
+    flow = "anonymous"; identityError = null; leagueError = null;
     identityRec = null; identityLoaded = false; pendingName = null;
     committed = null; identityGen++; leagueGen++;
     refreshPromise = null; catalogPromise = null; catalogAt = null;
@@ -398,8 +430,8 @@
   return Object.freeze({
     STATES,
     identify, forget, ready, refresh, catalog, leaguesFor, onChange,
-    state: () => { ensureLoaded(); return stateName; },
-    error: () => errorReason,
+    state: () => { ensureLoaded(); return currentState(); },
+    error: () => currentError(),
     bundle: () => committed,
     identity: () => { ensureLoaded(); return identityRec ? { ...identityRec } : null; },
     pendingUsername: () => { ensureLoaded(); return pendingName; },
