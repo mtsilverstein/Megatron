@@ -61,9 +61,7 @@
     keeper value, draft picks, the current week, and any injury you have not
     marked.</p>
     <div class="draft-row" id="season-connect">
-      <input id="season-user" type="text" placeholder="Sleeper username" aria-label="Sleeper username" autocomplete="off">
-      <button id="season-load">Load my league</button>
-      <span class="draft-status" id="season-status">— not loaded</span>
+      <span class="draft-status" id="season-status">— loading league…</span>
     </div>
     <div class="draft-row" id="season-controls" hidden>
       <label>Trade with <select id="season-partner"></select></label>
@@ -89,7 +87,7 @@
 <script src="assets/ros.js?v=1"></script>
 <script src="assets/trademode.js?v=season-guard1"></script>
 <script src="assets/seasontrade.js?v=page1"></script>
-<script src="assets/seasontrademode.js?v=page1"></script>
+<script src="assets/seasontrademode.js?v=session1"></script>
 <script>
 (async () => {
   const slug = FC.leagueNavigation();
@@ -131,7 +129,9 @@
   }
   if (league.status === "in_season") {
     // In season the pre-draft engine is never called (spec §6.6): its blocks
-    // are hidden and the conditional lineup scenario takes the page.
+    // are hidden and the conditional lineup scenario takes the page. Identity
+    // and the league load come from the chip (FC.setBoard above); the page
+    // reads no username of its own.
     hide(["trade-eyebrow", "trade-note", "trade-connect", "trade-league-picker", "trade-controls",
           "trade-warn", "trade-cols", "trade-grade", "trade-suggestions"]);
     $("season-trade").hidden = false;
@@ -141,8 +141,6 @@
       board, league, slug,
       els: {
         eyebrow: $("season-eyebrow"),
-        user: $("season-user"),
-        load: $("season-load"),
         status: $("season-status"),
         controls: $("season-controls"),
         partner: $("season-partner"),

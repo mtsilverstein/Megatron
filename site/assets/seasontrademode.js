@@ -1,11 +1,18 @@
 /* In-season trade page controller. The pure helpers here are what the fixture
-   tests; init() (Task 4) wires them to the DOM and to SeasonTrade.analyze. */
+   tests; init() wires them to the DOM, to the shared Session bundle (identity,
+   users, rosters, NFL state, catalog) and to SeasonTrade.analyze. */
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.SeasonTradeMode = api;
 })(typeof window !== "undefined" ? window : null, function () {
   "use strict";
+  // The browser has window.Session (session.js loads first); node requires it.
+  // This file does not shadow `require` (seasontrade.js does), so the loader
+  // is the real one here.
+  const dep = (name, path) => typeof window !== "undefined" && window[name]
+    ? window[name] : typeof require === "function" ? require(path) : null;
+  const Session = dep("Session", "./session.js");
   const SKILL = new Set(["QB", "RB", "WR", "TE"]);
   const HEADLINE = "Conditional lineup scenario — not a trade verdict.";
   const SUBLINE_TAIL = "Keeper value and draft picks are not valued, so no overall grade is shown.";
@@ -27,11 +34,9 @@
     }
     return [...out].sort((x, y) => x - y);
   }
-  function identifyRoster(rosters, userId) {
-    const mine = (rosters || []).filter(r => r.owner_id === userId || (r.co_owners || []).includes(userId));
-    if (mine.length !== 1) throw new Error("Could not uniquely match this account to a roster in this league.");
-    return mine[0];
-  }
+  // The exact roster matcher lives in session.js now (spec §4.3); re-exported
+  // under the old name so callers and the fixture keep one import.
+  const identifyRoster = Session.identifyRoster;
   const capacityOf = league => (league.roster_positions || []).filter(s => !["IR", "TAXI"].includes(String(s).toUpperCase())).length;
   function activeSkill(roster, catalog) {
     const locked = new Set([...(roster.reserve || []), ...(roster.taxi || [])].map(String));
@@ -70,16 +75,12 @@
   // helpers above are what the fixture pins. Nothing here calls Trade.* except
   // defaultPicks/applyTradedPicks (pick ownership only) and never TradeMode.*:
   // the pre-draft engine's numbers are not defined in season (spec §6.6).
-
-  // The Sleeper player catalog is ~5 MB; fetched once per session like the
-  // waiver desk does, with its fetch time carried into the provenance line.
-  let catalogPromise = null, catalogFetchedAt = null;
-  function loadCatalog(get) {
-    if (!catalogPromise) catalogPromise = get("/players/nfl")
-      .then(data => { catalogFetchedAt = new Date().toISOString(); return data; })
-      .catch(error => { catalogPromise = null; throw error; });
-    return catalogPromise;
-  }
+  //
+  // Who you are, which roster is yours, the league's users/rosters and the
+  // NFL state all come from the committed Session bundle (spec §5); the
+  // ~5 MB player catalog is Session.catalog(), fetched once per document.
+  // This controller's only Sleeper calls of its own are traded_picks on load
+  // and, through Session.refresh, the roster re-read before a compare.
 
   // Same rule as TradeMode.teamName, restated here rather than imported so
   // this controller never reaches into the pre-draft module.
@@ -89,12 +90,14 @@
     return (roster.players || []).map(String).filter(id => !locked.has(id));
   };
   const weekMismatch = (startWeek, week) => `remaining-season projections are for week ${startWeek}, the league is in week ${week}; wait for the next refresh`;
-  const CHANGED = "Rosters changed since they were loaded — reload the league.";
+  const CHANGED = "Rosters changed since they were loaded — the columns were redrawn from the fresh snapshot; choose again.";
+  const NO_IDENTITY = "Enter your Sleeper username in the league panel above; the trade columns read your roster from there.";
   const statusWord = s => String(s || "").replace(/_/g, " ");
   class PreflightError extends Error {}
 
   function init({ board, league, slug, els }) {
     const W = window;
+    const SESSION = W.Session || Session;   // the page global (same object in the browser); node tests can script it
     const get = path => W.Sleeper.get(path);
     const lid = String(league.league_id);
     const el = (tag, text, cls) => {
@@ -106,9 +109,14 @@
     const setStatus = t => { els.status.textContent = t; };
     const leagueName = (board.league && board.league.name) || league.name || slug;
     let loadSeq = 0, busy = false, loading = false;
-    // Bumped by every input change and every load: a compare whose fetches
-    // were in flight when it moved must not render under the new inputs.
+    // Bumped by every input change, every load and every bundle change the
+    // controller did not ask for: a compare whose refresh was in flight when
+    // it moved must not render under the new inputs.
     let compareSeq = 0;
+    // The committed bundle the columns were drawn from (or adopted for a
+    // compare). Session.onChange fires for every state move; only a
+    // DIFFERENT committed bundle re-runs the load.
+    let currentBundle = null;
     // Everything loaded for the current league snapshot. Reset wholesale on load.
     const S = { rosters: [], users: new Map(), state: null, remaining: null, catalog: null, owned: null, picksUnknown: false, me: null, partner: null, loadedProvenance: "" };
     const first = () => Math.max(Number(S.state.week), S.remaining.start_week) + 1;
@@ -148,53 +156,103 @@
       if (!catalog || typeof catalog !== "object") fail("player catalog unavailable");
     }
 
-    async function load() {
-      const username = els.user.value.trim();
-      if (!username) { setStatus("enter your Sleeper username"); return; }
+    // Account-derived surfaces go dark together: columns, controls, result,
+    // provenance (spec §4.4 rule 2 -- hidden, not just labeled).
+    function hideAll() {
+      hideResult();
+      els.provenance.textContent = "";
+      els.controls.hidden = true; els.cols.hidden = true; els.compare.disabled = true; els.warn.hidden = true;
+    }
+
+    // Why the columns are not showing: the session's error, no identity yet,
+    // still loading, or the exact matcher's refusal (the chip's own wording).
+    function gateMessage(bundle) {
+      const err = SESSION.error();
+      if (err) return err;
+      if (!SESSION.identity()) return NO_IDENTITY;
+      if (!bundle) return "loading league…";
+      if (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous") return SESSION.chipText(bundle, "ready", Date.now());
+      if (bundle.league && bundle.league.status !== "in_season") return `this league is ${bundle.league.status}, not in season`;
+      return "loading league…";
+    }
+
+    // Copy the bundle's league data into the controller's snapshot. Users,
+    // rosters, state and my roster never come from anywhere else.
+    function adopt(bundle) {
+      currentBundle = bundle;
+      S.rosters = bundle.rosters; S.users = new Map(bundle.users.map(u => [u.user_id, u]));
+      S.state = bundle.state; S.me = bundle.myRoster;
+      setEyebrow(Number(bundle.state.week));
+    }
+
+    // Rebuild both columns from S. Selections are cleared (a redraw is a new
+    // roster snapshot, so the old picks may not exist any more).
+    function redraw() {
+      fillPartners();
+      resetSide(sides.mine, S.me);
+      onPartnerChange();
+    }
+
+    // The load body: everything downstream of a committed bundle with a
+    // uniquely matched roster. The bundle supplies users/rosters/state/me;
+    // this fetches only traded_picks, the remaining-season file and the
+    // session's once-per-document catalog.
+    async function load(bundle) {
       const seq = ++loadSeq;
       compareSeq++;
       const stale = () => seq !== loadSeq;
       loading = true;
+      currentBundle = bundle;
       try {
-        hideResult();
-        els.provenance.textContent = "";
-        els.controls.hidden = true; els.cols.hidden = true; els.compare.disabled = true; els.warn.hidden = true;
-        setStatus("looking up user…");
-        const user = await get(`/user/${encodeURIComponent(username)}`);
-        if (stale()) return;
-        if (!user || !user.user_id) { setStatus("user not found"); return; }
-        setStatus("reading rosters, projections and the player catalog…");
+        hideAll();
+        setStatus("reading traded picks, projections and the player catalog…");
         let picksUnknown = false;
-        const [users, rosters, tradedPicks, state, remaining, catalog] = await Promise.all([
-          get(`/league/${lid}/users`),
-          get(`/league/${lid}/rosters`),
+        const [tradedPicks, remaining, catalog] = await Promise.all([
           get(`/league/${lid}/traded_picks`).catch(() => { picksUnknown = true; return null; }),
-          get("/state/nfl"),
           W.FC.loadJSON(W.FC.leagueDataPath("remaining")).catch(() => null),
-          loadCatalog(get),
+          SESSION.catalog(),
         ]);
         if (stale()) return;
+        const { users, rosters, state, myRoster: me } = bundle;
         preflight({ users, rosters, state, remaining, catalog });
-        let me;
-        try { me = identifyRoster(rosters, user.user_id); } catch (e) { throw new PreflightError(e.message); }
-        S.rosters = rosters; S.users = new Map(users.map(u => [u.user_id, u]));
-        S.state = state; S.remaining = remaining; S.catalog = catalog; S.picksUnknown = picksUnknown;
+        if (!me) throw new PreflightError(SESSION.chipText(bundle, "ready", Date.now()));
+        adopt(bundle);
+        S.remaining = remaining; S.catalog = catalog; S.picksUnknown = picksUnknown;
         S.owned = pickOwnership(rosters, tradedPicks);
-        S.me = me;
         S.loadedProvenance = provenanceText(null);
-        setEyebrow(Number(state.week));
-        fillPartners();
-        resetSide(sides.mine, me);
-        onPartnerChange();
+        redraw();
         els.controls.hidden = false; els.cols.hidden = false;
         els.provenance.textContent = S.loadedProvenance;
         renderWarn();
         setStatus(`${rosters.length} teams loaded — you are ${rosterName(me.roster_id)}`);
       } catch (e) {
-        setStatus(e instanceof PreflightError ? e.message : `load failed: ${e.message}`);
+        if (stale() || SESSION.isSuperseded(e)) return;
+        setStatus(e instanceof PreflightError ? e.message : `load failed: ${e.message} — refresh from the league panel to retry`);
       } finally {
         if (!stale()) loading = false;
       }
+    }
+
+    // Session.onChange driver. Gated on bundle()/myRosterStatus/error(),
+    // never on state() === "error" (a stale identity error can coexist with
+    // a valid bundle). A bundle this controller did not ask for redraws the
+    // columns and invalidates any compare in flight; the one exception is the
+    // bundle compare() itself requested through Session.refresh -- same
+    // account, same roster, arriving while `busy` -- which is adopted as data
+    // so the compare it belongs to can finish against it.
+    function sync() {
+      const bundle = SESSION.bundle();
+      if (!bundle || bundle.myRosterStatus !== "found" || !bundle.myRoster || !bundle.league || bundle.league.status !== "in_season") {
+        ++loadSeq; compareSeq++; currentBundle = null; loading = false;
+        hideAll(); setStatus(gateMessage(bundle));
+        return;
+      }
+      if (bundle === currentBundle) return;
+      const sameAccount = busy && currentBundle && S.me
+        && bundle.identity && currentBundle.identity && bundle.identity.userId === currentBundle.identity.userId
+        && String(bundle.myRoster.roster_id) === String(S.me.roster_id);
+      if (sameAccount) { adopt(bundle); return; }
+      load(bundle);
     }
 
     // Loud half of the load: what the page could not read, said once.
@@ -409,17 +467,25 @@
       setStatus("comparing lineups…");
       try {
         const seq = compareSeq;
-        const [rosters, state] = await Promise.all([get(`/league/${lid}/rosters`), get("/state/nfl")]);
+        // Rosters + NFL state re-read through the session so the chip's age
+        // moves with them. The NEW bundle's post-fetch time is the engine's
+        // snapshotAt (its <=60 s rule, seasontrade.js:21-25); sync() adopts
+        // the same bundle as it commits, so S.rosters/S.state match `b`.
+        const b = await SESSION.refresh({ scope: "rosters" });
+        const rosters = b.rosters, state = b.state;
         // Inputs stayed live during the await; anything that moved (ack, a
-        // checkbox, partner, a reload) invalidates this run outright.
+        // checkbox, partner, a reload, a bundle from elsewhere) invalidates
+        // this run outright.
         if (seq !== compareSeq || !inputsValid()) { if (!loading) setStatus("inputs changed during the comparison — compare again"); return; }
-        const snapshotAt = Date.now();
+        const snapshotAt = b.rostersFetchedAt;
         const week = Number(state && state.week);
         if (!Number.isInteger(week) || week !== S.remaining.start_week) { setStatus(weekMismatch(S.remaining.start_week, state && state.week)); return; }
         for (const s of [sides.mine, sides.theirs]) {
           const fresh = (rosters || []).find(r => String(r.roster_id) === String(s.roster.roster_id));
           const active = new Set(fresh ? activeIds(fresh) : []);
-          if (![...s.players, ...s.drops].every(id => active.has(id))) { setStatus(CHANGED); return; }
+          // The fresh rosters are already adopted (sync); redraw the columns
+          // from them so the user is not left pointing at players who moved.
+          if (![...s.players, ...s.drops].every(id => active.has(id))) { redraw(); setStatus(CHANGED); return; }
         }
         const give = [...sides.mine.players], receive = [...sides.theirs.players];
         const drops = {};
@@ -437,6 +503,9 @@
         render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters });
         setStatus(`lineups compared for weeks ${result.weeks[0].week}–${result.weeks[result.weeks.length - 1].week}`);
       } catch (e) {
+        // A superseded refresh means the session moved on (new league load or
+        // identity); sync() already owns the screen for that.
+        if (SESSION.isSuperseded(e)) return;
         renderBlocked(e);
         setStatus("comparison blocked");
       } finally {
@@ -447,9 +516,10 @@
     // --- output (spec §4.5 order) -------------------------------------------
     function provenanceText(snapshotAt) {
       const r = S.remaining, deadline = league.settings && league.settings.trade_deadline;
+      const catalogAt = SESSION.catalogFetchedAt();
       return `Remaining-season projections generated ${r.generated_at}, data through ${r.data_through}.`
         + (snapshotAt ? ` Roster snapshot ${new Date(snapshotAt).toISOString()}.` : "")
-        + ` Player catalog fetched ${catalogFetchedAt || "unknown time"}.`
+        + ` Player catalog fetched ${Number.isFinite(catalogAt) ? new Date(catalogAt).toISOString() : "unknown time"}.`
         + (deadline ? ` Trade deadline: week ${deadline} (league setting).` : "");
     }
 
@@ -532,12 +602,16 @@
     const list = items => { const ul = el("ul", null, "season-list"); for (const i of items) ul.append(el("li", i)); return ul; };
 
     // --- wiring -------------------------------------------------------------
-    els.load.addEventListener("click", load);
-    els.user.addEventListener("keydown", e => { if (e.key === "Enter") load(); });
+    // No username input and no load button here: identity and the league
+    // load belong to the chip in the league panel (FC.setBoard in the page
+    // shell starts Session.ready). The chip's refresh button re-reads rosters
+    // + state; sync() redraws from whatever bundle it commits.
     els.partner.addEventListener("change", onPartnerChange);
     els.ack.addEventListener("change", onInputChange);
     els.compare.addEventListener("click", compare);
     refreshCompare();
+    SESSION.onChange(sync);
+    sync();
   }
 
   return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, coverageText, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init });
