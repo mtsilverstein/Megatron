@@ -1,179 +1,254 @@
 # Shared Sleeper Session — Design
 
-**Status:** draft for review, 2026-09-18. First of three steps toward a single-stream,
-general-purpose site: (1) this — one identity, one league, one loaded roster, shared by
-every page; (2) a demo path seeded from a public league (falls out of this design);
-(3) arbitrary Sleeper leagues (separate spec; needs the pipeline).
+**Status:** revision 2, 2026-09-18, after astra's review (`.review/ASTRA-SESSION-REVIEW-2026-09-18.md`,
+gitignored; every finding is either adopted below or answered in §11). Awaiting the user's
+approval before a plan is written.
 
-**Goal:** you type your Sleeper username once, anywhere, and every page knows who you
-are, which league you're in, and which roster is yours. No more per-page "Load my
-league" buttons, no more six independent `/user/<name>` lookups, no more three
-independent 5 MB catalog downloads.
+**Goal:** you type your Sleeper username once, anywhere on the site, and every page knows
+who you are, which league you're in, and which roster is yours. The per-page "Load my
+league" ritual disappears; the roster matcher, the league registry and the freshness
+bookkeeping live in one place instead of six.
 
-**What it is not.** Not a login. Sleeper's API is public and read-only; the "session"
-holds only public identity (a username, a user id, a display name) and public league
-data (rosters, users, settings). Nothing here writes to Sleeper or stores a credential.
+**What it is not.** Not a login. Sleeper's API is public and read-only; the session holds
+a public username and public league data. Nothing writes to Sleeper; no credential is ever
+stored. It is also not cross-tab synchronisation and not a demo mechanism — both are
+scoped out explicitly (§8, §10).
 
 ---
 
-## 1. What exists today, measured
+## 1. Current state, corrected
 
-Six pages, five username inputs (`#draft-username`, `.keeper-user`, `#trade-user`,
-`#season-user`, `#waiver-user`, `#ss-user`) plus `#connect-user`, all autofilled from one
-`localStorage` key (`megatron:sleeper-username`) — so the *text* is shared but nothing
-else is. Each controller then:
+Seven username inputs (`site/index.html:44` draft, `:150` keeper, `site/trade.html:35`
+pre-draft, `:64` in-season, `site/weekly.html:32`, `site/waivers.html:30`,
+`site/connect.html:24`), all reading/writing one `localStorage` key
+`megatron:sleeper-username` (`app.js:48-56`, `connect.js:28-40`). The live draft page
+separately persists `{username, userId, draftId}` per league under `fc-draft-mode:<slug>`
+and auto-reconnects from it (`draftmode.js:11-13`, `:305-316`, `:988-999`).
 
-| Controller | Looks up `/user/<name>` | Loads rosters/users | Fetches `/players/nfl` (≈5 MB) | Identifies my roster |
+What each controller fetches and how it decides which roster is "mine":
+
+| Controller | `/user/<name>` | Live data it loads | `/players/nfl` | Roster identity |
 | --- | --- | --- | --- | --- |
-| draftmode (live draft) | yes | via draft/league | no | via `draft_slot` |
-| keepers (index.html) | yes | yes | no | yes |
-| trademode (pre-draft) | yes, then lists leagues to pick | yes + traded_picks + prior drafts | no | yes |
-| seasontrademode | yes | yes + traded_picks + state | yes (own cache) | yes |
-| waivermode | yes | yes + transactions | yes (own cache) | yes |
-| startsitmode | via waivermode.loadWorld | yes | yes (own cache) | yes |
-| connect.js | yes, then lists leagues | reads settings | no | — |
+| `draftmode` (live draft) | yes, for draft discovery; optional for pasted draft id | draft object, league object for scoring only; polls draft picks every 3 s | no | a **draft seat**, from `draft_order` / pick `draft_slot` — not a roster |
+| `keepers` (index.html) | yes | current-season leagues → follows `previous_league_id` → **previous** league's rosters; then prior drafts/picks | no | first `owner_id` match only; ignores `co_owners`; no uniqueness check |
+| `trademode` (pre-draft) | yes, then lists the user's leagues to pick one | league users, rosters, traded picks, prior-season draft chain | no | first owner/co-owner match; no uniqueness check |
+| `seasontrademode` | yes | users, rosters, traded picks, `/state/nfl` (league object fetched by the page shell) | yes, own per-document cache | owner/co-owner, **exactly one** |
+| `waivermode` | yes | league, rosters, the week's transactions (not league users) | yes, own cache | owner/co-owner, **exactly one** |
+| `startsitmode` | via `waivermode.loadWorld` | same, plus `/state/nfl` | yes, own cache | via `loadWorld` |
+| `connect.js` | yes | `/state/nfl`, the user's current-season leagues (settings embedded) | no | — |
 
-Same roster-identity rule copied in four places ("owner_id or co_owners contains
-user_id, exactly one match"). League selection travels in the URL (`?league=<slug>`)
-and is resolved against a hardcoded allowlist of three slugs (`FC.LEAGUES`).
+So: two controllers already use the exact matcher, two use weaker ones (keepers would
+mis-identify a co-owned roster; pre-draft trade would silently take the first of two).
+Consolidating is a **behaviour tightening** for those two, not a deletion of four
+identical copies. The slug allowlist in `app.js:4-6` carries no league ids; the
+slug→league-id map lives in `waivermode.js:8` and `connect.js:4`.
 
 ## 2. The design in one paragraph
 
-A new module `site/assets/session.js` (`window.Session`, node-testable) owns identity
-and league state for the tab. The masthead's existing league panel becomes an
-**identity chip**: `Max973 · Gabagool Fools · your roster: 9 · rosters 14 s ago ·
-change`. Pages call `Session.ready()` on load and receive `{ user, league, rosters,
-users, state, myRoster, fetchedAt, refresh() }`; the per-page connect rows and Load
-buttons are removed. Identity persists in `localStorage` (public data); league data is
-fetched fresh on every page load and re-fetched by `refresh()`, so every freshness rule
-the engines enforce today (waiver desk snapshot expiry, the trade engine's 60-second
-roster rule) still holds — the session makes freshness *shared*, not stale. The
-catalog is fetched once per tab and shared through the same module.
+A new module `site/assets/session.js` (`window.Session`, node-testable) owns identity,
+the supported-league registry, and the committed league bundle for one document.
+The existing `#league-context` panel at the top of `<main>` (`app.js:24-47`) gains an
+**identity chip**. Pages call `Session.ready()` on load and receive an immutable bundle;
+the seven inputs and four Load buttons are removed (the connect page keeps its form and
+writes through the session). Identity persists in `localStorage`; league data is
+memory-only for the document and always fetched fresh. Freshness is carried with two
+timestamps per roster snapshot so every existing 60-second gate keeps its exact meaning.
 
-## 3. `session.js`
+## 3. Supported-league registry
 
-UMD module; no DOM except through the chip renderer (§4), which is a separate function
-pages may skip (the connect page renders its own).
+One exported table replaces the three partial ones (`app.js` slugs, `waivermode.js:8`,
+`connect.js:4`):
 
-### 3.1 State
+```js
+FC.REGISTRY = [
+  { slug: "gabagool", platform: "sleeper", leagueId: "1376245373244301312", label: "Gabagool · Sleeper",
+    tools: { draft: true, keepers: true, trade: true, waivers: true, startsit: true } },
+  { slug: "fam",      platform: "sleeper", leagueId: "1389736745205002240", label: "FAM · Sleeper",
+    tools: { draft: true, keepers: false, trade: true, waivers: true, startsit: true } },
+  { slug: "espnfam",  platform: "espn",    leagueId: "69827905",            label: "ESPN family · draft board only",
+    tools: { draft: true, keepers: false, trade: false, waivers: false, startsit: false } },
+];
+```
+
+Rules: an unknown slug still refuses to default (today's `mountInvalidLeagueRecovery`
+path); `Session.ready()` **validates that the live `/league/<id>` id equals the static
+board's `league.league_id`** and rejects on mismatch (`"live league does not match this
+board; refusing to load advice"`); a tool the registry marks `false` renders its existing
+"not connected"/"Gabagool only" state without making a Sleeper call. ESPN never creates
+a Sleeper session. The nav-label rule in `app.js` reads `tools` instead of the slug.
+
+## 4. `session.js`
+
+### 4.1 State machine
 
 ```
-identity   = { username, userId, displayName, fetchedAt }        // localStorage "megatron:session:identity"
-league     = { slug, leagueId, league, users, rosters, state, fetchedAt }   // memory only
-myRoster   = the unique roster whose owner_id or co_owners contains userId, or null
-catalog    = { players, fetchedAt }                                // memory only, lazy
+anonymous ──identify()──▶ identifying ──ok──▶ identified
+identified/anonymous ──ready(slug)──▶ loadingLeague ──ok──▶ ready ──refresh()──▶ refreshing ──ok──▶ ready
+any ──error──▶ error(reason)          any ──forget()──▶ anonymous (league bundle kept, myRoster cleared)
 ```
 
-Persisting identity but never league data is deliberate: identity is a public username
-the user typed; league data is a snapshot whose age matters to every engine.
+- Every async operation carries a **generation token**; a result whose generation is
+  no longer current is discarded and fires nothing. Single-flight: a second
+  `refresh()` while one is in flight returns the same promise.
+- The bundle is **immutable once committed**; `refresh()` builds a new bundle and swaps
+  it atomically, or leaves the old one untouched on any failure. `fetchedAt` never
+  advances on a failed or partial refresh.
+- Entering `identifying` or `loadingLeague` clears `myRoster` **first** and fires
+  `onChange` so subscribers disable account-derived surfaces before the network round
+  trip; on failure the previous identity is **not** restored silently — the chip shows
+  the error and the page stays disabled until the user acts.
 
-### 3.2 API (all return promises unless noted)
+### 4.2 Bundle
 
-- `Session.identify(username)` — `/user/<name>`; stores identity; rejects with
-  `"Sleeper username was not found."` on a missing `user_id`. Clears `myRoster` and
-  re-derives it if a league is loaded.
-- `Session.forget()` — clears identity and `myRoster`; league data stays (it's public).
-- `Session.ready({ slug })` — the one call every page makes. Resolves the league for
-  the URL slug (`FC.leagueDataPath`'s allowlist for now; §7 widens it), fetches in
-  parallel `/league/<id>`, `/league/<id>/users`, `/league/<id>/rosters`, `/state/nfl`
-  with the cache-busting `Sleeper.get`, derives `myRoster` if identity is known, and
-  resolves the bundle. If identity is unknown it still resolves — with `myRoster: null`
-  — so pages that don't need a roster (the draft board before connecting) render, and
-  pages that do show the chip's prompt instead of their own form.
-- `Session.refresh()` — re-fetches rosters and state (the two things that change), keeps
-  users/league, updates `fetchedAt`; returns the bundle. The trade page calls this
-  right before `analyze` (60-second rule); the waiver desk calls it on its existing
-  15-second timer path instead of its own `Sleeper.get`.
-- `Session.catalog()` — `/players/nfl` once per tab, with `fetchedAt`; the three
-  controllers that fetch it today call this instead. Rejects propagate (no silent
-  empty catalog).
-- `Session.leaguesFor(userId)` — `/user/<id>/leagues/nfl/<season>` for the connect page
-  and the pre-draft trade flow.
-- `Session.onChange(fn)` — fires after `identify`, `forget`, `ready`, `refresh`; the chip
-  and controllers subscribe rather than polling.
-- Pure, exported for tests: `identifyRoster(rosters, userId)` (moved from
-  `seasontrademode.js`; the other three copies are deleted), `chipText(bundle)`.
+```
+{
+  registry:  { slug, platform, leagueId, label, tools },
+  identity:  { username, userId, displayName } | null,
+  league, users, rosters, state,
+  rostersRequestedAt,   // Date.now() taken BEFORE the rosters request is issued
+  rostersFetchedAt,     // Date.now() taken AFTER it resolved
+  myRoster:  roster | null,
+  myRosterStatus: "found" | "none" | "ambiguous" | "anonymous",
+  warnings: [ ... ],    // e.g. state.season !== league.season, season_type !== "regular"
+  generation: n,
+}
+```
 
-### 3.3 Fail-closed rules carried over, now in one place
+Two roster timestamps because the waiver desk and start-sit deliberately use a
+**pre-request** snapshot time so a kickoff during retrieval blocks the result
+(`waivermode.js:301-321`, `waivers.js:253-254`), and a **post-fetch** time for the
+60-second UI expiry. One timestamp cannot serve both.
 
-- Zero or two matching rosters → `myRoster: null` plus the message
-  `"Could not uniquely match this account to a roster in this league."` on the chip.
-  Pages never guess a roster.
-- `state.season !== league.season` or `season_type !== "regular"` in season → bundle
-  resolves with `state` but a `warnings[]` entry; engines keep their own checks.
-- A failed `/league/*` fetch rejects `ready()`; pages show the rejection text in the
-  chip, not a default league.
+### 4.3 API
 
-## 4. The identity chip
+- `Session.identify(username)` → `/user/<name>` via `Sleeper.get`; on success stores
+  identity (§7) and re-derives `myRoster` for the committed bundle; on a missing
+  `user_id` rejects `"Sleeper username was not found."` and leaves state `error`.
+- `Session.forget()` → clears identity, `myRoster`, and the draft-restore records (§7);
+  fires `onChange` synchronously.
+- `Session.ready({ slug })` → resolves the registry entry, fetches `/league/<id>`,
+  `/league/<id>/users`, `/league/<id>/rosters`, `/state/nfl` in parallel through
+  `Sleeper.get`, validates the live/static id, derives `myRoster`, commits the bundle.
+  Resolves with `myRosterStatus: "anonymous"` when no identity is stored, so pages
+  that can render without a roster (the draft board before connecting) do.
+- `Session.refresh({ scope })` → `scope` is `"rosters"` (rosters + state; default) or
+  `"league"` (league + users + rosters + state). Controllers that need more (the waiver
+  desk's week transactions) fetch that themselves **inside the same generation** and
+  fail the whole refresh if it fails — the chip's age never advances past a partial
+  refresh.
+- `Session.catalog()` → `/players/nfl` once per document with `fetchedAt`; rejections
+  propagate. (Honest scope: this removes the three duplicate caches *within a page*;
+  separate pages and tabs are separate documents and still download once each. A
+  versioned browser-shared cache is a separate decision — §10.)
+- `Session.leaguesFor()` → requires a committed bundle for `state.season`; returns
+  `/user/<userId>/leagues/nfl/<season>`. Consumer: `connect.js` only.
+- `Session.onChange(fn)`; pure exports `identifyRoster(rosters, userId)` (moved from
+  `seasontrademode.js`; keepers and pre-draft trade are switched to it — the behaviour
+  change is named in §5) and `chipText(bundle)`.
 
-Replaces the note text in `FC.mountLeagueContext`'s panel (the league `<select>` stays —
-it's already the league switch). Three states:
+### 4.4 Fail-closed rules
 
-1. **No identity:** `Sleeper username [input] [Use this account]` inline in the panel.
-   Submitting calls `Session.identify` then `Session.ready`.
-2. **Identity, roster found:** `Max973 · Gabagool Fools · your roster: 9 · rosters 14 s ago · [refresh] · [change account]`.
-   The age ticks every second from `fetchedAt` (same heartbeat idea as the draft page's
-   "synced Ns ago"), so a stale snapshot is visible rather than asserted.
-3. **Identity, no unique roster:** the §3.3 message plus `[change account]`.
+1. Unknown slug, missing registry entry, live/static id mismatch, malformed league/
+   users/rosters/state, or any required fetch failure → `ready()` rejects; no prior
+   bundle remains usable (it was cleared on entering `loadingLeague`).
+2. Zero or two matching rosters → `myRosterStatus` `"none"`/`"ambiguous"`, chip message
+   `"Could not uniquely match this account to a roster in this league."`, and every
+   account-derived surface (waiver rows, start-sit output, trade columns, keeper panel,
+   "your picks" highlights) is hidden or disabled by its controller — not just labeled.
+3. Contract checks stay in the controllers. The session hands over the same objects;
+   `waivers.js`, `seasontrade.js`, `startsit.js` still run league/scoring/week/
+   projection/snapshot checks before rendering anything.
+4. All endpoints go through `Sleeper.get` (unique query key, `no-store`, 4 s abort).
 
-On `espnfam` the chip shows identity only (no rosters) with the existing "not connected"
-note — ESPN has no session.
+## 5. Controller integration (each a deliberate design, not a mechanical edit)
 
-The chip is the only username input on the site. `#draft-username`, `.keeper-user`,
-`#trade-user`, `#season-user`, `#waiver-user`, `#ss-user` and their Load buttons are
-removed; `connect.html` keeps its own form because its job *is* identity discovery, and
-it writes through `Session.identify` so the chip agrees with it.
+| Controller | Change |
+| --- | --- |
+| `waivermode.js` | `loadWorld({ bundle, board, week })`: takes league/rosters/identity from the bundle; fetches only `/league/<id>/transactions/<week>`. `snapshotAt` = `bundle.rostersRequestedAt`; UI expiry uses `bundle.rostersFetchedAt`. **Refresh policy unchanged**: the 15 s timer ticks the age and expires at 60 s; the "Load / refresh" button becomes the chip's refresh, which calls `Session.refresh({scope:"league"})` and then re-runs `loadWorld` (transactions included) in the same generation. No auto-polling is introduced. |
+| `startsitmode.js` | Same bundle; `/state/nfl` comes from the bundle; catalog via `Session.catalog()`. |
+| `seasontrademode.js` | `Session.ready()` supplies users/rosters/state; `compare()` calls `Session.refresh({scope:"rosters"})` and reads the **fresh bundle's** rosters and `rostersFetchedAt` as `snapshotAt` (the engine's ≤60 s rule at `seasontrade.js:21-25`); the existing revalidation of selected/dropped ids against fresh rosters stays. `identifyRoster` moves out; behaviour identical. |
+| `trademode.js` (pre-draft) | League is the page's registry league; the "pick a league" list is removed. `leagueWorld(league, board)` is unchanged (traded picks and prior-season draft chain stay its job; it still throws for non-pre-draft). Roster identity switches to the exact matcher — **behaviour change:** two matching rosters now block instead of taking the first. |
+| `keepers.js` | Needs the **previous** league's roster, not `myRoster`. New helper `Session.previousLeagueRoster()` → follows `league.previous_league_id`, fetches that league's rosters, applies the exact matcher with the shared `userId`. **Behaviour change:** co-owned rosters are now found; two matches now block instead of guessing. The multi-season draft-chain walk is unchanged. |
+| `draftmode.js` (live draft) | Keeps its own polling, backoff, visibility handling and pasted-draft-id anonymous mode untouched. Receives identity explicitly (`Session.identity` at connect time) instead of an input. Restore records (§7) are checked against the shared identity: **if the stored `userId` differs from the session's, the page does not auto-highlight the stored account** — it offers "reconnect as <shared identity>" or "view anonymously" and rewrites the record. A session identity change while connected re-derives "mine" through the existing `beginConnect` cancellation path; it never spawns a second poller. |
+| `connect.js` | `Session.identify` + `Session.leaguesFor`; results unchanged. |
 
-## 5. Controller changes (each a small, mechanical edit)
+## 6. The identity chip
 
-| Controller | Before | After |
-| --- | --- | --- |
-| `waivermode.js` | `loadWorld({username, board, week})` fetches league/rosters/user/transactions | `loadWorld({session, board, week})` reads league/rosters/myRoster from the bundle, fetches only `/league/<id>/transactions/<week>`; catalog via `Session.catalog()` |
-| `startsitmode.js` | own `#ss-user`, own catalog | `Session.ready()` + `Session.catalog()` |
-| `seasontrademode.js` | own load flow, own catalog, own `identifyRoster` | `Session.ready()`; `compare()` calls `Session.refresh()` then reads the fresh bundle; catalog via session |
-| `trademode.js` (pre-draft) | username → leagues → pick one → `leagueWorld(league, board)` | `Session.ready()` supplies `league` and identity; `leagueWorld` unchanged (still fetches `traded_picks` and prior-season drafts itself, still throws for non-pre-draft) |
-| `keepers.js` | own username → leagues → league | `Session.ready()`; the league is the page's league |
-| `draftmode.js` (live draft) | username → drafts list → connect | `Session.identity` pre-fills the user; draft discovery unchanged (drafts, not leagues, are the unit there) |
-| `connect.js` | own identity lookup | `Session.identify` + `Session.leaguesFor`; results unchanged |
+In `#league-context` (kept there deliberately — the masthead was just reduced to fit a
+phone, `docs/interface-release-checklist.md:132-145`, and is navigation, not state).
+Mobile: one compact row (league select · name · age), details below.
 
-Nothing about any engine (`waivers.js`, `trade.js`, `seasontrade.js`, `startsit.js`)
-changes. Every controller keeps its own contract checks; the session hands them the
-same objects they fetched before.
+States: **anonymous** — `Sleeper username [__] [Use this account]` plus the sentence
+`"Remembered on this device until you choose forget."`; **ready** — `Max973 · Gabagool
+Fools · your roster: 9 · rosters 14 s ago · [refresh] · [change] · [forget]`, age ticking
+from `rostersFetchedAt`; **none/ambiguous** — the §4.4 message plus `[change]`;
+**error** — the rejection text plus `[retry] [change]`; **ESPN** — identity only, no
+Sleeper calls, existing "not connected" note.
 
-## 6. What a visitor experiences
+## 7. Storage
+
+| Key | Fields | Written by | Retention | `forget()` |
+| --- | --- | --- | --- | --- |
+| `megatron:session:identity` | `{ username, userId, displayName, storedAt }` | `Session.identify` | until forget | deleted |
+| `megatron:sleeper-username` | *(legacy)* | — | **migrated**: read once into identity on first load, then deleted | deleted |
+| `fc-draft-mode:<slug>` | `{ username, userId, draftId }` | `draftmode` (unchanged shape) | until draft ends / forget | **deleted for every slug** |
+
+League, roster, user and catalog data are never persisted. All reads validate JSON
+shape and fall back to `anonymous` on parse failure; storage that throws (private mode,
+quota) degrades to a memory-only identity for the document. Cross-tab: identity is
+available to *later* page loads; an already-open tab is not updated live (no `storage`
+listener in this version — §10).
+
+## 8. What a visitor experiences
 
 Open any page → the chip asks for a username once → every page after that loads your
-roster automatically with a visible snapshot age. Change league in the select → same
-identity, new league, roster re-identified. Change account → one click in the chip.
-Refresh → one click, or automatic where a tool needs it (the trade compare). The
-"Load / refresh league" ritual disappears from four pages.
+roster on arrival with a visible snapshot age and the same 60-second expiry the tools
+have today. Change league in the select → same identity, roster re-identified. Change or
+forget account → one click; every account-derived panel clears before the lookup starts.
+Refresh → the chip's button (waivers, start-sit) or automatic where a tool requires it
+(trade compare). Four Load buttons and seven inputs become one input.
 
-## 7. Hooks for the next two steps (designed now, built later)
+## 9. Testing
 
-- **Demo seed:** `Session.ready({ slug, seed: { username } })` — a page may pass a
-  public demo account so a visitor with no Sleeper account sees a populated site. The
-  chip shows `demo · <name>` and a `use my account` link. Nothing else changes.
-- **Arbitrary leagues:** `Session.ready` resolves a league by slug today. The
-  general version resolves by `leagueId` from `connect.html`'s discovery, and the
-  question becomes where that league's projections come from — the subject of spec (3).
-  This spec keeps the allowlist so nothing claims support it doesn't have.
+`tests/session_fixture.cjs` (stubbed `Sleeper.get`): identify success/miss; ready with
+and without identity; live/static id mismatch rejects; `identifyRoster` owner /
+co-owner / none / two; refresh advances `rostersFetchedAt` only on full success and
+never on a failed component; generation: an older `ready` resolving after a newer one
+fires nothing; `catalog()` fetches once across two calls; `chipText` for every state;
+corrupt/unavailable storage → anonymous, no throw; `forget()` deletes every
+`fc-draft-mode:*` key; ESPN slug makes zero Sleeper calls.
+Controller fixtures: waiver/start-sit `snapshotAt` still equals the pre-request time
+(kickoff-during-fetch case); season-trade compare uses the refreshed bundle and still
+rejects a changed roster; keepers finds a co-owned previous-season roster and blocks on
+two; pre-draft trade blocks on two matches; draft restore with a mismatched `userId`
+does not auto-highlight. `navigation_fixture`: chip present in `#league-context` on
+every page, no legacy inputs remain, labels read from `REGISTRY.tools`.
+User: identify once on the draft board, open waivers/weekly/trade in new tabs, see the
+roster loaded without typing; forget, confirm every page returns to anonymous.
 
-## 8. Testing
+## 10. Deferred, with the decision recorded
 
-- `tests/session_fixture.cjs` (new): stubbed `get`; `identify` success/miss;
-  `ready` with/without identity; `identifyRoster` owner / co-owner / none / two;
-  `refresh` updates `fetchedAt` and rosters only; `catalog()` fetches once across two
-  calls; `chipText` for the three states; failed league fetch rejects rather than
-  defaulting.
-- Existing controller fixtures pass with `loadWorld`'s new signature (the waivermode
-  fixture stubs `get` today; it will stub the session bundle instead).
-- `tests/navigation_fixture.cjs`: the chip renders in the league panel on every page;
-  no `#trade-user`/`#waiver-user`/… inputs remain (a11y fixture's aria-label rule keeps
-  applying to the one remaining input).
-- Browser round trip by the user: identify once on the draft board, then open
-  waivers, weekly, trade in new tabs and see the roster loaded on each without typing.
+- **Cross-tab live sync** (`storage` listener) — not in this version; identity applies
+  on the next load.
+- **Browser-shared catalog cache** — per-document only now; a versioned cache is a
+  separate decision with a TTL/eviction design.
+- **Demo path** — will be a **synthetic, versioned fixture league** with synthetic
+  manager names and a controlled clock, delivered through a data-source abstraction,
+  not a real account passed to the live API (astra's argument: a real account can be
+  renamed, leave the league, expose real managers, and makes screenshots
+  non-reproducible; it also turns someone's live roster into a permanent product
+  sample). No `seed: {username}` hook is added to the session API.
+- **Arbitrary leagues** — the registry is the seam; resolution by discovered
+  `leagueId` and where its projections come from is spec 3.
 
-## 9. Out of scope
+## 11. Astra's findings not adopted verbatim
 
-Login/OAuth of any kind; storing anything but a public username; ESPN sessions; the
-demo content itself; arbitrary-league projections (spec 3); any engine change.
+None rejected. Two were narrowed rather than dropped: the catalog claim is now scoped to
+one document (§4.3) instead of cut, because removing three in-page duplicate caches is
+still real; and the waiver auto-refresh question is resolved by keeping today's policy
+exactly (§5) rather than designing polling.
+
+## 12. Out of scope
+
+Login/OAuth; ESPN sessions; the demo fixture itself; arbitrary-league projections; any
+engine change; cross-tab sync; a shared catalog cache.
