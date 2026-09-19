@@ -43,6 +43,188 @@
     return `data/${kind}${slug === "gabagool" ? "" : `-${slug}`}.json`;
   }
 
+  // ---- identity chip (design spec §6) -------------------------------------
+  // The chip lives INSIDE #league-context and is the one place a visitor
+  // identifies. It reads Session (site/assets/session.js) lazily so this file
+  // still loads under node and in a page that has not included session.js
+  // (then the panel renders without a chip, as before). Rendering is gated on
+  // Session.bundle()/myRosterStatus/error(), never on state() === "error"
+  // alone: a stale identity error can coexist with a valid committed bundle.
+  // Superseded rejections (err.superseded) are swallowed, never displayed.
+  let sessionOverride = null;
+  const session = () => {
+    if (sessionOverride) return sessionOverride;
+    if (typeof Session !== "undefined" && Session) return Session;
+    if (typeof window !== "undefined" && window && window.Session) return window.Session;
+    return null;
+  };
+  const swallow = () => {};   // identify/ready failures surface via Session.error(); superseded ones never
+  const chip = {
+    slug: null, board: null, readyFor: null, els: null, unsub: null, ticker: null,
+    lastName: "", changing: false, notice: "", prefill: "",
+  };
+  function chipEntry() { return registryFor(chip.slug); }
+  function isEspn() { const e = chipEntry(); return !!e && e.platform !== "sleeper"; }
+  // ready() only when a Sleeper board is set, an identity exists and no
+  // bundle has been committed for THIS board yet. ESPN never calls ready
+  // (Session would answer with zero calls, but the chip's UI does not rely on
+  // that). Pages that never set a board (about, connect) only identify.
+  function maybeReady() {
+    const S = session();
+    if (!S || !chip.slug || !chip.board || isEspn()) return;
+    if (!S.identity()) return;
+    if (S.bundle() && chip.readyFor === chip.board) return;
+    chip.readyFor = chip.board;
+    Promise.resolve().then(() => S.ready({ slug: chip.slug, board: chip.board })).catch(swallow);
+  }
+  function setBoard(board) {
+    chip.board = board || null;
+    chip.readyFor = null;
+    maybeReady();
+  }
+  function chipButton(id, text, onClick) {
+    const b = document.createElement("button");
+    b.type = "button"; b.id = id; b.textContent = text;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function chipIdentify(name) {
+    const S = session();
+    name = String(name || "").trim();
+    if (!S || !name) return;
+    chip.lastName = name; chip.changing = false; chip.notice = "";
+    S.identify(name).then(() => maybeReady(), swallow);
+  }
+  // A failed refresh is not an error state (the committed bundle stays valid),
+  // so its text is a notice beside the controls, cleared by the next action.
+  function chipRefresh(opts) {
+    const S = session();
+    if (!S || !S.bundle() || isEspn()) return Promise.resolve(null);
+    chip.notice = "";
+    const p = S.refresh(Object.assign({ scope: "rosters" }, opts || {}));
+    p.then(() => { chip.notice = ""; renderChip(); },
+           e => { if (S.isSuperseded && S.isSuperseded(e)) return; chip.notice = `Refresh failed: ${(e && e.message) || e}`; renderChip(); });
+    return p.catch(() => null);
+  }
+  // No identity + error = the identify failed (identify clears the account
+  // first); identity + error = the league load failed.
+  function chipRetry() {
+    const S = session();
+    if (!S) return;
+    if (!S.identity()) { chipIdentify(chip.lastName); return; }
+    if (chip.board && !isEspn()) { chip.readyFor = null; maybeReady(); }
+  }
+  function identifyForm(prefill) {
+    const form = document.createElement("form");
+    form.className = "session-form";
+    const label = document.createElement("label");
+    label.textContent = "Sleeper username ";
+    const input = document.createElement("input");
+    input.type = "text"; input.id = "session-user"; input.autocomplete = "username";
+    input.setAttribute("spellcheck", "false"); input.placeholder = "Sleeper username";
+    input.value = prefill || "";
+    label.append(input);
+    const use = document.createElement("button");
+    use.type = "submit"; use.id = "session-use"; use.textContent = "Use this account";
+    form.append(label, use);
+    form.addEventListener("submit", e => { if (e && e.preventDefault) e.preventDefault(); chipIdentify(input.value); });
+    chip.els.input = input;
+    return form;
+  }
+  function renderChip() {
+    const S = session(), els = chip.els;
+    if (!S || !els) return;
+    const st = S.state(), err = S.error(), id = S.identity(), b = S.bundle(), entry = chipEntry();
+    const now = Date.now();
+    // The line is ALWAYS Session.chipText. Without a committed bundle the
+    // identity still gets a bundle-shaped view so ESPN reads "name · label".
+    const view = b || (id ? { identity: id, registry: entry } : null);
+    const controls = [];
+    const changeBtn = () => chipButton("session-change", "change", () => { chip.changing = true; renderChip(); });
+    const forgetBtn = () => chipButton("session-forget", "forget", () => { chip.changing = false; chip.notice = ""; S.forget(); });
+    els.input = null;
+    let line;
+    if (st === "identifying") {
+      line = S.chipText(null, "identifying", now);
+    } else if (chip.changing || (!id && !err)) {
+      // The username form: anonymous, or "change" clicked from any state
+      // (including error, where the previous attempt prefills the box).
+      line = err ? S.chipText(view, "error", now, err) : S.chipText(view, id ? st : "anonymous", now);
+      controls.push(identifyForm(id ? id.username : (chip.changing && chip.lastName) || chip.prefill));
+      // Anonymous: the line already reads "Remembered on this device until
+      // you choose forget." (chipText), so no second copy is added here.
+      if (id || err) controls.push(chipButton("session-cancel", "cancel", () => { chip.changing = false; renderChip(); }));
+    } else if (err) {
+      line = S.chipText(view, "error", now, err);
+      controls.push(chipButton("session-retry", "retry", chipRetry), changeBtn());
+    } else if (st === "loadingLeague") {
+      line = S.chipText(view, "loadingLeague", now);
+      controls.push(changeBtn());
+    } else if (isEspn()) {
+      line = S.chipText(view, st, now);
+      controls.push(changeBtn(), forgetBtn());
+    } else if (b && (b.myRosterStatus === "none" || b.myRosterStatus === "ambiguous")) {
+      line = S.chipText(b, st, now);
+      controls.push(changeBtn());
+    } else if (b && b.myRoster) {
+      line = S.chipText(b, st, now);
+      const refresh = chipButton("session-refresh", "refresh", () => { chipRefresh(); });
+      if (st === "refreshing") refresh.disabled = true;
+      controls.push(refresh, changeBtn(), forgetBtn());
+    } else {
+      // Identified with no bundle on this page (no board set yet): the line is
+      // the remembered sentence, so the account is named beside the controls.
+      line = S.chipText(view, st, now);
+      const who = document.createElement("span"); who.id = "session-who";
+      who.textContent = id.displayName || id.username;
+      controls.push(who, changeBtn(), forgetBtn());
+    }
+    if (chip.notice) {
+      const n = document.createElement("span"); n.className = "session-notice"; n.textContent = chip.notice;
+      controls.push(n);
+    }
+    els.line.textContent = line;
+    els.controls.replaceChildren(...controls);
+  }
+  // The age in the line comes from bundle().rostersFetchedAt; re-render every
+  // second while a bundle carries one. A re-mount clears the old interval
+  // first; under node the timer is unref'd so it never holds the process open.
+  function startTicker() {
+    if (chip.ticker) { clearInterval(chip.ticker); chip.ticker = null; }
+    if (typeof setInterval !== "function") return;
+    chip.ticker = setInterval(() => {
+      const S = session(); const b = S && S.bundle();
+      if (b && Number.isFinite(b.rostersFetchedAt)) renderChip();
+    }, 1000);
+    if (chip.ticker && typeof chip.ticker.unref === "function") chip.ticker.unref();
+  }
+  function mountChip(panel, slug) {
+    const S = session();
+    if (!S) return;
+    chip.slug = slug; chip.changing = false; chip.notice = ""; chip.lastName = "";
+    if (chip.unsub) { try { chip.unsub(); } catch (_) {} chip.unsub = null; }
+    const wrap = document.createElement("div"); wrap.id = "session-chip"; wrap.className = "session-chip";
+    const line = document.createElement("span"); line.id = "session-text"; line.className = "session-text";
+    const controls = document.createElement("div"); controls.className = "session-controls";
+    wrap.append(line, controls);
+    panel.append(wrap);
+    chip.els = { wrap, line, controls, input: null };
+    // Legacy key (spec §7): migrated once into a prefill, never auto-identified.
+    // Session.identity() loads storage (and migrates) first; either source wins.
+    let prefill = "";
+    try {
+      const had = S.identity();
+      let pending = typeof S.pendingUsername === "function" ? S.pendingUsername() : null;
+      if (!pending && typeof S.migrateLegacy === "function" && typeof localStorage !== "undefined") pending = S.migrateLegacy(localStorage);
+      if (!had && pending) prefill = pending;
+    } catch (_) {}
+    chip.prefill = prefill;
+    chip.unsub = S.onChange(() => renderChip());
+    renderChip();
+    startTicker();
+    maybeReady();
+  }
+
   function mountLeagueContext(slug) {
     if (!document.createElement || document.getElementById("league-context")) return;
     const panel=document.createElement("section"), label=document.createElement("label"), select=document.createElement("select");
@@ -54,6 +236,7 @@
     select.value=slug;
     select.addEventListener("change",()=>{const url=new URL(location.href);url.searchParams.set("league",select.value);location.assign(url.href);});
     label.append(select);panel.append(label);
+    mountChip(panel, slug);
     const note=document.createElement("p");
     note.textContent=slug==="espnfam"?"ESPN: draft board supported; live in-season tools are not connected yet.":"Draft board, weekly/start-sit, waiver research and in-season trade scenarios use this league. Pre-draft trade values remain Gabagool only. No password needed.";
     panel.append(note);
@@ -67,15 +250,6 @@
       panel.append(connect);
     }
     document.querySelector("main")?.prepend(panel);
-    // Share a typed public username, not credentials or active league state.
-    const inputs=[...document.querySelectorAll("#draft-username, #trade-user, #season-user, #waiver-user, #ss-user, .keeper-user")];
-    let saved="";try{saved=localStorage.getItem("megatron:sleeper-username")||"";}catch(_){}
-    for(const input of inputs){
-      if(!input.value)input.value=saved;
-      const remember=()=>{try{localStorage.setItem("megatron:sleeper-username",input.value.trim());}catch(_){}};
-      input.addEventListener("input",remember);input.addEventListener("change",remember);
-      input.closest("form")?.addEventListener("submit",remember);
-    }
   }
 
   // An invalid URL must never be treated as a request for the default league:
@@ -290,5 +464,8 @@
   }
 
   return { POS_CLASS, REGISTRY, registryFor, loadJSON, leagueDataPath, leagueNavigation, stampHeader, staleBanner,
-           fmt, makeSortable, posFilter, esc, scoringFilter, LENS_LABEL };
+           fmt, makeSortable, posFilter, esc, scoringFilter, LENS_LABEL,
+           setBoard, mountLeagueContext,
+           chip: { refresh: chipRefresh, render: renderChip },
+           _session: stub => { sessionOverride = stub || null; } };
 });

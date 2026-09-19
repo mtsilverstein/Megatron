@@ -5,7 +5,7 @@ const path = require('node:path');
 const site = path.join(__dirname, '..', 'site');
 const pages = ['index.html', 'weekly.html', 'waivers.html', 'trade.html', 'about.html', 'connect.html'];
 const sources = pages.map(page => ({page, html:fs.readFileSync(path.join(site, page), 'utf8')}));
-for (const file of ['app.js', 'waivermode.js', 'ros.js']) {
+for (const file of ['app.js', 'session.js', 'waivermode.js', 'ros.js']) {
   const urls = sources.flatMap(({html}) => [...html.matchAll(/<script\b[^>]*src="([^"]+)"/g)]
     .map(m => m[1]).filter(src => src.split('?')[0] === `assets/${file}`));
   assert.ok(urls.length >= 2, `${file}: expected shared consumers`);

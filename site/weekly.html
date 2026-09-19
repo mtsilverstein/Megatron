@@ -8,7 +8,7 @@
 <title>This week — Megatron</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Bruno+Ace&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=mobile1">
+<link rel="stylesheet" href="assets/style.css?v=session1">
 <link rel="stylesheet" href="assets/startsit.css">
 </head>
 <body>
@@ -65,7 +65,8 @@ consensus, and that edge replicated on a disjoint set of seasons — see the
 about page for the numbers.</footer>
 <script src="assets/bands.js"></script>
 <script src="assets/weekly-experts.js?v=2"></script>
-<script src="assets/app.js?v=recovery6"></script>
+<script src="assets/session.js?v=1"></script>
+<script src="assets/app.js?v=session1"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/ros.js?v=1"></script>
 <script src="assets/waivermode.js?v=ros1"></script>
@@ -78,6 +79,7 @@ about page for the numbers.</footer>
   if(slug==="espnfam") { document.getElementById("ss-form").hidden=true; throw Error("ESPN weekly advice is not connected yet; use its draft board only."); }
   const payload = await FC.loadJSON(FC.leagueDataPath("weekly"));
   if(payload.league?.slug!==slug)throw Error("Weekly data does not match the selected league.");
+  FC.setBoard(payload);
   document.getElementById("weekly-title").textContent=`${payload.league.name} — this week's slate`;
   FC.stampHeader(payload);
   document.getElementById("week-eyebrow").textContent =

@@ -158,4 +158,166 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
   assert.strictEqual(repeatedLinks[1].href, `${base}trade.html?league=espnfam`,
     "repeated init must keep preserving the URL's league context");
 }
-console.log("navigation_fixture: league selection and return paths OK");
+
+// The identity chip (spec §6) lives inside #league-context. A fake DOM with
+// createElement/append/addEventListener/replaceChildren lets mountLeagueContext
+// render for real against a stubbed Session, so the checks below hold the
+// chip to the spec's states and strings without a browser.
+{
+  function element(tagName) {
+    return {
+      tagName, children: [], listeners: {}, textContent: "", className: "", id: "", value: "", attrs: {},
+      append(...nodes) { this.children.push(...nodes); },
+      prepend(...nodes) { this.children.unshift(...nodes); },
+      replaceChildren(...nodes) { this.children = nodes; },
+      addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); },
+      setAttribute(k, v) { this.attrs[k] = v; },
+      dispatch(type) { for (const fn of this.listeners[type] || []) fn({ preventDefault() {} }); },
+    };
+  }
+  const all = node => [node, ...node.children.flatMap(all)];
+  const byId = (root, id) => all(root).find(n => n.id === id) || null;
+  function dom(href) {
+    const main = element("main");
+    global.location = new URL(href);
+    global.document = {
+      createElement: element,
+      querySelector(selector) { return selector === "main" ? main : null; },
+      querySelectorAll() { return []; },
+      getElementById(id) { return byId(main, id); },
+    };
+    return main;
+  }
+  // A stub with the Session surface the chip reads. `set(...)` moves it
+  // between states and fires onChange like the real module does. identify()
+  // always rejects SUPERSEDED, which the chip must swallow, not display.
+  function stubSession() {
+    let st = "anonymous", err = null, id = null, bundle = null;
+    const listeners = new Set();
+    const fire = () => { for (const fn of listeners) fn(); };
+    const S = {
+      calls: [],
+      state: () => st, error: () => err, identity: () => (id ? { ...id } : null), bundle: () => bundle,
+      pendingUsername: () => null, migrateLegacy: () => null,
+      isSuperseded: e => !!(e && e.superseded),
+      onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+      chipText: Session.chipText,
+      set(next) { ({ st = st, err = err, id = id, bundle = bundle } = next); fire(); },
+      identify(name) {
+        S.calls.push(["identify", name]);
+        const e = new Error("Superseded by a newer request."); e.superseded = true;
+        return Promise.reject(e);
+      },
+      ready(opts) { S.calls.push(["ready", opts.slug]); return Promise.resolve(bundle); },
+      refresh() { S.calls.push(["refresh"]); return Promise.resolve(bundle); },
+      forget() { S.calls.push(["forget"]); id = null; st = "anonymous"; err = null; fire(); },
+    };
+    return S;
+  }
+  const Session = require("../site/assets/session.js");
+  const REMEMBERED = "Remembered on this device until you choose forget.";
+
+  // Anonymous, on a page without a board: the chip mounts inside the panel,
+  // offers the username input + button and the remembered sentence.
+  const A = stubSession(); FC._session(A);
+  const anonMain = dom(`${base}about.html?league=fam`);
+  FC.mountLeagueContext("fam");
+  const anonPanel = anonMain.children[0];
+  assert.strictEqual(anonPanel.id, "league-context");
+  const chipEl = byId(anonPanel, "session-chip");
+  assert.ok(chipEl, "chip must be mounted inside #league-context");
+  assert.ok(byId(anonPanel, "session-user"), "anonymous state shows the username input");
+  assert.strictEqual(byId(anonPanel, "session-use").textContent, "Use this account");
+  assert.strictEqual(byId(anonPanel, "session-text").textContent, REMEMBERED,
+    "anonymous state carries the remembered-on-this-device sentence");
+  assert.strictEqual(all(chipEl).filter(n => n.textContent === REMEMBERED).length, 1, "the sentence appears once");
+  assert.strictEqual(A.calls.length, 0, "anonymous mount makes no Session calls");
+  // Submitting the form identifies once; the stub's superseded rejection must
+  // not be rendered (checked after the microtask settles, below).
+  byId(anonPanel, "session-user").value = "Max973";
+  all(chipEl).find(n => n.tagName === "form").dispatch("submit");
+  assert.deepStrictEqual(A.calls, [["identify", "Max973"]]);
+
+  // A ready bundle renders exactly chipText's line plus refresh/change/forget.
+  const R = stubSession(); FC._session(R);
+  const rostersFetchedAt = Date.now() - 14000;
+  const bundle = {
+    registry: FC.registryFor("gabagool"), identity: { username: "Max973", userId: "1", displayName: "Max973" },
+    league: { name: "Gabagool Fools", league_id: "1376245373244301312" }, users: [], rosters: [], state: {},
+    rostersRequestedAt: rostersFetchedAt - 5, rostersFetchedAt,
+    myRoster: { roster_id: 9 }, myRosterStatus: "found", warnings: [], extra: null, generation: 1,
+  };
+  const readyMain = dom(`${base}index.html?league=gabagool`);
+  FC.mountLeagueContext("gabagool");
+  const panel = readyMain.children[0];
+  R.set({ st: "ready", id: bundle.identity, bundle });
+  const text = byId(panel, "session-text").textContent;
+  assert.strictEqual(text, Session.chipText(bundle, "ready", Date.now()));
+  assert.match(text, /^Max973 · Gabagool Fools · your roster: 9 · rosters 1[45] s ago$/);
+  assert.ok(byId(panel, "session-refresh") && byId(panel, "session-change") && byId(panel, "session-forget"),
+    "ready state offers refresh, change and forget");
+  assert.ok(!byId(panel, "session-user"), "ready state shows no username input");
+  byId(panel, "session-refresh").dispatch("click");
+  assert.deepStrictEqual(R.calls, [["refresh"]], "the refresh button refreshes the session");
+  // none/ambiguous: the §4.4 message plus change only.
+  R.set({ bundle: { ...bundle, myRoster: null, myRosterStatus: "none" } });
+  assert.strictEqual(byId(panel, "session-text").textContent,
+    "Could not uniquely match this account to a roster in this league.");
+  assert.ok(byId(panel, "session-change") && !byId(panel, "session-refresh") && !byId(panel, "session-forget"));
+  // error: the reason plus retry and change. The gate is error(), not
+  // state(): a bundle may still be committed beside a stale identity error.
+  R.set({ st: "error", err: "Sleeper username was not found.", id: null, bundle: { ...bundle, identity: null, myRoster: null, myRosterStatus: "anonymous" } });
+  assert.strictEqual(byId(panel, "session-text").textContent, "Sleeper username was not found.");
+  assert.ok(byId(panel, "session-retry") && byId(panel, "session-change") && !byId(panel, "session-refresh"));
+  // "change" from the error state must offer the input (the way out of a typo).
+  byId(panel, "session-change").dispatch("click");
+  assert.ok(byId(panel, "session-user"), "change from error shows the username input");
+  byId(panel, "session-cancel").dispatch("click");
+  assert.ok(byId(panel, "session-retry"), "cancel returns to the error controls");
+  // A board set while identified triggers ready for THIS slug, once.
+  R.set({ st: "identified", err: null, id: bundle.identity, bundle: null });
+  FC.setBoard({ league: { league_id: "1376245373244301312" } });
+  FC.setBoard(null);
+
+  // ESPN: identity only -- the name and registry label, no refresh button,
+  // and no ready() even when a board is set.
+  const E = stubSession(); FC._session(E);
+  const espnMain = dom(`${base}index.html?league=espnfam`);
+  FC.mountLeagueContext("espnfam");
+  const espnPanel = espnMain.children[0];
+  E.set({ st: "identified", id: { username: "Max973", userId: "1", displayName: "Max973" } });
+  FC.setBoard({ league: { league_id: "69827905" } });
+  assert.strictEqual(byId(espnPanel, "session-text").textContent, "Max973 · ESPN family · draft board only");
+  assert.ok(!byId(espnPanel, "session-refresh"), "ESPN has nothing to refresh");
+  assert.ok(byId(espnPanel, "session-change") && byId(espnPanel, "session-forget"));
+  assert.ok(espnPanel.children.some(n => /not connected yet/.test(n.textContent)), "the ESPN note stays");
+  FC.setBoard(null);
+
+  // Legacy username (spec §7): prefilled, never auto-identified.
+  const L = stubSession(); L.pendingUsername = () => "OldName"; FC._session(L);
+  const legacyMain = dom(`${base}weekly.html?league=fam`);
+  FC.mountLeagueContext("fam");
+  assert.strictEqual(byId(legacyMain.children[0], "session-user").value, "OldName");
+  assert.strictEqual(L.calls.length, 0, "a migrated username is offered, not auto-identified");
+
+  // Every page mounts the chip, with or without a board.
+  for (const pageName of ["index", "weekly", "waivers", "trade", "about", "connect"]) {
+    FC._session(stubSession());
+    const m = dom(`${base}${pageName}.html?league=gabagool`);
+    FC.mountLeagueContext("gabagool");
+    assert.ok(byId(m.children[0], "session-chip"), `${pageName}: chip present in #league-context`);
+  }
+
+  setTimeout(() => {
+    // Async settlements: the superseded identify rejection left the anonymous
+    // chip untouched (no error text, input still offered) and the identified
+    // board triggered exactly one ready() for its slug.
+    assert.strictEqual(byId(anonPanel, "session-text").textContent, REMEMBERED,
+      "a superseded rejection must never be rendered");
+    assert.ok(byId(anonPanel, "session-user"));
+    assert.deepStrictEqual(R.calls, [["refresh"], ["ready", "gabagool"]], "identified + board loads the league once");
+    assert.strictEqual(E.calls.length, 0, "ESPN never calls ready()");
+    FC._session(null);
+    console.log("navigation_fixture: league selection, return paths and identity chip OK");
+  }, 0);
+}

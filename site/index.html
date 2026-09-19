@@ -8,7 +8,7 @@
 <title>Draft board — Megatron</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Bruno+Ace&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=mobile1">
+<link rel="stylesheet" href="assets/style.css?v=session1">
 </head>
 <body>
 <header class="masthead">
@@ -178,7 +178,8 @@ the tick is the simulated median, and VORP is built from that same median.
 When your tier empties, don't chase. Rookies (marked R) carry draft-capital
 cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/bands.js"></script>
-<script src="assets/app.js?v=recovery6"></script>
+<script src="assets/session.js?v=1"></script>
+<script src="assets/app.js?v=session1"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/optimizer.js"></script>
 <script src="assets/draftmode.js"></script>
@@ -197,6 +198,8 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   if (!board.league.sleeper_scoring) {
     throw new Error("This board lacks the locked scoring settings. Regenerate it before drafting.");
   }
+  // The identity chip loads your roster against THIS board's league id.
+  FC.setBoard(board);
   // Manual-only identity bridge: never alter a Sleeper board's live IDs.
   if (board.league.platform === "espn" && window.ManualDraft) {
     board = ManualDraft.prepareBoard(board);
