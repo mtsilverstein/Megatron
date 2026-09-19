@@ -26,13 +26,11 @@
   <p class="waiver-intro">Compare available skill players against your actual roster.
     FAAB bid ranges are transparent budgeting heuristics; rolling leagues receive claim-order guidance. Neither predicts a successful claim.
     Verify injuries, roles, waiver eligibility, and deadlines in Sleeper before acting.</p>
-  <form id="waiver-connect" class="waiver-controls">
-    <label>Sleeper username <input id="waiver-user" required autocomplete="off" placeholder="Your Sleeper username"></label>
+  <div id="waiver-controls" class="waiver-controls">
     <label>Week <input id="waiver-week" type="number" min="1" max="18" placeholder="Auto" title="Automatically follows the current NFL week. Enter a number to override; clear to restore automatic selection."></label>
     <label>Budget to keep ($) <input id="waiver-reserve" type="number" min="0" step="1" value="20" required></label>
-    <button type="submit" id="waiver-load">Load / refresh league</button>
-  </form>
-  <p id="waiver-status" role="status" aria-live="polite">Choose a supported league, then load your roster to begin.</p>
+  </div>
+  <p id="waiver-status" role="status" aria-live="polite">Your roster loads from the Sleeper account in the league panel above; refresh it there before placing a claim.</p>
   <div id="waiver-warnings" class="waiver-warnings" hidden></div>
   <section id="waiver-results" hidden>
     <div id="waiver-budget" class="waiver-budget" aria-label="Waiver budget or rolling priority"></div>
@@ -100,9 +98,9 @@
 <script src="assets/app.js?v=session1"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/ros.js?v=1"></script>
-<script src="assets/waivers.js?v=ros1"></script>
+<script src="assets/waivers.js?v=session1"></script>
 <script src="assets/waiverintel.js?v=ros1"></script>
-<script src="assets/waivermode.js?v=ros1"></script>
+<script src="assets/waivermode.js?v=session1"></script>
 <script>WaiverMode.init();</script>
 </body>
 </html>

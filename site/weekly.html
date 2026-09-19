@@ -29,8 +29,7 @@
   <section id="start-sit" aria-labelledby="ss-title">
     <h2 id="ss-title">My start/sit plan · read-only</h2>
     <p>Selected Sleeper league's skill positions only; K/DST stay unchanged. This maximizes projected medians—not proven expected points or matchup win probability. Verify final injury reports and platform locks in Sleeper. Kickoffs use a dated schedule snapshot; postponements require refreshed data.</p>
-    <form id="ss-form"><label>Sleeper username <input id="ss-user" required autocomplete="off"></label> <button>Load / refresh my lineup</button></form>
-    <p id="ss-status" role="status">Load your roster for legal slots and close-call comparisons. The rankings below remain independent of this plan.</p>
+    <p id="ss-status" role="status">Your roster loads from the Sleeper account in the league panel above; refresh it there for legal slots and close-call comparisons. The rankings below remain independent of this plan.</p>
     <details><summary>Manually exclude unavailable players</summary><p>Use current injury information. Excluding someone is not a recommendation to drop them. Game-started slots cannot be changed. Refreshing clears exclusions; reload the page to refresh the cached injury catalog.</p><div id="ss-exclude"></div></details>
     <p>Historical close calls: 56.3% correct on 2023–2025 same-position, played-player pairs within 3 projected points (both projected ≥5). Not a roster, cross-position FLEX or expert-comparison backtest; actual pick-six penalties and long-TD bonuses are missing. Tiny differences are weak leans. <a href="data/start_sit_evaluation.json">Method and measured results</a>.</p>
     <div id="ss-output" class="table-wrap"></div>
@@ -69,14 +68,14 @@ about page for the numbers.</footer>
 <script src="assets/app.js?v=session1"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/ros.js?v=1"></script>
-<script src="assets/waivermode.js?v=ros1"></script>
+<script src="assets/waivermode.js?v=session1"></script>
 <script src="assets/startsit.js"></script>
-<script src="assets/startsitmode.js?v=leagues1"></script>
+<script src="assets/startsitmode.js?v=session1"></script>
 <script>StartSitMode.init();</script>
 <script>
 (async () => {
   const slug=FC.leagueNavigation();
-  if(slug==="espnfam") { document.getElementById("ss-form").hidden=true; throw Error("ESPN weekly advice is not connected yet; use its draft board only."); }
+  if(slug==="espnfam") throw Error("ESPN weekly advice is not connected yet; use its draft board only.");
   const payload = await FC.loadJSON(FC.leagueDataPath("weekly"));
   if(payload.league?.slug!==slug)throw Error("Weekly data does not match the selected league.");
   FC.setBoard(payload);

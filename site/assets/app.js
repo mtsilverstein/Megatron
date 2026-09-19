@@ -106,6 +106,27 @@
            e => { if (S.isSuperseded && S.isSuperseded(e)) return; chip.notice = `Refresh failed: ${(e && e.message) || e}`; renderChip(); });
     return p.catch(() => null);
   }
+  // The page owns its refresh path. The chip's refresh button is the only
+  // refresh control on waivers/weekly (spec §5), but the chip cannot know
+  // what a page needs re-fetched atomically with the rosters -- the waiver
+  // desk must re-read the week's transactions in the SAME generation, so a
+  // transactions failure commits nothing and the age does not advance
+  // (Session.refresh's `also` hook). A page registers ONE provider,
+  // `FC.chip.onRefresh(() => ({ scope, also }))`, called at click time; its
+  // return value is the options object handed to Session.refresh. Without a
+  // provider the button refreshes rosters + state, as before. The returned
+  // function unregisters the provider.
+  let refreshProvider = null;
+  function onRefresh(fn) {
+    refreshProvider = typeof fn === "function" ? fn : null;
+    return () => { if (refreshProvider === fn) refreshProvider = null; };
+  }
+  function chipRefreshClick() {
+    let opts;
+    try { opts = refreshProvider ? refreshProvider() : undefined; }
+    catch (e) { chip.notice = `Refresh failed: ${(e && e.message) || e}`; renderChip(); return Promise.resolve(null); }
+    return chipRefresh(opts);
+  }
   // No identity + error = the identify failed (identify clears the account
   // first); identity + error = the league load failed.
   function chipRetry() {
@@ -168,7 +189,7 @@
       controls.push(changeBtn());
     } else if (b && b.myRoster) {
       line = S.chipText(b, st, now);
-      const refresh = chipButton("session-refresh", "refresh", () => { chipRefresh(); });
+      const refresh = chipButton("session-refresh", "refresh", () => { chipRefreshClick(); });
       if (st === "refreshing") refresh.disabled = true;
       controls.push(refresh, changeBtn(), forgetBtn());
     } else {
@@ -466,6 +487,6 @@
   return { POS_CLASS, REGISTRY, registryFor, loadJSON, leagueDataPath, leagueNavigation, stampHeader, staleBanner,
            fmt, makeSortable, posFilter, esc, scoringFilter, LENS_LABEL,
            setBoard, mountLeagueContext,
-           chip: { refresh: chipRefresh, render: renderChip },
+           chip: { refresh: chipRefresh, onRefresh, render: renderChip },
            _session: stub => { sessionOverride = stub || null; } };
 });

@@ -209,7 +209,7 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
         return Promise.reject(e);
       },
       ready(opts) { S.calls.push(["ready", opts.slug]); return Promise.resolve(bundle); },
-      refresh() { S.calls.push(["refresh"]); return Promise.resolve(bundle); },
+      refresh(opts) { S.calls.push(["refresh", opts && opts.scope, typeof (opts && opts.also) === "function"]); return Promise.resolve(bundle); },
       forget() { S.calls.push(["forget"]); id = null; st = "anonymous"; err = null; fire(); },
     };
     return S;
@@ -258,7 +258,17 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
     "ready state offers refresh, change and forget");
   assert.ok(!byId(panel, "session-user"), "ready state shows no username input");
   byId(panel, "session-refresh").dispatch("click");
-  assert.deepStrictEqual(R.calls, [["refresh"]], "the refresh button refreshes the session");
+  assert.deepStrictEqual(R.calls, [["refresh", "rosters", false]], "the refresh button refreshes rosters + state by default");
+  // A page that must re-fetch more atomically with the rosters (the waiver
+  // desk's week transactions) owns the refresh path: its onRefresh provider
+  // supplies the options -- scope and the `also` hook -- to the chip's button.
+  const also = async () => [];
+  const offRefresh = FC.chip.onRefresh(() => ({ scope: "league", also }));
+  byId(panel, "session-refresh").dispatch("click");
+  assert.deepStrictEqual(R.calls[1], ["refresh", "league", true], "the page's provider reaches Session.refresh");
+  offRefresh();
+  byId(panel, "session-refresh").dispatch("click");
+  assert.deepStrictEqual(R.calls[2], ["refresh", "rosters", false], "unregistering restores the default");
   // none/ambiguous: the §4.4 message plus change only.
   R.set({ bundle: { ...bundle, myRoster: null, myRosterStatus: "none" } });
   assert.strictEqual(byId(panel, "session-text").textContent,
@@ -315,7 +325,7 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
     assert.strictEqual(byId(anonPanel, "session-text").textContent, REMEMBERED,
       "a superseded rejection must never be rendered");
     assert.ok(byId(anonPanel, "session-user"));
-    assert.deepStrictEqual(R.calls, [["refresh"], ["ready", "gabagool"]], "identified + board loads the league once");
+    assert.deepStrictEqual(R.calls, [["refresh", "rosters", false], ["refresh", "league", true], ["refresh", "rosters", false], ["ready", "gabagool"]], "identified + board loads the league once");
     assert.strictEqual(E.calls.length, 0, "ESPN never calls ready()");
     FC._session(null);
     console.log("navigation_fixture: league selection, return paths and identity chip OK");
