@@ -1,9 +1,31 @@
 /* Megatron — shared utilities. No framework, no build. */
-window.FC = (() => {
+// UMD like the other shared modules: `window.FC` in the browser, `module.exports`
+// under node so session.js (and fixtures) can read the registry without a
+// `window` shim. DOM/location are only touched inside functions.
+(function (root, factory) {
+  const api = factory();
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  if (root) root.FC = api;
+})(typeof window !== "undefined" ? window : null, () => {
   const POS_CLASS = { QB: "pos-qb", RB: "pos-rb", WR: "pos-wr", TE: "pos-te" };
-  const LEAGUES = [["gabagool", "Gabagool · Sleeper"], ["fam", "FAM · Sleeper"],
-                   ["espnfam", "ESPN family · draft board only"]];
-  const LEAGUE_SLUGS = LEAGUES.map(([slug]) => slug);
+  // The ONE supported-league table (design spec §3). Slugs, platform, live
+  // league id, select label and which live tools each league connects to.
+  // session.js, the nav-label rule and the league select all read from here;
+  // an unknown slug never defaults (see leagueNavigation).
+  const REGISTRY = Object.freeze([
+    { slug: "gabagool", platform: "sleeper", leagueId: "1376245373244301312", label: "Gabagool · Sleeper",
+      tools: { draft: true, keepers: true, trade: true, waivers: true, startsit: true } },
+    { slug: "fam",      platform: "sleeper", leagueId: "1389736745205002240", label: "FAM · Sleeper",
+      tools: { draft: true, keepers: false, trade: true, waivers: true, startsit: true } },
+    { slug: "espnfam",  platform: "espn",    leagueId: "69827905",            label: "ESPN family · draft board only",
+      tools: { draft: true, keepers: false, trade: false, waivers: false, startsit: false } },
+  ].map(entry => Object.freeze({ ...entry, tools: Object.freeze(entry.tools) })));
+  const LEAGUES = REGISTRY.map(r => [r.slug, r.label]);
+  const LEAGUE_SLUGS = REGISTRY.map(r => r.slug);
+  const registryFor = slug => REGISTRY.find(r => r.slug === slug) || null;
+  // Which registry tool a nav destination needs. Pages absent here (index,
+  // about, connect) are always connected.
+  const TOOL_FOR_PAGE = { "trade.html": "trade", "weekly.html": "startsit", "waivers.html": "waivers" };
 
   async function loadJSON(path) {
     const res = await fetch(path, { cache: "no-cache" });
@@ -100,6 +122,7 @@ window.FC = (() => {
     // stacking " · not connected · not connected". " · Gabagool only" is the
     // retired trade label, still stripped so stale markup cannot keep it.
     const SUFFIXES = [" · Gabagool only", " · not connected"];
+    const entry = registryFor(slug);
     document.querySelectorAll(".masthead nav a").forEach(link => {
       const url = new URL(link.getAttribute("href"), location.href);
       // The URL keeps THIS tab's league -- clicking trade or an ESPN
@@ -109,14 +132,13 @@ window.FC = (() => {
       link.href = url.href;
       let label = link.textContent;
       for (const suf of SUFFIXES) if (label.endsWith(suf)) label = label.slice(0, -suf.length);
-      // Trade, weekly and waivers are live Sleeper tools: Gabagool and FAM
-      // both have them (trade is pre-draft for Gabagool, an in-season lineup
-      // scenario for either), ESPN has none. The href above still points at
-      // THIS league, so the label says the tool is not connected rather than
-      // implying a click will switch leagues.
-      if (slug === "espnfam" && /\/(trade|weekly|waivers)\.html$/.test(url.pathname)) {
-        label += " · not connected";
-      }
+      // Trade, weekly and waivers are live Sleeper tools; the registry says
+      // which league connects which (today: Gabagool and FAM both, ESPN
+      // none). The href above still points at THIS league, so the label says
+      // the tool is not connected rather than implying a click will switch
+      // leagues.
+      const tool = TOOL_FOR_PAGE[url.pathname.split("/").pop()];
+      if (tool && !entry.tools[tool]) label += " · not connected";
       link.textContent = label;
     });
     mountLeagueContext(slug);
@@ -267,6 +289,6 @@ window.FC = (() => {
     });
   }
 
-  return { POS_CLASS, loadJSON, leagueDataPath, leagueNavigation, stampHeader, staleBanner, fmt, makeSortable,
-           posFilter, esc, scoringFilter, LENS_LABEL };
-})();
+  return { POS_CLASS, REGISTRY, registryFor, loadJSON, leagueDataPath, leagueNavigation, stampHeader, staleBanner,
+           fmt, makeSortable, posFilter, esc, scoringFilter, LENS_LABEL };
+});
