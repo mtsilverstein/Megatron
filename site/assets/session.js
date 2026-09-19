@@ -409,6 +409,28 @@
     return resolveGet(opts)(`/user/${encodeURIComponent(identityRec.userId)}/leagues/nfl/${encodeURIComponent(season)}`);
   }
 
+  // The keeper panel's roster is LAST season's, not `myRoster`: follow the
+  // committed league's previous_league_id, read that league's rosters and
+  // apply the exact matcher with the shared user id (spec §5, keepers row).
+  // Commits nothing, so no generation is claimed -- but a result belongs to
+  // the bundle and identity it was asked under: if either moves before the
+  // rosters arrive, the answer is superseded rather than handed to a panel
+  // that now shows another league or another account.
+  async function previousLeagueRoster(opts) {
+    ensureLoaded();
+    if (!identityRec) throw new Error("Enter a Sleeper username first.");
+    const bundle = committed;
+    if (!bundle || !bundle.league) throw new Error("No Sleeper league is loaded.");
+    const prev = bundle.league.previous_league_id;
+    if (prev === undefined || prev === null || prev === "") throw new Error("no prior season found — enter keepers manually");
+    const get = resolveGet(opts);
+    const gen = bundle.generation, userId = identityRec.userId;
+    const rosters = await get(`/league/${encodeURIComponent(prev)}/rosters`);
+    if (!committed || committed.generation !== gen || !identityRec || identityRec.userId !== userId) throw superseded();
+    if (!Array.isArray(rosters)) throw new Error("Sleeper returned malformed rosters.");
+    return { previousLeagueId: String(prev), roster: identifyRoster(rosters, userId) };
+  }
+
   function onChange(fn) {
     if (typeof fn !== "function") throw new TypeError("onChange expects a function");
     listeners.add(fn);
@@ -429,7 +451,7 @@
 
   return Object.freeze({
     STATES,
-    identify, forget, ready, refresh, catalog, leaguesFor, onChange,
+    identify, forget, ready, refresh, catalog, leaguesFor, previousLeagueRoster, onChange,
     state: () => { ensureLoaded(); return currentState(); },
     error: () => currentError(),
     bundle: () => committed,

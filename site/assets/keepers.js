@@ -236,6 +236,20 @@
     return { candidates, skipped };
   }
 
+  // The Sleeper load without the DOM. `session` is the shared Session (spec
+  // §5, keepers row): it owns who you are and which league this is, follows
+  // previous_league_id and applies the EXACT roster matcher -- owner or
+  // co-owner, exactly one; zero or two is its refusal, never a guess here.
+  // The multi-season draft-chain walk is unchanged. Rejections propagate with
+  // the session's wording (no prior season, no unique roster, superseded).
+  async function sleeperKeeperCandidates(session, boardBySleeperId) {
+    const { previousLeagueId, roster } = await session.previousLeagueRoster();
+    if (!roster || !Array.isArray(roster.players)) throw new Error("couldn't read your roster from last season");
+    const original = await buildOriginalByPlayerId(previousLeagueId);
+    const { candidates, skipped } = buildKeeperCandidates(roster.players, original, boardBySleeperId);
+    return { previousLeagueId, roster, candidates, skipped };
+  }
+
   function init(options) {
     const { players, panel, currentSeason } = options;
     if (!panel) return;
@@ -350,56 +364,53 @@
           vorp: p.vorp });
     });
     const loadEls = {
-      user: panel.querySelector(".keeper-user"),
       btn: panel.querySelector(".keeper-load-btn"),
       status: panel.querySelector(".keeper-load-status"),
-      picker: panel.querySelector(".keeper-league-picker"),
       skip: panel.querySelector(".keeper-skip-note"),
     };
     const setLoad = t => { loadEls.status.textContent = t; };
+    // No username input and no league picker: both belong to the chip in the
+    // league panel. The button needs an identity to mean anything, so it is
+    // disabled -- and says why -- until the session has one.
+    const NO_IDENTITY = "identify yourself in the league panel first";
+    const S = typeof window !== "undefined" ? window.Session : null;
+    let loading = false;
+    let loadedUserId = null;   // whose previous-season roster the list came from
 
-    // Render league buttons and resolve with the chosen league (or null).
-    function pickLeague(leagues) {
-      return new Promise(resolve => {
-        loadEls.picker.innerHTML = "";
-        setLoad(`${leagues.length} leagues — pick one`);
-        leagues.forEach(lg => {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.textContent = lg.name || lg.league_id;
-          b.addEventListener("click", () => { loadEls.picker.innerHTML = ""; resolve(lg); });
-          loadEls.picker.appendChild(b);
-        });
-      });
+    // Account-derived surface (spec §4.4 rule 2): a list loaded for one
+    // account must not stay on screen for another, or for nobody.
+    function syncLoad() {
+      const identity = S ? S.identity() : null;
+      if (loadedUserId && (!identity || identity.userId !== loadedUserId)) {
+        panel._keeperReset();
+        loadedUserId = null;
+        loadEls.skip.textContent = "";
+        setLoad(identity ? "account changed — load again" : "");
+      }
+      loadEls.btn.disabled = loading || !identity;
+      if (!identity) setLoad(S ? NO_IDENTITY : "shared session unavailable — enter keepers manually");
+      else if (loadEls.status.textContent === NO_IDENTITY) setLoad("");
     }
 
     async function loadFromSleeper() {
-      const username = loadEls.user.value.trim();
-      if (!username) { setLoad("enter your Sleeper username"); return; }
+      if (!S || !S.identity()) { syncLoad(); return; }
       const seq = ++loadSeq;
       const stale = () => seq !== loadSeq;
+      const userId = S.identity().userId;
+      loading = true;
+      loadEls.btn.disabled = true;
       loadEls.skip.textContent = "";
       try {
-        setLoad("looking up user…");
-        const user = await sapi(`/user/${encodeURIComponent(username)}`);
-        if (!user || !user.user_id) { setLoad("user not found"); return; }
-        const leagues = (await sapi(`/user/${user.user_id}/leagues/nfl/${currentSeason}`)) || [];
+        setLoad("reading last season's roster and tracing draft history…");
+        const { candidates, skipped } = await sleeperKeeperCandidates(S, boardBySleeperId);
         if (stale()) return;
-        if (!leagues.length) { setLoad(`no ${currentSeason} leagues for ${username}`); return; }
-        const league = leagues.length === 1 ? leagues[0] : await pickLeague(leagues);
-        if (!league || stale()) return;
-        const prevId = league.previous_league_id;
-        if (!prevId) { setLoad("no prior season found — enter keepers manually"); return; }
-        setLoad("reading last season's roster…");
-        const rosters = (await sapi(`/league/${prevId}/rosters`)) || [];
-        const mine = rosters.find(r => r.owner_id === user.user_id);
-        if (!mine || !mine.players) { setLoad("couldn't find your roster last season — enter manually"); return; }
-        setLoad("tracing draft history…");
-        const original = await buildOriginalByPlayerId(prevId);
-        if (stale()) return;
-        const { candidates, skipped } = buildKeeperCandidates(mine.players, original, boardBySleeperId);
+        // The session supersedes a roster answer if the account moves before
+        // it resolves; the draft-chain walk after it is ours to guard.
+        const now = S.identity();
+        if (!now || now.userId !== userId) { setLoad("the account changed while loading — load again"); return; }
         panel._keeperReset();
         panel._keeperAdd(candidates);
+        loadedUserId = userId;
         setLoad(`loaded ${candidates.length} player(s)`);
         // Sleeper has no way to tell us a waiver pickup's first-kept year, so
         // buildKeeperCandidates can only default to "this is his first keep."
@@ -412,14 +423,24 @@
         }
         loadEls.skip.textContent = notes.length ? ` · ${notes.join(" · ")}` : "";
       } catch (e) {
-        setLoad(`load failed: ${e.message} — enter keepers manually`);
+        if (stale()) return;
+        // The league or the account moved under the load: the session's
+        // onChange already redrew what it owns; say so rather than fail.
+        if (S.isSuperseded(e)) { setLoad("the league or account changed while loading — load again"); return; }
+        const msg = String(e.message || e);
+        setLoad(msg.indexOf("enter keepers manually") !== -1 ? msg : `load failed: ${msg} — enter keepers manually`);
+      } finally {
+        if (!stale()) { loading = false; syncLoad(); }
       }
     }
     loadEls.btn.addEventListener("click", loadFromSleeper);
+    if (S) S.onChange(syncLoad);
+    syncLoad();
   }
 
   return { init, keeperCost, eligible, marginal, valueRound, valueLabel, surplus,
            pickForRound, rankKeepers, unvaluedKeepers, recommendKeepers,
-           buildKeeperCandidates, buildOriginalByPlayerId, TEAMS, MAX_KEEPERS,
+           buildKeeperCandidates, buildOriginalByPlayerId, sleeperKeeperCandidates,
+           TEAMS, MAX_KEEPERS,
            MARGINAL_POINTS, DRAFT_ROUNDS };
 });

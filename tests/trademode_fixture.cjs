@@ -377,4 +377,110 @@ acheck("scanProgressText reports team position and per-team scoring", async () =
   assert.ok(/1 of 2/.test(one), `but still reports packages scored: ${one}`);
 });
 
+// --- init() reads the shared session, never a username -----------------------
+// The controller is DOM + network, so this drives it under a stub document
+// against the REAL Session (its getter pointed at the same route table as
+// Sleeper.get). Pins: no /user/ or /leagues/nfl/ call after init; the world
+// is built from the bundle's league and MY team is the bundle's roster id;
+// two matching rosters block (the exact matcher's wording) and build no
+// world; losing the roster hides everything again.
+const Session = require("../site/assets/session.js");
+const LID = "1376245373244301312";   // gabagool's registry id -- ready() checks it against the board
+function stubDom() {
+  const mk = () => {
+    const node = { hidden: false, textContent: "", innerHTML: "", value: "", checked: false, disabled: false, id: "", listeners: {}, children: [] };
+    node.appendChild = x => { node.children.push(x); };
+    node.addEventListener = (ev, fn) => { (node.listeners[ev] = node.listeners[ev] || []).push(fn); };
+    node.querySelector = () => null; node.querySelectorAll = () => [];
+    return node;
+  };
+  const els = {};
+  for (const k of ["status", "controls", "partner", "discount", "hideGenerous", "suggest", "suggestAll",
+                   "warn", "cols", "mine", "theirs", "grade", "suggestions"]) els[k] = mk();
+  els.discount.value = "0.8"; els.hideGenerous.checked = true;
+  return { els, mk };
+}
+const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
+
+acheck("init never looks up a user or lists leagues; my team is the bundle's roster", async () => {
+  const b = board();
+  b.league = { league_id: LID, name: "Gabagool Fools" };
+  const p1 = b.players[0], p2 = b.players[1];
+  // Rosters: I (u1) own 1; roster 2 lists me as CO-OWNER; roster 3 is someone else's.
+  const rosters = [
+    { roster_id: 1, owner_id: "u1", co_owners: null, players: [p1.sleeper_id] },
+    { roster_id: 2, owner_id: "u2", co_owners: ["u1"], players: [p2.sleeper_id] },
+    { roster_id: 3, owner_id: "u3", co_owners: null, players: [] },
+  ];
+  const users = [{ user_id: "u1", display_name: "me" }, { user_id: "u2", display_name: "them", metadata: { team_name: "Co-Owned" } }, { user_id: "u3", display_name: "other" }];
+  const live = { league_id: LID, name: "Gabagool Fools", season: "2026", status: "pre_draft", previous_league_id: null };
+  // Two matches first (owner of 1, co-owner of 2): the session says ambiguous.
+  league({ id: LID, rosters, users });
+  routes[`/league/${LID}`] = live;
+  routes["/state/nfl"] = { season: "2026", season_type: "pre", week: 0 };
+  routes["/user/max"] = { user_id: "u1", username: "max", display_name: "Max" };
+  const store = new Map();
+  Session._storage({ getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k), key: i => [...store.keys()][i] ?? null, get length() { return store.size; } });
+  Session._get(Sleeper.get);
+  const { els } = stubDom();
+  global.window = { FC: { esc: s => String(s), POS_CLASS: {} } };
+  global.document = { createElement: () => ({ appendChild() {}, addEventListener() {} }), getElementById: () => null };
+  try {
+    // 1. anonymous: everything hidden, the league-panel hint, no fetch at all.
+    calls.length = 0;
+    TM.init({ board: b, els });
+    assert.strictEqual(els.controls.hidden, true); assert.strictEqual(els.cols.hidden, true);
+    assert.ok(/league panel/.test(els.status.textContent), els.status.textContent);
+    assert.deepStrictEqual(calls, [], "init() itself fetches nothing");
+    // 2. identify + ready: the bundle is ambiguous (two matching rosters) -> blocked, no world.
+    await Session.identify("max");
+    calls.length = 0;
+    await Session.ready({ slug: "gabagool", board: b });
+    await settle();
+    assert.strictEqual(els.cols.hidden, true, "two matching rosters build no columns");
+    assert.strictEqual(els.status.textContent, "Could not uniquely match this account to a roster in this league.");
+    // ready() reads league/users/rosters/state itself; traded_picks is leagueWorld's alone.
+    assert.ok(!calls.some(c => /traded_picks/.test(c)), `no leagueWorld fetch while blocked: ${JSON.stringify(calls)}`);
+    // 3. exactly one match, and it is the CO-OWNED roster: found, world built, "me" is roster 2.
+    routes[`/league/${LID}/rosters`] = rosters.slice(1);
+    calls.length = 0;
+    await Session.refresh({ scope: "rosters" });
+    await settle();
+    assert.strictEqual(els.cols.hidden, false); assert.strictEqual(els.controls.hidden, false);
+    assert.strictEqual(els.status.textContent, "2 teams loaded — you are Co-Owned");
+    assert.ok(!calls.some(c => c.startsWith("/user/") || c.includes("/leagues/nfl/")),
+      `the controller must never look up a user or list leagues: ${JSON.stringify(calls)}`);
+    assert.ok(calls.includes(`/league/${LID}/users`) && calls.includes(`/league/${LID}/traded_picks`),
+      `leagueWorld still reads users/traded picks itself: ${JSON.stringify(calls)}`);
+    assert.strictEqual(els.partner.children.length, 1, "one opponent to trade with");
+    assert.strictEqual(els.partner.children[0].value, "3");
+    // 4. the same bundle back (a refresh that fails commits nothing) leaves the columns alone.
+    routes[`/league/${LID}/rosters`] = new Error("HTTP 503");
+    await assert.rejects(Session.refresh({ scope: "rosters" }), /503/);
+    await settle();
+    assert.strictEqual(els.cols.hidden, false);
+    assert.strictEqual(els.status.textContent, "2 teams loaded — you are Co-Owned");
+    // 5. forget: account-derived surfaces go dark, hint returns.
+    Session.forget();
+    assert.strictEqual(els.cols.hidden, true); assert.strictEqual(els.controls.hidden, true);
+    assert.strictEqual(els.grade.hidden, true); assert.strictEqual(els.suggestions.hidden, true);
+    assert.ok(/league panel/.test(els.status.textContent), els.status.textContent);
+  } finally {
+    delete global.window; delete global.document;
+    Session._storage(undefined); Session._get(null);
+  }
+});
+
+acheck("no username input, league picker or /user/ fetch remains in the pre-draft controller or its page", async () => {
+  const fs = require("fs"), path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "..", "site", "assets", "trademode.js"), "utf8");
+  assert.ok(!/\/user\//.test(src), "trademode.js must not fetch /user/");
+  assert.ok(!/leagues\/nfl/.test(src), "trademode.js must not list leagues");
+  assert.ok(!/pickLeague|els\.user\b|els\.load\b|els\.picker\b/.test(src));
+  assert.ok(/status !== "pre_draft"/.test(src), "leagueWorld's own pre-draft guard stays");
+  const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
+  assert.ok(!/trade-user|trade-load"|trade-league-picker/.test(html), "trade.html carries no legacy inputs");
+  assert.ok(/trademode\.js\?v=session1/.test(html) && /keepers\.js\?v=session1/.test(html), "cache keys bumped");
+});
+
 runAll();

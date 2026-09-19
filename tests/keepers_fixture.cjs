@@ -348,7 +348,73 @@ assert.strictEqual(K.valueLabel({ adpRound: null, overallRank: 21 }, 15, 10),
 // impact math must keep using parVorp, never a round.
 assert.strictEqual(K.valueRound(null, 290), 25);
 
-testBuildOriginalByPlayerId().then(() => {
+// ===========================================================================
+// sleeperKeeperCandidates: the Sleeper load minus the DOM, on top of the
+// shared session. The session owns identity, league and the EXACT roster
+// matcher (Session.previousLeagueRoster); this only walks the draft chain
+// from the previous league it names and builds candidates from that roster.
+// Behaviour change pinned here: a CO-OWNED previous-season roster is found
+// (the old owner_id-only search missed it), and the session's two-match
+// refusal propagates verbatim instead of the first roster being guessed.
+// ===========================================================================
+async function testSleeperKeeperCandidates() {
+  const Sleeper = require("../site/assets/sleeper.js");
+  const realGet = Sleeper.get;
+  const calls = [];
+  const routes = {
+    "/league/PREV": { league_id: "PREV", previous_league_id: null },
+    "/league/PREV/drafts": [{ draft_id: "D1", status: "complete", season: "2025" }],
+    "/draft/D1/picks": [{ player_id: "s_bijan", round: 4 }, { player_id: "s_puka", round: 6 }],
+  };
+  Sleeper.get = async path => { calls.push(path); if (!(path in routes)) throw new Error(`unrouted ${path}`); return routes[path]; };
+  const coOwned = { roster_id: 6, owner_id: "u7", co_owners: ["u1"], players: ["s_bijan", "s_puka", "s_waiverguy", "s_kicker"] };
+  // The real matcher decides which roster comes back; the stub session only
+  // supplies what Session.previousLeagueRoster would have resolved.
+  const rosters = [{ roster_id: 4, owner_id: "u2", co_owners: null, players: ["x"] }, coOwned];
+  const Session = require("../site/assets/session.js");
+  const stub = { previousLeagueRoster: async () => ({ previousLeagueId: "PREV", roster: Session.identifyRoster(rosters, "u1") }) };
+  try {
+    const out = await K.sleeperKeeperCandidates(stub, board);
+    assert.strictEqual(out.previousLeagueId, "PREV");
+    assert.strictEqual(out.roster, coOwned, "the co-owned previous-season roster is the one loaded");
+    assert.deepStrictEqual(out.skipped, ["s_kicker"]);
+    const names = Object.fromEntries(out.candidates.map(c => [c.name, c]));
+    assert.deepStrictEqual({ r: names.Bijan.originalRound, y: names.Bijan.originalYear, w: names.Bijan.isWaiver }, { r: 4, y: 2025, w: false });
+    assert.strictEqual(names.WaiverGuy.isWaiver, true);
+    // The draft chain was walked from the PREVIOUS league only; nothing here
+    // looks up a user or lists leagues -- the session did that.
+    assert.deepStrictEqual(calls, ["/league/PREV", "/league/PREV/drafts", "/draft/D1/picks"]);
+    assert.ok(!calls.some(c => c.startsWith("/user/")));
+    // Two matches: the session refuses; the refusal reaches the panel verbatim
+    // and no draft chain is walked.
+    calls.length = 0;
+    const two = [...rosters, { roster_id: 9, owner_id: "u1", co_owners: null, players: ["z"] }];
+    const blocked = { previousLeagueRoster: async () => ({ previousLeagueId: "PREV", roster: Session.identifyRoster(two, "u1") }) };
+    await assert.rejects(K.sleeperKeeperCandidates(blocked, board), { message: "Could not uniquely match this account to a roster in this league." });
+    assert.deepStrictEqual(calls, []);
+    // No prior season: the session's wording, verbatim.
+    const none = { previousLeagueRoster: async () => { throw new Error("no prior season found — enter keepers manually"); } };
+    await assert.rejects(K.sleeperKeeperCandidates(none, board), { message: "no prior season found — enter keepers manually" });
+    // A roster without a players list fails closed rather than loading nothing.
+    const bare = { previousLeagueRoster: async () => ({ previousLeagueId: "PREV", roster: { roster_id: 1, owner_id: "u1" } }) };
+    await assert.rejects(K.sleeperKeeperCandidates(bare, board), /couldn't read your roster/);
+  } finally {
+    Sleeper.get = realGet;
+  }
+}
+
+// The panel's markup carries no username input or league picker any more;
+// the controller reads no /user/ and lists no leagues.
+{
+  const fs = require("fs"), path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "..", "site", "assets", "keepers.js"), "utf8");
+  assert.ok(!/\/user\//.test(src) && !/leagues\/nfl/.test(src) && !/pickLeague|keeper-user|keeper-league-picker/.test(src));
+  const html = fs.readFileSync(path.join(__dirname, "..", "site", "index.html"), "utf8");
+  assert.ok(!/keeper-user|keeper-league-picker/.test(html), "index.html carries no legacy keeper inputs");
+  assert.ok(/keeper-load-btn/.test(html) && /keepers\.js\?v=session1/.test(html));
+}
+
+testBuildOriginalByPlayerId().then(testSleeperKeeperCandidates).then(() => {
   console.log("keepers_fixture: OK");
 }).catch(e => {
   console.error("keepers_fixture: FAILED");

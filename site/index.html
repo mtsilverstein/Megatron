@@ -147,10 +147,8 @@
     <p class="keeper-help">Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (cost drops one round for each year you keep him). Once a keeper's cost would reach round 2 he goes back into the draft pool. A player keeps his original draft round even if he was dropped and later picked back up — only players never drafted in this league cost R12. A kept waiver player decays too — R12 the first year you keep him, R11 the next. Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
     <label class="keeper-depletion"><input class="keeper-depletion-toggle" type="checkbox" checked /> assume 12 teams keep 2 each (24 players off the board)</label>
     <div class="keeper-load">
-      <input class="keeper-user" placeholder="Sleeper username" aria-label="Sleeper username" autocomplete="off" />
-      <button type="button" class="keeper-load-btn">Load from Sleeper</button>
+      <button type="button" class="keeper-load-btn" title="Reads last season's roster for the account identified in the league panel">Load from Sleeper</button>
       <span class="keeper-load-status" role="status"></span>
-      <div class="keeper-league-picker"></div>
       <span class="keeper-skip-note"></span>
     </div>
     <form class="keeper-add">
@@ -184,7 +182,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/optimizer.js"></script>
 <script src="assets/draftmode.js"></script>
 <script src="assets/manualdraft.js"></script>
-<script src="assets/keepers.js"></script>
+<script src="assets/keepers.js?v=session1"></script>
 <script>
 (async () => {
   // ?league=<slug> selects the board. No parameter -- and "gabagool" -- keep

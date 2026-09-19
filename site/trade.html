@@ -32,11 +32,8 @@
   would be round 2 or lower goes back in the draft pool for everybody, so he is
   worth nothing to trade before the draft, however good he is.</p>
   <div class="draft-row" id="trade-connect">
-    <input id="trade-user" type="text" placeholder="Sleeper username" aria-label="Sleeper username" autocomplete="off">
-    <button id="trade-load">Load my league</button>
-    <span class="draft-status" id="trade-status">— not loaded</span>
+    <span class="draft-status" id="trade-status">— loading league…</span>
   </div>
-  <div class="draft-row" id="trade-league-picker"></div>
   <div class="draft-row" id="trade-controls" hidden>
     <label>Trade with <select id="trade-partner"></select></label>
     <label>future picks ×<input id="trade-discount" type="number" min="0" max="1"
@@ -82,10 +79,10 @@
 <script src="assets/app.js?v=session1"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/optimizer.js"></script>
-<script src="assets/keepers.js"></script>
+<script src="assets/keepers.js?v=session1"></script>
 <script src="assets/trade.js"></script>
 <script src="assets/ros.js?v=1"></script>
-<script src="assets/trademode.js?v=season-guard1"></script>
+<script src="assets/trademode.js?v=session1"></script>
 <script src="assets/seasontrade.js?v=page1"></script>
 <script src="assets/seasontrademode.js?v=session1"></script>
 <script>
@@ -101,16 +98,15 @@
   const league = await Sleeper.get(`/league/${board.league.league_id}`);
   if (league.status === "pre_draft") {
     // The pre-draft grader prices keepers and a simulated draft; only Gabagool
-    // has that model. FAM pre-draft keeps today's message.
+    // has that model. FAM pre-draft keeps today's message. Identity and the
+    // league load come from the chip (FC.setBoard above); TradeMode reads its
+    // roster from the session bundle and no username of its own.
     if (slug !== "gabagool") { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
     FC.stampHeader(board);
     TradeMode.init({
       board,
       els: {
-        user: document.getElementById("trade-user"),
-        load: document.getElementById("trade-load"),
         status: document.getElementById("trade-status"),
-        picker: document.getElementById("trade-league-picker"),
         controls: document.getElementById("trade-controls"),
         partner: document.getElementById("trade-partner"),
         discount: document.getElementById("trade-discount"),
@@ -132,7 +128,7 @@
     // are hidden and the conditional lineup scenario takes the page. Identity
     // and the league load come from the chip (FC.setBoard above); the page
     // reads no username of its own.
-    hide(["trade-eyebrow", "trade-note", "trade-connect", "trade-league-picker", "trade-controls",
+    hide(["trade-eyebrow", "trade-note", "trade-connect", "trade-controls",
           "trade-warn", "trade-cols", "trade-grade", "trade-suggestions"]);
     $("season-trade").hidden = false;
     FC.loadJSON(FC.leagueDataPath("remaining")).then(r => FC.stampHeader(r))

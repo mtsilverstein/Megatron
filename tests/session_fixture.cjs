@@ -604,6 +604,81 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.error(), "Enter a Sleeper username.");
   });
 
+  await check("21. previousLeagueRoster follows previous_league_id and applies the exact matcher", async () => {
+    const PREV = "PREV";
+    const withPrev = { ...league, previous_league_id: PREV };
+    // Last season: I OWN roster 4; roster 6 lists me as a co-owner only.
+    const prevRosters = [
+      { roster_id: 4, owner_id: "u1", co_owners: null, players: ["x1", "x2"] },
+      { roster_id: 6, owner_id: "u7", co_owners: ["u1"], players: ["y1"] },
+      { roster_id: 8, owner_id: "u2", co_owners: null, players: ["z1"] },
+    ];
+    Session._storage(fakeStorage());
+    const r = routesFor(L, withPrev);
+    r[`/league/${PREV}/rosters`] = prevRosters.slice(0, 1).concat(prevRosters.slice(2));  // owner only, first
+    const { get, calls } = fakeGet(r);
+    Session._get(get);
+    // No identity: rejects before any fetch.
+    await assert.rejects(Session.previousLeagueRoster(), /username/i);
+    await Session.identify("max973");
+    // Identity but no bundle: rejects before any fetch.
+    await assert.rejects(Session.previousLeagueRoster(), /league is loaded/i);
+    await Session.ready({ slug: "gabagool", board });
+    calls.length = 0;
+    // Happy path: owner match, one call to the PREVIOUS league's rosters.
+    const out = await Session.previousLeagueRoster();
+    assert.deepEqual(calls, [`/league/${PREV}/rosters`]);
+    assert.equal(out.previousLeagueId, PREV);
+    assert.equal(out.roster.roster_id, 4);
+    assert.deepEqual(out.roster.players, ["x1", "x2"]);
+    // Co-owner found (the old owner-only search missed this roster).
+    r[`/league/${PREV}/rosters`] = [prevRosters[1], prevRosters[2]];
+    const co = await Session.previousLeagueRoster();
+    assert.equal(co.roster.roster_id, 6, "a co-owned previous-season roster is found");
+    // Two matches: the exact matcher refuses with its own wording, no guess.
+    r[`/league/${PREV}/rosters`] = prevRosters;
+    await assert.rejects(Session.previousLeagueRoster(), { message: "Could not uniquely match this account to a roster in this league." });
+    // Zero matches: same refusal.
+    r[`/league/${PREV}/rosters`] = [prevRosters[2]];
+    await assert.rejects(Session.previousLeagueRoster(), /Could not uniquely match/);
+    // Malformed rosters fail closed.
+    r[`/league/${PREV}/rosters`] = { not: "an array" };
+    await assert.rejects(Session.previousLeagueRoster(), /malformed rosters/);
+    // Bundle changed mid-flight: the answer is superseded, not delivered.
+    const d = deferred();
+    r[`/league/${PREV}/rosters`] = () => d.promise;
+    const pending = Session.previousLeagueRoster();
+    await Session.refresh();                      // a NEW bundle commits (new generation)
+    d.resolve([prevRosters[0]]);
+    await assert.rejects(pending, e => Session.isSuperseded(e));
+    // Identity changed mid-flight (forget): superseded too, even though a
+    // rederived bundle keeps its generation number.
+    const d2 = deferred();
+    r[`/league/${PREV}/rosters`] = () => d2.promise;
+    const pending2 = Session.previousLeagueRoster();
+    Session.forget();
+    d2.resolve([prevRosters[0]]);
+    await assert.rejects(pending2, e => Session.isSuperseded(e));
+    // No previous_league_id: the keeper panel's exact wording, no fetch.
+    Session._storage(fakeStorage());
+    const { get: g3, calls: c3 } = fakeGet(routes());   // `league` has no previous_league_id
+    Session._get(g3);
+    await Session.identify("max973");
+    await Session.ready({ slug: "gabagool", board });
+    c3.length = 0;
+    await assert.rejects(Session.previousLeagueRoster(), { message: "no prior season found — enter keepers manually" });
+    assert.deepEqual(c3, []);
+    // A per-call getter is honoured (same rule as ready/refresh).
+    const r4 = routesFor(L, withPrev);
+    r4[`/league/${PREV}/rosters`] = [prevRosters[0]];
+    Session._get(fakeGet(r4).get);
+    await Session.ready({ slug: "gabagool", board });
+    const own = fakeGet({ [`/league/${PREV}/rosters`]: [prevRosters[1]] });
+    const viaOwn = await Session.previousLeagueRoster({ get: own.get });
+    assert.deepEqual(own.calls, [`/league/${PREV}/rosters`]);
+    assert.equal(viaOwn.roster.roster_id, 6);
+  });
+
   await check("registry and module hygiene", () => {
     assert.equal(typeof global.window, "undefined", "session.js must not create a global window in node");
     assert.ok(Object.isFrozen(Session));
