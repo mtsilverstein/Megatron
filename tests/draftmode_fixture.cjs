@@ -21,6 +21,9 @@ global.window.Sleeper = { get: async (path) => {
     return SLEEPER.league;
   }
   if (/^\/draft\//.test(path)) {
+    // `draftGate`: a promise the draft fetch waits on, so a fixture can hold a
+    // connect() in flight while something else happens (the identity moves).
+    if (SLEEPER.draftGate) await SLEEPER.draftGate;
     if (SLEEPER.draftError) throw new Error(SLEEPER.draftError);
     return SLEEPER.draft;
   }
@@ -657,24 +660,89 @@ const until = async (pred, what, ms = 2000) => {
     /* forget() while live: the draft keeps streaming, nothing is "mine" any
        more, and the record is rewritten without an identity -- a reload must
        not resurrect the forgotten account's highlights. */
+    const KEY = "fc-draft-mode:default";
     const beforeForget = SLEEPER.calls.length;
     Session.forget();
     await until(() => last.connected && last.mine.size === 0 && last.drafted.size === 2
-                      && store.has("fc-draft-mode:default"),
+                      && store.has(KEY),
                 "forget to keep the draft live with no seat highlighted");
     const after = SLEEPER.calls.slice(beforeForget);
     assert.strictEqual(after.filter(p => p === "/draft/1234567").length, 1,
       "forget must reconnect anonymously exactly once");
     assert.ok(after.some(p => p === "/draft/1234567/picks"),
       "the pick log was not polled after forget");
-    assert.strictEqual(JSON.parse(store.get("fc-draft-mode:default")).userId, null,
+    assert.strictEqual(JSON.parse(store.get(KEY)).userId, null,
       "forget left the forgotten account in the restore record");
+    assert.ok(/live · synced/.test(els.status.textContent), els.status.textContent);
     // Nothing further to reconcile: a state move with the SAME identity is a no-op.
     const idle = SLEEPER.calls.length;
     Session.forget();
     await new Promise(r => setImmediate(r));
     assert.strictEqual(SLEEPER.calls.slice(idle).filter(p => p === "/draft/1234567").length, 0,
       "an unchanged identity triggered a reconnect");
+
+    /* forget() while live, and the reconnect FAILS on the network. connect()'s
+       catch puts the surviving session -- the forgotten account's -- back on
+       the wire, and the heartbeat would paint "live" over "connect failed"
+       within a second: chip anonymous, record gone, board still marking that
+       account's picks as "mine" for the rest of the draft. The controller must
+       degrade the live session to anonymous instead, say so in a note that a
+       good poll does not erase, and write an anonymous record. */
+    await Session.identify("me");
+    await until(() => last.mine.size === 1, "re-identifying to restore a seat");
+    assert.strictEqual(JSON.parse(store.get(KEY)).userId, "U1");
+    SLEEPER.draftError = "sleeper 503";           // /draft/<id> fails; /picks still answers
+    const beforeFail = SLEEPER.calls.length;
+    Session.forget();
+    await until(() => last.mine.size === 0 && store.has(KEY),
+                "a failed anonymous reconnect to degrade the seat anyway");
+    assert.strictEqual(last.connected, true, "degrading disconnected the draft");
+    assert.deepStrictEqual(JSON.parse(store.get(KEY)),
+      { username: null, userId: null, draftId: "1234567" },
+      "a failed reconnect left the forgotten account in the record");
+    assert.match(els.status.textContent, /reconnect failed — showing the draft anonymously/);
+    assert.ok(els.roster.hidden, "the forgotten account's roster panel stayed up");
+    // Polling resumed, a poll SUCCEEDED, and the note survived it: the status
+    // must not read "live" while the draft object could not be re-read.
+    const pollsBefore = SLEEPER.calls.filter(p => p === "/draft/1234567/picks").length;
+    await until(() => SLEEPER.calls.filter(p => p === "/draft/1234567/picks").length > pollsBefore
+                      && /last synced/.test(els.status.textContent),
+                "a good poll after the degrade", 5000);
+    assert.match(els.status.textContent, /reconnect failed — showing the draft anonymously · last synced/);
+    assert.ok(!/^live/.test(els.status.textContent), els.status.textContent);
+    assert.strictEqual(last.mine.size, 0, "a good poll re-highlighted the forgotten seat");
+    assert.strictEqual(SLEEPER.calls.slice(beforeFail).filter(p => p === "/draft/1234567").length, 1,
+      "the same failed identity was retried");
+    delete SLEEPER.draftError;
+    // The note clears only on the next SUCCESSFUL connect.
+    await Session.identify("me");
+    await until(() => last.mine.size === 1 && /live · synced/.test(els.status.textContent),
+                "a successful reconnect to clear the degraded note");
+    assert.ok(!/reconnect failed/.test(els.status.textContent));
+    assert.ok(!els.roster.hidden);
+
+    /* The forget -> identify race. forget() starts an anonymous connect; while
+       its draft fetch is in flight, identify() resolves. That identified fire
+       sees the OLD session still matching (connect has not committed yet) and
+       rightly does nothing -- so the in-flight reconcile must re-check against
+       the identity as it stands AFTER its await and reconnect once more. The
+       session must end on the new identity, connected for it exactly once. */
+    let release;
+    SLEEPER.draftGate = new Promise(r => { release = r; });
+    const beforeRace = SLEEPER.calls.length;
+    Session.forget();                              // anonymous connect now waiting on the gate
+    await new Promise(r => setImmediate(r));
+    assert.strictEqual(last.mine.size, 1, "the seat was dropped before the anonymous connect landed");
+    await Session.identify("me");                  // resolves while that connect is pending
+    assert.strictEqual(Session.identity().userId, "U1");
+    release();
+    await until(() => last.mine.size === 1 && store.has(KEY) && JSON.parse(store.get(KEY)).userId === "U1",
+                "the race to end on the new identity");
+    const raced = SLEEPER.calls.slice(beforeRace);
+    assert.strictEqual(raced.filter(p => p === "/draft/1234567").length, 2,
+      "expected exactly one anonymous connect then one for the new identity");
+    assert.strictEqual(last.connected, true);
+    delete SLEEPER.draftGate;
 
     handlers.disconnect();   // stops the poll chain + heartbeat so node exits
   })();

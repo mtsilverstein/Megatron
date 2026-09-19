@@ -38,6 +38,11 @@ window.DraftMode = (() => {
   // to prove it: this ticks on its own clock, so if the poll chain dies the age
   // keeps climbing on screen instead of the label sitting at "live" forever.
   let lastSyncAt = 0, syncNote = "", heartbeat = null;
+  // Set when an identity-driven reconnect failed and the live session was
+  // degraded to anonymous (see reconcile). Separate from syncNote on purpose:
+  // pollOnce clears syncNote on every good poll, and this has to outlive a
+  // good poll -- it is cleared only by the next successful connect.
+  let degradeNote = "";
   const state = { connected: false, drafted: new Set(), mine: new Set(),
                   hideDrafted: false };
 
@@ -74,7 +79,9 @@ window.DraftMode = (() => {
   }
 
   function renderStatus() {
-    if (session) setStatus(syncLabel(Date.now(), lastSyncAt, syncNote));
+    if (!session) return;
+    const note = [degradeNote, syncNote].filter(Boolean).join(" · ");
+    setStatus(syncLabel(Date.now(), lastSyncAt, note));
   }
 
   function startHeartbeat() {
@@ -310,6 +317,7 @@ window.DraftMode = (() => {
       statusChecks = 0;
       lastSyncAt = 0;
       syncNote = "";
+      degradeNote = "";
       startHeartbeat();
       localStorage.setItem(storeKey(), JSON.stringify({ username, userId, draftId }));
       state.connected = true;
@@ -987,10 +995,57 @@ window.DraftMode = (() => {
   function syncIdentity(snapshot) {
     if (!session) return;
     if (snapshot && snapshot.state === "identifying") return;
-    const identity = currentIdentity();
+    return reconcile(currentIdentity());
+  }
+
+  /* Bring the live session to `identity`, and CHECK that it got there.
+     connect()'s catch is right for the fat-fingered-draft-id case -- put the
+     surviving session back on the wire -- but here the surviving session is
+     the one that still carries the PREVIOUS account: after forget() plus one
+     transient Sleeper error the chip reads anonymous, the record is gone, and
+     the board would go on marking the forgotten account's picks as "mine"
+     under a heartbeat that paints "live" over "connect failed" within a
+     second. So after the await: if the session is not the identity we asked
+     for, the reconnect failed -- degrade it to anonymous, honestly labelled.
+     Then compare against the identity NOW: it can move while a connect is in
+     flight (forget, then identify resolving before the anonymous connect
+     lands -- the identified fire saw the old session still matching and did
+     nothing), so one more reconcile picks that up. `syncGen` hands the
+     post-await work to the newest caller only, so two concurrent moves never
+     both reconnect for the same identity. Calls connect() exactly once per
+     identity actually observed, and never retries the same failed identity. */
+  let syncGen = 0;
+  async function reconcile(identity) {
     const userId = identity ? identity.userId : null;
-    if (sameUser(session.userId, userId)) return;
-    connect(identity ? identity.username : null, userId, session.draftId);
+    if (!session || sameUser(session.userId, userId)) return;
+    const gen = ++syncGen, draftId = session.draftId;
+    await connect(identity ? identity.username : null, userId, draftId);
+    // A newer reconcile, a disconnect, or a connect to another draft owns the
+    // state now; a contract refusal already tore the session down.
+    if (gen !== syncGen || !session || session.draftId !== draftId) return;
+    if (!sameUser(session.userId, userId)) degradeToAnonymous(identity);
+    const now = currentIdentity();
+    if (!sameUser(now ? now.userId : null, userId)) return reconcile(now);
+  }
+
+  // The live session stays live -- picks keep striking on the existing poll
+  // chain -- but no seat is anyone's, the record says so, and the status line
+  // says why until a connect succeeds. Nothing here touches the poll chain.
+  function degradeToAnonymous(wanted) {
+    session.userId = null;
+    session.username = null;
+    session.slot = null;
+    state.mine = new Set();
+    resetPickFingerprint();               // next poll re-renders with no seat
+    localStorage.setItem(storeKey(), JSON.stringify({ username: null, userId: null,
+                                                      draftId: session.draftId }));
+    const who = wanted ? (wanted.displayName || wanted.username) : null;
+    degradeNote = who ? `reconnect as ${who} failed — showing the draft anonymously`
+                      : "reconnect failed — showing the draft anonymously";
+    cfg.els.roster.hidden = true;         // "Your roster" belonged to the old seat
+    cfg.els.connect.hidden = false;       // as connect() leaves it when userId is null
+    renderStatus();
+    emit();
   }
   // Sleeper ids are strings; older restore records may hold whatever the API
   // returned at the time, so compare as strings and treat every empty as anonymous.
