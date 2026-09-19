@@ -93,6 +93,9 @@ any ──error──▶ error(reason)          any ──forget()──▶ anon
 - The bundle is **immutable once committed**; `refresh()` builds a new bundle and swaps
   it atomically, or leaves the old one untouched on any failure. `fetchedAt` never
   advances on a failed or partial refresh.
+- Identity errors and league errors are tracked separately: a league operation that
+  completes later never clears an identity error, so the chip keeps showing "username
+  was not found" until the user acts (§4.4).
 - Entering `identifying` or `loadingLeague` clears `myRoster` **first** and fires
   `onChange` so subscribers disable account-derived surfaces before the network round
   trip; on failure the previous identity is **not** restored silently — the chip shows
@@ -140,8 +143,13 @@ Two roster timestamps because the waiver desk and start-sit deliberately use a
   propagate. (Honest scope: this removes the three duplicate caches *within a page*;
   separate pages and tabs are separate documents and still download once each. A
   versioned browser-shared cache is a separate decision — §10.)
-- `Session.leaguesFor()` → requires a committed bundle for `state.season`; returns
-  `/user/<userId>/leagues/nfl/<season>`. Consumer: `connect.js` only.
+- `Session.leaguesFor({ season })` → `/user/<userId>/leagues/nfl/<season>`; `season` may be
+  omitted when a committed bundle supplies `state.season`. Consumer: `connect.js`, which
+  has no board and therefore fetches `/state/nfl` itself and passes `season`.
+- `Session.refresh({ scope, also })` → `also(parts, get)` is an optional async hook that
+  runs inside the same generation **before** the new bundle is committed; if it rejects,
+  nothing is committed and `rostersFetchedAt` does not advance. This is how the waiver
+  desk re-fetches the week's transactions atomically with the rosters (§5).
 - `Session.onChange(fn)`; pure exports `identifyRoster(rosters, userId)` (moved from
   `seasontrademode.js`; keepers and pre-draft trade are switched to it — the behaviour
   change is named in §5) and `chipText(bundle)`.
