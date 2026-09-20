@@ -159,6 +159,27 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
     "repeated init must keep preserving the URL's league context");
 }
 
+// One identity input for the whole site (spec §6/§8): the chip's #session-user
+// and the connect page's #connect-user are the only username inputs left.
+// Every retired per-page input id must be gone from the static site, or a
+// page would carry a second, unsynchronised account.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const site = path.join(__dirname, "..", "site");
+  const files = [
+    ...fs.readdirSync(site).filter(f => f.endsWith(".html")).map(f => path.join(site, f)),
+    ...fs.readdirSync(path.join(site, "assets")).filter(f => /\.(js|css)$/.test(f)).map(f => path.join(site, "assets", f)),
+  ];
+  const legacy = /draft-username|keeper-user|trade-user|season-user|waiver-user|ss-user/;
+  const legacyKey = /megatron:sleeper-username/;
+  for (const file of files) {
+    const src = fs.readFileSync(file, "utf8");
+    assert.ok(!legacy.test(src), `${path.basename(file)}: retired username input id still present`);
+    if (path.basename(file) !== "session.js")
+      assert.ok(!legacyKey.test(src), `${path.basename(file)}: only session.js may name the legacy storage key (it migrates and deletes it)`);
+  }
+}
+
 // The identity chip (spec §6) lives inside #league-context. A fake DOM with
 // createElement/append/addEventListener/replaceChildren lets mountLeagueContext
 // render for real against a stubbed Session, so the checks below hold the

@@ -2,9 +2,16 @@
 
 Use the League selector at the top of each page. Gabagool and FAM are both
 Sleeper leagues accessible to Max973; they are not separate logins. A public
-username is sufficient. Typed usernames are remembered locally when storage
-is available; credentials are never requested. League choice lives in each
-tab's URL, so using FAM cannot change an open Gabagool tab.
+username is sufficient. The identity is entered once, in the chip inside
+`#league-context`, and shared by every page through `assets/session.js`; it
+is remembered on this device until you choose forget, and credentials are
+never requested. League choice lives in each tab's URL, so using FAM cannot
+change an open Gabagool tab.
+
+`FC.REGISTRY` in `assets/app.js` is the single source of league capabilities:
+slug, platform, live league id, label and which tools each league connects
+to. The session, the nav labels, the league select and the connect page's
+configured-league detection all read it; nothing else keeps a league table.
 
 ## Current coverage
 
@@ -27,10 +34,13 @@ modeled-Gabagool-scoring historical diagnostic, not a new FAM backtest.
 
 ## Sleeper discovery and scoring foundation
 
-`connect.html` discovers current-season leagues from a public username and
-displays live roster/scoring settings. Configured league links still use the
-existing tools' contract checks. Unknown leagues have no advice links and do
-not inherit Gabagool values. Editing the username invalidates pending results.
+`connect.html` discovers current-season leagues for the shared session's
+account and displays live roster/scoring settings. Its form and the chip
+write the same identity; a change or forget in either clears the list.
+Configured leagues are recognised from `FC.REGISTRY` and their links still use
+the existing tools' contract checks. Unknown leagues have no advice links and
+do not inherit Gabagool values. Editing the username invalidates pending
+results.
 
 Newly generated weekly payloads include full-precision `stat_quantiles` with
 nullable outer bands and an explicit schema. Pick-six expectations, when

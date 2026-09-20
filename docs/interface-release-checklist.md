@@ -273,3 +273,26 @@ groups, seasontrade incl. 2-for-1 drops / scarce TE / bye+exclusion / duplicate
 weeks), controller helpers incl. the forbidden-word scan. Pending for root: a
 live browser round trip on Gabagool and FAM (load, exclude weeks, uneven trade
 with drops, coverage-blocked case), and mobile layout of the new section.
+
+Shared Sleeper session (September 20, 2026, Opus; spec
+`docs/superpowers/specs/2026-09-18-shared-sleeper-session-design.md`): one
+identity input, the chip in `#league-context` on every page, replaces the seven
+username inputs the site carried: `#draft-username`, `.keeper-user`,
+`#trade-user`, `#season-user`, `#waiver-user` and `#ss-user` are removed with
+their four Load buttons, and the connect form's `#connect-user` now writes
+through the same session instead of its own storage. `assets/session.js` owns the identity
+(`megatron:session:identity`, the legacy `megatron:sleeper-username` is migrated
+into a prefill once and deleted) and one immutable league bundle per document;
+waivers, start-sit, in-season trade, pre-draft trade, keepers, live draft and
+the connect page all read it, and league capabilities come from `FC.REGISTRY`
+alone. Two behaviour changes: the pre-draft trade grader and the keeper panel
+now FIND the account's roster (owner or co-owner) instead of asking which team
+is yours, and BLOCK on zero or two matches with "Could not uniquely match this
+account to a roster in this league."; live-draft restore never highlights a
+different account's seat (a saved record for another account offers reconnect
+or view-anonymously). The connect page identifies through the session and lists
+leagues for the session's account; a change or forget in the chip clears its
+list. Fixture-verified (session, navigation chip, each controller, connect,
+27 Node fixtures, 841 Python tests). Pending for root, in a browser: identify
+once → open waivers/weekly/trade/index in new tabs → each roster loads without
+typing → forget → every page returns to anonymous.
