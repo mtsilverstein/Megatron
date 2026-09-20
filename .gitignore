@@ -51,3 +51,4 @@ data_snapshots/keepers_*.json
 # codex review runs drop pytest temp dirs here (its Windows sandbox is
 # elevated, so they are not deletable from an ordinary shell)
 .review/
+.vercel

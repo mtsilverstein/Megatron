@@ -29,9 +29,9 @@ python -m ffmodel.eval.run      # walk-forward backtest -> models/backtests/base
 
 ## Draft-night boards
 
-- [FAM FOOTBALL](https://mtsilverstein.github.io/Megatron/index.html?league=fam):
+- [FAM FOOTBALL](https://megatron-ff.vercel.app/index.html?league=fam):
   10 teams, 2 FLEX, 15 rounds.
-- [Gabagool Fools](https://mtsilverstein.github.io/Megatron/index.html?league=gabagool):
+- [Gabagool Fools](https://megatron-ff.vercel.app/index.html?league=gabagool):
   12 teams, 2 FLEX, 15 rounds.
 
 The live contracts were checked on 2026-09-07. Both leagues use full PPR,
