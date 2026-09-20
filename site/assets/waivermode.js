@@ -5,9 +5,16 @@
   const dep = (name, path) => typeof window !== "undefined" && window[name]
     ? window[name] : typeof require === "function" ? require(path) : null;
   const Sleeper = dep("Sleeper", "./sleeper.js");
-  const KNOWN_LEAGUES = new Map([["1376245373244301312", "gabagool"], ["1389736745205002240", "fam"]]);
-  let catalogPromise = null;
-  let catalogFetchedAt = null;
+  const FC = dep("FC", "./app.js");
+  const NO_UNIQUE_ROSTER = "Could not uniquely match this account to a roster in this league.";
+  // The supported-league table is FC.REGISTRY (spec §3); a board is for a
+  // supported Sleeper league only when its slug's entry is a Sleeper entry
+  // whose live league id equals the board's.
+  function supportedEntry(board) {
+    const entry = FC && typeof FC.registryFor === "function" ? FC.registryFor(board?.league?.slug) : null;
+    if (!entry || entry.platform !== "sleeper") return null;
+    return String(entry.leagueId) === String(board?.league?.league_id || "") ? entry : null;
+  }
 
   function requestedWeek(value, state, season) {
     const automatic = !String(value ?? "").trim();
@@ -20,7 +27,7 @@
 
   function validateContract(board, league, { requireFaab = false } = {}) {
     const boardId = String(board?.league?.league_id || ""), liveId = String(league?.league_id || "");
-    if (!KNOWN_LEAGUES.has(boardId) || KNOWN_LEAGUES.get(boardId) !== board?.league?.slug || liveId !== boardId)
+    if (!supportedEntry(board) || liveId !== boardId)
       throw new Error("The loaded board and live league must exactly match a supported Sleeper league.");
     if (Number(league.season) !== board.season) throw new Error("League and projection seasons differ.");
     if (league.status !== "in_season") throw new Error("The draft must be complete before using waiver recommendations.");
@@ -44,21 +51,42 @@
       throw new Error("Roster size or FLEX settings changed; the board needs a rebuild.");
   }
 
-  async function loadWorld({ username, board, week, get = path => Sleeper.get(path) }) {
-    if (!String(username || "").trim()) throw new Error("Enter your Sleeper username.");
+  // Live world for the desk, read from the shared session bundle (spec §5).
+  // League, rosters and identity come from the bundle -- this never fetches
+  // them -- and the only network call is the week's transactions, unless the
+  // caller already fetched them atomically with the rosters through
+  // Session.refresh({ also }) and they ride on `bundle.extra` as
+  // { week, transactions } for THIS week. Two timestamps pass through
+  // untouched: `requestedAt` (pre-request, the engine's kickoff gate) and
+  // `fetchedAt` (post-fetch, the 60 s UI expiry); nothing here reads a clock.
+  async function loadWorld({ bundle, board, week, get = path => Sleeper.get(path) }) {
+    if (!bundle || typeof bundle !== "object") throw new Error("No league session is loaded.");
     if (!Number.isInteger(week) || week < 1 || week > 18) throw new Error("Week must be an integer from 1 to 18.");
     const leagueId = String(board?.league?.league_id || "");
-    if (!KNOWN_LEAGUES.has(leagueId) || KNOWN_LEAGUES.get(leagueId) !== board?.league?.slug) throw new Error("The projection board is not for a supported Sleeper league.");
-    const [league, rosters, user, transactions] = await Promise.all([
-      get(`/league/${leagueId}`), get(`/league/${leagueId}/rosters`),
-      get(`/user/${encodeURIComponent(username.trim())}`), get(`/league/${leagueId}/transactions/${week}`),
-    ]);
-    validateContract(board, league);
-    if (!user?.user_id) throw new Error("Sleeper username was not found.");
-    if (!Array.isArray(rosters) || !Array.isArray(transactions)) throw new Error("Sleeper returned incomplete roster/transaction data.");
-    const mine = rosters.filter(r => r.owner_id === user.user_id || (r.co_owners || []).includes(user.user_id));
-    if (mine.length !== 1) throw new Error("Could not uniquely match this account to a roster in the selected league.");
-    return { league, rosters, rosterId: mine[0].roster_id, transactions, fetchedAt: new Date().toISOString() };
+    const entry = bundle.registry;
+    if (!supportedEntry(board) || !entry || entry.platform !== "sleeper" || String(entry.leagueId) !== leagueId || entry.slug !== board.league.slug)
+      throw new Error("The projection board is not for a supported Sleeper league.");
+    if (bundle.myRosterStatus === "anonymous" || !bundle.identity) throw new Error("Enter your Sleeper username in the league panel.");
+    if (bundle.myRosterStatus !== "found" || !bundle.myRoster) throw new Error(NO_UNIQUE_ROSTER);
+    validateContract(board, bundle.league);
+    if (!Array.isArray(bundle.rosters)) throw new Error("Sleeper returned incomplete roster data.");
+    if (!Number.isFinite(bundle.rostersRequestedAt) || !Number.isFinite(bundle.rostersFetchedAt)) throw new Error("Roster snapshot timestamps are missing.");
+    const cached = bundle.extra;
+    const transactions = cached && Number(cached.week) === week && Array.isArray(cached.transactions)
+      ? cached.transactions : await get(`/league/${leagueId}/transactions/${week}`);
+    if (!Array.isArray(transactions)) throw new Error("Sleeper returned incomplete transaction data.");
+    return { league: bundle.league, rosters: bundle.rosters, rosterId: bundle.myRoster.roster_id, transactions,
+      fetchedAt: new Date(bundle.rostersFetchedAt).toISOString(), requestedAt: bundle.rostersRequestedAt };
+  }
+
+  // The `also` hook for Session.refresh on the waiver desk: the week's
+  // transactions, fetched in the refresh's generation BEFORE the new bundle
+  // commits. Its value lands on bundle.extra and loadWorld reads it back for
+  // the same week instead of fetching again.
+  async function transactionsAlso(parts, get, week) {
+    const transactions = await get(`/league/${parts.league.league_id}/transactions/${week}`);
+    if (!Array.isArray(transactions)) throw new Error("Sleeper returned incomplete transaction data.");
+    return { week, transactions };
   }
 
   async function loadSignals(get = path => Sleeper.get(path)) {
@@ -121,8 +149,13 @@
     const W = window.Waivers;
     const $ = id => document.getElementById(id);
     let world = null, board = null, weekly = null, roles = null, catalog = {}, result = null, signals = {}, intel = null;
-    let kickoffs = null, snapshotAt = null, ros = null, remaining = null;
+    let kickoffs = null, snapshotAt = null, ros = null, remaining = null, rawBoard = null, catalogFetchedAt = null;
     let requestId = 0, protectedIds = new Set(), autoWeek = true;
+    // The session bundle the desk is loading/loaded from. Session.onChange
+    // fires for every state move (refresh start, failed refresh, identity
+    // re-derive); only a DIFFERENT committed bundle re-runs the load.
+    let currentBundle = null, refreshing = false, refreshError = null;
+    const S = window.Session;
     const node = (tag, text, cls) => {
       const el = document.createElement(tag);
       if (text !== undefined) el.textContent = text;
@@ -135,8 +168,9 @@
     let selectedLeague;
     try { selectedLeague = window.FC.leagueNavigation(); }
     catch (error) { status(error.message); return; }
-    if (selectedLeague === "espnfam") {
-      $("waiver-connect").hidden = true;
+    const entry = window.FC.registryFor(selectedLeague);
+    if (!entry || entry.platform !== "sleeper" || !entry.tools.waivers) {
+      $("waiver-controls").hidden = true;
       $("waiver-results").hidden = true;
       status("ESPN family waivers are not connected. Choose Gabagool or FAM to use this read-only Sleeper desk.");
       return;
@@ -243,7 +277,9 @@
     function recompute() {
       if (!world) return;
       try {
-        if (Date.now() - Date.parse(world.fetchedAt) > 60000) throw new Error("Roster snapshot expired. Refresh before using waiver recommendations.");
+        // UI expiry: 60 s from the POST-fetch time (bundle.rostersFetchedAt).
+        // The engine's kickoff gate uses snapshotAt = the PRE-request time.
+        if (Date.now() - currentBundle.rostersFetchedAt > 60000) throw new Error("Roster snapshot expired. Refresh from the league panel before using waiver recommendations.");
         const rolling = Number(world.league.settings?.waiver_type) === 0;
         const reserve = rolling ? undefined : Number($("waiver-reserve").value);
         if (!rolling && (!$("waiver-reserve").value.trim() || !Number.isInteger(reserve) || reserve < 0)) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
@@ -261,7 +297,7 @@
         $("waiver-warnings").replaceChildren(); const ul = node("ul");
         for (const warning of warnings) ul.append(node("li", warning));
         $("waiver-warnings").append(ul); $("waiver-warnings").hidden = false;
-        $("waiver-source").textContent = `Roster snapshot ${world.fetchedAt}. Week ${$("waiver-week").value}. Weekly file: ${weekly?.generated_at || "unavailable"}, data through ${weekly?.data_through || "unknown"}. Preseason baseline: ${board.generated_at}. ${result.coverage.scoringLabel}`;
+        $("waiver-source").textContent = `Roster snapshot requested ${new Date(world.requestedAt).toISOString()} (kickoff gate), received ${world.fetchedAt} (60 s expiry). Week ${$("waiver-week").value}. Weekly file: ${weekly?.generated_at || "unavailable"}, data through ${weekly?.data_through || "unknown"}. Preseason baseline: ${board.generated_at}. ${result.coverage.scoringLabel}`;
         const coverage = result.coverage;
         $("waiver-coverage").textContent = coverage.weeklyFresh
           ? `Your active skill roster: ${coverage.projectedOwnedSkills}/${coverage.activeOwnedSkills} have matching weekly projections. ${coverage.missingOwnedWeekly.length ? `No matching projection: ${coverage.missingOwnedWeekly.map(p => p.name).join(", ")}. ` : ""}IR/taxi and K/DEF are excluded from this count; byes and unavailable players may not need a score. ${coverage.unmappedOwnedIds.length ? `Unmapped owned IDs: ${coverage.unmappedOwnedIds.join(", ")}. ` : ""}${result.recommendationBlock || "Coverage alone does not establish forecast accuracy or player availability."}`
@@ -276,20 +312,91 @@
         const ev = $("waiver-evaluation"); ev.replaceChildren();
         for (const line of evaluationText(rosCoverage.evaluation)) ev.append(node("p", line));
         $("waiver-results").hidden = false;
-        status(`Connected read-only · roster ${world.rosterId} · refreshed ${new Date(world.fetchedAt).toLocaleTimeString()}. Refresh again before placing a claim.`);
+        status(`Connected read-only · roster ${world.rosterId} · rosters received ${new Date(world.fetchedAt).toLocaleTimeString()}. Refresh from the league panel before placing a claim.`);
         renderRows();
       } catch (error) { result = null; $("waiver-results").hidden = true; status(error.message); }
     }
 
+    // The 15 s tick re-evaluates the committed snapshot (age, expiry); it
+    // never fetches. No polling: new data arrives only through the chip's
+    // refresh (Session.refresh) or a page reload.
     setInterval(() => { if (world && result) recompute(); }, 15000);
-    $("waiver-connect").addEventListener("submit", async event => {
-      event.preventDefault(); const thisRequest = ++requestId;
-      world = null; result = null;
-      $("waiver-load").disabled = true; $("waiver-results").hidden = true; $("waiver-warnings").hidden = true;
+
+    const hideResults = () => { world = null; result = null; $("waiver-results").hidden = true; $("waiver-warnings").hidden = true; };
+    const currentWeek = state => requestedWeek(autoWeek ? "" : $("waiver-week").value, state, rawBoard.season);
+    // Why the desk is not showing rows: the session's error, no identity yet,
+    // still loading, or the exact-matcher refusal (chipText's own wording).
+    function gateMessage(bundle) {
+      const err = S.error();
+      if (err) return err;
+      if (!S.identity()) return "Enter your Sleeper username in the league panel above; the desk reads your roster from there.";
+      if (!bundle) return "Loading league…";
+      if (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous") return S.chipText(bundle, "ready", Date.now());
+      return "Loading league…";
+    }
+
+    // The load body: everything downstream of a committed bundle with a
+    // uniquely matched roster. snapshotAt is the bundle's PRE-request time so
+    // a kickoff during retrieval still blocks; the catalog is the session's
+    // once-per-document copy.
+    async function load(bundle) {
+      const thisRequest = ++requestId;
+      currentBundle = bundle;
+      hideResults();
       status("Reading current rosters, waiver settings, scoring, and projections…");
       try {
+        const week = currentWeek(bundle.state);
+        const [nextWorld, nextSignals, nextCatalog] = await Promise.all([
+          loadWorld({ bundle, board: rawBoard, week }), loadSignals(), S.catalog(),
+        ]);
+        if (thisRequest !== requestId) return;
+        // Sleeper asks clients to avoid frequent bulk-catalog requests; the
+        // session fetches it once per document, dated below, not live news.
+        catalogFetchedAt = Number.isFinite(S.catalogFetchedAt()) ? new Date(S.catalogFetchedAt()).toISOString() : null;
+        $("waiver-week").value = String(week);
+        catalog = nextCatalog;
+        board = hydrateBoard(rawBoard, catalog);
+        world = nextWorld; signals = nextSignals; snapshotAt = bundle.rostersRequestedAt;
+        const own = world.rosters.find(r => r.roster_id === world.rosterId);
+        protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
+        renderRoster(); recompute();
+      } catch (error) {
+        if (thisRequest !== requestId) return;
+        if (S.isSuperseded(error)) return;
+        hideResults(); status(`Could not load safe recommendations: ${error.message}`);
+      }
+    }
+
+    // Session.onChange driver. Gated on bundle()/myRosterStatus/error(),
+    // never on state() === "error" (a stale identity error can coexist with
+    // a valid bundle). A refresh in flight keeps the results visible; a
+    // refresh that commits nothing (same bundle back) says so and leaves the
+    // previous snapshot -- and snapshotAt -- exactly as they were.
+    function sync(snapshot) {
+      const bundle = S.bundle();
+      const flow = snapshot && snapshot.state;
+      if (!bundle || bundle.myRosterStatus !== "found" || !bundle.myRoster) {
+        ++requestId; currentBundle = null; refreshing = false;
+        hideResults(); status(gateMessage(bundle));
+        return;
+      }
+      if (bundle === currentBundle) {
+        if (flow === "refreshing") { refreshing = true; refreshError = null; status("Refreshing rosters and this week's transactions…"); return; }
+        if (refreshing && flow === "ready") {
+          refreshing = false;
+          if (world) status(`Refresh did not complete${refreshError ? ` (${refreshError})` : "; see the league panel for the reason"}. The roster snapshot received ${new Date(world.fetchedAt).toLocaleTimeString()} is still shown.`);
+        }
+        return;
+      }
+      refreshing = false;
+      load(bundle);
+    }
+
+    (async () => {
+      status("Reading projections and league data…");
+      try {
         const dataPath = kind => window.FC.leagueDataPath(kind);
-        const [rawBoard, loadedWeekly, loadedRoles, loadedKickoffs, loadedRos, loadedRemaining] = await Promise.all([
+        const [loadedBoard, loadedWeekly, loadedRoles, loadedKickoffs, loadedRos, loadedRemaining] = await Promise.all([
           window.FC.loadJSON(dataPath("draft")),
           window.FC.loadJSON(dataPath("weekly")).catch(() => null),
           window.FC.loadJSON("data/roles.json").catch(() => null),
@@ -297,38 +404,36 @@
           window.FC.loadJSON("data/ros-ecr.json").catch(() => null),
           window.FC.loadJSON(dataPath("remaining")).catch(() => null),
         ]);
-        if (rawBoard.league?.slug !== selectedLeague) throw new Error("Projection board does not match the selected league; reload before using advice.");
-        const nflState = autoWeek ? await Sleeper.get("/state/nfl") : null;
-        const week = requestedWeek(autoWeek ? "" : $("waiver-week").value, nflState, rawBoard.season);
-        const loadedAt = Date.now();
-        const [nextWorld, nextSignals] = await Promise.all([
-          loadWorld({ username: $("waiver-user").value, board: rawBoard, week }), loadSignals(),
-        ]);
-        // Sleeper asks clients to avoid frequent bulk-catalog requests. This is
-        // session-cached, explicitly dated below, not a live injury-news feed.
-        if (!catalogPromise) catalogPromise = Sleeper.get("/players/nfl")
-          .then(data => { catalogFetchedAt = new Date().toISOString(); return data; })
-          .catch(error => { catalogPromise = null; throw error; });
-        const nextCatalog = await catalogPromise;
-        if (thisRequest !== requestId) return;
-        $("waiver-week").value = String(week);
-        catalog = nextCatalog;
-        board = hydrateBoard(rawBoard, catalog);
+        if (loadedBoard.league?.slug !== selectedLeague) throw new Error("Projection board does not match the selected league; reload before using advice.");
+        rawBoard = loadedBoard; weekly = loadedWeekly; roles = loadedRoles; kickoffs = loadedKickoffs; ros = loadedRos; remaining = loadedRemaining;
         const leagueLink = $("waiver-league-link");
-        leagueLink.href = `https://sleeper.com/leagues/${encodeURIComponent(board.league.league_id)}/team`;
-        leagueLink.textContent = `Open ${board.league.slug.toUpperCase()} in Sleeper`;
-        weekly = loadedWeekly; roles = loadedRoles; world = nextWorld; signals = nextSignals;
-        kickoffs = loadedKickoffs; snapshotAt = loadedAt; ros = loadedRos; remaining = loadedRemaining;
-        const own = world.rosters.find(r => r.roster_id === world.rosterId);
-        protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
-        renderRoster(); recompute();
+        leagueLink.href = `https://sleeper.com/leagues/${encodeURIComponent(rawBoard.league.league_id)}/team`;
+        leagueLink.textContent = `Open ${rawBoard.league.slug.toUpperCase()} in Sleeper`;
+        // The chip's refresh on this page re-fetches the week's transactions
+        // atomically with the rosters: if either fails, nothing commits and
+        // the chip's age does not advance. The week is resolved from the
+        // FRESH state inside the hook, so "auto" follows the live NFL week.
+        window.FC.chip.onRefresh(() => ({
+          scope: "league",
+          also: async (parts, get) => {
+            try { return await transactionsAlso(parts, get, currentWeek(parts.state)); }
+            catch (error) { refreshError = error.message; throw error; }
+          },
+        }));
+        S.onChange(sync);
+        // The chip auto-runs Session.ready once a board is set and an identity exists.
+        window.FC.setBoard(rawBoard);
+        sync({ state: S.state() });
       } catch (error) {
-        if (thisRequest !== requestId) return;
-        world = null; result = null; status(`Could not load safe recommendations: ${error.message}`);
-      } finally { if (thisRequest === requestId) $("waiver-load").disabled = false; }
+        hideResults(); status(`Could not load safe recommendations: ${error.message}`);
+      }
+    })();
+    $("waiver-week").addEventListener("change", () => {
+      autoWeek = !$("waiver-week").value.trim();
+      const bundle = S.bundle();
+      if (rawBoard && bundle && bundle.myRosterStatus === "found" && bundle.myRoster) load(bundle);
+      else { ++requestId; hideResults(); status(rawBoard ? gateMessage(bundle) : "Week changed. Clear the week to follow the current NFL week automatically."); }
     });
-    $("waiver-user").addEventListener("input", () => { ++requestId; world = null; result = null; $("waiver-results").hidden = true; $("waiver-load").disabled = false; status("Account changed. Load the league again."); });
-    $("waiver-week").addEventListener("change", () => { autoWeek = !$("waiver-week").value.trim(); ++requestId; world = null; result = null; $("waiver-results").hidden = true; $("waiver-load").disabled = false; status("Week changed. Load the league again. Clear the week to follow the current NFL week automatically."); });
     $("waiver-reserve").addEventListener("change", recompute);
     $("waiver-position").addEventListener("change", () => { if (result) renderRows(); });
     $("waiver-radar-sort").addEventListener("change", () => { if (result) renderIntel(); });
@@ -350,7 +455,7 @@
       $("waiver-backup").focus();
     });
   }
-  const api = { init, loadWorld, loadSignals, validateContract, hydrateBoard, requestedWeek, rowText, evaluationText };
+  const api = { init, loadWorld, transactionsAlso, loadSignals, validateContract, hydrateBoard, requestedWeek, rowText, evaluationText };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverMode = api;
 })();

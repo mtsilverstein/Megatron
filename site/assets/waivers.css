@@ -5,7 +5,6 @@
 #waiver-app input, #waiver-app select, #waiver-app textarea, #waiver-app button { font: inherit; color: var(--chalk); background: var(--board-raised); border: 1px solid var(--rule); border-radius: 4px; padding: .5rem .7rem; }
 #waiver-app input[type=number] { width: 8rem; }
 #waiver-app button { cursor: pointer; }
-#waiver-load { border-color: var(--accent) !important; }
 #waiver-app button:disabled { opacity: .6; cursor: wait; }
 #waiver-status, .waiver-warnings { border-left: 3px solid var(--accent); padding: .7rem 1rem; background: var(--sunken); }
 .waiver-warnings ul { margin: 0; padding-left: 1rem; }

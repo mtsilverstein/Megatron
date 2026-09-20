@@ -95,34 +95,78 @@ const famLeague = { ...league, league_id:famId, total_rosters:famBoard.league.te
 assert.doesNotThrow(() => M.validateContract(famBoard, famLeague));
 assert.throws(() => M.validateContract(famBoard, famLeague, {requireFaab:true}), /requires a FAAB/);
 assert.throws(() => M.validateContract(board, famLeague), /exactly match/);
+// loadWorld reads the shared session bundle (spec §5): league, rosters and
+// identity come from it, the only fetch is the week's transactions, and the
+// two roster timestamps pass through untouched.
+const FC = require("../site/assets/app.js");
+const NO_UNIQUE = "Could not uniquely match this account to a roster in this league.";
+function bundleOf({ board: b = board, league: lg = league, rosters, userId = "helper", status = "found", extra = null,
+  requestedAt = 1700000000000, fetchedAt = 1700000000750, state = { season: "2026", season_type: "regular", week: 1 }, registry } = {}) {
+  const mine = (rosters || []).filter(r => r.owner_id === userId || (r.co_owners || []).includes(userId));
+  return Object.freeze({
+    registry: registry || FC.registryFor(b.league.slug),
+    identity: status === "anonymous" ? null : { username: "Test User", userId, displayName: "Test User" },
+    league: lg, users: [], rosters, state,
+    rostersRequestedAt: requestedAt, rostersFetchedAt: fetchedAt,
+    myRoster: status === "found" ? mine[0] : null, myRosterStatus: status,
+    warnings: Object.freeze([]), extra, generation: 1,
+  });
+}
 (async () => {
+  const rosters = [{ roster_id: 9, owner_id: "owner", co_owners: ["helper"] }];
   const calls = [];
   const get = async path => {
     calls.push(path);
-    if (path === `/league/${id}`) return league;
-    if (path === `/league/${id}/rosters`) return [{ roster_id: 9, owner_id: "owner", co_owners: ["helper"] }];
-    if (path === "/user/Test%20User") return { user_id: "helper" };
-    if (path === `/league/${id}/transactions/1`) return [];
+    if (path === `/league/${id}/transactions/1`) return [{ type: "waiver" }];
     throw new Error("unexpected request " + path);
   };
-  const result = await M.loadWorld({ username: "Test User", board, week: 1, get });
+  const found = bundleOf({ rosters });
+  const result = await M.loadWorld({ bundle: found, board, week: 1, get });
   assert.equal(result.rosterId, 9);
-  assert.equal(calls.length, 4);
-  assert.ok(Number.isFinite(Date.parse(result.fetchedAt)));
-  const famCalls=[];
-  const famResult = await M.loadWorld({username:"Test User",board:famBoard,week:1,get:async path => {
+  assert.deepEqual(calls, [`/league/${id}/transactions/1`], "only the week's transactions are fetched; league/rosters/user come from the bundle");
+  assert.equal(result.league, found.league); assert.equal(result.rosters, found.rosters);
+  assert.deepEqual(result.transactions, [{ type: "waiver" }]);
+  assert.equal(result.requestedAt, 1700000000000, "requestedAt is the bundle's PRE-request time (engine kickoff gate)");
+  assert.equal(result.fetchedAt, new Date(1700000000750).toISOString(), "fetchedAt is the bundle's POST-fetch time (60 s UI expiry)");
+  // Transactions already fetched atomically with the rosters (Session.refresh
+  // `also`) ride on bundle.extra and are used for the SAME week only.
+  calls.length = 0;
+  const cached = await M.loadWorld({ bundle: bundleOf({ rosters, extra: { week: 1, transactions: [{ type: "cached" }] } }), board, week: 1, get });
+  assert.deepEqual(cached.transactions, [{ type: "cached" }]); assert.equal(calls.length, 0, "cached transactions: no fetch");
+  const otherWeek = bundleOf({ rosters, extra: { week: 2, transactions: [{ type: "stale" }] } });
+  const refetched = await M.loadWorld({ bundle: otherWeek, board, week: 1, get });
+  assert.deepEqual(refetched.transactions, [{ type: "waiver" }]); assert.deepEqual(calls, [`/league/${id}/transactions/1`], "extra for another week is ignored");
+  // The `also` hook: fetches this week's transactions in the refresh generation and tags the week.
+  const alsoCalls = [];
+  const also = await M.transactionsAlso({ league: { league_id: id } }, async path => { alsoCalls.push(path); return []; }, 3);
+  assert.deepEqual(also, { week: 3, transactions: [] }); assert.deepEqual(alsoCalls, [`/league/${id}/transactions/3`]);
+  await assert.rejects(M.transactionsAlso({ league: { league_id: id } }, async () => null, 3), /incomplete transaction/);
+  // FAM: its own registry entry, its own league id, never Gabagool's.
+  const famCalls = [];
+  const famRosters = [{ roster_id: 3, owner_id: "owner", co_owners: ["helper"], settings: { waiver_position: 2 } }];
+  const famResult = await M.loadWorld({ bundle: bundleOf({ board: famBoard, league: famLeague, rosters: famRosters }), board: famBoard, week: 1, get: async path => {
     famCalls.push(path);
-    if (path === `/league/${famId}`) return famLeague;
-    if (path === `/league/${famId}/rosters`) return [{roster_id:3,owner_id:"owner",co_owners:["helper"],settings:{waiver_position:2}}];
-    if (path === "/user/Test%20User") return {user_id:"helper"};
     if (path === `/league/${famId}/transactions/1`) return [];
     throw new Error("unexpected request " + path);
-  }});
-  assert.equal(famResult.rosterId,3);
+  } });
+  assert.equal(famResult.rosterId, 3);
   assert.ok(famCalls.every(path => !path.includes(id)), "FAM load must not query Gabagool");
-  await assert.rejects(M.loadWorld({ username: "", board, week: 1, get }), /username/);
-  await assert.rejects(M.loadWorld({ username: "Test User", board, week: 1.5, get }), /integer/);
-  await assert.rejects(M.loadWorld({ username: "Test User", board, week: 1,
-    get: async path => path.startsWith("/user/") ? { user_id: "outsider" } : get(path) }), /uniquely match/);
-  console.log("waivermode_fixture: scoring, roster, season, ownership and read-only loading guards OK");
+  // Refusals, each before any fetch.
+  const refuse = async (args, re) => { calls.length = 0; await assert.rejects(M.loadWorld({ board, week: 1, get, ...args }), re); assert.equal(calls.length, 0, `${re}: refused before fetching`); };
+  await refuse({ bundle: found, week: 1.5 }, /integer/);
+  await refuse({ bundle: null }, /No league session/);
+  await refuse({ bundle: bundleOf({ rosters, status: "anonymous" }) }, /username/);
+  const ambiguous = bundleOf({ rosters: [...rosters, { roster_id: 10, owner_id: "helper" }], status: "ambiguous" });
+  await assert.rejects(M.loadWorld({ bundle: ambiguous, board, week: 1, get }), e => e.message === NO_UNIQUE);
+  await assert.rejects(M.loadWorld({ bundle: bundleOf({ rosters, userId: "outsider", status: "none" }), board, week: 1, get }), e => e.message === NO_UNIQUE);
+  assert.equal(calls.length, 0, "ambiguous/none: refused before fetching");
+  // Registry mismatch: a FAM bundle can never feed the Gabagool board, and a
+  // board whose slug maps to another league id is not supported.
+  await refuse({ bundle: bundleOf({ rosters, registry: FC.registryFor("fam") }) }, /supported Sleeper league/);
+  await refuse({ bundle: bundleOf({ rosters, board: famBoard, league: famLeague }), board: { ...board, league: { ...board.league, slug: "fam" } } }, /supported Sleeper league/);
+  // Contract checks still run on the bundle's league.
+  await refuse({ bundle: bundleOf({ rosters, league: { ...league, status: "drafting" } }) }, /draft must be complete/);
+  await refuse({ bundle: bundleOf({ rosters, fetchedAt: null }) }, /timestamps/);
+  await assert.rejects(M.loadWorld({ bundle: found, board, week: 1, get: async () => ({}) }), /incomplete transaction/);
+  console.log("waivermode_fixture: scoring, roster, season, ownership and session-bundle loading guards OK");
 })().catch(e => { console.error(e); process.exitCode = 1; });

@@ -164,10 +164,37 @@ main #league-context > label { display: flex; flex-direction: row; align-items: 
 #league-context select { padding: .5rem; font: inherit; max-width: 100%; }
 #league-context p { flex-basis: 100%; order: 2; margin: 0; font-size: .85rem; color: var(--chalk-dim); }
 #league-context > a { margin-left: auto; }
+/* Identity chip (session design spec §6). The line (name · league · roster ·
+   age) sits beside the league select; its controls -- the username form or
+   the refresh/change/forget buttons -- sit below it and reuse the filter-chip
+   button look. Text only: the controller sets textContent, never markup. */
+.session-chip { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .8rem; flex: 1 1 14rem; min-width: 0; }
+.session-text { flex: 1 1 12rem; min-width: 0; font-size: .9rem; color: var(--chalk); overflow-wrap: anywhere; }
+.session-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; flex-basis: 100%; }
+.session-controls:empty { display: none; }
+.session-controls button, .session-form button {
+  background: none; border: 1px solid var(--rule); color: var(--chalk-dim);
+  font: var(--t-chip); letter-spacing: .08em;
+  text-transform: uppercase; padding: .45rem .8rem; border-radius: 4px; cursor: pointer;
+}
+.session-controls button:hover, .session-form button:hover { color: var(--chalk); border-color: var(--chalk); }
+.session-controls button[disabled] { opacity: .5; cursor: progress; }
+.session-form { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; margin: 0; }
+.session-form label { display: flex; align-items: center; gap: .4rem; font-size: .85rem; color: var(--chalk-dim); }
+.session-form input[type="text"] {
+  background: var(--board-raised); border: 1px solid var(--rule); color: var(--chalk);
+  padding: .4rem .6rem; border-radius: 4px; font: 400 .9rem/1.3 "Source Sans 3", sans-serif; min-width: 11rem;
+}
+.session-notice, #session-who { font-size: .85rem; color: var(--chalk-dim); }
+#session-who { color: var(--chalk); }
 @media (max-width: 560px) {
-  #league-context > label { width: 100%; }
+  /* One compact row: league select · the chip line; details wrap below. */
+  #league-context > label { flex: 0 1 auto; }
   #league-context select { min-width: 0; flex: 1; }
   #league-context > a { margin-left: 0; }
+  .session-chip { flex: 1 1 8rem; }
+  .session-text { font-size: .85rem; }
+  .session-form input[type="text"] { min-width: 0; flex: 1; }
 }
 .league-links a {
   color: var(--chalk-dim); border: 1px solid var(--rule); border-radius: 4px;

@@ -36,8 +36,10 @@
   const Keepers = dep("Keepers", "./keepers.js");
   const Trade = dep("Trade", "./trade.js");
   const Sleeper = dep("Sleeper", "./sleeper.js");
-  if (!Optimizer || !Keepers || !Trade || !Sleeper) {
-    throw new Error("trademode.js requires optimizer.js, keepers.js, trade.js and sleeper.js first");
+  // The browser has window.Session (session.js loads first); node requires it.
+  const Session = dep("Session", "./session.js");
+  if (!Optimizer || !Keepers || !Trade || !Sleeper || !Session) {
+    throw new Error("trademode.js requires session.js, optimizer.js, keepers.js, trade.js and sleeper.js first");
   }
 
   // Delegate so there is ONE cache-busting implementation (see sleeper.js), and
@@ -336,46 +338,61 @@
   }
   const setNote = t => { note = t; renderWarn(); };
 
-  // Render league buttons and resolve with the chosen league. Same pattern as
-  // keepers.js's pickLeague.
-  function pickLeague(leagues) {
-    return new Promise(resolve => {
-      els.picker.innerHTML = "";
-      setStatus(`${leagues.length} leagues — pick one`);
-      leagues.forEach(lg => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.textContent = lg.name || lg.league_id;
-        b.addEventListener("click", () => { els.picker.innerHTML = ""; resolve(lg); });
-        els.picker.appendChild(b);
-      });
-    });
+  // Who you are and which league this is come from the shared Session (spec
+  // §5): the page's registry league, the exact roster matcher, no username
+  // input and no "pick a league" list here. leagueWorld is unchanged -- it
+  // still reads users/rosters/traded picks and the draft chain itself, and
+  // still refuses a league that is not pre-draft.
+  const NO_IDENTITY = "Enter your Sleeper username in the league panel above; the trade columns read your roster from there.";
+  let SESSION = null;               // window.Session in the browser; scriptable under node
+  let currentBundle = null;         // the committed bundle the columns were built from
+
+  // Every account-derived surface goes dark together (spec §4.4 rule 2):
+  // columns, controls, grade, suggestions, warnings -- and any search in
+  // flight is superseded, so its next turn writes nothing.
+  function hideAll() {
+    cancelSuggest();
+    gradeSeq++;
+    world = null; me = null; partner = null; sides = null;
+    lastSuggestions = null; lastRunQueue = null;
+    els.controls.hidden = true; els.cols.hidden = true;
+    els.grade.hidden = true; els.suggestions.hidden = true;
+    note = "";
+    renderWarn();
   }
 
-  async function load() {
-    const username = els.user.value.trim();
-    if (!username) { setStatus("enter your Sleeper username"); return; }
+  // Why the columns are not showing: the session's error, no identity yet,
+  // still loading, the exact matcher's refusal (the chip's own wording), or a
+  // league that is past its draft.
+  function gateMessage(bundle) {
+    const err = SESSION.error();
+    if (err) return err;
+    if (!SESSION.identity()) return NO_IDENTITY;
+    if (!bundle) return "loading league…";
+    if (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous") return SESSION.chipText(bundle, "ready", Date.now());
+    if (bundle.league && bundle.league.status !== "pre_draft") return `this league is ${bundle.league.status}, not pre-draft`;
+    return "loading league…";
+  }
+
+  // The load body: everything downstream of a committed bundle with a
+  // uniquely matched roster in a pre-draft league. The bundle names the
+  // league and MY roster id; leagueWorld builds the world from Sleeper as it
+  // always has, and the team carrying that id is mine -- exactness is the
+  // session's, so there is no owner/co-owner search here any more.
+  async function load(bundle) {
     const seq = ++loadSeq;
     const stale = () => seq !== loadSeq;
+    currentBundle = bundle;
+    hideAll();
     try {
-      setStatus("looking up user…");
-      const user = await sapi(`/user/${encodeURIComponent(username)}`);
-      if (stale()) return;
-      if (!user || !user.user_id) { setStatus("user not found"); return; }
-      const season = cfg.board.season;
-      const leagues = (await sapi(`/user/${user.user_id}/leagues/nfl/${season}`)) || [];
-      if (stale()) return;
-      if (!leagues.length) { setStatus(`no ${season} leagues for ${username}`); return; }
-      const league = leagues.length === 1 ? leagues[0] : await pickLeague(leagues);
-      if (!league || stale()) return;
       setStatus("reading rosters, picks and draft history…");
-      const w = await leagueWorld(league, cfg.board,
+      const w = await leagueWorld(bundle.league, cfg.board,
                                   { futureDiscount: readDiscount() });
       if (stale()) return;
-      const mine = w.teams.find(t => t.ownerId === user.user_id
-        || (t.coOwners || []).indexOf(user.user_id) !== -1);
+      const myId = String(bundle.myRoster.roster_id);
+      const mine = w.teams.find(t => String(t.rosterId) === myId);
       if (!mine) {
-        setStatus(`couldn't find a roster for ${username} in ${league.name || league.league_id}`);
+        setStatus(`your roster (${myId}) is not in the league's roster list — refresh from the league panel`);
         return;
       }
       world = w; me = mine;
@@ -386,8 +403,26 @@
       setStatus(`${w.teams.length} teams loaded — you are ${me.name}`);
       renderWarn();
     } catch (e) {
-      setStatus(`load failed: ${e.message}`);
+      if (stale() || SESSION.isSuperseded(e)) return;
+      setStatus(`load failed: ${e.message} — refresh from the league panel to retry`);
     }
+  }
+
+  // Session.onChange driver. Gated on bundle()/myRosterStatus/error(), never
+  // on state() === "error" (a stale identity error can coexist with a valid
+  // bundle). Any DIFFERENT committed bundle rebuilds the world; the same one
+  // back (a refresh that committed nothing) leaves the columns alone.
+  function sync() {
+    const bundle = SESSION.bundle();
+    if (!bundle || bundle.myRosterStatus !== "found" || !bundle.myRoster
+        || !bundle.league || bundle.league.status !== "pre_draft") {
+      ++loadSeq; currentBundle = null;
+      hideAll();
+      setStatus(gateMessage(bundle));
+      return;
+    }
+    if (bundle === currentBundle) return;
+    load(bundle);
   }
 
   function fillPartners() {
@@ -972,11 +1007,14 @@
     renderGrade();
   }
 
+  // No username input and no load button here: identity and the league load
+  // belong to the chip in the league panel (FC.setBoard in the page shell
+  // starts Session.ready). sync() builds the world from whatever bundle the
+  // session commits and hides everything when it commits none.
   function init(options) {
     cfg = options;
     els = cfg.els;
-    els.load.addEventListener("click", load);
-    els.user.addEventListener("keydown", e => { if (e.key === "Enter") load(); });
+    SESSION = (typeof window !== "undefined" && window.Session) || Session;
     els.partner.addEventListener("change", onPartnerChange);
     // `change`, not `input`: each re-grade is ~0.4 s of maths on the main thread
     // (measured; the same stale "~0.3s" renderGrade carried), and a re-grade
@@ -987,6 +1025,8 @@
     if (els.suggestAll) els.suggestAll.addEventListener("click", () => suggest(true));
     bindSide(els.mine, "mine");
     bindSide(els.theirs, "theirs");
+    SESSION.onChange(sync);
+    sync();
   }
 
   return { init, leagueWorld, keptElsewhere, teamName,

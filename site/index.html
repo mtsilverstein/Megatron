@@ -8,7 +8,7 @@
 <title>Draft board — Megatron</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Bruno+Ace&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=mobile1">
+<link rel="stylesheet" href="assets/style.css?v=session1">
 </head>
 <body>
 <header class="masthead">
@@ -41,7 +41,6 @@
       taking the market's best available by ADP — and reporting the best starting
       lineup you could still finish. Read-only, no login — works on mock drafts too.</p>
       <div class="draft-row" id="draft-connect">
-        <input id="draft-username" type="text" placeholder="Sleeper username" aria-label="Sleeper username" autocomplete="off">
         <button id="draft-find">Find my drafts</button>
         <input id="draft-id-input" type="text" placeholder="…or paste a draft URL / id" aria-label="Draft URL or id">
         <button id="draft-connect-id">Connect</button>
@@ -147,10 +146,8 @@
     <p class="keeper-help">Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (cost drops one round for each year you keep him). Once a keeper's cost would reach round 2 he goes back into the draft pool. A player keeps his original draft round even if he was dropped and later picked back up — only players never drafted in this league cost R12. A kept waiver player decays too — R12 the first year you keep him, R11 the next. Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
     <label class="keeper-depletion"><input class="keeper-depletion-toggle" type="checkbox" checked /> assume 12 teams keep 2 each (24 players off the board)</label>
     <div class="keeper-load">
-      <input class="keeper-user" placeholder="Sleeper username" aria-label="Sleeper username" autocomplete="off" />
-      <button type="button" class="keeper-load-btn">Load from Sleeper</button>
+      <button type="button" class="keeper-load-btn" title="Reads last season's roster for the account identified in the league panel">Load from Sleeper</button>
       <span class="keeper-load-status" role="status"></span>
-      <div class="keeper-league-picker"></div>
       <span class="keeper-skip-note"></span>
     </div>
     <form class="keeper-add">
@@ -178,12 +175,13 @@ the tick is the simulated median, and VORP is built from that same median.
 When your tier empties, don't chase. Rookies (marked R) carry draft-capital
 cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/bands.js"></script>
-<script src="assets/app.js?v=recovery6"></script>
+<script src="assets/session.js?v=2"></script>
+<script src="assets/app.js?v=session2"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/optimizer.js"></script>
-<script src="assets/draftmode.js"></script>
+<script src="assets/draftmode.js?v=session4"></script>
 <script src="assets/manualdraft.js"></script>
-<script src="assets/keepers.js"></script>
+<script src="assets/keepers.js?v=session1"></script>
 <script>
 (async () => {
   // ?league=<slug> selects the board. No parameter -- and "gabagool" -- keep
@@ -197,6 +195,8 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   if (!board.league.sleeper_scoring) {
     throw new Error("This board lacks the locked scoring settings. Regenerate it before drafting.");
   }
+  // The identity chip loads your roster against THIS board's league id.
+  FC.setBoard(board);
   // Manual-only identity bridge: never alter a Sleeper board's live IDs.
   if (board.league.platform === "espn" && window.ManualDraft) {
     board = ManualDraft.prepareBoard(board);
@@ -814,7 +814,6 @@ cohort priors — wide bands on purpose; see the about page.</footer>
         els: {
           status: document.getElementById("draft-status"),
           connect: document.getElementById("draft-connect"),
-          username: document.getElementById("draft-username"),
           find: document.getElementById("draft-find"),
           idInput: document.getElementById("draft-id-input"),
           connectId: document.getElementById("draft-connect-id"),
