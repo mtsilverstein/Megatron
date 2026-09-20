@@ -61,7 +61,7 @@
   const swallow = () => {};   // identify/ready failures surface via Session.error(); superseded ones never
   const chip = {
     slug: null, board: null, readyFor: null, els: null, unsub: null, ticker: null,
-    lastName: "", changing: false, notice: "", prefill: "",
+    lastName: "", changing: false, notice: "", prefill: "", controlsSig: null,
   };
   function chipEntry() { return registryFor(chip.slug); }
   function isEspn() { const e = chipEntry(); return !!e && e.platform !== "sleeper"; }
@@ -141,7 +141,7 @@
     const label = document.createElement("label");
     label.textContent = "Sleeper username ";
     const input = document.createElement("input");
-    input.type = "text"; input.id = "session-user"; input.autocomplete = "username";
+    input.type = "text"; input.id = "session-user"; input.autocomplete = "off";   // not a login field
     input.setAttribute("spellcheck", "false"); input.placeholder = "Sleeper username";
     input.value = prefill || "";
     label.append(input);
@@ -152,6 +152,12 @@
     chip.els.input = input;
     return form;
   }
+  // Called on every Session.onChange fire, on every chip action AND by the
+  // 1 s ticker. The line (Session.chipText, whose age moves) is rewritten on
+  // every call; the controls are rebuilt only when the state they are built
+  // from changes -- `controlsSig` names that state. A tick therefore never
+  // replaces the username input the visitor is typing into after "change"
+  // or "forget", and never steals keyboard focus from a chip button.
   function renderChip() {
     const S = session(), els = chip.els;
     if (!S || !els) return;
@@ -160,56 +166,77 @@
     // The line is ALWAYS Session.chipText. Without a committed bundle the
     // identity still gets a bundle-shaped view so ESPN reads "name · label".
     const view = b || (id ? { identity: id, registry: entry } : null);
-    const controls = [];
     const changeBtn = () => chipButton("session-change", "change", () => { chip.changing = true; renderChip(); });
     const forgetBtn = () => chipButton("session-forget", "forget", () => { chip.changing = false; chip.notice = ""; S.forget(); });
-    els.input = null;
-    let line;
+    let line, build, sig;
     if (st === "identifying") {
       line = S.chipText(null, "identifying", now);
+      build = () => []; sig = ["identifying"];
     } else if (chip.changing || (!id && !err)) {
       // The username form: anonymous, or "change" clicked from any state
       // (including error, where the previous attempt prefills the box).
       line = err ? S.chipText(view, "error", now, err) : S.chipText(view, id ? st : "anonymous", now);
-      controls.push(identifyForm(id ? id.username : (chip.changing && chip.lastName) || chip.prefill));
-      // Anonymous: the line already reads "Remembered on this device until
-      // you choose forget." (chipText), so no second copy is added here.
-      if (id || err) controls.push(chipButton("session-cancel", "cancel", () => { chip.changing = false; renderChip(); }));
+      const prefill = id ? id.username : (chip.changing && chip.lastName) || chip.prefill;
+      const cancel = !!(id || err);
+      build = () => {
+        const c = [identifyForm(prefill)];
+        // Anonymous: the line already reads "Remembered on this device until
+        // you choose forget." (chipText), so no second copy is added here.
+        if (cancel) c.push(chipButton("session-cancel", "cancel", () => { chip.changing = false; renderChip(); }));
+        return c;
+      };
+      sig = ["form", prefill, cancel];
     } else if (err) {
       line = S.chipText(view, "error", now, err);
-      controls.push(chipButton("session-retry", "retry", chipRetry), changeBtn());
+      build = () => [chipButton("session-retry", "retry", chipRetry), changeBtn()]; sig = ["error"];
     } else if (st === "loadingLeague") {
       line = S.chipText(view, "loadingLeague", now);
-      controls.push(changeBtn());
+      build = () => [changeBtn()]; sig = ["loadingLeague"];
     } else if (isEspn()) {
       line = S.chipText(view, st, now);
-      controls.push(changeBtn(), forgetBtn());
+      build = () => [changeBtn(), forgetBtn()]; sig = ["espn"];
     } else if (b && (b.myRosterStatus === "none" || b.myRosterStatus === "ambiguous")) {
       line = S.chipText(b, st, now);
-      controls.push(changeBtn());
+      build = () => [changeBtn()]; sig = ["noroster"];
     } else if (b && b.myRoster) {
       line = S.chipText(b, st, now);
-      const refresh = chipButton("session-refresh", "refresh", () => { chipRefreshClick(); });
-      if (st === "refreshing") refresh.disabled = true;
-      controls.push(refresh, changeBtn(), forgetBtn());
+      const refreshing = st === "refreshing";
+      build = () => {
+        const refresh = chipButton("session-refresh", "refresh", () => { chipRefreshClick(); });
+        if (refreshing) refresh.disabled = true;
+        return [refresh, changeBtn(), forgetBtn()];
+      };
+      sig = ["ready", refreshing];
     } else {
       // Identified with no bundle on this page (no board set yet): the line is
       // the remembered sentence, so the account is named beside the controls.
       line = S.chipText(view, st, now);
-      const who = document.createElement("span"); who.id = "session-who";
-      who.textContent = id.displayName || id.username;
-      controls.push(who, changeBtn(), forgetBtn());
+      const whoText = id.displayName || id.username;
+      build = () => {
+        const who = document.createElement("span"); who.id = "session-who";
+        who.textContent = whoText;
+        return [who, changeBtn(), forgetBtn()];
+      };
+      sig = ["identified", whoText];
     }
+    sig.push(chip.notice);
+    els.line.textContent = line;
+    const key = JSON.stringify(sig);
+    if (key === chip.controlsSig) return;
+    chip.controlsSig = key;
+    els.input = null;
+    const controls = build();
     if (chip.notice) {
       const n = document.createElement("span"); n.className = "session-notice"; n.textContent = chip.notice;
       controls.push(n);
     }
-    els.line.textContent = line;
     els.controls.replaceChildren(...controls);
   }
   // The age in the line comes from bundle().rostersFetchedAt; re-render every
-  // second while a bundle carries one. A re-mount clears the old interval
-  // first; under node the timer is unref'd so it never holds the process open.
+  // second while a bundle carries one (renderChip rewrites the line only --
+  // the controls stay put unless their state changed). A re-mount clears the
+  // old interval first; under node the timer is unref'd so it never holds the
+  // process open.
   function startTicker() {
     if (chip.ticker) { clearInterval(chip.ticker); chip.ticker = null; }
     if (typeof setInterval !== "function") return;
@@ -230,6 +257,7 @@
     wrap.append(line, controls);
     panel.append(wrap);
     chip.els = { wrap, line, controls, input: null };
+    chip.controlsSig = null;             // fresh controls node: nothing is built yet
     // Legacy key (spec §7): migrated once into a prefill, never auto-identified.
     // Session.identity() loads storage (and migrates) first; either source wins.
     let prefill = "";

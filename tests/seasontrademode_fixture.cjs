@@ -73,9 +73,9 @@ check("the controller reads identity, rosters and state from the session, never 
   assert.ok(!/els\.user\b|els\.load\b/.test(src), "init no longer needs els.user / els.load");
   assert.ok(!/\/players\/nfl/.test(src), "the catalog comes from Session.catalog(), not a page-local cache");
   assert.ok(!/get\(`\/league\/\$\{lid\}\/(?:users|rosters)`\)|get\("\/state\/nfl"\)/.test(src), "users/rosters/state come from the bundle");
-  assert.ok(/refresh\(\{ scope: "rosters" \}\)/.test(src), "compare re-reads rosters through Session.refresh");
-  assert.ok(/snapshotAt = b\.rostersFetchedAt/.test(src), "snapshotAt is the refreshed bundle's post-fetch time (spec §5)");
-  assert.ok(/isSuperseded\(e\)/.test(src), "superseded session results are swallowed");
+  // How compare() uses Session.refresh (scope, the refreshed bundle's
+  // rostersFetchedAt as snapshotAt, moved players, superseded results) is
+  // checked by RUNNING it in initSmoke below, not by grepping the source.
   assert.ok(!/season-user|season-load/.test(html), "trade.html has no in-season username input or load button");
   assert.ok(/seasontrademode\.js\?v=session1/.test(html), "cache key bumped for the session controller");
 });
@@ -167,10 +167,49 @@ async function initSmoke() {
     assert.equal(analyzed[0].snapshotAt, fresh.rostersFetchedAt, "snapshotAt is the NEW bundle's post-fetch time");
     assert.equal(analyzed[0].rosters, fresh.rosters);
     assert.equal(els.result.hidden, false);
+    // 3b. the refresh brings rosters in which a SELECTED player moved (p1 is
+    // now on roster 2): no analyze, the CHANGED outcome, columns redrawn from
+    // the fresh snapshot (p1 now listed under "you get").
+    const movedRosters = [{ roster_id: 1, owner_id: "u1", players: [], reserve: [], taxi: [] }, { roster_id: 2, owner_id: "u2", players: ["p1", "p2", "p3"], reserve: [], taxi: [] }];
+    const moved = mkBundle({ rosters: movedRosters, myRoster: movedRosters[0], rostersRequestedAt: 200, rostersFetchedAt: Date.now() });
+    s.refreshImpl = async () => { Sess.commit(moved); return moved; };
+    assert.equal(els.compare.disabled, false, "p1 is still selected after the first compare");
+    const analyzedBefore = analyzed.length;
+    for (const fn of els.compare.listeners.click) await fn();
+    assert.equal(analyzed.length, analyzedBefore, "no analyze when a selected player moved rosters");
+    assert.equal(els.status.textContent, "Rosters changed since they were loaded — the columns were redrawn from the fresh snapshot; choose again.");
+    assert.equal(els.result.hidden, true, "no stale scenario stays on screen");
+    assert.ok(!els.mine.children.some(li => li.dataset.id === "p1"), "p1 is no longer offered on my side");
+    assert.ok(els.theirs.children.some(li => li.dataset.id === "p1"), "p1 is drawn on the partner's side from the fresh rosters");
+    assert.equal(els.compare.disabled, true, "selections were cleared by the redraw");
+    // 3c. a superseded refresh (the session moved on) is swallowed: no
+    // "comparison blocked", no analyze, the button re-enabled.
+    const box2 = els.theirs.children.find(li => li.dataset.id === "p2").children[0].children[0];
+    box2.checked = true; for (const fn of box2.listeners.change) fn();
+    assert.equal(els.compare.disabled, false);
+    s.refreshImpl = async () => { const e = new Error("Superseded by a newer request."); e.superseded = true; throw e; };
+    for (const fn of els.compare.listeners.click) await fn();
+    assert.equal(analyzed.length, analyzedBefore, "no analyze after a superseded refresh");
+    assert.doesNotMatch(els.status.textContent, /comparison blocked/, "a superseded refresh is not an error");
+    assert.equal(els.result.hidden, true);
+    assert.equal(els.compare.disabled, false, "busy was released");
+    // 3d. the same outcome from the partner's side: p1 (selected on "you get")
+    // is back on roster 1 in the refreshed rosters -> CHANGED, columns redrawn
+    // to the original layout (which step 4 below relies on).
+    const box1b = els.theirs.children.find(li => li.dataset.id === "p1").children[0].children[0];
+    box1b.checked = true; for (const fn of box1b.listeners.change) fn();
+    const restored = mkBundle({ rostersRequestedAt: 300, rostersFetchedAt: Date.now() });
+    s.refreshImpl = async () => { Sess.commit(restored); return restored; };
+    for (const fn of els.compare.listeners.click) await fn();
+    assert.equal(analyzed.length, analyzedBefore, "no analyze when a player selected on the partner's side moved");
+    assert.equal(els.status.textContent, "Rosters changed since they were loaded — the columns were redrawn from the fresh snapshot; choose again.");
+    assert.ok(els.mine.children.some(li => li.dataset.id === "p1"), "p1 is back on my side");
     // 4. a foreign bundle (different account) arriving mid-compare invalidates it
     const other = mkBundle({ identity: { userId: "u2" }, myRoster: rosters[1], rostersFetchedAt: Date.now() });
     s.refreshImpl = async () => { s.id = { userId: "u2" }; Sess.commit(other); return other; };
-    box.checked = true; for (const fn of box.listeners.change) fn();
+    const box4 = els.mine.children.find(li => li.dataset.id === "p1").children[0].children[0];
+    box4.checked = true; for (const fn of box4.listeners.change) fn();
+    assert.equal(els.compare.disabled, false);
     const before = analyzed.length;
     for (const fn of els.compare.listeners.click) await fn();
     assert.equal(analyzed.length, before, "no analyze after the account changed under the compare");

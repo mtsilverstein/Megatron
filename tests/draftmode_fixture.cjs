@@ -16,6 +16,11 @@ global.window.Sleeper = { get: async (path) => {
   SLEEPER.calls.push(path);
   if (/\/picks$/.test(path)) return SLEEPER.picks;
   if (/^\/user\//.test(path)) return SLEEPER.user;
+  // Session.ready() reads these three beside /league/<id>; the controller
+  // itself never asks for them.
+  if (/^\/league\/[^/]+\/users$/.test(path)) return SLEEPER.users || [];
+  if (/^\/league\/[^/]+\/rosters$/.test(path)) return SLEEPER.rosters || [];
+  if (path === "/state/nfl") return SLEEPER.state || { season: "2026", season_type: "regular", week: 1 };
   if (/^\/league\//.test(path)) {
     if (SLEEPER.leagueError) throw new Error(SLEEPER.leagueError);
     return SLEEPER.league;
@@ -25,6 +30,10 @@ global.window.Sleeper = { get: async (path) => {
     // connect() in flight while something else happens (the identity moves).
     if (SLEEPER.draftGate) await SLEEPER.draftGate;
     if (SLEEPER.draftError) throw new Error(SLEEPER.draftError);
+    // `draftFailAfter`: the first N draft fetches (counted from when it is
+    // set) succeed and every later one fails -- a transient error on a
+    // redundant connect, the way the identify-then-ready case needs it.
+    if (SLEEPER.draftFailAfter != null && ++SLEEPER.draftFetches > SLEEPER.draftFailAfter) throw new Error("sleeper 503");
     return SLEEPER.draft;
   }
   throw new Error(`unstubbed sleeper path: ${path}`);
@@ -743,6 +752,44 @@ const until = async (pred, what, ms = 2000) => {
       "expected exactly one anonymous connect then one for the new identity");
     assert.strictEqual(last.connected, true);
     delete SLEEPER.draftGate;
+
+    /* The real page flow: anonymous and live, then the chip identifies and,
+       on success, calls Session.ready() (app.js maybeReady). ready() fires
+       twice more -- loadingLeague, then the commit -- while the identified
+       fire's connect() still has its /draft/ fetch in flight, so the session
+       still carries the OLD identity at each fire. reconcile must recognise
+       the in-flight target and issue ONE connect for U1, not three: with three,
+       the first two are superseded mid-fetch and a transient failure on the
+       third degrades the seat that was just claimed (the review's I-1). */
+    Session.forget();
+    await until(() => last.mine.size === 0 && JSON.parse(store.get(KEY)).userId === null,
+                "an anonymous session before the identify-then-ready flow");
+    SLEEPER.league = { league_id: "1376245373244301312", name: "Gabagool Fools", season: "2026" };
+    SLEEPER.rosters = [{ roster_id: 2, owner_id: "U1", players: [] }];
+    SLEEPER.users = [{ user_id: "U1", display_name: "me" }];
+    SLEEPER.draftFetches = 0; SLEEPER.draftFailAfter = 1;   // only ONE draft fetch may succeed
+    SLEEPER.draftGate = new Promise(r => { release = r; });
+    const beforeReady = SLEEPER.calls.length;
+    const gabBoard = { league: { league_id: "1376245373244301312" } };
+    const readyDone = Session.identify("me").then(() => Session.ready({ slug: "gabagool", board: gabBoard }));
+    await until(() => Session.state() === "ready", "the league load to commit while the draft connect is in flight");
+    assert.strictEqual(Session.bundle().myRosterStatus, "found");
+    release();
+    await readyDone;
+    // Settles either way: on U1's seat, or degraded with the note up.
+    await until(() => JSON.parse(store.get(KEY)).userId === "U1" || /reconnect .*failed/.test(els.status.textContent),
+                "identify-then-ready to settle");
+    const identifyReady = SLEEPER.calls.slice(beforeReady);
+    assert.strictEqual(identifyReady.filter(p => p === "/draft/1234567").length, 1,
+      `identify then ready() reconnected ${identifyReady.filter(p => p === "/draft/1234567").length} times, expected exactly once`);
+    assert.ok(!/reconnect .*failed/.test(els.status.textContent),
+      `a redundant reconnect degraded the seat just claimed: ${els.status.textContent}`);
+    await until(() => last.mine.size === 1 && JSON.parse(store.get(KEY)).userId === "U1",
+                "identify-then-ready to end on the new identity's seat");
+    assert.strictEqual(last.connected, true);
+    assert.ok(!els.roster.hidden, "your roster must be up after identifying");
+    delete SLEEPER.draftGate; delete SLEEPER.draftFailAfter; delete SLEEPER.draftFetches;
+    SLEEPER.league = null; delete SLEEPER.rosters; delete SLEEPER.users;
 
     handlers.disconnect();   // stops the poll chain + heartbeat so node exits
   })();

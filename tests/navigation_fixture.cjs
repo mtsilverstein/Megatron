@@ -231,7 +231,13 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
       },
       ready(opts) { S.calls.push(["ready", opts.slug]); return Promise.resolve(bundle); },
       refresh(opts) { S.calls.push(["refresh", opts && opts.scope, typeof (opts && opts.also) === "function"]); return Promise.resolve(bundle); },
-      forget() { S.calls.push(["forget"]); id = null; st = "anonymous"; err = null; fire(); },
+      // Like the real module, forget() re-derives the committed bundle for
+      // "no account" (identity null, no roster) and keeps its timestamps.
+      forget() {
+        S.calls.push(["forget"]); id = null; st = "anonymous"; err = null;
+        if (bundle) bundle = { ...bundle, identity: null, myRoster: null, myRosterStatus: "anonymous" };
+        fire();
+      },
     };
     return S;
   }
@@ -290,6 +296,43 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
   offRefresh();
   byId(panel, "session-refresh").dispatch("click");
   assert.deepStrictEqual(R.calls[2], ["refresh", "rosters", false], "unregistering restores the default");
+  // The 1 s ticker calls FC.chip.render() to move the age in the line. It must
+  // update ONLY the line: the controls are rebuilt when the state they were
+  // built from changes, never on a tick -- or "change" + typing loses the
+  // typed name within a second, and keyboard focus on a chip button is lost.
+  {
+    const refreshNode = byId(panel, "session-refresh"), changeNode = byId(panel, "session-change");
+    FC.chip.render();
+    assert.strictEqual(byId(panel, "session-refresh"), refreshNode, "a tick must not rebuild the refresh button");
+    assert.strictEqual(byId(panel, "session-change"), changeNode, "a tick must not rebuild the change button");
+    changeNode.dispatch("click");
+    const input = byId(panel, "session-user");
+    assert.ok(input, "change shows the username input");
+    assert.strictEqual(input.value, "Max973", "the input is prefilled with the current username");
+    input.value = "newname-typed";
+    FC.chip.render();
+    assert.strictEqual(byId(panel, "session-user"), input, "a tick must not rebuild the username input");
+    assert.strictEqual(byId(panel, "session-user").value, "newname-typed", "a tick must not revert what was typed");
+    assert.match(byId(panel, "session-text").textContent, /^Max973 · Gabagool Fools · your roster: 9 · rosters 1[45] s ago$/,
+      "the line still updates on a tick");
+    byId(panel, "session-cancel").dispatch("click");
+    assert.ok(byId(panel, "session-refresh") && !byId(panel, "session-user"), "cancel returns to the ready controls");
+    // forget keeps the (re-derived, anonymous) bundle, so the ticker keeps
+    // running; the anonymous form must survive its ticks the same way.
+    byId(panel, "session-forget").dispatch("click");
+    assert.deepStrictEqual(R.calls[3], ["forget"]);
+    const anonInput = byId(panel, "session-user");
+    assert.ok(anonInput, "forget offers the username input");
+    assert.strictEqual(anonInput.value, "", "the anonymous form is empty");
+    assert.strictEqual(byId(panel, "session-text").textContent, REMEMBERED);
+    anonInput.value = "other-typed";
+    FC.chip.render();
+    assert.strictEqual(byId(panel, "session-user"), anonInput, "a tick after forget must not rebuild the anonymous input");
+    assert.strictEqual(byId(panel, "session-user").value, "other-typed", "a tick after forget must not empty the input");
+    // Back to the ready state for the checks below; a state move DOES rebuild.
+    R.set({ st: "ready", id: bundle.identity, bundle });
+    assert.ok(byId(panel, "session-refresh") && !byId(panel, "session-user"), "a state change rebuilds the controls");
+  }
   // none/ambiguous: the §4.4 message plus change only.
   R.set({ bundle: { ...bundle, myRoster: null, myRosterStatus: "none" } });
   assert.strictEqual(byId(panel, "session-text").textContent,
@@ -346,7 +389,7 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
     assert.strictEqual(byId(anonPanel, "session-text").textContent, REMEMBERED,
       "a superseded rejection must never be rendered");
     assert.ok(byId(anonPanel, "session-user"));
-    assert.deepStrictEqual(R.calls, [["refresh", "rosters", false], ["refresh", "league", true], ["refresh", "rosters", false], ["ready", "gabagool"]], "identified + board loads the league once");
+    assert.deepStrictEqual(R.calls, [["refresh", "rosters", false], ["refresh", "league", true], ["refresh", "rosters", false], ["forget"], ["ready", "gabagool"]], "identified + board loads the league once");
     assert.strictEqual(E.calls.length, 0, "ESPN never calls ready()");
     FC._session(null);
     console.log("navigation_fixture: league selection, return paths and identity chip OK");

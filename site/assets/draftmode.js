@@ -1013,13 +1013,30 @@ window.DraftMode = (() => {
      nothing), so one more reconcile picks that up. `syncGen` hands the
      post-await work to the newest caller only, so two concurrent moves never
      both reconnect for the same identity. Calls connect() exactly once per
-     identity actually observed, and never retries the same failed identity. */
+     identity actually observed, and never retries the same failed identity.
+
+     `pendingUserId` is the identity a connect() is in flight FOR. The session
+     keeps the old identity until that connect commits, and Session fires
+     several times in between on the real page path -- the chip identifies,
+     then calls ready(), which fires loadingLeague and the commit -- so without
+     it each fire would see "session ≠ identity" and start another connect for
+     the SAME account: three overlapping fetches, the first two superseded
+     mid-flight, and a transient failure on the last degrading the seat that
+     was just claimed. A fire for the identity already in flight is a no-op;
+     a fire for a DIFFERENT identity still claims a new generation. */
   let syncGen = 0;
+  let pendingUserId;   // undefined = nothing in flight; null = anonymous in flight
   async function reconcile(identity) {
     const userId = identity ? identity.userId : null;
     if (!session || sameUser(session.userId, userId)) return;
+    if (pendingUserId !== undefined && sameUser(pendingUserId, userId)) return;
     const gen = ++syncGen, draftId = session.draftId;
-    await connect(identity ? identity.username : null, userId, draftId);
+    pendingUserId = userId;
+    try {
+      await connect(identity ? identity.username : null, userId, draftId);
+    } finally {
+      if (gen === syncGen) pendingUserId = undefined;   // a newer reconcile owns the slot otherwise
+    }
     // A newer reconcile, a disconnect, or a connect to another draft owns the
     // state now; a contract refusal already tore the session down.
     if (gen !== syncGen || !session || session.draftId !== draftId) return;
