@@ -41,6 +41,7 @@
   const NOT_FOUND = "Sleeper username was not found.";
   const NO_UNIQUE_ROSTER = "Could not uniquely match this account to a roster in this league.";
   const ID_MISMATCH = "live league does not match this board; refusing to load advice";
+  const NO_BOARD = "No static board is loaded for this page.";
   const REMEMBERED = "Remembered on this device until you choose forget.";
   const STATES = Object.freeze(["anonymous", "identifying", "identified", "loadingLeague", "ready", "refreshing", "error"]);
 
@@ -70,9 +71,10 @@
 
   // ---- pure helpers -----------------------------------------------------------
   // The exact matcher (moved from seasontrademode.js): owner or co-owner,
-  // EXACTLY one. Zero or two matches is a refusal, never a guess.
+  // EXACTLY one. Zero or two matches is a refusal, never a guess. A malformed
+  // element (null) is skipped like deriveRoster does, never dereferenced.
   function identifyRoster(rosters, userId) {
-    const mine = (rosters || []).filter(r => r.owner_id === userId || (r.co_owners || []).includes(userId));
+    const mine = (Array.isArray(rosters) ? rosters : []).filter(r => r && (r.owner_id === userId || (r.co_owners || []).includes(userId)));
     if (mine.length !== 1) throw new Error(NO_UNIQUE_ROSTER);
     return mine[0];
   }
@@ -175,6 +177,13 @@
       if (store) store.setItem(IDENTITY_KEY, JSON.stringify({ ...rec, storedAt: new Date().toISOString() }));
     } catch (_) { /* memory-only identity for this document */ }
   }
+  // Best-effort, never throws. identify() calls this the moment it clears the
+  // in-memory identity: a change of account that then FAILS must not leave the
+  // previous account on disk to be silently restored by the next page load.
+  // Draft restore records are forget()'s business, not identify()'s.
+  function deleteIdentityKey() {
+    try { const store = storage(); if (store) store.removeItem(IDENTITY_KEY); } catch (_) {}
+  }
   function deleteKeys() {
     const store = storage();
     if (!store) return;
@@ -253,10 +262,12 @@
     ensureLoaded();
     const name = String(username || "").trim();
     const gen = ++identityGen;
-    // Clear FIRST: the previous account's surfaces go dark before the lookup,
-    // and a failure does not silently bring that account back.
+    // Clear FIRST -- memory AND storage: the previous account's surfaces go
+    // dark before the lookup, and a failure does not silently bring that
+    // account back, in this document or on the next load.
     identityRec = null;
     pendingName = null;
+    deleteIdentityKey();
     identityError = null;        // only the identity slot; a league error is not ours to clear
     committed = rederive(committed);
     flow = "identifying";
@@ -315,10 +326,13 @@
       if (entry.platform !== "sleeper") {
         bundle = espnBundle(entry, gen);   // ESPN never creates a Sleeper session
       } else {
+        // No board id is an integration fault of the page, not a mismatch:
+        // say so by name, before any Sleeper call is spent on it.
+        const staticId = board && board.league ? board.league.league_id : undefined;
+        if (staticId === undefined || staticId === null) throw new Error(NO_BOARD);
         const get = resolveGet(opts);   // per-call only: never installed document-wide
         const parts = await fetchLeague(entry, get, "league", null);
-        const staticId = board && board.league ? board.league.league_id : undefined;
-        if (staticId === undefined || staticId === null || String(parts.league.league_id) !== String(staticId)) throw new Error(ID_MISMATCH);
+        if (String(parts.league.league_id) !== String(staticId)) throw new Error(ID_MISMATCH);
         if (gen !== leagueGen) throw superseded();
         bundle = buildBundle(entry, parts, gen);
       }
@@ -388,12 +402,17 @@
     if (catalogPromise) return catalogPromise;
     let get;
     try { get = resolveGet(opts); } catch (e) { return Promise.reject(e); }
+    // The catalog is an id-keyed object; anything else (null, a string, an
+    // array) is malformed and rejects. EVERY rejection -- the getter's or the
+    // validation's -- releases the single-flight slot, so the next call
+    // re-fetches instead of replaying a cached failure for the whole document.
     const p = get("/players/nfl").then(players => {
-      if (!players || typeof players !== "object") throw new Error("Sleeper returned a malformed player catalog.");
+      if (!players || typeof players !== "object" || Array.isArray(players)) throw new Error("Sleeper returned a malformed player catalog.");
       catalogAt = Date.now();
       return players;
-    }, e => { if (catalogPromise === p) catalogPromise = null; throw e; });
+    });
     catalogPromise = p;
+    p.catch(() => { if (catalogPromise === p) catalogPromise = null; });
     return p;
   }
 

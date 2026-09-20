@@ -156,9 +156,14 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.bundle(), null, "...must not remain usable after a failed load");
     assert.equal(Session.state(), "error");
     assert.match(Session.error(), /does not match this board/);
-    // A board with no league id at all is equally unverifiable.
-    await assert.rejects(Session.ready({ slug: "gabagool", board: {} }), /does not match this board/);
+    // A board with no league id at all is unverifiable too, but that is an
+    // integration fault, not a mismatch -- it gets its own message.
+    await assert.rejects(Session.ready({ slug: "gabagool", board: {} }), { message: "No static board is loaded for this page." });
     assert.equal(Session.bundle(), null);
+    assert.equal(Session.state(), "error");
+    assert.equal(Session.error(), "No static board is loaded for this page.");
+    await assert.rejects(Session.ready({ slug: "gabagool" }), { message: "No static board is loaded for this page." });
+    await assert.rejects(Session.ready({ slug: "gabagool", board: { league: { league_id: null } } }), { message: "No static board is loaded for this page." });
     // Malformed live data and a failed required fetch fail ready() the same way.
     const r = routes(); r[`/league/${L}/users`] = { not: "an array" };
     Session._get(fakeGet(r).get);
@@ -176,6 +181,10 @@ const sorted = a => a.slice().sort();
     assert.throws(() => Session.identifyRoster(rosters, "u9"), { message: "Could not uniquely match this account to a roster in this league." });
     assert.throws(() => Session.identifyRoster(rosters.concat([{ roster_id: 4, owner_id: "u1" }]), "u1"), /Could not uniquely match/);
     assert.throws(() => Session.identifyRoster(null, "u1"), /Could not uniquely match/);
+    // A malformed element (null) is skipped, never dereferenced: the answer is
+    // the unique match around it, or the documented refusal -- not a TypeError.
+    assert.equal(Session.identifyRoster([null, rosters[0], undefined], "u1").roster_id, 9);
+    assert.throws(() => Session.identifyRoster([null, undefined], "u1"), { message: "Could not uniquely match this account to a roster in this league." });
   });
 
   await check("6. refresh scopes: rosters re-fetches rosters+state only; league re-fetches all four", async () => {
@@ -335,6 +344,21 @@ const sorted = a => a.slice().sort();
     const [x, y] = await Promise.all([Session.catalog(), Session.catalog()]);
     assert.equal(x, y);
     assert.deepEqual(calls, ["/players/nfl"]);
+    // A MALFORMED response is a rejection like any other: it must release the
+    // single-flight slot so the next call re-fetches instead of replaying the
+    // cached rejection for the rest of the document.
+    for (const bad of [null, "not an object", [{ position: "RB" }]]) {
+      Session._storage(fakeStorage());
+      const r2 = { "/players/nfl": bad };
+      const g2 = fakeGet(r2);
+      Session._get(g2.get);
+      await assert.rejects(Session.catalog(), /malformed player catalog/);
+      assert.equal(Session.catalogFetchedAt(), null);
+      r2["/players/nfl"] = { a: { position: "RB" } };
+      const ok = await Session.catalog();
+      assert.deepEqual(ok, { a: { position: "RB" } });
+      assert.deepEqual(g2.calls, ["/players/nfl", "/players/nfl"], `${JSON.stringify(bad)}: the malformed attempt must not stay cached`);
+    }
   });
 
   await check("11. ESPN: ready resolves an identity-only bundle with zero Sleeper calls", async () => {
@@ -677,6 +701,39 @@ const sorted = a => a.slice().sort();
     const viaOwn = await Session.previousLeagueRoster({ get: own.get });
     assert.deepEqual(own.calls, [`/league/${PREV}/rosters`]);
     assert.equal(viaOwn.roster.roster_id, 6);
+  });
+
+  await check("22. a failed account change deletes the stored identity: a fresh document over the same storage is anonymous, never the old account", async () => {
+    const store = fakeStorage();
+    Session._storage(store);
+    Session._get(fakeGet(routes()).get);
+    await Session.identify("max973");
+    assert.equal(JSON.parse(store.getItem(IDENTITY_KEY)).userId, "u1", "account A is stored");
+    // The change to B fails (not found). Memory is cleared and in error...
+    Session._get(fakeGet({ "/user/nobody": null }).get);
+    await assert.rejects(Session.identify("nobody"), /was not found/);
+    assert.equal(Session.identity(), null);
+    assert.equal(Session.state(), "error");
+    // ...and so is storage: the visitor left A on purpose.
+    assert.equal(store.getItem(IDENTITY_KEY), null, "a failed identify must not leave the previous account persisted");
+    // A reload over the SAME storage must not bring A back.
+    Session._storage(store);
+    assert.equal(Session.identity(), null, "a fresh document resurrected the old account");
+    assert.equal(Session.state(), "anonymous");
+    // The same for a network failure mid-change, and for a storage that throws on delete.
+    Session._get(fakeGet(routes()).get);
+    await Session.identify("max973");
+    assert.ok(store.getItem(IDENTITY_KEY));
+    Session._get(fakeGet({ "/user/max": new Error("HTTP 504") }).get);
+    await assert.rejects(Session.identify("max"), /HTTP 504/);
+    assert.equal(store.getItem(IDENTITY_KEY), null);
+    const flaky = fakeStorage({ [IDENTITY_KEY]: JSON.stringify({ username: "max973", userId: "u1" }) });
+    flaky.removeItem = () => { throw new Error("SecurityError"); };
+    Session._storage(flaky);
+    Session._get(fakeGet({ "/user/nobody": null }).get);
+    assert.equal(Session.identity().userId, "u1");
+    await assert.rejects(Session.identify("nobody"), /was not found/);   // the storage error never surfaces
+    assert.equal(Session.identity(), null);
   });
 
   await check("registry and module hygiene", () => {

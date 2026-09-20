@@ -15,7 +15,9 @@ const SLEEPER = { picks: [], draft: null, league: null, user: null, calls: [] };
 global.window.Sleeper = { get: async (path) => {
   SLEEPER.calls.push(path);
   if (/\/picks$/.test(path)) return SLEEPER.picks;
-  if (/^\/user\//.test(path)) return SLEEPER.user;
+  // `userGate`: holds Session.identify() in its `identifying` state so a
+  // fixture can look at the board DURING the lookup, not only after it.
+  if (/^\/user\//.test(path)) { if (SLEEPER.userGate) await SLEEPER.userGate; return SLEEPER.user; }
   // Session.ready() reads these three beside /league/<id>; the controller
   // itself never asks for them.
   if (/^\/league\/[^/]+\/users$/.test(path)) return SLEEPER.users || [];
@@ -791,6 +793,56 @@ const until = async (pred, what, ms = 2000) => {
     delete SLEEPER.draftGate; delete SLEEPER.draftFailAfter; delete SLEEPER.draftFetches;
     SLEEPER.league = null; delete SLEEPER.rosters; delete SLEEPER.users;
 
+    /* The identifying INTERVAL (spec §4.1/§4.4). Session.identify() clears the
+       account and fires `identifying` BEFORE the lookup; the board must go
+       dark for that account at that instant -- no seat marked "mine", no
+       "Your roster" panel, no seat-derived shortlist -- and stay dark through
+       every poll until the lookup resolves. It must do so WITHOUT reconnecting
+       (a reconnect per fire was the bug the previous wave fixed): the same
+       account resolving unmasks on the existing chain with zero /draft/
+       fetches; a different account reconnects exactly once. */
+    assert.strictEqual(last.mine.size, 1, "precondition: U1's seat is highlighted");
+    assert.ok(!els.roster.hidden, "precondition: the roster panel is up");
+    let releaseUser;
+    SLEEPER.userGate = new Promise(r => { releaseUser = r; });
+    const beforeMask = SLEEPER.calls.length;
+    const sameAccount = Session.identify("me");          // same account, held in `identifying`
+    assert.strictEqual(Session.state(), "identifying");
+    assert.strictEqual(last.mine.size, 0, "the seat must be masked the instant identifying begins");
+    assert.ok(els.roster.hidden, "the roster panel must hide the instant identifying begins");
+    assert.ok(els.shortlist.hidden, "the seat-derived shortlist must hide the instant identifying begins");
+    assert.strictEqual(last.connected, true, "masking must not disconnect the draft");
+    // A poll lands while the lookup is still out: the new pick strikes, but
+    // the masked seat is NOT repopulated.
+    SLEEPER.picks = SLEEPER.picks.concat([{ pick_no: 3, draft_slot: 3, player_id: "x3", picked_by: "them" }]);
+    await until(() => last.drafted.size === 3, "a poll during identifying to strike the new pick", 5000);
+    assert.strictEqual(last.mine.size, 0, "a poll during identifying repopulated the seat");
+    assert.ok(els.roster.hidden, "a poll during identifying re-showed the roster panel");
+    assert.strictEqual(SLEEPER.calls.slice(beforeMask).filter(p => p === "/draft/1234567").length, 0,
+      "identifying must not start a reconnect");
+    releaseUser(); await sameAccount; delete SLEEPER.userGate;
+    await until(() => last.mine.size === 1 && !els.roster.hidden,
+                "the same account resolving to unmask the seat on the existing chain");
+    assert.strictEqual(SLEEPER.calls.slice(beforeMask).filter(p => p === "/draft/1234567").length, 0,
+      "the same account resolving must not reconnect");
+    assert.strictEqual(last.connected, true);
+    // A DIFFERENT account: masked during the lookup, then ONE reconnect and
+    // the new account's seat.
+    SLEEPER.user = { user_id: "U3" };
+    SLEEPER.draft = Object.assign({}, SLEEPER.draft, { draft_order: { U1: 2, U3: 3 } });
+    SLEEPER.userGate = new Promise(r => { releaseUser = r; });
+    const beforeSwitch = SLEEPER.calls.length;
+    const otherAccount = Session.identify("third");
+    assert.strictEqual(last.mine.size, 0, "the OLD seat must be masked while another account is looked up");
+    assert.ok(els.roster.hidden);
+    releaseUser(); await otherAccount; delete SLEEPER.userGate;
+    await until(() => last.mine.has("x3") && !last.mine.has("4034") && !els.roster.hidden,
+                "the new account to take its own seat after one reconnect", 5000);
+    assert.strictEqual(SLEEPER.calls.slice(beforeSwitch).filter(p => p === "/draft/1234567").length, 1,
+      "a changed account must reconnect exactly once");
+    assert.strictEqual(JSON.parse(store.get(KEY)).userId, "U3");
+    SLEEPER.user = { user_id: "U1" };
+
     handlers.disconnect();   // stops the poll chain + heartbeat so node exits
   })();
   reconnectFixtureDone.catch(e => { console.error(e.message); process.exit(1); });
@@ -1070,7 +1122,7 @@ const until = async (pred, what, ms = 2000) => {
    or view the draft anonymously. Every other combination restores exactly as
    before (same account, an anonymous record, or no session identity). */
 {
-  (async () => {
+  var restoreFixtureDone = (async () => {
     await twoLeaguesFixtureDone;
     SLEEPER.calls.length = 0;
 
@@ -1210,6 +1262,91 @@ const until = async (pred, what, ms = 2000) => {
     assert.strictEqual(connects(), 1, "identity change reconnected more than once");
     assert.strictEqual(JSON.parse(v.store.get(KEY)).userId, "U1");
     v.handlers.disconnect();
+  })();
+  restoreFixtureDone.catch(e => { console.error(e.stack || e.message); process.exit(1); });
+}
+
+/* --- storage unavailable: the draft still works, anonymously if need be ---
+   Private mode, blocked site data, a locked-down kiosk: every localStorage
+   call throws. session.js already degrades to a memory-only identity; the
+   draft controller must too -- a throw out of init() would take the whole
+   panel down, one out of connect() would abort a connect that had already
+   succeeded on the wire, and one out of the degrade path would leave the
+   old seat live. A failed read is "no restore record"; failed writes and
+   removals leave the in-memory draft usable. Nothing here may throw. */
+{
+  (async () => {
+    await restoreFixtureDone;
+    SLEEPER.calls.length = 0;
+    const boom = () => { throw new Error("SecurityError: storage disabled"); };
+    const throwing = { getItem: boom, setItem: boom, removeItem: boom, key: boom, get length() { return boom(); } };
+    global.localStorage = throwing;
+    Session._storage(throwing);
+    const GAB = require("../site/data/draft.json").league;
+    const league = { ...GAB, sleeper_scoring: SCORING };
+    const el = () => ({
+      value: "", textContent: "", innerHTML: "", hidden: false, checked: false,
+      open: false, className: "", children: [],
+      addEventListener() {}, querySelectorAll: () => [],
+      appendChild(n) { this.children.push(n); },
+    });
+    const els = {
+      connect: el(), connectId: el(), disconnect: el(), find: el(), hide: el(),
+      idInput: el(), late: el(), list: el(), live: el(), note: el(),
+      picksCount: el(), roster: el(), shortlist: el(), status: el(), ticker: el(),
+    };
+    const handlers = {};
+    for (const [name, node] of Object.entries(els)) {
+      node.addEventListener = (ev, fn) => { if (ev === "click") handlers[name] = fn; };
+    }
+    const board = { league, players: [
+      { player_id: "a", sleeper_id: "9509", name: "P1", position: "RB", adp: 1,
+        bye: 5, value_points: 300, vorp: 90, position_rank: 1 },
+      { player_id: "b", sleeper_id: "4034", name: "P2", position: "WR", adp: 2,
+        bye: 7, value_points: 290, vorp: 85, position_rank: 1 },
+    ] };
+    SLEEPER.league = { league_id: league.league_id, scoring_settings: { ...SCORING } };
+    SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
+      league_id: league.league_id, draft_order: { U1: 2, U2: 1 },
+      settings: { rounds: 15, teams: 12, slots_qb: 1, slots_rb: 2,
+                  slots_wr: 2, slots_te: 1, slots_flex: 2 } };
+    SLEEPER.picks = [
+      { pick_no: 1, draft_slot: 1, player_id: "9509", picked_by: "U2" },
+      { pick_no: 2, draft_slot: 2, player_id: "4034", picked_by: "U1" },
+    ];
+    SLEEPER.user = { user_id: "U1", display_name: "Me" };
+    let last = null;
+    // 1. init: the restore read throws -> no record, no throw, nothing connected.
+    assert.doesNotThrow(() => D.init({ board, els, onUpdate: st => { last = st; } }),
+      "init() must not throw when storage throws");
+    await new Promise(r => setImmediate(r));
+    assert.strictEqual(last, null, "a throwing restore read must connect nothing");
+    assert.ok(!SLEEPER.calls.some(p => /^\/draft\//.test(p)));
+    // 2. connect: the record write throws AFTER the draft answered -> still live.
+    els.idInput.value = "D1234567";
+    await handlers.connectId();
+    await until(() => last && last.connected && last.drafted.size === 2,
+                "connect to go live although the restore record cannot be written");
+    assert.ok(!/connect failed/.test(els.status.textContent), els.status.textContent);
+    // 3. identity reconnect: same again, with a seat this time.
+    await Session.identify("me");
+    await until(() => last.mine.size === 1, "an identity reconnect with throwing storage");
+    assert.strictEqual(last.connected, true);
+    // 4. forget + a failing reconnect: the degrade path writes an anonymous
+    //    record -- that write throws -- and must still degrade the seat and
+    //    say so.
+    SLEEPER.draftError = "sleeper 503";
+    assert.doesNotThrow(() => Session.forget());
+    await until(() => last.mine.size === 0 && /reconnect failed — showing the draft anonymously/.test(els.status.textContent),
+                "the degrade path to complete with throwing storage", 3000);
+    assert.strictEqual(last.connected, true, "degrading must keep the draft live");
+    assert.ok(els.roster.hidden);
+    delete SLEEPER.draftError;
+    // 5. disconnect: the record removal throws -> the panel still tears down.
+    assert.doesNotThrow(() => handlers.disconnect(), "disconnect() must not throw when storage throws");
+    assert.strictEqual(last.connected, false);
+    assert.strictEqual(last.drafted.size, 0);
+    assert.strictEqual(els.status.textContent, "— off");
 
     console.log("draftmode_fixture: OK");
   })().catch(e => { console.error(e.stack || e.message); process.exit(1); });

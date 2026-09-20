@@ -46,7 +46,18 @@
     let shownFor = null; // userId the rendered league list belongs to; null when nothing is shown
     const clearResults = () => { shownFor = null; $("connect-results").replaceChildren(); $("connect-status").textContent = IDLE; };
     const currentUserId = () => { const id = Session.identity(); return id ? id.userId : null; };
-    try { $("connect-user").value = Session.identity()?.username || ""; } catch (_) {}
+    // The field belongs to the visitor while it is DIRTY: its text differs from
+    // what this page last put there (the submitted name, or the canonical name
+    // the session handed back). A session change may rewrite a clean or empty
+    // field; it must never overwrite a name being typed -- a submitted lookup
+    // that lands after the visitor moved on would otherwise put the old
+    // account's name back under their cursor. (The submitted lookup itself
+    // still commits: pressing the button was the intent. Editing clears the
+    // results list, not the submitted lookup.)
+    let written = "";
+    const writeUser = value => { $("connect-user").value = value; written = value; };
+    const dirty = () => { const v = $("connect-user").value; return v !== "" && v !== written; };
+    try { writeUser(Session.identity()?.username || ""); } catch (_) {}
     // The chip in #league-context writes the same identity. A change or forget
     // there clears this page's account-derived list before any lookup renders
     // (spec §8); an in-flight discovery for the old account is dropped when it
@@ -54,13 +65,15 @@
     Session.onChange(snapshot => {
       const id = snapshot.identity, uid = id ? id.userId : null;
       if (shownFor !== null && uid !== shownFor) clearResults();
-      if (id) $("connect-user").value = id.username;
-      else if (snapshot.state === "anonymous") $("connect-user").value = "";
+      if (dirty()) return;
+      if (id) writeUser(id.username);
+      else if (snapshot.state === "anonymous") writeUser("");
     });
     $("connect-user").addEventListener("input", () => { generation++; clearResults(); });
     $("connect-form").addEventListener("submit", async event => {
       event.preventDefault();
       const request = ++generation, username = $("connect-user").value.trim();
+      written = $("connect-user").value;   // submitted: the field is clean again
       shownFor = null; $("connect-results").replaceChildren(); $("connect-status").textContent = "Loading current-season Sleeper leagues…";
       try {
         const result = await discover(username, path => window.Sleeper.get(path), Session);

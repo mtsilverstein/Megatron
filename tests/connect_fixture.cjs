@@ -139,6 +139,45 @@ async function inFlightDiscoveryForOldAccountNeverRenders(ids) {
   assert.equal(ids['connect-user'].value, 'Other');
 }
 
+// Typing while a submitted lookup is still in flight: the typed text is the
+// visitor's newest intent for the FIELD, so the lookup's canonical username
+// must not overwrite it when it lands, and no cards render for it. The
+// submitted lookup itself still commits as the identity -- that is what the
+// visitor asked for when they pressed the button; editing clears the results
+// list, it does not cancel the submitted lookup.
+async function typingDuringAPendingLookupKeepsTheTypedName() {
+  reset();
+  const ids = mountPage();
+  const user = deferred();
+  window.Sleeper = sleeperFor(path => path === '/user/aaa' ? user.promise : path === '/user/123/leagues/nfl/2026' ? [] : maxRoutes(path));
+  init();
+  ids['connect-user'].value = 'aaa';
+  const run = submit(ids);
+  assert.equal(Session.state(), 'identifying');
+  ids['connect-user'].value = 'bbb';
+  ids['connect-user']._listeners.input();
+  assert.deepEqual(ids['connect-results'].children, []);
+  assert.equal(ids['connect-status'].textContent, IDLE, 'editing clears the results list and idles the status');
+  user.resolve({user_id: '123', username: 'Aaa', display_name: 'Aaa'});
+  await run;
+  assert.equal(ids['connect-user'].value, 'bbb', 'a lookup landing must not overwrite what the visitor typed since');
+  assert.deepEqual(ids['connect-results'].children, [], 'a superseded lookup renders no cards');
+  assert.equal(ids['connect-status'].textContent, IDLE);
+  assert.equal(Session.identity()?.username, 'Aaa', 'the SUBMITTED username is still the identity: pressing the button was the intent');
+  // Once the field is clean again (the visitor submits what they typed), the
+  // session's canonical name may be written back as before.
+  window.Sleeper = sleeperFor(path => path === '/user/bbb' ? {user_id: '456', username: 'Bbb', display_name: 'B'} : path === '/user/456/leagues/nfl/2026' ? [] : maxRoutes(path));
+  await submit(ids);
+  assert.equal(ids['connect-user'].value, 'Bbb', 'a clean field takes the canonical username');
+  assert.equal(Session.identity()?.userId, '456');
+  // Forget with a dirty field: the list clears, the typed text stays.
+  ids['connect-user'].value = 'ccc';
+  ids['connect-user']._listeners.input();
+  Session.forget();
+  assert.equal(ids['connect-user'].value, 'ccc', 'forget must not blank a name the visitor is typing');
+  assert.equal(Session.identity(), null);
+}
+
 async function unknownUsernameSurfacesTheSessionError() {
   reset();
   const ids = mountPage();
@@ -166,6 +205,7 @@ async function identifiedSessionPrefillsTheForm() {
   await forgetClearsRenderedResults(ids);
   await chipIdentityChangeClearsResultsAndReflectsUser(ids);
   await inFlightDiscoveryForOldAccountNeverRenders(ids);
+  await typingDuringAPendingLookupKeepsTheTypedName();
   await unknownUsernameSurfacesTheSessionError();
   await identifiedSessionPrefillsTheForm();
 

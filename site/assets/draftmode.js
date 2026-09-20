@@ -16,6 +16,22 @@ window.DraftMode = (() => {
   const STORE_KEY_BASE = "fc-draft-mode";
   const storeKey = () => `${STORE_KEY_BASE}:${(cfg && cfg.board && cfg.board.league
                                                 && cfg.board.league.slug) || "default"}`;
+  // The restore record's ONLY access path. Storage can throw on every call
+  // (private mode, blocked site data) and session.js already degrades to a
+  // memory-only identity for that; the draft must too. A failed read is "no
+  // restore record"; a failed write or removal leaves the in-memory draft
+  // exactly as usable as it was -- connected, anonymous where applicable --
+  // and never throws out of init(), connect(), the degrade path or
+  // disconnect(). (A missing localStorage global reads the same way.)
+  function readRecord() {
+    try { return localStorage.getItem(storeKey()); } catch (_) { return null; }
+  }
+  function writeRecord(record) {
+    try { localStorage.setItem(storeKey(), JSON.stringify(record)); } catch (_) {}
+  }
+  function removeRecord() {
+    try { localStorage.removeItem(storeKey()); } catch (_) {}
+  }
   const POLL_MS = 3000, MAX_BACKOFF_MS = 30000;
   // Four missed polls. Past this the board may be behind the draft, and on
   // draft day a board you cannot trust is worse than one that admits it.
@@ -43,6 +59,13 @@ window.DraftMode = (() => {
   // pollOnce clears syncNote on every good poll, and this has to outlive a
   // good poll -- it is cleared only by the next successful connect.
   let degradeNote = "";
+  // True from Session's synchronous `identifying` fire until the lookup
+  // resolves. While set, nothing on the board is anyone's: applyPicks renders
+  // with no seat, so an ordinary poll cannot repopulate the previous
+  // account's highlights while the chip says another account is being looked
+  // up (spec §4.1/§4.4). See syncIdentity.
+  let identityPending = false;
+  let lastPicks = null;     // the log applyPicks last rendered, for the unmask re-render
   const state = { connected: false, drafted: new Set(), mine: new Set(),
                   hideDrafted: false };
 
@@ -314,12 +337,13 @@ window.DraftMode = (() => {
                   reversalRound: 0, type: "snake" };
       updateDraftSettings(draft);
       resetPickFingerprint();
+      lastPicks = null;
       statusChecks = 0;
       lastSyncAt = 0;
       syncNote = "";
       degradeNote = "";
       startHeartbeat();
-      localStorage.setItem(storeKey(), JSON.stringify({ username, userId, draftId }));
+      writeRecord({ username, userId, draftId });
       state.connected = true;
       // Keep the connect row up when we don't know WHO you are — the shortlist
       // is blocked until the session has an identity, and mid-draft is the
@@ -346,8 +370,10 @@ window.DraftMode = (() => {
     clearTimeout(timer);
     clearInterval(heartbeat);
     heartbeat = null;
-    localStorage.removeItem(storeKey());
+    removeRecord();
     session = null;
+    lastPicks = null;
+    identityPending = false;
     state.connected = false;
     state.drafted = new Set();
     state.mine = new Set();
@@ -489,11 +515,19 @@ window.DraftMode = (() => {
   }
 
   function applyPicks(picks) {
-    const rs = rosterStateFromPicks(picks, mySeat(picks).slot, session.userId);
+    lastPicks = picks;
+    // Masked (an identity lookup is out): render as if nobody is seated, so
+    // the strikes stay current but the previous account's seat never comes
+    // back through a poll before the lookup has answered.
+    const masked = identityPending;
+    const rs = masked ? rosterStateFromPicks(picks, null, null)
+                      : rosterStateFromPicks(picks, mySeat(picks).slot, session.userId);
     state.drafted = rs.drafted;
     state.mine = rs.mine;
     cfg.els.picksCount.textContent = `${picks.length} picks in`;
-    if (session.userId) {
+    if (masked) {
+      cfg.els.roster.hidden = true;
+    } else if (session.userId) {
       const counts = rs.counts;
       cfg.els.roster.hidden = false;
       // Counts say what you hold; the panel's picks say what a player would
@@ -554,7 +588,9 @@ window.DraftMode = (() => {
     }
     v.hidden = true;                    // default: render nothing, never wrong math
     if (l) l.hidden = true;
-    if (!window.Optimizer || !session) return;
+    // Masked: the shortlist and the K/DST need are both computed FOR a seat,
+    // and no seat is anyone's until the identity lookup resolves.
+    if (!window.Optimizer || !session || identityPending) return;
     // Everything below needs to know WHICH SEAT IS YOURS. When we can't work
     // that out, say so in the panel: rendering nothing under a status reading
     // "connected — live" looks identical to the tool having no opinion, and
@@ -987,15 +1023,38 @@ window.DraftMode = (() => {
      account and the restore record is rewritten. forget() lands here with a
      null identity: the draft keeps streaming anonymously, no seat highlighted.
 
-     `identifying` is skipped: Session.identify() clears the identity FIRST and
-     fires, then fires again with the result. Reconnecting on the first fire
-     would cost two full reconnects per identity change on a live 3-second
-     clock; the resolution fire (success, or failure leaving anonymous) is the
-     one that carries the answer. */
+     `identifying` MASKS but never reconnects. Session.identify() clears the
+     identity FIRST and fires, then fires again with the result. Reconnecting
+     on the first fire would cost two full reconnects per identity change on
+     a live 3-second clock -- but leaving the previous account's seat lit
+     while the chip says another account is being looked up breaks the
+     synchronous account-surface clear (spec §4.1/§4.4). So the first fire
+     blanks the seat, the roster panel and the seat-derived shortlist on the
+     spot and sets `identityPending`, which keeps every poll in between from
+     repainting them (applyPicks/updateAids). The resolution fire lifts the
+     mask: the SAME account re-renders the last log on the existing chain
+     (zero fetches); a different account -- or none, after a failure --
+     goes through reconcile() for its one reconnect, whose connect() clears
+     the fingerprint and re-derives the seat itself. */
   function syncIdentity(snapshot) {
     if (!session) return;
-    if (snapshot && snapshot.state === "identifying") return;
-    return reconcile(currentIdentity());
+    if (snapshot && snapshot.state === "identifying") { maskSeat(); return; }
+    const wasMasked = identityPending;
+    identityPending = false;
+    const identity = currentIdentity();
+    if (wasMasked && sameUser(session.userId, identity ? identity.userId : null) && lastPicks) {
+      applyPicks(lastPicks);            // unmask: same seat, same chain, no fetch
+    }
+    return reconcile(identity);
+  }
+  function maskSeat() {
+    if (identityPending) return;
+    identityPending = true;
+    state.mine = new Set();
+    cfg.els.roster.hidden = true;
+    cfg.els.shortlist.hidden = true;
+    if (cfg.els.late) cfg.els.late.hidden = true;
+    emit();
   }
 
   /* Bring the live session to `identity`, and CHECK that it got there.
@@ -1054,8 +1113,7 @@ window.DraftMode = (() => {
     session.slot = null;
     state.mine = new Set();
     resetPickFingerprint();               // next poll re-renders with no seat
-    localStorage.setItem(storeKey(), JSON.stringify({ username: null, userId: null,
-                                                      draftId: session.draftId }));
+    writeRecord({ username: null, userId: null, draftId: session.draftId });
     const who = wanted ? (wanted.displayName || wanted.username) : null;
     degradeNote = who ? `reconnect as ${who} failed — showing the draft anonymously`
                       : "reconnect failed — showing the draft anonymously";
@@ -1110,7 +1168,7 @@ window.DraftMode = (() => {
       if (!document.hidden && session) startPolling();  // supersedes any pending chain
     });
     if (sess()) sess().onChange(syncIdentity);
-    const stored = localStorage.getItem(storeKey());
+    const stored = readRecord();               // a storage that throws = no record
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
@@ -1126,9 +1184,9 @@ window.DraftMode = (() => {
             connect(parsed.username, parsed.userId, parsed.draftId);
           }
         } else {
-          localStorage.removeItem(storeKey());   // incomplete blob: clear, don't 404
+          removeRecord();                        // incomplete blob: clear, don't 404
         }
-      } catch (e) { localStorage.removeItem(storeKey()); }
+      } catch (e) { removeRecord(); }
     }
   }
 

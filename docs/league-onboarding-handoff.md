@@ -21,7 +21,9 @@ credential handling or `.claude/` writes. Existing snapshots preserved.
 Since 2026-09-20 the connect page identifies through the shared session
 (`assets/session.js`): its form and the `#league-context` chip write the same
 identity, configured leagues are read from `FC.REGISTRY`, and forget clears
-the discovered list.
+the discovered list. Editing the username clears the results list only; a
+lookup already submitted still commits as the shared identity, and its result
+never overwrites a name typed since.
 
 Next: wire a custom-league weekly preview only after exact player-identity,
 scoring capability, legal lineup slot, kickoff and freshness validation.
