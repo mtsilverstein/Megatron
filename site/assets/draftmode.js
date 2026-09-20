@@ -355,6 +355,10 @@ window.DraftMode = (() => {
       cfg.els.live.hidden = false;
       unmatchedNote();
       startPolling();
+      // AFTER startPolling: a reconcile started here bumps pollSeq, so the
+      // chain just started bails at its first check and never paints the seat
+      // this session was committed with -- one poller, no exposure.
+      settleIdentity();
     } catch (e) {
       setStatus(`connect failed: ${e.message}`);
       // Claiming the attempt retired whatever chain was running. A session that
@@ -1035,10 +1039,22 @@ window.DraftMode = (() => {
      mask: the SAME account re-renders the last log on the existing chain
      (zero fetches); a different account -- or none, after a failure --
      goes through reconcile() for its one reconnect, whose connect() clears
-     the fingerprint and re-derives the seat itself. */
+     the fingerprint and re-derives the seat itself.
+
+     The mask is recorded BEFORE the session check. A saved-draft restore
+     calls connect() from init() with no session yet, and commits it only
+     after the draft and scoring round trips; an `identifying` fire inside
+     that window has no session to mask, but the restore that then commits
+     would start polling UNMASKED and light the stored account's seat while
+     the chip says another account is being looked up. With the flag set,
+     applyPicks renders that first poll seatless and the resolution fire
+     lifts it as usual. A fire that RESOLVES with no session is left on the
+     flag too -- there is nothing to reconcile it against yet -- and
+     connect() settles it at commit (settleIdentity), so an identity that
+     moved during the restore is neither lost nor exposed. */
   function syncIdentity(snapshot) {
-    if (!session) return;
     if (snapshot && snapshot.state === "identifying") { maskSeat(); return; }
+    if (!session) return;
     const wasMasked = identityPending;
     identityPending = false;
     const identity = currentIdentity();
@@ -1055,6 +1071,14 @@ window.DraftMode = (() => {
     cfg.els.shortlist.hidden = true;
     if (cfg.els.late) cfg.els.late.hidden = true;
     emit();
+  }
+  // A mask left over from a fire that landed with no session (see
+  // syncIdentity): once a session commits, replay the resolution against it.
+  // A lookup still out is left masked -- its own resolution fire settles it.
+  function settleIdentity() {
+    const S = sess();
+    if (!identityPending || !S || S.state() === "identifying") return;
+    return syncIdentity({ state: S.state(), identity: S.identity() });
   }
 
   /* Bring the live session to `identity`, and CHECK that it got there.

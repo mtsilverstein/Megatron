@@ -1167,7 +1167,9 @@ const until = async (pred, what, ms = 2000) => {
     // Fresh controller + fresh session per scenario. `record` is what the
     // previous visit left in storage; `identity` is whether this visitor has
     // identified in the league panel.
-    async function visit(record, identity) {
+    // `spy` sees every emit, so a case can assert a seat NEVER appeared, not
+    // just that the last render was right.
+    async function visit(record, identity, spy) {
       const store = fakeStore();
       global.localStorage = store;
       Session._storage(store);
@@ -1185,7 +1187,7 @@ const until = async (pred, what, ms = 2000) => {
         node.addEventListener = (ev, fn) => { if (ev === "click") handlers[name] = fn; };
       }
       let last = null;
-      D.init({ board, els, onUpdate: st => { last = st; } });
+      D.init({ board, els, onUpdate: st => { last = st; if (spy) spy(st); } });
       return { store, els, handlers, state: () => last };
     }
 
@@ -1261,6 +1263,76 @@ const until = async (pred, what, ms = 2000) => {
                 "identifying to move the seat to the session's account");
     assert.strictEqual(connects(), 1, "identity change reconnected more than once");
     assert.strictEqual(JSON.parse(v.store.get(KEY)).userId, "U1");
+    v.handlers.disconnect();
+
+    /* 5. The identity moves WHILE the restore is still connecting (the I-2
+       ordering the re-review found). init() calls connect() with the stored
+       record before any session exists; connect() commits the session only
+       after the draft and scoring round trips. Session.identify() fired in
+       that window used to hit syncIdentity's `if (!session) return` and record
+       nothing -- so when the restore committed, startPolling ran unmasked and
+       applyPicks lit the STORED account's seat while the chip said another
+       account was being looked up. The pending mask must be recorded with no
+       session too: the restore renders seatless until the lookup answers,
+       then the resolved account takes its seat through exactly one reconnect. */
+    let releaseDraft, releaseUser, exposed = false;
+    SLEEPER.draftGate = new Promise(r => { releaseDraft = r; });
+    v = await visit({ username: "stranger", userId: "U2", draftId: "D1" }, null,
+                    st => { if (st.mine.has("9509")) exposed = true; });
+    await settle();
+    assert.strictEqual(connects(), 1, "the restore connect is in flight");
+    assert.ok(!v.state() || !v.state().connected, "precondition: the restore has not committed");
+    SLEEPER.userGate = new Promise(r => { releaseUser = r; });
+    const duringRestore = Session.identify("me");        // held in `identifying`
+    assert.strictEqual(Session.state(), "identifying");
+    releaseDraft(); delete SLEEPER.draftGate;
+    await until(() => v.state() && v.state().connected && v.state().drafted.size === 2,
+                "the held restore to commit and poll once");
+    assert.strictEqual(Session.state(), "identifying", "precondition: the lookup is still out");
+    assert.strictEqual(v.state().mine.size, 0,
+      "the restored account's seat was marked mine while another account was being looked up");
+    assert.ok(v.els.roster.hidden, "the roster panel showed during the lookup");
+    assert.ok(v.els.shortlist.hidden, "the seat-derived shortlist showed during the lookup");
+    assert.strictEqual(connects(), 1, "identifying must not reconnect");
+    // A poll during the lookup strikes the new pick and still shows no seat.
+    SLEEPER.picks = SLEEPER.picks.concat([{ pick_no: 3, draft_slot: 3, player_id: "x3", picked_by: "U3" }]);
+    await until(() => v.state().drafted.size === 3, "a poll during the lookup to strike the new pick", 5000);
+    assert.strictEqual(v.state().mine.size, 0, "a poll during the lookup repopulated the stored seat");
+    releaseUser(); await duringRestore; delete SLEEPER.userGate;
+    await until(() => v.state().mine.has("4034") && !v.state().mine.has("9509") && !v.els.roster.hidden,
+                "the resolved account to take its seat", 5000);
+    assert.strictEqual(connects(), 2,
+      `expected the restore plus exactly one reconnect, saw ${connects()} /draft/ fetches`);
+    assert.strictEqual(JSON.parse(v.store.get(KEY)).userId, "U1");
+    assert.ok(!exposed, "the stored account's seat was emitted as mine at some point");
+    assert.strictEqual(v.state().connected, true);
+    v.handlers.disconnect();
+    SLEEPER.picks = SLEEPER.picks.slice(0, 2);
+
+    /* 6. The mirror: the identity RESOLVES while the restore is still held.
+       Both fires land with no session, so nothing could reconcile them at the
+       time; the resolved identity must not be lost when the restore commits.
+       The commit reconciles to it once -- one reconnect on top of the restore,
+       never two pollers, and the stored account's seat never shows. */
+    exposed = false;
+    SLEEPER.draftGate = new Promise(r => { releaseDraft = r; });
+    v = await visit({ username: "stranger", userId: "U2", draftId: "D1" }, null,
+                    st => { if (st.mine.has("9509")) exposed = true; });
+    await settle();
+    assert.strictEqual(connects(), 1);
+    await Session.identify("me");                        // resolves with no session yet
+    assert.strictEqual(Session.identity().userId, "U1");
+    assert.ok(!v.state() || !v.state().connected, "precondition: the restore has not committed");
+    releaseDraft(); delete SLEEPER.draftGate;
+    await until(() => v.state() && v.state().connected && v.state().mine.has("4034") && !v.state().mine.has("9509"),
+                "the restore to commit and reconcile to the identity that resolved during it", 5000);
+    await settle();
+    assert.ok(connects() <= 2, `expected at most the restore plus one reconnect, saw ${connects()} /draft/ fetches`);
+    assert.strictEqual(connects(), 2, "the resolved identity must reconcile through one reconnect");
+    assert.ok(!exposed, "the stored account's seat was emitted as mine before the reconcile");
+    assert.ok(!v.els.roster.hidden, "your roster must be up once your seat is known");
+    assert.deepStrictEqual(JSON.parse(v.store.get(KEY)),
+      { username: "me", userId: "U1", draftId: "D1" });
     v.handlers.disconnect();
   })();
   restoreFixtureDone.catch(e => { console.error(e.stack || e.message); process.exit(1); });
