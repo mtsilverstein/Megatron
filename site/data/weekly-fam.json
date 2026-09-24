@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-24T10:11:47+00:00",
+  "generated_at": "2026-09-24T20:36:14+00:00",
   "data_through": "2026-wk2",
   "season": 2026,
   "week": 3,
@@ -25001,65 +25001,65 @@
         "ppr": {
           "p10": 0.65,
           "p50": 2.62,
-          "p90": 12.53
+          "p90": 12.52
         },
         "half_ppr": {
-          "p10": 0.6,
-          "p50": 2.42,
+          "p10": 0.59,
+          "p50": 2.41,
           "p90": 11.65
         },
         "standard": {
           "p10": 0.54,
           "p50": 2.21,
-          "p90": 10.78
+          "p90": 10.77
         },
         "league": {
-          "p10": 0.59,
-          "p50": 2.62,
-          "p90": 12.56
+          "p10": 0.58,
+          "p50": 2.61,
+          "p90": 12.55
         }
       },
       "stat_quantiles": {
         "p10": {
-          "passing_yards": -0.21052613323523892,
-          "passing_tds": -0.03147946443305341,
-          "passing_interceptions": -0.018089791811025508,
-          "carries": 2.83981846757504,
-          "rushing_yards": 8.851521038662156,
-          "rushing_tds": -0.012578859932157483,
-          "targets": 0.21207619041837222,
-          "receptions": 0.10395726032452818,
-          "receiving_yards": 0.32699120563033124,
-          "receiving_tds": -0.011951839368849288,
-          "fumbles_lost": -0.014388793493569786,
+          "passing_yards": -0.21027671072636603,
+          "passing_tds": -0.031469374543376435,
+          "passing_interceptions": -0.01808298052940583,
+          "carries": 2.8357378845091294,
+          "rushing_yards": 8.837816293469238,
+          "rushing_tds": -0.01258018065326574,
+          "targets": 0.21197887268874815,
+          "receptions": 0.10385482491666792,
+          "receiving_yards": 0.3265443743613323,
+          "receiving_tds": -0.011951890181164193,
+          "fumbles_lost": -0.014388957310125437,
           "passing_pick_sixes": 0.0
         },
         "p50": {
-          "passing_yards": 0.018291115760803223,
-          "passing_tds": -0.00039091394864954054,
-          "passing_interceptions": 0.005165040958672762,
-          "carries": 5.780592441558838,
-          "rushing_yards": 21.32666778564453,
-          "rushing_tds": -0.002641028491780162,
-          "targets": 0.7877268195152283,
-          "receptions": 0.4051513671875,
-          "receiving_yards": 1.1224614381790161,
-          "receiving_tds": 0.0006892320816405118,
-          "fumbles_lost": 0.004463849123567343,
+          "passing_yards": 0.018616551533341408,
+          "passing_tds": -0.0003842835722025484,
+          "passing_interceptions": 0.005163798574358225,
+          "carries": 5.774414539337158,
+          "rushing_yards": 21.30095100402832,
+          "rushing_tds": -0.002642667619511485,
+          "targets": 0.7873077392578125,
+          "receptions": 0.4048484265804291,
+          "receiving_yards": 1.1213196516036987,
+          "receiving_tds": 0.0006904928013682365,
+          "fumbles_lost": 0.0044641755521297455,
           "passing_pick_sixes": 0.0
         },
         "p90": {
-          "passing_yards": 0.36087355470830396,
-          "passing_tds": 0.015451462973954333,
-          "passing_interceptions": 0.013025095134943543,
-          "carries": 11.799845350699684,
-          "rushing_yards": 54.991073636701685,
-          "rushing_tds": 0.5385706556784502,
-          "targets": 2.2880625426885146,
-          "receptions": 1.7512744976938635,
-          "receiving_yards": 14.83925673001471,
-          "receiving_tds": 0.07030196390289523,
-          "fumbles_lost": 0.03301765141792823,
+          "passing_yards": 0.36138871103343284,
+          "passing_tds": 0.015454188568303495,
+          "passing_interceptions": 0.013017960102917447,
+          "carries": 11.792475957174702,
+          "rushing_yards": 54.953468360928355,
+          "rushing_tds": 0.5381082135636497,
+          "targets": 2.2873627618746113,
+          "receptions": 1.7507972750648086,
+          "receiving_yards": 14.832611891588442,
+          "receiving_tds": 0.07033581478282103,
+          "fumbles_lost": 0.033005096064518735,
           "passing_pick_sixes": 0.0
         }
       },
@@ -25067,11 +25067,11 @@
         "passing_yards": 0.02,
         "passing_tds": -0.0,
         "passing_interceptions": 0.01,
-        "carries": 5.78,
-        "rushing_yards": 21.33,
+        "carries": 5.77,
+        "rushing_yards": 21.3,
         "rushing_tds": -0.0,
         "targets": 0.79,
-        "receptions": 0.41,
+        "receptions": 0.4,
         "receiving_yards": 1.12,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
