@@ -41,13 +41,26 @@ jobs:
             done
           fi
       - name: Refresh optional free weekly ECR (never external FPTS)
+        id: live_experts
         if: inputs.draft != true
         continue-on-error: true
         run: python -m ffmodel.site.live_experts
       - name: Refresh optional free ROS consensus (separate from weekly)
+        id: ros_experts
         if: inputs.draft != true
         continue-on-error: true
         run: python -m ffmodel.site.ros_experts
+      - name: Surface optional refresh failures
+        if: inputs.draft != true
+        run: |
+          if [ "${{ steps.live_experts.outcome }}" = "failure" ]; then
+            echo "::warning::Weekly ECR refresh (live_experts) failed; site/data/weekly-ecr.json is stale"
+            echo "- Weekly ECR refresh (live_experts) failed; \`site/data/weekly-ecr.json\` is stale" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ steps.ros_experts.outcome }}" = "failure" ]; then
+            echo "::warning::ROS consensus refresh (ros_experts) failed; site/data/ros-ecr.json is stale"
+            echo "- ROS consensus refresh (ros_experts) failed; \`site/data/ros-ecr.json\` is stale" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Commit refreshed data
         id: commit
         run: |

@@ -102,6 +102,37 @@ def test_duplicate_identity_and_id_name_disagreement_rejected():
         ros.build_payload(raw, ids, now="2026-09-13T12:00:00Z")
 
 
+def test_load_crosswalk_pulls_when_path_missing(tmp_path, monkeypatch):
+    pulled = pd.DataFrame([{"gsis_id": "g1", "merge_name": "Test Player", "position": "QB"}])
+    calls = []
+
+    def fake_pull_player_ids(cache_dir=None):
+        calls.append(cache_dir)
+        return pulled
+
+    monkeypatch.setattr("ffmodel.site.live_experts.pull_player_ids", fake_pull_player_ids)
+    missing = tmp_path / "nonexistent.parquet"
+
+    result = ros.load_crosswalk(missing)
+
+    assert len(calls) == 1
+    assert list(result["gsis_id"]) == ["g1"]
+
+
+def test_load_crosswalk_reads_existing_path_without_pulling(tmp_path, monkeypatch):
+    existing = tmp_path / "crosswalk.parquet"
+    pd.DataFrame([{"gsis_id": "g2", "merge_name": "Other Player", "position": "RB"}]).to_parquet(existing)
+
+    def fail_pull_player_ids(cache_dir=None):
+        raise AssertionError("pull_player_ids should not be called when the crosswalk path exists")
+
+    monkeypatch.setattr("ffmodel.site.live_experts.pull_player_ids", fail_pull_player_ids)
+
+    result = ros.load_crosswalk(existing)
+
+    assert list(result["gsis_id"]) == ["g2"]
+
+
 def test_publish_archives_content_and_preserves_live_on_failure(tmp_path, monkeypatch):
     raw, ids = fixtures()
     payload = ros.build_payload(raw, ids, now="2026-09-13T12:00:00Z")

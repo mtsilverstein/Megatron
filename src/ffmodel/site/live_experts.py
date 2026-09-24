@@ -14,10 +14,25 @@ from pathlib import Path
 
 import pandas as pd
 
+from ffmodel.data.rankings import pull_player_ids
 from ffmodel.site.weekly_experts import name_key
 
 PAGES = {"qb": "QB", "ppr-rb": "RB", "ppr-wr": "WR", "ppr-te": "TE"}
 MIN_ROWS = {"QB": 20, "RB": 40, "WR": 50, "TE": 20}
+
+
+def load_crosswalk(path: Path) -> pd.DataFrame:
+    """Read the player-id crosswalk from `path`, or pull it fresh if missing.
+
+    CI checkouts have no `data/` (it is gitignored), so the default
+    `--crosswalk data/raw/ff_playerids.parquet` never exists there. Fall back
+    to the same cached nflreadpy pull the rest of the pipeline uses instead of
+    crashing with FileNotFoundError. Local runs that already have the file on
+    disk keep reading it unchanged.
+    """
+    if path.exists():
+        return pd.read_parquet(path)
+    return pull_player_ids(Path("data/raw"))
 
 
 def team(value):
@@ -150,7 +165,7 @@ def main():
     args = parser.parse_args()
     import nflreadpy
     raw = nflreadpy.load_ff_rankings("week").to_pandas()
-    payload = build_payload(raw, pd.read_parquet(args.crosswalk), json.loads(args.kickoffs.read_text()))
+    payload = build_payload(raw, load_crosswalk(args.crosswalk), json.loads(args.kickoffs.read_text()))
     publish(payload, args.out, args.archive)
     print(json.dumps(payload["coverage"]))
 
