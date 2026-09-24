@@ -8,7 +8,7 @@
 <title>Trade calculator — Megatron</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Bruno+Ace&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=session1">
+<link rel="stylesheet" href="assets/style.css?v=ux1">
 </head>
 <body>
 <header class="masthead">
@@ -51,18 +51,21 @@
   <div class="draft-shortlist-panel" id="trade-suggestions" hidden></div>
   <section id="season-trade" hidden>
     <p class="eyebrow" id="season-eyebrow"></p>
-    <p class="draft-note" id="season-note">The number is starting-lineup points
-    over the remaining weeks for both rosters, week by week, before and after
-    the named players change hands. It assumes every player plays every
-    remaining week unless you mark weeks unavailable for him. It leaves out
-    keeper value, draft picks, the current week, and any injury you have not
-    marked.</p>
+    <ol class="season-steps" id="season-steps">
+      <li>Choose the team you are trading with.</li>
+      <li>Tick the players moving on each side.</li>
+      <li>Press <strong>Compare lineups</strong>.</li>
+    </ol>
+    <p class="draft-note" id="season-note">The result is starting-lineup points
+    over the remaining weeks for both rosters, before and after the players
+    change hands. Every player is assumed to play every remaining week unless
+    you enter weeks he is out (optional). Keeper value, draft picks and the
+    current week are left out.</p>
     <div class="draft-row" id="season-connect">
       <span class="draft-status" id="season-status">— loading league…</span>
     </div>
     <div class="draft-row" id="season-controls" hidden>
       <label>Trade with <select id="season-partner"></select></label>
-      <label><input type="checkbox" id="season-ack"> All players not marked unavailable are assumed to play every remaining week.</label>
       <button id="season-compare" disabled>Compare lineups</button>
     </div>
     <p class="draft-note" id="season-warn" hidden></p>
@@ -84,7 +87,7 @@
 <script src="assets/ros.js?v=1"></script>
 <script src="assets/trademode.js?v=session1"></script>
 <script src="assets/seasontrade.js?v=page1"></script>
-<script src="assets/seasontrademode.js?v=session1"></script>
+<script src="assets/seasontrademode.js?v=ux1"></script>
 <script>
 (async () => {
   const slug = FC.leagueNavigation();
@@ -140,7 +143,6 @@
         status: $("season-status"),
         controls: $("season-controls"),
         partner: $("season-partner"),
-        ack: $("season-ack"),
         compare: $("season-compare"),
         warn: $("season-warn"),
         cols: $("season-cols"),
