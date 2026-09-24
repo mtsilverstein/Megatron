@@ -61,6 +61,41 @@
     for (const [rid, ids] of Object.entries(ctx.drops || {})) for (const id of ids) assumptions.push(`${name(rid)} drops ${pname(id)}`);
     return { headline: HEADLINE, subline, sides, notValued, assumptions };
   }
+  // Plain-English bottom line, one sentence group per side, read straight off
+  // the engine's per-week before/after starting lineups (result.weeks[].sides[]
+  // .before/.after.lineup). A week "changes" when the set of starters differs;
+  // the lineup size is fixed by the slots, so who enters and who leaves always
+  // pair up. States deltas and lineup moves only -- no judging words.
+  const fmt1 = x => { const r = Math.round(x * 10) / 10; return r === 0 ? "0.0" : `${r < 0 ? "−" : "+"}${Math.abs(r).toFixed(1)}`; };
+  const andList = xs => xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+  function lineupSummary(result, ctx) {
+    const span = `weeks ${ctx.firstWeek}–${ctx.endWeek}`;
+    const label = i => (i === 0 ? "Your lineup" : (ctx.names && ctx.names[result.sides[i].rosterId]) || `roster ${result.sides[i].rosterId}`);
+    const perSide = result.sides.map((s, i) => {
+      const changes = [];
+      for (const w of result.weeks) {
+        const side = w.sides[i];
+        const before = side.before.lineup || [], after = side.after.lineup || [];
+        const bIds = new Set(before.map(p => String(p.id))), aIds = new Set(after.map(p => String(p.id)));
+        const enter = after.filter(p => !bIds.has(String(p.id))).map(p => p.name);
+        const leave = before.filter(p => !aIds.has(String(p.id))).map(p => p.name);
+        if (enter.length || leave.length) changes.push({ week: w.week, delta: side.delta, move: `${andList(enter)} ${enter.length === 1 ? "starts" : "start"} instead of ${andList(leave)}` });
+      }
+      return { i, delta: s.delta, changes };
+    });
+    if (perSide.every(s => !s.changes.length)) return [`No change to either starting lineup in ${span} under these assumptions.`];
+    return perSide.map(({ i, delta, changes }) => {
+      const head = `${label(i)}: ${fmt1(delta)} pts over ${span}.`;
+      if (!changes.length) return `${head} No change to the starting lineup.`;
+      if (changes.length === 1) return `${head} All of it is week ${changes[0].week}: ${changes[0].move}.`;
+      const ranked = changes.slice().sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.week - b.week);
+      const item = c => `week ${c.week} (${fmt1(c.delta)}): ${c.move}`;
+      if (ranked.length <= 3) return `${head} Lineup changes in ${ranked.length} weeks: ${ranked.map(item).join("; ")}.`;
+      const top = ranked.slice(0, 3), rest = ranked.slice(3);
+      const restSum = rest.reduce((a, c) => a + c.delta, 0);
+      return `${head} Lineup changes in ${ranked.length} weeks; the 3 largest: ${top.map(item).join("; ")}; and smaller changes in ${rest.length} other week${rest.length === 1 ? "" : "s"} (${fmt1(restSum)} pts combined).`;
+    });
+  }
   function coverageText(error) {
     if (error && Array.isArray(error.coverageIssues)) {
       const players = new Set(error.coverageIssues.map(x => x.id)).size;
@@ -355,12 +390,22 @@
       const tagged = Boolean(c.injury_status);
       if (tagged) li.append(el("span", `reported tag: ${c.injury_status} — no return-date inference`, "trade-why"));
       // The user states the assumption; a tag never fills the field in (§6.3).
+      // The field is optional: hidden behind a link on a ticked player, shown
+      // outright only for a tagged player (or one that already has text).
       const weeks = el("input", null, "season-weeks");
       weeks.type = "text"; weeks.autocomplete = "off";
-      weeks.placeholder = "unavailable weeks e.g. 3-5, 8";
-      weeks.setAttribute("aria-label", `assume unavailable weeks for ${playerName(id)}`);
+      weeks.placeholder = "optional — leave blank if he plays, e.g. 3-5";
+      weeks.setAttribute("aria-label", `optional: weeks ${playerName(id)} is out`);
       weeks.value = side.weeks.get(id) || "";
-      weeks.hidden = !(box.checked || tagged);
+      let revealed = Boolean(weeks.value);
+      const toggle = el("button", "Out some weeks? (optional)", "season-weeks-toggle");
+      toggle.type = "button";
+      const showState = () => {
+        weeks.hidden = !(tagged || (box.checked && revealed));
+        toggle.hidden = !(box.checked && weeks.hidden);
+      };
+      showState();
+      toggle.addEventListener("click", () => { revealed = true; showState(); if (typeof weeks.focus === "function") weeks.focus(); });
       const err = el("span", side.errors.get(id) || "", "season-weeks-error");
       err.hidden = !side.errors.has(id);
       const parse = () => {
@@ -371,13 +416,17 @@
       box.addEventListener("change", () => {
         if (box.checked) side.players.add(id); else side.players.delete(id);
         li.classList.toggle("picked", box.checked);
-        weeks.hidden = !(box.checked || tagged);
-        if (weeks.hidden) { weeks.value = ""; side.weeks.delete(id); side.errors.delete(id); err.hidden = true; }
+        // Unticking an untagged player hides and clears his field, as before
+        // (a tagged player's field stays, since he is still on a roster in the
+        // scenario); ticking again starts hidden behind the link.
+        if (!box.checked) revealed = false;
+        showState();
+        if (weeks.hidden) { weeks.value = ""; side.weeks.delete(id); side.errors.delete(id); err.textContent = ""; err.hidden = true; }
         updateDrops();
         onInputChange();
       });
       weeks.addEventListener("input", () => { parse(); onInputChange(); });
-      li.append(weeks, err);
+      li.append(toggle, weeks, err);
       return li;
     }
 
@@ -440,8 +489,9 @@
     // --- gate ---------------------------------------------------------------
     // The gate proper, independent of whether a compare is already running.
     function inputsValid() {
+      // No acknowledgment step: the availability assumption is passed to the
+      // engine as assumeAvailable and stated in the result's assumptions.
       if (!S.me || !S.partner) return false;
-      if (!els.ack.checked) return false;
       if (sides.mine.players.size + sides.theirs.players.size === 0) return false;
       for (const s of [sides.mine, sides.theirs]) {
         if (s.errors.size) return false;
@@ -473,8 +523,8 @@
         // the same bundle as it commits, so S.rosters/S.state match `b`.
         const b = await SESSION.refresh({ scope: "rosters" });
         const rosters = b.rosters, state = b.state;
-        // Inputs stayed live during the await; anything that moved (ack, a
-        // checkbox, partner, a reload, a bundle from elsewhere) invalidates
+        // Inputs stayed live during the await; anything that moved (a
+        // checkbox, a week field, partner, a reload, a bundle from elsewhere) invalidates
         // this run outright.
         if (seq !== compareSeq || !inputsValid()) { if (!loading) setStatus("inputs changed during the comparison — compare again"); return; }
         const snapshotAt = b.rostersFetchedAt;
@@ -537,6 +587,18 @@
       });
       const out = els.result;
       out.replaceChildren();
+      // 0. plain-English summary: the bottom line before anything else
+      const summary = el("div", null, "season-summary");
+      for (const line of lineupSummary(result, { names, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week })) summary.append(el("p", line));
+      out.append(summary);
+      // Everything after the totals is collapsible detail; nothing is removed.
+      const section = (title, open) => {
+        const d = el("details", null, "season-detail");
+        d.open = Boolean(open);
+        d.append(el("summary", title));
+        out.append(d);
+        return d;
+      };
       // 1. headline + subline
       const h = el("p", null, "season-headline"); h.append(el("strong", t.headline)); out.append(h);
       out.append(el("p", t.subline, "season-subline"));
@@ -564,22 +626,21 @@
         }
         wb.append(bodyRow(cells));
       }
-      weekTable.append(wb); out.append(weekTable);
-      // 4. assumptions
-      out.append(el("h3", "Assumptions"));
+      weekTable.append(wb);
+      section("Week-by-week lineup totals", false).append(weekTable);
+      // 4. assumptions -- open by default: with the acknowledgment checkbox
+      //    gone, this is where "everyone plays every week" is stated.
       const assumptions = [...t.assumptions, ...t.notValued];
-      out.append(list(assumptions.length ? assumptions : ["No unavailable weeks entered and no drops; every active player is assumed to play every remaining week."]));
+      section("Assumptions", true).append(list(assumptions.length ? assumptions : ["No unavailable weeks entered and no drops; every active player is assumed to play every remaining week."]));
       // 5. availability flags
       if ((result.availabilityFlags || []).length) {
-        out.append(el("h3", "Reported availability tags"));
-        out.append(list(result.availabilityFlags.map(f => `${f.name}: ${f.status} — ${f.interpretation}`)));
+        section("Reported availability tags", false).append(list(result.availabilityFlags.map(f => `${f.name}: ${f.status} — ${f.interpretation}`)));
       }
       // 6. engine warnings verbatim
-      out.append(el("h3", "Engine notes"));
-      out.append(list(result.warnings || []));
+      section("Engine notes", false).append(list(result.warnings || []));
       // 7. evaluation
-      out.append(el("h3", "Measured evaluation"));
-      for (const line of W.ROS.evaluationText(S.remaining.evaluation)) out.append(el("p", line, "season-eval"));
+      const ev = section("Measured evaluation", false);
+      for (const line of W.ROS.evaluationText(S.remaining.evaluation)) ev.append(el("p", line, "season-eval"));
       // 8. provenance
       els.provenance.textContent = provenanceText(snapshotAt);
       out.hidden = false;
@@ -607,12 +668,11 @@
     // shell starts Session.ready). The chip's refresh button re-reads rosters
     // + state; sync() redraws from whatever bundle it commits.
     els.partner.addEventListener("change", onPartnerChange);
-    els.ack.addEventListener("change", onInputChange);
     els.compare.addEventListener("click", compare);
     refreshCompare();
     SESSION.onChange(sync);
     sync();
   }
 
-  return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, coverageText, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init });
+  return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, coverageText, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init });
 });
