@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from ffmodel.site.live_experts import atomic_write, team
+from ffmodel.site.live_experts import atomic_write, load_crosswalk, team
 from ffmodel.site.weekly_experts import name_key
 
 
@@ -164,7 +164,7 @@ def main():
     args = parser.parse_args()
     import nflreadpy
     payload = build_payload(nflreadpy.load_ff_rankings("all").to_pandas(),
-                            pd.read_parquet(args.crosswalk))
+                            load_crosswalk(args.crosswalk))
     publish(payload, args.out, args.archive)
     print(json.dumps(payload["coverage"]))
 

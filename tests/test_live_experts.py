@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from ffmodel.site.live_experts import build_payload, publish, PAGES
+from ffmodel.site.live_experts import build_payload, load_crosswalk, publish, PAGES
 
 
 @pytest.fixture
@@ -101,6 +101,37 @@ def test_feed_failure_keeps_last_published_reference(feed, tmp_path):
     with pytest.raises(ValueError):
         publish(build(feed), out, tmp_path/"archive")
     assert out.read_text() == "last good"
+
+
+def test_load_crosswalk_pulls_when_path_missing(tmp_path, monkeypatch):
+    pulled = pd.DataFrame([{"gsis_id": "g1", "merge_name": "Test Player", "position": "QB"}])
+    calls = []
+
+    def fake_pull_player_ids(cache_dir=None):
+        calls.append(cache_dir)
+        return pulled
+
+    monkeypatch.setattr("ffmodel.site.live_experts.pull_player_ids", fake_pull_player_ids)
+    missing = tmp_path / "nonexistent.parquet"
+
+    result = load_crosswalk(missing)
+
+    assert len(calls) == 1
+    assert list(result["gsis_id"]) == ["g1"]
+
+
+def test_load_crosswalk_reads_existing_path_without_pulling(tmp_path, monkeypatch):
+    existing = tmp_path / "crosswalk.parquet"
+    pd.DataFrame([{"gsis_id": "g2", "merge_name": "Other Player", "position": "RB"}]).to_parquet(existing)
+
+    def fail_pull_player_ids(cache_dir=None):
+        raise AssertionError("pull_player_ids should not be called when the crosswalk path exists")
+
+    monkeypatch.setattr("ffmodel.site.live_experts.pull_player_ids", fail_pull_player_ids)
+
+    result = load_crosswalk(existing)
+
+    assert list(result["gsis_id"]) == ["g2"]
 
 
 def test_failed_publish_preserves_live_and_cleans_temporary_files(feed, tmp_path, monkeypatch):
