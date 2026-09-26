@@ -6,7 +6,7 @@
   "season": 2026,
   "snapshot_at": "2026-09-25",
   "snapshot_precision": "date",
-  "retrieved_at": "2026-09-26T10:00:33.775852+00:00",
+  "retrieved_at": "2026-09-26T20:00:20.223634+00:00",
   "source": "FantasyPros via nflverse free rankings mirror",
   "source_url": "https://www.fantasypros.com/nfl/rankings/ros-ppr-overall.php",
   "players": [
@@ -123,17 +123,17 @@
       "ros_rank": 18.83
     },
     {
-      "player_id": "00-0034844",
-      "name": "Saquon Barkley",
-      "position": "RB",
-      "team": "PHI",
-      "ros_rank": 19.83
-    },
-    {
       "player_id": "00-0037247",
       "name": "George Pickens",
       "position": "WR",
       "team": "DAL",
+      "ros_rank": 19.83
+    },
+    {
+      "player_id": "00-0034844",
+      "name": "Saquon Barkley",
+      "position": "RB",
+      "team": "PHI",
       "ros_rank": 19.83
     },
     {
@@ -207,17 +207,17 @@
       "ros_rank": 29.17
     },
     {
-      "player_id": "00-0038606",
-      "name": "Parker Washington",
-      "position": "WR",
-      "team": "JAX",
-      "ros_rank": 29.67
-    },
-    {
       "player_id": "00-0036997",
       "name": "Javonte Williams",
       "position": "RB",
       "team": "DAL",
+      "ros_rank": 29.67
+    },
+    {
+      "player_id": "00-0038606",
+      "name": "Parker Washington",
+      "position": "WR",
+      "team": "JAX",
       "ros_rank": 29.67
     },
     {
@@ -1355,17 +1355,17 @@
       "ros_rank": 210.17
     },
     {
-      "player_id": "00-0039855",
-      "name": "Jalen McMillan",
-      "position": "WR",
-      "team": "TB",
-      "ros_rank": 213.33
-    },
-    {
       "player_id": "00-0033908",
       "name": "Cooper Kupp",
       "position": "WR",
       "team": "SEA",
+      "ros_rank": 213.33
+    },
+    {
+      "player_id": "00-0039855",
+      "name": "Jalen McMillan",
+      "position": "WR",
+      "team": "TB",
       "ros_rank": 213.33
     },
     {
@@ -1705,17 +1705,17 @@
       "ros_rank": 267.6
     },
     {
-      "player_id": "00-0041483",
-      "name": "Eli Stowers",
-      "position": "TE",
-      "team": "PHI",
-      "ros_rank": 267.67
-    },
-    {
       "player_id": "00-0040739",
       "name": "Elijah Arroyo",
       "position": "TE",
       "team": "SEA",
+      "ros_rank": 267.67
+    },
+    {
+      "player_id": "00-0041483",
+      "name": "Eli Stowers",
+      "position": "TE",
+      "team": "PHI",
       "ros_rank": 267.67
     },
     {
@@ -1761,17 +1761,17 @@
       "ros_rank": 272.4
     },
     {
-      "player_id": "00-0037741",
-      "name": "Jahan Dotson",
-      "position": "WR",
-      "team": "ATL",
-      "ros_rank": 274.0
-    },
-    {
       "player_id": "00-0033858",
       "name": "Jonnu Smith",
       "position": "TE",
       "team": "GB",
+      "ros_rank": 274.0
+    },
+    {
+      "player_id": "00-0037741",
+      "name": "Jahan Dotson",
+      "position": "WR",
+      "team": "ATL",
       "ros_rank": 274.0
     },
     {
@@ -2132,10 +2132,10 @@
       "ros_rank": 311.0
     },
     {
-      "player_id": "00-0038979",
-      "name": "Cedric Tillman",
-      "position": "WR",
-      "team": "NO",
+      "player_id": "00-0039912",
+      "name": "Ben Sinnott",
+      "position": "TE",
+      "team": "WAS",
       "ros_rank": 312.0
     },
     {
@@ -2146,10 +2146,10 @@
       "ros_rank": 312.0
     },
     {
-      "player_id": "00-0039912",
-      "name": "Ben Sinnott",
-      "position": "TE",
-      "team": "WAS",
+      "player_id": "00-0038979",
+      "name": "Cedric Tillman",
+      "position": "WR",
+      "team": "NO",
       "ros_rank": 312.0
     },
     {
