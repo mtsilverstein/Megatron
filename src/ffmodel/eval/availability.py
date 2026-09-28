@@ -3,6 +3,15 @@
 established = a regular-season stat row earlier that season AND rostered on that team
 that week with status ACT/RES/INA. missed = the team played, the player is established,
 and he has no stat row. Rates for test season S use seasons < S only (walk-forward).
+
+Fix round 1: the raw established population is dominated by NFL backups who record one
+stat row and then sit healthy on the bench -- every benched week reads as "missed",
+which badly overstates absence for the fantasy-rostered players the simulation actually
+applies these rates to. `participation` now additionally requires a player to be
+fantasy-relevant that week: among established players at the same position (season,
+week), only the top RELEVANT_N by trailing role score (mean fantasy_points_ppr over the
+player's last up to 4 stat rows strictly before that week, same season -- no future
+information) survive. RELEVANT_N approximates the rosterable pool in a 12-team league.
 """
 from __future__ import annotations
 
@@ -18,6 +27,7 @@ POSITIONS = ("QB", "RB", "WR", "TE")
 ON_TEAM = {"ACT", "RES", "INA"}
 TAGS = ("Out", "Doubtful", "Questionable")
 MIN_COUNT = 200
+RELEVANT_N = {"QB": 32, "RB": 64, "WR": 96, "TE": 32}
 
 
 def _team_games(schedules: pd.DataFrame) -> pd.DataFrame:
@@ -25,6 +35,29 @@ def _team_games(schedules: pd.DataFrame) -> pd.DataFrame:
     home = s[["season", "week", "home_team"]].rename(columns={"home_team": "team"})
     away = s[["season", "week", "away_team"]].rename(columns={"away_team": "team"})
     return pd.concat([home, away], ignore_index=True).drop_duplicates()
+
+
+def _trailing_role_score(established: pd.DataFrame, weekly: pd.DataFrame) -> pd.Series:
+    """Mean fantasy_points_ppr over the player's last up to 4 stat rows strictly
+    before `week`, within the same season -- aligned to `established`.index.
+
+    Uses an as-of merge (backward, exact matches excluded) so the current week's
+    own stat row -- if any -- never leaks into its own relevance ranking.
+    """
+    pts = (weekly[["season", "week", "player_id", "fantasy_points_ppr"]]
+           .drop_duplicates(["season", "player_id", "week"])
+           .sort_values("week", kind="stable"))
+    pts["trail"] = (pts.groupby(["season", "player_id"])["fantasy_points_ppr"]
+                     .transform(lambda s: s.rolling(4, min_periods=1).mean()))
+    left = (established[["season", "player_id", "week"]].reset_index()
+            .sort_values("week", kind="stable"))
+    # merge_asof requires the "on" column sorted globally (not just per "by" group);
+    # sorting by "week" alone satisfies that while "by" still isolates matches to the
+    # same (season, player_id).
+    merged = pd.merge_asof(left, pts[["season", "player_id", "week", "trail"]],
+                           by=["season", "player_id"], on="week",
+                           direction="backward", allow_exact_matches=False)
+    return merged.set_index("index")["trail"].reindex(established.index)
 
 
 def participation(weekly, schedules, rosters) -> pd.DataFrame:
@@ -40,9 +73,17 @@ def participation(weekly, schedules, rosters) -> pd.DataFrame:
     first = stats.groupby(["season", "player_id"]).week.min().rename("first_row").reset_index()
     r = r.merge(first, on=["season", "player_id"], how="inner")
     r = r[(r["week"] > r["first_row"]) & r["status"].isin(ON_TEAM)]
+    # Fantasy-relevance filter: keep only the top RELEVANT_N[position] established
+    # players per (season, week, position) by trailing role score. method="min" gives
+    # every player tied at the cutoff the same (lowest) rank, so ties at the boundary
+    # are all kept rather than arbitrarily broken.
+    r = r.assign(_trail=_trailing_role_score(r, weekly))
+    r["_rank"] = r.groupby(["season", "week", "position"])["_trail"].rank(method="min", ascending=False)
+    r = r[r["_rank"] <= r["position"].map(RELEVANT_N)]
     r = r.merge(stats.assign(played=True), on=["season", "week", "player_id"], how="left")
     r["played"] = r["played"].fillna(False).astype(bool)
-    return r.drop(columns="first_row").sort_values(["season", "player_id", "week"]).reset_index(drop=True)
+    return (r.drop(columns=["first_row", "_trail", "_rank"])
+            .sort_values(["season", "player_id", "week"]).reset_index(drop=True))
 
 
 def _pairs(part):
@@ -95,10 +136,14 @@ def build_table(weekly, schedules, rosters, injuries, seasons) -> dict:
     if missing:
         raise ValueError(f"insufficient history for rates: {missing}")
     return {"schema_version": 1, "seasons": [min(seasons), max(seasons)], "min_count": MIN_COUNT,
+            "relevant_n": RELEVANT_N,
             "p_out": tr["p_out"], "p_stay": tr["p_stay"], "p_tag": tg["p_tag"], "p_tag_scope": "pooled",
             "counts": {"transitions": tr["counts"], "tags": tg["counts"]},
             "definition": "established = stat row earlier that season AND rostered on that team that week "
-                          "(ACT/RES/INA); missed = team played, established, no stat row; "
+                          "(ACT/RES/INA); relevant = among established players at that position/week, top "
+                          "relevant_n[pos] by trailing role score (mean fantasy_points_ppr over the last "
+                          "up to 4 stat rows strictly before that week, same season); missed = team played, "
+                          "established, relevant, no stat row; "
                           "p_tag = P(miss next team game | status this week)"}
 
 

@@ -6,9 +6,17 @@ def _sched(rows):  # (season, week, home, away)
     return pd.DataFrame([{"season": s, "week": w, "home_team": h, "away_team": a,
                           "home_score": 20, "away_score": 17} for s, w, h, a in rows])
 
-def _weekly(rows):  # (season, week, player_id, team, position)
-    return pd.DataFrame([{"season": s, "week": w, "player_id": p, "team": t, "position": pos}
-                         for s, w, p, t, pos in rows])
+def _weekly(rows):  # (season, week, player_id, team, position[, fantasy_points_ppr])
+    out = []
+    for row in rows:
+        if len(row) == 6:
+            s, w, p, t, pos, pts = row
+        else:
+            s, w, p, t, pos = row
+            pts = 0.0
+        out.append({"season": s, "week": w, "player_id": p, "team": t, "position": pos,
+                    "fantasy_points_ppr": pts})
+    return pd.DataFrame(out)
 
 def _rosters(rows):  # (season, week, gsis_id, team, position, status)
     return pd.DataFrame([{"season": s, "week": w, "gsis_id": p, "team": t, "position": pos,
@@ -57,6 +65,34 @@ def test_walk_forward_excludes_test_season():
         for s in (2021, 2022) for w, pl in [(2, True), (3, s == 2021)]])
     r = av.transition_rates(part, [2021])
     assert r["counts"]["QB"]["from_played"] == 1 and r["p_out"]["QB"] == 0.0
+
+def test_relevance_filter_excludes_bench_backup(monkeypatch):
+    monkeypatch.setattr(av, "RELEVANT_N", {**av.RELEVANT_N, "QB": 1})
+    weekly = _weekly([(2020, w, "starter", "AAA", "QB", 20.0) for w in range(1, 6)] +
+                     [(2020, 1, "backup", "AAA", "QB", 1.0)])
+    rosters = _rosters([(2020, w, "starter", "AAA", "QB", "ACT") for w in range(1, 6)] +
+                       [(2020, w, "backup", "AAA", "QB", "ACT") for w in range(1, 6)])
+    part = av.participation(weekly, SCHED, rosters)
+    # backup recorded one stat row (week 1) then never played again, but his
+    # trailing role score never exceeds the starter's, so with QB N=1 he never
+    # cracks the population and contributes no transitions.
+    assert "backup" not in set(part.player_id)
+
+
+def test_relevance_filter_uses_only_games_before_the_week(monkeypatch):
+    monkeypatch.setattr(av, "RELEVANT_N", {**av.RELEVANT_N, "QB": 1})
+    weekly = _weekly([(2020, w, "steady", "AAA", "QB", 10.0) for w in range(1, 6)] +
+                     [(2020, w, "riser", "AAA", "QB", 1.0) for w in range(1, 5)] +
+                     [(2020, 5, "riser", "AAA", "QB", 50.0)])
+    rosters = _rosters([(2020, w, "steady", "AAA", "QB", "ACT") for w in range(1, 6)] +
+                       [(2020, w, "riser", "AAA", "QB", "ACT") for w in range(1, 6)])
+    part = av.participation(weekly, SCHED, rosters)
+    # riser's week-5 explosion must not count toward his own week-5 relevance
+    # rank -- only games strictly before week 5 (all 1.0s) are visible then --
+    # so with QB N=1 he stays excluded at week 5 despite outscoring steady that week.
+    assert part[(part.week == 5) & (part.player_id == "riser")].empty
+    assert not part[(part.week == 5) & (part.player_id == "steady")].empty
+
 
 def test_tag_rate_uses_next_team_game():
     part = pd.DataFrame([

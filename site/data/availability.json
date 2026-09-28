@@ -5,50 +5,56 @@
     2025
   ],
   "min_count": 200,
+  "relevant_n": {
+    "QB": 32,
+    "RB": 64,
+    "WR": 96,
+    "TE": 32
+  },
   "p_out": {
-    "QB": 0.13705431021513464,
-    "RB": 0.13761412782316193,
-    "WR": 0.12465972778222578,
-    "TE": 0.19928157400604132
+    "QB": 0.07258514796203239,
+    "RB": 0.08511027729477441,
+    "WR": 0.08250372578241431,
+    "TE": 0.08703007518796993
   },
   "p_stay": {
-    "QB": 0.7988741044012283,
-    "RB": 0.670871745107553,
-    "WR": 0.6475692229169325,
-    "TE": 0.6251242956579384
+    "QB": 0.7929910350448248,
+    "RB": 0.6695957820738138,
+    "WR": 0.6224683544303797,
+    "TE": 0.6342105263157894
   },
   "p_tag": {
-    "Out": 0.7315906917437042,
-    "Doubtful": 0.5977653631284916,
-    "Questionable": 0.28531919797188293,
-    "IR": 0.7899448008354468
+    "Out": 0.6964839710444675,
+    "Doubtful": 0.5577464788732395,
+    "Questionable": 0.2104194857916103,
+    "IR": 0.6847545219638242
   },
   "p_tag_scope": "pooled",
   "counts": {
     "transitions": {
       "QB": {
-        "from_played": 6647,
-        "from_out": 3908
+        "from_played": 5373,
+        "from_out": 1227
       },
       "RB": {
-        "from_played": 16648,
-        "from_out": 6183
+        "from_played": 10927,
+        "from_out": 2276
       },
       "WR": {
-        "from_played": 24980,
-        "from_out": 7837
+        "from_played": 16775,
+        "from_out": 3160
       },
       "TE": {
-        "from_played": 12249,
-        "from_out": 6034
+        "from_played": 5320,
+        "from_out": 1140
       }
     },
     "tags": {
-      "Out": 3137,
-      "Doubtful": 537,
-      "Questionable": 4339,
-      "IR": 6703
+      "Out": 1934,
+      "Doubtful": 355,
+      "Questionable": 2956,
+      "IR": 3483
     }
   },
-  "definition": "established = stat row earlier that season AND rostered on that team that week (ACT/RES/INA); missed = team played, established, no stat row; p_tag = P(miss next team game | status this week)"
+  "definition": "established = stat row earlier that season AND rostered on that team that week (ACT/RES/INA); relevant = among established players at that position/week, top relevant_n[pos] by trailing role score (mean fantasy_points_ppr over the last up to 4 stat rows strictly before that week, same season); missed = team played, established, relevant, no stat row; p_tag = P(miss next team game | status this week)"
 }
