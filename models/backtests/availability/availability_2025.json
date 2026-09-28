@@ -12,51 +12,51 @@
     "TE": 32
   },
   "p_out": {
-    "QB": 0.07049608355091384,
-    "RB": 0.08742088607594936,
-    "WR": 0.08096125425689134,
-    "TE": 0.08791208791208792
+    "QB": 0.08179315768777035,
+    "RB": 0.09018745218056619,
+    "WR": 0.08671850699844479,
+    "TE": 0.0932009167303285
   },
   "p_stay": {
-    "QB": 0.797153024911032,
-    "RB": 0.6551068883610451,
-    "WR": 0.622329427980703,
-    "TE": 0.6320754716981132
+    "QB": 0.8105872622001654,
+    "RB": 0.6663623916020082,
+    "WR": 0.6304058549567532,
+    "TE": 0.6330027051397655
   },
   "p_tag": {
-    "Out": 0.7029026750142288,
-    "Doubtful": 0.565597667638484,
-    "Questionable": 0.2096195262024408,
-    "IR": 0.6616822429906543
+    "Out": 0.7162842753217683,
+    "Doubtful": 0.5857142857142857,
+    "Questionable": 0.21876093804690233,
+    "IR": 0.667576584774037
   },
   "p_tag_scope": "pooled",
   "counts": {
     "transitions": {
       "QB": {
-        "from_played": 4979,
-        "from_out": 1124
+        "from_played": 5086,
+        "from_out": 1209
       },
       "RB": {
-        "from_played": 10112,
-        "from_out": 2105
+        "from_played": 10456,
+        "from_out": 2191
       },
       "WR": {
-        "from_played": 15563,
-        "from_out": 2902
+        "from_played": 16075,
+        "from_out": 3006
       },
       "TE": {
-        "from_played": 4914,
-        "from_out": 1060
+        "from_played": 5236,
+        "from_out": 1109
       }
     },
     "tags": {
-      "Out": 1757,
-      "Doubtful": 343,
-      "Questionable": 2786,
-      "IR": 3210
+      "Out": 1787,
+      "Doubtful": 350,
+      "Questionable": 2857,
+      "IR": 3297
     }
   },
-  "definition": "established = stat row earlier that season AND rostered on that team that week (ACT/RES/INA); relevant = among established players at that position/week, top relevant_n[pos] by trailing role score (mean fantasy_points_ppr over the last up to 4 stat rows strictly before that week, same season); missed = team played, established, relevant, no stat row; p_tag = P(miss next team game | status this week)",
+  "definition": "established = stat row earlier that season AND rostered on that team that week (ACT/RES/INA); relevant = among established players at that position/week, top relevant_n[pos] by trailing role score (mean fantasy_points_ppr over the last up to 4 stat rows strictly before that week, same season); a transition counts only when its FROM week is relevant, but its outcome is the player's literal next established team game regardless of that game's own relevance; missed = the team played, the player was established, and he has no stat row; p_tag = P(miss next team game | status this week)",
   "test_season": 2025,
   "tags": {
     "1": {

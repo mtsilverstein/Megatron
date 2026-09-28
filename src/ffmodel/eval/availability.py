@@ -7,11 +7,24 @@ and he has no stat row. Rates for test season S use seasons < S only (walk-forwa
 Fix round 1: the raw established population is dominated by NFL backups who record one
 stat row and then sit healthy on the bench -- every benched week reads as "missed",
 which badly overstates absence for the fantasy-rostered players the simulation actually
-applies these rates to. `participation` now additionally requires a player to be
-fantasy-relevant that week: among established players at the same position (season,
-week), only the top RELEVANT_N by trailing role score (mean fantasy_points_ppr over the
-player's last up to 4 stat rows strictly before that week, same season -- no future
-information) survive. RELEVANT_N approximates the rosterable pool in a 12-team league.
+applies these rates to. `participation` marks every established player-week with a
+`relevant` flag: among established players at the same position (season, week), only
+the top RELEVANT_N by trailing role score (mean fantasy_points_ppr over the player's
+last up to 4 stat rows strictly before that week, same season -- no future information)
+are relevant. RELEVANT_N approximates the rosterable pool in a 12-team league.
+
+Fix round 2: relevance conditions only the FROM state of a transition -- the outcome is
+the player's literal next team game, established or not, relevant or not. Round 1 made
+`participation` filter OUT irrelevant rows entirely, which meant `_pairs`/`tag_rates`
+(which shift(-1) within each player's row sequence) silently paired a relevant week with
+the next *relevant* row rather than the player's actual next team game, skipping over
+any established-but-irrelevant weeks in between (measured on real data: 2,046 of 46,198
+transitions, 4.4%, skipped at least one such week). `participation` now returns every
+established row (relevant or not) with the boolean `relevant` column; `_pairs` and
+`tag_rates` build pairs from every consecutive established row for the same player and
+team, then keep a pair only when its FROM row is relevant. A bye still produces no row
+(`_team_games` excludes it), so bye gaps stay legitimate; this only concerns not skipping
+established rows that happen to be irrelevant.
 """
 from __future__ import annotations
 
@@ -73,13 +86,14 @@ def participation(weekly, schedules, rosters) -> pd.DataFrame:
     first = stats.groupby(["season", "player_id"]).week.min().rename("first_row").reset_index()
     r = r.merge(first, on=["season", "player_id"], how="inner")
     r = r[(r["week"] > r["first_row"]) & r["status"].isin(ON_TEAM)]
-    # Fantasy-relevance filter: keep only the top RELEVANT_N[position] established
+    # Fantasy-relevance: a flag, not a row filter (fix round 2) -- every established
+    # player-week is kept. `relevant` marks the top RELEVANT_N[position] established
     # players per (season, week, position) by trailing role score. method="min" gives
     # every player tied at the cutoff the same (lowest) rank, so ties at the boundary
     # are all kept rather than arbitrarily broken.
     r = r.assign(_trail=_trailing_role_score(r, weekly))
     r["_rank"] = r.groupby(["season", "week", "position"])["_trail"].rank(method="min", ascending=False)
-    r = r[r["_rank"] <= r["position"].map(RELEVANT_N)]
+    r["relevant"] = r["_rank"] <= r["position"].map(RELEVANT_N)
     r = r.merge(stats.assign(played=True), on=["season", "week", "player_id"], how="left")
     r["played"] = r["played"].fillna(False).astype(bool)
     return (r.drop(columns=["first_row", "_trail", "_rank"])
@@ -87,10 +101,20 @@ def participation(weekly, schedules, rosters) -> pd.DataFrame:
 
 
 def _pairs(part):
+    """Consecutive-team-game pairs from the FULL established frame.
+
+    `part` must be `participation`'s unfiltered output (every established row,
+    relevant or not). The shift(-1) below walks every established row in order, so
+    "next" is always the player's literal next established team game -- never
+    skipping an established-but-irrelevant row in between. Relevance conditions only
+    the FROM side: a pair counts only when its FROM row is relevant, regardless of
+    whether the TO row is.
+    """
     p = part.sort_values(["season", "player_id", "week"])
     nxt = p.groupby(["season", "player_id"]).shift(-1)
-    same_team = nxt["team"] == p["team"]
-    return p[same_team.fillna(False)].assign(next_played=nxt.loc[same_team.fillna(False), "played"].astype(bool))
+    same_team = (nxt["team"] == p["team"]).fillna(False)
+    pairs = p[same_team].assign(next_played=nxt.loc[same_team, "played"].astype(bool))
+    return pairs[pairs["relevant"]]
 
 
 def transition_rates(part, seasons) -> dict:
@@ -105,12 +129,17 @@ def transition_rates(part, seasons) -> dict:
     return {"p_out": p_out, "p_stay": p_stay, "counts": counts}
 
 
-def tag_rates(part, injuries, seasons, *, rosters=None, min_count=MIN_COUNT) -> dict:
+def tag_rates(part, injuries, seasons, *, min_count=MIN_COUNT) -> dict:
+    """`part` must be `participation`'s unfiltered output (see `_pairs`) -- "next"
+    is the player's literal next established team game, and a pair counts only when
+    its FROM row (the week carrying the tag) is relevant.
+    """
     part = part[part["season"].isin(seasons)]
     nxt = part.sort_values(["season", "player_id", "week"]).copy()
     nxt["next_played"] = nxt.groupby(["season", "player_id"])["played"].shift(-1)
     nxt["next_team"] = nxt.groupby(["season", "player_id"])["team"].shift(-1)
     nxt = nxt[nxt["next_played"].notna() & (nxt["next_team"] == nxt["team"])]
+    nxt = nxt[nxt["relevant"]]
     inj = injuries
     if "game_type" in inj:
         inj = inj[inj["game_type"] == "REG"]
@@ -142,8 +171,10 @@ def build_table(weekly, schedules, rosters, injuries, seasons) -> dict:
             "definition": "established = stat row earlier that season AND rostered on that team that week "
                           "(ACT/RES/INA); relevant = among established players at that position/week, top "
                           "relevant_n[pos] by trailing role score (mean fantasy_points_ppr over the last "
-                          "up to 4 stat rows strictly before that week, same season); missed = team played, "
-                          "established, relevant, no stat row; "
+                          "up to 4 stat rows strictly before that week, same season); a transition counts only "
+                          "when its FROM week is relevant, but its outcome is the player's literal next "
+                          "established team game regardless of that game's own relevance; missed = the team "
+                          "played, the player was established, and he has no stat row; "
                           "p_tag = P(miss next team game | status this week)"}
 
 
