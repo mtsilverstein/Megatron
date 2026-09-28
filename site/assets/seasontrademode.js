@@ -18,6 +18,15 @@
   const SUBLINE_TAIL = "Keeper value and draft picks are not valued, so no overall grade is shown.";
   const FORBIDDEN = Object.freeze(["verdict", "win/win", "fair", "winner", "accept", "recommend", "grade"]);
   const ALLOWED_SENTENCES = Object.freeze([HEADLINE, SUBLINE_TAIL]);
+  // Gate open (a passing trade_sim_eval.json): the grade panel replaces those
+  // words with the grade vocabulary. "accept", "fair", "winner" and "verdict"
+  // stay out of every panel string; "grade" is now allowed.
+  const GRADE_FORBIDDEN = Object.freeze(["verdict", "accept", "fair", "winner", "recommend", "win/win"]);
+  const GRADE_LABELS = Object.freeze(["Clear gain", "Small gain", "Too close to call", "Small loss", "Clear loss"]);
+  const GRADED_HEADLINE = "Lineup scenario from central (p50) projections, everyone assumed available.";
+  const GRADED_SUBLINE_TAIL = "Keeper value and draft picks are not valued.";
+  const GRADE_SEED = 20260924;
+  const STARTER_SLOTS = new Set(["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX"]);
 
   // "3-5, 8" -> [3,4,5,8]. Anything else is an error the user sees; an
   // unparseable exclusion must never silently mean "no exclusion".
@@ -54,12 +63,12 @@
       const after = result.weeks.reduce((a, w) => a + w.sides[i].after.total, 0);
       return { name: name(s.rosterId), before: fmt(before), after: fmt(after), delta: fmtDelta(s.delta) };
     });
-    const subline = `Sum of weekly central (p50) lineup scenarios for weeks ${ctx.firstWeek}–${ctx.endWeek}; week ${ctx.currentWeek} is excluded because trades may process after games start. ${SUBLINE_TAIL}`;
+    const subline = `Sum of weekly central (p50) lineup scenarios for weeks ${ctx.firstWeek}–${ctx.endWeek}; week ${ctx.currentWeek} is excluded because trades may process after games start. ${ctx.graded ? GRADED_SUBLINE_TAIL : SUBLINE_TAIL}`;
     const notValued = (ctx.picks || []).length ? [`Not valued: picks — ${ctx.picks.map(p => p.label).join(", ")}`] : [];
     const assumptions = [];
     for (const [id, weeks] of Object.entries(ctx.excludeWeeks || {})) if (weeks.length) assumptions.push(`${pname(id)} assumed unavailable weeks ${weeks.join(", ")} (your assumption, not a return-date prediction)`);
     for (const [rid, ids] of Object.entries(ctx.drops || {})) for (const id of ids) assumptions.push(`${name(rid)} drops ${pname(id)}`);
-    return { headline: HEADLINE, subline, sides, notValued, assumptions };
+    return { headline: ctx.graded ? GRADED_HEADLINE : HEADLINE, subline, sides, notValued, assumptions };
   }
   // Plain-English bottom line, one sentence group per side, read straight off
   // the engine's per-week before/after starting lineups (result.weeks[].sides[]
@@ -103,6 +112,113 @@
                rows: error.coverageIssues.map(x => `${x.name} · week ${x.week} · ${x.reason}`) };
     }
     return { headline: "Comparison blocked", rows: [String(error && error.message || error)] };
+  }
+
+  // --- grade (gated) ---------------------------------------------------------
+  // |Δ| < E is too close to call; E <= |Δ| < kE small; |Δ| >= kE clear. Δ = 0
+  // is always "too close" (even at E = 0). Pure.
+  function gradeLabel(delta, E, k = 2) {
+    if (![delta, E, k].every(Number.isFinite) || E < 0 || k < 1) throw new Error("gradeLabel needs finite delta, E >= 0 and k >= 1");
+    const a = Math.abs(delta);
+    if (a === 0 || a < E) return "Too close to call";
+    return `${a >= k * E ? "Clear" : "Small"} ${delta > 0 ? "gain" : "loss"}`;
+  }
+  const starterSlots = positions => (Array.isArray(positions) ? positions : []).filter(s => STARTER_SLOTS.has(s));
+  const sameSlots = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.slice().sort().join(",") === b.slice().sort().join(",");
+  // The eval file's view for THIS league, or null (gate closed). `league` is
+  // {slug, roster_positions}: the board slug and the live league's slots.
+  // Open only for schema_version 1 + verdict "pass" on the primary league or on
+  // `secondary` (its own verdict and strata), with slots equal (as a multiset,
+  // order aside) to the live starter slots, and at least one usable stratum.
+  function evalView(evalFile, league) {
+    if (!evalFile || typeof evalFile !== "object" || evalFile.schema_version !== 1 || !league) return null;
+    const live = starterSlots(league.roster_positions);
+    const k = Number.isFinite(evalFile.k) && evalFile.k >= 1 ? evalFile.k : 2;
+    const candidates = [evalFile, evalFile.secondary && typeof evalFile.secondary === "object" ? { ...evalFile.secondary, lopsided_cutoff: evalFile.secondary.lopsided_cutoff !== undefined ? evalFile.secondary.lopsided_cutoff : evalFile.lopsided_cutoff } : null];
+    for (const c of candidates) {
+      if (!c || c.league !== league.slug || c.verdict !== "pass" || !sameSlots(c.slots, live)) continue;
+      const strata = c.strata && typeof c.strata === "object" ? c.strata : {};
+      const usable = Object.values(strata).filter(s => s && Number.isFinite(s.E) && s.E >= 0);
+      if (!usable.length) continue;
+      return { league: c.league, slots: c.slots, strata, k, lopsided_cutoff: c.lopsided_cutoff };
+    }
+    return null;
+  }
+  const gateOpen = (evalFile, league) => evalView(evalFile, league) !== null;
+  // trade = {positions: [position of every moved player], shares: [fraction of
+  // weeks each moved player starts in his NEW roster's current-method lineup]}.
+  // A trade can sit in several strata.
+  function stratumOf(trade, currentDelta, evalFile) {
+    const out = [];
+    out.push(new Set(trade.positions).size <= 1 ? "same_position" : "cross_position");
+    if ((trade.shares || []).some(s => s < 0.5)) out.push("depth_for_starter");
+    const cut = evalFile && evalFile.lopsided_cutoff;
+    if (Number.isFinite(cut) && Number.isFinite(currentDelta) && Math.abs(currentDelta) >= cut) out.push("lopsided");
+    return out;
+  }
+  // Conservative error: the largest measured E among the trade's strata.
+  function errorFor(strataNames, view) {
+    const es = strataNames.map(n => view.strata[n]).filter(s => s && Number.isFinite(s.E)).map(s => s.E);
+    return es.length ? Math.max(...es) : null;
+  }
+  function gradeText(sim, ctx) {
+    const span = `weeks ${ctx.firstWeek}–${ctx.endWeek}`, n = sim.weeks.length;
+    const sides = sim.sides.map((s, i) => ({
+      name: i === 0 ? "Your lineup" : (ctx.names && ctx.names[s.rosterId]) || `roster ${s.rosterId}`,
+      label: gradeLabel(s.mean, ctx.E, ctx.k),
+      detail: `${fmt1(s.mean)} pts over ${span} (about ${fmt1(s.mean / n)} a week); likely range ${fmt1(s.p10)} to ${fmt1(s.p90)}; measured error on trades like this ≈ ±${ctx.E.toFixed(1)}`,
+    }));
+    return {
+      heading: `Simulated rest-of-season grade, ${span}`,
+      sides,
+      footnote: "Simulated from projections, with injury risk measured in past seasons. Draft picks and keeper value are not valued.",
+    };
+  }
+  // Positional rank = rank of ros_rank within the player's position among the
+  // file's players (1 = best).
+  function positionalRanks(rosRanks) {
+    const byPos = new Map();
+    for (const [id, r] of rosRanks) { if (!byPos.has(r.position)) byPos.set(r.position, []); byPos.get(r.position).push([id, r.ros_rank]); }
+    const out = new Map();
+    for (const list of byPos.values()) { list.sort((a, b) => a[1] - b[1]); list.forEach(([id], i) => out.set(id, i + 1)); }
+    return out;
+  }
+  // Market check, shown beside the grade and never blended into it. moves =
+  // {delta, give:[{gsis, name}], receive:[{gsis, name, started, of}]} from the
+  // user's side; delta is the model's mean Δ for that side. Returns null unless
+  // every moved player has a ROS rank AND the rank-implied direction (sum of
+  // 1/overall rank received minus given; lower rank = better) has the opposite
+  // sign to the model's. Names the players and ranks, plus a roster reason for
+  // any received player who would start in under half the weeks.
+  function marketText(moves, rosRanks) {
+    if (!moves || !(rosRanks instanceof Map) || !rosRanks.size) return null;
+    const give = moves.give || [], receive = moves.receive || [], all = [...give, ...receive];
+    if (!all.length || !Number.isFinite(moves.delta) || moves.delta === 0) return null;
+    const info = p => rosRanks.get(p.gsis);
+    if (!all.every(p => info(p) && Number.isFinite(info(p).ros_rank) && info(p).ros_rank > 0)) return null;
+    const value = list => list.reduce((n, p) => n + 1 / info(p).ros_rank, 0);
+    const implied = value(receive) - value(give);
+    if (implied === 0 || Math.sign(implied) === Math.sign(moves.delta)) return null;
+    const pos = positionalRanks(rosRanks);
+    const rank = x => (Number.isInteger(x) ? String(x) : x.toFixed(1));
+    const desc = p => `${p.name} (${info(p).position}${pos.get(p.gsis)}, overall ${rank(info(p).ros_rank)})`;
+    const side = list => (list.length ? andList(list.map(desc)) : "nobody");
+    let text = `Market check: the model shows a ${moves.delta > 0 ? "gain" : "loss"}, but expert rest-of-season ranks rate what you ${implied > 0 ? "get above what you give" : "give above what you get"}. You get ${side(receive)}; you give ${side(give)}.`;
+    const thin = receive.filter(p => Number.isFinite(p.started) && Number.isFinite(p.of) && p.of > 0 && p.started / p.of < 0.5);
+    if (thin.length) text += ` Roster reason: ${andList(thin.map(p => `${p.name} would start in only ${p.started} of ${p.of} weeks in your lineup`))}, so his rank counts for less here.`;
+    return text;
+  }
+  // Weeks (as a fraction) each moved player starts in his new roster's central
+  // lineup, read off analyze's per-week after-lineups: received players on
+  // side 0, the players you give on side 1.
+  function startCounts(result, giveIds, receiveIds) {
+    const of = result.weeks.length;
+    const count = (side, id) => result.weeks.filter(w => (w.sides[side].after.lineup || []).some(p => String(p.id) === String(id))).length;
+    return {
+      of,
+      receive: receiveIds.map(id => ({ id, started: count(0, id) })),
+      give: giveIds.map(id => ({ id, started: count(1, id) })),
+    };
   }
 
   // --- controller -----------------------------------------------------------
@@ -153,7 +269,7 @@
     // DIFFERENT committed bundle re-runs the load.
     let currentBundle = null;
     // Everything loaded for the current league snapshot. Reset wholesale on load.
-    const S = { rosters: [], users: new Map(), state: null, remaining: null, catalog: null, owned: null, picksUnknown: false, me: null, partner: null, loadedProvenance: "" };
+    const S = { rosters: [], users: new Map(), state: null, remaining: null, catalog: null, owned: null, picksUnknown: false, me: null, partner: null, loadedProvenance: "", evalFile: null, gate: null, availability: undefined, ros: undefined };
     const first = () => Math.max(Number(S.state.week), S.remaining.start_week) + 1;
     const last = () => S.remaining.end_week;
     const rosterName = rid => {
@@ -242,12 +358,18 @@
         hideAll();
         setStatus("reading traded picks, projections and the player catalog…");
         let picksUnknown = false;
-        const [tradedPicks, remaining, catalog] = await Promise.all([
+        const [tradedPicks, remaining, catalog, evalFile] = await Promise.all([
           get(`/league/${lid}/traded_picks`).catch(() => { picksUnknown = true; return null; }),
           W.FC.loadJSON(W.FC.leagueDataPath("remaining")).catch(() => null),
           SESSION.catalog(),
+          // The gate file. Missing, unreadable or not a pass: the page is exactly
+          // the conditional lineup scenario (gate closed).
+          W.FC.loadJSON("data/trade_sim_eval.json").catch(() => null),
         ]);
         if (stale()) return;
+        S.evalFile = evalFile;
+        S.gate = evalView(evalFile, { slug, roster_positions: league.roster_positions });
+        S.availability = undefined; S.ros = undefined;
         const { users, rosters, state, myRoster: me } = bundle;
         preflight({ users, rosters, state, remaining, catalog });
         if (!me) throw new PreflightError(SESSION.chipText(bundle, "ready", Date.now()));
@@ -545,13 +667,17 @@
           const ws = parseWeeks(text, first(), last());
           if (ws.length) excludeWeeks[id] = ws;
         }
-        const result = W.SeasonTrade.analyze({
+        const analyzeArgs = {
           remaining: S.remaining, league, rosters, catalog: S.catalog, board,
           rosterIds: [S.me.roster_id, S.partner.roster_id], give, receive, drops, excludeWeeks,
           currentWeek: week, assumeAvailable: true, now: Date.now(), snapshotAt,
-        });
-        render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters });
+        };
+        const result = W.SeasonTrade.analyze(analyzeArgs);
+        const handles = render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters, gated: Boolean(S.gate) });
         setStatus(`lineups compared for weeks ${result.weeks[0].week}–${result.weeks[result.weeks.length - 1].week}`);
+        // Gate open: the lineup scenario is already on screen; the grade fills
+        // its panel afterwards so the page never freezes on the simulation.
+        if (S.gate) await gradeStep({ analyzeArgs, result, give, receive, seq, handles, week, excludeWeeks, drops, rosters });
       } catch (e) {
         // A superseded refresh means the session moved on (new league load or
         // identity); sync() already owns the screen for that.
@@ -573,7 +699,7 @@
         + (deadline ? ` Trade deadline: week ${deadline} (league setting).` : "");
     }
 
-    function render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters }) {
+    function render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters, gated }) {
       const names = {};
       for (const s of result.sides) names[s.rosterId] = rosterName(s.rosterId);
       const playerNamesAll = {};
@@ -587,6 +713,14 @@
       });
       const out = els.result;
       out.replaceChildren();
+      // Gate open: the grade panel sits above the lineup summary, starting as a
+      // one-line "computing" note that gradeStep fills. Gate closed: no panel.
+      let panel = null;
+      if (gated) {
+        panel = el("div", null, "season-grade");
+        panel.append(el("p", "computing grade…", "season-subline"));
+        out.append(panel);
+      }
       // 0. plain-English summary: the bottom line before anything else
       const summary = el("div", null, "season-summary");
       for (const line of lineupSummary(result, { names, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week })) summary.append(el("p", line));
@@ -600,8 +734,9 @@
         return d;
       };
       // 1. headline + subline
-      const h = el("p", null, "season-headline"); h.append(el("strong", t.headline)); out.append(h);
-      out.append(el("p", t.subline, "season-subline"));
+      const h = el("p", null, "season-headline"), headlineEl = el("strong", t.headline); h.append(headlineEl); out.append(h);
+      const sublineEl = el("p", t.subline, "season-subline");
+      out.append(sublineEl);
       // 2. sides
       const sidesTable = el("table", null, "season-table");
       sidesTable.append(headRow(["side", "before", "after", "Δ"]));
@@ -644,6 +779,74 @@
       // 8. provenance
       els.provenance.textContent = provenanceText(snapshotAt);
       out.hidden = false;
+      // What a successful grade needs to re-word: once a simulated grade is on
+      // screen the closed-gate "no overall grade is shown" sentences are untrue.
+      const graded = () => {
+        const g = scenarioText(result, { names, playerNames: {}, playerNamesAll, picks, excludeWeeks, drops, currentWeek: week, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week, graded: true });
+        headlineEl.textContent = g.headline; sublineEl.textContent = g.subline;
+      };
+      return { panel, names, graded, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week };
+    }
+
+    // --- grade (gate open only) ---------------------------------------------
+    const gsisOf = id => {
+      const c = S.catalog[id] || {};
+      if (typeof c.gsis_id === "string" && c.gsis_id.trim()) return c.gsis_id.trim();
+      const b = ((board && board.players) || []).find(p => String(p.sleeper_id) === String(id));
+      return b ? b.player_id : null;
+    };
+    // Availability rates and the ROS reference, read once per league load. A
+    // missing availability file is a grade-unavailable reason; a bad ROS
+    // reference only withholds the market check.
+    async function gradeInputs() {
+      if (!S.availability) S.availability = await W.FC.loadJSON("data/availability.json").catch(() => null);
+      if (!S.ros) S.ros = await W.FC.loadJSON("data/ros-ecr.json").catch(() => null);
+    }
+    function rosRanksOrReason() {
+      if (!S.ros) return { reason: "ROS reference unavailable. ROS ranks withheld." };
+      try { return { ranks: W.WaiverIntel.prepareRos(S.ros, league.season, Date.now()) }; }
+      catch (e) { return { reason: `${e.message} ROS ranks withheld.` }; }
+    }
+    function fillPanel(panel, lines) {
+      panel.replaceChildren();
+      for (const l of lines) panel.append(l);
+    }
+    async function gradeStep({ analyzeArgs, result, give, receive, seq, handles }) {
+      const panel = handles.panel;
+      try {
+        await gradeInputs();
+        if (!S.availability) throw new Error("availability data is not published");
+        // Yield so the lineup scenario paints before the simulation blocks the thread.
+        await new Promise(r => setTimeout(r, 0));
+        if (seq !== compareSeq) return;
+        const sim = W.SeasonTrade.simulate({ ...analyzeArgs, availability: S.availability, seed: GRADE_SEED });
+        const starts = startCounts(result, give, receive);
+        const catalogPos = id => (S.catalog[id] || {}).position;
+        const trade = { positions: [...give, ...receive].map(catalogPos), shares: [...starts.receive, ...starts.give].map(x => x.started / starts.of) };
+        const names = stratumOf(trade, result.sides[0].delta, S.gate);
+        const E = errorFor(names, S.gate);
+        if (E === null) throw new Error("no measured error for this kind of trade");
+        const g = gradeText(sim, { names: handles.names, firstWeek: handles.firstWeek, endWeek: handles.endWeek, E, k: S.gate.k });
+        const lines = [];
+        const head = el("p", null, "season-headline"); head.append(el("strong", g.heading)); lines.push(head);
+        for (const s of g.sides) {
+          const p = el("p", null, "season-grade-side"); p.append(el("strong", `${s.name}: ${s.label}`)); lines.push(p);
+          lines.push(el("p", s.detail, "season-subline"));
+        }
+        const { ranks, reason } = rosRanksOrReason();
+        if (ranks) {
+          const moved = (ids, list) => ids.map((id, i) => ({ gsis: gsisOf(id), name: playerName(id), started: list[i].started, of: starts.of }));
+          const text = marketText({ delta: sim.sides[0].mean, give: moved(give, starts.give), receive: moved(receive, starts.receive) }, ranks);
+          if (text) lines.push(el("p", text, "season-subline"));
+        } else lines.push(el("p", reason, "season-subline"));
+        lines.push(el("p", g.footnote, "season-subline"));
+        if (seq !== compareSeq) return;
+        fillPanel(panel, lines);
+        handles.graded();
+      } catch (e) {
+        if (seq !== compareSeq) return;
+        fillPanel(panel, [el("p", `grade unavailable: ${e && e.message || e}`, "season-subline")]);
+      }
     }
 
     function renderBlocked(error) {
@@ -674,5 +877,6 @@
     sync();
   }
 
-  return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, coverageText, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init });
+  return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, coverageText, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init,
+    gradeLabel, gateOpen, evalView, stratumOf, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
 });

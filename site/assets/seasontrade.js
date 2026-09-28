@@ -9,6 +9,7 @@
   // module loader (shadowed for the rest of this scope) -- resolve ros.js via
   // module.require, the loader function Node always attaches to `module`.
   const ROS = (typeof module !== "undefined" && module.exports) ? module.require("./ros.js") : window.ROS;
+  const RosterSim = (typeof module !== "undefined" && module.exports) ? module.require("./rostersim.js") : window.RosterSim;
   function ids(values,label) {
     require(Array.isArray(values),`${label} must be an array`);
     require(values.every(v => (typeof v==="string" && v.trim()) || (typeof v==="number" && Number.isFinite(v))),`${label} contains invalid identity`);
@@ -18,7 +19,10 @@
   }
   // Lineup solver moved to ros.js (shared with waivers.js/waivermode.js).
   const asLineup=r=>{require(Number.isFinite(r.total),`Roster cannot fill required ${r.unfillable} slot; no replacement score assumed`);return {total:r.total,lineup:r.starters.map(s=>({...s.player,slot:s.slot}))};};
-  function analyze({remaining,league,rosters,catalog,board,rosterIds,give=[],receive=[],drops={},excludeWeeks={},currentWeek,assumeAvailable,now=Date.now(),snapshotAt}) {
+  // Identity, coverage and roster resolution shared by analyze (central lineup
+  // scenario) and simulate (seeded season simulation): both must resolve the
+  // same players the same way, so this is the one place it happens.
+  function resolveScenario({remaining,league,rosters,catalog,board,rosterIds,give=[],receive=[],drops={},excludeWeeks={},currentWeek,assumeAvailable,now=Date.now(),snapshotAt}) {
     catalog=Object.fromEntries(Object.entries(catalog||{}).map(([id,c])=>[id,{...c,gsis_id:typeof c.gsis_id==="string"?c.gsis_id.trim():null}]));
     require(assumeAvailable===true,"Explicit conditional-availability assumption required");
     require(Number.isFinite(now)&&Number.isFinite(snapshotAt)&&now>=snapshotAt&&now-snapshotAt<=60000,"Roster snapshot stale or invalid; reload");
@@ -137,6 +141,10 @@
       error.coverageIssues=coverageIssues;
       throw error;
     }
+    return {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,projections,excludeWeeks,currentWeek,gsisOwners};
+  }
+  function analyze(args) {
+    const {remaining,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,excludeWeeks,currentWeek}=resolveScenario(args);
     const weeks=[];
     for(let week=first;week<=remaining.end_week;week++) {
       const sides=selected.map((rid,i)=>{
@@ -152,7 +160,67 @@
       availabilityFlags:[...relevant].filter(id=>catalog[id]?.injury_status).map(id=>({id,name:catalog[id].full_name||id,status:catalog[id].injury_status,interpretation:"Reported catalog tag; no return-date inference"})),
       warnings:["All non-excluded active players are assumed available, including reported injuries; availability is not predicted.","No keeper, future-pick, waiver-replacement, bench insurance or the other side's willingness to deal.","Sum of weekly lineup central scenarios, not a season median or calibrated uncertainty interval.","Current-week games are excluded. Verify processing time, platform eligibility and future roster constraints."]};
   }
-  const api=Object.freeze({analyze});
+  // Seeded season simulation of the same scenario analyze compares. Identity,
+  // coverage and roster resolution are resolveScenario's, so both functions see
+  // the same players. Adds p10/p90 (points.league), injury_status -> tag, the
+  // user's excluded weeks -> forcedOut, and a free-agent replacement pool sized
+  // from the lineup slots so the pool ALONE can fill every slot each week.
+  // `freeAgents` (optional GSIS ids) overrides the derived pool, which is: every
+  // remaining-payload player whose GSIS id maps to no rostered player.
+  function simulate(args) {
+    const {availability,freeAgents,seed=20260924,nSims=2000}=args;
+    const ctx=resolveScenario(args);
+    const {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,first,projections,excludeWeeks}=ctx;
+    const weeks=[];for(let w=first;w<=remaining.end_week;w++)weeks.push(w);
+    const rowFor=(p,week,forced)=>{
+      const row=p.weeks.find(x=>x.week===week);   // resolveScenario proved exactly one row per week
+      if(forced||row.status==="bye"||row.status!=="conditional_projection")return {status:"bye"};
+      const l=row.points&&row.points.league||{};
+      return {status:"play",p10:l.p10,p50:l.p50,p90:l.p90};
+    };
+    const players={},simIds=new Set();
+    for(const id of relevant) {
+      const c=catalog[id];
+      if(!skill.has(c.position))continue;          // K/DEF carry no modeled points
+      const p=projections.get(c.gsis_id),forced=new Set(excludeWeeks[id]||[]),rows={};
+      for(const w of weeks)rows[w]=rowFor(p,w,forced.has(w));
+      players[id]={position:c.position,tag:c.injury_status||null,weeks:rows};
+      simIds.add(id);
+    }
+    // Replacement pool: free agents ranked by p50 each week; the head count per
+    // position is what the slots could ask of that position at once.
+    const owned=new Set();
+    const boardGsis=new Map((board&&board.players||[]).filter(p=>p.sleeper_id&&p.player_id).map(p=>[String(p.sleeper_id),p.player_id]));
+    for(const r of rosters) for(const id of [...(r.players||[]),...(r.reserve||[]),...(r.taxi||[])].map(String)) {
+      const g=(catalog[id]&&catalog[id].gsis_id)||boardGsis.get(id);
+      if(g)owned.add(g);
+    }
+    const dedicated=pos=>slots.filter(s=>s===pos).length;
+    const flex=slots.filter(s=>s==="FLEX").length,sflex=slots.filter(s=>s==="SUPER_FLEX").length;
+    const need={QB:dedicated("QB")+sflex,RB:dedicated("RB")+flex,WR:dedicated("WR")+flex,TE:dedicated("TE")+flex};
+    const pool=Array.isArray(freeAgents)?new Set(freeAgents.map(String)):null;
+    const faList=remaining.players.filter(p=>skill.has(p.position)&&(pool?pool.has(p.player_id):!owned.has(p.player_id))&&Array.isArray(p.weeks));
+    const replacement={};
+    for(const w of weeks) {
+      const byPos={QB:[],RB:[],WR:[],TE:[]};
+      for(const p of faList) {
+        const row=p.weeks.find(x=>x.week===w),l=row&&row.status==="conditional_projection"&&row.points&&row.points.league;
+        if(l&&[l.p10,l.p50,l.p90].every(Number.isFinite))byPos[p.position].push({id:p.player_id,p10:l.p10,p50:l.p50,p90:l.p90});
+      }
+      for(const pos of Object.keys(byPos))byPos[pos]=byPos[pos].sort((x,y)=>y.p50-x.p50||(x.id<y.id?-1:1)).slice(0,need[pos]).map(({p10,p50,p90})=>({p10,p50,p90}));
+      replacement[w]=byPos;
+    }
+    const forcedOut={};
+    for(const [id,ws] of Object.entries(excludeWeeks))if(simIds.has(id))forcedOut[id]=ws;
+    const world=RosterSim.createWorld({weeks,slots,players,availability,replacement,forcedOut,nSims,seed});
+    const keep=list=>list.filter(id=>simIds.has(id));
+    return {weeks,nSims:world.nSims,sides:selected.map((rid,i)=>{
+      const b=keep(before[i]),a=keep(after[i]),c=RosterSim.compare(world,b,a);
+      const wb=world.value(b).perWeek,wa=world.value(a).perWeek;
+      return {rosterId:rosterMap.get(rid).roster_id,mean:c.mean,p10:c.p10,p90:c.p90,pPositive:c.pPositive,perWeek:wa.map((x,j)=>x-wb[j])};
+    })};
+  }
+  const api=Object.freeze({analyze,simulate});
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   if(typeof window!=="undefined")window.SeasonTrade=api;
 })();

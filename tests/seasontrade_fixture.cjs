@@ -124,4 +124,56 @@ assert.throws(()=>analyze({...gaps,catalog:{...catalog,a:{...catalog.a,gsis_id:n
   p.weeks.push({ ...p.weeks[0] });
   assert.throws(() => analyze(dup), /Missing\/duplicate projection week/);
 }
+// --- simulate: same resolution as analyze, seeded season simulation ------------
+{
+  const {simulate}=require('../site/assets/seasontrade.js');
+  const A={p_out:{QB:.05,RB:.08,WR:.07,TE:.06},p_stay:{QB:.4,RB:.5,WR:.45,TE:.4},p_tag:{Out:.95,Doubtful:.8,Questionable:.2,IR:.98}};
+  const q=v=>({p50:v,p10:v*.6,p90:v*1.5});
+  const withFA=clone(base);
+  // Two free agents (in the catalog and the projections, on no roster); the pool
+  // alone must fill the single RB slot every week.
+  for(const [id,v] of [['e',3],['f',1]]) {
+    withFA.catalog[id]={gsis_id:'g'+id,position:'RB',team:'A',full_name:id};
+    withFA.remaining.players.push({player_id:'g'+id,team:'A',position:'RB',weeks:[2,3].map(week=>({week,status:'conditional_projection',points:{league:q(v)}}))});
+  }
+  for(const p of withFA.remaining.players) if(['ga','gb','gc','gd'].includes(p.player_id)) for(const w of p.weeks) w.points={league:q(w.points.league.p50)};
+  const args={...withFA,availability:A,seed:7,nSims:400};
+  const s1=simulate(args);
+  assert.deepEqual(s1.weeks,[2,3]);
+  assert.equal(s1.nSims,400);
+  assert.equal(s1.sides.length,2);
+  for(const s of s1.sides) {
+    for(const k of ['mean','p10','p90','pPositive']) assert.ok(Number.isFinite(s[k]),k);
+    assert.equal(s.perWeek.length,2);assert.ok(s.perWeek.every(Number.isFinite));
+    assert.ok(s.p10<=s.mean&&s.mean<=s.p90);
+  }
+  assert.deepEqual(s1.sides.map(s=>s.rosterId),[1,2]);
+  assert.ok(s1.sides[0].mean>0&&s1.sides[1].mean<0,'a for c: gain for roster 1, the reverse for roster 2');
+  assert.ok(Math.abs(s1.sides[0].perWeek.reduce((x,y)=>x+y,0)-s1.sides[0].mean)<1e-6,'per-week means add up to the mean');
+  assert.deepEqual(simulate(args),s1,'same seed and inputs, same numbers');
+  assert.notEqual(simulate({...args,seed:8}).sides[0].mean,s1.sides[0].mean);
+  // the analyze contract is untouched by the shared resolution
+  assert.deepEqual(analyze(withFA).sides.map(s=>s.delta),[20,-20]);
+  // explicit free-agent ids override the derived pool; an empty pool cannot fill the slot
+  assert.deepEqual(simulate({...args,freeAgents:['ge','gf']}),s1,'derived pool = e and f');
+  assert.throws(()=>simulate({...args,freeAgents:[]}),e=>e.name==='RosterSimError'&&/no replacement/.test(e.message));
+  // rostered players are never free agents: with nobody else projected, no replacement
+  const noFA=clone(base);
+  for(const p of noFA.remaining.players) for(const w of p.weeks) w.points={league:q(w.points.league.p50)};
+  assert.throws(()=>simulate({...noFA,availability:A}),e=>e.name==='RosterSimError'&&/no replacement/.test(e.message));
+  // coverage gaps block exactly as analyze does, before any simulation
+  const gap=clone(args);gap.remaining.players.find(p=>p.player_id==='ga').weeks[0].status='unmodeled';
+  assert.throws(()=>simulate(gap),e=>e.name==='ProjectionCoverageError');
+  // identity failures are analyze's, verbatim
+  assert.throws(()=>simulate({...args,catalog:{...args.catalog,other:{...args.catalog.a}}}),/ambiguous GSIS/);
+  assert.throws(()=>simulate({...args,assumeAvailable:false}),/conditional-availability/);
+  // a missing availability table is a loud RosterSimError, never a default
+  assert.throws(()=>simulate({...args,availability:undefined}),e=>e.name==='RosterSimError'&&/availability/.test(e.message));
+  // user-marked weeks feed forcedOut: c out both weeks removes his gain
+  const forced=simulate({...args,excludeWeeks:{c:[2,3]}});
+  assert.ok(forced.sides[0].mean<s1.sides[0].mean-5,'an excluded incoming player adds far less');
+  // reported tags reach the simulation: an IR-tagged c is mostly out early
+  const tagged=simulate({...args,catalog:{...args.catalog,c:{...args.catalog.c,injury_status:'IR'}}});
+  assert.ok(tagged.sides[0].mean<s1.sides[0].mean-3,'IR tag lowers first-week availability');
+}
 console.log('seasontrade_fixture: OK');
