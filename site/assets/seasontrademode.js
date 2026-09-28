@@ -654,7 +654,7 @@
     let footerOriginal = null;
     function setFooter(graded) {
       const f = typeof document !== "undefined" && document.querySelector ? document.querySelector("footer") : null;
-      if (!f) return;
+      if (!f || (!graded && footerOriginal === null)) return;   // never written unless a grade changed it
       if (footerOriginal === null) footerOriginal = f.textContent;
       f.textContent = graded ? "Pre-draft: values players and draft picks before the draft. In season: conditional lineup scenarios, plus a simulated grade with its measured error when one is published." : footerOriginal;
     }
@@ -848,6 +848,9 @@
     async function gradeStep({ analyzeArgs, result, give, receive, seq, handles }) {
       const panel = handles.panel;
       try {
+        // Tested population (spec §10.2): the error bands were measured only on trades where
+        // each side gives a player who starts in at least half the weeks of its own before-lineup.
+        if (!startCounts(result, give, receive).sides.every(s => s.give.some(x => x >= 0.5))) throw new Error("the grade is measured only for trades where each side gives a starter");
         await gradeInputs();
         if (!S.availability) throw new Error("availability data is not published");
         // Yield so the lineup scenario paints before the simulation blocks the thread.

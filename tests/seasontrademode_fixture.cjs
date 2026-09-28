@@ -319,7 +319,9 @@ async function initSmoke() {
     SeasonTrade: { analyze: args => { analyzed.push(args); return { weeks: [{ week: 4, sides: [{ before: { total: 1, lineup: [] }, after: { total: 1, lineup: [] }, delta: 0 }, { before: { total: 1, lineup: [] }, after: { total: 1, lineup: [] }, delta: 0 }] }], sides: [{ rosterId: 1, delta: 0 }, { rosterId: 2, delta: 0 }], warnings: [] }; } },
     ROS: { evaluationText: () => [] },
   };
-  global.document = { createElement: tag => Object.assign(mk(), { tagName: String(tag).toUpperCase() }), createTextNode: t => t };
+  let footerWrites = 0;
+  const closedFooter = { get textContent() { return "footer"; }, set textContent(v) { footerWrites++; } };
+  global.document = { createElement: tag => Object.assign(mk(), { tagName: String(tag).toUpperCase() }), createTextNode: t => t, querySelector: sel => (sel === "footer" ? closedFooter : null) };
   try {
     const board = { league: { name: "Lg", league_id: "L1" } };
     M.init({ board, league, slug: "lg", els });
@@ -372,6 +374,7 @@ async function initSmoke() {
     assert.equal(analyzed[0].snapshotAt, fresh.rostersFetchedAt, "snapshotAt is the NEW bundle's post-fetch time");
     assert.equal(analyzed[0].rosters, fresh.rosters);
     assert.equal(analyzed[0].assumeAvailable, true, "the engine still receives the availability assumption");
+    assert.equal(footerWrites, 0, "gate closed: the footer node is never written");
     assert.equal(els.result.hidden, false);
     // summary first, then the headline; the detail sections are collapsible
     assert.equal(els.result.children[0].className, "season-summary", "closed gate: the summary is the first child, no grade panel");
@@ -455,7 +458,10 @@ async function gateSmoke() {
   const analyzed = [], simulated = [], loaded = [];
   const lineup = ids => ids.map(id => ({ id, name: id }));
   // 3 weeks; the incoming p2 starts in one of them (a thin starter), p1 in all for the partner.
-  const analyzeResult = { weeks: [4, 5, 6].map(w => ({ week: w, sides: [{ before: { total: 1, lineup: [] }, after: { total: 3, lineup: lineup(w === 4 ? ["p2"] : []) }, delta: 2 }, { before: { total: 1, lineup: [] }, after: { total: 0, lineup: lineup(["p1"]) }, delta: -2 }] })), sides: [{ rosterId: 1, delta: 6 }, { rosterId: 2, delta: -6 }], warnings: [] };
+  // Both sides give a starter (before-lineups) by default; env.benchOnly makes the partner give only a non-starter.
+  const mkResult = () => ({ weeks: [4, 5, 6].map(w => ({ week: w, sides: [
+    { before: { total: 1, lineup: lineup(["p1"]) }, after: { total: 3, lineup: lineup(w === 4 ? ["p2"] : []) }, delta: 2 },
+    { before: { total: 1, lineup: env.benchOnly ? [] : lineup(["p2"]) }, after: { total: 0, lineup: lineup(["p1"]) }, delta: -2 }] })), sides: [{ rosterId: 1, delta: 6 }, { rosterId: 2, delta: -6 }], warnings: [] });
   global.window = {
     Session: Sess,
     Sleeper: { get: async path => { if (path.endsWith("/traded_picks")) return []; throw new Error(`unexpected fetch ${path}`); } },
@@ -470,7 +476,7 @@ async function gateSmoke() {
     Trade: { defaultPicks: () => new Map(), applyTradedPicks: () => {} }, Keepers: { DRAFT_ROUNDS: 1 },
     WaiverIntel: require("../site/assets/waiverintel.js"),
     SeasonTrade: {
-      analyze: args => { analyzed.push(args); return analyzeResult; },
+      analyze: args => { analyzed.push(args); return mkResult(); },
       simulate: args => {
         simulated.push(args);
         if (env.simThrows) throw Object.assign(new Error(env.simThrows), { name: "RosterSimError" });
@@ -521,6 +527,17 @@ async function gateSmoke() {
     for (const w of M.GRADE_FORBIDDEN) assert.ok(!panelText.includes(w), `"${w}" in the live panel: ${panelText}`);
     const all = text(els.result);
     assert.ok(all.includes("Lineup scenario from central (p50) projections") && !/not a trade verdict|no overall grade/.test(all), "closed-gate disclaimers are re-worded once a grade is shown");
+    // 1b. tested population only: a side that gives no starter -> no grade, no simulation
+    env.benchOnly = true;
+    const simsBefore = simulated.length;
+    await run();
+    assert.deepEqual(panelLines(), ["grade unavailable: the grade is measured only for trades where each side gives a starter"]);
+    assert.equal(simulated.length, simsBefore, "no simulation outside the tested population");
+    assert.equal(els.result.children[1].className, "season-summary", "the lineup scenario stays");
+    assert.equal(footer.textContent, footerBefore);
+    env.benchOnly = false;
+    await run();
+    assert.equal(panelLines()[1], "Your lineup: Small gain", "starter for starter is graded");
     // 2. a sim failure: the lineup scenario stays, one line replaces the panel, no partial grade
     env.simThrows = "no replacement available for RB in week 4";
     await run();
