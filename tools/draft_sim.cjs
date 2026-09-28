@@ -754,7 +754,7 @@ function main() {
   console.log(`\nwrote ${out}`);
 }
 
-module.exports = { runDraft, actualPoints, marketOrder, marketPick, evaluateSeason, dryRun, assertMarketDepth,
+module.exports = { runDraft, applyLeague, actualPoints, marketOrder, marketPick, evaluateSeason, dryRun, assertMarketDepth,
                    loadKeepers, marketFloor,
                    assertWorldUsable,
                    summarize, pickForRoundSlot, futurePicks, rng, ADP_NOISE_RANKS, setNoise,
