@@ -234,3 +234,21 @@ draft experiments.
 
 Trade suggestions and league-wide scans; pick and keeper valuation; blending expert ranks
 into the number; start/sit changes; ESPN.
+
+## 10. Amendment — test rules fixed before the full run (owner decisions 2026-09-28)
+
+Made after the Task 4 review, before any full-run result existed. They supersede §6 where they differ.
+
+1. **Waiver decision set.** Candidate adds per roster and origin are the top undrafted players by mean frozen p50
+   over origin..17 with a per-position quota: QB 2, RB 3, WR 3, TE 2 (the §6.5 "top 10 by p50" was 100% QBs in a
+   1-QB league). Every arm's replacement pool for a waiver decision excludes that add.
+2. **Trade population.** A sampled trade is kept only if each side gives at least one player who is in its own
+   current-method before-lineup in at least half the weeks origin..17 (frozen p50 only; decided before any
+   prediction). `depth_for_starter` is redefined: a side gives at least one before-lineup starter and receives no
+   player who starts in at least half the weeks of its after-lineup.
+3. **Error band by horizon.** `E` per stratum and the lopsided cutoff are measured and published per origin
+   (origin 5 = 13 weeks remaining, origin 9 = 9 weeks). The live page uses the origin whose remaining-week count is
+   nearest to the live remaining-week count (ties → the shorter horizon). Slim eval file becomes `schema_version: 2`
+   with `horizons: [{origin, weeks, strata:{name:{E,n}}, lopsided_cutoff}]` (and the same under `secondary`).
+4. **Dropped cells fail closed.** If any planned primary (season, origin, league) cell is excluded, `verdict` and
+   `waiver_verdict` are "fail"; the excluded count is published.
