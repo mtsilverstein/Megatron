@@ -135,48 +135,69 @@ check("gradeLabel: boundaries at exactly E and 2E, and the negative mirror", () 
 });
 const SLOTS = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX"];
 const LEAGUE = { slug: "gabagool", roster_positions: [...SLOTS, "K", "DEF", "BN", "BN", "IR"] };
-const EVAL = { schema_version: 1, league: "gabagool", slots: SLOTS, verdict: "pass", waiver_verdict: "fail", k: 2,
-  strata: { same_position: { E: 5.5, n: 900 }, cross_position: { E: 6.1, n: 700 }, depth_for_starter: { E: 4.2, n: 300 }, lopsided: { E: 9.0, n: 400 } },
-  lopsided_cutoff: 30, seasons: [2023, 2024, 2025], origins: [5, 9], generated_at: "2026-09-30T00:00:00Z",
-  secondary: { league: "fam", slots: ["QB", "RB", "WR", "TE", "FLEX", "FLEX"], verdict: "pass", strata: { same_position: { E: 3.3, n: 100 } } } };
+const H5 = { origin: 5, weeks: 13, strata: { same_position: { E: 5.5, n: 900 }, cross_position: { E: 6.1, n: 700 }, depth_for_starter: { E: 4.2, n: 300 }, lopsided: { E: 9.0, n: 400 } }, lopsided_cutoff: 30 };
+const H9 = { origin: 9, weeks: 9, strata: { same_position: { E: 4.0, n: 900 }, cross_position: { E: 4.5, n: 700 }, depth_for_starter: { E: 3.0, n: 300 }, lopsided: { E: 7.0, n: 400 } }, lopsided_cutoff: 22 };
+const EVAL = { schema_version: 2, league: "gabagool", slots: SLOTS, verdict: "pass", waiver_verdict: "fail", k: 2, horizons: [H5, H9],
+  seasons: [2023, 2024, 2025], origins: [5, 9], excluded_cells: 0, generated_at: "2026-09-30T00:00:00Z",
+  secondary: { league: "fam", slots: ["QB", "RB", "WR", "TE", "FLEX", "FLEX"], verdict: "pass", waiver_verdict: "fail", excluded_cells: 0, horizons: [{ origin: 5, weeks: 13, strata: { same_position: { E: 3.3, n: 100 } }, lopsided_cutoff: 12 }] } };
 check("gateOpen: true only for a passing file that matches this league and its starter slots", () => {
   assert.equal(M.gateOpen(EVAL, LEAGUE), true);
   assert.equal(M.gateOpen(EVAL, { ...LEAGUE, roster_positions: ["RB", "WR", "WR", "RB", "TE", "QB", "FLEX", "BN"] }), true, "slot order and non-starter slots do not matter");
   for (const [name, file] of [["missing", null], ["undefined", undefined], ["not an object", "pass"],
     ["verdict fail", { ...EVAL, verdict: "fail" }], ["verdict absent", { ...EVAL, verdict: undefined }], ["verdict PASS", { ...EVAL, verdict: "PASS" }],
-    ["schema 2", { ...EVAL, schema_version: 2 }], ["schema absent", { ...EVAL, schema_version: undefined }],
+    ["schema 1 (old contract)", { ...EVAL, schema_version: 1 }], ["schema 3", { ...EVAL, schema_version: 3 }], ["schema absent", { ...EVAL, schema_version: undefined }],
     ["other league slug", { ...EVAL, league: "fam" }], ["different slots", { ...EVAL, slots: ["QB", "RB", "WR", "TE"] }],
-    ["slots missing", { ...EVAL, slots: undefined }], ["no strata", { ...EVAL, strata: {} }], ["strata E not finite", { ...EVAL, strata: { same_position: { E: "6", n: 1 } } }]])
+    ["slots missing", { ...EVAL, slots: undefined }], ["no horizons", { ...EVAL, horizons: [] }], ["horizons not an array", { ...EVAL, horizons: H5 }], ["horizon without strata", { ...EVAL, horizons: [{ origin: 5, weeks: 13, strata: {} }] }], ["horizon E not finite", { ...EVAL, horizons: [{ ...H5, strata: { same_position: { E: "6", n: 1 } } }] }], ["horizon weeks not finite", { ...EVAL, horizons: [{ ...H5, weeks: "13" }] }], ["file league empty", { ...EVAL, league: "" }]])
     assert.equal(M.gateOpen(file, LEAGUE), false, name);
   assert.equal(M.gateOpen(EVAL, { slug: "gabagool", roster_positions: ["QB", "RB", "WR", "TE", "FLEX", "FLEX"] }), false, "live slots differ from the file's");
   assert.equal(M.gateOpen(EVAL, { slug: "gabagool" }), false, "no live slots");
+  assert.equal(M.gateOpen({ ...EVAL, league: undefined }, { roster_positions: LEAGUE.roster_positions }), false, "undefined === undefined must not open the gate");
+  assert.equal(M.gateOpen({ ...EVAL, league: undefined }, { slug: undefined, roster_positions: LEAGUE.roster_positions }), false);
+  assert.equal(M.gateOpen({ ...EVAL, league: "" }, { slug: "", roster_positions: LEAGUE.roster_positions }), false, "an empty slug never matches");
 });
 check("gateOpen: the secondary league opens on its own verdict, slots and strata", () => {
   const fam = { slug: "fam", roster_positions: ["QB", "RB", "WR", "TE", "FLEX", "FLEX", "BN"] };
   assert.equal(M.gateOpen(EVAL, fam), true);
-  assert.equal(M.evalView(EVAL, fam).strata.same_position.E, 3.3);
-  assert.equal(M.evalView(EVAL, fam).lopsided_cutoff, 30, "falls back to the file's cutoff when the secondary has none");
+  assert.equal(M.evalView(EVAL, fam).horizons[0].strata.same_position.E, 3.3);
+  assert.equal(M.evalView(EVAL, fam).horizons[0].lopsided_cutoff, 12, "the secondary carries its own cutoffs");
   assert.equal(M.gateOpen({ ...EVAL, secondary: { ...EVAL.secondary, verdict: "fail" } }, fam), false);
   assert.equal(M.gateOpen({ ...EVAL, verdict: "fail" }, fam), true, "the secondary's verdict is independent of the primary's");
   assert.equal(M.gateOpen({ ...EVAL, secondary: { ...EVAL.secondary, slots: SLOTS } }, fam), false);
 });
-check("stratumOf: position mix, depth for a starter, and the lopsided cutoff", () => {
-  const same = { positions: ["WR", "WR"], shares: [1, 1] };
-  assert.deepEqual(M.stratumOf(same, 5, EVAL), ["same_position"]);
-  assert.deepEqual(M.stratumOf({ positions: ["WR", "RB"], shares: [1, 1] }, 5, EVAL), ["cross_position"]);
-  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], shares: [1, 0.49] }, 5, EVAL), ["same_position", "depth_for_starter"]);
-  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], shares: [1, 0.5] }, 5, EVAL), ["same_position"], "exactly half the weeks is not depth");
-  assert.deepEqual(M.stratumOf(same, -30, EVAL), ["same_position", "lopsided"], "|Δ| at the cutoff is lopsided");
-  assert.deepEqual(M.stratumOf(same, 29.9, EVAL), ["same_position"]);
-  assert.deepEqual(M.stratumOf({ positions: ["QB", "TE"], shares: [0, 1] }, 40, EVAL), ["cross_position", "depth_for_starter", "lopsided"]);
-  assert.deepEqual(M.stratumOf(same, 99, { ...EVAL, lopsided_cutoff: undefined }), ["same_position"], "no cutoff, no lopsided stratum");
+check("pickHorizon: nearest remaining-week count, ties go to the shorter horizon", () => {
+  const hs = [H5, H9];
+  assert.equal(M.pickHorizon(hs, 13).origin, 5);
+  assert.equal(M.pickHorizon(hs, 9).origin, 9);
+  assert.equal(M.pickHorizon(hs, 11).origin, 9, "a tie -> the shorter horizon");
+  assert.equal(M.pickHorizon(hs, 4).origin, 9);
+  assert.equal(M.pickHorizon(hs, 16).origin, 5);
+  assert.equal(M.pickHorizon([H9, H5], 11).origin, 9, "order in the file does not matter");
+  assert.equal(M.pickHorizon([], 9), null);
+  assert.equal(M.pickHorizon(null, 9), null);
+  assert.equal(M.pickHorizon(hs, NaN), null);
 });
-check("errorFor: the largest E among the trade's strata; none measured -> null", () => {
-  const view = M.evalView(EVAL, LEAGUE);
-  assert.equal(M.errorFor(["same_position"], view), 5.5);
-  assert.equal(M.errorFor(["same_position", "depth_for_starter", "lopsided"], view), 9.0);
-  assert.equal(M.errorFor(["cross_position", "depth_for_starter"], view), 6.1);
-  assert.equal(M.errorFor(["something_else"], view), null);
+// A side is {give: [before-lineup start share of each player it gives], receive: [after-lineup share of each it gets]}.
+const S1 = (give, receive) => ({ give, receive });
+check("stratumOf: position mix, depth for a starter (spec §10.2), and the lopsided cutoff", () => {
+  const same = { positions: ["WR", "WR"], sides: [S1([1], [1]), S1([1], [1])] };
+  assert.deepEqual(M.stratumOf(same, 5, H5), ["same_position"]);
+  assert.deepEqual(M.stratumOf({ ...same, positions: ["WR", "RB"] }, 5, H5), ["cross_position"]);
+  // depth: a side gives a starter (>= half the weeks) and receives nobody who starts (>= half)
+  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], sides: [S1([0.8], [0.49]), S1([0.2], [1])] }, 5, H5), ["same_position", "depth_for_starter"]);
+  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], sides: [S1([0.5], [0.5]), S1([0.2], [1])] }, 5, H5), ["same_position"], "a receiver starting exactly half the weeks is a starter");
+  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], sides: [S1([0.49], [0]), S1([0.3], [0])] }, 5, H5), ["same_position"], "giving only bench players is not depth-for-starter");
+  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], sides: [S1([1], [1]), S1([1], [0.2])] }, 5, H5), ["same_position", "depth_for_starter"], "either side can qualify");
+  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR", "RB"], sides: [S1([1, 0.9], [0.1]), S1([1], [0.7, 0.1])] }, 5, H5), ["cross_position", "depth_for_starter"], "a starter arriving in a 2-for-1 clears depth on that side only");
+  assert.deepEqual(M.stratumOf(same, -30, H5), ["same_position", "lopsided"], "|Δ| at the cutoff is lopsided");
+  assert.deepEqual(M.stratumOf(same, 29.9, H5), ["same_position"]);
+  assert.deepEqual(M.stratumOf(same, 25, H9), ["same_position", "lopsided"], "the cutoff is the chosen horizon's");
+  assert.deepEqual(M.stratumOf(same, 99, { strata: H5.strata }), ["same_position"], "no cutoff, no lopsided stratum");
+});
+check("errorFor: the largest E among the trade's strata in the chosen horizon; none measured -> null", () => {
+  assert.equal(M.errorFor(["same_position"], H5), 5.5);
+  assert.equal(M.errorFor(["same_position", "depth_for_starter", "lopsided"], H5), 9.0);
+  assert.equal(M.errorFor(["cross_position", "depth_for_starter"], H9), 4.5);
+  assert.equal(M.errorFor(["something_else"], H5), null);
 });
 const RANKS = new Map([
   ["gw1", { position: "WR", team: "A", ros_rank: 8 }], ["gw2", { position: "WR", team: "B", ros_rank: 40 }], ["gw3", { position: "WR", team: "C", ros_rank: 3 }],
@@ -215,9 +236,15 @@ check("gradeText: the sample line, and every panel string passes GRADE_FORBIDDEN
   assert.match(graded.subline, /not valued/);
   assert.equal(M.scenarioText(result, ctx).headline, M.HEADLINE, "closed-gate scenario text is unchanged");
 });
-check("startCounts reads each moved player's starting weeks off the after-lineups", () => {
-  const r = { weeks: [0, 1, 2, 3].map(w => ({ week: w, sides: [{ after: { lineup: [{ id: "in1" }, ...(w < 1 ? [{ id: "in2" }] : [])] } }, { after: { lineup: w % 2 ? [{ id: "out1" }] : [] } }] })) };
-  assert.deepEqual(M.startCounts(r, ["out1"], ["in1", "in2"]), { of: 4, receive: [{ id: "in1", started: 4 }, { id: "in2", started: 1 }], give: [{ id: "out1", started: 2 }] });
+check("startCounts reads each moved player's starting weeks off the lineups", () => {
+  const r = { weeks: [0, 1, 2, 3].map(w => ({ week: w, sides: [
+    { before: { lineup: [{ id: "out1" }] }, after: { lineup: [{ id: "in1" }, ...(w < 1 ? [{ id: "in2" }] : [])] } },
+    { before: { lineup: w < 3 ? [{ id: "in1" }] : [] }, after: { lineup: w % 2 ? [{ id: "out1" }] : [] } }] })) };
+  const c = M.startCounts(r, ["out1"], ["in1", "in2"]);
+  assert.equal(c.of, 4);
+  assert.deepEqual(c.receive, [{ id: "in1", started: 4 }, { id: "in2", started: 1 }]);
+  assert.deepEqual(c.give, [{ id: "out1", started: 2 }]);
+  assert.deepEqual(c.sides, [{ give: [1], receive: [1, 0.25] }, { give: [0.75, 0], receive: [0.5] }]);
 });
 check("requiring the module in node leaves window untouched and exports a callable init", () => {
   assert.equal(typeof global.window, "undefined", "the UMD wrapper must not create a global window in node");
@@ -347,7 +374,8 @@ async function initSmoke() {
     assert.equal(analyzed[0].assumeAvailable, true, "the engine still receives the availability assumption");
     assert.equal(els.result.hidden, false);
     // summary first, then the headline; the detail sections are collapsible
-    assert.equal(els.result.children[0].className, "season-summary");
+    assert.equal(els.result.children[0].className, "season-summary", "closed gate: the summary is the first child, no grade panel");
+    assert.ok(!els.result.children.some(c => c.className === "season-grade"));
     assert.equal(els.result.children[0].children[0].textContent, "No change to either starting lineup in weeks 4–4 under these assumptions.");
     const details = els.result.children.filter(c => c.tagName === "DETAILS");
     assert.deepEqual(details.map(d => d.children[0].textContent), ["Week-by-week lineup totals", "Assumptions", "Engine notes", "Measured evaluation"]);
@@ -417,7 +445,9 @@ async function gateSmoke() {
   Sess.catalog = async () => ({ p1: { position: "RB", full_name: "Ann Aaron", team: "X", gsis_id: "g1" }, p2: { position: "WR", full_name: "Bo Byrd", team: "Y", gsis_id: "g2" }, p3: { position: "RB", full_name: "C", team: "Z", gsis_id: "g3" } });
   const league = { league_id: "L1", name: "Lg", season: 2026, status: "in_season", total_rosters: 2, roster_positions: ["RB", "WR", "BN", "BN"], settings: {} };
   const remaining = { schema_version: 1, horizon: "remaining_season", status: "experimental", evaluation: null, league: { league_id: "L1" }, season: 2026, start_week: 3, end_week: 17, generated_at: "g", data_through: "d", players: [] };
-  const evalFile = { schema_version: 1, league: "lg", slots: ["RB", "WR"], verdict: "pass", k: 2, strata: { same_position: { E: 5, n: 10 }, cross_position: { E: 5.5, n: 10 }, depth_for_starter: { E: 4, n: 10 }, lopsided: { E: 9, n: 10 } }, lopsided_cutoff: 50 };
+  const strata = (a, b) => ({ same_position: { E: a, n: 10 }, cross_position: { E: b, n: 10 }, depth_for_starter: { E: 4, n: 10 }, lopsided: { E: 9, n: 10 } });
+  // The scenario compares 3 weeks; the 3-week horizon is nearest, the 13-week one (E 99) must not be used.
+  const evalFile = { schema_version: 2, league: "lg", slots: ["RB", "WR"], verdict: "pass", waiver_verdict: "fail", k: 2, horizons: [{ origin: 5, weeks: 13, strata: strata(99, 99), lopsided_cutoff: 5 }, { origin: 14, weeks: 3, strata: strata(5, 5.5), lopsided_cutoff: 50 }], excluded_cells: 0 };
   const availability = { p_out: { QB: 0.05, RB: 0.05, WR: 0.05, TE: 0.05 }, p_stay: { QB: 0.4, RB: 0.4, WR: 0.4, TE: 0.4 }, p_tag: { Out: 0.9, Doubtful: 0.8, Questionable: 0.2, IR: 0.9 } };
   const rosSource = (snapshot_at) => ({ schema_version: 1, horizon: "ros", rank_scope: "overall", scoring_format: "ppr", season: 2026, source: "test", snapshot_at,
     players: [{ player_id: "g1", position: "RB", team: "X", ros_rank: 5 }, { player_id: "g2", position: "WR", team: "Y", ros_rank: 90 }] });
@@ -449,7 +479,9 @@ async function gateSmoke() {
     },
     ROS: { evaluationText: () => [] },
   };
-  global.document = { createElement: tag => Object.assign(mk(), { tagName: String(tag).toUpperCase() }), createTextNode: t => t };
+  const footer = { textContent: "Pre-draft: values players and draft picks before the draft. In season: conditional lineup scenarios only — no trade grades." };
+  const footerBefore = footer.textContent;
+  global.document = { createElement: tag => Object.assign(mk(), { tagName: String(tag).toUpperCase() }), createTextNode: t => t, querySelector: sel => (sel === "footer" ? footer : null) };
   const text = node => [node.textContent || "", ...(node.children || []).map(text)].filter(Boolean).join("\n");
   try {
     s.id = { userId: "u1", username: "me" };
@@ -476,6 +508,7 @@ async function gateSmoke() {
     assert.equal(simulated[0].now, analyzed[0].now, "simulate resolves the scenario at analyze's own clock");
     assert.equal(simulated[0].snapshotAt, analyzed[0].snapshotAt);
     assert.deepEqual(simulated[0].give, ["p1"]); assert.deepEqual(simulated[0].receive, ["p2"]);
+    assert.ok(!/no trade grades/.test(footer.textContent) && /simulated grade/.test(footer.textContent), "the footer stops claiming there are no trade grades while a grade shows");
     let lines = panelLines();
     assert.equal(lines[0], "Simulated rest-of-season grade, weeks 4–6");
     // RB + WR is cross_position (5.5); p2 starts 1 of 3 weeks -> depth_for_starter (4); largest E = 5.5; mean 8 is in [5.5, 11)
@@ -493,6 +526,7 @@ async function gateSmoke() {
     await run();
     lines = panelLines();
     assert.deepEqual(lines, ["grade unavailable: no replacement available for RB in week 4"]);
+    assert.equal(footer.textContent, footerBefore, "no grade on screen: the footer is as today");
     assert.equal(els.result.children[1].className, "season-summary", "the lineup scenario is still there");
     assert.ok(text(els.result).includes(M.HEADLINE) && text(els.result).includes(M.ALLOWED_SENTENCES[1]), "closed-gate wording when no grade is shown");
     // A new league load re-reads the cached inputs (availability, ROS) and clears the selections.

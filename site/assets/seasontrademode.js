@@ -127,38 +127,55 @@
   const sameSlots = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.slice().sort().join(",") === b.slice().sort().join(",");
   // The eval file's view for THIS league, or null (gate closed). `league` is
   // {slug, roster_positions}: the board slug and the live league's slots.
-  // Open only for schema_version 1 + verdict "pass" on the primary league or on
-  // `secondary` (its own verdict and strata), with slots equal (as a multiset,
-  // order aside) to the live starter slots, and at least one usable stratum.
+  // Open only for schema_version 2 + verdict "pass" on the primary league or on
+  // `secondary` (its own verdict and horizons), a non-empty string slug equal to
+  // the file's league, slots equal (as a multiset, order aside) to the live
+  // starter slots, and at least one horizon with a usable stratum.
+  const usableHorizon = h => h && typeof h === "object" && Number.isFinite(h.weeks) && h.weeks > 0 && h.strata && typeof h.strata === "object"
+    && Object.values(h.strata).some(s => s && Number.isFinite(s.E) && s.E >= 0);
   function evalView(evalFile, league) {
-    if (!evalFile || typeof evalFile !== "object" || evalFile.schema_version !== 1 || !league) return null;
+    if (!evalFile || typeof evalFile !== "object" || evalFile.schema_version !== 2 || !league) return null;
+    if (typeof league.slug !== "string" || !league.slug) return null;
     const live = starterSlots(league.roster_positions);
     const k = Number.isFinite(evalFile.k) && evalFile.k >= 1 ? evalFile.k : 2;
-    const candidates = [evalFile, evalFile.secondary && typeof evalFile.secondary === "object" ? { ...evalFile.secondary, lopsided_cutoff: evalFile.secondary.lopsided_cutoff !== undefined ? evalFile.secondary.lopsided_cutoff : evalFile.lopsided_cutoff } : null];
+    const candidates = [evalFile, evalFile.secondary && typeof evalFile.secondary === "object" ? evalFile.secondary : null];
     for (const c of candidates) {
-      if (!c || c.league !== league.slug || c.verdict !== "pass" || !sameSlots(c.slots, live)) continue;
-      const strata = c.strata && typeof c.strata === "object" ? c.strata : {};
-      const usable = Object.values(strata).filter(s => s && Number.isFinite(s.E) && s.E >= 0);
-      if (!usable.length) continue;
-      return { league: c.league, slots: c.slots, strata, k, lopsided_cutoff: c.lopsided_cutoff };
+      if (!c || typeof c.league !== "string" || !c.league || c.league !== league.slug || c.verdict !== "pass" || !sameSlots(c.slots, live)) continue;
+      const horizons = Array.isArray(c.horizons) ? c.horizons.filter(usableHorizon) : [];
+      if (!horizons.length) continue;
+      return { league: c.league, slots: c.slots, k, horizons };
     }
     return null;
   }
   const gateOpen = (evalFile, league) => evalView(evalFile, league) !== null;
-  // trade = {positions: [position of every moved player], shares: [fraction of
-  // weeks each moved player starts in his NEW roster's current-method lineup]}.
-  // A trade can sit in several strata.
-  function stratumOf(trade, currentDelta, evalFile) {
+  // The horizon whose remaining-week count is nearest to the live one; a tie
+  // goes to the shorter horizon. Malformed or empty -> null.
+  function pickHorizon(horizons, liveWeeks) {
+    if (!Array.isArray(horizons) || !Number.isFinite(liveWeeks)) return null;
+    let best = null;
+    for (const h of horizons.filter(usableHorizon)) {
+      const d = Math.abs(h.weeks - liveWeeks);
+      if (!best || d < best.d || (d === best.d && h.weeks < best.h.weeks)) best = { d, h };
+    }
+    return best && best.h;
+  }
+  // trade = {positions: [position of every moved player], sides: [{give:[share of
+  // weeks each player this side gives starts in its own current-method BEFORE
+  // lineup], receive:[share for each it gets in its AFTER lineup]} x2]}.
+  // depth_for_starter (spec §10.2): some side gives at least one starter (>= half
+  // the weeks) and receives no player who starts in at least half the weeks.
+  // `horizon` is the chosen horizon entry (strata, lopsided_cutoff).
+  function stratumOf(trade, currentDelta, horizon) {
     const out = [];
     out.push(new Set(trade.positions).size <= 1 ? "same_position" : "cross_position");
-    if ((trade.shares || []).some(s => s < 0.5)) out.push("depth_for_starter");
-    const cut = evalFile && evalFile.lopsided_cutoff;
+    if ((trade.sides || []).some(s => s.give.some(x => x >= 0.5) && !s.receive.some(x => x >= 0.5))) out.push("depth_for_starter");
+    const cut = horizon && horizon.lopsided_cutoff;
     if (Number.isFinite(cut) && Number.isFinite(currentDelta) && Math.abs(currentDelta) >= cut) out.push("lopsided");
     return out;
   }
   // Conservative error: the largest measured E among the trade's strata.
-  function errorFor(strataNames, view) {
-    const es = strataNames.map(n => view.strata[n]).filter(s => s && Number.isFinite(s.E)).map(s => s.E);
+  function errorFor(strataNames, horizon) {
+    const es = strataNames.map(n => horizon.strata[n]).filter(s => s && Number.isFinite(s.E)).map(s => s.E);
     return es.length ? Math.max(...es) : null;
   }
   function gradeText(sim, ctx) {
@@ -208,16 +225,23 @@
     if (thin.length) text += ` Roster reason: ${andList(thin.map(p => `${p.name} would start in only ${p.started} of ${p.of} weeks in your lineup`))}, so his rank counts for less here.`;
     return text;
   }
-  // Weeks (as a fraction) each moved player starts in his new roster's central
-  // lineup, read off analyze's per-week after-lineups: received players on
-  // side 0, the players you give on side 1.
+  // Weeks each moved player starts in a central lineup, read off analyze's
+  // per-week lineups. `receive`/`give`: the started counts of my received
+  // players (my after-lineup) and of the players I give (partner's after-lineup),
+  // for the market check. `sides`: start shares for the depth stratum, per side
+  // {give: before-lineup shares of its own outgoing players, receive: after-lineup
+  // shares of its incoming players}.
   function startCounts(result, giveIds, receiveIds) {
     const of = result.weeks.length;
-    const count = (side, id) => result.weeks.filter(w => (w.sides[side].after.lineup || []).some(p => String(p.id) === String(id))).length;
+    const count = (side, key, id) => result.weeks.filter(w => (w.sides[side][key].lineup || []).some(p => String(p.id) === String(id))).length;
     return {
       of,
-      receive: receiveIds.map(id => ({ id, started: count(0, id) })),
-      give: giveIds.map(id => ({ id, started: count(1, id) })),
+      receive: receiveIds.map(id => ({ id, started: count(0, "after", id) })),
+      give: giveIds.map(id => ({ id, started: count(1, "after", id) })),
+      sides: [
+        { give: giveIds.map(id => count(0, "before", id) / of), receive: receiveIds.map(id => count(0, "after", id) / of) },
+        { give: receiveIds.map(id => count(1, "before", id) / of), receive: giveIds.map(id => count(1, "after", id) / of) },
+      ],
     };
   }
 
@@ -625,7 +649,17 @@
     const refreshCompare = () => { els.compare.disabled = !canCompare(); };
     // Any input change: the scenario on screen no longer describes the inputs.
     function onInputChange() { compareSeq++; hideResult(); refreshCompare(); }
+    // The page footer says "no trade grades" while the gate is closed. It is only
+    // reworded while a simulated grade is on screen, and restored with the result.
+    let footerOriginal = null;
+    function setFooter(graded) {
+      const f = typeof document !== "undefined" && document.querySelector ? document.querySelector("footer") : null;
+      if (!f) return;
+      if (footerOriginal === null) footerOriginal = f.textContent;
+      f.textContent = graded ? "Pre-draft: values players and draft picks before the draft. In season: conditional lineup scenarios, plus a simulated grade with its measured error when one is published." : footerOriginal;
+    }
     function hideResult() {
+      setFooter(false);
       els.result.hidden = true;
       els.result.replaceChildren();
       els.provenance.textContent = S.loadedProvenance;
@@ -822,9 +856,12 @@
         const sim = W.SeasonTrade.simulate({ ...analyzeArgs, availability: S.availability, seed: GRADE_SEED });
         const starts = startCounts(result, give, receive);
         const catalogPos = id => (S.catalog[id] || {}).position;
-        const trade = { positions: [...give, ...receive].map(catalogPos), shares: [...starts.receive, ...starts.give].map(x => x.started / starts.of) };
-        const names = stratumOf(trade, result.sides[0].delta, S.gate);
-        const E = errorFor(names, S.gate);
+        const trade = { positions: [...give, ...receive].map(catalogPos), sides: starts.sides };
+        // The horizon whose remaining-week count is nearest to the weeks compared.
+        const horizon = pickHorizon(S.gate.horizons, result.weeks.length);
+        if (!horizon) throw new Error("no measured error for this horizon");
+        const names = stratumOf(trade, result.sides[0].delta, horizon);
+        const E = errorFor(names, horizon);
         if (E === null) throw new Error("no measured error for this kind of trade");
         const g = gradeText(sim, { names: handles.names, firstWeek: handles.firstWeek, endWeek: handles.endWeek, E, k: S.gate.k });
         const lines = [];
@@ -843,6 +880,7 @@
         if (seq !== compareSeq) return;
         fillPanel(panel, lines);
         handles.graded();
+        setFooter(true);
       } catch (e) {
         if (seq !== compareSeq) return;
         fillPanel(panel, [el("p", `grade unavailable: ${e && e.message || e}`, "season-subline")]);
@@ -878,5 +916,5 @@
   }
 
   return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, coverageText, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init,
-    gradeLabel, gateOpen, evalView, stratumOf, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
+    gradeLabel, gateOpen, evalView, pickHorizon, stratumOf, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
 });
