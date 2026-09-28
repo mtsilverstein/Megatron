@@ -136,7 +136,7 @@
       bid, bidNote,
       why: `${r.bid ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`,
       dropCostNote: held ? `${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : dc.status === "priced" ? dc.label : null,
-      exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label})${exportRos}; ${exportTag}; ${exportBid}; ${r.rosterCost}${held ? `; ${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : ""}`,
+      exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label})${exportRos}; ${exportTag}; ${exportBid}; ${r.rosterCost}${held ? `; ${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : ""}${dc.simulationNote ? `; ${dc.simulationNote}` : ""}`,
     };
   }
 
@@ -150,6 +150,8 @@
     const $ = id => document.getElementById(id);
     let world = null, board = null, weekly = null, roles = null, catalog = {}, result = null, signals = {}, intel = null;
     let kickoffs = null, snapshotAt = null, ros = null, remaining = null, rawBoard = null, catalogFetchedAt = null;
+    // Inputs of the gated simulated drop cost; the engine (waivers.js) owns the gate.
+    let availability = null, evalFile = null;
     let requestId = 0, protectedIds = new Set(), autoWeek = true;
     // The session bundle the desk is loading/loaded from. Session.onChange
     // fires for every state move (refresh start, failed refresh, identity
@@ -283,7 +285,7 @@
         const rolling = Number(world.league.settings?.waiver_type) === 0;
         const reserve = rolling ? undefined : Number($("waiver-reserve").value);
         if (!rolling && (!$("waiver-reserve").value.trim() || !Number.isInteger(reserve) || reserve < 0)) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
-        result = W.analyze({ board, ...world, weekly, kickoffs, snapshotAt, remaining, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve });
+        result = W.analyze({ board, ...world, weekly, kickoffs, snapshotAt, remaining, week: Number($("waiver-week").value), protectedIds: [...protectedIds], budgetReserve: reserve, availability, evalFile });
         intel = window.WaiverIntel.analyze({ board, ...world, catalog, signals, roles, ros, week:Number($("waiver-week").value) });
         const b = result.budget, mine = world.rosters.find(r => r.roster_id === world.rosterId);
         $("waiver-reserve").closest("label").hidden = rolling;
@@ -307,7 +309,7 @@
         // same-scope `const ros` here would TDZ-break that reference.
         const rosCoverage = coverage.ros || {};
         $("waiver-ros").textContent = rosCoverage.fresh
-          ? `Rest-of-season projections: weeks ${rosCoverage.endWeek - rosCoverage.futureWeeks + 1}–${rosCoverage.endWeek}, generated ${rosCoverage.generatedAt}, data through ${rosCoverage.dataThrough || "unknown"}; ${rosCoverage.pricedOwned}/${coverage.activeOwnedSkills} roster players priced.${rosCoverage.unmodeledOwned.length ? ` No rest-of-season projection: ${rosCoverage.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} Values assume participation; injuries and returns are not forecast.`
+          ? `Rest-of-season projections: weeks ${rosCoverage.endWeek - rosCoverage.futureWeeks + 1}–${rosCoverage.endWeek}, generated ${rosCoverage.generatedAt}, data through ${rosCoverage.dataThrough || "unknown"}; ${rosCoverage.pricedOwned}/${coverage.activeOwnedSkills} roster players priced.${rosCoverage.unmodeledOwned.length ? ` No rest-of-season projection: ${rosCoverage.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} ${rosCoverage.simulation ? `Drop costs come from a seeded season simulation (${rosCoverage.simulation.coarseSims} sims to rank rows, ${rosCoverage.simulation.fineSims} for the leading rows) that includes absences, byes and replacement-level pickups; ${rosCoverage.simulation.rowsSimulated} rows were simulated.${rosCoverage.simulation.fallbackReason ? ` Simulation unavailable: ${rosCoverage.simulation.fallbackReason}; lineup-only prices are shown.` : ""}` : "Values assume participation; injuries and returns are not forecast."}`
           : `Rest-of-season projections unavailable${rosCoverage.reason ? ` (${rosCoverage.reason})` : ""}; drop costs are unassessed and spend guidance is limited to open-slot adds.`;
         const ev = $("waiver-evaluation"); ev.replaceChildren();
         for (const line of evaluationText(rosCoverage.evaluation)) ev.append(node("p", line));
@@ -396,16 +398,18 @@
       status("Reading projections and league data…");
       try {
         const dataPath = kind => window.FC.leagueDataPath(kind);
-        const [loadedBoard, loadedWeekly, loadedRoles, loadedKickoffs, loadedRos, loadedRemaining] = await Promise.all([
+        const [loadedBoard, loadedWeekly, loadedRoles, loadedKickoffs, loadedRos, loadedRemaining, loadedAvailability, loadedEval] = await Promise.all([
           window.FC.loadJSON(dataPath("draft")),
           window.FC.loadJSON(dataPath("weekly")).catch(() => null),
           window.FC.loadJSON("data/roles.json").catch(() => null),
           window.FC.loadJSON("data/kickoffs.json").catch(() => null),
           window.FC.loadJSON("data/ros-ecr.json").catch(() => null),
           window.FC.loadJSON(dataPath("remaining")).catch(() => null),
+          window.FC.loadJSON("data/availability.json").catch(() => null),
+          window.FC.loadJSON("data/trade_sim_eval.json").catch(() => null),
         ]);
         if (loadedBoard.league?.slug !== selectedLeague) throw new Error("Projection board does not match the selected league; reload before using advice.");
-        rawBoard = loadedBoard; weekly = loadedWeekly; roles = loadedRoles; kickoffs = loadedKickoffs; ros = loadedRos; remaining = loadedRemaining;
+        rawBoard = loadedBoard; weekly = loadedWeekly; roles = loadedRoles; kickoffs = loadedKickoffs; ros = loadedRos; remaining = loadedRemaining; availability = loadedAvailability; evalFile = loadedEval;
         const leagueLink = $("waiver-league-link");
         leagueLink.href = `https://sleeper.com/leagues/${encodeURIComponent(rawBoard.league.league_id)}/team`;
         leagueLink.textContent = `Open ${rawBoard.league.slug.toUpperCase()} in Sleeper`;
