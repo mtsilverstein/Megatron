@@ -684,6 +684,9 @@ check("gate closed: availability and eval file change nothing, byte for byte", (
 check("gate open: a backup QB behind a healthy starter forfeits real points", () => {
   const out = W.analyze(simArgs({ evalFile:simEval() }));
   const qb = rowOf(out, "7", "13");
+  // Whole adds are priced together: every drop row of RB7 shares one pricing class and one nSims.
+  const rb7 = out.rows.filter(r => r.add.id === "7");
+  assert.ok(rb7.length >= 4 && rb7.every(r => r.pricing === "simulated" && r.simulation.nSims === 2000), "all of an add's rows are priced at the same nSims");
   assert.equal(qb.dropCost.status, "priced");
   assert.ok(qb.dropCost.dropForfeits > 0.2 && qb.dropCost.dropForfeits < 6, `simulated QB2 drop forfeits ${qb.dropCost.dropForfeits}`);
   assert.equal(qb.dropCost.label, "simulated rest-of-season change (absences, byes, replacement)");
@@ -725,7 +728,7 @@ check("RosterSimError falls back per row with the reason text", () => {
   assert.equal(qb.dropCost.dropForfeits, 0);
   assert.match(qb.dropCost.simulationNote, /^simulation unavailable: availability rates missing for QB$/);
   assert.ok(out.rows.every(r => /^simulation unavailable: /.test(r.dropCost.simulationNote)));
-  assert.equal(qb.dropCost.label, "lineup-only estimate (not simulated)");
+  assert.equal(qb.dropCost.label, "lineup-only estimate (not simulated; assumes participation)");
   assert.equal(qb.pricing, "lineup");
   assert.ok(qb.warnings.includes(qb.dropCost.simulationNote), "the note reaches the row's displayed warnings");
   // No free-agent QB to replace anyone: the pool cannot fill a slot.
@@ -750,6 +753,34 @@ check("a player the simulation cannot use falls back on his own rows only", () =
   assert.ok(good.dropCost.dropForfeits > 0.2 && !good.dropCost.simulationNote, "the other add is still simulated");
 });
 
+check("byes count as zero in the quota ranking: a player with a bye ranks below an equal player without one", () => {
+  const extra = [p(32,"RB",14),p(33,"RB",13),p(34,"RB",12)];
+  const board2 = { players: simBoard.players.concat(extra) };
+  const remaining = remainingFor({ ...simFuture(), g32:[14,14], g33:[13,13], g34:[12,"bye"] });
+  const out = W.analyze(simArgs({ evalFile:simEval(), board:board2, weekly:freshWeekly(board2.players), remaining }));
+  const q = out.coverage.ros.simulation.quotaIds;
+  assert.ok(q.includes("7") && !q.includes("34"), `RB7 (12, 12) must outrank RB34 (12, bye) although "34" sorts first: ${q}`);
+});
+
+check("open-slot rows: a simulated one says so, a lineup one keeps today's label", () => {
+  const open = { ...simRosters[0], players:["1","2","3","4","8","5","6"] };
+  const args = extra => simArgs({ rosters:[open, simRosters[1]], ...extra });
+  const sim = W.analyze(args({ evalFile:simEval() })).rows.find(r => r.add.id === "7" && r.drop === null);
+  assert.equal(sim.dropCost.status, "open_slot"); assert.equal(sim.pricing, "simulated");
+  assert.equal(sim.dropCost.label, "no drop required; simulated rest-of-season add value (absences, byes, replacement)");
+  const lineup = W.analyze(args({})).rows.find(r => r.add.id === "7" && r.drop === null);
+  assert.equal(lineup.dropCost.label, "no drop required; roster flexibility is not priced");
+  assert.ok(!("pricing" in lineup));
+});
+
+check("gate: an eval file without a league never opens the gate, even with an undefined slug", () => {
+  const noLeague = { schema_version:2, slots:simSlots, waiver_verdict:"pass" };
+  const lg = { roster_positions:["QB","RB","WR","TE","FLEX","K","DEF","BN"] };
+  assert.equal(W.waiverGateOpen(noLeague, { ...lg, slug:undefined }), false);
+  assert.equal(W.waiverGateOpen({ ...noLeague, league:undefined }, { ...lg, slug:undefined }), false);
+  assert.equal(W.waiverGateOpen({ ...noLeague, league:"x" }, { ...lg, slug:"x" }), true);
+});
+
 check("a non-quota add keeps the lineup-only price, explicitly labelled and without an engine-failure note", () => {
   const extra = [p(32,"RB",14),p(33,"RB",13),p(34,"RB",12)];
   const board2 = { players: simBoard.players.concat(extra) };
@@ -759,7 +790,7 @@ check("a non-quota add keeps the lineup-only price, explicitly labelled and with
   const non = rowOf(out, "34", "13"), inq = rowOf(out, "33", "13");
   assert.ok(non && inq);
   assert.equal(non.pricing, "lineup"); assert.equal(non.dropCost.dropForfeits, 0);
-  assert.equal(non.dropCost.label, "lineup-only estimate (not simulated)");
+  assert.equal(non.dropCost.label, "lineup-only estimate (not simulated; assumes participation)");
   assert.deepEqual(non.warnings, []); assert.ok(!("simulationNote" in non.dropCost) && !("simulation" in non));
   assert.equal(inq.pricing, "simulated"); assert.ok(inq.dropCost.dropForfeits > 0.2);
   assert.ok(out.coverage.ros.simulation.rowsLineupOnly > 0);
@@ -789,7 +820,14 @@ check("gate open: 13 roster players x 60 adds, both passes, under 3 s", () => {
   console.log(`waivers_fixture: simulated desk load (13 roster x 60 adds x 16 weeks, gate open) took ${ms.toFixed(0)} ms`);
   assert.ok(out.rows.length > 60, "many add/drop rows exist");
   const sim = out.rows.filter(r => r.dropCost.simulation);
-  assert.ok(sim.length > 0 && sim.some(r => r.dropCost.simulation.nSims === 2000) && sim.some(r => r.dropCost.simulation.nSims === 200));
+  assert.ok(sim.length > 0 && sim.every(r => r.dropCost.simulation.nSims === 200), "13 droppable rows per add: the 2000-sim work budget holds no whole add, so every priced add is at 200 sims");
+  // Pricing is per ADD: rows of one add are all in the same class and at the same nSims.
+  const byAdd = new Map();
+  for (const r of out.rows) { const k = r.add.id; const v = r.pricing === "simulated" ? `simulated:${r.simulation.nSims}` : "lineup"; if (!byAdd.has(k)) byAdd.set(k, new Set()); byAdd.get(k).add(v); }
+  assert.ok([...byAdd.values()].every(v => v.size === 1), "no add is split across pricing classes");
+  assert.ok(out.rows.filter(r => r.pricing === "lineup" && r.dropCost.simulationNote).every(r => /^not simulated: outside the adds priced this load$/.test(r.dropCost.simulationNote)));
+  assert.ok(out.rows.some(r => r.pricing === "lineup" && r.dropCost.simulationNote), "a quota add left out by the add budget says so");
+  assert.ok(new Set(sim.map(r => r.add.id)).size < 10, "the add budget bit");
   assert.ok(ms < 3000, `simulated desk load took ${ms.toFixed(0)} ms`);
 });
 

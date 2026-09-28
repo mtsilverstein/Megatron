@@ -319,6 +319,11 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   const noted = WaiverMode.rowText({ ...baseRow, dropCost: { ...baseRow.dropCost, simulationNote: "simulation unavailable: reason x" } }, result8);
   assert.match(noted.exportLine, /; simulation unavailable: reason x$/);
   assert.doesNotMatch(WaiverMode.rowText(baseRow, result8).exportLine, /simulation/);
+  // A simulated open-slot row shows its label; a lineup one shows nothing extra (today's behaviour).
+  const openLabel = "no drop required; simulated rest-of-season add value (absences, byes, replacement)";
+  const openSim = { ...baseRow, drop: null, dropCost: { status: "open_slot", rosDelta: 4, endWeek: 5, futureWeeks: 2, label: openLabel, simulation: { nSims: 200 } } };
+  assert.equal(WaiverMode.rowText(openSim, result8).dropCostNote, openLabel);
+  assert.equal(WaiverMode.rowText({ ...openSim, dropCost: { ...openSim.dropCost, label: "no drop required; roster flexibility is not priced", simulation: undefined } }, result8).dropCostNote, null);
 
   Date.now = realNow;
   console.log("waivermode_session_fixture: real WaiverMode.init + real Session + real chip (gate, identify, identity change, failed/successful refresh, timestamps) OK");

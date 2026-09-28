@@ -135,7 +135,7 @@
       gain: `+${r.lineupGain.toFixed(2)} pts${rosPart}${tag}`,
       bid, bidNote,
       why: `${r.bid ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`,
-      dropCostNote: held ? `${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : dc.status === "priced" ? dc.label : null,
+      dropCostNote: held ? `${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : dc.status === "priced" || (dc.status === "open_slot" && dc.simulation) ? dc.label : null,
       exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label})${exportRos}; ${exportTag}; ${exportBid}; ${r.rosterCost}${held ? `; ${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : ""}${dc.simulationNote ? `; ${dc.simulationNote}` : ""}`,
     };
   }
