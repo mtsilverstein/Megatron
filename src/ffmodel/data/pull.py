@@ -341,6 +341,18 @@ def pull_schedules(seasons: list[int], cache_dir: Path | None = None) -> pd.Data
                 covers_seasons=seasons))
 
 
+def pull_injuries(seasons: list[int], cache_dir: Path | None = None) -> pd.DataFrame:
+    """nflverse weekly injury reports (report_status Out/Doubtful/Questionable)."""
+    def load() -> pd.DataFrame:
+        import nflreadpy
+
+        raw = nflreadpy.load_injuries(seasons).to_pandas()
+        keep = ["season", "game_type", "week", "gsis_id", "position", "report_status"]
+        return raw[keep].reset_index(drop=True)
+
+    return _cached(cache_dir, _cache_name("injuries", seasons), load, covers_seasons=seasons)
+
+
 # PFR-style codes used by nflverse draft_picks, mapped to the current
 # franchise codes the rest of the project uses (relocations map to the
 # current franchise, consistent with TEAM_CODE_FIXES above).
