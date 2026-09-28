@@ -114,7 +114,7 @@ const statics = {
   "data/kickoffs.json": { season: draftBoard.season, week: 3, games: [] },
   // The gated simulated drop cost's inputs (waivers.js waiverGateOpen / RosterSim).
   "data/availability.json": { schema_version: 1, p_out: { QB: 0.08 }, p_stay: { QB: 0.8 }, p_tag: { Out: 0.7 } },
-  "data/trade_sim_eval.json": { schema_version: 1, league: "gabagool", waiver_verdict: "pass", slots: ["QB"] },
+  "data/trade_sim_eval.json": { schema_version: 2, league: "gabagool", waiver_verdict: "pass", slots: ["QB"] },
 };
 global.fetch = async p => statics[p] ? { ok: true, status: 200, json: async () => statics[p] } : { ok: false, status: 404, json: async () => ({}) };
 
