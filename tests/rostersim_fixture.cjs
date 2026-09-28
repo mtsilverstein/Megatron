@@ -25,18 +25,16 @@ check("quantiles", () => {
   // p10 === p50 the spread s is 0, so -Infinity * 0 = NaN unless drawPoints clamps u.
   assert.ok(Number.isFinite(S.drawPoints({ p10: 5, p50: 5, p90: 9 }, 0)), "u=0 must be finite, not NaN");
 
-  // Fix round 1 item 7: with a negative p10, the floor must be 2*p10 - p50 (a
-  // reflection of p50 about p10), not p10 itself -- a `floor = p10` (or
-  // `floor = min(0, p10)`) mutant fails the exact-value check below because it
-  // would put a probability spike exactly at p10, and the pileup share would be
-  // far above 2%.
+  // Floor = min(0, 2*p10): continuous at p10 = 0 (a 0.01 change in p10 must not
+  // move the mean by more than a few hundredths), and never above p10, so p10 is
+  // exact. `floor = p10`, `min(0, p10)` and the old `p10>=0 ? 0 : 2*p10-p50` all fail.
   const Qneg = { p10: -2, p50: 5, p90: 15 };
-  const floorExpected = 2 * Qneg.p10 - Qneg.p50; // -9
+  const floorExpected = 2 * Qneg.p10; // -4
   assert.ok(Math.abs(S.drawPoints(Qneg, 1e-9) - floorExpected) < 1e-6,
-    `floor should be ${floorExpected} (2*p10-p50), not p10 (${Qneg.p10}) or 0`);
+    `floor should be ${floorExpected} (min(0, 2*p10)), not p10 (${Qneg.p10})`);
   const xsNeg = []; for (let i = 1; i < 20000; i++) xsNeg.push(S.drawPoints(Qneg, i / 20000));
-  const atFloor = xsNeg.filter(v => Math.abs(v - floorExpected) < 1e-9).length / xsNeg.length;
-  assert.ok(atFloor < 0.02, `floor pileup too high: ${atFloor}`);
+  const meanAt = p10 => { let t = 0; for (let i = 1; i < 20000; i++) t += S.drawPoints({ p10, p50: 10, p90: 20 }, i / 20000); return t / 19999; };
+  assert.ok(Math.abs(meanAt(0) - meanAt(-0.01)) < 0.02, `floor must be continuous at p10 = 0: ${meanAt(0)} vs ${meanAt(-0.01)}`);
   xsNeg.sort((a, b) => a - b);
   assert.ok(Math.abs(xsNeg[1999] - Qneg.p10) < 0.05, `empirical p10 should stay near ${Qneg.p10}, got ${xsNeg[1999]}`);
 });

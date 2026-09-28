@@ -48,7 +48,9 @@
     const uc = u < 1e-12 ? 1e-12 : (u > 1 - 1e-12 ? 1 - 1e-12 : u);
     const z = invNorm(uc);
     const s = z < 0 ? (q.p50 - q.p10) / Z90 : (q.p90 - q.p50) / Z90;
-    const x = q.p50 + z * s, floor = q.p10 >= 0 ? 0 : 2 * q.p10 - q.p50;
+    // Floor min(0, 2*p10): continuous across p10 = 0 (fringe players sit there) and
+    // always <= p10, so p10 stays exact.
+    const x = q.p50 + z * s, floor = Math.min(0, 2 * q.p10);
     return x < floor ? floor : x;
   }
   function checkQ(q, where) {
@@ -136,13 +138,11 @@
       // Tie-break deterministically on (score desc, id asc) so which of two tied
       // players starts never depends on the caller's id order or on push order --
       // ros.js's internal sort is merely stable, it does not itself break ties.
-      const byScoreThenId = (x, y) => y.score - x.score || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
       for (let s = 0; s < N; s++) {
         for (let i = 0; i < W; i++) {
           const cands = [];
           for (const m of members) if (m.avail[s * W + i]) cands.push({ id: m.id, position: m.position, score: m.rows[i].p50, pts: m.pts[s * W + i] });
           for (const r of repl[i]) cands.push({ id: r.id, position: r.position, score: r.p50 - 1e9, pts: r.draws[s] });
-          cands.sort(byScoreThenId);
           const lu = ROS.bestLineup(cands, slots, c => c.score);
           // Guaranteed fillable by the upfront replacement check above; kept as a
           // defensive fallback rather than an expected path.
