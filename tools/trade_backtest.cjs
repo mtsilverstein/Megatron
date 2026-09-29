@@ -28,7 +28,6 @@ const STRATA = ["same_position", "cross_position", "depth_for_starter", "lopside
 const PACKAGES = [[1, 1], [2, 1], [1, 2], [2, 2]];     // [a gives, b gives]
 const METHODS = ["sim", "current", "naive"];
 const LAST_WEEK = 17;
-const WAIVER_ADDS = 10;
 const BOOTSTRAP_B = 2000;
 const LABEL_K = 2;                                      // plan refinement 5: k = 2, fixed
 const COVERAGE_BAND = [0.70, 0.90];
@@ -97,18 +96,43 @@ function drawK(list, k, rand) {
    anything a method later says. Tradable players have a play/bye row for every
    week origin..17. Stops at `count` distinct trades (or after a bounded number
    of attempts if the league cannot supply that many). */
-function sampleTrades(rosters, forecasts, rand, count) {
+/* Players who start in at least half the weeks of their own roster's frozen-p50 lineup
+   (spec §10.2). Only forecast rows are read; the roster is limited to covered players. */
+function frozenStarters(roster, forecasts, slots, weeks = forecasts.weeks) {
+  const ids = roster.filter(id => isCovered(id, forecasts, weeks)).sort(byId);
+  const starts = {};
+  for (const w of weeks) {
+    const cands = [];
+    for (const id of ids) { const v = p50Of(forecasts, id, w); if (v !== null) cands.push({ id, position: positionOf(forecasts, id), score: v }); }
+    const lu = ROS.bestLineup(cands, slots, c => c.score);
+    for (const st of lu.starters) starts[st.player.id] = (starts[st.player.id] || 0) + 1;
+  }
+  return new Set(ids.filter(id => 2 * (starts[id] || 0) >= weeks.length));
+}
+/* Spec §10.2 depth_for_starter, per side: it gives at least one before-lineup starter (starts in
+   at least half the weeks) and receives no player who starts in at least half the weeks of its
+   after-lineup. */
+function depthForStarter({ beforeStarts, afterStarts, give, receive, W }) {
+  const half = n => 2 * (n || 0) >= W;
+  return give.some(id => half(beforeStarts[id])) && !receive.some(id => half(afterStarts[id]));
+}
+function sampleTrades(rosters, forecasts, rand, count, opts = {}) {
   if (!Array.isArray(rosters) || rosters.length < 2) throw new BacktestError("sampleTrades needs at least two rosters");
   const T = rosters.length;
   const eligible = rosters.map(r => r.filter(id => isCovered(id, forecasts)).sort(byId));
+  // §10.2: with `slots`, a trade is kept only if each side gives at least one of its own frozen-p50
+  // starters. Decided from forecast rows alone, before any prediction.
+  const starters = opts.slots ? rosters.map(r => frozenStarters(r, forecasts, opts.slots)) : null;
   const out = [], seen = new Set();
   const maxAttempts = 200 * count + 1000;
-  for (let attempts = 0; out.length < count && attempts < maxAttempts; attempts++) {
+  let attempts = 0, rejected = 0;
+  for (; out.length < count && attempts < maxAttempts; attempts++) {
     const a = Math.floor(rand() * T);
     let b = Math.floor(rand() * (T - 1)); if (b >= a) b++;
     const [na, nb] = PACKAGES[Math.floor(rand() * PACKAGES.length)];
     if (eligible[a].length < na || eligible[b].length < nb) continue;
     const giveA = drawK(eligible[a], na, rand), giveB = drawK(eligible[b], nb, rand);
+    if (starters && !(giveA.some(id => starters[a].has(id)) && giveB.some(id => starters[b].has(id)))) { rejected++; continue; }
     const sa = giveA.slice().sort(byId), sb = giveB.slice().sort(byId);
     const key = JSON.stringify(a < b ? [a, sa, b, sb] : [b, sb, a, sa]);
     if (seen.has(key)) continue;
@@ -117,6 +141,8 @@ function sampleTrades(rosters, forecasts, rand, count) {
                drop_a: overflowDrop(rosters[a], giveA, nb - na, forecasts),
                drop_b: overflowDrop(rosters[b], giveB, na - nb, forecasts) });
   }
+  // Audit: how many draws the population rule threw away (not enumerable: the list itself is the sample).
+  Object.defineProperty(out, "stats", { value: { attempts, accepted: out.length, rejected_not_starter: rejected }, enumerable: false });
   return out;
 }
 
@@ -234,128 +260,178 @@ function buildSimWorld({ forecasts, ids, undrafted, weeks, slots, availability, 
 }
 function predictSim(world, beforeIds, afterIds) { return RS.compare(world, beforeIds, afterIds); }
 
+// --- waiver decision set (spec §10.1) ---------------------------------------------
+// Per-position quota by mean frozen p50 over origin..17 (the §6.5 "top 10 overall" was all QBs in a
+// 1-QB league). Only players the simulation can value (a play/bye row every week) can be adds.
+const WAIVER_QUOTA = { QB: 2, RB: 3, WR: 3, TE: 2 };
+// Ranking value for waiver adds, as on the live desk: mean over ALL weeks of frozen p50, a bye week
+// counting as 0 (a player with a bye ranks below an otherwise-equal one without).
+function meanP50ByeZero(id, forecasts, weeks = forecasts.weeks) {
+  let s = 0;
+  for (const w of weeks) { const v = p50Of(forecasts, id, w); if (v !== null) s += v; }
+  return s / weeks.length;
+}
+function waiverAdds(undrafted, forecasts, weeks = forecasts.weeks, quota = WAIVER_QUOTA) {
+  const out = [];
+  for (const pos of POS) {
+    out.push(...undrafted.filter(id => positionOf(forecasts, id) === pos && isCovered(id, forecasts, weeks))
+      .sort((x, y) => meanP50ByeZero(y, forecasts, weeks) - meanP50ByeZero(x, forecasts, weeks) || byId(x, y))
+      .slice(0, quota[pos] || 0));
+  }
+  return out;
+}
+// Diagnostic arm only: the same engine with no availability model (never part of a verdict).
+function availabilityOff(av) {
+  const zero = o => Object.fromEntries(Object.keys(o).map(k => [k, 0]));
+  return { p_out: zero(av.p_out), p_stay: zero(av.p_stay), p_tag: zero(av.p_tag) };
+}
+
 // --- one (season, origin, league) cell ------------------------------------------
 /* Everything for one synthetic league at one origin, given trades sampled
-   beforehand. One simulation world holds every covered drafted player plus the
-   waiver adds, so the value() cache is shared and all variants use common
-   random numbers. A week that no replacement pool can fill excludes the whole
-   cell (recorded), rather than crashing the run or silently shortening it. */
+   beforehand. One simulation world holds every drafted player, so the value()
+   cache is shared and all variants use common random numbers. A cell in which any
+   rostered player lacks full forecast coverage, or in which a week cannot be filled
+   from the undrafted pool, is EXCLUDED whole and recorded (spec §10.4 then fails the
+   verdicts closed) -- never thinned, never scored on a partial set.
+   Waiver decisions use their own world and pools: the replacement pool is the
+   undrafted players minus the whole per-position add set, in every arm (sim, current,
+   naive and realized), exactly as the live waiver desk does. */
 function runCell(opts) {
   const { season, origin, k, rosters, undrafted, forecasts, actualWeeks, availability, tags, slots, nSims, simSeed,
-          trades, waiver = false, waiverAdds = WAIVER_ADDS } = opts;
+          trades, waiver = false, waiverQuota = WAIVER_QUOTA } = opts;
   const weeks = forecasts.weeks, W = weeks.length;
   const cluster = `${season}:${origin}:${k}`;
   const t0 = Date.now();
   const drafted = rosters.flat();
   const covered = new Set(drafted.filter(id => isCovered(id, forecasts)));
   const anyRow = id => weeks.some(w => rowOf(forecasts, id, w));
-  const result = { season, origin, k, cluster, excluded: null, rows: [], waiver_rows: [],
-                   uncovered_rostered: drafted.filter(id => !covered.has(id)).length,
-                   partial_rostered: drafted.filter(id => !covered.has(id) && anyRow(id)).length,
+  const uncoveredIds = drafted.filter(id => !covered.has(id));
+  const result = { season, origin, k, cluster, excluded: null, rows: [], waiver_rows: [], waiver_adds: [], waiver_pool: [],
+                   uncovered_rostered: uncoveredIds.length,
+                   partial_rostered: uncoveredIds.filter(anyRow).length,
                    null_baseline_rostered: drafted.filter(id => covered.has(id) && !Number.isFinite(forecasts.players[id].baseline)).length };
+  const done = () => { result.runtime_s = (Date.now() - t0) / 1000; return result; };
+  if (uncoveredIds.length) {
+    result.excluded = `${uncoveredIds.length} rostered player(s) lack full forecast coverage: ${uncoveredIds.slice(0, 5).join(", ")}${uncoveredIds.length > 5 ? ", ..." : ""}`;
+    return done();
+  }
   const posOf = id => positionOf(forecasts, id);
   const curProj = (id, w) => p50Of(forecasts, id, w);
   const naiveProj = (id, w) => { if (p50Of(forecasts, id, w) === null) return null; const b = forecasts.players[id].baseline; return Number.isFinite(b) ? b : null; };
-  const curPool = replacementPool(undrafted, forecasts, weeks, slots, curProj);
-  const naivePool = replacementPool(undrafted, forecasts, weeks, slots, naiveProj);
-  const replOf = (pool, proj, exclude) => w => {
+  const replOf = (pool, proj) => w => {
     const list = [];
-    for (const pos of POS) for (const id of pool[w][pos]) if (id !== exclude) list.push({ id, position: pos, score: proj(id, w) });
+    for (const pos of POS) for (const id of pool[w][pos]) list.push({ id, position: pos, score: proj(id, w) });
     return list;
   };
   const cov = r => r.filter(id => covered.has(id));
-  const lineup = (roster, proj, pool, exclude) => predictLineupOnly([cov(roster)], proj, weeks, slots, replOf(pool, proj, exclude), posOf)[0];
 
-  // Waiver adds: the undrafted players with the highest mean frozen p50 who the
-  // simulation can value (full coverage).
-  const adds = waiver ? undrafted.filter(id => isCovered(id, forecasts)).sort((x, y) => meanP50(y, forecasts) - meanP50(x, forecasts) || byId(x, y)).slice(0, waiverAdds) : [];
-
-  let world;
-  try {
-    // Upfront fill checks for every method, so no roster can hit an unfillable week later.
+  // Pools and world(s) for a given undrafted set. Upfront fill checks for every method, so no
+  // roster can hit an unfillable week later.
+  function arms(und, simIds) {
+    const curPool = replacementPool(und, forecasts, weeks, slots, curProj);
+    const naivePool = replacementPool(und, forecasts, weeks, slots, naiveProj);
     for (const w of weeks) {
       for (const [label, pool] of [["current", curPool], ["naive", naivePool]]) {
-        const probe = POS.flatMap(pos => pool[w][pos].map(id => ({ position: pos })));
+        const probe = POS.flatMap(pos => pool[w][pos].map(() => ({ position: pos })));
         const lu = ROS.bestLineup(probe, slots, () => 0);
         if (!lu.starters.length) throw new BacktestError(`${label}: no replacement available for ${lu.unfillable} in week ${w}`);
       }
     }
-    world = buildSimWorld({ forecasts, ids: [...covered].sort(byId).concat(adds), undrafted, weeks, slots, availability, tags, nSims, seed: simSeed });
+    const simParams = { forecasts, ids: simIds, undrafted: und, weeks, slots, tags, nSims, seed: simSeed };
+    return { curPool, naivePool, und,
+             world: buildSimWorld(Object.assign({ availability }, simParams)),
+             worldOff: buildSimWorld(Object.assign({ availability: availabilityOff(availability) }, simParams)),
+             lineup: (roster, proj, pool) => predictLineupOnly([cov(roster)], proj, weeks, slots, replOf(pool, proj), posOf)[0] };
+  }
+
+  let tradeArms, waiverArms = null, adds = [];
+  try {
+    tradeArms = arms(undrafted, [...covered].sort(byId));
+    if (waiver) {
+      adds = waiverAdds(undrafted, forecasts, weeks, waiverQuota);
+      const addSet = new Set(adds);
+      waiverArms = arms(undrafted.filter(id => !addSet.has(id)), [...covered].sort(byId).concat(adds));
+      result.waiver_adds = adds.slice();
+      const poolIds = new Set();
+      for (const w of weeks) for (const pos of POS) for (const id of waiverArms.curPool[w][pos]) poolIds.add(id);
+      result.waiver_pool = [...poolIds].sort(byId);
+    }
   } catch (e) {
     if (!(e instanceof BacktestError || e instanceof RS.RosterSimError)) throw e;
     result.excluded = e.message;
-    result.runtime_s = (Date.now() - t0) / 1000;
-    return result;
+    return done();
   }
 
   try {
-    tradeAndWaiverRows();
+    tradeRows();
+    if (waiver) waiverRows();
   } catch (e) {
     if (!(e instanceof BacktestError || e instanceof RS.RosterSimError)) throw e;
-    // e.g. realized: no undrafted player at a position played that week. The
-    // cell is excluded whole (recorded), never scored on a partial set.
+    // e.g. realized: no undrafted player at a position played that week.
     result.excluded = e.message; result.rows = []; result.waiver_rows = [];
   }
-  result.runtime_s = (Date.now() - t0) / 1000;
-  return result;
+  return done();
 
-  function tradeAndWaiverRows() {
-  for (const trade of trades) {
-    const sides = tradeSides(rosters, trade);
-    const real = realized(rosters, trade, forecasts, actualWeeks, undrafted, weeks, slots);
-    const moved = trade.give_a.concat(trade.give_b);
-    const samePos = moved.every(id => posOf(id) === posOf(moved[0]));
-    const pred = {};
-    let depth = false;
-    for (const s of ["a", "b"]) {
-      const before = cov(sides[s].before), after = cov(sides[s].after);
-      const sim = predictSim(world, before, after);
-      const cb = lineup(sides[s].before, curProj, curPool), ca = lineup(sides[s].after, curProj, curPool);
-      const nb = lineup(sides[s].before, naiveProj, naivePool), na = lineup(sides[s].after, naiveProj, naivePool);
-      for (const id of sides[s].received) if (2 * (ca.starts[id] || 0) < W) depth = true;
-      pred[s] = { sim, current: ca.total - cb.total, naive: na.total - nb.total };
-    }
-    const strata = [samePos ? "same_position" : "cross_position"];
-    if (depth) strata.push("depth_for_starter");
-    for (const s of ["a", "b"]) {
-      result.rows.push({ cluster, trade_id: trade.id, side: s, team: s === "a" ? trade.a : trade.b,
-                         position: posOf(sides[s].received[0]), strata: strata.slice(),
-                         real: real[s].delta, sim: pred[s].sim.mean, sim_p10: pred[s].sim.p10, sim_p90: pred[s].sim.p90,
-                         sim_p_positive: pred[s].sim.pPositive, current: pred[s].current, naive: pred[s].naive });
-    }
-  }
-
-  // Waiver drop decisions (rule 9, second part). Candidates to drop: the roster's
-  // covered players (the ones every method can value). The added player is kept
-  // out of the lineup-only and realized replacement pools; the simulation world's
-  // replacement pool is shared per cell and cannot exclude him (recorded limitation).
-  const undraftedSet = undrafted;
-  for (let team = 0; team < rosters.length && waiver; team++) {
-    const full = rosters[team], drops = cov(full).sort(byId);
-    for (const add of adds) {
-      const und = undraftedSet.filter(id => id !== add);
-      const cand = drops.map(d => {
-        const afterFull = full.filter(id => id !== d).concat([add]);
-        const afterCov = cov(full).filter(id => id !== d).concat([add]);
-        return { d, m: meanP50(d, forecasts),
-                 sim: world.value(afterCov).mean,
-                 current: predictLineupOnly([afterCov], curProj, weeks, slots, replOf(curPool, curProj, add), posOf)[0].total,
-                 naive: predictLineupOnly([afterCov], naiveProj, weeks, slots, replOf(naivePool, naiveProj, add), posOf)[0].total,
-                 real: realizedRoster(afterFull, forecasts, actualWeeks, und, weeks, slots).total };
-      });
-      if (!cand.length) continue;
-      const best = Math.max(...cand.map(c => c.real));
-      const choice = {}, regret = {};
-      for (const m of METHODS) {
-        // argmax of the method's predicted total; ties (common for lineup-only:
-        // any never-starting bench player is an equal drop) go to the lowest
-        // mean frozen p50, then id -- the same neutral rule for every method.
-        const pick = cand.slice().sort((x, y) => (y[m] - x[m]) || (x.m - y.m) || byId(x.d, y.d))[0];
-        choice[m] = pick.d; regret[m] = best - pick.real;
+  function tradeRows() {
+    const { world, worldOff, curPool, naivePool, lineup } = tradeArms;
+    for (const trade of trades) {
+      const sides = tradeSides(rosters, trade);
+      const real = realized(rosters, trade, forecasts, actualWeeks, undrafted, weeks, slots);
+      const moved = trade.give_a.concat(trade.give_b);
+      const samePos = moved.every(id => posOf(id) === posOf(moved[0]));
+      const pred = {};
+      let depth = false;
+      for (const s of ["a", "b"]) {
+        const before = cov(sides[s].before), after = cov(sides[s].after);
+        const sim = predictSim(world, before, after);
+        const off = predictSim(worldOff, before, after);      // diagnostic arm, never in a verdict
+        const cb = lineup(sides[s].before, curProj, curPool), ca = lineup(sides[s].after, curProj, curPool);
+        const nb = lineup(sides[s].before, naiveProj, naivePool), na = lineup(sides[s].after, naiveProj, naivePool);
+        const give = s === "a" ? trade.give_a : trade.give_b;
+        if (depthForStarter({ beforeStarts: cb.starts, afterStarts: ca.starts, give, receive: sides[s].received, W })) depth = true;
+        pred[s] = { sim, off, current: ca.total - cb.total, naive: na.total - nb.total };
       }
-      result.waiver_rows.push({ cluster, team, add, choice, regret });
+      const strata = [samePos ? "same_position" : "cross_position"];
+      if (depth) strata.push("depth_for_starter");
+      for (const s of ["a", "b"]) {
+        result.rows.push({ cluster, trade_id: trade.id, origin, side: s, team: s === "a" ? trade.a : trade.b,
+                           position: posOf(sides[s].received[0]), strata: strata.slice(),
+                           real: real[s].delta, sim: pred[s].sim.mean, sim_p10: pred[s].sim.p10, sim_p90: pred[s].sim.p90,
+                           sim_p_positive: pred[s].sim.pPositive, current: pred[s].current, naive: pred[s].naive,
+                           sim_noavail: pred[s].off.mean, sim_noavail_p10: pred[s].off.p10, sim_noavail_p90: pred[s].off.p90 });
+      }
     }
   }
+
+  // Waiver drop decisions (rule 9, second part). Drop candidates: the roster's covered players.
+  // Every arm's replacement pool is waiverArms.und (undrafted minus the add set).
+  function waiverRows() {
+    const { world, curPool, naivePool, und } = waiverArms;
+    for (let team = 0; team < rosters.length; team++) {
+      const full = rosters[team], drops = cov(full).sort(byId);
+      for (const add of adds) {
+        const cand = drops.map(d => {
+          const afterFull = full.filter(id => id !== d).concat([add]);
+          const afterCov = cov(full).filter(id => id !== d).concat([add]);
+          return { d, m: meanP50(d, forecasts),
+                   sim: world.value(afterCov).mean,
+                   current: predictLineupOnly([afterCov], curProj, weeks, slots, replOf(curPool, curProj), posOf)[0].total,
+                   naive: predictLineupOnly([afterCov], naiveProj, weeks, slots, replOf(naivePool, naiveProj), posOf)[0].total,
+                   real: realizedRoster(afterFull, forecasts, actualWeeks, und, weeks, slots).total };
+        });
+        if (!cand.length) continue;
+        const best = Math.max(...cand.map(c => c.real));
+        const choice = {}, regret = {};
+        for (const m of METHODS) {
+          // argmax of the method's predicted total; ties (common for lineup-only: any
+          // never-starting bench player is an equal drop) go to the lowest mean frozen
+          // p50, then id -- the same neutral rule for every method.
+          const pick = cand.slice().sort((x, y) => (y[m] - x[m]) || (x.m - y.m) || byId(x.d, y.d))[0];
+          choice[m] = pick.d; regret[m] = best - pick.real;
+        }
+        result.waiver_rows.push({ cluster, team, add, choice, regret });
+      }
+    }
   }
 }
 
@@ -365,10 +441,13 @@ function block(rows) {
   const n = rows.length;
   if (!n) return { n: 0, mae: null, sign_accuracy: null, regret: null, coverage: null };
   const mae = {}, sign = {}, reg = {};
+  // Sign accuracy is undefined when the realized change is exactly 0, so those rows leave its denominator.
+  const signRows = rows.filter(r => r.real !== 0);
   for (const m of METHODS) {
     let a = 0, s = 0, g = 0;
-    for (const r of rows) { a += Math.abs(r[m] - r.real); if ((r[m] > 0) === (r.real > 0)) s++; g += regretOf(r[m], r.real); }
-    mae[m] = a / n; sign[m] = s / n; reg[m] = g / n;
+    for (const r of rows) { a += Math.abs(r[m] - r.real); g += regretOf(r[m], r.real); }
+    for (const r of signRows) if ((r[m] > 0) === (r.real > 0)) s++;
+    mae[m] = a / n; sign[m] = signRows.length ? s / signRows.length : null; reg[m] = g / n;
   }
   const covered = rows.filter(r => r.sim_p10 <= r.real && r.real <= r.sim_p90).length;
   return { n, mae, sign_accuracy: sign, regret: reg, coverage: covered / n };
@@ -475,13 +554,84 @@ function verdictChecks(summary) {
     const iv = b.strata_mae_diff_current && b.strata_mae_diff_current[s];
     checks.push({ rule: `stratum ${s}: (sim - current) MAE interval not entirely above 0`, interval: iv || null, pass: finiteIv(iv) && !(iv[0] > 0) });
   }
+  const ex = summary && summary.excluded_cells;
+  checks.push({ rule: "no planned cell excluded (spec §10.4)", value: Number.isFinite(ex) ? ex : null, pass: Number.isFinite(ex) && ex === 0 });
   const cov = summary && summary.coverage;
   checks.push({ rule: `80% interval coverage in [${COVERAGE_BAND[0]}, ${COVERAGE_BAND[1]}]`, value: Number.isFinite(cov) ? cov : null,
                 pass: Number.isFinite(cov) && cov >= COVERAGE_BAND[0] && cov <= COVERAGE_BAND[1] });
   return checks;
 }
 function verdict(summary) { return verdictChecks(summary).every(c => c.pass) ? "pass" : "fail"; }
-function waiverVerdict(b) { const iv = b && b.regret_diff_current; return finiteIv(iv) && iv[1] < 0 ? "pass" : "fail"; }
+function waiverVerdict(b, excludedCells) {
+  const iv = b && b.regret_diff_current;
+  return Number.isFinite(excludedCells) && excludedCells === 0 && finiteIv(iv) && iv[1] < 0 ? "pass" : "fail";
+}
+
+// Spec §10.3: the lopsided stratum is defined per origin (13 vs 9 weeks remaining are different
+// scales). measure = max over a trade's two sides of |current-method side delta|; cutoff = 90th
+// percentile (type 7) of that measure over the trades of the same origin. Mutates rows' strata.
+function markLopsided(rows) {
+  const byTrade = new Map();
+  for (const r of rows) { if (!byTrade.has(r.trade_id)) byTrade.set(r.trade_id, []); byTrade.get(r.trade_id).push(r); }
+  const measures = {};
+  for (const rs of byTrade.values()) (measures[rs[0].origin] = measures[rs[0].origin] || []).push(Math.max(...rs.map(r => Math.abs(r.current))));
+  const cutoffs = {};
+  for (const o of Object.keys(measures)) cutoffs[o] = percentile(measures[o].slice().sort((x, y) => x - y), 0.9);
+  for (const rs of byTrade.values()) {
+    if (Math.max(...rs.map(r => Math.abs(r.current))) >= cutoffs[rs[0].origin]) for (const r of rs) r.strata.push("lopsided");
+  }
+  return cutoffs;
+}
+// Spec §10.3: E (the simulation's side-delta MAE) per stratum and the lopsided cutoff, per origin.
+function horizonsOf(rows, cutoffs) {
+  return Object.keys(cutoffs).map(Number).sort((x, y) => x - y).map(origin => {
+    const m = metrics(rows.filter(r => r.origin === origin));
+    return { origin, weeks: LAST_WEEK - origin + 1,
+             strata: Object.fromEntries(STRATA.map(s => [s, { E: m.by_stratum[s].mae ? m.by_stratum[s].mae.sim : null, n: m.by_stratum[s].n }])),
+             lopsided_cutoff: cutoffs[origin] };
+  });
+}
+// The slim gate file (schema 2). Verdict and bootstrap stay pooled; only E and the cutoff are per horizon.
+function buildSlim(primary, secondary, cfg, generated_at) {
+  return {
+    schema_version: 2, league: primary.league, slots: primary.slots, verdict: primary.verdict, waiver_verdict: primary.waiver_verdict,
+    k: LABEL_K, horizons: primary.horizons, seasons: cfg.seasons, origins: cfg.origins, excluded_cells: primary.excluded_cells, generated_at,
+    secondary: secondary ? { league: secondary.league, slots: secondary.slots, verdict: secondary.verdict, waiver_verdict: secondary.waiver_verdict,
+                             horizons: secondary.horizons, excluded_cells: secondary.excluded_cells } : null,
+  };
+}
+// Non-gating diagnostic: the simulation with the availability model switched off, on the same rows.
+function availabilityOffBlock(rows) {
+  const n = rows.length;
+  if (!n) return null;
+  const signRows = rows.filter(r => r.real !== 0);
+  const out = { n, note: "diagnostic only, never part of a verdict: same engine, p_out = p_stay = p_tag = 0" };
+  for (const [label, key] of [["sim", "sim"], ["sim_availability_off", "sim_noavail"]]) {
+    out[label] = { mae: rows.reduce((t, r) => t + Math.abs(r[key] - r.real), 0) / n,
+                   sign_accuracy: signRows.length ? signRows.filter(r => (r[key] > 0) === (r.real > 0)).length / signRows.length : null,
+                   regret: rows.reduce((t, r) => t + regretOf(r[key], r.real), 0) / n,
+                   coverage: rows.filter(r => r[key + "_p10"] <= r.real && r.real <= r[key + "_p90"]).length / n };
+  }
+  out.sim.coverage = rows.filter(r => r.sim_p10 <= r.real && r.real <= r.sim_p90).length / n;
+  return out;
+}
+
+// Walk-forward input guards (review M3).
+function checkAvailability(av, S, O) {
+  const file = `availability_${S}`;
+  if (av.test_season !== S) throw new BacktestError(`${file}: test_season ${av.test_season}, expected ${S}`);
+  if (!Array.isArray(av.seasons) || !Number.isFinite(av.seasons[1]) || av.seasons[1] >= S) {
+    throw new BacktestError(`${file}: seasons ${JSON.stringify(av.seasons)} must end before the test season ${S} (walk-forward)`);
+  }
+  if (!av.tags || typeof av.tags[String(O - 1)] !== "object" || av.tags[String(O - 1)] === null) {
+    throw new BacktestError(`${file}: no tags for week ${O - 1} (origin ${O}); refusing to run with untagged players`);
+  }
+}
+// True when p is strictly inside dir; path.relative is case-insensitive on win32.
+function isInside(dir, p) {
+  const rel = path.relative(path.resolve(dir), path.resolve(p));
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
 
 // --- output -------------------------------------------------------------------------
 // Rounding happens here and only here; any non-finite number is an error
@@ -536,6 +686,9 @@ function checkForecastFile(fc, S, O, file) {
   if (fc.season !== S || fc.origin !== O) throw new BacktestError(`${file}: holds season ${fc.season} origin ${fc.origin}, expected ${S} / ${O}`);
   if (JSON.stringify(fc.weeks) !== JSON.stringify(want)) throw new BacktestError(`${file}: weeks ${JSON.stringify(fc.weeks)}, expected ${O}..${LAST_WEEK}`);
   if (!fc.players || typeof fc.players !== "object") throw new BacktestError(`${file}: no players`);
+  if (!Number.isFinite(fc.training_through) || fc.training_through >= S) {
+    throw new BacktestError(`${file}: training_through ${fc.training_through} is not before test season ${S} (walk-forward)`);
+  }
 }
 // Worker-side cache: each worker loads an input file once.
 const cache = new Map();
@@ -575,6 +728,7 @@ async function runLeague(cfg, boardPath, inputs, { waiver }) {
   D.applyLeague(league);
   D.setNoise(D.MEASURED.noiseRanks);     // the measured field's noise, as draft_sim's CLI sets it for --field measured
   const cells = [], trades = [];
+  const sampleStats = { attempts: 0, accepted: 0, rejected_not_starter: 0 };
   for (const S of cfg.seasons) {
     const world = inputs.worlds[S];
     const players = O.withValuePoints(world.players);
@@ -587,18 +741,19 @@ async function runLeague(cfg, boardPath, inputs, { waiver }) {
       for (const Or of cfg.origins) {
         const fc = inputs.forecasts[`${S}:${Or}`];
         const tradeSeed = hashStr(`${S}:${Or}:${k}`);
-        const sampled = sampleTrades(drafted, fc, mulberry32(tradeSeed), cfg.trades)
-          .map((t, i) => Object.assign({ id: `${S}:${Or}:${k}:${i}`, season: S, origin: Or, k }, t));
-        trades.push(...sampled);
+        const sampled = sampleTrades(drafted, fc, mulberry32(tradeSeed), cfg.trades, { slots });
+        const sampledTrades = sampled.map((t, i) => Object.assign({ id: `${S}:${Or}:${k}:${i}`, season: S, origin: Or, k }, t));
+        sampleStats.attempts += sampled.stats.attempts; sampleStats.accepted += sampled.stats.accepted; sampleStats.rejected_not_starter += sampled.stats.rejected_not_starter;
+        trades.push(...sampledTrades);
         cells.push({ season: S, origin: Or, k, draftSeed, tradeSeed, simSeed: hashStr(`sim:${S}:${Or}:${k}`),
-                     roster_sizes: drafted.map(r => r.length), rosters: drafted, undrafted, trades: sampled,
+                     roster_sizes: drafted.map(r => r.length), rosters: drafted, undrafted, trades: sampledTrades,
                      forecastFile: forecastPath(cfg, S, Or), worldFile: worldPath(cfg, S), availabilityFile: availPath(cfg, S),
                      slots, nSims: cfg.sims, waiver });
       }
     }
   }
   const shortCells = cells.filter(c => c.trades.length < cfg.trades).map(c => `${c.season}:${c.origin}:${c.k} (${c.trades.length})`);
-  console.log(`[${league.slug}] ${cells.length} cells, ${trades.length} trades sampled` + (shortCells.length ? `; short cells: ${shortCells.join(", ")}` : ""));
+  console.log(`[${league.slug}] ${cells.length} cells, ${trades.length} trades sampled (population rule kept ${sampleStats.accepted} of ${sampleStats.attempts} draws; ${sampleStats.rejected_not_starter} rejected as bench-only)` + (shortCells.length ? `; short cells: ${shortCells.join(", ")}` : ""));
   // Phase 2 -- predictions and realized outcomes.
   const t0 = Date.now(); let done = 0;
   const results = await runCells(cells, cfg.jobs, r => {
@@ -609,21 +764,25 @@ async function runLeague(cfg, boardPath, inputs, { waiver }) {
   const rows = results.flatMap(r => r.rows);
   const byTrade = new Map();
   for (const r of rows) { if (!byTrade.has(r.trade_id)) byTrade.set(r.trade_id, []); byTrade.get(r.trade_id).push(r); }
-  const measure = [...byTrade.values()].map(rs => Math.max(...rs.map(r => Math.abs(r.current))));
-  const cutoff = measure.length ? percentile(measure.slice().sort((x, y) => x - y), 0.9) : null;
-  for (const rs of byTrade.values()) if (Math.max(...rs.map(r => Math.abs(r.current))) >= cutoff) for (const r of rs) r.strata.push("lopsided");
+  const cutoffs = markLopsided(rows);     // spec §10.3: per origin
   const tradeStrata = new Map([...byTrade].map(([id, rs]) => [id, rs[0].strata]));
   for (const t of trades) t.strata = tradeStrata.get(t.id) || null;     // null = cell excluded
   const m = metrics(rows);
   const boot = bootstrap(rows, cfg.bootstrap, mulberry32(hashStr(`bootstrap:${league.slug}`)));
-  const summary = { coverage: m.pooled.coverage, bootstrap: boot };
+  const excludedCells = results.filter(r => r.excluded).map(r => ({ season: r.season, origin: r.origin, k: r.k, reason: r.excluded }));
+  const summary = { coverage: m.pooled.coverage, bootstrap: boot, excluded_cells: excludedCells.length };
+  const horizons = horizonsOf(rows, cutoffs);
   const out = {
     league: league.slug, name: league.name, teams: league.teams, rounds: league.rounds, slots,
     cells: results.map((r, i) => ({ season: r.season, origin: r.origin, k: r.k, draft_seed: cells[i].draftSeed, trade_seed: cells[i].tradeSeed,
                                      sim_seed: cells[i].simSeed, roster_sizes: cells[i].roster_sizes, undrafted: cells[i].undrafted.length,
                                      trades: cells[i].trades.length, excluded: r.excluded, uncovered_rostered: r.uncovered_rostered,
                                      partial_rostered: r.partial_rostered, null_baseline_rostered: r.null_baseline_rostered })),
-    lopsided_cutoff: cutoff,
+    lopsided_cutoff: cutoffs,
+    horizons, excluded_cells: excludedCells.length, excluded_cell_list: excludedCells,
+    trade_population: sampleStats,
+    diagnostics: { availability_off: availabilityOffBlock(rows) },
+    metrics_by_origin: Object.fromEntries(horizons.map(h => [h.origin, metrics(rows.filter(r => r.origin === h.origin))])),
     lopsided_measure: "max over the trade's two sides of |current-method side delta| (points, weeks origin..17)",
     metrics: m, bootstrap: boot, verdict: verdict(summary), verdict_checks: verdictChecks(summary),
     trades, rows: rows.map(({ cluster, ...r }) => r),
@@ -632,8 +791,11 @@ async function runLeague(cfg, boardPath, inputs, { waiver }) {
   if (waiver) {
     const wrows = results.flatMap(r => r.waiver_rows);
     const wb = bootstrapWaiver(wrows, cfg.bootstrap, mulberry32(hashStr(`waiver-bootstrap:${league.slug}`)));
-    out.waiver = { adds_per_roster: WAIVER_ADDS, metrics: waiverMetrics(wrows), bootstrap: wb, verdict: waiverVerdict(wb),
+    out.waiver = { quota: WAIVER_QUOTA, metrics: waiverMetrics(wrows), bootstrap: wb, verdict: waiverVerdict(wb, excludedCells.length),
                    rows: wrows.map(({ cluster, ...r }) => r) };
+    out.waiver_verdict = out.waiver.verdict;
+  } else {
+    out.waiver_verdict = "not_evaluated";     // the secondary league runs trades only
   }
   return out;
 }
@@ -641,14 +803,13 @@ function isPredeclared(cfg) {
   return JSON.stringify(cfg.seasons) === JSON.stringify(PREDECLARED.seasons) && JSON.stringify(cfg.origins) === JSON.stringify(PREDECLARED.origins)
     && cfg.leagues === PREDECLARED.leagues && cfg.trades === PREDECLARED.trades && cfg.sims === PREDECLARED.sims && cfg.bootstrap === PREDECLARED.bootstrap;
 }
-function stratumE(r) { return Object.fromEntries(STRATA.map(s => [s, { E: r.metrics.by_stratum[s].mae ? r.metrics.by_stratum[s].mae.sim : null, n: r.metrics.by_stratum[s].n }])); }
 
 async function main() {
   const cfg = parseArgs(process.argv);
   const predeclared = isPredeclared(cfg);
   // A reduced run must never open the public gate: refuse a site-out inside site/.
   const siteDir = path.resolve(__dirname, "..", "site");
-  if (!predeclared && path.resolve(cfg.siteOut).startsWith(siteDir + path.sep)) {
+  if (!predeclared && isInside(siteDir, cfg.siteOut)) {
     throw new BacktestError(`this run is not the predeclared configuration (${JSON.stringify(PREDECLARED)}); refusing to write the gate file ${cfg.siteOut} under site/`);
   }
   // Pre-flight: every input exists before any work starts.
@@ -667,8 +828,8 @@ async function main() {
     inputs.worlds[S] = readJson(worldPath(cfg, S));
     if (inputs.worlds[S].season !== S) throw new BacktestError(`${worldPath(cfg, S)} holds season ${inputs.worlds[S].season}`);
     const av = readJson(availPath(cfg, S));
-    if (av.test_season !== S) throw new BacktestError(`${availPath(cfg, S)} is for test season ${av.test_season}, not ${S}`);
     for (const O of cfg.origins) {
+      checkAvailability(av, S, O);
       const f = forecastPath(cfg, S, O), fc = readJson(f);
       checkForecastFile(fc, S, O, f);
       inputs.forecasts[`${S}:${O}`] = fc;
@@ -682,7 +843,7 @@ async function main() {
   const full = {
     schema_version: 1, generated_at,
     config: { seasons: cfg.seasons, origins: cfg.origins, leagues: cfg.leagues, trades: cfg.trades, sims: cfg.sims, bootstrap: cfg.bootstrap,
-              predeclared, label_k: LABEL_K, coverage_band: COVERAGE_BAND, last_week: LAST_WEEK, waiver_adds: WAIVER_ADDS,
+              predeclared, label_k: LABEL_K, coverage_band: COVERAGE_BAND, last_week: LAST_WEEK, waiver_quota: WAIVER_QUOTA,
               inputs: { league: cfg.league, secondary: cfg.secondary, forecasts_dir: cfg.forecastsDir, worlds_dir: cfg.worldsDir, availability_dir: cfg.availabilityDir, forecasts: forecastMeta },
               seeds: { draft: "1000*S + k (tools/draft_sim.cjs runDraft, heroSlot 0, field 'measured', noise MEASURED.noiseRanks)",
                        trades: "mulberry32(hashStr(`${S}:${O}:${k}`))", sim: "hashStr(`sim:${S}:${O}:${k}`)",
@@ -693,23 +854,26 @@ async function main() {
                 realized: "weekly lineup by frozen p50 among roster players with an actual entry and a forecast play row that week; unfilled slots take the best-p50 undrafted player who played",
                 sign: "(pred > 0) === (real > 0)", regret: "max(real,0) - (pred > 0 ? real : 0)", coverage: "sim p10 <= real <= p90 (side delta)",
                 percentile: "linear interpolation (type 7)",
+                waiver_set: "spec §10.1: per-position quota QB 2 / RB 3 / WR 3 / TE 2 of undrafted players, ranked by the mean over ALL weeks origin..17 of frozen p50 with a bye week counted as 0, ties by player id ascending (as on the live desk); a candidate must have a play/bye row for every week origin..17 -- a top player lacking one is skipped and the next taken",
+                waiver_replacement_pool: "waiver replacement pool = undrafted minus the per-position add set, in every arm (sim, current, naive, realized); the live waiver desk does the same",
+                trade_population: "spec §10.2: a sampled trade is kept only if each side gives at least one player who starts in >= half the weeks of its own frozen-p50 before-lineup (decided before any prediction); depth_for_starter = a side gives a before-lineup starter and receives no player who starts in >= half the weeks of its after-lineup (trade is in the stratum if either side qualifies)",
+                error_band_by_horizon: "spec §10.3: E per stratum and the lopsided cutoff are measured per origin; verdict and bootstrap stay pooled across origins; slim file schema_version 2 with horizons[]",
+                excluded_cells: "spec §10.4: any excluded planned cell (incl. a rostered player without full forecast coverage) makes verdict and waiver_verdict 'fail'; the excluded count is published",
+                sign_accuracy: "rows with real === 0 are excluded from the sign-accuracy denominator (not part of the verdict)",
+                diagnostic: "diagnostics.availability_off: the same engine with p_out = p_stay = p_tag = 0, reported in the full file only, never in a verdict",
               } },
     primary, secondary,
-    verdict: primary.verdict, waiver_verdict: primary.waiver.verdict,
+    verdict: primary.verdict, waiver_verdict: primary.waiver_verdict,
     runtime_s: (Date.now() - t0) / 1000,
   };
-  const slim = {
-    schema_version: 1, league: primary.league, slots: primary.slots, verdict: primary.verdict, waiver_verdict: primary.waiver.verdict,
-    k: LABEL_K, strata: stratumE(primary), lopsided_cutoff: primary.lopsided_cutoff, seasons: cfg.seasons, origins: cfg.origins, generated_at,
-    secondary: secondary ? { league: secondary.league, slots: secondary.slots, verdict: secondary.verdict, strata: stratumE(secondary), lopsided_cutoff: secondary.lopsided_cutoff } : null,
-  };
+  const slim = buildSlim(primary, secondary, cfg, generated_at);
   const fullOut = roundDeep(full), slimOut = roundDeep(slim);     // throws on any non-finite number
   fs.mkdirSync(path.dirname(path.resolve(cfg.out)), { recursive: true });
   fs.writeFileSync(cfg.out, JSON.stringify(fullOut));
   fs.mkdirSync(path.dirname(path.resolve(cfg.siteOut)), { recursive: true });
   fs.writeFileSync(cfg.siteOut, JSON.stringify(slimOut, null, 1) + "\n");
   const p = primary.metrics.pooled;
-  console.log(`\n[${primary.league}] n=${p.n} sides  MAE sim ${p.mae.sim.toFixed(2)} / current ${p.mae.current.toFixed(2)} / naive ${p.mae.naive.toFixed(2)}  coverage ${p.coverage.toFixed(3)}  verdict ${primary.verdict}  waiver_verdict ${primary.waiver.verdict}`);
+  console.log(`\n[${primary.league}] excluded cells ${primary.excluded_cells}  n=${p.n} sides  MAE sim ${p.mae.sim.toFixed(2)} / current ${p.mae.current.toFixed(2)} / naive ${p.mae.naive.toFixed(2)}  coverage ${p.coverage.toFixed(3)}  verdict ${primary.verdict}  waiver_verdict ${primary.waiver_verdict}`);
   if (secondary) console.log(`[${secondary.league}] verdict ${secondary.verdict}`);
   console.log(`wrote ${cfg.out}\nwrote ${cfg.siteOut}${predeclared ? "" : "\n(NOT the predeclared configuration: exploratory numbers only)"}`);
 }
@@ -724,7 +888,7 @@ if (!isMainThread && workerData && workerData.role === "cell-worker") {
   main().catch(e => { console.error(`trade_backtest: ${e instanceof BacktestError ? e.message : (e && e.stack) || e}`); process.exit(2); });
 }
 
-module.exports = { sampleTrades, predictSim, predictLineupOnly, realized, realizedRoster, metrics, bootstrap, bootstrapWaiver,
+module.exports = { meanP50ByeZero, frozenStarters, depthForStarter, waiverAdds, markLopsided, horizonsOf, buildSlim, checkAvailability, checkForecastFile, isInside, availabilityOff, availabilityOffBlock, WAIVER_QUOTA, sampleTrades, predictSim, predictLineupOnly, realized, realizedRoster, metrics, bootstrap, bootstrapWaiver,
                    verdict, verdictChecks, waiverVerdict, waiverMetrics, runCell, buildSimWorld, replacementPool, poolSizes,
                    isCovered, meanP50, afterRoster, overflowDrop, roundDeep, percentile, mulberry32, hashStr, slotsOf,
                    BacktestError, STRATA, PREDECLARED };

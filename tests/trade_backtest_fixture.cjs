@@ -7,7 +7,9 @@
 const assert = require("node:assert/strict");
 const T = require("../tools/trade_backtest.cjs");
 
-let n = 0; const check = (name, fn) => { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; throw e; } };
+let n = 0; const failed = [];
+// FIXTURE_ALL=1 reports every failing group instead of stopping at the first (used to show new cases fail on old code).
+const check = (name, fn) => { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; if (process.env.FIXTURE_ALL) { failed.push(e.message.split("\n")[0]); return; } throw e; } };
 const close = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: got ${a}, expected ${b}`);
 
 /* ---------------------------------------------------------------------------
@@ -47,7 +49,14 @@ const FC = { schema_version: 1, season: 2023, origin: 5, weeks: WEEKS, players: 
   uR:  { position: "RB", baseline: 6,  weeks: every(7) },
   uW:  { position: "WR", baseline: 8,  weeks: every(9) },
 } };
+// FC2: the mini season with bR's week-7 row filled in (every rostered player fully covered),
+// plus a second undrafted QB and RB so a waiver pool survives excluding the add set.
+const FC2 = JSON.parse(JSON.stringify(FC));
+FC2.players.bR.weeks[7] = play(12);
+FC2.players.uQ2 = { position: "QB", baseline: 5, weeks: every(5) };
+FC2.players.uR2 = { position: "RB", baseline: 4, weeks: every(4) };
 const ACT = {
+  uQ2: { 5: 4, 6: 5, 7: 6 }, uR2: { 5: 3, 6: 4, 7: 5 },
   aQ: { 5: 18, 6: 25, 7: 22 }, aR1: { 5: 10, 6: 20, 7: 12 }, aR2: { 5: 5, 6: 9, 7: 14 }, aW: { 5: 12, 6: 3, 7: 8 },
   bQ: { 5: 20, 7: 16 }, bR: { 5: 7, 6: 15, 7: 11 }, bW1: { 5: 16, 6: 6, 7: 21 }, bW2: { 5: 9, 7: 4 },
   uQ: { 5: 13, 6: 12, 7: 9 }, uR: { 5: 6, 6: 8, 7: 5 }, uW: { 5: 10, 7: 7 },
@@ -164,7 +173,7 @@ check("d_metrics", () => {
    The same summary at 0.80 passes, so the fail is the coverage rule and nothing
    else; each other rule also fails on its own. */
 check("e_verdict", () => {
-  const good = () => ({ coverage: 0.95, bootstrap: {
+  const good = () => ({ coverage: 0.95, excluded_cells: 0, bootstrap: {
     mae_diff: { current: [-2, -0.5], naive: [-4, -1] }, regret_diff: { current: [-1, -0.1], naive: [-3, -0.2] },
     strata_mae_diff_current: { same_position: [-1, -0.2], cross_position: [-3, -1], depth_for_starter: [-0.5, 0.4], lopsided: [-6, -2] } } });
   assert.equal(T.verdict(good()), "fail");
@@ -176,9 +185,9 @@ check("e_verdict", () => {
   const str = good(); str.coverage = 0.8; str.bootstrap.strata_mae_diff_current.cross_position = [0.1, 2]; assert.equal(T.verdict(str), "fail", "a stratum worse than current");
   const miss = good(); miss.coverage = 0.8; delete miss.bootstrap.strata_mae_diff_current.lopsided; assert.equal(T.verdict(miss), "fail", "no evidence is not a pass");
   // Waiver: pass iff the (sim - current) mean-regret interval is entirely below 0.
-  assert.equal(T.waiverVerdict({ regret_diff_current: [-2, -0.1] }), "pass");
-  assert.equal(T.waiverVerdict({ regret_diff_current: [-2, 0] }), "fail");
-  assert.equal(T.waiverVerdict({ regret_diff_current: null }), "fail");
+  assert.equal(T.waiverVerdict({ regret_diff_current: [-2, -0.1] }, 0), "pass");
+  assert.equal(T.waiverVerdict({ regret_diff_current: [-2, 0] }, 0), "fail");
+  assert.equal(T.waiverVerdict({ regret_diff_current: null }, 0), "fail");
 });
 
 /* (f) sampleTrades: same seed -> identical list; never includes a player lacking a
@@ -225,17 +234,23 @@ check("g_cell_pipeline", () => {
   const cell = T.runCell({ season: 2023, origin: 5, k: 0, rosters: ROSTERS, undrafted: UNDRAFTED, forecasts: FC,
     actualWeeks: ACT, availability: A, tags: { bQ: "Questionable" }, slots: SLOTS, nSims: 300, simSeed: 11,
     trades: [Object.assign({ id: "t0" }, TRADE)], waiver: false });
-  assert.equal(cell.excluded, null);
-  assert.equal(cell.rows.length, 2);
-  const [ra, rb] = cell.rows;
-  close(ra.real, 20, "row a real"); close(rb.real, -16, "row b real");
-  // current for side A = 147 - 135 = +12 from (c); bR is excluded from B's
-  // prediction roster (no week-7 row), so B's current is computed without him.
-  close(ra.current, 12, "row a current");
-  for (const r of cell.rows) for (const k of ["sim", "sim_p10", "sim_p90", "current", "naive"]) assert.ok(Number.isFinite(r[k]), k);
+  // Review M1: bR has no week-7 row, so a rostered player lacks full coverage: the cell is
+  // excluded and recorded, never silently thinned.
+  assert.match(String(cell.excluded), /lack full forecast coverage/);
+  assert.equal(cell.rows.length, 0);
+  assert.equal(cell.uncovered_rostered, 1, "bR counted as a coverage gap");
+  // With bR's week-7 row filled in the same cell runs.
+  const ok = T.runCell({ season: 2023, origin: 5, k: 0, rosters: ROSTERS, undrafted: UNDRAFTED, forecasts: FC2,
+    actualWeeks: ACT, availability: A, tags: { bQ: "Questionable" }, slots: SLOTS, nSims: 300, simSeed: 11,
+    trades: [Object.assign({ id: "t0" }, TRADE)], waiver: false });
+  assert.equal(ok.excluded, null);
+  assert.equal(ok.rows.length, 2);
+  const [ra, rb] = ok.rows;
+  assert.equal(ra.origin, 5);
+  for (const r of ok.rows) for (const k of ["real", "sim", "sim_p10", "sim_p90", "current", "naive", "sim_noavail", "sim_noavail_p10", "sim_noavail_p90"]) assert.ok(Number.isFinite(r[k]), k);
   assert.equal(ra.position, "WR"); assert.equal(rb.position, "RB");
   assert.ok(ra.strata.includes("cross_position") && !ra.strata.includes("same_position"));
-  assert.equal(cell.uncovered_rostered, 1, "bR counted as a coverage gap");
+  close(ra.current, 12, "row a current");   // 147 - 135 from (c)
 });
 
 /* (h) output guards: rounding happens at output only, and a non-finite metric throws. */
@@ -246,4 +261,170 @@ check("h_output_guards", () => {
   close(T.percentile([1, 2, 3, 4, 5], 0.9), 4.6, "type-7 percentile");
 });
 
+/* ---- Fix round 1 (spec §10 amendments and review items) ------------------------------ */
+const AV = () => ({ p_out: { QB: 0.05, RB: 0.08, WR: 0.06, TE: 0.06 }, p_stay: { QB: 0.6, RB: 0.65, WR: 0.6, TE: 0.6 },
+                    p_tag: { Out: 0.7, Doubtful: 0.5, Questionable: 0.15, IR: 0.9 } });
+
+/* (i) sign accuracy excludes real === 0 rows (review M6). Extra row real 0, sim 1, cur -1, naive 0:
+   sim was counted wrong before (1 > 0 but 0 > 0 is false) -> 2/5 = 0.4; excluded: sim T T F F = 2/4 = 0.5,
+   cur 3/4 = 0.75 (unchanged), naive 2/4 = 0.5. MAE etc. still use all 5 rows (n = 5). */
+check("i_sign_excludes_zero_real", () => {
+  const m = T.metrics(ROWS.concat([{ cluster: "2023:5:0", real: 0, sim: 1, current: -1, naive: 0, sim_p10: -1, sim_p90: 1, strata: ["cross_position"], position: "WR" }]));
+  assert.equal(m.pooled.n, 5);
+  close(m.pooled.sign_accuracy.sim, 0.5, "sign sim"); close(m.pooled.sign_accuracy.current, 0.75, "sign cur"); close(m.pooled.sign_accuracy.naive, 0.5, "sign naive");
+});
+
+/* (j) §10.1 waiver set: per-position quota QB 2 / RB 3 / WR 3 / TE 2 by mean frozen p50.
+   6 QBs (p50 30..25, all above every other position), 4 RB, 4 WR, 1 TE. Expected: QB q0,q1;
+   RB r0,r1,r2 (r3 out); WR w0,w1,w2; TE t0 only (fewer than the quota exist, so all of them). */
+check("j_waiver_quota", () => {
+  const players = {}, ids = [];
+  const add = (pos, n, top) => { for (let i = 0; i < n; i++) { const id = pos.toLowerCase() + i; ids.push(id); players[id] = { position: pos, baseline: 1, weeks: every(top - i) }; } };
+  add("QB", 6, 30); add("RB", 4, 20); add("WR", 4, 18); add("TE", 1, 10);
+  const set = T.waiverAdds(ids, { weeks: WEEKS, players }, WEEKS);
+  assert.deepEqual(set.slice().sort(), ["qb0", "qb1", "rb0", "rb1", "rb2", "te0", "wr0", "wr1", "wr2"]);
+  assert.ok(set.filter(i => i.startsWith("qb")).length === 2, "not all QBs");
+  // A player without a play/bye row for every week cannot be an add (unknown is not zero).
+  players.qb0.weeks = { 5: play(30) };
+  assert.ok(!T.waiverAdds(ids, { weeks: WEEKS, players }, WEEKS).includes("qb0"));
+});
+
+/* (k) §10.1 / review I1 (controller decision): the waiver replacement pool excludes the WHOLE add
+   set in every arm (sim, current, naive, realized), matching the live desk. Quota QB 1 / RB 1: adds
+   are uQ (bye in week 6) and uR. The pool the waiver decisions see must not contain uQ or uR (no
+   "replaced by his own copy"), but does contain uQ2 / uR2 / uW. */
+check("k_waiver_pool_excludes_adds", () => {
+  const FC3 = JSON.parse(JSON.stringify(FC2));
+  FC3.players.uQ.weeks[6] = { status: "bye" };
+  const cell = T.runCell({ season: 2023, origin: 5, k: 0, rosters: ROSTERS, undrafted: ["uQ", "uR", "uW", "uQ2", "uR2"], forecasts: FC3,
+    actualWeeks: ACT, availability: AV(), tags: {}, slots: SLOTS, nSims: 200, simSeed: 3, trades: [Object.assign({ id: "t0" }, TRADE)],
+    waiver: true, waiverQuota: { QB: 1, RB: 1, WR: 0, TE: 0 } });
+  assert.equal(cell.excluded, null);
+  assert.deepEqual(cell.waiver_adds.slice().sort(), ["uQ", "uR"]);
+  for (const id of ["uQ", "uR"]) assert.ok(!cell.waiver_pool.includes(id), `${id} must not be in the waiver replacement pool`);
+  for (const id of ["uQ2", "uR2", "uW"]) assert.ok(cell.waiver_pool.includes(id), `${id} is a legal replacement`);
+  assert.equal(cell.waiver_rows.length, 4);   // 2 teams x 2 adds
+  assert.equal(cell.rows.length, 2);          // the trade arm is unaffected
+});
+
+/* (l) §10.2 trade population. Slots QB/RB/FLEX, frozen p50 before-lineups (FC2):
+   A: aQ, aR1, FLEX aW (10 > aR2 8) start all 3 weeks; aR2 starts 0.
+   B: bQ, bR (12), FLEX bW1 (14) start all 3 weeks; bW2 starts 0 (p50 6, bye wk 6).
+   A trade is kept only if each side gives >= 1 player who starts in >= half the weeks (2 of 3):
+   never {aR2} for {bW2} alone; each side's give must contain a starter. */
+check("l_trade_population", () => {
+  const out = T.sampleTrades(ROSTERS, FC2, T.mulberry32(T.hashStr("2023:5:0")), 25, { slots: SLOTS });
+  assert.equal(out.length, 25);
+  const START = [new Set(["aQ", "aR1", "aW"]), new Set(["bQ", "bR", "bW1"])];   // indexed by roster
+  for (const t of out) {
+    assert.ok(t.give_a.some(id => START[t.a].has(id)), `side a gives only bench: ${t.give_a}`);
+    assert.ok(t.give_b.some(id => START[t.b].has(id)), `side b gives only bench: ${t.give_b}`);
+  }
+  assert.ok(out.stats.attempts > out.stats.accepted, "some draws were rejected");
+  assert.equal(out.stats.accepted, 25);
+  assert.deepEqual(out, T.sampleTrades(ROSTERS, FC2, T.mulberry32(T.hashStr("2023:5:0")), 25, { slots: SLOTS }));
+  assert.deepEqual([...T.frozenStarters(ROSTERS[0], FC2, SLOTS)].sort(), ["aQ", "aR1", "aW"]);
+  assert.deepEqual([...T.frozenStarters(ROSTERS[1], FC2, SLOTS)].sort(), ["bQ", "bR", "bW1"]);
+});
+
+/* (m) §10.2 depth_for_starter (per side): the side gives >= 1 before-lineup starter (starts
+   >= half of W = 3 weeks, i.e. >= 2) AND receives no player starting >= half of the after-lineup weeks. */
+check("m_depth_for_starter", () => {
+  const W = 3;
+  const base = { beforeStarts: { g1: 3, g2: 0 }, afterStarts: { r1: 1, r2: 0 }, give: ["g1"], receive: ["r1", "r2"], W };
+  assert.equal(T.depthForStarter(base), true, "gives a starter, receives only bench (1 of 3 < half)");
+  assert.equal(T.depthForStarter(Object.assign({}, base, { afterStarts: { r1: 2, r2: 0 } })), false, "r1 starts 2 of 3 = half or more");
+  assert.equal(T.depthForStarter(Object.assign({}, base, { give: ["g2"] })), false, "gives only a bench player");
+  assert.equal(T.depthForStarter(Object.assign({}, base, { beforeStarts: { g1: 1 } })), false, "1 of 3 is not a starter");
+});
+
+/* (n) §10.3 lopsided cutoff per origin. Origin 5: ten trades with max|current| 1..10 -> type-7 90th
+   percentile 9.1 -> only the 10 is lopsided. Origin 9: measures 101..110 -> 109.1 -> only 110.
+   Pooled, origin 5 would have none flagged (cutoff ~ 105). Then E per stratum and the schema-2 slim file. */
+check("n_horizons_and_slim_schema", () => {
+  const rows = [];
+  for (const [origin, base] of [[5, 0], [9, 100]]) {
+    for (let i = 1; i <= 10; i++) for (const side of ["a", "b"]) {
+      rows.push({ cluster: `2023:${origin}:0`, trade_id: `t${origin}_${i}`, origin, side, position: "RB", strata: ["same_position"],
+                  real: side === "a" ? 1 : -1, sim: 0, current: (side === "a" ? 1 : -1) * (base + i), naive: 0, sim_p10: -5, sim_p90: 5 });
+    }
+  }
+  const cut = T.markLopsided(rows);
+  close(cut[5], 9.1, "origin 5 cutoff"); close(cut[9], 109.1, "origin 9 cutoff");
+  assert.equal(rows.filter(r => r.strata.includes("lopsided")).length, 4);   // 2 trades x 2 sides
+  assert.ok(rows.filter(r => r.origin === 5 && r.strata.includes("lopsided")).every(r => r.trade_id === "t5_10"));
+  const hz = T.horizonsOf(rows, cut);
+  assert.deepEqual(hz.map(h => [h.origin, h.weeks]), [[5, 13], [9, 9]]);
+  // E = the simulation's MAE in the stratum: |0 - real| = 1 for every row.
+  close(hz[0].strata.same_position.E, 1, "E"); assert.equal(hz[0].strata.same_position.n, 20);
+  assert.equal(hz[0].strata.lopsided.n, 2); close(hz[0].lopsided_cutoff, 9.1, "cutoff in horizon");
+  const league = { league: "gabagool", slots: SLOTS, verdict: "pass", waiver_verdict: "pass", horizons: hz, excluded_cells: 0 };
+  const sec = { league: "fam", slots: SLOTS, verdict: "fail", waiver_verdict: "not_evaluated", horizons: hz, excluded_cells: 2 };
+  const slim = T.buildSlim(league, sec, { seasons: [2023], origins: [5, 9] }, "2026-09-28T00:00:00Z");
+  assert.deepEqual(Object.keys(slim), ["schema_version", "league", "slots", "verdict", "waiver_verdict", "k", "horizons", "seasons", "origins", "excluded_cells", "generated_at", "secondary"]);
+  assert.equal(slim.schema_version, 2); assert.equal(slim.k, 2);
+  assert.deepEqual(Object.keys(slim.horizons[0]), ["origin", "weeks", "strata", "lopsided_cutoff"]);
+  assert.deepEqual(Object.keys(slim.secondary), ["league", "slots", "verdict", "waiver_verdict", "horizons", "excluded_cells"]);
+  assert.equal(slim.secondary.excluded_cells, 2);
+});
+
+/* (o) §10.4 fail closed: any excluded primary cell forces both verdicts to "fail", even when every
+   interval and the coverage would pass. */
+check("o_excluded_cells_fail_closed", () => {
+  const s = { coverage: 0.8, excluded_cells: 0, bootstrap: {
+    mae_diff: { current: [-2, -0.5], naive: [-4, -1] }, regret_diff: { current: [-1, -0.1], naive: [-3, -0.2] },
+    strata_mae_diff_current: { same_position: [-1, -0.2], cross_position: [-3, -1], depth_for_starter: [-0.5, 0.4], lopsided: [-6, -2] } } };
+  assert.equal(T.verdict(s), "pass");
+  assert.equal(T.verdict(Object.assign({}, s, { excluded_cells: 1 })), "fail");
+  assert.equal(T.waiverVerdict({ regret_diff_current: [-2, -0.1] }, 0), "pass");
+  assert.equal(T.waiverVerdict({ regret_diff_current: [-2, -0.1] }, 3), "fail");
+});
+
+/* (p) review M3: walk-forward input guards. */
+check("p_input_guards", () => {
+  const av = { test_season: 2024, seasons: [2012, 2023], tags: { 4: { x: "Out" } } };
+  assert.doesNotThrow(() => T.checkAvailability(av, 2024, 5));
+  assert.throws(() => T.checkAvailability(av, 2024, 9), /tags/, "no tags[8]");
+  assert.throws(() => T.checkAvailability(Object.assign({}, av, { seasons: [2012, 2024] }), 2024, 5), /walk-forward|seasons/);
+  const fc = { schema_version: 1, season: 2024, origin: 5, weeks: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17], players: {}, training_through: 2023 };
+  assert.doesNotThrow(() => T.checkForecastFile(fc, 2024, 5, "f"));
+  assert.throws(() => T.checkForecastFile(Object.assign({}, fc, { training_through: 2024 }), 2024, 5, "f"), /training_through/);
+  assert.throws(() => T.checkForecastFile(Object.assign({}, fc, { training_through: undefined }), 2024, 5, "f"), /training_through/);
+});
+
+/* (q) review M4: the site-output gate refusal is case-insensitive on win32. */
+check("q_inside_dir", () => {
+  assert.equal(T.isInside("/repo/site", "/repo/site/data/x.json"), true);
+  assert.equal(T.isInside("/repo/site", "/repo/other/x.json"), false);
+  assert.equal(T.isInside("/repo/site", "/repo/site2/x.json"), false);
+  if (process.platform === "win32") assert.equal(T.isInside("C:\\repo\\site", "c:\\REPO\\Site\\data\\x.json"), true);
+});
+
+/* (r) diagnostic: the availability-off arm is the same engine with p_out = p_stay = p_tag = 0. */
+check("r_availability_off", () => {
+  const off = T.availabilityOff(AV());
+  for (const pos of ["QB", "RB", "WR", "TE"]) { assert.equal(off.p_out[pos], 0); assert.equal(off.p_stay[pos], 0); }
+  for (const t of ["Out", "Doubtful", "Questionable", "IR"]) assert.equal(off.p_tag[t], 0);
+});
+
+/* (s) controller decision: the waiver set ranks by the mean over ALL weeks origin..17 of frozen p50,
+   a bye week counting as 0 (matches the live desk); ties by id ascending. Two QBs, both p50 10 in
+   their play weeks; "a_bye" has a bye in week 6: mean (10 + 0 + 10)/3 = 6.67 vs "b_full" 10.
+   Play-weeks-only averaging ties them (both 10) and id order would pick a_bye; bye-as-0 picks b_full.
+   Also an incomplete row skips that player and takes the next. */
+check("s_waiver_rank_bye_is_zero", () => {
+  const players = {
+    a_bye: { position: "QB", baseline: 1, weeks: { 5: play(10), 6: { status: "bye" }, 7: play(10) } },
+    b_full: { position: "QB", baseline: 1, weeks: every(10) },
+    c_gap: { position: "QB", baseline: 1, weeks: { 5: play(40), 6: play(40) } },
+  };
+  const fc = { weeks: WEEKS, players };
+  assert.deepEqual(T.waiverAdds(["a_bye", "b_full", "c_gap"], fc, WEEKS, { QB: 1, RB: 0, WR: 0, TE: 0 }), ["b_full"]);
+  assert.deepEqual(T.waiverAdds(["a_bye", "b_full", "c_gap"], fc, WEEKS, { QB: 2, RB: 0, WR: 0, TE: 0 }), ["b_full", "a_bye"], "c_gap skipped, next taken");
+  players.a_bye2 = { position: "QB", baseline: 1, weeks: every(10) };   // exact tie with b_full: id ascending
+  assert.deepEqual(T.waiverAdds(["b_full", "a_bye2"], fc, WEEKS, { QB: 1, RB: 0, WR: 0, TE: 0 }), ["a_bye2"]);
+  close(T.meanP50ByeZero("a_bye", fc, WEEKS), 20 / 3, "bye counts as 0");
+});
+
+if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
 console.log(`trade_backtest_fixture: ${n} groups OK`);
