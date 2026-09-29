@@ -183,23 +183,11 @@
     const l=row.points&&row.points.league||{};
     return {status:"play",p10:l.p10,p50:l.p50,p90:l.p90};
   }
-  function simulate(args) {
-    const {availability,freeAgents,seed=20260924,nSims=2000}=args;
-    const ctx=resolveScenario(args);
-    const {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,first,projections,excludeWeeks}=ctx;
-    const weeks=[];for(let w=first;w<=remaining.end_week;w++)weeks.push(w);
-    const rowFor=(p,week,forced)=>simRow(p.weeks.find(x=>x.week===week),forced);   // resolveScenario proved exactly one row per week
-    const players={},simIds=new Set();
-    for(const id of relevant) {
-      const c=catalog[id];
-      if(!skill.has(c.position))continue;          // K/DEF carry no modeled points
-      const p=projections.get(c.gsis_id),forced=new Set(excludeWeeks[id]||[]),rows={};
-      for(const w of weeks)rows[w]=rowFor(p,w,forced.has(w));
-      players[id]={position:c.position,tag:c.injury_status||null,weeks:rows};
-      simIds.add(id);
-    }
-    // Replacement pool: free agents ranked by p50 each week; the head count per
-    // position is what the slots could ask of that position at once.
+  // Free-agent replacement pool per week and position: unowned skill players with a projection that week, ranked by
+  // p50 (id tie-break), the head count per position from replacementNeeds. `freeAgents` (optional GSIS ids) overrides
+  // the derived pool (every remaining-payload player whose GSIS id maps to no rostered player).
+  function poolByWeek(ctx,weeks,freeAgents) {
+    const {remaining,rosters,board,catalog,slots}=ctx;
     const owned=new Set();
     const boardGsis=new Map((board&&board.players||[]).filter(p=>p.sleeper_id&&p.player_id).map(p=>[String(p.sleeper_id),p.player_id]));
     for(const r of rosters) for(const id of [...(r.players||[]),...(r.reserve||[]),...(r.taxi||[])].map(String)) {
@@ -216,9 +204,62 @@
         const row=p.weeks.find(x=>x.week===w),l=row&&row.status==="conditional_projection"&&row.points&&row.points.league;
         if(l&&[l.p10,l.p50,l.p90].every(Number.isFinite))byPos[p.position].push({id:p.player_id,p10:l.p10,p50:l.p50,p90:l.p90});
       }
-      for(const pos of Object.keys(byPos))byPos[pos]=byPos[pos].sort((x,y)=>y.p50-x.p50||(x.id<y.id?-1:1)).slice(0,need[pos]).map(({p10,p50,p90})=>({p10,p50,p90}));
+      for(const pos of Object.keys(byPos))byPos[pos]=byPos[pos].sort((x,y)=>y.p50-x.p50||(x.id<y.id?-1:1)).slice(0,need[pos]);
       replacement[w]=byPos;
     }
+    return replacement;
+  }
+  // Stratum and tested-population inputs, computed the way the backtest measured them (spec §10.2/§10.3): the
+  // current method is the frozen-p50 lineup with byes OUT (a bye-week player is not a candidate) and any slot the
+  // roster cannot fill taken from the replacement pool. Not the displayed lineup scenario (analyze), which keeps
+  // byes as 0-point candidates. Returns per side {give:[before-lineup start share of each player it gives],
+  // receive:[after-lineup share of each it gets], delta: after total - before total over the compared weeks}.
+  const REPL_OFFSET=1e9;
+  function stratumInputs(args) {
+    const ctx=resolveScenario(args);
+    const {slots,selected,before,after,resolved,first,remaining,catalog}=ctx;
+    const weeks=[];for(let w=first;w<=remaining.end_week;w++)weeks.push(w);
+    const pool=poolByWeek(ctx,weeks,args.freeAgents);
+    const byId=(x,y)=>x<y?-1:x>y?1:0;
+    const lineup=list=>{
+      const roster=list.filter(id=>skill.has(catalog[id].position)).sort(byId),starts={};let total=0;
+      for(const w of weeks) {
+        const cands=[];
+        for(const id of roster) {
+          const pl=resolved.get(w).get(id);
+          if(pl&&pl.status==="conditional_projection"&&Number.isFinite(pl.points))cands.push({id,position:pl.position,score:pl.points,pts:pl.points});
+        }
+        for(const pos of Object.keys(pool[w]))for(const r of pool[w][pos])cands.push({id:r.id,position:pos,score:r.p50-REPL_OFFSET,pts:r.p50,repl:true});
+        const lu=ROS.bestLineup(cands,slots,c=>c.score);
+        require(lu.starters.length,`No replacement available for ${lu.unfillable} in week ${w}`);
+        for(const st of lu.starters){total+=st.player.pts;if(!st.player.repl)starts[st.player.id]=(starts[st.player.id]||0)+1;}
+      }
+      return {starts,total};
+    };
+    const W=weeks.length,give=(args.give||[]).map(String),receive=(args.receive||[]).map(String),mine=[give,receive];
+    return {weeks:W,sides:selected.map((rid,i)=>{
+      const b=lineup(before[i]),a=lineup(after[i]);
+      const out=mine[i],inc=mine[1-i];
+      return {give:out.map(id=>(b.starts[id]||0)/W),receive:inc.map(id=>(a.starts[id]||0)/W),delta:a.total-b.total};
+    })};
+  }
+  function simulate(args) {
+    const {availability,freeAgents,seed=20260924,nSims=2000}=args;
+    const ctx=resolveScenario(args);
+    const {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,first,projections,excludeWeeks}=ctx;
+    const weeks=[];for(let w=first;w<=remaining.end_week;w++)weeks.push(w);
+    const rowFor=(p,week,forced)=>simRow(p.weeks.find(x=>x.week===week),forced);   // resolveScenario proved exactly one row per week
+    const players={},simIds=new Set();
+    for(const id of relevant) {
+      const c=catalog[id];
+      if(!skill.has(c.position))continue;          // K/DEF carry no modeled points
+      const p=projections.get(c.gsis_id),forced=new Set(excludeWeeks[id]||[]),rows={};
+      for(const w of weeks)rows[w]=rowFor(p,w,forced.has(w));
+      players[id]={position:c.position,tag:c.injury_status||null,weeks:rows};
+      simIds.add(id);
+    }
+    const replacement=poolByWeek(ctx,weeks,freeAgents);
+    for(const w of weeks)for(const pos of Object.keys(replacement[w]))replacement[w][pos]=replacement[w][pos].map(({p10,p50,p90})=>({p10,p50,p90}));
     const forcedOut={};
     for(const [id,ws] of Object.entries(excludeWeeks))if(simIds.has(id))forcedOut[id]=ws;
     const world=RosterSim.createWorld({weeks,slots,players,availability,replacement,forcedOut,nSims,seed});
@@ -229,7 +270,7 @@
       return {rosterId:rosterMap.get(rid).roster_id,mean:c.mean,p10:c.p10,p90:c.p90,pPositive:c.pPositive,perWeek:wa.map((x,j)=>x-wb[j])};
     })};
   }
-  const api=Object.freeze({analyze,simulate,replacementNeeds,simRow});
+  const api=Object.freeze({analyze,simulate,replacementNeeds,simRow,stratumInputs});
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   if(typeof window!=="undefined")window.SeasonTrade=api;
 })();

@@ -869,22 +869,25 @@
       try {
         // Tested population (spec §10.2): the error bands were measured only on trades where
         // each side gives a player who starts in at least half the weeks of its own before-lineup.
-        if (!startCounts(result, give, receive).sides.every(s => s.give.some(x => x >= 0.5))) throw new Error("the grade is measured only for trades where each side gives a starter");
         // The measurement stopped at week 17 (spec §8).
         if (result.weeks.some(w => w.week > LAST_MEASURED_WEEK)) throw new Error(`weeks after ${LAST_MEASURED_WEEK} are not measured`);
+        // Population and strata use the backtest's current-method lineup (byes out, replacement fill), not the
+        // displayed scenario's (review M2).
+        const inputs = W.SeasonTrade.stratumInputs(analyzeArgs);
+        if (!inputs.sides.every(s => s.give.some(x => x >= 0.5))) throw new Error("the grade is measured only for trades where each side gives a starter");
         await gradeInputs();
         if (!S.availability) throw new Error("availability data is not published");
         // Yield so the lineup scenario paints before the simulation blocks the thread.
         await new Promise(r => setTimeout(r, 0));
         if (seq !== compareSeq) return;
         const sim = W.SeasonTrade.simulate({ ...analyzeArgs, availability: S.availability, seed: GRADE_SEED });
-        const starts = startCounts(result, give, receive);
+        const starts = startCounts(result, give, receive);   // displayed lineup, for the market check's roster reason only
         const catalogPos = id => (S.catalog[id] || {}).position;
-        const trade = { positions: [...give, ...receive].map(catalogPos), sides: starts.sides };
+        const trade = { positions: [...give, ...receive].map(catalogPos), sides: inputs.sides };
         // The horizon whose remaining-week count is nearest to the weeks compared.
         const horizon = pickHorizon(S.gate.horizons, result.weeks.length);
         if (!horizon) throw new Error("no measured error for this horizon");
-        const names = stratumOf(trade, lopsidedMeasure(result.sides), horizon);
+        const names = stratumOf(trade, lopsidedMeasure(inputs.sides), horizon);
         const E = errorFor(names, horizon);
         if (E === null) throw new Error("no measured error for this kind of trade");
         const g = gradeText(sim, { names: handles.names, firstWeek: handles.firstWeek, endWeek: handles.endWeek, E, k: S.gate.k });

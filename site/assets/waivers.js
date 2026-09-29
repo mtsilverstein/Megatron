@@ -526,7 +526,10 @@
       // the free agents minus exactly that set (the backtest's rule, in every arm),
       // so an add is never also his own replacement. One world per desk load keeps
       // common random numbers. Everything else keeps the lineup-only price.
-      const freeAll = board.players.filter(p => mapped(p) && !owned.has(id(playerId(p))) && SKILL.has(position(p)) && !unavailable(p));
+      // Spec §10.7: only free agents the engine tags Out or IR (Sus -> Out, PUP -> IR) are excluded from the quota set and
+      // the pool; Doubtful, Questionable and untagged stay eligible. (The lineup-only desk keeps its own unavailable rule.)
+      const heavyTag = p => { const t = ROSTERSIM.normalizeTag(String(p.injury_status || p.status || "")); return t === "Out" || t === "IR"; };
+      const freeAll = board.players.filter(p => mapped(p) && !owned.has(id(playerId(p))) && SKILL.has(position(p)) && !heavyTag(p));
       // Rest-of-season value: the mean over ALL future weeks, a bye scoring 0.
       const meanP50 = p => weeks.reduce((sum, w) => { const r = rosMap.sim.get(id(playerId(p))).get(w); return sum + (r && r.status === "play" ? r.p50 : 0); }, 0) / weeks.length;
       const quotaSet = new Map();
@@ -538,7 +541,7 @@
       const candidates = quotaSet;
       // Replacement pool = free agents minus the quota set.
       const need = poolNeeds(starterSlots);
-      const poolPlayers = board.players.filter(p => mapped(p) && !owned.has(id(playerId(p))) && SKILL.has(position(p)) && !unavailable(p) && !quotaSet.has(id(playerId(p))));
+      const poolPlayers = board.players.filter(p => mapped(p) && !owned.has(id(playerId(p))) && SKILL.has(position(p)) && !heavyTag(p) && !quotaSet.has(id(playerId(p))));
       summary.quotaIds = [...quotaSet.keys()]; summary.replacementIds = poolPlayers.map(p => id(playerId(p)));
       const replacement = {};
       for (const w of weeks) {

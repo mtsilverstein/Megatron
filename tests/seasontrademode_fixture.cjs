@@ -288,8 +288,8 @@ check("the controller reads identity, rosters and state from the session, never 
   // rostersFetchedAt as snapshotAt, moved players, superseded results) is
   // checked by RUNNING it in initSmoke below, not by grepping the source.
   assert.ok(!/season-user|season-load/.test(html), "trade.html has no in-season username input or load button");
-  assert.ok(/seasontrademode\.js\?v=grade2/.test(html), "cache key bumped for the gated-grade controller");
-  assert.ok(/seasontrade\.js\?v=grade2/.test(html) && /rostersim\.js\?v=1/.test(html), "simulate's engine loads before it");
+  assert.ok(/seasontrademode\.js\?v=grade3/.test(html), "cache key bumped for the gated-grade controller");
+  assert.ok(/seasontrade\.js\?v=grade3/.test(html) && /rostersim\.js\?v=1/.test(html), "simulate's engine loads before it");
   assert.ok(html.indexOf("rostersim.js") > html.indexOf("ros.js?v=1") && html.indexOf("rostersim.js") < html.indexOf("seasontrade.js"), "rostersim.js follows ros.js and precedes seasontrade.js");
   assert.ok(html.indexOf("waiverintel.js") < html.indexOf("seasontrademode.js"), "prepareRos is loaded before the controller");
   assert.ok(!/season-ack/.test(html) && !/els\.ack\b/.test(src), "no acknowledgment checkbox gates the compare");
@@ -481,7 +481,7 @@ async function gateSmoke() {
   const rosSource = (snapshot_at) => ({ schema_version: 1, horizon: "ros", rank_scope: "overall", scoring_format: "ppr", season: 2026, source: "test", snapshot_at,
     players: [{ player_id: "g1", position: "RB", team: "X", ros_rank: 5 }, { player_id: "g2", position: "WR", team: "Y", ros_rank: 90 }] });
   const env = { availability, ros: rosSource(new Date().toISOString().slice(0, 10)), simThrows: null, simMean: 8 };
-  const analyzed = [], simulated = [], loaded = [];
+  const analyzed = [], simulated = [], loaded = [], stratumCalls = [];
   const lineup = ids => ids.map(id => ({ id, name: id }));
   // 3 weeks; the incoming p2 starts in one of them (a thin starter), p1 in all for the partner.
   // Both sides give a starter (before-lineups) by default; env.benchOnly makes the partner give only a non-starter.
@@ -503,6 +503,13 @@ async function gateSmoke() {
     WaiverIntel: require("../site/assets/waiverintel.js"),
     SeasonTrade: {
       analyze: args => { analyzed.push(args); return mkResult(); },
+      // The controller takes population/strata inputs from stratumInputs (the backtest's lineup method), not from analyze's
+      // lineups. By default the mock derives them from the same result; env.siDeltas / env.siGive override only the inputs.
+      stratumInputs: args => {
+        stratumCalls.push(args);
+        const r = mkResult(), sc = M.startCounts(r, args.give, args.receive);
+        return { sides: sc.sides.map((sd, i) => ({ ...sd, give: env.siGive ? env.siGive[i] : sd.give, delta: env.siDeltas ? env.siDeltas[i] : r.sides[i].delta })) };
+      },
       simulate: args => {
         simulated.push(args);
         if (env.simThrows) throw Object.assign(new Error(env.simThrows), { name: "RosterSimError" });
@@ -612,6 +619,21 @@ async function gateSmoke() {
       await reload(); await run();
       assert.equal(panelLines()[1], "Your lineup: Too close to call");
       env.d0 = undefined; env.d1 = undefined;
+    });
+    // 6b. review M2: strata and population come from stratumInputs, not from the displayed lineups
+    await sub("strata and population read stratumInputs, not analyze (review M2)", async () => {
+      await reload();
+      env.siDeltas = [6, -60];                       // analyze still says +-6; only the backtest-method inputs cross the cutoff
+      const calls = stratumCalls.length;
+      await run();
+      assert.equal(stratumCalls.length, calls + 1, "the controller asked for stratum inputs");
+      assert.equal(panelLines()[1], "Your lineup: Too close to call");
+      env.siDeltas = undefined; env.siGive = [[0.2], [1]];   // the displayed lineups have starters; the inputs say side 0 gives a bench player
+      const sims = simulated.length;
+      await run();
+      assert.deepEqual(panelLines(), ["grade unavailable: the grade is measured only for trades where each side gives a starter"]);
+      assert.equal(simulated.length, sims);
+      env.siGive = undefined;
     });
     // 7. review M7: weeks after 17 were never measured
     await sub("weeks after 17 are not graded (review M7)", async () => {

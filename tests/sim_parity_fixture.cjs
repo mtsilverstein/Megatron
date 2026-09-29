@@ -53,19 +53,17 @@ const pageArgs = t => {
 const trades = T.sampleTrades(ROSTERS, FC, T.mulberry32(11), 60).map((t, i) => Object.assign({ id: `2023:5:0:${i}`, season: 2023, origin: 5, k: 0 }, t));
 // What the pages compute for a trade (null when the page cannot analyze it, e.g. a side left without a QB).
 const pageView = t => {
-  let result;
-  try { result = ST.analyze(pageArgs(t)); } catch (e) { return null; }
-  const starts = STM.startCounts(result, t.give_a, t.give_b);
-  return { result, starts, population: starts.sides.every(s => s.give.some(x => x >= 0.5)), measure: STM.lopsidedMeasure(result.sides), pageDelta: result.sides.map(s => s.delta) };
+  let si;
+  try { si = ST.stratumInputs(pageArgs(t)); } catch (e) { return null; }
+  return { si, starts: { sides: si.sides }, population: si.sides.every(s => s.give.some(x => x >= 0.5)), measure: STM.lopsidedMeasure(si.sides) };
 };
 const views = new Map(trades.map(t => [t.id, pageView(t)]));
 const comparable = trades.filter(t => views.get(t.id));
 
 check("sanity: the page can analyze most of the mini season's trades", () => {
   assert.equal(trades.length, 60);
-  // The page refuses a roster it cannot fill without replacements (e.g. a side left with no QB); the backtest fills
-  // from the free-agent pool. Only trades both sides can evaluate are compared.
-  assert.ok(comparable.length >= 20, `page analyzed ${comparable.length} of 60`);
+  // stratumInputs fills empty slots from the free-agent pool exactly as the backtest does, so every trade is comparable.
+  assert.equal(comparable.length, 60, `page evaluated ${comparable.length} of 60`);
 });
 
 /* Tested population (spec §10.2): a trade is in the tested population when each side gives a player who starts in
@@ -102,55 +100,43 @@ check("depth_for_starter and the position strata agree between the backtest and 
   assert.ok(depth > 0, "the depth stratum occurs in the sample");
 });
 
-/* KNOWN DIFFERENCE (review M2, deferred): the page counts a bye-week player as a 0-point starter when he is the only
-   candidate for a slot (analyze keeps byes as 0-point candidates and never fills from replacement); the backtest
-   leaves byes out and lets a replacement fill the slot. So for a sole-RB roster the page says the RB "starts" in
-   his bye week and the backtest does not. This pins the divergence so neither side changes silently. */
-check("KNOWN DIFFERENCE (M2): a bye-week player starts on the page (0 points) but not in the backtest lineup", () => {
+/* Review M2 (now aligned): for stratum assignment and the population check the page computes start shares and Δ with
+   the backtest's method -- byes out, empty slots filled from the replacement pool. A sole RB on bye in week 6 starts 2 of
+   3 weeks in both. The displayed lineup scenario (analyze) is unchanged: it still shows the bye-week RB at 0 points. */
+check("M2 aligned: a bye-week player does not start in the stratum inputs, as in the backtest; the displayed lineup is unchanged", () => {
   const fc = JSON.parse(JSON.stringify(FC));
-  fc.players.aR1.weeks[6] = { status: "bye" };               // the only real RB on roster A is on bye in week 6
-  const solo = ["aQ", "aR1", "aW"];                           // no other RB
+  fc.players.aR1.weeks[6] = { status: "bye" };
+  const solo = ["aQ", "aR1", "aW"];
   const p50 = (id, w) => (fc.players[id].weeks[w].status === "play" ? fc.players[id].weeks[w].p50 : null);
   const pool = T.replacementPool(UNDRAFTED, fc, WEEKS, SLOTS, p50);
   const backtestStarts = T.predictLineupOnly([solo], p50, WEEKS, SLOTS, T.replOf(pool, p50), id => fc.players[id].position)[0].starts;
-  assert.equal(backtestStarts.aR1, 2, "backtest: aR1 starts weeks 5 and 7 only (a replacement RB covers week 6)");
+  assert.equal(backtestStarts.aR1, 2);
   const remaining2 = { ...remaining, players: Object.entries(fc.players).map(([id, pl]) => ({ player_id: "g" + id, team: "A", position: pl.position, weeks: WEEKS.map(w => pageRow(w, pl.weeks[w])) })) };
-  const args = { ...pageArgs({ a: 0, b: 1, give_a: ["aW"], give_b: ["bW1"], drop_a: [], drop_b: [] }), remaining: remaining2,
+  const args = { ...pageArgs({ a: 0, b: 1, give_a: ["aR1"], give_b: ["bW1"], drop_a: [], drop_b: [] }), remaining: remaining2,
     rosters: [{ roster_id: 1, players: solo }, { roster_id: 2, players: ROSTERS[1] }] };
-  const result = ST.analyze(args);
-  const week6 = result.weeks.find(w => w.week === 6).sides[0].before.lineup;
-  assert.ok(week6.some(pl => pl.id === "aR1" && pl.status === "bye" && pl.points === 0), "page: the bye-week RB still fills the RB slot in week 6, at 0 points");
-  assert.equal(STM.startCounts(result, ["aW"], ["bW1"]).sides[0].give.length, 1);
-  assert.equal(result.weeks.filter(w => w.sides[0].before.lineup.some(pl => pl.id === "aR1")).length, 3, "page: aR1 'starts' all 3 weeks");
+  assert.ok(Math.abs(ST.stratumInputs(args).sides[0].give[0] - 2 / 3) < 1e-12, "page stratum inputs: aR1 starts 2 of 3 weeks");
+  const week6 = ST.analyze({ ...args, give: ["aW"] }).weeks.find(w => w.week === 6).sides[0].before.lineup;
+  assert.ok(week6.some(pl => pl.id === "aR1" && pl.status === "bye" && pl.points === 0), "displayed scenario keeps the bye-week RB at 0 points");
 });
 
 /* Lopsided stratum (spec §10.3): the measure is the larger side's |current-method Δ|; the cutoff is the 90th
    percentile per origin; a trade is lopsided at or above the cutoff. The page computes the measure from analyze's
    lineups (lopsidedMeasure) and applies stratumOf; the backtest from its rows (markLopsided). */
-const usesByeStarter = v => v.result.weeks.some(w => w.sides.some(sd => [...sd.before.lineup, ...sd.after.lineup].some(pl => pl.status === "bye")));
-check("lopsided measure and membership agree between markLopsided and the page (bye-week starters aside, see M2)", () => {
+check("lopsided measure and membership agree between markLopsided and the page", () => {
   const rows = comparable.flatMap(rowsOf).map(r => Object.assign({}, r, { strata: r.strata.slice() }));
-  const cutoffs = T.markLopsided(rows);
-  const cutoff = cutoffs[5];
+  const cutoff = T.markLopsided(rows)[5];
   assert.ok(Number.isFinite(cutoff) && cutoff > 0);
-  let flagged = 0, byeDiffs = 0;
+  let flagged = 0;
   for (const t of comparable) {
     const flaggedByBacktest = rows.find(r => r.trade_id === t.id).strata.includes("lopsided");
     const measureBacktest = Math.max(...rowsOf(t).map(r => Math.abs(r.current)));
     const v = views.get(t.id);
-    if (Math.abs(v.measure - measureBacktest) > 1e-9) {
-      // KNOWN DIFFERENCE (review M2): analyze keeps a bye-week player as a 0-point candidate, the backtest fills the slot
-      // from replacement. Every disagreement must come from a lineup where a bye-week player starts on the page.
-      assert.ok(usesByeStarter(v), `trade ${t.id}: page measure ${v.measure} vs backtest ${measureBacktest} without a bye-week starter`);
-      byeDiffs++;
-      continue;
-    }
+    assert.ok(Math.abs(v.measure - measureBacktest) < 1e-9, `trade ${t.id}: page measure ${v.measure} vs backtest ${measureBacktest}`);
     const page = STM.stratumOf({ positions: [catalog[t.give_a[0]].position], sides: v.starts.sides }, v.measure, { strata: {}, lopsided_cutoff: cutoff });
     assert.equal(page.includes("lopsided"), flaggedByBacktest, `trade ${t.id} measure ${v.measure} cutoff ${cutoff}`);
     if (flaggedByBacktest) flagged++;
   }
   assert.ok(flagged >= 1 && flagged < comparable.length, `some but not all trades are lopsided (${flagged})`);
-  assert.ok(byeDiffs >= 1, "the mini season contains the known bye-week divergence (trade 2023:5:0:3: page 24 vs backtest 15)");
 });
 
 /* Replacement pool sizing (dedicated + FLEX [+ SUPER_FLEX] per position): one rule in the backtest, the trade page
@@ -172,6 +158,7 @@ const wboard = { players: [
   wp(9, "QB", 25), wp(14, "QB", 5), wp(22, "QB", 4), wp(23, "QB", 3.5), wp(40, "QB", 30, { injury_status: "OUT" }),
   wp(7, "RB", 18), wp(15, "RB", 3), wp(16, "RB", 2.5), wp(24, "RB", 2.2), wp(25, "RB", 2.1), wp(41, "RB", 28, { injury_status: "IR" }), wp(42, "RB", 17, { injury_status: "DOUBTFUL" }),
   wp(17, "WR", 3), wp(18, "WR", 2.5), wp(27, "WR", 2.2), wp(28, "WR", 2.1), wp(29, "WR", 2), wp(43, "WR", 26, { injury_status: "QUESTIONABLE" }),
+  wp(44, "WR", 27, { injury_status: "PUP" }), wp(45, "TE", 14, { injury_status: "Sus" }),
   wp(10, "TE", 13), wp(19, "TE", 3), wp(20, "TE", 2.5), wp(30, "TE", 2.2), wp(31, "TE", 2.1),
 ] };
 const mine = ["1", "13", "2", "3", "4", "8", "5", "6"], theirs = ["51"];
@@ -198,7 +185,7 @@ const skill = ids => ids.filter(id => wfc.players["g" + id]);
 const wdrafted = [skill(mine).map(id => "g" + id), skill(theirs).map(id => "g" + id)];
 const wundrafted = Object.keys(wfc.players).filter(id => !wdrafted.flat().includes(id));
 const wcell = T.runCell({ season: 2026, origin: 2, k: 0, rosters: wdrafted, undrafted: wundrafted, forecasts: wfc, actualWeeks: wact, availability: AV,
-  tags: { g40: "Out", g41: "IR", g42: "Doubtful", g43: "Questionable" }, slots: ["QB", "RB", "WR", "TE", "FLEX"], nSims: 40, simSeed: 2, trades: [], waiver: true });
+  tags: { g40: "Out", g41: "IR", g42: "Doubtful", g43: "Questionable", g44: "IR", g45: "Out" }, slots: ["QB", "RB", "WR", "TE", "FLEX"], nSims: 40, simSeed: 2, trades: [], waiver: true });
 const byPos = (ids, pos, catalogOf) => ids.filter(id => catalogOf(id) === pos).sort();
 const posOfSleeper = id => (wboard.players.find(x => x.sleeper_id === id) || {}).position;
 
@@ -211,23 +198,22 @@ check("waiver quota: the page and the backtest pick the same free agents by mean
   assert.ok(!pageQuota.includes("40") && !backtestQuota.includes("40"), "Out is excluded on both sides");
   assert.ok(!pageQuota.includes("41") && !backtestQuota.includes("41"), "IR is excluded on both sides");
   assert.ok(pageQuota.includes("43") && backtestQuota.includes("43"), "Questionable stays available on both sides");
-  // KNOWN DIFFERENCE (review M3, deferred): the live desk drops every UNAVAILABLE status (OUT, IR, SUSPENDED, PUP,
-  // DOUBTFUL); spec §10.7 (and so the backtest) drops only Out and IR. A Doubtful free agent (42) is therefore in the
-  // backtest's RB quota and out of the desk's.
-  assert.deepEqual(byPos(pageQuota, "RB", posOfSleeper), ["15", "16", "7"]);
-  assert.deepEqual(byPos(backtestQuota, "RB", posOfSleeper), ["15", "42", "7"]);
+  // Aligned (spec §10.7): the desk excludes exactly the free agents RosterSim.normalizeTag maps to Out or IR (Sus -> Out,
+  // PUP -> IR); Doubtful and Questionable stay eligible on both sides.
+  assert.ok(pageQuota.includes("42") && backtestQuota.includes("42"), "Doubtful stays available on both sides");
+  for (const id of ["44", "45"]) assert.ok(!pageQuota.includes(id) && !backtestQuota.includes(id), `${id} (PUP/Sus) is excluded on both sides`);
+  assert.deepEqual(byPos(pageQuota, "RB", posOfSleeper), byPos(backtestQuota, "RB", posOfSleeper));
+  assert.deepEqual(pageQuota, backtestQuota);
 });
 check("waiver pool: neither side lets an add be its own replacement, or an Out/IR free agent replace anyone", () => {
   const page = new Set(pageWaiver.coverage.ros.simulation.replacementIds);
   for (const id of quota) assert.ok(!page.has(id), `page pool contains its own add ${id}`);
-  for (const id of ["40", "41"]) assert.ok(!page.has(id), `page pool contains injured ${id}`);
+  for (const id of ["40", "41", "44", "45"]) assert.ok(!page.has(id), `page pool contains injured ${id}`);
   const pool = new Set(wcell.waiver_pool.map(id => id.slice(1)));
   for (const id of wcell.waiver_adds.map(x => x.slice(1))) assert.ok(!pool.has(id), `backtest pool contains its own add ${id}`);
-  for (const id of ["40", "41"]) assert.ok(!pool.has(id), `backtest pool contains injured ${id}`);
-  // What the backtest pool holds is drawn from the same free agents the desk pools (plus the Doubtful player the desk drops).
-  // (42: Doubtful, dropped by the desk; 16: the desk's RB quota member the backtest replaced with 42, see the known difference above.)
-  for (const id of pool) assert.ok(page.has(id) || id === "42" || id === "16", `backtest pool member ${id} is not a desk free agent`);
-  assert.deepEqual(wcell.waiver_injured_excluded.map(id => id.slice(1)).sort(), ["40", "41"]);
+  for (const id of ["40", "41", "44", "45"]) assert.ok(!pool.has(id), `backtest pool contains injured ${id}`);
+  for (const id of pool) assert.ok(page.has(id), `backtest pool member ${id} is not a desk free agent`);
+  assert.deepEqual(wcell.waiver_injured_excluded.map(id => id.slice(1)).sort(), ["40", "41", "44", "45"]);
 });
 
 if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
