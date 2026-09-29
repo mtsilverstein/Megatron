@@ -565,6 +565,24 @@ check("aa_waiver_audit_published", () => {
   assert.ok(out.cells[0].waiver_adds.length === 2 && out.cells[0].waiver_pool.length > 0);
 });
 
+/* (ab) the checkpoint hash does not depend on how the working directory is spelled: Windows hands out
+   "C:\..." and "c:\..." for the same folder, and a resume must not be refused over that. */
+check("ab_config_hash_ignores_cwd_spelling", () => {
+  const dir = path.join(TMP, "hash");
+  for (const d of ["fc", "w", "av"]) fs.mkdirSync(path.join(dir, d), { recursive: true });
+  for (const f of ["league.json", "fc/forecasts_2023_o5.json", "w/world_2023.json", "av/availability_2023.json"]) fs.writeFileSync(path.join(dir, f), "{}");
+  const cfg = { seasons: [2023], origins: [5], leagues: 1, trades: 1, sims: 10, diagnosticSims: 1, league: "league.json", secondary: null,
+                forecastsDir: "fc", worldsDir: "w", availabilityDir: "av" };
+  const home = process.cwd();
+  const swapDrive = p => p.replace(/^[A-Za-z]:/, m => m === m.toUpperCase() ? m.toLowerCase() : m.toUpperCase());
+  try {
+    process.chdir(dir);
+    const a = T.configHash(cfg);
+    process.chdir(process.platform === "win32" ? swapDrive(dir) : dir);
+    assert.equal(T.configHash(cfg), a, "same files, same hash, whatever the drive-letter case");
+  } finally { process.chdir(home); }
+});
+
 Promise.all(asyncChecks).then(() => {
   try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) { /* best effort */ }
   if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }

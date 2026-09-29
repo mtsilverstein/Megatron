@@ -773,8 +773,11 @@ function configHash(cfg) {
   for (const S of cfg.seasons) files.push(worldPath(cfg, S), availPath(cfg, S), ...cfg.origins.map(O => forecastPath(cfg, S, O)));
   const code = [__filename, path.join(__dirname, "draft_sim.cjs"), path.join(__dirname, "..", "site", "assets", "rostersim.js"),
                 path.join(__dirname, "..", "site", "assets", "ros.js"), path.join(__dirname, "..", "site", "assets", "optimizer.js")];
+  /* Keyed relative to the repo root, not absolute: Windows spells the same working directory "C:\..." or
+     "c:\..." depending on how the shell was opened, and path.relative compares drive letters case-insensitively. */
+  const root = path.join(__dirname, "..");
   const inputs = {};
-  for (const p of files.concat(code)) inputs[path.resolve(p)] = fileHash(p);
+  for (const p of files.concat(code)) inputs[path.relative(root, path.resolve(p)).split(path.sep).join("/")] = fileHash(p);
   return sha1(JSON.stringify({ seasons: cfg.seasons, origins: cfg.origins, leagues: cfg.leagues, trades: cfg.trades, sims: cfg.sims,
                                diagnosticSims: cfg.diagnosticSims, league: cfg.league, secondary: cfg.secondary || null, inputs }));
 }
