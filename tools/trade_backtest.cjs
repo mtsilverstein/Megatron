@@ -5,6 +5,10 @@
 //        [--secondary site/data/draft-fam.json] \
 //        --out models/diagnostics/trade_sim_eval.json --site-out site/data/trade_sim_eval.json
 //   optional: --jobs N (worker threads; results do not depend on it)
+//             --diagnostic-sims N (default 400; sims for the non-gating availability-off arm only)
+//             --fresh (discard <out>.cells.jsonl instead of resuming from it)
+//   Every finished (league, season, origin) cell is appended to <out>.cells.jsonl; a rerun with the
+//   same configuration skips finished cells, a different one refuses to resume unless --fresh.
 //             --forecasts-dir, --worlds-dir, --availability-dir (input locations)
 //
 // Spec 2026-09-24 §6 (predeclared). For each test season S, origin O and synthetic
@@ -20,6 +24,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const crypto = require("crypto");
 const ROS = require(path.join(__dirname, "..", "site", "assets", "ros.js"));
 const RS = require(path.join(__dirname, "..", "site", "assets", "rostersim.js"));
 
@@ -96,18 +101,18 @@ function drawK(list, k, rand) {
    anything a method later says. Tradable players have a play/bye row for every
    week origin..17. Stops at `count` distinct trades (or after a bounded number
    of attempts if the league cannot supply that many). */
-/* Players who start in at least half the weeks of their own roster's frozen-p50 lineup
-   (spec §10.2). Only forecast rows are read; the roster is limited to covered players. */
-function frozenStarters(roster, forecasts, slots, weeks = forecasts.weeks) {
-  const ids = roster.filter(id => isCovered(id, forecasts, weeks)).sort(byId);
-  const starts = {};
-  for (const w of weeks) {
-    const cands = [];
-    for (const id of ids) { const v = p50Of(forecasts, id, w); if (v !== null) cands.push({ id, position: positionOf(forecasts, id), score: v }); }
-    const lu = ROS.bestLineup(cands, slots, c => c.score);
-    for (const st of lu.starters) starts[st.player.id] = (starts[st.player.id] || 0) + 1;
-  }
+/* Players who start in at least half the weeks of their own roster's current-method before-lineup
+   (spec §10.2, literal): predictLineupOnly on frozen p50 with the slot-sized frozen-p50 undrafted pool
+   filling any slot the roster cannot. Only forecast rows are read; the roster is limited to covered players. */
+function starterSet(ids, forecasts, slots, weeks, pool) {
+  const proj = (id, w) => p50Of(forecasts, id, w);
+  const { starts } = predictLineupOnly([ids], proj, weeks, slots, replOf(pool, proj), id => positionOf(forecasts, id))[0];
   return new Set(ids.filter(id => 2 * (starts[id] || 0) >= weeks.length));
+}
+function frozenStarters(roster, forecasts, slots, weeks = forecasts.weeks, undrafted = []) {
+  const ids = roster.filter(id => isCovered(id, forecasts, weeks)).sort(byId);
+  const pool = replacementPool(undrafted, forecasts, weeks, slots, (id, w) => p50Of(forecasts, id, w));
+  return starterSet(ids, forecasts, slots, weeks, pool);
 }
 /* Spec §10.2 depth_for_starter, per side: it gives at least one before-lineup starter (starts in
    at least half the weeks) and receives no player who starts in at least half the weeks of its
@@ -120,9 +125,17 @@ function sampleTrades(rosters, forecasts, rand, count, opts = {}) {
   if (!Array.isArray(rosters) || rosters.length < 2) throw new BacktestError("sampleTrades needs at least two rosters");
   const T = rosters.length;
   const eligible = rosters.map(r => r.filter(id => isCovered(id, forecasts)).sort(byId));
-  // §10.2: with `slots`, a trade is kept only if each side gives at least one of its own frozen-p50
-  // starters. Decided from forecast rows alone, before any prediction.
-  const starters = opts.slots ? rosters.map(r => frozenStarters(r, forecasts, opts.slots)) : null;
+  // §10.2: with `slots` (and the undrafted list, for the replacement fill), a trade is kept only if each
+  // side gives at least one of its own current-method starters. Decided from frozen p50 rows alone,
+  // before any prediction.
+  let starters = null;
+  if (opts.slots) {
+    const pool = replacementPool(opts.undrafted || [], forecasts, forecasts.weeks, opts.slots, (id, w) => p50Of(forecasts, id, w));
+    starters = rosters.map(r => {
+      try { return starterSet(r.filter(id => isCovered(id, forecasts)).sort(byId), forecasts, opts.slots, forecasts.weeks, pool); }
+      catch (e) { if (e instanceof BacktestError) return new Set(); throw e; }     // unfillable even with replacement: the cell is excluded later
+    });
+  }
   const out = [], seen = new Set();
   const maxAttempts = 200 * count + 1000;
   let attempts = 0, rejected = 0;
@@ -170,6 +183,11 @@ function predictLineupOnly(rosters, projOf, weeks, slots, replacementOf, posOf) 
     return { total, perWeek, starts };
   });
 }
+const replOf = (pool, proj) => w => {
+  const list = [];
+  for (const pos of POS) for (const id of pool[w][pos]) list.push({ id, position: pos, score: proj(id, w) });
+  return list;
+};
 // The slot-sized replacement pool (controller note): per week and position, the
 // top (dedicated + FLEX [+ SUPER_FLEX]) undrafted players by scoreOf among those
 // with a `play` row that week. Bye-week players are never candidates.
@@ -296,17 +314,21 @@ function availabilityOff(av) {
    Waiver decisions use their own world and pools: the replacement pool is the
    undrafted players minus the whole per-position add set, in every arm (sim, current,
    naive and realized), exactly as the live waiver desk does. */
+// Spec §10.6: bootstrap clusters are whole (season, league) pairs; origins of one league move together.
+const clusterKey = (season, k) => `${season}:${k}`;
+const HEAVY_TAGS = new Set(["Out", "IR"]);     // spec §10.7
 function runCell(opts) {
   const { season, origin, k, rosters, undrafted, forecasts, actualWeeks, availability, tags, slots, nSims, simSeed,
           trades, waiver = false, waiverQuota = WAIVER_QUOTA } = opts;
+  const diagSims = Math.min(opts.diagnosticSims || nSims, nSims);
   const weeks = forecasts.weeks, W = weeks.length;
-  const cluster = `${season}:${origin}:${k}`;
+  const cluster = clusterKey(season, k);
   const t0 = Date.now();
   const drafted = rosters.flat();
   const covered = new Set(drafted.filter(id => isCovered(id, forecasts)));
   const anyRow = id => weeks.some(w => rowOf(forecasts, id, w));
   const uncoveredIds = drafted.filter(id => !covered.has(id));
-  const result = { season, origin, k, cluster, excluded: null, rows: [], waiver_rows: [], waiver_adds: [], waiver_pool: [],
+  const result = { season, origin, k, cluster, excluded: null, rows: [], waiver_rows: [], waiver_adds: [], waiver_pool: [], waiver_injured_excluded: [],
                    uncovered_rostered: uncoveredIds.length,
                    partial_rostered: uncoveredIds.filter(anyRow).length,
                    null_baseline_rostered: drafted.filter(id => covered.has(id) && !Number.isFinite(forecasts.players[id].baseline)).length };
@@ -318,16 +340,11 @@ function runCell(opts) {
   const posOf = id => positionOf(forecasts, id);
   const curProj = (id, w) => p50Of(forecasts, id, w);
   const naiveProj = (id, w) => { if (p50Of(forecasts, id, w) === null) return null; const b = forecasts.players[id].baseline; return Number.isFinite(b) ? b : null; };
-  const replOf = (pool, proj) => w => {
-    const list = [];
-    for (const pos of POS) for (const id of pool[w][pos]) list.push({ id, position: pos, score: proj(id, w) });
-    return list;
-  };
   const cov = r => r.filter(id => covered.has(id));
 
   // Pools and world(s) for a given undrafted set. Upfront fill checks for every method, so no
   // roster can hit an unfillable week later.
-  function arms(und, simIds) {
+  function arms(und, simIds, withDiagnostic) {
     const curPool = replacementPool(und, forecasts, weeks, slots, curProj);
     const naivePool = replacementPool(und, forecasts, weeks, slots, naiveProj);
     for (const w of weeks) {
@@ -340,17 +357,21 @@ function runCell(opts) {
     const simParams = { forecasts, ids: simIds, undrafted: und, weeks, slots, tags, nSims, seed: simSeed };
     return { curPool, naivePool, und,
              world: buildSimWorld(Object.assign({ availability }, simParams)),
-             worldOff: buildSimWorld(Object.assign({ availability: availabilityOff(availability) }, simParams)),
+             worldOff: withDiagnostic ? buildSimWorld(Object.assign({ availability: availabilityOff(availability) }, simParams, { nSims: diagSims })) : null,
              lineup: (roster, proj, pool) => predictLineupOnly([cov(roster)], proj, weeks, slots, replOf(pool, proj), posOf)[0] };
   }
 
   let tradeArms, waiverArms = null, adds = [];
   try {
-    tradeArms = arms(undrafted, [...covered].sort(byId));
+    tradeArms = arms(undrafted, [...covered].sort(byId), true);
     if (waiver) {
-      adds = waiverAdds(undrafted, forecasts, weeks, waiverQuota);
+      // §10.7: free agents tagged Out or IR at the origin's week-(O-1) report are neither adds nor replacements.
+      const injured = id => HEAVY_TAGS.has(tags && tags[id]);
+      const waiverUndrafted = undrafted.filter(id => !injured(id));
+      result.waiver_injured_excluded = undrafted.filter(injured).sort(byId);
+      adds = waiverAdds(waiverUndrafted, forecasts, weeks, waiverQuota);
       const addSet = new Set(adds);
-      waiverArms = arms(undrafted.filter(id => !addSet.has(id)), [...covered].sort(byId).concat(adds));
+      waiverArms = arms(waiverUndrafted.filter(id => !addSet.has(id)), [...covered].sort(byId).concat(adds), false);
       result.waiver_adds = adds.slice();
       const poolIds = new Set();
       for (const w of weeks) for (const pos of POS) for (const id of waiverArms.curPool[w][pos]) poolIds.add(id);
@@ -652,10 +673,12 @@ function roundDeep(x, where = "$") {
 function parseArgs(argv) {
   const a = { seasons: null, origins: null, leagues: null, trades: null, sims: null, league: null, secondary: null,
               out: null, "site-out": null, jobs: null, "forecasts-dir": "models/backtests/origin_forecasts",
-              "worlds-dir": "models/backtests/worlds_tf", "availability-dir": "models/backtests/availability" };
+              "worlds-dir": "models/backtests/worlds_tf", "availability-dir": "models/backtests/availability",
+              "diagnostic-sims": 400, fresh: false };
   for (let i = 2; i < argv.length; i += 2) {
     const k = argv[i].replace(/^--/, "");
     if (!(k in a)) throw new BacktestError(`unknown option --${k}`);
+    if (k === "fresh") { a.fresh = true; i--; continue; }     // a flag, no value
     if (argv[i + 1] === undefined) throw new BacktestError(`--${k} needs a value`);
     a[k] = argv[i + 1];
   }
@@ -664,8 +687,9 @@ function parseArgs(argv) {
   const cfg = { seasons: ints(a.seasons), origins: ints(a.origins), leagues: Number(a.leagues), trades: Number(a.trades), sims: Number(a.sims),
                 league: a.league, secondary: a.secondary, out: a.out, siteOut: a["site-out"],
                 jobs: a.jobs === null ? Math.max(1, Math.min(4, Math.floor(os.cpus().length / 2))) : Number(a.jobs),
+                diagnosticSims: Number(a["diagnostic-sims"]), fresh: a.fresh,
                 forecastsDir: a["forecasts-dir"], worldsDir: a["worlds-dir"], availabilityDir: a["availability-dir"], bootstrap: BOOTSTRAP_B };
-  for (const k of ["leagues", "trades", "sims", "jobs"]) if (!Number.isInteger(cfg[k]) || cfg[k] < 1) throw new BacktestError(`--${k} must be a positive integer`);
+  for (const k of ["leagues", "trades", "sims", "jobs", "diagnosticSims"]) if (!Number.isInteger(cfg[k]) || cfg[k] < 1) throw new BacktestError(`--${k} must be a positive integer`);
   for (const o of cfg.origins) if (o < 2 || o > LAST_WEEK) throw new BacktestError(`origin ${o} outside 2..${LAST_WEEK}`);
   return cfg;
 }
@@ -697,27 +721,93 @@ function executeCell(spec) {
   const fc = cached(spec.forecastFile), world = cached(spec.worldFile), av = cached(spec.availabilityFile);
   return runCell({ season: spec.season, origin: spec.origin, k: spec.k, rosters: spec.rosters, undrafted: spec.undrafted,
                    forecasts: fc, actualWeeks: world.actual_weeks, availability: av, tags: (av.tags || {})[String(spec.origin - 1)] || {},
-                   slots: spec.slots, nSims: spec.nSims, simSeed: spec.simSeed, trades: spec.trades, waiver: spec.waiver });
+                   slots: spec.slots, nSims: spec.nSims, diagnosticSims: spec.diagnosticSims, simSeed: spec.simSeed, trades: spec.trades, waiver: spec.waiver });
 }
-async function runCells(specs, jobs, onDone) {
-  const results = new Array(specs.length);
-  if (jobs <= 1) {
-    specs.forEach((s, i) => { results[i] = executeCell(s); onDone(results[i]); });
-    return results;
+
+// --- per-cell checkpoint (review I1) ---------------------------------------------------
+// <out>.cells.jsonl: line 1 is {type:"header", hash, meta}; then one {type:"cell", key, result} per finished
+// cell, appended the moment it lands. Results are deterministic per cell, so a resumed run aggregates to
+// the same file as an uninterrupted one (timing fields aside). Each result is checked for non-finite numbers
+// BEFORE its line is written, so a bad cell fails early rather than after hours of compute.
+const cellKey = (slug, c) => `${slug}|${c.season}|${c.origin}|${c.k}`;
+function openStore(file, hash, { fresh = false, meta = null } = {}) {
+  const done = new Map();
+  let exists = fs.existsSync(file);
+  if (exists && fresh) { fs.unlinkSync(file); exists = false; }
+  if (exists) {
+    let buf = fs.readFileSync(file);
+    const lastNl = buf.lastIndexOf(10);
+    if (lastNl !== buf.length - 1) { buf = buf.subarray(0, lastNl + 1); fs.writeFileSync(file, buf); }   // drop a torn final line
+    const lines = buf.toString("utf8").split("\n").filter(Boolean);
+    if (lines.length) {
+      let head;
+      try { head = JSON.parse(lines[0]); } catch (e) { throw new BacktestError(`${file}: unreadable header; rerun with --fresh to discard it`); }
+      if (head.type !== "header" || head.hash !== hash) {
+        throw new BacktestError(`${file} was written for a different configuration (seasons, origins, leagues, trades, sims, input files or code changed); refusing to resume. Rerun with --fresh to discard it.`);
+      }
+      lines.slice(1).forEach((l, i) => {
+        let rec; try { rec = JSON.parse(l); } catch (e) { throw new BacktestError(`${file}: line ${i + 2} is not JSON; rerun with --fresh to discard it`); }
+        if (rec.type === "cell") done.set(rec.key, rec.result);
+      });
+    } else exists = false;
+  }
+  if (!exists) fs.writeFileSync(file, JSON.stringify({ type: "header", hash, meta }) + "\n");
+  return {
+    file, has: key => done.has(key), get: key => done.get(key), size: () => done.size,
+    append(key, result) {
+      roundDeep(result, key);                                     // throws BacktestError on any non-finite number
+      const line = JSON.stringify({ type: "cell", key, result });
+      fs.appendFileSync(file, line + "\n");
+      const back = JSON.parse(line).result;                       // what a resume would read
+      done.set(key, back);
+      return back;
+    },
+  };
+}
+const sha1 = buf => crypto.createHash("sha1").update(buf).digest("hex");
+const fileHash = p => sha1(fs.readFileSync(p));
+/* Hash of everything a cell's result depends on: the run parameters, every input file's content, and the
+   code that computes a cell. (--jobs and the bootstrap size do not change a cell, so they are left out.) */
+function configHash(cfg) {
+  const files = [cfg.league, cfg.secondary].filter(Boolean);
+  for (const S of cfg.seasons) files.push(worldPath(cfg, S), availPath(cfg, S), ...cfg.origins.map(O => forecastPath(cfg, S, O)));
+  const code = [__filename, path.join(__dirname, "draft_sim.cjs"), path.join(__dirname, "..", "site", "assets", "rostersim.js"),
+                path.join(__dirname, "..", "site", "assets", "ros.js"), path.join(__dirname, "..", "site", "assets", "optimizer.js")];
+  const inputs = {};
+  for (const p of files.concat(code)) inputs[path.resolve(p)] = fileHash(p);
+  return sha1(JSON.stringify({ seasons: cfg.seasons, origins: cfg.origins, leagues: cfg.leagues, trades: cfg.trades, sims: cfg.sims,
+                               diagnosticSims: cfg.diagnosticSims, league: cfg.league, secondary: cfg.secondary || null, inputs }));
+}
+
+/* Runs `specs` (jobs = worker threads, or in-process at 1) and hands each finished result to onDone(spec index,
+   result) as it lands. A worker that errors OR exits without finishing rejects the run; it never hangs. */
+async function runCells(specs, jobs, onDone, { workerFile = __filename } = {}) {
+  if (jobs <= 1 || specs.length <= 1) {
+    specs.forEach((s, i) => onDone(i, executeCell(s)));
+    return;
   }
   const { Worker } = require("worker_threads");
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(jobs, specs.length) }, () => new Promise((resolve, reject) => {
-    const w = new Worker(__filename, { workerData: { role: "cell-worker" } });
-    const feed = () => { if (next >= specs.length) { w.terminate().then(resolve, reject); return; } const i = next++; w.postMessage({ i, spec: specs[i] }); };
-    w.on("message", m => { if (m.error) { w.terminate(); reject(new Error(m.error)); return; } results[m.i] = m.result; onDone(m.result); feed(); });
-    w.on("error", reject);
+    const w = new Worker(workerFile, { workerData: { role: "cell-worker" } });
+    let closing = false, current = null;
+    const fail = err => { if (closing) return; closing = true; w.terminate(); reject(err); };
+    const feed = () => {
+      if (next >= specs.length) { closing = true; w.terminate().then(resolve, reject); return; }
+      current = next++; w.postMessage({ i: current, spec: specs[current] });
+    };
+    w.on("message", m => {
+      if (m.error) { fail(new Error(`cell ${m.i} failed: ${m.error}`)); return; }
+      try { onDone(m.i, m.result); } catch (e) { fail(e); return; }
+      feed();
+    });
+    w.on("error", e => fail(e));
+    w.on("exit", code => fail(new Error(`worker exited (code ${code}) while running cell ${current}`)));
     feed();
   })));
-  return results;
 }
 
-async function runLeague(cfg, boardPath, inputs, { waiver }) {
+async function runLeague(cfg, boardPath, inputs, { waiver, store }) {
   const D = require(path.join(__dirname, "draft_sim.cjs"));
   const O = require(path.join(__dirname, "..", "site", "assets", "optimizer.js"));
   const board = readJson(boardPath);
@@ -741,26 +831,36 @@ async function runLeague(cfg, boardPath, inputs, { waiver }) {
       for (const Or of cfg.origins) {
         const fc = inputs.forecasts[`${S}:${Or}`];
         const tradeSeed = hashStr(`${S}:${Or}:${k}`);
-        const sampled = sampleTrades(drafted, fc, mulberry32(tradeSeed), cfg.trades, { slots });
+        const sampled = sampleTrades(drafted, fc, mulberry32(tradeSeed), cfg.trades, { slots, undrafted });
         const sampledTrades = sampled.map((t, i) => Object.assign({ id: `${S}:${Or}:${k}:${i}`, season: S, origin: Or, k }, t));
         sampleStats.attempts += sampled.stats.attempts; sampleStats.accepted += sampled.stats.accepted; sampleStats.rejected_not_starter += sampled.stats.rejected_not_starter;
         trades.push(...sampledTrades);
         cells.push({ season: S, origin: Or, k, draftSeed, tradeSeed, simSeed: hashStr(`sim:${S}:${Or}:${k}`),
                      roster_sizes: drafted.map(r => r.length), rosters: drafted, undrafted, trades: sampledTrades,
                      forecastFile: forecastPath(cfg, S, Or), worldFile: worldPath(cfg, S), availabilityFile: availPath(cfg, S),
-                     slots, nSims: cfg.sims, waiver });
+                     slots, nSims: cfg.sims, diagnosticSims: cfg.diagnosticSims, waiver });
       }
     }
   }
   const shortCells = cells.filter(c => c.trades.length < cfg.trades).map(c => `${c.season}:${c.origin}:${c.k} (${c.trades.length})`);
   console.log(`[${league.slug}] ${cells.length} cells, ${trades.length} trades sampled (population rule kept ${sampleStats.accepted} of ${sampleStats.attempts} draws; ${sampleStats.rejected_not_starter} rejected as bench-only)` + (shortCells.length ? `; short cells: ${shortCells.join(", ")}` : ""));
-  // Phase 2 -- predictions and realized outcomes.
-  const t0 = Date.now(); let done = 0;
-  const results = await runCells(cells, cfg.jobs, r => {
+  // Phase 2 -- predictions and realized outcomes; each finished cell is checkpointed as it lands.
+  const t0 = Date.now();
+  const pending = cells.map((c, i) => i).filter(i => !store.has(cellKey(league.slug, cells[i])));
+  let done = cells.length - pending.length;
+  if (done) console.log(`[${league.slug}] resuming: ${done} of ${cells.length} cells already finished in ${store.file}`);
+  await runCells(pending.map(i => cells[i]), cfg.jobs, (j, result) => {
+    const c = cells[pending[j]];
+    const r = store.append(cellKey(league.slug, c), result);
     done++;
-    console.log(`[${league.slug}] cell ${r.cluster} ${r.excluded ? "EXCLUDED: " + r.excluded : `${r.rows.length / 2} trades`} in ${r.runtime_s.toFixed(1)}s (${done}/${cells.length}, ${((Date.now() - t0) / 1000).toFixed(0)}s elapsed)`);
+    console.log(`[${league.slug}] cell ${cellKey(league.slug, c)} ${r.excluded ? "EXCLUDED: " + r.excluded : `${r.rows.length / 2} trades`} in ${r.runtime_s.toFixed(1)}s (${done}/${cells.length}, ${((Date.now() - t0) / 1000).toFixed(0)}s elapsed)`);
   });
-  // Phase 3 -- lopsided stratum, metrics, bootstrap, verdicts.
+  const results = cells.map(c => store.get(cellKey(league.slug, c)));
+  return finalizeLeague({ cfg, league, slots, cells, trades, results, sampleStats, waiver, t0 });
+}
+// Phase 3 -- lopsided stratum, metrics, bootstrap, verdicts. Pure in its inputs, so a resumed run and an
+// uninterrupted one produce the same object (timings aside).
+function finalizeLeague({ cfg, league, slots, cells, trades, results, sampleStats, waiver, t0 = Date.now() }) {
   const rows = results.flatMap(r => r.rows);
   const byTrade = new Map();
   for (const r of rows) { if (!byTrade.has(r.trade_id)) byTrade.set(r.trade_id, []); byTrade.get(r.trade_id).push(r); }
@@ -777,7 +877,8 @@ async function runLeague(cfg, boardPath, inputs, { waiver }) {
     cells: results.map((r, i) => ({ season: r.season, origin: r.origin, k: r.k, draft_seed: cells[i].draftSeed, trade_seed: cells[i].tradeSeed,
                                      sim_seed: cells[i].simSeed, roster_sizes: cells[i].roster_sizes, undrafted: cells[i].undrafted.length,
                                      trades: cells[i].trades.length, excluded: r.excluded, uncovered_rostered: r.uncovered_rostered,
-                                     partial_rostered: r.partial_rostered, null_baseline_rostered: r.null_baseline_rostered })),
+                                     partial_rostered: r.partial_rostered, null_baseline_rostered: r.null_baseline_rostered,
+                                     waiver_adds: r.waiver_adds, waiver_pool: r.waiver_pool, waiver_injured_excluded: r.waiver_injured_excluded })),
     lopsided_cutoff: cutoffs,
     horizons, excluded_cells: excludedCells.length, excluded_cell_list: excludedCells,
     trade_population: sampleStats,
@@ -836,8 +937,10 @@ async function main() {
     }
   }
   const t0 = Date.now();
-  const primary = await runLeague(cfg, cfg.league, inputs, { waiver: true });
-  const secondary = cfg.secondary ? await runLeague(cfg, cfg.secondary, inputs, { waiver: false }) : null;
+  fs.mkdirSync(path.dirname(path.resolve(cfg.out)), { recursive: true });
+  const store = openStore(`${cfg.out}.cells.jsonl`, configHash(cfg), { fresh: cfg.fresh, meta: { seasons: cfg.seasons, origins: cfg.origins, leagues: cfg.leagues, trades: cfg.trades, sims: cfg.sims, diagnosticSims: cfg.diagnosticSims, league: cfg.league, secondary: cfg.secondary } });
+  const primary = await runLeague(cfg, cfg.league, inputs, { waiver: true, store });
+  const secondary = cfg.secondary ? await runLeague(cfg, cfg.secondary, inputs, { waiver: false, store }) : null;
   const generated_at = new Date().toISOString();
   const forecastMeta = Object.fromEntries(Object.entries(inputs.forecasts).map(([k, f]) => [k, { model: f.model || null, training_through: f.training_through ?? null, scoring: f.scoring || null, players: Object.keys(f.players).length }]));
   const full = {
@@ -845,6 +948,7 @@ async function main() {
     config: { seasons: cfg.seasons, origins: cfg.origins, leagues: cfg.leagues, trades: cfg.trades, sims: cfg.sims, bootstrap: cfg.bootstrap,
               predeclared, label_k: LABEL_K, coverage_band: COVERAGE_BAND, last_week: LAST_WEEK, waiver_quota: WAIVER_QUOTA,
               inputs: { league: cfg.league, secondary: cfg.secondary, forecasts_dir: cfg.forecastsDir, worlds_dir: cfg.worldsDir, availability_dir: cfg.availabilityDir, forecasts: forecastMeta },
+              diagnostic_sims: cfg.diagnosticSims, checkpoint: `${cfg.out}.cells.jsonl`,
               seeds: { draft: "1000*S + k (tools/draft_sim.cjs runDraft, heroSlot 0, field 'measured', noise MEASURED.noiseRanks)",
                        trades: "mulberry32(hashStr(`${S}:${O}:${k}`))", sim: "hashStr(`sim:${S}:${O}:${k}`)",
                        bootstrap: "mulberry32(hashStr(`bootstrap:${slug}`)); waiver: mulberry32(hashStr(`waiver-bootstrap:${slug}`))" },
@@ -856,8 +960,13 @@ async function main() {
                 percentile: "linear interpolation (type 7)",
                 waiver_set: "spec §10.1: per-position quota QB 2 / RB 3 / WR 3 / TE 2 of undrafted players, ranked by the mean over ALL weeks origin..17 of frozen p50 with a bye week counted as 0, ties by player id ascending (as on the live desk); a candidate must have a play/bye row for every week origin..17 -- a top player lacking one is skipped and the next taken",
                 waiver_replacement_pool: "waiver replacement pool = undrafted minus the per-position add set, in every arm (sim, current, naive, realized); the live waiver desk does the same",
-                trade_population: "spec §10.2: a sampled trade is kept only if each side gives at least one player who starts in >= half the weeks of its own frozen-p50 before-lineup (decided before any prediction); depth_for_starter = a side gives a before-lineup starter and receives no player who starts in >= half the weeks of its after-lineup (trade is in the stratum if either side qualifies)",
+                trade_population: "spec §10.2 with the literal current-method before-lineup (review M1): a sampled trade is kept only if each side gives at least one player who starts in >= half the weeks origin..17 of its own before-lineup, computed as predictLineupOnly on frozen p50 with the slot-sized frozen-p50 undrafted pool filling any slot the roster cannot (decided before any prediction); depth_for_starter = a side gives a before-lineup starter and receives no player who starts in >= half the weeks of its after-lineup (trade is in the stratum if either side qualifies)",
                 error_band_by_horizon: "spec §10.3: E per stratum and the lopsided cutoff are measured per origin; verdict and bootstrap stay pooled across origins; slim file schema_version 2 with horizons[]",
+                bootstrap_clusters: "spec §10.6: whole (season, league) clusters are resampled with replacement; origins 5 and 9 of one league share rosters and realized weeks 9-17 and move together; leagues within a season still share one set of real player outcomes (remaining dependence, disclosed)",
+                injured_free_agents: "spec §10.7: undrafted players tagged Out or IR in tags[origin-1] are excluded from the waiver add set and from every arm's waiver replacement pool (sim, current, naive, realized); the trade arms' pool is unchanged; excluded ids are listed per cell (cells[].waiver_injured_excluded)",
+                waiver_audit: "cells[].waiver_adds and cells[].waiver_pool publish each waiver cell's add set and the union of its current-method replacement pool",
+                checkpoint: "each finished (league, season, origin) cell is appended to <out>.cells.jsonl keyed by a hash of the parameters, input files and code; a matching rerun resumes, a different one refuses without --fresh; results do not depend on --jobs or on resuming",
+                diagnostic_sims: "the availability-off diagnostic arm runs at min(--diagnostic-sims, --sims) simulations (default 400); it is not a verdict input, and the waiver arm has no availability-off world",
                 excluded_cells: "spec §10.4: any excluded planned cell (incl. a rostered player without full forecast coverage) makes verdict and waiver_verdict 'fail'; the excluded count is published",
                 sign_accuracy: "rows with real === 0 are excluded from the sign-accuracy denominator (not part of the verdict)",
                 diagnostic: "diagnostics.availability_off: the same engine with p_out = p_stay = p_tag = 0, reported in the full file only, never in a verdict",
@@ -891,4 +1000,4 @@ if (!isMainThread && workerData && workerData.role === "cell-worker") {
 module.exports = { meanP50ByeZero, frozenStarters, depthForStarter, waiverAdds, markLopsided, horizonsOf, buildSlim, checkAvailability, checkForecastFile, isInside, availabilityOff, availabilityOffBlock, WAIVER_QUOTA, sampleTrades, predictSim, predictLineupOnly, realized, realizedRoster, metrics, bootstrap, bootstrapWaiver,
                    verdict, verdictChecks, waiverVerdict, waiverMetrics, runCell, buildSimWorld, replacementPool, poolSizes,
                    isCovered, meanP50, afterRoster, overflowDrop, roundDeep, percentile, mulberry32, hashStr, slotsOf,
-                   BacktestError, STRATA, PREDECLARED };
+                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, runCells, finalizeLeague, cellKey, starterSet };

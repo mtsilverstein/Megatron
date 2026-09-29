@@ -5,11 +5,16 @@
 // file decides whether a trade grade ever reaches the public site, so its own
 // arithmetic is the thing that must not be silently wrong.
 const assert = require("node:assert/strict");
-const T = require("../tools/trade_backtest.cjs");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const T = require(process.env.BT_MODULE || "../tools/trade_backtest.cjs");
 
 let n = 0; const failed = [];
 // FIXTURE_ALL=1 reports every failing group instead of stopping at the first (used to show new cases fail on old code).
 const check = (name, fn) => { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; if (process.env.FIXTURE_ALL) { failed.push(e.message.split("\n")[0]); return; } throw e; } };
+const asyncChecks = [];
+const acheck = (name, fn) => asyncChecks.push(Promise.resolve().then(fn).then(() => { n++; }, e => { e.message = `${name}: ${e.message}`; if (process.env.FIXTURE_ALL) { failed.push(e.message.split("\n")[0]); return; } throw e; }));
 const close = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: got ${a}, expected ${b}`);
 
 /* ---------------------------------------------------------------------------
@@ -426,5 +431,142 @@ check("s_waiver_rank_bye_is_zero", () => {
   close(T.meanP50ByeZero("a_bye", fc, WEEKS), 20 / 3, "bye counts as 0");
 });
 
-if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
-console.log(`trade_backtest_fixture: ${n} groups OK`);
+
+/* ---- Final-review fixes (I1, §10.6, §10.7, M1, M9, M10) ------------------------------------------ */
+
+/* (t) review M1: the population's "current-method before-lineup" is the literal one -- frozen p50 with the
+   slot-sized frozen-p50 undrafted pool filling a slot the roster cannot. A roster with no RB at all:
+   the old no-fill rule found every week unfillable and credited no starter; the literal lineup starts the
+   QB aQ and the better WR bW1 (14 > aW 10) at FLEX, with a replacement RB. */
+check("t_population_uses_replacement_fill", () => {
+  const roster = ["aQ", "aW", "bW1"];
+  const und = ["uQ", "uR", "uR2"];
+  assert.deepEqual([...T.frozenStarters(roster, FC2, SLOTS, WEEKS, und)].sort(), ["aQ", "bW1"]);
+  const R = [roster, ROSTERS[1]];
+  const out = T.sampleTrades(R, FC2, T.mulberry32(5), 10, { slots: SLOTS, undrafted: und });
+  assert.ok(out.length > 0, "the no-RB roster still trades starters");
+  for (const t of out.filter(t => t.a === 0)) assert.ok(t.give_a.some(id => id === "aQ" || id === "bW1"), `side a gives only bench: ${t.give_a}`);
+});
+
+/* (u) spec §10.6: bootstrap clusters are (season, league); both origins of one league share a cluster. */
+const RC = (over = {}) => Object.assign({ season: 2023, origin: 5, k: 0, rosters: ROSTERS, undrafted: UNDRAFTED, forecasts: FC2, actualWeeks: ACT,
+  availability: AV(), tags: {}, slots: SLOTS, nSims: 60, simSeed: 4, trades: [Object.assign({ id: "t0" }, TRADE)], waiver: false }, over);
+check("u_cluster_is_season_league", () => {
+  const o5 = T.runCell(RC()), o9 = T.runCell(RC({ origin: 9, trades: [Object.assign({ id: "t1" }, TRADE)] })), k1 = T.runCell(RC({ k: 1 }));
+  assert.equal(o5.cluster, "2023:0"); assert.equal(o9.cluster, "2023:0"); assert.equal(k1.cluster, "2023:1");
+  const rows = o5.rows.concat(o9.rows, k1.rows);
+  assert.equal(T.bootstrap(rows, 20, T.mulberry32(1)).n_clusters, 2, "two (season, league) clusters, not three");
+});
+
+/* (v) spec §10.7: free agents tagged Out or IR at the origin's report are neither waiver adds nor waiver
+   replacements in any arm; Questionable is still available. The trade arms' pool is untouched. */
+const FC4 = JSON.parse(JSON.stringify(FC2));
+FC4.players.uQ3 = { position: "QB", baseline: 4, weeks: every(4.5) };
+FC4.players.uR3 = { position: "RB", baseline: 3, weeks: every(3) };
+const ACT4 = Object.assign({}, ACT, { uQ3: { 5: 3, 6: 4, 7: 5 }, uR3: { 5: 2, 6: 3, 7: 4 } });
+const UND4 = ["uQ", "uR", "uW", "uQ2", "uR2", "uQ3", "uR3"];
+check("v_injured_free_agents_excluded", () => {
+  const base = RC({ forecasts: FC4, actualWeeks: ACT4, undrafted: UND4, waiver: true, waiverQuota: { QB: 1, RB: 1, WR: 0, TE: 0 } });
+  const clean = T.runCell(base);
+  assert.equal(clean.excluded, null);
+  assert.deepEqual(clean.waiver_adds.slice().sort(), ["uQ", "uR"], "sanity: without tags the best QB and RB are added");
+  const cell = T.runCell(Object.assign({}, base, { tags: { uQ: "Out", uR: "IR", uW: "Questionable" } }));
+  assert.equal(cell.excluded, null);
+  assert.deepEqual(cell.waiver_adds.slice().sort(), ["uQ2", "uR2"]);
+  assert.deepEqual(cell.waiver_injured_excluded, ["uQ", "uR"]);
+  for (const id of ["uQ", "uR", "uQ2", "uR2"]) assert.ok(!cell.waiver_pool.includes(id), `${id} is not a waiver replacement`);
+  assert.ok(cell.waiver_pool.includes("uW"), "Questionable stays available");
+});
+
+/* (w) review M10 / I1 CLI: --diagnostic-sims (default 400) and the --fresh flag; the diagnostic arm's
+   sims never change the gating simulation arm. */
+check("w_cli_and_diagnostic_sims", () => {
+  const argv = extra => ["node", "x", "--seasons", "2023", "--origins", "5", "--leagues", "1", "--trades", "1", "--sims", "10", "--league", "a", "--out", "o", "--site-out", "s"].concat(extra);
+  assert.equal(T.parseArgs(argv([])).diagnosticSims, 400);
+  assert.equal(T.parseArgs(argv(["--diagnostic-sims", "50"])).diagnosticSims, 50);
+  const f = T.parseArgs(argv(["--fresh", "--jobs", "2"]));
+  assert.equal(f.fresh, true); assert.equal(f.jobs, 2); assert.equal(T.parseArgs(argv([])).fresh, false);
+  const a = T.runCell(RC({ nSims: 200, diagnosticSims: 40 })), b = T.runCell(RC({ nSims: 200, diagnosticSims: 200 }));
+  for (let i = 0; i < a.rows.length; i++) for (const key of ["sim", "sim_p10", "sim_p90", "sim_p_positive", "current", "naive", "real"]) assert.equal(a.rows[i][key], b.rows[i][key], `${key} does not depend on diagnostic sims`);
+});
+
+/* (x) review I1: per-cell checkpoint and resume. Two cells of the mini season through the real executeCell path
+   (files on disk). A run killed after cell 0 resumes and aggregates to exactly the uninterrupted output. */
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "bt-fixture-"));
+const writeJ = (f, o) => { const p = path.join(TMP, f); fs.writeFileSync(p, JSON.stringify(o)); return p; };
+const SPEC_FILES = { forecastFile: writeJ("fc.json", FC2), worldFile: writeJ("world.json", { actual_weeks: ACT }),
+                     availabilityFile: writeJ("av.json", Object.assign(AV(), { tags: { 4: {} } })) };
+const SPECS = [0, 1].map(k => Object.assign({ season: 2023, origin: 5, k, rosters: ROSTERS, undrafted: UNDRAFTED, slots: SLOTS, nSims: 80, diagnosticSims: 40,
+  simSeed: 100 + k, trades: [Object.assign({ id: `2023:5:${k}:0`, season: 2023, origin: 5, k }, TRADE)], waiver: false }, SPEC_FILES));
+const LEAGUE = { slug: "toy", name: "Toy", teams: 2, rounds: 4 };
+const cellsOf = () => SPECS.map(sp => ({ season: sp.season, origin: sp.origin, k: sp.k, draftSeed: 1, tradeSeed: 2, simSeed: sp.simSeed, roster_sizes: [4, 4], undrafted: UNDRAFTED, trades: sp.trades }));
+const finalize = results => {
+  const trades = SPECS.flatMap(sp => sp.trades.map(t => Object.assign({}, t)));
+  const out = T.finalizeLeague({ cfg: { bootstrap: 40 }, league: LEAGUE, slots: SLOTS, cells: cellsOf(), trades, results, sampleStats: { attempts: 2, accepted: 2, rejected_not_starter: 0 }, waiver: false });
+  delete out.timings;
+  return JSON.stringify(T.roundDeep(out));
+};
+acheck("x_resume_is_byte_identical", async () => {
+  const runInto = async (store, specs, jobs) => { await T.runCells(specs, jobs, (j, r) => store.append(T.cellKey("toy", specs[j]), r)); };
+  const full = T.openStore(path.join(TMP, "full.jsonl"), "h1");
+  await runInto(full, SPECS, 1);
+  const uninterrupted = finalize(SPECS.map(sp => full.get(T.cellKey("toy", sp))));
+  // Killed after one cell: only cell 0 is on disk.
+  const file = path.join(TMP, "part.jsonl");
+  const first = T.openStore(file, "h1");
+  await runInto(first, SPECS.slice(0, 1), 1);
+  assert.equal(fs.readFileSync(file, "utf8").trim().split("\n").length, 2, "header + one cell line");
+  // Restart, same configuration: cell 0 is skipped, cell 1 is computed.
+  const again = T.openStore(file, "h1");
+  assert.equal(again.size(), 1); assert.ok(again.has(T.cellKey("toy", SPECS[0]))); assert.ok(!again.has(T.cellKey("toy", SPECS[1])));
+  const pending = SPECS.filter(sp => !again.has(T.cellKey("toy", sp)));
+  assert.equal(pending.length, 1);
+  await runInto(again, pending, 1);
+  assert.equal(finalize(SPECS.map(sp => again.get(T.cellKey("toy", sp)))), uninterrupted, "resumed output equals the uninterrupted one");
+  // ... and reading it back cold gives the same again.
+  const cold = T.openStore(file, "h1");
+  assert.equal(finalize(SPECS.map(sp => cold.get(T.cellKey("toy", sp)))), uninterrupted);
+  // Worker threads give the same cells as in-process (results do not depend on --jobs).
+  const par = T.openStore(path.join(TMP, "par.jsonl"), "h1");
+  await runInto(par, SPECS, 2);
+  assert.equal(finalize(SPECS.map(sp => par.get(T.cellKey("toy", sp)))), uninterrupted, "--jobs 2 equals --jobs 1");
+});
+check("y_store_guards", () => {
+  const file = path.join(TMP, "guard.jsonl");
+  const st = T.openStore(file, "hA");
+  st.append("k0", { season: 2023, rows: [], v: 1.5 });
+  assert.throws(() => T.openStore(file, "hB"), /--fresh/, "a different configuration refuses to resume");
+  assert.equal(T.openStore(file, "hB", { fresh: true }).size(), 0, "--fresh discards");
+  const st2 = T.openStore(file, "hB");
+  st2.append("k0", { v: 1 });
+  const before = fs.statSync(file).size;
+  assert.throws(() => st2.append("k1", { rows: [{ x: NaN }] }), /non-finite/);
+  assert.equal(fs.statSync(file).size, before, "a bad cell writes nothing");
+  fs.appendFileSync(file, '{"type":"cell","key":"torn"');        // killed mid-write: no newline
+  const st3 = T.openStore(file, "hB");
+  assert.equal(st3.size(), 1); assert.ok(st3.has("k0") && !st3.has("torn"));
+  st3.append("k2", { v: 2 });
+  assert.equal(T.openStore(file, "hB").size(), 2, "the torn tail was dropped, the next append is clean");
+});
+acheck("z_dead_worker_fails_loudly", async () => {
+  const dead = path.join(TMP, "dead-worker.js");
+  fs.writeFileSync(dead, "require('worker_threads').parentPort.on('message', () => process.exit(3));\n");
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("runCells hung on a dead worker")), 20000));
+  await assert.rejects(Promise.race([T.runCells(SPECS, 2, () => {}, { workerFile: dead }), timeout]), /worker exited/);
+});
+
+/* (aa) review M9: the waiver add set and pool are published per cell in the full file. */
+check("aa_waiver_audit_published", () => {
+  const cell = T.runCell(RC({ forecasts: FC4, actualWeeks: ACT4, undrafted: UND4, waiver: true, waiverQuota: { QB: 1, RB: 1, WR: 0, TE: 0 } }));
+  const back = JSON.parse(JSON.stringify(cell));
+  const out = T.finalizeLeague({ cfg: { bootstrap: 20 }, league: LEAGUE, slots: SLOTS, cells: [cellsOf()[0]], trades: [], results: [back], sampleStats: {}, waiver: true });
+  assert.deepEqual(out.cells[0].waiver_adds, cell.waiver_adds);
+  assert.deepEqual(out.cells[0].waiver_pool, cell.waiver_pool);
+  assert.ok(out.cells[0].waiver_adds.length === 2 && out.cells[0].waiver_pool.length > 0);
+});
+
+Promise.all(asyncChecks).then(() => {
+  try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) { /* best effort */ }
+  if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
+  console.log(`trade_backtest_fixture: ${n} groups OK`);
+}, e => { console.error(e.stack || e); process.exit(1); });
