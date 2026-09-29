@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-29T11:27:17+00:00",
+  "generated_at": "2026-09-29T21:28:14+00:00",
   "data_through": "2026-wk3",
   "season": 2026,
   "week": 4,
@@ -16639,6 +16639,93 @@
       }
     },
     {
+      "player_id": "00-0039923",
+      "name": "J.J. McCarthy",
+      "team": "NYG",
+      "opponent": "ARI",
+      "position": "QB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -1.53,
+          "p50": 4.71,
+          "p90": 15.4
+        },
+        "half_ppr": {
+          "p10": -1.51,
+          "p50": 4.72,
+          "p90": 15.36
+        },
+        "standard": {
+          "p10": -1.48,
+          "p50": 4.73,
+          "p90": 15.32
+        },
+        "league": {
+          "p10": -1.49,
+          "p50": 5.1,
+          "p90": 17.64
+        }
+      },
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": 45.50887510814118,
+          "passing_tds": 0.08619095446413194,
+          "passing_interceptions": 0.05894017977393373,
+          "carries": 0.9173514544284558,
+          "rushing_yards": 0.07072797781884788,
+          "rushing_tds": -0.019893252773736436,
+          "targets": -0.09973494463221244,
+          "receptions": -0.0457997655919582,
+          "receiving_yards": -0.4023497873281343,
+          "receiving_tds": -0.006554645209775001,
+          "fumbles_lost": -0.02979133540671075,
+          "passing_pick_sixes": 0.04286572256788899
+        },
+        "p50": {
+          "passing_yards": 91.9938735961914,
+          "passing_tds": 0.2592625916004181,
+          "passing_interceptions": 0.1821759194135666,
+          "carries": 2.2590177059173584,
+          "rushing_yards": 3.7737627029418945,
+          "rushing_tds": 0.0012836754322052002,
+          "targets": -0.02095491625368595,
+          "receptions": -0.025704553350806236,
+          "receiving_yards": -0.08553002029657364,
+          "receiving_tds": 0.003489897819235921,
+          "fumbles_lost": 0.008659507147967815,
+          "passing_pick_sixes": 0.04286572256788899
+        },
+        "p90": {
+          "passing_yards": 182.0584168817477,
+          "passing_tds": 1.1838130672885399,
+          "passing_interceptions": 1.1783559626349636,
+          "carries": 4.127358568580554,
+          "rushing_yards": 16.522987903857484,
+          "rushing_tds": 0.23020865214569053,
+          "targets": 0.07349663617725888,
+          "receptions": 0.08462381924668971,
+          "receiving_yards": 1.0532607646701884,
+          "receiving_tds": 0.03630920598742915,
+          "fumbles_lost": 0.5503713499606366,
+          "passing_pick_sixes": 0.04286572256788899
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 91.99,
+        "passing_tds": 0.26,
+        "passing_interceptions": 0.18,
+        "carries": 2.26,
+        "rushing_yards": 3.77,
+        "rushing_tds": 0.0,
+        "targets": -0.02,
+        "receptions": -0.03,
+        "receiving_yards": -0.09,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.01
+      }
+    },
+    {
       "player_id": "00-0038041",
       "name": "Jake Ferguson",
       "team": "DAL",
@@ -18289,93 +18376,6 @@
         "receiving_yards": 13.29,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
-      }
-    },
-    {
-      "player_id": "00-0039923",
-      "name": "J.J. McCarthy",
-      "team": "MIN",
-      "opponent": "MIA",
-      "position": "QB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -1.76,
-          "p50": 4.25,
-          "p90": 14.74
-        },
-        "half_ppr": {
-          "p10": -1.74,
-          "p50": 4.26,
-          "p90": 14.7
-        },
-        "standard": {
-          "p10": -1.71,
-          "p50": 4.28,
-          "p90": 14.65
-        },
-        "league": {
-          "p10": -1.75,
-          "p50": 4.56,
-          "p90": 16.87
-        }
-      },
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": 40.14064017971532,
-          "passing_tds": 0.069310574110522,
-          "passing_interceptions": 0.05082713160179786,
-          "carries": 0.8489136903856007,
-          "rushing_yards": -0.2452446274614033,
-          "rushing_tds": -0.01895912618582174,
-          "targets": -0.10141852070798096,
-          "receptions": -0.047810466838128285,
-          "receiving_yards": -0.44298587087315155,
-          "receiving_tds": -0.00585119554569391,
-          "fumbles_lost": -0.028984415442280476,
-          "passing_pick_sixes": 0.04110051629837882
-        },
-        "p50": {
-          "passing_yards": 85.43157958984375,
-          "passing_tds": 0.21554677188396454,
-          "passing_interceptions": 0.15832547843456268,
-          "carries": 2.155447006225586,
-          "rushing_yards": 3.162757635116577,
-          "rushing_tds": 0.0009067070786841214,
-          "targets": -0.02059546671807766,
-          "receptions": -0.02695014514029026,
-          "receiving_yards": -0.1287415474653244,
-          "receiving_tds": 0.003920165356248617,
-          "fumbles_lost": 0.00898304209113121,
-          "passing_pick_sixes": 0.04110051629837882
-        },
-        "p90": {
-          "passing_yards": 175.59177721241622,
-          "passing_tds": 1.1278719637072143,
-          "passing_interceptions": 1.14985700575075,
-          "carries": 4.032211441520801,
-          "rushing_yards": 15.662209150180615,
-          "rushing_tds": 0.2147471987666627,
-          "targets": 0.07198881964074966,
-          "receptions": 0.0820432279116825,
-          "receiving_yards": 0.9678635401209057,
-          "receiving_tds": 0.03521022037504751,
-          "fumbles_lost": 0.5392505556043581,
-          "passing_pick_sixes": 0.04110051629837882
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 85.43,
-        "passing_tds": 0.22,
-        "passing_interceptions": 0.16,
-        "carries": 2.16,
-        "rushing_yards": 3.16,
-        "rushing_tds": 0.0,
-        "targets": -0.02,
-        "receptions": -0.03,
-        "receiving_yards": -0.13,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.01
       }
     },
     {
@@ -59966,7 +59966,7 @@
     },
     {
       "player_id": "00-0038740",
-      "name": "Jalen Moreno-Cropper",
+      "name": "Jalen Cropper",
       "team": "NO",
       "opponent": "ATL",
       "position": "WR",
