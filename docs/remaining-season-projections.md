@@ -192,8 +192,9 @@ Verdict checks (bootstrap intervals are 95%, 2,000 resamples of whole
 | No planned cell excluded | 0 | 0 | yes / yes |
 | 80% interval coverage in [0.70, 0.90] | 0.650 | 0.665 | no / no |
 
-Pooled metrics (n = 30,000 trades per league; MAE and regret in fantasy
-points over the rest of the season):
+Pooled metrics (n = 30,000 trade sides per league: 15,000 trades, each scored
+from both teams' side; MAE and regret in fantasy points over the rest of the
+season):
 
 | League | Method | MAE | Sign accuracy | Regret | Coverage |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -206,7 +207,7 @@ points over the rest of the season):
 
 The accuracy gain over the current method is statistically clear but small:
 about 0.6 points of MAE in Gabagool and 0.9 in FAM, on errors of about 52
-points, with sign accuracy up 0.4 and 1.2 points. The large gain is over the
+points, with sign accuracy up 0.4 and 1.2 percentage points. The large gain is over the
 naive comparator, not over today's method. The typical error is also large in
 absolute terms: the per-stratum E below is 52–73 points at origin 5 (13 weeks)
 and 38–54 at origin 9 (9 weeks). A
@@ -243,7 +244,7 @@ waiver desk for Gabagool only (`waiver_verdict === "pass"`). FAM's waiver
 verdict is `not_evaluated`.
 
 Availability-off diagnostic (not a verdict input; same engine with
-p_out = p_stay = p_tag = 0, n = 30,000 per league). Pooled MAE with the
+p_out = p_stay = p_tag = 0, n = 30,000 trade sides per league). Pooled MAE with the
 absence model off was 52.143 in Gabagool (51.796 on) and 51.820 in FAM
 (51.240 on). The current method's MAE is 52.405 and 52.175. Switching
 availability off therefore keeps about 0.26 of Gabagool's 0.61-point edge and
