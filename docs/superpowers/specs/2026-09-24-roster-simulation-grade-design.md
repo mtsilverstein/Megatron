@@ -252,3 +252,10 @@ Made after the Task 4 review, before any full-run result existed. They supersede
    with `horizons: [{origin, weeks, strata:{name:{E,n}}, lopsided_cutoff}]` (and the same under `secondary`).
 4. **Dropped cells fail closed.** If any planned primary (season, origin, league) cell is excluded, `verdict` and
    `waiver_verdict` are "fail"; the excluded count is published.
+5. **Known before the full run (recorded 2026-09-28, before any full-run result).** A smoke run and a reviewer
+   diagnostic showed the engine's season-total intervals are too narrow: weekly quantiles are calibrated (weekly
+   p10–p90 coverage 0.76–0.80), but a player's forecast errors persist across weeks (between-player variance of mean
+   residuals 1.7–3.0× the independent-weeks prediction), so 80% season intervals cover ≈0.65. The owner chose to run
+   the test exactly as declared and publish the result, pass or fail. Any engine change prompted by this (e.g. a
+   per-player persistent error term) is a v2 with its own predeclared test, evaluated prospectively on the 2026 season
+   — never re-scored against 2023–2025, whose residuals were used to diagnose the problem.
