@@ -52,3 +52,10 @@ data_snapshots/keepers_*.json
 # elevated, so they are not deletable from an ordinary shell)
 .review/
 .vercel
+
+# Roster-simulation walk-forward (tools/trade_backtest.cjs): the full result is
+# 26 MB and the cell checkpoint 28 MB. Only the gzipped result
+# (trade_sim_eval.json.gz; `gzip -dk` to read) and the slim site file are
+# committed.
+models/diagnostics/trade_sim_eval.json
+models/diagnostics/*.cells.jsonl

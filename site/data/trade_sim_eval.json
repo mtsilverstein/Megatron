@@ -1,0 +1,140 @@
+{
+ "schema_version": 2,
+ "league": "gabagool",
+ "slots": [
+  "QB",
+  "RB",
+  "RB",
+  "WR",
+  "WR",
+  "TE",
+  "FLEX",
+  "FLEX"
+ ],
+ "verdict": "fail",
+ "waiver_verdict": "pass",
+ "k": 2,
+ "horizons": [
+  {
+   "origin": 5,
+   "weeks": 13,
+   "strata": {
+    "same_position": {
+     "E": 55.291,
+     "n": 1712
+    },
+    "cross_position": {
+     "E": 60.117,
+     "n": 13288
+    },
+    "depth_for_starter": {
+     "E": 53.013,
+     "n": 3942
+    },
+    "lopsided": {
+     "E": 72.725,
+     "n": 1500
+    }
+   },
+   "lopsided_cutoff": 78.333
+  },
+  {
+   "origin": 9,
+   "weeks": 9,
+   "strata": {
+    "same_position": {
+     "E": 37.987,
+     "n": 1696
+    },
+    "cross_position": {
+     "E": 44.797,
+     "n": 13304
+    },
+    "depth_for_starter": {
+     "E": 41.556,
+     "n": 3902
+    },
+    "lopsided": {
+     "E": 50.482,
+     "n": 1500
+    }
+   },
+   "lopsided_cutoff": 59.69
+  }
+ ],
+ "seasons": [
+  2023,
+  2024,
+  2025
+ ],
+ "origins": [
+  5,
+  9
+ ],
+ "excluded_cells": 0,
+ "generated_at": "2026-09-29T21:00:36.021Z",
+ "secondary": {
+  "league": "fam",
+  "slots": [
+   "QB",
+   "RB",
+   "RB",
+   "WR",
+   "WR",
+   "TE",
+   "FLEX",
+   "FLEX"
+  ],
+  "verdict": "fail",
+  "waiver_verdict": "not_evaluated",
+  "horizons": [
+   {
+    "origin": 5,
+    "weeks": 13,
+    "strata": {
+     "same_position": {
+      "E": 51.589,
+      "n": 1622
+     },
+     "cross_position": {
+      "E": 58.829,
+      "n": 13378
+     },
+     "depth_for_starter": {
+      "E": 53.441,
+      "n": 3926
+     },
+     "lopsided": {
+      "E": 68.729,
+      "n": 1500
+     }
+    },
+    "lopsided_cutoff": 70.385
+   },
+   {
+    "origin": 9,
+    "weeks": 9,
+    "strata": {
+     "same_position": {
+      "E": 39.697,
+      "n": 1682
+     },
+     "cross_position": {
+      "E": 45.032,
+      "n": 13318
+     },
+     "depth_for_starter": {
+      "E": 40.017,
+      "n": 4102
+     },
+     "lopsided": {
+      "E": 53.899,
+      "n": 1500
+     }
+    },
+    "lopsided_cutoff": 53.071
+   }
+  ],
+  "excluded_cells": 0
+ }
+}
