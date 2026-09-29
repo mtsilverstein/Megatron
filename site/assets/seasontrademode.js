@@ -18,6 +18,7 @@
   const SUBLINE_TAIL = "Keeper value and draft picks are not valued, so no overall grade is shown.";
   const FORBIDDEN = Object.freeze(["verdict", "win/win", "fair", "winner", "accept", "recommend", "grade"]);
   const ALLOWED_SENTENCES = Object.freeze([HEADLINE, SUBLINE_TAIL]);
+  const LAST_MEASURED_WEEK = 17;     // the backtest measured weeks origin..17 only (spec §8)
   // Gate open (a passing trade_sim_eval.json): the grade panel replaces those
   // words with the grade vocabulary. "accept", "fair", "winner" and "verdict"
   // stay out of every panel string; "grade" is now allowed.
@@ -173,22 +174,40 @@
     if (Number.isFinite(cut) && Number.isFinite(currentDelta) && Math.abs(currentDelta) >= cut) out.push("lopsided");
     return out;
   }
-  // Conservative error: the largest measured E among the trade's strata.
-  function errorFor(strataNames, horizon) {
-    const es = strataNames.map(n => horizon.strata[n]).filter(s => s && Number.isFinite(s.E)).map(s => s.E);
-    return es.length ? Math.max(...es) : null;
+  // The lopsided measure, as the backtest measured it (spec §10.3): the larger of the two sides' |Δ|, so a trade
+  // is lopsided whichever side you view it from. `sides` = analyze's result.sides.
+  function lopsidedMeasure(sides) {
+    return Math.max(...(sides || []).map(s => Math.abs(s.delta)));
   }
+  // Conservative error: the largest measured E among the trade's strata. A stratum the trade belongs to but that has
+  // no measured E is not skipped -- unknown is not zero -- so the whole trade is unmeasured (null).
+  function errorFor(strataNames, horizon) {
+    const es = strataNames.map(n => horizon.strata[n]);
+    if (!es.length || !es.every(s => s && Number.isFinite(s.E))) return null;
+    return Math.max(...es.map(s => s.E));
+  }
+  // Spec §8: shown with every grade. The wording avoids GRADE_FORBIDDEN.
+  const LIMITATIONS = Object.freeze([
+    "Player outcomes are simulated as independent: there is no stack or game correlation.",
+    "Injury timing comes from position-level rates and current tags, not injury type.",
+    "Tags are the latest Sleeper status; the measurement used the report from the week before.",
+    "The error was measured on synthetic 2023–2025 leagues, not real rosters.",
+    "Rosters are frozen after the trade: no later adds, drops or trades are modeled.",
+    "Draft picks and keeper value are not valued.",
+    "Weeks after 17 are not modeled.",
+  ]);
   function gradeText(sim, ctx) {
     const span = `weeks ${ctx.firstWeek}–${ctx.endWeek}`, n = sim.weeks.length;
     const sides = sim.sides.map((s, i) => ({
       name: i === 0 ? "Your lineup" : (ctx.names && ctx.names[s.rosterId]) || `roster ${s.rosterId}`,
       label: gradeLabel(s.mean, ctx.E, ctx.k),
-      detail: `${fmt1(s.mean)} pts over ${span} (about ${fmt1(s.mean / n)} a week); likely range ${fmt1(s.p10)} to ${fmt1(s.p90)}; measured error on trades like this ≈ ±${ctx.E.toFixed(1)}`,
+      detail: `${fmt1(s.mean)} pts over ${span} (about ${fmt1(s.mean / n)} a week); likely range ${fmt1(s.p10)} to ${fmt1(s.p90)}; typical measured error on trades like this: ${ctx.E.toFixed(1)} pts`,
     }));
     return {
       heading: `Simulated rest-of-season grade, ${span}`,
       sides,
       footnote: "Simulated from projections, with injury risk measured in past seasons. Draft picks and keeper value are not valued.",
+      limitations: LIMITATIONS.slice(),
     };
   }
   // Positional rank = rank of ros_rank within the player's position among the
@@ -851,6 +870,8 @@
         // Tested population (spec §10.2): the error bands were measured only on trades where
         // each side gives a player who starts in at least half the weeks of its own before-lineup.
         if (!startCounts(result, give, receive).sides.every(s => s.give.some(x => x >= 0.5))) throw new Error("the grade is measured only for trades where each side gives a starter");
+        // The measurement stopped at week 17 (spec §8).
+        if (result.weeks.some(w => w.week > LAST_MEASURED_WEEK)) throw new Error(`weeks after ${LAST_MEASURED_WEEK} are not measured`);
         await gradeInputs();
         if (!S.availability) throw new Error("availability data is not published");
         // Yield so the lineup scenario paints before the simulation blocks the thread.
@@ -863,7 +884,7 @@
         // The horizon whose remaining-week count is nearest to the weeks compared.
         const horizon = pickHorizon(S.gate.horizons, result.weeks.length);
         if (!horizon) throw new Error("no measured error for this horizon");
-        const names = stratumOf(trade, result.sides[0].delta, horizon);
+        const names = stratumOf(trade, lopsidedMeasure(result.sides), horizon);
         const E = errorFor(names, horizon);
         if (E === null) throw new Error("no measured error for this kind of trade");
         const g = gradeText(sim, { names: handles.names, firstWeek: handles.firstWeek, endWeek: handles.endWeek, E, k: S.gate.k });
@@ -880,6 +901,7 @@
           if (text) lines.push(el("p", text, "season-subline"));
         } else lines.push(el("p", reason, "season-subline"));
         lines.push(el("p", g.footnote, "season-subline"));
+        lines.push(list(g.limitations));
         if (seq !== compareSeq) return;
         fillPanel(panel, lines);
         handles.graded();
@@ -919,5 +941,5 @@
   }
 
   return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, coverageText, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init,
-    gradeLabel, gateOpen, evalView, pickHorizon, stratumOf, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
+    gradeLabel, gateOpen, evalView, pickHorizon, stratumOf, lopsidedMeasure, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
 });

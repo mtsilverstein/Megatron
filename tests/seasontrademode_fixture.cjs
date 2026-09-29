@@ -4,8 +4,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 const M = require("../site/assets/seasontrademode.js");
 const Session = require("../site/assets/session.js");
-let n = 0;
-function check(name, fn) { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; throw e; } }
+let n = 0; const failed = [];
+// FIXTURE_ALL=1 reports every failing group instead of stopping at the first (used to show new cases fail on old code).
+function check(name, fn) { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; if (process.env.FIXTURE_ALL) { failed.push(e.message.split("\n")[0]); return; } throw e; } }
+async function sub(name, fn) { try { await fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; if (process.env.FIXTURE_ALL) { failed.push(e.message.split("\n")[0]); return; } throw e; } }
 
 check("parseWeeks accepts ranges and singles inside the horizon", () => {
   assert.deepEqual(M.parseWeeks("3-5, 8", 2, 17), [3, 4, 5, 8]);
@@ -199,6 +201,21 @@ check("errorFor: the largest E among the trade's strata in the chosen horizon; n
   assert.equal(M.errorFor(["cross_position", "depth_for_starter"], H9), 4.5);
   assert.equal(M.errorFor(["something_else"], H5), null);
 });
+// Review M11: a stratum the trade belongs to but that has no measured E (n = 0) is not skipped; the grade is unavailable.
+check("errorFor: a stratum without a finite E makes the whole trade unmeasured (review M11)", () => {
+  const partial = { strata: { same_position: { E: 5, n: 10 }, depth_for_starter: { E: null, n: 0 }, lopsided: { E: 9, n: 3 } } };
+  assert.equal(M.errorFor(["same_position", "depth_for_starter"], partial), null, "one measured stratum does not stand in for an unmeasured one");
+  assert.equal(M.errorFor(["same_position", "lopsided"], partial), 9);
+  assert.equal(M.errorFor([], partial), null);
+});
+// Review I2: the lopsided measure is the LARGER side's |Δ|, as the backtest measured it (max over both sides).
+check("lopsidedMeasure: max of both sides' |Δ|; stratumOf then flags a trade only the partner's side crosses", () => {
+  assert.equal(M.lopsidedMeasure([{ delta: 6 }, { delta: -60 }]), 60);
+  assert.equal(M.lopsidedMeasure([{ delta: -70 }, { delta: 6 }]), 70);
+  assert.equal(M.lopsidedMeasure([{ delta: 0 }, { delta: 0 }]), 0);
+  const same = { positions: ["WR", "WR"], sides: [S1([1], [1]), S1([1], [1])] };
+  assert.deepEqual(M.stratumOf(same, M.lopsidedMeasure([{ delta: 6 }, { delta: -60 }]), { strata: H5.strata, lopsided_cutoff: 50 }), ["same_position", "lopsided"]);
+});
 const RANKS = new Map([
   ["gw1", { position: "WR", team: "A", ros_rank: 8 }], ["gw2", { position: "WR", team: "B", ros_rank: 40 }], ["gw3", { position: "WR", team: "C", ros_rank: 3 }],
   ["gr1", { position: "RB", team: "D", ros_rank: 12 }], ["gr2", { position: "RB", team: "E", ros_rank: 60 }],
@@ -226,15 +243,24 @@ check("gradeText: the sample line, and every panel string passes GRADE_FORBIDDEN
   const g = M.gradeText(sim, { names: { 1: "Me", 2: "Them" }, firstWeek: 4, endWeek: 17, E: 6.1, k: 2 });
   assert.equal(g.sides[0].name, "Your lineup");
   assert.equal(g.sides[0].label, "Small gain");
-  assert.equal(g.sides[0].detail, "+11.4 pts over weeks 4–17 (about +0.8 a week); likely range −3.0 to +24.9; measured error on trades like this ≈ ±6.1");
+  assert.equal(g.sides[0].detail, "+11.4 pts over weeks 4–17 (about +0.8 a week); likely range −3.0 to +24.9; typical measured error on trades like this: 6.1 pts");
   assert.equal(g.sides[1].name, "Them"); assert.equal(g.sides[1].label, "Small loss");
   const market = M.marketText(mv(7, [{ gsis: "gw3", name: "Ann" }], [{ gsis: "gw2", name: "Bo", started: 1, of: 14 }]), RANKS);
   const graded = M.scenarioText(result, { ...ctx, graded: true });
-  const all = [g.heading, g.footnote, ...g.sides.flatMap(s => [s.name, s.label, s.detail]), market, graded.headline, graded.subline, ...M.GRADE_LABELS].join("\n").toLowerCase();
+  const all = [g.heading, g.footnote, ...g.limitations, ...g.sides.flatMap(s => [s.name, s.label, s.detail]), market, graded.headline, graded.subline, ...M.GRADE_LABELS].join("\n").toLowerCase();
   for (const w of M.GRADE_FORBIDDEN) assert.ok(!all.includes(w), `"${w}" in grade copy: ${all}`);
   assert.ok(!/no overall grade/.test(graded.subline), "the graded scenario no longer claims that no grade is shown");
   assert.match(graded.subline, /not valued/);
   assert.equal(M.scenarioText(result, ctx).headline, M.HEADLINE, "closed-gate scenario text is unchanged");
+});
+// Review I4 (spec §8): the limitations travel with every grade.
+check("gradeText carries the spec §8 limitations as a short list, inside GRADE_FORBIDDEN", () => {
+  const sim = { weeks: [4, 5, 6], nSims: 2000, sides: [{ rosterId: 1, mean: 3, p10: -1, p90: 6, pPositive: 0.8, perWeek: [] }, { rosterId: 2, mean: -3, p10: -6, p90: 1, pPositive: 0.2, perWeek: [] }] };
+  const g = M.gradeText(sim, { names: {}, firstWeek: 4, endWeek: 6, E: 2, k: 2 });
+  assert.ok(Array.isArray(g.limitations) && g.limitations.length >= 6 && g.limitations.length <= 8, "a short list");
+  const t = g.limitations.join("\n");
+  for (const re of [/independent/i, /stack|correlat/i, /position rates|position-level/i, /current tags/i, /not injury type|injury type/i, /latest Sleeper status/i, /synthetic/i, /2023.2025/, /not real rosters/i, /frozen/i, /picks/i, /keepers?/i, /after 17/i]) assert.match(t, re, String(re));
+  for (const w of M.GRADE_FORBIDDEN) assert.ok(!t.toLowerCase().includes(w), `"${w}" in the limitations`);
 });
 check("startCounts reads each moved player's starting weeks off the lineups", () => {
   const r = { weeks: [0, 1, 2, 3].map(w => ({ week: w, sides: [
@@ -262,8 +288,8 @@ check("the controller reads identity, rosters and state from the session, never 
   // rostersFetchedAt as snapshotAt, moved players, superseded results) is
   // checked by RUNNING it in initSmoke below, not by grepping the source.
   assert.ok(!/season-user|season-load/.test(html), "trade.html has no in-season username input or load button");
-  assert.ok(/seasontrademode\.js\?v=grade1/.test(html), "cache key bumped for the gated-grade controller");
-  assert.ok(/seasontrade\.js\?v=grade1/.test(html) && /rostersim\.js\?v=1/.test(html), "simulate's engine loads before it");
+  assert.ok(/seasontrademode\.js\?v=grade2/.test(html), "cache key bumped for the gated-grade controller");
+  assert.ok(/seasontrade\.js\?v=grade2/.test(html) && /rostersim\.js\?v=1/.test(html), "simulate's engine loads before it");
   assert.ok(html.indexOf("rostersim.js") > html.indexOf("ros.js?v=1") && html.indexOf("rostersim.js") < html.indexOf("seasontrade.js"), "rostersim.js follows ros.js and precedes seasontrade.js");
   assert.ok(html.indexOf("waiverintel.js") < html.indexOf("seasontrademode.js"), "prepareRos is loaded before the controller");
   assert.ok(!/season-ack/.test(html) && !/els\.ack\b/.test(src), "no acknowledgment checkbox gates the compare");
@@ -459,9 +485,9 @@ async function gateSmoke() {
   const lineup = ids => ids.map(id => ({ id, name: id }));
   // 3 weeks; the incoming p2 starts in one of them (a thin starter), p1 in all for the partner.
   // Both sides give a starter (before-lineups) by default; env.benchOnly makes the partner give only a non-starter.
-  const mkResult = () => ({ weeks: [4, 5, 6].map(w => ({ week: w, sides: [
-    { before: { total: 1, lineup: lineup(["p1"]) }, after: { total: 3, lineup: lineup(w === 4 ? ["p2"] : []) }, delta: 2 },
-    { before: { total: 1, lineup: env.benchOnly ? [] : lineup(["p2"]) }, after: { total: 0, lineup: lineup(["p1"]) }, delta: -2 }] })), sides: [{ rosterId: 1, delta: 6 }, { rosterId: 2, delta: -6 }], warnings: [] });
+  const mkResult = () => ({ weeks: (env.weeksList || [4, 5, 6]).map((w, i) => ({ week: w, sides: [
+    { before: { total: 1, lineup: lineup(["p1"]) }, after: { total: 3, lineup: lineup(i === 0 ? ["p2"] : []) }, delta: 2 },
+    { before: { total: 1, lineup: env.benchOnly ? [] : lineup(["p2"]) }, after: { total: 0, lineup: lineup(["p1"]) }, delta: -2 }] })), sides: [{ rosterId: 1, delta: env.d0 ?? 6 }, { rosterId: 2, delta: env.d1 ?? -6 }], warnings: [] });
   global.window = {
     Session: Sess,
     Sleeper: { get: async path => { if (path.endsWith("/traded_picks")) return []; throw new Error(`unexpected fetch ${path}`); } },
@@ -519,10 +545,14 @@ async function gateSmoke() {
     assert.equal(lines[0], "Simulated rest-of-season grade, weeks 4–6");
     // RB + WR is cross_position (5.5); p2 starts 1 of 3 weeks -> depth_for_starter (4); largest E = 5.5; mean 8 is in [5.5, 11)
     assert.equal(lines[1], "Your lineup: Small gain");
-    assert.equal(lines[2], "+8.0 pts over weeks 4–6 (about +2.7 a week); likely range −3.0 to +20.0; measured error on trades like this ≈ ±5.5");
+    assert.equal(lines[2], "+8.0 pts over weeks 4–6 (about +2.7 a week); likely range −3.0 to +20.0; typical measured error on trades like this: 5.5 pts");
     assert.equal(lines[3], "Them: Small loss");
     assert.match(lines[5], /^Market check: the model shows a gain, but expert rest-of-season ranks rate what you give above what you get\. You get Bo Byrd \(WR1, overall 90\); you give Ann Aaron \(RB1, overall 5\)\. Roster reason: Bo Byrd would start in only 1 of 3 weeks in your lineup/);
     assert.match(lines[6], /not valued/);
+    await sub("live panel lists the spec §8 limitations after the footnote (review I4)", async () => {
+      const tail = lines.slice(7).join("\n");
+      for (const re of [/independent/i, /injury type/i, /synthetic 2023.2025/i, /frozen/i, /picks/i, /after 17/i, /latest Sleeper status/i]) assert.match(tail, re, `limitations in the live panel: ${tail}`);
+    });
     const panelText = lines.join("\n").toLowerCase();
     for (const w of M.GRADE_FORBIDDEN) assert.ok(!panelText.includes(w), `"${w}" in the live panel: ${panelText}`);
     const all = text(els.result);
@@ -575,7 +605,29 @@ async function gateSmoke() {
     await reload();
     await run();
     assert.ok(panelLines().some(l => l === "ROS reference unavailable. ROS ranks withheld."));
+    // 6. review I2: the lopsided stratum uses the larger side's |Δ| (the backtest's measure): only the partner's
+    // side crosses the 50-point cutoff here, so the lopsided E (9.0) applies and +8.0 is too close to call.
+    await sub("lopsided stratum uses the larger side (review I2)", async () => {
+      env.ros = rosSource(new Date().toISOString().slice(0, 10)); env.d0 = 6; env.d1 = -60;
+      await reload(); await run();
+      assert.equal(panelLines()[1], "Your lineup: Too close to call");
+      env.d0 = undefined; env.d1 = undefined;
+    });
+    // 7. review M7: weeks after 17 were never measured
+    await sub("weeks after 17 are not graded (review M7)", async () => {
+      await reload();
+      env.weeksList = [16, 17, 18];
+      const before = simulated.length;
+      await run();
+      assert.deepEqual(panelLines(), ["grade unavailable: weeks after 17 are not measured"]);
+      assert.equal(simulated.length, before, "no simulation for an unmeasured horizon");
+      env.weeksList = undefined;
+    });
   } finally { delete global.window; delete global.document; }
 }
-initSmoke().then(gateSmoke).then(() => { n += 2; console.log(`seasontrademode_fixture: ${n} groups OK`); },
-  e => { e.message = `init under a scripted session: ${e.message}`; console.error(e); process.exit(1); });
+initSmoke().then(gateSmoke).then(() => {
+  n += 2;
+  if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
+  console.log(`seasontrademode_fixture: ${n} groups OK`);
+},
+  e => { e.message = `init under a scripted session: ${e.message}`; console.error(e); if (failed.length) console.log(`FAILED before the abort (${failed.length}): ` + failed.join(" | ")); process.exit(1); });

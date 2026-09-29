@@ -18,8 +18,9 @@ const rosters = [
 ];
 const freshRosters = [{...rosters[0],players:rosters[0].players.map(x=>x==="404"?"11":x)},rosters[1]];
 const base = { board, league, rosters, rosterId: 1, weekly: null, kickoffs:futureKickoffs, snapshotAt:TEST_NOW, now:TEST_NOW, week: 1, protectedIds: [], budgetReserve: 20, transactions: [] };
-let n = 0;
-function check(name, fn) { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; throw e; } }
+let n = 0; const failed = [];
+// FIXTURE_ALL=1 reports every failing group instead of stopping at the first (used to show new cases fail on old code).
+function check(name, fn) { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; if (process.env.FIXTURE_ALL) { failed.push(e.message.split("\n")[0]); return; } throw e; } }
 
 check("ownership excludes all active reserve and taxi players", () => {
   const out = W.analyze(base);
@@ -689,7 +690,7 @@ check("gate open: a backup QB behind a healthy starter forfeits real points", ()
   assert.ok(rb7.length >= 4 && rb7.every(r => r.pricing === "simulated" && r.simulation.nSims === 2000), "all of an add's rows are priced at the same nSims");
   assert.equal(qb.dropCost.status, "priced");
   assert.ok(qb.dropCost.dropForfeits > 0.2 && qb.dropCost.dropForfeits < 6, `simulated QB2 drop forfeits ${qb.dropCost.dropForfeits}`);
-  assert.equal(qb.dropCost.label, "simulated rest-of-season change (absences, byes, replacement)");
+  assert.equal(qb.dropCost.label, "simulated rest-of-season change (absences, byes, replacement) (2000 sims)");
   assert.equal(qb.dropCost.simulation.nSims, 2000, "a displayed row is recomputed at 2000 sims");
   assert.deepEqual([qb.pricing, qb.simulation, qb.warnings], ["simulated", { nSims:2000 }, []]);
   // Every row is explicit about its pricing; the summary counts them.
@@ -767,7 +768,7 @@ check("open-slot rows: a simulated one says so, a lineup one keeps today's label
   const args = extra => simArgs({ rosters:[open, simRosters[1]], ...extra });
   const sim = W.analyze(args({ evalFile:simEval() })).rows.find(r => r.add.id === "7" && r.drop === null);
   assert.equal(sim.dropCost.status, "open_slot"); assert.equal(sim.pricing, "simulated");
-  assert.equal(sim.dropCost.label, "no drop required; simulated rest-of-season add value (absences, byes, replacement)");
+  assert.equal(sim.dropCost.label, `no drop required; simulated rest-of-season add value (absences, byes, replacement) (${sim.simulation.nSims} sims)`);
   const lineup = W.analyze(args({})).rows.find(r => r.add.id === "7" && r.drop === null);
   assert.equal(lineup.dropCost.label, "no drop required; roster flexibility is not priced");
   assert.ok(!("pricing" in lineup));
@@ -837,5 +838,68 @@ check("gate closed: no simulation fields leak into the output", () => {
   assert.ok(!("simulation" in out.coverage.ros));
 });
 
+// --- review I3: what the desk says about the simulation must be what ran ---------------------------
+const countAdds = out => { const by = new Map(); for (const r of out.rows) if (r.pricing === "simulated") by.set(r.add.id, r.simulation.nSims); const c = { 200: 0, 2000: 0 }; for (const v of by.values()) c[v]++; return c; };
+check("coverage line: fine pass ran -- says how many adds at each sim count, no ranking claim (I3)", () => {
+  const out = W.analyze(simArgs({ evalFile:simEval() }));
+  const c = countAdds(out), sm = out.coverage.ros.simulation;
+  assert.ok(c[2000] > 0, "sanity: this desk prices its leading add at 2000 sims");
+  const text = W.simulationCoverageText(sm);
+  assert.equal(text, `Drop costs for simulated rows come from a seeded season simulation that includes absences, byes and replacement-level pickups: ${c[200]} add${c[200] === 1 ? "" : "s"} simulated at 200 sims, ${c[2000]} at 2000; ${sm.rowsLineupOnly} row${sm.rowsLineupOnly === 1 ? "" : "s"} lineup-only.`);
+  assert.doesNotMatch(text, /rank/i);
+});
+check("coverage line: fine pass skipped -- 0 adds at 2000, still no ranking claim (I3)", () => {
+  // The heaviest desk (13 drop rows per add) holds no whole add inside the 2000-sim budget: everything priced is at 200.
+  const slotsBig = ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","K","DEF","BN","BN","BN","BN","BN","IR"];
+  let k = 5000; const mine = [], adds = [], filler = [];
+  for (const [ps, pts] of [["QB",[20,8]],["RB",[15,12,9,6,4]],["WR",[15,12,9,6]],["TE",[10,5]]]) pts.forEach(v => mine.push(p(k++, ps, v)));
+  for (const ps of ["QB","RB","WR","TE"]) for (let i = 0; i < 6; i++) adds.push(p(k++, ps, 12 + i));
+  for (const [ps, count] of [["QB",3],["RB",8],["WR",8],["TE",5]]) for (let i = 0; i < count; i++) filler.push(p(k++, ps, 1 + i * 0.1));
+  const kdef = [p(k++,"K",5), p(k++,"DEF",5)];
+  const bigBoard = { players: mine.concat(adds, filler, kdef) };
+  const bigLeague = { league_id:"L1", season:2026, total_rosters:2, scoring_settings:{pass_td:4,rec:1}, roster_positions:slotsBig, settings:{ waiver_budget:100, waiver_bid_min:1 } };
+  const ids = mine.concat(kdef).map(x => x.sleeper_id);
+  const bigRosters = [{ roster_id:1, players:ids, starters:Array(10).fill("0"), reserve:[], taxi:[], settings:{ waiver_budget_used:0 } }, { roster_id:2, players:[], reserve:[], taxi:[], settings:{ waiver_budget_used:0 } }];
+  const remaining = remainingFor({}, { end_week:17, players: bigBoard.players.filter(x => ["QB","RB","WR","TE"].includes(x.position)).map(x => ({ player_id:x.player_id, team:"A",
+    weeks:Array.from({ length:17 }, (_, i) => ({ week:i+1, status:"conditional_projection", opponent:"B", points:{ league:{ p10:x.value_points*0.4, p50:x.value_points, p90:x.value_points*1.6 } } })) })) });
+  const out = W.analyze({ ...base, board:bigBoard, league:bigLeague, rosters:bigRosters, weekly:freshWeekly(bigBoard.players), remaining, protectedIds:[], availability:simAvail, leagueSlug:"fixture",
+    evalFile:{ schema_version:2, league:"fixture", slots:["QB","RB","RB","WR","WR","TE","FLEX","FLEX"], verdict:"pass", waiver_verdict:"pass" } });
+  const c = countAdds(out), sm = out.coverage.ros.simulation;
+  assert.ok(c[200] > 0 && c[2000] === 0, `all priced adds at 200 sims: ${JSON.stringify(c)}`);
+  assert.equal(W.simulationCoverageText(sm), `Drop costs for simulated rows come from a seeded season simulation that includes absences, byes and replacement-level pickups: ${c[200]} adds simulated at 200 sims, 0 at 2000; ${sm.rowsLineupOnly} rows lineup-only.`);
+  assert.doesNotMatch(W.simulationCoverageText(sm), /rank/i);
+});
+check("coverage line: a fallback never says the drop costs came from a simulation (I3)", () => {
+  const out = W.analyze(simArgs({ evalFile:simEval(), availability:null }));
+  const sm = out.coverage.ros.simulation;
+  assert.equal(sm.rowsSimulated, 0);
+  const text = W.simulationCoverageText(sm);
+  assert.equal(text, "Simulation unavailable: availability rates missing for QB; lineup-only prices are shown.");
+  assert.doesNotMatch(text, /seeded|come from|rank|sims/i);
+});
+check("every simulated row's label and export note carry its sim count (I3)", () => {
+  const out = W.analyze(simArgs({ evalFile:simEval() }));
+  const simRows = out.rows.filter(r => r.pricing === "simulated");
+  assert.ok(simRows.length > 0);
+  for (const r of simRows) assert.ok(r.dropCost.label.endsWith(`(${r.simulation.nSims} sims)`), r.dropCost.label);
+  const open = { ...simRosters[0], players:["1","2","3","4","8","5","6"] };
+  const o = W.analyze(simArgs({ rosters:[open, simRosters[1]], evalFile:simEval() })).rows.find(r => r.add.id === "7" && r.drop === null);
+  assert.ok(o.dropCost.label.endsWith(`(${o.simulation.nSims} sims)`), o.dropCost.label);
+  const lineup = out.rows.find(r => r.pricing === "lineup");
+  if (lineup) assert.doesNotMatch(lineup.dropCost.label, /sims/);
+  // The formatter puts the count in the table note and in the export line.
+  const t = M.rowText(simRows[0], { waiver:{ type:"faab", guidance:"x" } });
+  assert.match(t.dropCostNote, new RegExp(`\\(${simRows[0].simulation.nSims} sims\\)`));
+  assert.match(t.exportLine, new RegExp(`\\(${simRows[0].simulation.nSims} sims\\)`));
+});
+check("weeks after 17 are not measured: lineup-only with that reason (review M7)", () => {
+  const out = W.analyze(simArgs({ evalFile:simEval(), remaining:remainingFor(simFuture(), { end_week:18 }) }));
+  const sm = out.coverage.ros.simulation;
+  assert.equal(sm.rowsSimulated, 0);
+  assert.equal(sm.fallbackReason, "weeks after 17 are not measured");
+  assert.ok(out.rows.every(r => r.pricing !== "simulated"));
+  assert.equal(W.simulationCoverageText(sm), "Simulation unavailable: weeks after 17 are not measured; lineup-only prices are shown.");
+});
 
+if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
 console.log(`waivers_fixture: ${n} groups OK`);

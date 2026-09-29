@@ -167,17 +167,28 @@
   // from the lineup slots so the pool ALONE can fill every slot each week.
   // `freeAgents` (optional GSIS ids) overrides the derived pool, which is: every
   // remaining-payload player whose GSIS id maps to no rostered player.
+  // The replacement pool's head count per position: what the slots could ask of that position at once (dedicated +
+  // FLEX for RB/WR/TE, + SUPER_FLEX for every position). The waiver desk and the backtest size theirs the same way.
+  function replacementNeeds(slots) {
+    const dedicated=pos=>slots.filter(s=>s===pos).length;
+    const flex=slots.filter(s=>s==="FLEX").length,sflex=slots.filter(s=>s==="SUPER_FLEX").length;
+    return {QB:dedicated("QB")+sflex,RB:dedicated("RB")+flex+sflex,WR:dedicated("WR")+flex+sflex,TE:dedicated("TE")+flex+sflex};
+  }
+  // One player-week as the simulation reads it. A forced week or a bye is a bye; a projection plays; anything else
+  // is an error, never a bye (unknown is not zero). resolveScenario has already blocked such rows, so this is the
+  // second line of defense.
+  function simRow(row,forced) {
+    if(forced||row.status==="bye")return {status:"bye"};
+    if(row.status!=="conditional_projection")throw new RosterSim.RosterSimError(`Unmodeled projection row (${row.status||"no status"}); unknown is not zero`);
+    const l=row.points&&row.points.league||{};
+    return {status:"play",p10:l.p10,p50:l.p50,p90:l.p90};
+  }
   function simulate(args) {
     const {availability,freeAgents,seed=20260924,nSims=2000}=args;
     const ctx=resolveScenario(args);
     const {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,first,projections,excludeWeeks}=ctx;
     const weeks=[];for(let w=first;w<=remaining.end_week;w++)weeks.push(w);
-    const rowFor=(p,week,forced)=>{
-      const row=p.weeks.find(x=>x.week===week);   // resolveScenario proved exactly one row per week
-      if(forced||row.status==="bye"||row.status!=="conditional_projection")return {status:"bye"};
-      const l=row.points&&row.points.league||{};
-      return {status:"play",p10:l.p10,p50:l.p50,p90:l.p90};
-    };
+    const rowFor=(p,week,forced)=>simRow(p.weeks.find(x=>x.week===week),forced);   // resolveScenario proved exactly one row per week
     const players={},simIds=new Set();
     for(const id of relevant) {
       const c=catalog[id];
@@ -195,9 +206,7 @@
       const g=(catalog[id]&&catalog[id].gsis_id)||boardGsis.get(id);
       if(g)owned.add(g);
     }
-    const dedicated=pos=>slots.filter(s=>s===pos).length;
-    const flex=slots.filter(s=>s==="FLEX").length,sflex=slots.filter(s=>s==="SUPER_FLEX").length;
-    const need={QB:dedicated("QB")+sflex,RB:dedicated("RB")+flex,WR:dedicated("WR")+flex,TE:dedicated("TE")+flex};
+    const need=replacementNeeds(slots);
     const pool=Array.isArray(freeAgents)?new Set(freeAgents.map(String)):null;
     const faList=remaining.players.filter(p=>skill.has(p.position)&&(pool?pool.has(p.player_id):!owned.has(p.player_id))&&Array.isArray(p.weeks));
     const replacement={};
@@ -220,7 +229,7 @@
       return {rosterId:rosterMap.get(rid).roster_id,mean:c.mean,p10:c.p10,p90:c.p90,pPositive:c.pPositive,perWeek:wa.map((x,j)=>x-wb[j])};
     })};
   }
-  const api=Object.freeze({analyze,simulate});
+  const api=Object.freeze({analyze,simulate,replacementNeeds,simRow});
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   if(typeof window!=="undefined")window.SeasonTrade=api;
 })();

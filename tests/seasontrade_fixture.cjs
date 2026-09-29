@@ -176,4 +176,27 @@ assert.throws(()=>analyze({...gaps,catalog:{...catalog,a:{...catalog.a,gsis_id:n
   const tagged=simulate({...args,catalog:{...args.catalog,c:{...args.catalog.c,injury_status:'IR'}}});
   assert.ok(tagged.sides[0].mean<s1.sides[0].mean-3,'IR tag lowers first-week availability');
 }
+// Review M4: the replacement pool is sized like the waiver desk's and the backtest's, SUPER_FLEX included.
+// Review M6: a status other than a forced week, bye or conditional_projection is an error, never a bye.
+{
+  const ST=require('../site/assets/seasontrade.js');
+  const RS=require('../site/assets/rostersim.js');
+  const fails=[];
+  const nc=(name,fn)=>{try{fn();}catch(e){e.message=`${name}: ${e.message}`;if(process.env.FIXTURE_ALL){fails.push(e.message.split('\n')[0]);return;}throw e;}};
+  nc('replacementNeeds sizes the pool from the slots, SUPER_FLEX included (M4)',()=>{
+    assert.equal(typeof ST.replacementNeeds,'function');
+    assert.deepEqual(ST.replacementNeeds(['QB','RB','RB','WR','WR','TE','FLEX','FLEX']),{QB:1,RB:4,WR:4,TE:3});
+    assert.deepEqual(ST.replacementNeeds(['QB','RB','RB','WR','WR','TE','FLEX','FLEX','SUPER_FLEX']),{QB:2,RB:5,WR:5,TE:4});
+    assert.deepEqual(ST.replacementNeeds(['RB','SUPER_FLEX']),{QB:1,RB:2,WR:1,TE:1});
+  });
+  nc('simRow: forced weeks and byes are byes, a projection plays, anything else throws (M6)',()=>{
+    assert.equal(typeof ST.simRow,'function');
+    assert.deepEqual(ST.simRow({week:2,status:'bye'},false),{status:'bye'});
+    assert.deepEqual(ST.simRow({week:2,status:'conditional_projection',points:{league:{p10:1,p50:2,p90:3}}},true),{status:'bye'},'a forced week is a bye');
+    assert.deepEqual(ST.simRow({week:2,status:'conditional_projection',points:{league:{p10:1,p50:2,p90:3}}},false),{status:'play',p10:1,p50:2,p90:3});
+    assert.throws(()=>ST.simRow({week:2,status:'unmodeled'},false),e=>e instanceof RS.RosterSimError||e.name==='RosterSimError');
+    assert.deepEqual(ST.simRow({week:2,status:'unmodeled'},true),{status:'bye'},'a forced-out week never needed the row');
+  });
+  if(fails.length){console.log(`FAILED (${fails.length}):\n  `+fails.join('\n  '));process.exit(1);}
+}
 console.log('seasontrade_fixture: OK');

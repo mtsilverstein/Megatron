@@ -136,7 +136,7 @@
       bid, bidNote,
       why: `${r.bid ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`,
       dropCostNote: held ? `${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : dc.status === "priced" || (dc.status === "open_slot" && dc.simulation) ? dc.label : null,
-      exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label})${exportRos}; ${exportTag}; ${exportBid}; ${r.rosterCost}${held ? `; ${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : ""}${dc.simulationNote ? `; ${dc.simulationNote}` : ""}`,
+      exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label})${exportRos}; ${exportTag}; ${exportBid}; ${r.rosterCost}${held ? `; ${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : ""}${dc.simulation ? `; simulated price (${dc.simulation.nSims} sims)` : ""}${dc.simulationNote ? `; ${dc.simulationNote}` : ""}`,
     };
   }
 
@@ -309,7 +309,7 @@
         // same-scope `const ros` here would TDZ-break that reference.
         const rosCoverage = coverage.ros || {};
         $("waiver-ros").textContent = rosCoverage.fresh
-          ? `Rest-of-season projections: weeks ${rosCoverage.endWeek - rosCoverage.futureWeeks + 1}–${rosCoverage.endWeek}, generated ${rosCoverage.generatedAt}, data through ${rosCoverage.dataThrough || "unknown"}; ${rosCoverage.pricedOwned}/${coverage.activeOwnedSkills} roster players priced.${rosCoverage.unmodeledOwned.length ? ` No rest-of-season projection: ${rosCoverage.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} ${rosCoverage.simulation ? `Drop costs come from a seeded season simulation (${rosCoverage.simulation.coarseSims} sims to rank rows, ${rosCoverage.simulation.fineSims} for the leading rows) that includes absences, byes and replacement-level pickups; ${rosCoverage.simulation.rowsSimulated} rows simulated, ${rosCoverage.simulation.rowsLineupOnly} lineup-only.${rosCoverage.simulation.fallbackReason ? ` Simulation unavailable: ${rosCoverage.simulation.fallbackReason}; lineup-only prices are shown.` : ""}` : "Values assume participation; injuries and returns are not forecast."}`
+          ? `Rest-of-season projections: weeks ${rosCoverage.endWeek - rosCoverage.futureWeeks + 1}–${rosCoverage.endWeek}, generated ${rosCoverage.generatedAt}, data through ${rosCoverage.dataThrough || "unknown"}; ${rosCoverage.pricedOwned}/${coverage.activeOwnedSkills} roster players priced.${rosCoverage.unmodeledOwned.length ? ` No rest-of-season projection: ${rosCoverage.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} ${rosCoverage.simulation ? W.simulationCoverageText(rosCoverage.simulation) : "Values assume participation; injuries and returns are not forecast."}`
           : `Rest-of-season projections unavailable${rosCoverage.reason ? ` (${rosCoverage.reason})` : ""}; drop costs are unassessed and spend guidance is limited to open-slot adds.`;
         const ev = $("waiver-evaluation"); ev.replaceChildren();
         for (const line of evaluationText(rosCoverage.evaluation)) ev.append(node("p", line));
