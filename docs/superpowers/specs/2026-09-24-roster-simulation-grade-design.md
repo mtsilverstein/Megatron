@@ -259,3 +259,9 @@ Made after the Task 4 review, before any full-run result existed. They supersede
    the test exactly as declared and publish the result, pass or fail. Any engine change prompted by this (e.g. a
    per-player persistent error term) is a v2 with its own predeclared test, evaluated prospectively on the 2026 season
    — never re-scored against 2023–2025, whose residuals were used to diagnose the problem.
+6. **Bootstrap clusters (owner, 2026-09-28, before the full run).** Resample whole (season, league) clusters —
+   origins 5 and 9 of one league share rosters and realized weeks 9–17, so they move together. Leagues within a season
+   still share one set of real player outcomes; the write-up states this remaining dependence.
+7. **Injured free agents (owner, 2026-09-28, before the full run).** Matching the live desk, undrafted players tagged
+   Out or IR in the week origin−1 report are excluded from both the waiver add set and every arm's waiver
+   replacement pool.
