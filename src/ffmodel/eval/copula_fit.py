@@ -12,6 +12,7 @@ below the floor are support violations (excluded, counted).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -227,6 +228,15 @@ def _git_sha():
         return "unknown"
 
 
+def _dirty(path):
+    """True when `path` differs from HEAD (or git is unavailable), so a fit on uncommitted code is visible."""
+    try:
+        out = subprocess.run(["git", "status", "--porcelain", "--", str(path)], capture_output=True, text=True, check=True)
+        return bool(out.stdout.strip())
+    except Exception:
+        return True
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--forecasts", type=Path, nargs="+", required=True)
@@ -252,7 +262,13 @@ def main():
         trajs += build_trajectories(p, acts[p["season"]])
     res = fit(trajs)
     res["code_sha"] = _git_sha()
+    # The commit alone does not prove which code ran (a dirty tree runs uncommitted code), so record the
+    # fitting source's own hash, whether it differed from HEAD, and every input's hash.
+    src = Path(__file__).resolve()
+    res["source_sha256"] = hashlib.sha256(src.read_bytes()).hexdigest()
+    res["source_dirty"] = _dirty(src)
     res["inputs"] = sorted(str(p).replace("\\", "/") for p in args.forecasts)
+    res["input_sha256"] = {str(p).replace("\\", "/"): hashlib.sha256(p.read_bytes()).hexdigest() for p in args.forecasts}
     stop = [p for p in POSITIONS if res["table"][p] >= RHO_MAX] + (["pooled<0.02"] if res["pooled"] < 0.02 else [])
     res["stop_flags"] = stop
     args.out.parent.mkdir(parents=True, exist_ok=True)
