@@ -85,41 +85,55 @@ No fixture asserts "every interval widens".
 
 ## 4. Format contract (the B/C slice A needs)
 
-### 4.1 Primary formats (frozen)
+### 4.1 Primary formats (frozen; astra round 3, `.review/astra-v2-formats-response.md`)
 
 Synthetic league configs in the existing `configs/leagues/*.yaml` schema, placed in `configs/formats/`:
 
 | Key label | Teams | Starters | Rounds | Scoring |
 | --- | ---: | --- | ---: | --- |
-| `f12-1qb-ppr` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 15 | reception 1.0, pass TD 4 |
-| `f12-1qb-half` | 12 | same | 15 | reception 0.5, pass TD 4 |
-| `f10-1qb-ppr` | 10 | same | 15 | reception 1.0, pass TD 4 |
-| `f12-sf-ppr` | 12 | same + SUPER_FLEX (QB/RB/WR/TE) | 15 | reception 1.0, pass TD 4 |
+| `f12-1qb-ppr-6` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 15 | Gabagool's complete `sleeper_scoring`, copied |
+| `f10-1qb-ppr-6` | 10 | same | 15 | FAM's complete `sleeper_scoring`, copied separately (no distance bonuses) |
+| `f12-1qb-ppr-4` | 12 | same | 15 | reception 1.0, pass TD 4, pass_int −2, pass_int_td 0, no bonuses; else as Gabagool's offensive weights |
+| `f12-sf-ppr-4` | 12 | QB, RB×2, WR×3, TE, SUPER_FLEX×1 (QB/RB/WR/TE) | 15 | same as `f12-1qb-ppr-4` |
 
-Every other modeled offensive weight equals `configs/leagues/gabagool.yaml`'s `sleeper_scoring` (pass_yd 0.04,
-pass_int −2, rush_yd 0.1, rush_td 6, rec_yd 0.1, rec_td 6, fum_lost −2, 2-pt conversions 2, 50+ yard TD bonuses
-2); only `rec` and `pass_td` differ as tabled. The owner leagues' exact formats (six-point passing TDs) run as **exploratory** arms: they
-cannot pass, so a conditional pass in the four primary formats does not by itself cover the owner leagues' exact
-format (§8).
+`f12-1qb-ppr-4` is the four-point full-PPR reference format (no claim that this exact configuration is the modal
+public one). The superflex shape is QB/RB×2/WR×3/TE/SUPER_FLEX because the league schema has one flex type per
+league (`flex_positions` containing QB makes every flex slot SUPER_FLEX). Half-PPR (`f12-1qb-half-4`) runs as an
+exploratory arm and cannot pass; no format inherits another's verdict. A qualifying owner-format trade result opens
+only the labeled experimental trade display, never ordinary advice or waiver advice.
 
-### 4.2 Format key
+### 4.2 Format key and compatibility signature
 
-`format_key` = SHA-256 of a canonical JSON of: team count; the starter-slot multiset with each slot's eligible
-positions; total roster size; and the normalized numeric weights of every scoring component the model predicts.
-Python (`src/ffmodel/formats.py`) and JS (`site/assets/formats.js`) implement it; a parity fixture pins both on the
-four formats and the two owner leagues. A live Sleeper league's key is computed from `total_rosters`,
-`roster_positions` and `scoring_settings`. Gates match on exact key only — no nearest-format or owner-slug fallback.
+Two frozen parts, both required for a gate match:
 
-### 4.3 Scoring scope
+1. **`format_key`** — SHA-256 of a canonical JSON of: team count; the offensive starter-slot multiset with each
+   slot's eligible positions; total roster size (§4.3); and the normalized weights of the **predicted** stat
+   components (the eleven in `src/ffmodel/scoring.py`'s predicted set).
+2. **`compat`** — every non-predicted offensive Sleeper scoring setting (pick-six return TD, 50+ yard TD bonuses,
+   2-point conversions, special-teams TD, TE premium / position-specific reception bonuses, first-down and any
+   other offensive keys), with omitted settings normalized to 0. A live league matches a format only if its `compat`
+   equals the format's exactly and it has no unknown nonzero offensive setting. The configured value (e.g. owner
+   pass_int_td −3) is what is compared, not the export's effective zero weight.
 
-`export_origin_forecasts.py` exports predicted stat components only (pick-six cost weighted zero; K/DEF not
-modeled), and realized outcomes use the same modeled scope. A format is supported only for its modeled components;
-a live league whose non-modeled offensive weights (e.g. TE premium, distance bonuses, pick-six) differ from its
-format's does not match. The audit of which Sleeper keys are modeled is part of §4.2's fixture.
+Python (`src/ffmodel/formats.py`) and JS (`site/assets/formats.js`) implement both; a parity fixture pins the four
+formats, both owner leagues (which must match `f12-1qb-ppr-6` / `f10-1qb-ppr-6` from their live Sleeper
+settings), and same-`format_key` mismatches for pick-six, distance bonuses and TE premium. Gates match on exact
+`format_key` + `compat` only — no nearest-format or owner-slug fallback.
+
+### 4.3 Scoring and roster scope
+
+`export_origin_forecasts.py` exports predicted stat components only; pick-six cost, 2-point conversions,
+special-teams TDs and distance bonuses are not predicted, and realized test outcomes use the same predicted scope.
+Matching a non-predicted setting does not validate its contribution to real league totals; the experimental
+display discloses the predicted scope and its omissions. **Roster mapping:** from live `roster_positions`, K and DEF
+slots (rostered but unprojected, as in FAM) are removed before the key is computed, BN counts toward total roster
+size, IR and TAXI are ignored; each format's total roster size is set to what that rule yields for the owner
+leagues' live settings, and the synthetic world drafts the same offensive roster size. Fixtures pin the mapping on
+both owner leagues' live `roster_positions`.
 
 ## 5. Estimating ρ (development data; fitted before the origin-5 freeze)
 
-Development data: the 2023–2025 origin-5 and origin-9 walk-forward forecasts, re-exported in the `f12-1qb-ppr`
+Development data: the 2023–2025 origin-5 and origin-9 walk-forward forecasts, re-exported in the `f12-1qb-ppr-4`
 lens. These seasons were used to diagnose v1; using their residuals to *fit* v2 is development, not validation, and
 no v2 trade/waiver score is computed on them.
 
@@ -138,7 +152,7 @@ no v2 trade/waiver score is computed on them.
    ρ_pos = w·ρ̂_pos + (1 − w)·ρ̂_pool with w = n_pos / (n_pos + 200), n_pos = trajectories. Clamp to [0, 0.5]; a
    negative estimate becomes 0 and is reported as a diagnostic. Uncertainty: 2,000 bootstrap resamples of players
    (all their trajectories together). No origin interaction.
-5. **Other lenses.** Fit once on `f12-1qb-ppr`; report each other primary lens's own estimates as diagnostics; the
+5. **Other lenses.** Fit once on `f12-1qb-ppr-4`; report each other primary lens's own estimates as diagnostics; the
    single table is used for all formats. The same player outcomes under several scorings are not extra samples.
 6. **Output.** `models/prospective/2026/rho.json` (table, counts of players / trajectories / week pairs, support
    violations, bootstrap intervals, diagnostics), frozen in the origin-5 manifest. Sanity check reported: the
@@ -199,7 +213,7 @@ v2, so no waiver rescue is predicted. A trade pass never opens waiver advice, no
 
 Width, tail misses, interval score by origin and stratum; superiority over current; teammate/stack subsets; the
 concentration sensitivity (drop the 10 highest-exposure players / teams, both origins together); support violations;
-the exploratory owner-format arms; and, as context only, v1's per-season coverage from its frozen outputs
+the exploratory half-PPR arm; and, as context only, v1's per-season coverage from its frozen outputs
 (Gabagool 2023 0.716, 2024 0.595, 2025 0.640; FAM 0.733, 0.626, 0.637 — a misspecified model's spread, not a
 measurement of v2's season-shock false-failure rate). One season is disclosed as one season: every synthetic league
 shares the same realized 2026 outcomes.
@@ -215,7 +229,7 @@ A manifest `models/prospective/2026/o5/manifest.json` with SHA-256 of every item
 - **Origin inputs:** forecast files per primary and exploratory lens (weeks 5–17, every player-week row), the
   week-4 injury tags and their source/cutoff, availability rates (`site/data/availability.json` bytes), player id /
   position / team maps, schedule and byes.
-- **Formats:** the four `configs/formats/*.yaml`, their format keys, the exploratory owner configs.
+- **Formats:** the four primary and the exploratory `configs/formats/*.yaml`, their `format_key` and `compat`.
 - **Draft universe:** the 2026 preseason board / world prediction side (no outcomes) and market snapshot.
 - **Decisions:** materialized rosters, trades, waiver add sets and pools, lopsided cutoffs (§6.1).
 - **Evaluation:** the evaluator code, strata, rules of §6, multiplicity, gate mapping, failure behavior, and the
@@ -263,15 +277,15 @@ each with `status` ∈ {`closed`, `inconclusive`, `conditional_fail`, `condition
 evidence (`"2026 prospective, synthetic leagues"`), tested origins and horizon rule (nearest origin, ties → shorter,
 disclosed as v1 §10.3). The page shows the experimental display only for `conditional_pass` on an exact key match,
 labeled as in §2.1; `pass` is reserved for a future cross-season rule. v1's `trade_sim_eval.json` stays closed. Until
-C, the owner leagues are the only leagues the site serves, and their exact format is exploratory — so they see no
-display unless C's work maps them to a supported format by exact key.
+C, the owner leagues are the only leagues the site serves; they match `f12-1qb-ppr-6` / `f10-1qb-ppr-6` only through
+the exact `format_key` + `compat` check of §4.2, never by slug.
 
 ## 9. Order of work
 
 1. Format contract slice (§4): configs, key (Py + JS + parity), scoring audit, one tiny outcome-free end-to-end
    fixture through gate lookup.
 2. Engine v2 (§3) with its tests and page parity.
-3. ρ fit (§5): development exports in `f12-1qb-ppr`, fit, `rho.json`.
+3. ρ fit (§5): development exports in `f12-1qb-ppr-4`, fit, `rho.json`.
 4. Materializer + evaluator skeleton (§6.1–6.4) with fixtures on synthetic outcomes.
 5. Freeze workflow (§7), dry run by 2026-10-04, origin-5 freeze by 2026-10-07.
 6. After the freeze: B (sharded runner, broad grid as exploratory), then C (open league picker, boards per format);
