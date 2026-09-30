@@ -37,6 +37,9 @@ class StubSteps:
         self.payload_text = payload_text
         self.calls = []
 
+    def prefetch(self, season):
+        self.calls.append(("prefetch", season))
+
     def schedule(self, season):
         return self._sched
 
@@ -188,7 +191,7 @@ def test_step_order_and_layout(repo):
     s = StubSteps()
     run(repo, steps=s)
     kinds = [c[0] for c in s.calls]
-    assert kinds == ["export"] * 5 + ["tags", "materialize"]
+    assert kinds == ["prefetch"] + ["export"] * 5 + ["tags", "materialize"]
     assert [c[1] for c in s.calls if c[0] == "export"] == F.FORMATS
     assert ("tags", 4) in s.calls
     o5 = repo / "models/prospective/2026/o5"
@@ -386,3 +389,30 @@ def test_cli_returns_exit_codes(monkeypatch, capsys):
     monkeypatch.setattr(F, "run_freeze", lambda *a, **k: "deadbeef")
     assert F.main(["--season", "2026", "--origin", "5"]) == 0
     assert "MANIFEST_SHA256=deadbeef" in capsys.readouterr().out
+
+
+def test_prefetch_retries_transient_failures_then_succeeds(tmp_path, monkeypatch):
+    import ffmodel.data.pull as P
+    from ffmodel.prospective.freeze import Steps
+    fails = {"n": 2}
+    def flaky(*a, **k):
+        if fails["n"]:
+            fails["n"] -= 1
+            raise ConnectionError("500 Server Error")
+    monkeypatch.setattr(P, "pull_weekly", flaky)
+    monkeypatch.setattr(P, "pull_schedules", lambda *a, **k: None)
+    monkeypatch.setattr(P, "pull_injuries", lambda *a, **k: None)
+    slept = []
+    Steps(tmp_path).prefetch(2026, sleep=slept.append)
+    assert slept == [30, 60]
+
+
+def test_prefetch_gives_up_with_exit_8(tmp_path, monkeypatch):
+    import ffmodel.data.pull as P
+    from ffmodel.prospective.freeze import FreezeError, Steps
+    def down(*a, **k):
+        raise ConnectionError("500 Server Error")
+    monkeypatch.setattr(P, "pull_weekly", down)
+    with pytest.raises(FreezeError) as e:
+        Steps(tmp_path).prefetch(2026, sleep=lambda s: None)
+    assert e.value.code == 8 and "4 attempts" in str(e.value)

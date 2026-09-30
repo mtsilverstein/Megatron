@@ -33,11 +33,13 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 PRIMARY = ["f12-1qb-ppr-6", "f10-1qb-ppr-6", "f12-1qb-ppr-4", "f12-1qb-half-4"]
 EXPLORATORY = ["f12-sf-ppr-4"]
+HISTORY_FIRST_SEASON = 2012  # export_origin_forecasts --first-season default: the span every export reads
 FORMATS = PRIMARY + EXPLORATORY
 LEAGUES, TRADES = 20, 125
 LAST_WEEK = 17
@@ -118,6 +120,28 @@ class Steps:
         if r.returncode != 0:
             raise FreezeError(8, f"{what} failed (exit {r.returncode}): {(r.stderr or r.stdout)[-800:]}")
         return r.stdout
+
+    def prefetch(self, season: int, *, attempts: int = 4, backoff=(30, 60, 120), sleep=time.sleep) -> None:
+        """Pull every feed the exports and tags read, once, into the shared cache, retrying transient
+        download failures (nflverse is served from GitHub release assets, which do return 5xx). Each export
+        and the tags CLI then read the same cached files instead of re-downloading, so one network hiccup
+        cannot abort a freeze. A pull that still fails after the last attempt fails the freeze (exit 8)."""
+        from ffmodel.data.pull import pull_injuries, pull_schedules, pull_weekly
+
+        span, cache = list(range(HISTORY_FIRST_SEASON, season + 1)), self.root / "data" / "raw"
+        for what, pull in (("weekly stats", lambda: pull_weekly(span, cache_dir=cache)),
+                           ("schedules", lambda: pull_schedules(span, cache_dir=cache)),
+                           ("injuries", lambda: pull_injuries([season], cache_dir=cache))):
+            for i in range(attempts):
+                try:
+                    pull()
+                    break
+                except Exception as e:  # network errors surface as several exception types
+                    if i == attempts - 1:
+                        raise FreezeError(8, f"prefetch {what} failed after {attempts} attempts: {e}") from e
+                    print(f"prefetch {what}: attempt {i + 1} failed ({e}); retrying in {backoff[min(i, len(backoff) - 1)]}s",
+                          file=sys.stderr)
+                    sleep(backoff[min(i, len(backoff) - 1)])
 
     def schedule(self, season: int):
         import nflreadpy  # deferred: offline tests never import it
@@ -287,6 +311,7 @@ def run_freeze(season: int, origin: int, *, dry_run: bool, now: dt.datetime | No
         if m9.is_file() and json.loads(m9.read_text(encoding="utf-8")).get("exploratory"):
             raise FreezeError(5, "an exploratory contingency origin-9 freeze exists; origin 5 can no longer be frozen")
 
+    steps.prefetch(season)
     schedule = steps.schedule(season)
     cutoff = cutoff_utc(schedule, season, origin)
     passed = now >= cutoff
