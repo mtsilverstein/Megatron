@@ -1020,4 +1020,4 @@ if (!isMainThread && workerData && workerData.role === "cell-worker") {
 module.exports = { meanP50ByeZero, frozenStarters, depthForStarter, waiverAdds, markLopsided, horizonsOf, buildSlim, checkAvailability, checkForecastFile, isInside, availabilityOff, availabilityOffBlock, WAIVER_QUOTA, sampleTrades, predictSim, predictLineupOnly, realized, realizedRoster, metrics, bootstrap, bootstrapWaiver,
                    verdict, verdictChecks, waiverVerdict, waiverMetrics, runCell, buildSimWorld, replacementPool, poolSizes,
                    isCovered, replOf, meanP50, afterRoster, overflowDrop, roundDeep, percentile, mulberry32, hashStr, slotsOf,
-                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, readRho, runCells, finalizeLeague, cellKey, starterSet };
+                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, readRho, runCells, finalizeLeague, cellKey, starterSet, p50Of, positionOf, HEAVY_TAGS };
