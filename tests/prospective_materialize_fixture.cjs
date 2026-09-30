@@ -22,10 +22,10 @@ const FORMATS = {
 const LABELS = Object.keys(FORMATS);
 const compatOf = l => ({ pick_six: 0, tag: l });
 
-// 8 QB / 12 RB / 14 WR / 6 TE, adp = overall rank; superflex prices QBs far above the rest.
+// 12 QB / 20 RB / 24 WR / 10 TE (deep enough that every week is fillable from the undrafted pool), adp = overall rank; superflex prices QBs far above the rest.
 function buildWorld(label) {
   const sf = /sf/.test(label);
-  const spec = [["QB", 8, sf ? 420 : 300, 12], ["RB", 12, 260, 9], ["WR", 14, 250, 6], ["TE", 6, 160, 8]];
+  const spec = [["QB", 12, sf ? 420 : 300, 12], ["RB", 20, 260, 9], ["WR", 24, 250, 6], ["TE", 10, 160, 8]];
   const raw = [];
   for (const [pos, cnt, top, step] of spec) for (let i = 0; i < cnt; i++) raw.push({ player_id: `${pos}${i + 1}`, position: pos, pts: top - i * step, rank: i + 1 });
   raw.sort((a, b) => b.pts - a.pts || (a.player_id < b.player_id ? -1 : 1));
@@ -119,7 +119,12 @@ check("lopsided cutoff = type-7 90th percentile of max-side |current delta|", ()
     });
     const want = T.percentile(measures.slice().sort((x, y) => x - y), 0.9);
     assert.ok(Math.abs(D.lopsided_cutoff - want) < 1e-9, `${D.label}: ${D.lopsided_cutoff} vs ${want}`);
-    D.trades.forEach((t, i) => assert.equal(t.strata.includes("lopsided"), measures[i] >= want - 1e-12));
+    D.trades.forEach((t, i) => {
+      // exact per-trade strata: one base label, optional depth_for_starter, "lopsided" at most once and only when past the cutoff
+      const base = t.strata.filter(x => x !== "lopsided");
+      assert.ok(base.length >= 1 && base.length <= 2 && ["same_position", "cross_position"].includes(base[0]) && (base.length === 1 || base[1] === "depth_for_starter"), JSON.stringify(t.strata));
+      assert.deepEqual(t.strata, measures[i] >= want - 1e-12 ? [...base, "lopsided"] : base, `${t.id} strata`);
+    });
   }
 });
 check("waiver sets honour the quota and exclude injured free agents", () => {
@@ -148,6 +153,32 @@ check("a rostered player lacking week 6 puts that cell in excluded (never droppe
   assert.ok(!E.trades.some(t => t.k === 0) && !E.waiver.some(x => x.k === 0));
   assert.equal(read(out, "cells.json").length, LABELS.length * LEAGUES);
   fs.writeFileSync(path.join(fcDir, `forecasts_${SEASON}_o${ORIGIN}_${LABELS[0]}.json`), JSON.stringify(buildForecast(LABELS[0])));
+});
+check("tradeStrata gives each side its own fresh array (no shared per-side state)", () => {
+  const dr = D1.drafts[0], t = D1.trades.find(x => x.k === 0);
+  const fc = buildForecast(LABELS[0]), slots = T.slotsOf(FORMATS[LABELS[0]].league);
+  const proj = (id, w) => T.p50Of(fc, id, w), pos = id => T.positionOf(fc, id);
+  const pool = T.replacementPool(dr.undrafted, fc, WEEKS, slots, proj);
+  const lineupOf = r => T.predictLineupOnly([r], proj, WEEKS, slots, T.replOf(pool, proj), pos)[0];
+  const ts = T.tradeStrata({ trade: t, sides: T.tradeSides(dr.rosters, t), posOf: pos, W: WEEKS.length, lineupOf });
+  assert.notEqual(ts.a.strata, ts.b.strata);
+  assert.deepEqual(ts.a.strata, ts.b.strata);
+  ts.a.strata.push("x"); assert.ok(!ts.b.strata.includes("x"));
+});
+check("a week the undrafted pool cannot fill puts the cell in excluded at freeze time", () => {
+  const f = path.join(fcDir, `forecasts_${SEASON}_o${ORIGIN}_${LABELS[0]}.json`);
+  const fc = buildForecast(LABELS[0]), und = new Set(D1.drafts[0].undrafted);
+  // every undrafted QB loses week 6: rostered players stay fully covered, so only the fill probe can object
+  for (const id of und) if (id.startsWith("QB")) delete fc.players[id].weeks[6];
+  assert.ok([...und].some(id => id.startsWith("QB")));
+  fs.writeFileSync(f, JSON.stringify(fc));
+  const out = path.join(tmp, "g");
+  try { run(out); } finally { fs.writeFileSync(f, JSON.stringify(buildForecast(LABELS[0]))); }
+  const E = read(out, `${LABELS[0]}.json`);
+  const ex = E.excluded.find(e => e.k === 0);
+  assert.ok(ex && /no replacement available/.test(ex.reason) && ex.players.length === 0, JSON.stringify(E.excluded));
+  assert.ok(!E.trades.some(t => t.k === 0) && !E.waiver.some(x => x.k === 0) && !("0" in E.replacement_by_week));
+  assert.equal(read(out, "cells.json").length, LABELS.length * LEAGUES);
 });
 check("refuses a missing world and a mismatched format_key/compat", () => {
   const f = path.join(worldsDir, `world_${SEASON}_${LABELS[0]}.json`), good = fs.readFileSync(f, "utf8");

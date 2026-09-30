@@ -141,32 +141,23 @@ function materializeFormat({ label, primary, payload, world, forecasts, tags, se
     }
     const kRows = [];
     try {
-      const pool = BT.replacementPool(undrafted, forecasts, weeks, slots, curProj);
+      // Upfront fill probe, as runCell: an unfillable week excludes the cell at freeze time, not at evaluation.
+      const { curPool: pool } = BT.probeArms(undrafted, forecasts, weeks, slots);
       const sampled = BT.sampleTrades(rosters, forecasts, BT.mulberry32(BT.hashStr(`${season}:${origin}:${k}`)), nTrades, { slots, undrafted });
-      const lineup = roster => BT.predictLineupOnly([roster], curProj, weeks, slots, BT.replOf(pool, curProj), posOf)[0];
+      const lineupOf = roster => BT.predictLineupOnly([roster], curProj, weeks, slots, BT.replOf(pool, curProj), posOf)[0];
       const made = [];
       sampled.forEach((t, i) => {
         const id = `${season}:${origin}:${k}:${i}`;
-        const sides = { a: { before: rosters[t.a], after: BT.afterRoster(rosters[t.a], t.give_a, t.give_b, t.drop_a), give: t.give_a, receive: t.give_b },
-                        b: { before: rosters[t.b], after: BT.afterRoster(rosters[t.b], t.give_b, t.give_a, t.drop_b), give: t.give_b, receive: t.give_a } };
-        const moved = t.give_a.concat(t.give_b);
-        const strata = [moved.every(x => posOf(x) === posOf(moved[0])) ? "same_position" : "cross_position"];
-        let depth = false;
-        const cur = {};
-        for (const s of ["a", "b"]) {
-          const b = lineup(sides[s].before), a = lineup(sides[s].after);
-          cur[s] = a.total - b.total;
-          if (BT.depthForStarter({ beforeStarts: b.starts, afterStarts: a.starts, give: sides[s].give, receive: sides[s].receive, W })) depth = true;
-        }
-        if (depth) strata.push("depth_for_starter");
-        made.push({ id, k, a: t.a, b: t.b, package: t.package, give_a: t.give_a, give_b: t.give_b, drop_a: t.drop_a, drop_b: t.drop_b, strata });
-        for (const s of ["a", "b"]) kRows.push({ trade_id: id, origin, current: cur[s], strata });
+        const sides = BT.tradeSides(rosters, t);
+        const ts = BT.tradeStrata({ trade: t, sides, posOf, W, lineupOf });
+        made.push({ id, k, a: t.a, b: t.b, package: t.package, give_a: t.give_a, give_b: t.give_b, drop_a: t.drop_a, drop_b: t.drop_b, strata: ts.a.strata });
+        for (const s of ["a", "b"]) kRows.push({ trade_id: id, origin, current: ts[s].current, strata: ts[s].strata });
       });
       // Waiver add set and pools (§10.1, §10.7): free agents tagged Out/IR at week O-1 are neither adds nor replacements.
       const fa = undrafted.filter(id => !heavy(id));
       const adds = BT.waiverAdds(fa, forecasts, weeks, BT.WAIVER_QUOTA);
       const addSet = new Set(adds);
-      const wpool = BT.replacementPool(fa.filter(id => !addSet.has(id)), forecasts, weeks, slots, curProj);
+      const { curPool: wpool } = BT.probeArms(fa.filter(id => !addSet.has(id)), forecasts, weeks, slots);
       out.replacement_by_week[k] = pool;
       out.population.attempts += sampled.stats.attempts; out.population.accepted += sampled.stats.accepted;
       out.population.rejected_not_starter += sampled.stats.rejected_not_starter;
@@ -182,7 +173,7 @@ function materializeFormat({ label, primary, payload, world, forecasts, tags, se
   if (rows.length) {
     const cutoffs = BT.markLopsided(rows);
     out.lopsided_cutoff = cutoffs[origin];
-    const strata = new Map(rows.map(r => [r.trade_id, r.strata]));
+    const strata = new Map(rows.map(r => [r.trade_id, r.strata]));   // first side's array; each side pushed its own "lopsided"
     for (const t of out.trades) t.strata = strata.get(t.id);
   }
   return out;
