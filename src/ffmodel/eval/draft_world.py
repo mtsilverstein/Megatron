@@ -94,20 +94,78 @@ def _weeks_by_player(actuals: pd.DataFrame) -> dict[str, dict[str, float]]:
     return out
 
 
+def market_from_snapshot(path: Path, season: int, schedules: pd.DataFrame,
+                         data_dir: Path) -> tuple[pd.DataFrame, dict]:
+    """Market frame (player_id, ecr, ...) from an explicit hand-dropped export.
+
+    Same crosswalk and same strictly-before-kickoff refusal as
+    `consensus_for_season`; used when the default consensus is not the preseason
+    draft snapshot a drafter could have seen.
+    """
+    from ffmodel.data.pull import pull_draft_picks, pull_player_ids
+    from ffmodel.data.rankings import (_backfill_draft_gsis, normalize_ecr_snapshot,
+                                       parse_ecr_snapshot_csv, season_kickoff)
+    kickoff = season_kickoff(schedules, season)
+    snapshot = parse_ecr_snapshot_csv(Path(path))
+    captured = snapshot["scrape_date"].iloc[0]
+    if captured >= kickoff:
+        raise ValueError(f"market snapshot {Path(path).name} captured {captured.date()}, "
+                         f"on or after kickoff {kickoff.date()}")
+    crosswalk, _ = _backfill_draft_gsis(pull_player_ids(data_dir),
+                                        pull_draft_picks([season], data_dir))
+    matched, stats = normalize_ecr_snapshot(snapshot, crosswalk)
+    stats.update(source="market_snapshot", path=Path(path).as_posix(),
+                 snapshot_date=str(captured.date()), kickoff=str(kickoff.date()))
+    return matched, stats
+
+
+MARKET_SCOPE = "1QB PPR ECR"
+
+
+def _file_sha256(path) -> str | None:
+    import hashlib
+    if not path or not Path(path).is_file():
+        return None
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def format_fields(league) -> dict:
+    """Format identity + whether the 1QB-PPR, 4-pt-pass-TD market ECR is only a proxy for it."""
+    from ffmodel import formats as F
+    sc = league.scoring
+    same = (league.roster.get("QB") == 1 and "QB" not in league.flex_positions
+            and sc.get("reception") == 1.0 and sc.get("pass_td") == 4.0)
+    return {"format": league.slug, "format_key": F.format_key(league),
+            "compat": F.compat(league), "market_proxy": not same}
+
+
 def build_season_world(weekly: pd.DataFrame, schedules: pd.DataFrame, season: int,
                        make_entrant, data_dir: Path, *, n_draws: int = 2000,
-                       seed: int = 0, rules: ScoringRules = LEAGUE) -> dict:
+                       seed: int = 0, rules: ScoringRules = LEAGUE,
+                       include_actuals: bool = True,
+                       market: pd.DataFrame | None = None,
+                       market_source: str | None = None,
+                       league=None) -> dict:
     """One season's simulation world: the August board plus the answer key.
 
     `make_entrant(features)` returns a fresh, unfitted predictor, mirroring
     `board.run_board_backtest` so the transformer can be constructed against
     the season's own world features.
+
+    `include_actuals=False` builds the prediction side only (a live season):
+    the payload has no `actual_weeks` and says `"outcomes": "excluded"`.
+    `market` overrides the frame the market positions are ranked from;
+    `league` (a LeagueConfig) sets replacement level, teams and the board's
+    league block.
     """
     from ffmodel.data.features import build_features
     from ffmodel.data.rankings import consensus_for_season
     from ffmodel.site.board_rank import flex_replacement_ranks
     from ffmodel.site.draft import build_draft_board
     from ffmodel.site.generate import LEAGUE_DEDICATED, LEAGUE_FLEX_SLOTS
+    if league is not None:
+        from ffmodel.site.weekly import set_league_rules
+        set_league_rules(league.rules)
 
     world = board_world(weekly, season)
     if world.empty:
@@ -118,35 +176,51 @@ def build_season_world(weekly: pd.DataFrame, schedules: pd.DataFrame, season: in
     ecr_df, consensus_stats = consensus_for_season(season, schedules, data_dir)
     ecr = dict(zip(ecr_df["player_id"], ecr_df["ecr"]))
     pool = ecr_df.rename(columns={"pos": "position"})[["position", "ecr"]]
-    replacement = flex_replacement_ranks(pool, LEAGUE_DEDICATED, LEAGUE_FLEX_SLOTS)
+    dedicated = LEAGUE_DEDICATED if league is None else league.dedicated
+    flex_slots = LEAGUE_FLEX_SLOTS if league is None else league.flex_slots
+    flex_pos = ("RB", "WR", "TE") if league is None else tuple(league.flex_positions)
+    replacement = flex_replacement_ranks(pool, dedicated, flex_slots, flex_positions=flex_pos)
 
     # The market, for a season with no ADP snapshot (see `market_positions`).
-    adp = market_positions(ecr_df)
+    adp = market_positions(ecr_df if market is None else market)
+    if market_source is None:
+        market_source = ("preseason_ecr" if include_actuals else
+                         f"fantasypros_draft_{consensus_stats.get('snapshot_date')}")
 
     entrant = make_entrant(features)
     entrant.fit(features[features["season"] < season])
     data_through = f"{int(world['season'].max())}-wk{int(world[world['season'] == world['season'].max()]['week'].max())}"
     board = build_draft_board(world, sched_s, entrant, season, data_through,
                               prefit=True, n_draws=n_draws, seed=seed,
-                              ecr=ecr, adp=adp, replacement_rank=replacement)
+                              ecr=ecr, adp=adp, replacement_rank=replacement,
+                              **({} if league is None else
+                                 {"league": league.payload(), "teams": league.teams}))
 
-    actuals = weekly_actuals(weekly, season, rules)
-    return {
+    out = {
         "season": season,
         "model": entrant.name,
         "data_through": data_through,
         # No historical ADP exists in this project; the field is modelled on
         # the same preseason consensus a drafter could have had. Recorded so a
         # report can never present this as an ADP result.
-        "market_source": "preseason_ecr",
+        "market_source": market_source,
+        "market_snapshot_date": consensus_stats.get("snapshot_date"),
         "scoring": rules.name,
         "consensus": {k: consensus_stats.get(k) for k in
                       ("matched_by_id", "matched_by_name_position", "unmatched")},
         "replacement_rank": replacement,
+        "market_scope": MARKET_SCOPE,
+        "market_sha256": _file_sha256(consensus_stats.get("path")),
         "players": board["players"],
-        "actual_weeks": _weeks_by_player(actuals),
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+    if league is not None:
+        out.update(format_fields(league))
+    if include_actuals:
+        out["actual_weeks"] = _weeks_by_player(weekly_actuals(weekly, season, rules))
+    else:
+        out["outcomes"] = "excluded"
+    return out
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -162,6 +236,12 @@ def build_parser() -> argparse.ArgumentParser:
                         "rules (points.md), not generic PPR")
     p.add_argument("--league-dir", type=Path, default=Path("configs/leagues"),
                    help="directory of league YAMLs (configs/formats for synthetic formats)")
+    p.add_argument("--league", default=None,
+                   help="league/format slug under --league-dir; default keeps the built-in league constants")
+    p.add_argument("--no-actuals", action="store_true",
+                   help="prediction side only: no actual_weeks (live season)")
+    p.add_argument("--market-snapshot", type=Path, default=None,
+                   help="explicit ECR/draft export for the market, used instead of the default consensus")
     p.add_argument("--model", choices=["xgboost", "transformer"], default="xgboost")
     p.add_argument("--artifact-root", type=str, default=None,
                    help="comma-separated transformer roots (required for --model transformer)")
@@ -172,8 +252,14 @@ def main() -> None:
     args = build_parser().parse_args()
     from ffmodel.data.pull import pull_schedules, pull_weekly
 
-    weekly = pull_weekly(list(range(args.first_season, max(args.seasons) + 1)), args.data_dir)
+    # A live season has no stat rows to pull; history stops at the prior season.
+    last = max(args.seasons) - (1 if args.no_actuals else 0)
+    weekly = pull_weekly(list(range(args.first_season, last + 1)), args.data_dir)
     schedules = pull_schedules(list(range(args.first_season, max(args.seasons) + 1)), args.data_dir)
+    league = None
+    if args.league:
+        from ffmodel.league import load_league
+        league = load_league(args.league, root=args.league_dir)
 
     def make_entrant(features):
         if args.model == "transformer":
@@ -189,12 +275,18 @@ def main() -> None:
     for season in sorted(args.seasons):
         from ffmodel.scoring import PPR
         rules = LEAGUE if args.scoring == "league" else PPR
+        market = msrc = None
+        if args.market_snapshot:
+            market, mstats = market_from_snapshot(args.market_snapshot, season, schedules, args.data_dir)
+            msrc = f"fantasypros_draft_{mstats['snapshot_date']}"
         world = build_season_world(weekly, schedules, season, make_entrant,
-                                   args.data_dir, n_draws=args.n_draws, rules=rules)
-        path = args.out_dir / f"world_{season}.json"
+                                   args.data_dir, n_draws=args.n_draws, rules=rules,
+                                   include_actuals=not args.no_actuals,
+                                   market=market, market_source=msrc, league=league)
+        path = args.out_dir / (f"world_{season}_{league.slug}.json" if league else f"world_{season}.json")
         path.write_text(json.dumps(world), encoding="utf-8")
         print(f"{path}: {len(world['players'])} board players, "
-              f"{len(world['actual_weeks'])} players with {season} actuals")
+              f"{len(world['actual_weeks']) if 'actual_weeks' in world else 'no'} players with {season} actuals")
 
 
 if __name__ == "__main__":
