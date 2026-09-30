@@ -259,7 +259,7 @@ function realized(rosters, trade, forecasts, actualWeeks, undrafted, weeks, slot
 }
 
 // --- simulation (the shipped engine) --------------------------------------------
-function buildSimWorld({ forecasts, ids, undrafted, weeks, slots, availability, tags, nSims, seed }) {
+function buildSimWorld({ forecasts, ids, undrafted, weeks, slots, availability, tags, nSims, seed, rho }) {
   const players = {};
   for (const id of ids) {
     const p = forecasts.players[id];
@@ -271,10 +271,10 @@ function buildSimWorld({ forecasts, ids, undrafted, weeks, slots, availability, 
   const replacement = {};
   for (const w of weeks) {
     replacement[w] = {};
-    for (const pos of POS) replacement[w][pos] = pool[w][pos].map(id => { const r = rowOf(forecasts, id, w); return { p10: r.p10, p50: r.p50, p90: r.p90 }; });
+    for (const pos of POS) replacement[w][pos] = pool[w][pos].map(id => { const r = rowOf(forecasts, id, w); return { id, p10: r.p10, p50: r.p50, p90: r.p90 }; });
   }
   const A = { p_out: availability.p_out, p_stay: availability.p_stay, p_tag: availability.p_tag };
-  return RS.createWorld({ weeks, slots, players, availability: A, replacement, nSims, seed });
+  return RS.createWorld({ weeks, slots, players, availability: A, replacement, nSims, seed, copula: { rho: rho || RS.ZERO_RHO } });
 }
 function predictSim(world, beforeIds, afterIds) { return RS.compare(world, beforeIds, afterIds); }
 
@@ -318,7 +318,7 @@ function availabilityOff(av) {
 const clusterKey = (season, k) => `${season}:${k}`;
 const HEAVY_TAGS = new Set(["Out", "IR"]);     // spec §10.7
 function runCell(opts) {
-  const { season, origin, k, rosters, undrafted, forecasts, actualWeeks, availability, tags, slots, nSims, simSeed,
+  const { season, origin, k, rosters, undrafted, forecasts, actualWeeks, availability, tags, slots, nSims, simSeed, rho,
           trades, waiver = false, waiverQuota = WAIVER_QUOTA } = opts;
   const diagSims = Math.min(opts.diagnosticSims || nSims, nSims);
   const weeks = forecasts.weeks, W = weeks.length;
@@ -354,7 +354,7 @@ function runCell(opts) {
         if (!lu.starters.length) throw new BacktestError(`${label}: no replacement available for ${lu.unfillable} in week ${w}`);
       }
     }
-    const simParams = { forecasts, ids: simIds, undrafted: und, weeks, slots, tags, nSims, seed: simSeed };
+    const simParams = { forecasts, ids: simIds, undrafted: und, weeks, slots, tags, nSims, seed: simSeed, rho };
     return { curPool, naivePool, und,
              world: buildSimWorld(Object.assign({ availability }, simParams)),
              worldOff: withDiagnostic ? buildSimWorld(Object.assign({ availability: availabilityOff(availability) }, simParams, { nSims: diagSims })) : null,
@@ -670,11 +670,25 @@ function roundDeep(x, where = "$") {
 }
 
 // --- CLI ------------------------------------------------------------------------------
+function readRho(file) {       // --rho <path to rho.json>: reads .table = {QB,RB,WR,TE}
+  const raw = fs.readFileSync(file);
+  const t = JSON.parse(raw.toString("utf8")).table;
+  if (!t || typeof t !== "object") throw new BacktestError(`--rho ${file}: no .table`);
+  const table = {};
+  for (const pos of POS) {      // same predicate as rostersim.js: present, a finite number, in [0, 0.5]
+    const v = t[pos];
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 0.5) throw new BacktestError(`--rho ${file}: table.${pos} must be a finite number in [0, 0.5], got ${JSON.stringify(v)}`);
+    table[pos] = v;
+  }
+  Object.defineProperty(table, "sha256", { value: crypto.createHash("sha256").update(raw).digest("hex"), enumerable: false });
+  return table;
+}
+const rhoOf = cfg => cfg.rho || RS.ZERO_RHO;
 function parseArgs(argv) {
   const a = { seasons: null, origins: null, leagues: null, trades: null, sims: null, league: null, secondary: null,
               out: null, "site-out": null, jobs: null, "forecasts-dir": "models/backtests/origin_forecasts",
               "worlds-dir": "models/backtests/worlds_tf", "availability-dir": "models/backtests/availability",
-              "diagnostic-sims": 400, fresh: false };
+              "diagnostic-sims": 400, fresh: false, rho: null };
   for (let i = 2; i < argv.length; i += 2) {
     const k = argv[i].replace(/^--/, "");
     if (!(k in a)) throw new BacktestError(`unknown option --${k}`);
@@ -683,12 +697,13 @@ function parseArgs(argv) {
     a[k] = argv[i + 1];
   }
   const ints = s => s.split(",").map(x => { const v = Number(x); if (!Number.isInteger(v)) throw new BacktestError(`not an integer: ${x}`); return v; });
-  for (const k of ["seasons", "origins", "leagues", "trades", "sims", "league", "out", "site-out"]) if (a[k] === null) throw new BacktestError(`--${k} is required`);
+  for (const k of ["seasons", "origins", "leagues", "trades", "sims", "league", "out", ...(a.rho === null ? ["site-out"] : [])]) if (a[k] === null) throw new BacktestError(`--${k} is required`);
   const cfg = { seasons: ints(a.seasons), origins: ints(a.origins), leagues: Number(a.leagues), trades: Number(a.trades), sims: Number(a.sims),
                 league: a.league, secondary: a.secondary, out: a.out, siteOut: a["site-out"],
                 jobs: a.jobs === null ? Math.max(1, Math.min(4, Math.floor(os.cpus().length / 2))) : Number(a.jobs),
                 diagnosticSims: Number(a["diagnostic-sims"]), fresh: a.fresh,
-                forecastsDir: a["forecasts-dir"], worldsDir: a["worlds-dir"], availabilityDir: a["availability-dir"], bootstrap: BOOTSTRAP_B };
+                rho: a.rho === null ? null : readRho(a.rho), rhoFile: a.rho, forecastsDir: a["forecasts-dir"], worldsDir: a["worlds-dir"], availabilityDir: a["availability-dir"], bootstrap: BOOTSTRAP_B };
+  if (cfg.rho !== null && cfg.siteOut) throw new BacktestError("--rho cannot be combined with --site-out: spec 2026-09-30 §5 forbids scoring v2 on 2023-25; a rho run on historical seasons is a development diagnostic only");
   for (const k of ["leagues", "trades", "sims", "jobs", "diagnosticSims"]) if (!Number.isInteger(cfg[k]) || cfg[k] < 1) throw new BacktestError(`--${k} must be a positive integer`);
   for (const o of cfg.origins) if (o < 2 || o > LAST_WEEK) throw new BacktestError(`origin ${o} outside 2..${LAST_WEEK}`);
   return cfg;
@@ -721,7 +736,7 @@ function executeCell(spec) {
   const fc = cached(spec.forecastFile), world = cached(spec.worldFile), av = cached(spec.availabilityFile);
   return runCell({ season: spec.season, origin: spec.origin, k: spec.k, rosters: spec.rosters, undrafted: spec.undrafted,
                    forecasts: fc, actualWeeks: world.actual_weeks, availability: av, tags: (av.tags || {})[String(spec.origin - 1)] || {},
-                   slots: spec.slots, nSims: spec.nSims, diagnosticSims: spec.diagnosticSims, simSeed: spec.simSeed, trades: spec.trades, waiver: spec.waiver });
+                   slots: spec.slots, nSims: spec.nSims, diagnosticSims: spec.diagnosticSims, simSeed: spec.simSeed, rho: spec.rho, trades: spec.trades, waiver: spec.waiver });
 }
 
 // --- per-cell checkpoint (review I1) ---------------------------------------------------
@@ -779,7 +794,7 @@ function configHash(cfg) {
   const inputs = {};
   for (const p of files.concat(code)) inputs[path.relative(root, path.resolve(p)).split(path.sep).join("/")] = fileHash(p);
   return sha1(JSON.stringify({ seasons: cfg.seasons, origins: cfg.origins, leagues: cfg.leagues, trades: cfg.trades, sims: cfg.sims,
-                               diagnosticSims: cfg.diagnosticSims, league: cfg.league, secondary: cfg.secondary || null, inputs }));
+                               diagnosticSims: cfg.diagnosticSims, league: cfg.league, secondary: cfg.secondary || null, rho: rhoOf(cfg), inputs }));
 }
 
 /* Runs `specs` (jobs = worker threads, or in-process at 1) and hands each finished result to onDone(spec index,
@@ -841,7 +856,7 @@ async function runLeague(cfg, boardPath, inputs, { waiver, store }) {
         cells.push({ season: S, origin: Or, k, draftSeed, tradeSeed, simSeed: hashStr(`sim:${S}:${Or}:${k}`),
                      roster_sizes: drafted.map(r => r.length), rosters: drafted, undrafted, trades: sampledTrades,
                      forecastFile: forecastPath(cfg, S, Or), worldFile: worldPath(cfg, S), availabilityFile: availPath(cfg, S),
-                     slots, nSims: cfg.sims, diagnosticSims: cfg.diagnosticSims, waiver });
+                     slots, nSims: cfg.sims, diagnosticSims: cfg.diagnosticSims, waiver, rho: cfg.rho });
       }
     }
   }
@@ -913,7 +928,7 @@ async function main() {
   const predeclared = isPredeclared(cfg);
   // A reduced run must never open the public gate: refuse a site-out inside site/.
   const siteDir = path.resolve(__dirname, "..", "site");
-  if (!predeclared && isInside(siteDir, cfg.siteOut)) {
+  if (!predeclared && cfg.siteOut && isInside(siteDir, cfg.siteOut)) {
     throw new BacktestError(`this run is not the predeclared configuration (${JSON.stringify(PREDECLARED)}); refusing to write the gate file ${cfg.siteOut} under site/`);
   }
   // Pre-flight: every input exists before any work starts.
@@ -951,7 +966,9 @@ async function main() {
     config: { seasons: cfg.seasons, origins: cfg.origins, leagues: cfg.leagues, trades: cfg.trades, sims: cfg.sims, bootstrap: cfg.bootstrap,
               predeclared, label_k: LABEL_K, coverage_band: COVERAGE_BAND, last_week: LAST_WEEK, waiver_quota: WAIVER_QUOTA,
               inputs: { league: cfg.league, secondary: cfg.secondary, forecasts_dir: cfg.forecastsDir, worlds_dir: cfg.worldsDir, availability_dir: cfg.availabilityDir, forecasts: forecastMeta },
-              diagnostic_sims: cfg.diagnosticSims, checkpoint: `${cfg.out}.cells.jsonl`,
+              diagnostic_sims: cfg.diagnosticSims, rho: { table: { ...rhoOf(cfg) }, file: cfg.rhoFile || null, sha256: cfg.rho ? cfg.rho.sha256 : null },
+              ...(cfg.rho && POS.some(p => cfg.rho[p] !== 0) ? { purpose: "development diagnostic — not a v2 validation (spec 2026-09-30 §5)" } : {}),
+              checkpoint: `${cfg.out}.cells.jsonl`,
               seeds: { draft: "1000*S + k (tools/draft_sim.cjs runDraft, heroSlot 0, field 'measured', noise MEASURED.noiseRanks)",
                        trades: "mulberry32(hashStr(`${S}:${O}:${k}`))", sim: "hashStr(`sim:${S}:${O}:${k}`)",
                        bootstrap: "mulberry32(hashStr(`bootstrap:${slug}`)); waiver: mulberry32(hashStr(`waiver-bootstrap:${slug}`))" },
@@ -1003,4 +1020,4 @@ if (!isMainThread && workerData && workerData.role === "cell-worker") {
 module.exports = { meanP50ByeZero, frozenStarters, depthForStarter, waiverAdds, markLopsided, horizonsOf, buildSlim, checkAvailability, checkForecastFile, isInside, availabilityOff, availabilityOffBlock, WAIVER_QUOTA, sampleTrades, predictSim, predictLineupOnly, realized, realizedRoster, metrics, bootstrap, bootstrapWaiver,
                    verdict, verdictChecks, waiverVerdict, waiverMetrics, runCell, buildSimWorld, replacementPool, poolSizes,
                    isCovered, replOf, meanP50, afterRoster, overflowDrop, roundDeep, percentile, mulberry32, hashStr, slotsOf,
-                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, runCells, finalizeLeague, cellKey, starterSet };
+                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, readRho, runCells, finalizeLeague, cellKey, starterSet };
