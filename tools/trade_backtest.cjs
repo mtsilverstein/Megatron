@@ -317,6 +317,42 @@ function availabilityOff(av) {
 // Spec §10.6: bootstrap clusters are whole (season, league) pairs; origins of one league move together.
 const clusterKey = (season, k) => `${season}:${k}`;
 const HEAVY_TAGS = new Set(["Out", "IR"]);     // spec §10.7
+/* Naive projection: the season baseline wherever the player has a p50 that week (shared by runCell and the prospective materializer). */
+const naiveProjOf = forecasts => (id, w) => { if (p50Of(forecasts, id, w) === null) return null; const b = forecasts.players[id].baseline; return Number.isFinite(b) ? b : null; };
+
+/* Replacement pools (current and naive) for an undrafted set plus the upfront fill check for every week:
+   a pool that cannot fill a week throws BacktestError, so no roster can hit an unfillable week later. */
+function probeArms(und, forecasts, weeks, slots) {
+  const curPool = replacementPool(und, forecasts, weeks, slots, (id, w) => p50Of(forecasts, id, w));
+  const naivePool = replacementPool(und, forecasts, weeks, slots, naiveProjOf(forecasts));
+  for (const w of weeks) {
+    for (const [label, pool] of [["current", curPool], ["naive", naivePool]]) {
+      const probe = POS.flatMap(pos => pool[w][pos].map(() => ({ position: pos })));
+      const lu = ROS.bestLineup(probe, slots, () => 0);
+      if (!lu.starters.length) throw new BacktestError(`${label}: no replacement available for ${lu.unfillable} in week ${w}`);
+    }
+  }
+  return { curPool, naivePool };
+}
+
+/* Per-trade strata and current-projection deltas -- ONE definition for v1 runCell and the prospective materializer.
+   sides: tradeSides-shaped {a:{before,after,received}, b:{...}}; lineupOf(roster) -> {total, starts} under the frozen p50.
+   Returns {a:{strata,current}, b:{strata,current}}; every side gets its OWN fresh strata array. */
+function tradeStrata({ trade, sides, posOf, W, lineupOf }) {
+  const moved = trade.give_a.concat(trade.give_b);
+  const samePos = moved.every(id => posOf(id) === posOf(moved[0]));
+  let depth = false;
+  const current = {};
+  for (const s of ["a", "b"]) {
+    const cb = lineupOf(sides[s].before), ca = lineupOf(sides[s].after);
+    const give = s === "a" ? trade.give_a : trade.give_b;
+    if (depthForStarter({ beforeStarts: cb.starts, afterStarts: ca.starts, give, receive: sides[s].received, W })) depth = true;
+    current[s] = ca.total - cb.total;
+  }
+  const strata = () => { const r = [samePos ? "same_position" : "cross_position"]; if (depth) r.push("depth_for_starter"); return r; };
+  return { a: { strata: strata(), current: current.a }, b: { strata: strata(), current: current.b } };
+}
+
 function runCell(opts) {
   const { season, origin, k, rosters, undrafted, forecasts, actualWeeks, availability, tags, slots, nSims, simSeed, rho,
           trades, waiver = false, waiverQuota = WAIVER_QUOTA } = opts;
@@ -339,21 +375,13 @@ function runCell(opts) {
   }
   const posOf = id => positionOf(forecasts, id);
   const curProj = (id, w) => p50Of(forecasts, id, w);
-  const naiveProj = (id, w) => { if (p50Of(forecasts, id, w) === null) return null; const b = forecasts.players[id].baseline; return Number.isFinite(b) ? b : null; };
+  const naiveProj = naiveProjOf(forecasts);
   const cov = r => r.filter(id => covered.has(id));
 
   // Pools and world(s) for a given undrafted set. Upfront fill checks for every method, so no
   // roster can hit an unfillable week later.
   function arms(und, simIds, withDiagnostic) {
-    const curPool = replacementPool(und, forecasts, weeks, slots, curProj);
-    const naivePool = replacementPool(und, forecasts, weeks, slots, naiveProj);
-    for (const w of weeks) {
-      for (const [label, pool] of [["current", curPool], ["naive", naivePool]]) {
-        const probe = POS.flatMap(pos => pool[w][pos].map(() => ({ position: pos })));
-        const lu = ROS.bestLineup(probe, slots, () => 0);
-        if (!lu.starters.length) throw new BacktestError(`${label}: no replacement available for ${lu.unfillable} in week ${w}`);
-      }
-    }
+    const { curPool, naivePool } = probeArms(und, forecasts, weeks, slots);
     const simParams = { forecasts, ids: simIds, undrafted: und, weeks, slots, tags, nSims, seed: simSeed, rho };
     return { curPool, naivePool, und,
              world: buildSimWorld(Object.assign({ availability }, simParams)),
@@ -398,25 +426,18 @@ function runCell(opts) {
     for (const trade of trades) {
       const sides = tradeSides(rosters, trade);
       const real = realized(rosters, trade, forecasts, actualWeeks, undrafted, weeks, slots);
-      const moved = trade.give_a.concat(trade.give_b);
-      const samePos = moved.every(id => posOf(id) === posOf(moved[0]));
+      const ts = tradeStrata({ trade, sides, posOf, W, lineupOf: r => lineup(r, curProj, curPool) });
       const pred = {};
-      let depth = false;
       for (const s of ["a", "b"]) {
         const before = cov(sides[s].before), after = cov(sides[s].after);
         const sim = predictSim(world, before, after);
         const off = predictSim(worldOff, before, after);      // diagnostic arm, never in a verdict
-        const cb = lineup(sides[s].before, curProj, curPool), ca = lineup(sides[s].after, curProj, curPool);
         const nb = lineup(sides[s].before, naiveProj, naivePool), na = lineup(sides[s].after, naiveProj, naivePool);
-        const give = s === "a" ? trade.give_a : trade.give_b;
-        if (depthForStarter({ beforeStarts: cb.starts, afterStarts: ca.starts, give, receive: sides[s].received, W })) depth = true;
-        pred[s] = { sim, off, current: ca.total - cb.total, naive: na.total - nb.total };
+        pred[s] = { sim, off, current: ts[s].current, naive: na.total - nb.total };
       }
-      const strata = [samePos ? "same_position" : "cross_position"];
-      if (depth) strata.push("depth_for_starter");
       for (const s of ["a", "b"]) {
         result.rows.push({ cluster, trade_id: trade.id, origin, side: s, team: s === "a" ? trade.a : trade.b,
-                           position: posOf(sides[s].received[0]), strata: strata.slice(),
+                           position: posOf(sides[s].received[0]), strata: ts[s].strata,
                            real: real[s].delta, sim: pred[s].sim.mean, sim_p10: pred[s].sim.p10, sim_p90: pred[s].sim.p90,
                            sim_p_positive: pred[s].sim.pPositive, current: pred[s].current, naive: pred[s].naive,
                            sim_noavail: pred[s].off.mean, sim_noavail_p10: pred[s].off.p10, sim_noavail_p90: pred[s].off.p90 });
@@ -1020,4 +1041,4 @@ if (!isMainThread && workerData && workerData.role === "cell-worker") {
 module.exports = { meanP50ByeZero, frozenStarters, depthForStarter, waiverAdds, markLopsided, horizonsOf, buildSlim, checkAvailability, checkForecastFile, isInside, availabilityOff, availabilityOffBlock, WAIVER_QUOTA, sampleTrades, predictSim, predictLineupOnly, realized, realizedRoster, metrics, bootstrap, bootstrapWaiver,
                    verdict, verdictChecks, waiverVerdict, waiverMetrics, runCell, buildSimWorld, replacementPool, poolSizes,
                    isCovered, replOf, meanP50, afterRoster, overflowDrop, roundDeep, percentile, mulberry32, hashStr, slotsOf,
-                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, readRho, runCells, finalizeLeague, cellKey, starterSet };
+                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, readRho, runCells, finalizeLeague, cellKey, starterSet, p50Of, positionOf, HEAVY_TAGS, tradeStrata, probeArms, naiveProjOf, tradeSides };
