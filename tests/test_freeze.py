@@ -217,14 +217,15 @@ def test_manifest_lists_every_file_with_correct_hashes(repo):
     assert m["cutoff_utc"] == "2026-10-09T00:15:00+00:00" and m["cutoff_passed_at_now"] is False
 
 
-def test_manifest_deterministic_apart_from_now(repo):
+def test_manifest_deterministic_apart_from_clock_fields(repo):
     run(repo, now=BEFORE)
     a = json.loads((repo / "models/prospective/2026/o5/manifest.json").read_text())
     shutil.rmtree(repo / "models/prospective/2026/o5")
     run(repo, now=BEFORE + dt.timedelta(hours=5))
     b = json.loads((repo / "models/prospective/2026/o5/manifest.json").read_text())
-    assert a["now"] != b["now"]
-    a.pop("now"), b.pop("now")
+    assert a["started_at"] != b["started_at"] and a["built_at"] != b["built_at"]
+    for k in ("started_at", "built_at"):
+        a.pop(k), b.pop(k)
     assert a == b
 
 
@@ -250,27 +251,130 @@ def _origin9(repo):
         [dict(week=w, team=t) for w in range(1, 9) for t in ("AAA", "BBB", "CCC", "DDD")]))
 
 
+O9_NOW = dt.datetime(2026, 10, 7, tzinfo=UTC)
+O5DIR = "models/prospective/2026/o5"
+O9DIR = "models/prospective/2026/o9"
+
+
 def test_origin9_requires_origin5_and_identical_inputs(repo):
-    now = dt.datetime(2026, 10, 7, tzinfo=UTC)
-    with pytest.raises(F.FreezeError) as e:  # no o5 yet
-        run(repo, origin=9, now=now, steps=_origin9(repo))
+    with pytest.raises(F.FreezeError) as e:  # no o5 yet (and no contingency flag)
+        run(repo, origin=9, now=O9_NOW, steps=_origin9(repo))
     assert e.value.code == 5
     run(repo, origin=5)
-    run(repo, origin=9, now=now, steps=_origin9(repo))  # identical inputs; availability.json may refresh
-    shutil.rmtree(repo / "models/prospective/2026/o9")
-    write(repo / "site/data/availability.json", '{"a": 2}')
-    run(repo, origin=9, now=now, steps=_origin9(repo))
-    shutil.rmtree(repo / "models/prospective/2026/o9")
+    run(repo, origin=9, now=O9_NOW, steps=_origin9(repo))  # identical inputs
+    shutil.rmtree(repo / O9DIR)
     for changed in ("models/prospective/2026/rho.json",
                     "models/prospective/2026/world_2026_f12-1qb-ppr-6.json",
                     "configs/formats/f10-1qb-ppr-6.yaml"):
         orig = (repo / changed).read_text()
         write(repo / changed, orig + " ")
         with pytest.raises(F.FreezeError) as e:
-            run(repo, origin=9, now=now, steps=_origin9(repo))
+            run(repo, origin=9, now=O9_NOW, steps=_origin9(repo))
         assert e.value.code == 5, changed
         write(repo / changed, orig)
-        assert not (repo / "models/prospective/2026/o9").exists()
+        assert not (repo / O9DIR).exists()
+
+
+def test_origin9_uses_o5_availability_bytes_and_never_refreshes(repo):
+    run(repo, origin=5)
+    write(repo / "site/data/availability.json", '{"a": 2}')  # refreshed live file must be ignored
+    run(repo, origin=9, now=O9_NOW, steps=_origin9(repo))
+    assert (repo / O9DIR / "inputs/availability.json").read_bytes() == (repo / O5DIR / "inputs/availability.json").read_bytes()
+    assert (repo / O9DIR / "inputs/availability.json").read_text() == '{"a": 1}'
+
+
+def test_origin9_refuses_if_o5_availability_tampered(repo):
+    run(repo, origin=5)
+    write(repo / O5DIR / "inputs/availability.json", '{"a": 99}')
+    with pytest.raises(F.FreezeError) as e:
+        run(repo, origin=9, now=O9_NOW, steps=_origin9(repo))
+    assert e.value.code == 5
+    assert not (repo / O9DIR).exists()
+
+
+@pytest.mark.parametrize("changed", ["site/assets/rostersim.js", "tools/prospective_materialize.cjs",
+                                     F.EVALUATOR, "models/transformer/v1_s43/through2025/model.pt"])
+def test_origin9_refuses_when_engine_code_or_model_changed_since_o5(repo, changed):
+    run(repo, origin=5)
+    write(repo / changed, "changed after o5\n")
+    with pytest.raises(F.FreezeError) as e:
+        run(repo, origin=9, now=O9_NOW, steps=_origin9(repo))
+    assert e.value.code == 5
+    assert not (repo / O9DIR).exists()  # nothing written
+
+
+def test_origin9_refuses_when_o5_had_an_extra_input(repo):
+    run(repo, origin=5)
+    m = json.loads((repo / O5DIR / "manifest.json").read_text())
+    m["files"]["inputs/extra.json"] = "0" * 64
+    (repo / O5DIR / "manifest.json").write_text(json.dumps(m))
+    with pytest.raises(F.FreezeError) as e:
+        run(repo, origin=9, now=O9_NOW, steps=_origin9(repo))
+    assert e.value.code == 5
+
+
+def test_contingency_allowed_without_o5_and_marked_exploratory(repo):
+    F.run_freeze(2026, 9, dry_run=False, now=O9_NOW, steps=_origin9(repo), root=repo, contingency=True)
+    m = json.loads((repo / O9DIR / "manifest.json").read_text())
+    assert m["exploratory"] is True and m["reason"] == "origin-5 freeze missed"
+    assert (repo / O9DIR / "inputs/availability.json").read_text() == '{"a": 1}'  # fresh from site
+    # a later o5 can never be frozen
+    with pytest.raises(F.FreezeError) as e:
+        run(repo, origin=5)
+    assert e.value.code == 5
+    assert not (repo / O5DIR).exists()
+
+
+def test_contingency_refused_when_o5_exists_or_wrong_origin(repo):
+    run(repo, origin=5)
+    with pytest.raises(F.FreezeError) as e:
+        F.run_freeze(2026, 9, dry_run=False, now=O9_NOW, steps=_origin9(repo), root=repo, contingency=True)
+    assert e.value.code == 5
+    assert not (repo / O9DIR).exists()
+    with pytest.raises(F.FreezeError) as e:
+        F.run_freeze(2026, 5, dry_run=False, now=BEFORE, steps=StubSteps(), root=repo, contingency=True)
+    assert e.value.code == 5
+
+
+def test_normal_manifest_is_not_exploratory(repo):
+    run(repo)
+    assert json.loads((repo / O5DIR / "manifest.json").read_text())["exploratory"] is False
+
+
+def test_post_build_cutoff_abort_writes_nothing(repo):
+    times = iter([CUTOFF + dt.timedelta(minutes=1)])  # the build "took" until after the cutoff
+    snap = tree(repo)
+    with pytest.raises(F.FreezeError) as e:
+        F.run_freeze(2026, 5, dry_run=False, now=BEFORE, steps=StubSteps(), root=repo, clock=lambda: next(times))
+    assert e.value.code == 3
+    assert tree(repo) == snap
+
+
+def test_post_build_records_started_and_built_and_dry_run_tolerates_late_build(repo):
+    built = BEFORE + dt.timedelta(minutes=7)
+    F.run_freeze(2026, 5, dry_run=False, now=BEFORE, steps=StubSteps(), root=repo, clock=lambda: built)
+    m = json.loads((repo / O5DIR / "manifest.json").read_text())
+    assert m["started_at"] == BEFORE.isoformat() and m["built_at"] == built.isoformat()
+    F.run_freeze(2026, 4, dry_run=True, now=BEFORE, steps=StubSteps(weekly=all_teams(3)), root=repo,
+                 clock=lambda: CUTOFF + dt.timedelta(days=1))  # dry run reports, does not abort
+
+
+def test_now_refused_on_real_run_unless_test_env(monkeypatch, capsys):
+    called = []
+    monkeypatch.setattr(F, "run_freeze", lambda *a, **k: called.append(k) or "beef")
+    monkeypatch.delenv("FREEZE_ALLOW_NOW", raising=False)
+    assert F.main(["--season", "2026", "--origin", "5", "--now", "2026-10-07T12:00:00Z"]) == 3
+    assert not called and "--dry-run" in capsys.readouterr().err
+    assert F.main(["--season", "2026", "--origin", "4", "--dry-run", "--now", "2026-10-07T12:00:00Z"]) == 0
+    monkeypatch.setenv("FREEZE_ALLOW_NOW", "1")
+    assert F.main(["--season", "2026", "--origin", "5", "--now", "2026-10-07T12:00:00Z"]) == 0
+
+
+def test_cli_contingency_flag_is_passed_through(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(F, "run_freeze", lambda *a, **k: seen.update(k) or "beef")
+    assert F.main(["--season", "2026", "--origin", "9", "--contingency-origin9-only"]) == 0
+    assert seen["contingency"] is True and seen["now"] is None
 
 
 def test_cli_returns_exit_codes(monkeypatch, capsys):

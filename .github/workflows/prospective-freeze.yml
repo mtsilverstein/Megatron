@@ -1,15 +1,20 @@
 name: prospective freeze
-# Remote witness for the roster-sim v2 prospective test (spec 2026-09-30 §7.2). Manual only: the Actions run
-# record (server timestamps, logged MANIFEST_SHA256) and the pushed tag are the timing evidence.
+# Remote witness for the roster-sim v2 prospective test (spec 2026-09-30 §7.2). Manual only, main only. Timing
+# evidence: the Actions run record, the atomically pushed commit+tag, and (permanent, server-set created_at) a GitHub
+# Release for the tag carrying the manifest and a tarball of the freeze directory.
 on:
   workflow_dispatch:
     inputs:
       origin:
-        description: "origin week (5 = the freeze, 9 = input refresh; 4 with dry_run = the rehearsal)"
+        description: "origin week (real runs: 5 = the freeze, 9 = input refresh; dry run: any, e.g. 4 = the rehearsal)"
         type: string
         default: "5"
       dry_run:
-        description: "rehearsal: writes dryrun-o<origin>/, never tags, cutoff reported but not enforced"
+        description: "rehearsal: writes dryrun-o<origin>/, pushes the commit only (no tag/release), cutoff reported not enforced"
+        type: boolean
+        default: false
+      contingency_origin9_only:
+        description: "spec 7.5 ONLY: origin-5 freeze was missed; freeze origin 9 fresh, marked exploratory (real origin 9 only)"
         type: boolean
         default: false
 env:
@@ -22,6 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: write }
     steps:
+      - name: Refuse to run from any ref except main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "prospective freeze runs only from refs/heads/main (got $GITHUB_REF)" >&2; exit 1; fi
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
@@ -30,21 +38,37 @@ jobs:
       - run: pip install -e .
       - name: Resolve target
         id: target
+        env:
+          IN_ORIGIN: ${{ inputs.origin }}
+          IN_DRY: ${{ inputs.dry_run }}
+          IN_CONT: ${{ inputs.contingency_origin9_only }}
         run: |
-          ORIGIN="${{ inputs.origin }}"
-          case "$ORIGIN" in ''|*[!0-9]*) echo "origin must be an integer" >&2; exit 1;; esac
-          if [ "${{ inputs.dry_run }}" = "true" ]; then DIR="models/prospective/$SEASON/dryrun-o$ORIGIN"; else DIR="models/prospective/$SEASON/o$ORIGIN"; fi
-          if [ -e "$DIR" ]; then echo "$DIR already exists in the repo; freezes are never overwritten" >&2; exit 1; fi
-          if [ "${{ inputs.dry_run }}" != "true" ] && git ls-remote --exit-code --tags origin "refs/tags/prospective-$SEASON-o$ORIGIN" >/dev/null 2>&1; then
-            echo "tag prospective-$SEASON-o$ORIGIN already exists" >&2; exit 1
+          case "$IN_ORIGIN" in ''|*[!0-9]*) echo "origin must be an integer" >&2; exit 1;; esac
+          ORIGIN=$((10#$IN_ORIGIN))
+          if [ "$IN_DRY" = "true" ]; then
+            DIR="models/prospective/$SEASON/dryrun-o$ORIGIN"
+            if [ "$IN_CONT" = "true" ]; then echo "contingency mode is for a real run only" >&2; exit 1; fi
+          else
+            case "$ORIGIN" in 5|9) ;; *) echo "real runs are origin 5 or 9 only" >&2; exit 1;; esac
+            DIR="models/prospective/$SEASON/o$ORIGIN"
+            if [ "$IN_CONT" = "true" ] && [ "$ORIGIN" != "9" ]; then echo "contingency mode is origin 9 only" >&2; exit 1; fi
+            if git ls-remote --exit-code --tags origin "refs/tags/prospective-$SEASON-o$ORIGIN" >/dev/null 2>&1; then
+              echo "tag prospective-$SEASON-o$ORIGIN already exists" >&2; exit 1
+            fi
           fi
+          if [ -e "$DIR" ]; then echo "$DIR already exists in the repo; freezes are never overwritten" >&2; exit 1; fi
           echo "origin=$ORIGIN" >> "$GITHUB_OUTPUT"
           echo "dir=$DIR" >> "$GITHUB_OUTPUT"
       - name: Build the freeze (fails closed at/after cutoff, on stale data, or on any input drift)
         id: freeze
+        env:
+          ORIGIN: ${{ steps.target.outputs.origin }}
+          IN_DRY: ${{ inputs.dry_run }}
+          IN_CONT: ${{ inputs.contingency_origin9_only }}
         run: |
-          ARGS="--season $SEASON --origin ${{ steps.target.outputs.origin }}"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          ARGS="--season $SEASON --origin $ORIGIN"
+          if [ "$IN_DRY" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          if [ "$IN_CONT" = "true" ]; then ARGS="$ARGS --contingency-origin9-only"; fi
           set -o pipefail
           python -m ffmodel.prospective.freeze $ARGS | tee freeze.log
           SHA=$(grep '^MANIFEST_SHA256=' freeze.log | cut -d= -f2)
@@ -56,16 +80,48 @@ jobs:
           name: prospective-freeze-${{ steps.target.outputs.origin }}${{ inputs.dry_run && '-dryrun' || '' }}
           path: ${{ steps.target.outputs.dir }}
           retention-days: 90
-      - name: Commit and push (never force)
+      - name: Commit, re-check cutoff, push commit + tag atomically (never force)
+        env:
+          DIR: ${{ steps.target.outputs.dir }}
+          ORIGIN: ${{ steps.target.outputs.origin }}
+          SHA: ${{ steps.freeze.outputs.sha }}
+          IN_DRY: ${{ inputs.dry_run }}
         run: |
           git config user.name "prospective-freeze-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add "${{ steps.target.outputs.dir }}"
-          git commit -m "data: prospective freeze $SEASON origin ${{ steps.target.outputs.origin }} (manifest ${{ steps.freeze.outputs.sha }})"
-          git push origin HEAD:main || { git pull --rebase origin main && git push origin HEAD:main; }
-      - name: Tag (real runs only)
-        if: inputs.dry_run != true
-        run: |
-          TAG="prospective-$SEASON-o${{ steps.target.outputs.origin }}"
+          if [ "$IN_DRY" = "true" ]; then KIND=" (DRY RUN)"; else KIND=""; fi
+          EXPL=$(python -c "import json,sys; m=json.load(open(sys.argv[1]+'/manifest.json')); print(' [EXPLORATORY: '+m['reason']+']' if m.get('exploratory') else '')" "$DIR")
+          git add "$DIR"
+          git commit -m "data: prospective freeze $SEASON origin $ORIGIN$KIND$EXPL (manifest $SHA)"
+          if [ "$IN_DRY" = "true" ]; then
+            git push origin HEAD:main || { git pull --rebase origin main && git push origin HEAD:main; }
+            exit 0
+          fi
+          # real run: pick up anything that landed on main since checkout, then re-check the cutoff right before pushing
+          git pull --rebase origin main
+          python - "$DIR/manifest.json" <<'PY'
+          import datetime as dt, json, sys
+          m = json.load(open(sys.argv[1]))
+          cut = dt.datetime.fromisoformat(m["cutoff_utc"])
+          now = dt.datetime.now(dt.timezone.utc)
+          if now >= cut:
+              sys.exit(f"REFUSED: {now.isoformat()} is at/after cutoff {cut.isoformat()}; nothing pushed")
+          PY
+          TAG="prospective-$SEASON-o$ORIGIN"
           git tag "$TAG"
-          git push origin "refs/tags/$TAG"
+          git push --atomic origin HEAD:main "refs/tags/$TAG"
+      - name: GitHub Release (permanent timing evidence; real runs only)
+        if: inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIR: ${{ steps.target.outputs.dir }}
+          ORIGIN: ${{ steps.target.outputs.origin }}
+          SHA: ${{ steps.freeze.outputs.sha }}
+        run: |
+          TAG="prospective-$SEASON-o$ORIGIN"
+          tar -czf "freeze-$SEASON-o$ORIGIN.tar.gz" "$DIR"
+          NOTES=$(python -c "import json,sys; m=json.load(open(sys.argv[1]+'/manifest.json')); print('MANIFEST_SHA256=%s\ncutoff_utc=%s\nbuilt_at=%s\nrun=%s' % (sys.argv[2], m['cutoff_utc'], m['built_at'], sys.argv[3]))" "$DIR" "$SHA" "$GITHUB_RUN_ID")
+          if ! gh release create "$TAG" --verify-tag --title "$TAG" --notes "$NOTES" "$DIR/manifest.json" "freeze-$SEASON-o$ORIGIN.tar.gz"; then
+            echo "::error::The commit and tag $TAG were ALREADY PUSHED (atomic push succeeded) but the GitHub Release FAILED. Do not re-run this workflow (the tag exists); create the release manually with gh release create $TAG, attaching $DIR/manifest.json and a tar.gz of $DIR." >&2
+            exit 1
+          fi
