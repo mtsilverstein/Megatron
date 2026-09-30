@@ -119,6 +119,26 @@ def market_from_snapshot(path: Path, season: int, schedules: pd.DataFrame,
     return matched, stats
 
 
+MARKET_SCOPE = "1QB PPR ECR"
+
+
+def _file_sha256(path) -> str | None:
+    import hashlib
+    if not path or not Path(path).is_file():
+        return None
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def format_fields(league) -> dict:
+    """Format identity + whether the 1QB-PPR, 4-pt-pass-TD market ECR is only a proxy for it."""
+    from ffmodel import formats as F
+    sc = league.scoring
+    same = (league.roster.get("QB") == 1 and "QB" not in league.flex_positions
+            and sc.get("reception") == 1.0 and sc.get("pass_td") == 4.0)
+    return {"format": league.slug, "format_key": F.format_key(league),
+            "compat": F.compat(league), "market_proxy": not same}
+
+
 def build_season_world(weekly: pd.DataFrame, schedules: pd.DataFrame, season: int,
                        make_entrant, data_dir: Path, *, n_draws: int = 2000,
                        seed: int = 0, rules: ScoringRules = LEAGUE,
@@ -158,7 +178,8 @@ def build_season_world(weekly: pd.DataFrame, schedules: pd.DataFrame, season: in
     pool = ecr_df.rename(columns={"pos": "position"})[["position", "ecr"]]
     dedicated = LEAGUE_DEDICATED if league is None else league.dedicated
     flex_slots = LEAGUE_FLEX_SLOTS if league is None else league.flex_slots
-    replacement = flex_replacement_ranks(pool, dedicated, flex_slots)
+    flex_pos = ("RB", "WR", "TE") if league is None else tuple(league.flex_positions)
+    replacement = flex_replacement_ranks(pool, dedicated, flex_slots, flex_positions=flex_pos)
 
     # The market, for a season with no ADP snapshot (see `market_positions`).
     adp = market_positions(ecr_df if market is None else market)
@@ -188,9 +209,13 @@ def build_season_world(weekly: pd.DataFrame, schedules: pd.DataFrame, season: in
         "consensus": {k: consensus_stats.get(k) for k in
                       ("matched_by_id", "matched_by_name_position", "unmatched")},
         "replacement_rank": replacement,
+        "market_scope": MARKET_SCOPE,
+        "market_sha256": _file_sha256(consensus_stats.get("path")),
         "players": board["players"],
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+    if league is not None:
+        out.update(format_fields(league))
     if include_actuals:
         out["actual_weeks"] = _weeks_by_player(weekly_actuals(weekly, season, rules))
     else:
@@ -258,7 +283,7 @@ def main() -> None:
                                    args.data_dir, n_draws=args.n_draws, rules=rules,
                                    include_actuals=not args.no_actuals,
                                    market=market, market_source=msrc, league=league)
-        path = args.out_dir / f"world_{season}.json"
+        path = args.out_dir / (f"world_{season}_{league.slug}.json" if league else f"world_{season}.json")
         path.write_text(json.dumps(world), encoding="utf-8")
         print(f"{path}: {len(world['players'])} board players, "
               f"{len(world['actual_weeks']) if 'actual_weeks' in world else 'no'} players with {season} actuals")

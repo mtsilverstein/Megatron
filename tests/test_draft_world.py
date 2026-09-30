@@ -158,5 +158,62 @@ def test_build_season_world_no_actuals_omits_outcomes(monkeypatch):
     out = dw.build_season_world(weekly, sched, 2026, lambda f: E(), None, include_actuals=False)
     assert "actual_weeks" not in out and out["outcomes"] == "excluded" and not called
     assert out["market_source"] == "fantasypros_draft_2026-09-08"
-    assert seen["max_season"] == 2025 or seen["max_season"] < 2026
+    assert seen["max_season"] == int(_weekly()["season"].max())   # the 2026 poison row is excluded
     assert seen["adp"] == {"a": 1.0, "b": 2.0}
+
+
+def _world_for(monkeypatch, label):
+    """build_season_world on a synthetic 4-position ECR under a configs/formats league;
+    returns (world, kwargs build_draft_board saw, league rules handed to set_league_rules)."""
+    import ffmodel.eval.draft_world as dw
+    import ffmodel.data.features as F, ffmodel.data.rankings as R, ffmodel.site.draft as D
+    import ffmodel.site.weekly as W
+    from ffmodel.formats import load_format
+    monkeypatch.setattr(F, "build_features", lambda w, s: w)
+    rows, ecr = [], 0
+    for i in range(60):                      # interleave positions so ECR order is shared
+        for pos in ("QB", "RB", "WR", "TE"):
+            ecr += 1
+            rows.append({"player_id": f"{pos}{i}", "ecr": float(ecr), "pos": pos})
+    df = pd.DataFrame(rows)
+    monkeypatch.setattr(R, "consensus_for_season", lambda *a, **k: (
+        df, {"snapshot_date": "2026-09-08", "kickoff": "2026-09-09", "path": "nonexistent.csv"}))
+    seen = {}
+    monkeypatch.setattr(W, "set_league_rules", lambda rules: seen.setdefault("rules", rules))
+
+    class E:
+        name = "stub"
+        def fit(self, x): pass
+    def fake_board(world, sched, entrant, season, through, **kw):
+        seen["kw"] = kw
+        return {"players": []}
+    monkeypatch.setattr(D, "build_draft_board", fake_board)
+    weekly = _weekly()
+    sched = pd.DataFrame({"season": [2022, 2023, 2026]})
+    league = load_format(label)
+    out = dw.build_season_world(weekly, sched, 2026, lambda f: E(), None,
+                                include_actuals=False, league=league)
+    return out, seen, league
+
+
+def test_world_replacement_follows_the_formats_teams_and_slots(monkeypatch):
+    base, bseen, _ = _world_for(monkeypatch, "f12-1qb-ppr-6")
+    ten, tseen, tl = _world_for(monkeypatch, "f10-1qb-ppr-6")
+    sf, sseen, _ = _world_for(monkeypatch, "f12-sf-ppr-4")
+    assert ten["replacement_rank"] != base["replacement_rank"]
+    assert ten["replacement_rank"]["QB"] == 11 and base["replacement_rank"]["QB"] == 13
+    assert tseen["kw"]["teams"] == 10 and bseen["kw"]["teams"] == 12
+    # superflex: the QB flex slot draws QBs, so QB replacement sits deeper than the 1QB world's
+    assert sf["replacement_rank"]["QB"] > base["replacement_rank"]["QB"]
+    assert sf["replacement_rank"] != base["replacement_rank"]
+    # the format's own scoring is the valuation lens, and the format is recorded
+    assert tseen["rules"] == tl.rules
+    assert ten["format"] == "f10-1qb-ppr-6" and ten["format_key"] and ten["compat"]
+    assert ten["market_scope"] == "1QB PPR ECR"
+
+
+def test_market_proxy_flag_marks_formats_the_ecr_does_not_describe(monkeypatch):
+    flags = {lab: _world_for(monkeypatch, lab)[0]["market_proxy"]
+             for lab in ("f12-1qb-ppr-4", "f12-1qb-ppr-6", "f12-1qb-half-4", "f12-sf-ppr-4")}
+    assert flags == {"f12-1qb-ppr-4": False, "f12-1qb-ppr-6": True,
+                     "f12-1qb-half-4": True, "f12-sf-ppr-4": True}

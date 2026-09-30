@@ -197,7 +197,8 @@ def test_tags_payload_shape_and_week_selection():
     injuries = _inj([(2026, 3, "p1", "Out"), (2026, 3, "p2", "Questionable"), (2026, 4, "p3", "Doubtful")])
     rosters = _rosters([(2026, 3, "p9", "AAA", "WR", "RES"), (2026, 3, "p8", "AAA", "WR", "ACT")])
     out = av.tags_payload(injuries, rosters, 2026, 3, source="t", retrieved_at="2026-09-30T00:00:00+00:00")
-    assert set(out) == {"season", "week", "source", "retrieved_at", "tags", "unmapped"}
+    assert set(out) == {"season", "week", "source", "retrieved_at", "tags", "unmapped", "row_counts"}
+    assert out["row_counts"] == {"injury_rows": 2, "tagged": 3, "unmapped": 0}
     assert out["season"] == 2026 and out["week"] == 3
     assert out["tags"] == {"p1": "Out", "p2": "Questionable", "p9": "IR"}   # week 4's p3 absent
     assert out["unmapped"] == []
@@ -214,3 +215,45 @@ def test_tags_payload_reports_unmapped_status_as_is(monkeypatch):
 def test_tags_payload_empty_week_is_empty_not_error():
     out = av.tags_payload(_inj([(2026, 3, "p1", "Out")]), _rosters([(2026, 3, "p7", "AAA", "WR", "ACT")]), 2026, 5, source="t", retrieved_at="x")
     assert out["tags"] == {} and out["unmapped"] == []
+
+
+def _many(season, week, n):
+    return [(season, week, f"p{week}_{i}", "Questionable") for i in range(n)]
+
+
+def test_week_row_check_pass_and_refuse():
+    inj = _inj(_many(2026, 1, 180) + _many(2026, 2, 250) + _many(2026, 3, 300) + _many(2026, 4, 10))
+    assert av.week_row_check(inj, 2026, 3)["ok"]
+    bad = av.week_row_check(inj, 2026, 4)             # median of wks 1-3 = 250 -> need 125
+    assert not bad["ok"] and bad["required"] == 125 and bad["rows"] == 10
+    assert av.week_row_check(_inj(_many(2026, 1, 99)), 2026, 1)["ok"] is False   # wk1 floor 100
+    assert av.week_row_check(_inj(_many(2026, 1, 100)), 2026, 1)["ok"] is True
+    assert av.week_row_check(inj, 2026, 9)["ok"] is False                        # no rows
+
+
+def _run_tags(monkeypatch, tmp_path, week, injuries):
+    import sys, types
+    import ffmodel.data.pull as pull
+    monkeypatch.setattr(pull, "pull_injuries", lambda *a, **k: injuries)
+    fake = types.SimpleNamespace(load_rosters_weekly=lambda s: types.SimpleNamespace(
+        to_pandas=lambda: _rosters([(2026, 1, "zz", "AAA", "WR", "ACT")])))
+    monkeypatch.setitem(sys.modules, "nflreadpy", fake)
+    out = tmp_path / "tags.json"
+    av.tags_main(["--season", "2026", "--week", str(week), "--out", str(out)])
+    return out
+
+
+def test_tags_cli_writes_row_counts_when_complete(monkeypatch, tmp_path):
+    import json
+    inj = _inj(_many(2026, 1, 180) + _many(2026, 2, 250))
+    out = _run_tags(monkeypatch, tmp_path, 2, inj)
+    payload = json.loads(out.read_text())
+    assert payload["row_counts"] == {"injury_rows": 250, "tagged": 250, "unmapped": 0}
+
+
+def test_tags_cli_refuses_partial_week_and_writes_nothing(monkeypatch, tmp_path):
+    import pytest
+    inj = _inj(_many(2026, 1, 180) + _many(2026, 2, 250) + _many(2026, 3, 10))
+    with pytest.raises(SystemExit):
+        _run_tags(monkeypatch, tmp_path, 3, inj)
+    assert not (tmp_path / "tags.json").exists()

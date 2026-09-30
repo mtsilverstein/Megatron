@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -195,6 +196,27 @@ NORMALIZABLE = {"out": "Out", "sus": "Out", "doubtful": "Doubtful",
                 "questionable": "Questionable", "ir": "IR", "pup": "IR"}
 
 
+MIN_WEEK1_ROWS = 100
+MIN_FRACTION_OF_MEDIAN = 0.5
+
+
+def week_row_check(injuries, season: int, week: int) -> dict:
+    """Completeness of a week's injury pull: row count vs the median of the
+    season's EARLIER regular-season weeks (week 1: an absolute floor). A partial
+    pull would leave unreported players looking healthy, so callers must refuse."""
+    inj = injuries[injuries["season"] == season]
+    if "game_type" in inj.columns:
+        inj = inj[inj["game_type"] == "REG"]
+    per_week = inj.groupby("week").size()
+    rows = int(per_week.get(week, 0))
+    earlier = per_week[per_week.index < week]
+    if week <= 1 or earlier.empty:
+        required = MIN_WEEK1_ROWS
+    else:
+        required = int(math.ceil(MIN_FRACTION_OF_MEDIAN * float(earlier.median())))
+    return {"rows": rows, "required": required, "ok": rows >= required and rows > 0}
+
+
 def tags_payload(injuries, rosters, season: int, week: int, *,
                  source: str, retrieved_at: str) -> dict:
     """Origin injury tags for ONE season/week: {gsis_id: status}, as tagged.
@@ -207,7 +229,10 @@ def tags_payload(injuries, rosters, season: int, week: int, *,
     unmapped = sorted(g for g, st in tags.items()
                       if NORMALIZABLE.get(str(st).strip().lower()) is None)
     return {"season": int(season), "week": int(week), "source": source,
-            "retrieved_at": retrieved_at, "tags": tags, "unmapped": unmapped}
+            "retrieved_at": retrieved_at, "tags": tags, "unmapped": unmapped,
+            "row_counts": {"injury_rows": int(((injuries["season"] == season) & (injuries["week"] == week)).sum())
+                           if injuries is not None else 0,
+                           "tagged": len(tags), "unmapped": len(unmapped)}}
 
 
 def tags_main(argv) -> None:
@@ -222,13 +247,15 @@ def tags_main(argv) -> None:
     import nflreadpy
     injuries = pull_injuries([args.season], cache_dir=args.data_dir)
     rosters = nflreadpy.load_rosters_weekly([args.season]).to_pandas()
-    if not (injuries["week"] == args.week).any():
-        raise SystemExit(f"no {args.season} week {args.week} injury rows -- refusing to write empty tags")
+    chk = week_row_check(injuries, args.season, args.week)
+    if not chk["ok"]:
+        raise SystemExit(f"{args.season} week {args.week}: {chk['rows']} injury rows < required {chk['required']} "
+                         "-- partial pull, refusing to write tags")
     out = tags_payload(injuries, rosters, args.season, args.week,
                        source="nflverse injuries + rosters_weekly (RES -> IR)",
                        retrieved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
     atomic_write(args.out, json.dumps(out, indent=1, allow_nan=False))
-    print(f"{args.out}: {len(out['tags'])} tags, {len(out['unmapped'])} unmapped")
+    print(f"{args.out}: {out['row_counts']['injury_rows']} rows, {len(out['tags'])} tags, {len(out['unmapped'])} unmapped")
 
 
 def main() -> None:
