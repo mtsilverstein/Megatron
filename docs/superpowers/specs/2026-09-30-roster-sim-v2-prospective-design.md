@@ -162,7 +162,9 @@ no v2 trade/waiver score is computed on them.
    negative estimate becomes 0 and is reported as a diagnostic. Uncertainty: 2,000 bootstrap resamples of players
    (all their trajectories together). No origin interaction.
 5. **Other lenses.** Fit once on `f12-1qb-ppr-4`; report each other primary lens's own estimates as diagnostics; the
-   single table is used for all formats. The same player outcomes under several scorings are not extra samples.
+   single table is used for all formats. (Amendment 2026-09-30, before the freeze: those per-lens diagnostics are produced
+   after the freeze in a separate `rho_lens_diagnostics.json`; they are development-data diagnostics, never
+   decision inputs, and cannot change the frozen table.) The same player outcomes under several scorings are not extra samples.
 6. **Output.** `models/prospective/2026/rho.json` (table, counts of players / trajectories / week pairs, support
    violations, bootstrap intervals, diagnostics), frozen in the origin-5 manifest. Sanity check reported: the
    implied season-variance multiplier 1 + (n−1)ρ against the diagnosed 1.7–3.0×.

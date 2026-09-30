@@ -145,7 +145,9 @@
  },
  "lens": "f12-1qb-ppr-4",
  "seed": 20260930,
- "code_sha": "35497b347b7bb20de073ea329a0937189e706149",
+ "code_sha": "25e36555c15b24a371fec0dfab2aa5bbbf461d42",
+ "source_sha256": "a910018b74268e59df84926479ea7d97fd06f1cc4a0e6247bfc51b99aa26db67",
+ "source_dirty": false,
  "inputs": [
   "models/prospective/dev/forecasts_2023_o5_f12-1qb-ppr-4.json",
   "models/prospective/dev/forecasts_2023_o9_f12-1qb-ppr-4.json",
@@ -154,5 +156,13 @@
   "models/prospective/dev/forecasts_2025_o5_f12-1qb-ppr-4.json",
   "models/prospective/dev/forecasts_2025_o9_f12-1qb-ppr-4.json"
  ],
+ "input_sha256": {
+  "models/prospective/dev/forecasts_2023_o5_f12-1qb-ppr-4.json": "79aea6b2ca4fe4d6b7fb2c479799059e178e2366f241f0372eeff5eaccaa16ad",
+  "models/prospective/dev/forecasts_2023_o9_f12-1qb-ppr-4.json": "b7cbe8d7b9166acf0cadbad2288cb455016096694b2c5c5e2bd1cd4e107a9dd8",
+  "models/prospective/dev/forecasts_2024_o5_f12-1qb-ppr-4.json": "b6273815adb30ba93f6531453fb4b963687a89294a609c4a4701a160576f213b",
+  "models/prospective/dev/forecasts_2024_o9_f12-1qb-ppr-4.json": "374321aab02b233a05f4beed67e5de5997ab7278ceb0893e5e23c1a337d00ef5",
+  "models/prospective/dev/forecasts_2025_o5_f12-1qb-ppr-4.json": "fcbd48370a69758519a06db8ec247f2f169deccaa5b656450e1ef552a5636049",
+  "models/prospective/dev/forecasts_2025_o9_f12-1qb-ppr-4.json": "64af82d72de83925bd9c7ee9d9e148fb6421986b0a36d021e5259ae555c2d648"
+ },
  "stop_flags": []
 }
