@@ -828,7 +828,7 @@ async function runCells(specs, jobs, onDone, { workerFile = __filename } = {}) {
   const { Worker } = require("worker_threads");
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(jobs, specs.length) }, () => new Promise((resolve, reject) => {
-    const w = new Worker(workerFile, { workerData: { role: "cell-worker" } });
+    const w = new Worker(workerFile, { workerData: { role: "cell-worker", file: workerFile } });
     let closing = false, current = null;
     const fail = err => { if (closing) return; closing = true; w.terminate(); reject(err); };
     const feed = () => {
@@ -1029,7 +1029,9 @@ async function main() {
 }
 
 const { isMainThread, parentPort, workerData } = (() => { try { return require("worker_threads"); } catch (e) { return { isMainThread: true }; } })();
-if (!isMainThread && workerData && workerData.role === "cell-worker") {
+// Only the worker FILE answers: another tool that requires this module and hosts its own cells through
+// runCells(..., { workerFile }) must not get a second (wrong) handler from this one.
+if (!isMainThread && workerData && workerData.role === "cell-worker" && (workerData.file || __filename) === __filename) {
   parentPort.on("message", ({ i, spec }) => {
     try { parentPort.postMessage({ i, result: executeCell(spec) }); }
     catch (e) { parentPort.postMessage({ i, error: e && e.stack || String(e) }); }
@@ -1041,4 +1043,4 @@ if (!isMainThread && workerData && workerData.role === "cell-worker") {
 module.exports = { meanP50ByeZero, frozenStarters, depthForStarter, waiverAdds, markLopsided, horizonsOf, buildSlim, checkAvailability, checkForecastFile, isInside, availabilityOff, availabilityOffBlock, WAIVER_QUOTA, sampleTrades, predictSim, predictLineupOnly, realized, realizedRoster, metrics, bootstrap, bootstrapWaiver,
                    verdict, verdictChecks, waiverVerdict, waiverMetrics, runCell, buildSimWorld, replacementPool, poolSizes,
                    isCovered, replOf, meanP50, afterRoster, overflowDrop, roundDeep, percentile, mulberry32, hashStr, slotsOf,
-                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, readRho, runCells, finalizeLeague, cellKey, starterSet, p50Of, positionOf, HEAVY_TAGS, tradeStrata, probeArms, naiveProjOf, tradeSides };
+                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, readRho, runCells, finalizeLeague, cellKey, starterSet, p50Of, positionOf, HEAVY_TAGS, tradeStrata, probeArms, naiveProjOf, tradeSides, block, regretOf };
