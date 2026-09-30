@@ -37,12 +37,23 @@
     "bonus_rush_rec_yd_100", "bonus_rush_rec_yd_200", "bonus_rush_td_qb",
     "bonus_rush_yd_100", "bonus_rush_yd_200",
   ].sort();
-  const IGNORE_EXACT = ["int", "ff", "fum_rec", "safe", "blk_kick", "st_ff", "st_fum_rec"].sort();
-  const IGNORE_PREFIX = [
-    "fgm", "xp", "pts_allow", "yds_allow", "def_", "idp_", "tkl", "bonus_def_",
-    "bonus_sack", "bonus_tkl", "blk_kick", "fg_ret", "int_ret", "sack",
-    "fum_ret", "st_tkl", "qb_hit",
+  const IGNORE_EXACT = [
+    "int", "ff", "fum_rec", "safe", "blk_kick", "st_ff", "st_fum_rec", "xpm", "xpmiss",
+    "fgm_yds", "fgm_yds_over_30", "sack", "sack_yd", "qb_hit", "tkl", "tkl_solo",
+    "tkl_ast", "tkl_loss", "int_ret_yd", "fum_ret_yd", "fg_ret_yd", "blk_kick_ret_yd",
+    "st_tkl_solo", "bonus_def_int_td_50p", "bonus_def_fum_td_50p", "bonus_sack_2p",
+    "bonus_tkl_10p", "def_td", "def_st_td", "def_st_ff", "def_st_fum_rec",
+    "def_st_tkl_solo", "def_kr_yd", "def_pr_yd", "def_2pt", "def_4_and_stop",
+    "def_3_and_out", "def_forced_punts", "def_pass_def", "def_int", "def_sack",
+    "def_safe", "def_fum_rec", "def_blk_kick",
   ].sort();
+  // Anchored full-match patterns only (no bare prefixes): an unrecognised
+  // offensive-looking key stays "unknown" and fails closed.
+  const IGNORE_PATTERNS = [
+    "(fgm|fgmiss|pts_allow|yds_allow)(_\\d+(_\\d+|p)?)?",
+    "idp_[a-z0-9_]+",
+  ].sort();
+  const IGNORE_RES = IGNORE_PATTERNS.map(p => new RegExp("^(?:" + p + ")$"));
   const DROP_SLOTS = ["K", "DEF", "IR", "TAXI"];
   const SLOT_ELIGIBLE = {
     QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"],
@@ -51,13 +62,26 @@
   };
   const AUDIT = {
     predicted_keys: PREDICTED_KEYS, predicted_stats: PREDICTED_STATS.slice(),
-    compat_keys: COMPAT_KEYS, ignore_exact: IGNORE_EXACT, ignore_prefix: IGNORE_PREFIX,
+    compat_keys: COMPAT_KEYS, ignore_exact: IGNORE_EXACT, ignore_patterns: IGNORE_PATTERNS,
     drop_slots: DROP_SLOTS.slice().sort(), slot_eligible: SLOT_ELIGIBLE,
   };
 
-  function num(x) {
-    const r = Math.round(Number(x) * 1e6) / 1e6;
-    return r === 0 ? 0 : r;   // -0 -> 0
+  /* 6 decimals via toFixed (exact binary value, ties away from zero), trailing
+     zeros trimmed, -0 -> 0. Python's _fixed produces the identical text. */
+  function fixed(x) {
+    let t = Number(x).toFixed(6);
+    if (t.indexOf(".") >= 0) t = t.replace(/0+$/, "").replace(/\.$/, "");
+    return (t === "" || t === "-0") ? "0" : t;
+  }
+
+  function num(x) { return Number(fixed(x)); }
+
+  /* A required weight: finite number or non-blank numeric string, else throw. */
+  function weight(v) {
+    const ok = typeof v === "number" || (typeof v === "string" && v.trim() !== "");
+    const f = ok ? Number(v) : NaN;
+    if (!Number.isFinite(f)) throw new Error("non-finite or non-numeric weight " + String(v));
+    return f;
   }
 
   function canonical(o) {
@@ -65,7 +89,7 @@
     if (o !== null && typeof o === "object") {
       return "{" + Object.keys(o).sort().map(k => JSON.stringify(k) + ":" + canonical(o[k])).join(",") + "}";
     }
-    if (typeof o === "number") return JSON.stringify(num(o));
+    if (typeof o === "number") return fixed(o);
     return JSON.stringify(o);
   }
 
@@ -81,7 +105,7 @@
   function classify(key) {
     if (Object.prototype.hasOwnProperty.call(PREDICTED_KEYS, key)) return "predicted";
     if (COMPAT_KEYS.includes(key)) return "compat";
-    if (IGNORE_EXACT.includes(key) || IGNORE_PREFIX.some(p => key.startsWith(p))) return "ignore";
+    if (IGNORE_EXACT.includes(key) || IGNORE_RES.some(r => r.test(key))) return "ignore";
     return "unknown";
   }
 
@@ -91,10 +115,12 @@
     const compatMap = {};
     COMPAT_KEYS.forEach(k => { compatMap[k] = 0; });
     Object.keys(scoring).forEach(key => {
-      const v = Number(scoring[key]), kind = classify(key);
+      const kind = classify(key);
+      if (kind === "ignore") return;
+      const v = weight(scoring[key]);
       if (kind === "predicted") predicted[PREDICTED_KEYS[key]] = v;
       else if (kind === "compat") compatMap[key] = v;
-      else if (kind === "unknown" && v !== 0) compatMap[key] = v;   // fails closed
+      else if (v !== 0) compatMap[key] = v;   // fails closed
     });
     const out = {};
     Object.keys(compatMap).sort().forEach(k => { out[k] = num(compatMap[k]); });

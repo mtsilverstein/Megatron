@@ -100,6 +100,42 @@ def test_canonical_normalizes_numbers():
     assert F.canonical({"b": -0.0, "a": 6.0, "c": 0.0400001}) == '{"a":6,"b":0,"c":0.04}'
 
 
+def test_canonical_small_magnitudes_are_fixed_point():
+    got = F.canonical({"a": 1e-5, "b": 5e-7, "c": -1.5e-6, "d": 1e-6, "e": 0.0078125, "f": 1e-7})
+    assert got == '{"a":0.00001,"b":0,"c":-0.000002,"d":0.000001,"e":0.007813,"f":0}'
+
+
+def test_null_or_nonfinite_weight_fails_closed():
+    for bad in (None, float("nan"), float("inf"), "", "abc"):
+        lg = live("gabagool")
+        lg["scoring_settings"]["pass_td"] = bad
+        assert F.match(lg, LABELS) is None
+        lg = live("gabagool")
+        lg["scoring_settings"]["mystery_off_bonus"] = bad
+        assert F.match(lg, LABELS) is None
+
+
+def test_offensive_looking_keys_with_defensive_prefixes_not_ignored():
+    for key in ("xp_bonus_rec", "sack_bonus_qb", "def_rec_bonus", "tkl_rec_bonus", "fgm_rush_bonus"):
+        lg = live("gabagool")
+        lg["scoring_settings"][key] = 0.5
+        assert F.match(lg, LABELS) is None, key
+
+
+def test_format_dir_is_repo_relative(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    assert F.load_format("f12-1qb-ppr-4").slug == "f12-1qb-ppr-4"
+    assert F.match(live("gabagool"), LABELS) == "f12-1qb-ppr-6"
+
+
+def test_four_point_formats_match_default_sleeper_st_fum_return_tds():
+    cfg = F.load_format("f12-1qb-ppr-4")
+    assert F.compat(cfg)["st_td"] == 6 and F.compat(cfg)["fum_rec_td"] == 6
+    lg = {"total_rosters": 12, "scoring_settings": dict(cfg.sleeper_scoring),
+          "roster_positions": ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX"] + ["BN"] * 5}
+    assert F.match(lg, LABELS) == "f12-1qb-ppr-4"
+
+
 def test_format_configs_require_roster_size():
     for label in LABELS:
         assert F.load_format(label).roster_size is not None

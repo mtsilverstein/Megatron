@@ -8,9 +8,8 @@ flex: 1
 flex_positions: [QB, RB, WR, TE]
 rounds: 15
 roster_size: 13
-scoring: {reception: 1.0, pass_td: 4.0, interception: -2.0, pass_int_td: 0.0, st_td: 0.0}
-# st_td 0: these formats score no special-teams TD (ScoringRules defaults it to 6, which the
-# sleeper_scoring consistency check would otherwise reject).
+scoring: {reception: 1.0, pass_td: 4.0, interception: -2.0, pass_int_td: 0.0}
+# st_td / fum_rec_td are 6 (Gabagool's offensive weights; spec 4.1), matching the ScoringRules default.
 depth_cap: {QB: 2, RB: 6, WR: 6, TE: 2}
 sleeper_scoring:
   pass_yd: 0.04
@@ -26,3 +25,5 @@ sleeper_scoring:
   pass_2pt: 2.0
   rush_2pt: 2.0
   rec_2pt: 2.0
+  st_td: 6.0
+  fum_rec_td: 6.0

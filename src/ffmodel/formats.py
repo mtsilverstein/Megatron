@@ -19,12 +19,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import re
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from ffmodel.league import LeagueConfig, load_league
 from ffmodel.scoring import PREDICTED_STATS, stat_weights
 
-FORMAT_DIR = Path("configs/formats")
+FORMAT_DIR = Path(__file__).resolve().parents[2] / "configs" / "formats"
 
 # Sleeper scoring key -> predicted stat column. `carries` and `targets` are
 # predicted but unscored (weight 0 in every league), so no Sleeper key maps to them.
@@ -51,12 +54,24 @@ COMPAT_KEYS = sorted([
 ])
 
 # K / DEF / IDP keys: ignored (those slots are dropped before the key is computed).
-IGNORE_EXACT = sorted(["int", "ff", "fum_rec", "safe", "blk_kick", "st_ff", "st_fum_rec"])
-IGNORE_PREFIX = sorted([
-    "fgm", "xp", "pts_allow", "yds_allow", "def_", "idp_", "tkl", "bonus_def_",
-    "bonus_sack", "bonus_tkl", "blk_kick", "fg_ret", "int_ret", "sack",
-    "fum_ret", "st_tkl", "qb_hit",
+# Explicit keys plus ANCHORED patterns only (full match, no bare prefixes), so an
+# unrecognised offensive-looking key (e.g. `xp_bonus_rec`, `sack_bonus_qb`) stays
+# "unknown" and fails closed. Mirrored verbatim in formats.js.
+IGNORE_EXACT = sorted([
+    "int", "ff", "fum_rec", "safe", "blk_kick", "st_ff", "st_fum_rec", "xpm", "xpmiss",
+    "fgm_yds", "fgm_yds_over_30", "sack", "sack_yd", "qb_hit", "tkl", "tkl_solo",
+    "tkl_ast", "tkl_loss", "int_ret_yd", "fum_ret_yd", "fg_ret_yd", "blk_kick_ret_yd",
+    "st_tkl_solo", "bonus_def_int_td_50p", "bonus_def_fum_td_50p", "bonus_sack_2p",
+    "bonus_tkl_10p", "def_td", "def_st_td", "def_st_ff", "def_st_fum_rec",
+    "def_st_tkl_solo", "def_kr_yd", "def_pr_yd", "def_2pt", "def_4_and_stop",
+    "def_3_and_out", "def_forced_punts", "def_pass_def", "def_int", "def_sack",
+    "def_safe", "def_fum_rec", "def_blk_kick",
 ])
+IGNORE_PATTERNS = sorted([
+    r"(fgm|fgmiss|pts_allow|yds_allow)(_\d+(_\d+|p)?)?",
+    r"idp_[a-z0-9_]+",
+])
+_IGNORE_RES = [re.compile(p) for p in IGNORE_PATTERNS]
 
 DROP_SLOTS = ("K", "DEF", "IR", "TAXI")
 SLOT_ELIGIBLE = {
@@ -68,30 +83,52 @@ SLOT_ELIGIBLE = {
 AUDIT = {
     "predicted_keys": PREDICTED_KEYS, "predicted_stats": list(PREDICTED_STATS),
     "compat_keys": COMPAT_KEYS, "ignore_exact": IGNORE_EXACT,
-    "ignore_prefix": IGNORE_PREFIX, "drop_slots": sorted(DROP_SLOTS),
+    "ignore_patterns": IGNORE_PATTERNS, "drop_slots": sorted(DROP_SLOTS),
     "slot_eligible": SLOT_ELIGIBLE,
 }
 
 
+def _fixed(x: float) -> str:
+    """Canonical text of a number: 6 decimals, half away from zero on the exact
+    binary value, trailing zeros trimmed, -0 -> 0. The JS twin uses toFixed(6)."""
+    d = Decimal(float(x)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    t = format(d, "f")
+    if "." in t:
+        t = t.rstrip("0").rstrip(".")
+    return "0" if t in ("", "-0") else t
+
+
 def _num(x: float):
-    r = round(float(x), 6)
-    if r == 0:
-        return 0
-    return int(r) if r == int(r) else r
+    t = _fixed(x)
+    return int(t) if "." not in t else float(t)
+
+
+def _weight(v) -> float:
+    """A required scoring weight: finite number or numeric string, else ValueError."""
+    if v is None or isinstance(v, bool) or not isinstance(v, (int, float, str)):
+        raise ValueError(f"non-numeric weight {v!r}")
+    f = float(v)
+    if not math.isfinite(f):
+        raise ValueError(f"non-finite weight {v!r}")
+    return f
 
 
 def canonical(obj) -> str:
-    def norm(o):
+    def enc(o) -> str:
         if isinstance(o, dict):
-            return {k: norm(v) for k, v in o.items()}
+            return "{" + ",".join(json.dumps(k, ensure_ascii=True) + ":" + enc(o[k]) for k in sorted(o)) + "}"
         if isinstance(o, (list, tuple)):
-            return [norm(v) for v in o]
-        if isinstance(o, bool) or o is None or isinstance(o, str):
-            return o
+            return "[" + ",".join(enc(v) for v in o) + "]"
+        if isinstance(o, bool):
+            return "true" if o else "false"
+        if o is None:
+            return "null"
+        if isinstance(o, str):
+            return json.dumps(o, ensure_ascii=True)
         if isinstance(o, (int, float)):
-            return _num(o)
+            return _fixed(o)
         raise TypeError(type(o))
-    return json.dumps(norm(obj), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return enc(obj)
 
 
 def _sorted_slots(slots):
@@ -117,7 +154,7 @@ def _classify(key: str) -> str:
         return "predicted"
     if key in COMPAT_KEYS:
         return "compat"
-    if key in IGNORE_EXACT or any(key.startswith(p) for p in IGNORE_PREFIX):
+    if key in IGNORE_EXACT or any(r.fullmatch(key) for r in _IGNORE_RES):
         return "ignore"
     return "unknown"
 
@@ -128,12 +165,15 @@ def split_scoring(scoring: dict) -> tuple[dict, dict]:
     compat = {k: 0.0 for k in COMPAT_KEYS}
     for key, val in scoring.items():
         kind = _classify(key)
+        if kind == "ignore":
+            continue
+        w = _weight(val)
         if kind == "predicted":
-            predicted[PREDICTED_KEYS[key]] = float(val)
+            predicted[PREDICTED_KEYS[key]] = w
         elif kind == "compat":
-            compat[key] = float(val)
-        elif kind == "unknown" and float(val) != 0:
-            compat[key] = float(val)   # fails closed: no format declares this key
+            compat[key] = w
+        elif w != 0:
+            compat[key] = w   # unknown nonzero: fails closed, no format declares this key
     return predicted, {k: _num(v) for k, v in sorted(compat.items())}
 
 
