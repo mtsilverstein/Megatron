@@ -265,3 +265,13 @@ Made after the Task 4 review, before any full-run result existed. They supersede
 7. **Injured free agents (owner, 2026-09-28, before the full run).** Matching the live desk, undrafted players tagged
    Out or IR in the week origin−1 report are excluded from both the waiver add set and every arm's waiver
    replacement pool.
+8. **FAM waiver replication (owner, 2026-09-29, AFTER the canonical run; declared before this replication runs).**
+   The canonical run evaluated the waiver drop choice for Gabagool only (pass). The drop choice is the same decision
+   under rolling waivers, so the identical §6.5 waiver test, with every §10 rule, the same quota (QB 2 / RB 3 / WR 3 /
+   TE 2), frozen code and inputs, is run once for FAM's format by making `draft-fam.json` the primary league. Nothing
+   is tuned between the canonical run and this one. Decision, fixed now: **FAM pass** → the waiver drop-cost gate
+   opens for both leagues (FAM's `secondary.waiver_verdict` in the slim file is set from this run, which is recorded
+   as the source). **FAM fail** → the Gabagool pass is treated as not replicated and the gate stays closed in both
+   leagues (Gabagool's `waiver_verdict` is published as "fail" with the reason given); the canonical numbers are
+   still reported unchanged. The FAM trade arm reruns with identical seeds and must reproduce the canonical FAM
+   trade metrics exactly; any difference voids the replication.
