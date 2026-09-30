@@ -186,3 +186,31 @@ def test_tag_rate_excludes_pair_when_from_week_not_relevant():
 def test_tag_rates_has_no_rosters_kwarg():
     import inspect
     assert "rosters" not in inspect.signature(av.tag_rates).parameters
+
+
+def _inj(rows):  # (season, week, gsis_id, report_status)
+    return pd.DataFrame([{"season": s, "week": w, "gsis_id": g, "report_status": st, "game_type": "REG"}
+                         for s, w, g, st in rows])
+
+
+def test_tags_payload_shape_and_week_selection():
+    injuries = _inj([(2026, 3, "p1", "Out"), (2026, 3, "p2", "Questionable"), (2026, 4, "p3", "Doubtful")])
+    rosters = _rosters([(2026, 3, "p9", "AAA", "WR", "RES"), (2026, 3, "p8", "AAA", "WR", "ACT")])
+    out = av.tags_payload(injuries, rosters, 2026, 3, source="t", retrieved_at="2026-09-30T00:00:00+00:00")
+    assert set(out) == {"season", "week", "source", "retrieved_at", "tags", "unmapped"}
+    assert out["season"] == 2026 and out["week"] == 3
+    assert out["tags"] == {"p1": "Out", "p2": "Questionable", "p9": "IR"}   # week 4's p3 absent
+    assert out["unmapped"] == []
+
+
+def test_tags_payload_reports_unmapped_status_as_is(monkeypatch):
+    monkeypatch.setattr(av, "tags_by_week",
+                        lambda *a, **k: {"3": {"p1": "SUSPENDED", "p2": "Out", "p3": "SUS"}})
+    out = av.tags_payload(None, None, 2026, 3, source="t", retrieved_at="x")
+    assert out["tags"]["p1"] == "SUSPENDED"          # verbatim, not coerced
+    assert out["unmapped"] == ["p1"]                  # "SUS" maps to Out in normalizeTag; "SUSPENDED" does not
+
+
+def test_tags_payload_empty_week_is_empty_not_error():
+    out = av.tags_payload(_inj([(2026, 3, "p1", "Out")]), _rosters([(2026, 3, "p7", "AAA", "WR", "ACT")]), 2026, 5, source="t", retrieved_at="x")
+    assert out["tags"] == {} and out["unmapped"] == []

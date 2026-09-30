@@ -115,3 +115,48 @@ def test_market_positions_break_ties_stably():
     assert first == market_positions(ecr.copy())
     assert first["c"] == 1.0                       # the clear leader still leads
     assert {first["a"], first["b"]} == {2.0, 3.0}
+
+
+def test_board_world_never_admits_the_target_season():
+    """Prediction-side worlds (no actuals) must still never see season S rows."""
+    from ffmodel.eval.board import board_world
+    w = _weekly()
+    poison = w.iloc[[0]].copy()
+    poison["season"] = 2026
+    poison["receiving_yards"] = 9999
+    frame = pd.concat([w, poison], ignore_index=True)
+    out = board_world(frame, 2026)
+    assert (out["season"] < 2026).all()
+    assert 9999 not in out["receiving_yards"].to_numpy()
+
+
+def test_build_season_world_no_actuals_omits_outcomes(monkeypatch):
+    """include_actuals=False -> no `actual_weeks`, outcomes flagged excluded, and
+    weekly_actuals is never even called."""
+    from ffmodel.eval import draft_world as dw
+    import ffmodel.eval.draft_world as mod
+    called = []
+    monkeypatch.setattr(mod, "weekly_actuals", lambda *a, **k: called.append(1))
+    import ffmodel.data.features as F, ffmodel.data.rankings as R, ffmodel.site.draft as D
+    monkeypatch.setattr(F, "build_features", lambda w, s: w)
+    ecr = pd.DataFrame({"player_id": ["a", "b"], "ecr": [1.0, 2.0], "pos": ["WR", "RB"]})
+    monkeypatch.setattr(R, "consensus_for_season",
+                        lambda *a, **k: (ecr, {"snapshot_date": "2026-09-08", "kickoff": "2026-09-09"}))
+
+    class E:
+        name = "stub"
+        def fit(self, x): pass
+    seen = {}
+    def fake_board(world, sched, entrant, season, through, **kw):
+        seen["max_season"] = int(world["season"].max())
+        seen["adp"] = kw["adp"]
+        return {"players": [{"player_id": "a"}]}
+    monkeypatch.setattr(D, "build_draft_board", fake_board)
+    weekly = _weekly()
+    weekly = pd.concat([weekly, weekly.iloc[[0]].assign(season=2026)], ignore_index=True)
+    sched = pd.DataFrame({"season": [2022, 2023, 2026]})
+    out = dw.build_season_world(weekly, sched, 2026, lambda f: E(), None, include_actuals=False)
+    assert "actual_weeks" not in out and out["outcomes"] == "excluded" and not called
+    assert out["market_source"] == "fantasypros_draft_2026-09-08"
+    assert seen["max_season"] == 2025 or seen["max_season"] < 2026
+    assert seen["adp"] == {"a": 1.0, "b": 2.0}
