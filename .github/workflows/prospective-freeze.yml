@@ -1,0 +1,71 @@
+name: prospective freeze
+# Remote witness for the roster-sim v2 prospective test (spec 2026-09-30 §7.2). Manual only: the Actions run
+# record (server timestamps, logged MANIFEST_SHA256) and the pushed tag are the timing evidence.
+on:
+  workflow_dispatch:
+    inputs:
+      origin:
+        description: "origin week (5 = the freeze, 9 = input refresh; 4 with dry_run = the rehearsal)"
+        type: string
+        default: "5"
+      dry_run:
+        description: "rehearsal: writes dryrun-o<origin>/, never tags, cutoff reported but not enforced"
+        type: boolean
+        default: false
+env:
+  SEASON: "2026"
+concurrency:
+  group: prospective-freeze
+  cancel-in-progress: false
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - run: pip install -e .
+      - name: Resolve target
+        id: target
+        run: |
+          ORIGIN="${{ inputs.origin }}"
+          case "$ORIGIN" in ''|*[!0-9]*) echo "origin must be an integer" >&2; exit 1;; esac
+          if [ "${{ inputs.dry_run }}" = "true" ]; then DIR="models/prospective/$SEASON/dryrun-o$ORIGIN"; else DIR="models/prospective/$SEASON/o$ORIGIN"; fi
+          if [ -e "$DIR" ]; then echo "$DIR already exists in the repo; freezes are never overwritten" >&2; exit 1; fi
+          if [ "${{ inputs.dry_run }}" != "true" ] && git ls-remote --exit-code --tags origin "refs/tags/prospective-$SEASON-o$ORIGIN" >/dev/null 2>&1; then
+            echo "tag prospective-$SEASON-o$ORIGIN already exists" >&2; exit 1
+          fi
+          echo "origin=$ORIGIN" >> "$GITHUB_OUTPUT"
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+      - name: Build the freeze (fails closed at/after cutoff, on stale data, or on any input drift)
+        id: freeze
+        run: |
+          ARGS="--season $SEASON --origin ${{ steps.target.outputs.origin }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          set -o pipefail
+          python -m ffmodel.prospective.freeze $ARGS | tee freeze.log
+          SHA=$(grep '^MANIFEST_SHA256=' freeze.log | cut -d= -f2)
+          test -n "$SHA"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "MANIFEST_SHA256=$SHA" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prospective-freeze-${{ steps.target.outputs.origin }}${{ inputs.dry_run && '-dryrun' || '' }}
+          path: ${{ steps.target.outputs.dir }}
+          retention-days: 90
+      - name: Commit and push (never force)
+        run: |
+          git config user.name "prospective-freeze-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add "${{ steps.target.outputs.dir }}"
+          git commit -m "data: prospective freeze $SEASON origin ${{ steps.target.outputs.origin }} (manifest ${{ steps.freeze.outputs.sha }})"
+          git push origin HEAD:main || { git pull --rebase origin main && git push origin HEAD:main; }
+      - name: Tag (real runs only)
+        if: inputs.dry_run != true
+        run: |
+          TAG="prospective-$SEASON-o${{ steps.target.outputs.origin }}"
+          git tag "$TAG"
+          git push origin "refs/tags/$TAG"
