@@ -215,10 +215,15 @@ const rhoAll = r => ({ QB: r, RB: r, WR: r, TE: r });
 const w1 = (weeks, rho, players, over = {}) => S.createWorld({ weeks, slots: ["WR"], availability: NOABS, replacement: rep1(weeks), nSims: 20000, seed: 5,
   copula: { rho: rhoAll(rho) }, players, ...over });
 check("v2a weekly marginal", () => {
-  const Q = { p10: 4, p50: 10, p90: 20 };
+  const Q = { p10: 4, p50: 10, p90: 20 }, z = { p10: 0, p50: 0, p90: 0 }, WK = Array.from({ length: 12 }, (_, i) => i + 1);
+  const rep0 = Object.fromEntries(WK.map(w => [w, { QB: [{ id: "rq", ...z }], RB: [{ id: "rr", ...z }], WR: [{ id: "rw", ...z }], TE: [{ id: "rt", ...z }] }]));
   for (const rho of [0, 0.2, 0.5]) {
-    const t = Array.from(w1([1], rho, { a: one([1], Q) }).value(["a"]).totals).sort((x, y) => x - y), N = t.length, tol = 0.02 * (Q.p90 - Q.p10);
-    for (const [lvl, want] of [[0.1, Q.p10], [0.5, Q.p50], [0.9, Q.p90]]) assert.ok(Math.abs(t[Math.floor(lvl * (N - 1))] - want) <= tol, `rho ${rho} p${lvl * 100}: ${t[Math.floor(lvl * (N - 1))]} vs ${want}`);
+    const tol = 0.02 * (Q.p90 - Q.p10);
+    for (const wk of WK) {     // every week: zero the other weeks' quantiles so totals are that week's points alone
+      const pl1 = { position: "WR", weeks: Object.fromEntries(WK.map(x => [x, { status: "play", ...(x === wk ? Q : z) }])) };
+      const t = Array.from(w1(WK, rho, { a: pl1 }, { replacement: rep0, nSims: 8000 }).value(["a"]).totals).sort((x, y) => x - y), N = t.length;
+      for (const [lvl, want] of [[0.1, Q.p10], [0.5, Q.p50], [0.9, Q.p90]]) assert.ok(Math.abs(t[Math.floor(lvl * (N - 1))] - want) <= tol, `rho ${rho} week ${wk} p${lvl * 100}: ${t[Math.floor(lvl * (N - 1))]} vs ${want}`);
+    }
   }
 });
 const variance = a => { const m = a.reduce((x, y) => x + y, 0) / a.length; return a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length; };
@@ -246,6 +251,14 @@ check("v2d identical rosters delta zero", () => {
     players: { qb1: pl("QB", 20), rb1: pl("RB", 14), wr1: pl("WR", 13), wr2: pl("WR", 9) } });
   const ids = ["qb1", "rb1", "wr1", "wr2"], d = S.compare(w, ids, ids.slice().reverse());
   assert.equal(d.mean, 0); assert.equal(d.p10, 0); assert.equal(d.p90, 0);
+  // compare() goes through one cached world, so also check two FRESH worlds agree draw for draw, and that a genuinely
+  // different pair does NOT collapse to zero (a broken pairing or a dead compare would show here).
+  const fresh = () => S.createWorld({ weeks: WEEKS, slots: SLOTS, availability: A, copula: { rho: rhoAll(0.3) }, nSims: 2000, seed: 7,
+    replacement: Object.fromEntries(WEEKS.map(k => [k, { QB: [{ id: "x1", ...q(10) }], RB: [{ id: "x2", ...q(6) }, { id: "x3", ...q(5) }], WR: [{ id: "x4", ...q(6) }, { id: "x5", ...q(5) }], TE: [{ id: "x6", ...q(4) }] }])),
+    players: { qb1: pl("QB", 20), rb1: pl("RB", 14), wr1: pl("WR", 13), wr2: pl("WR", 9) } });
+  assert.deepEqual(Array.from(fresh().value(ids).totals), Array.from(fresh().value(ids.slice().reverse()).totals));
+  const e = S.compare(w, ids, ids.slice(0, 3));
+  assert.ok(e.mean < -1, `dropping wr2 must cost points, got mean ${e.mean}`); assert.ok(e.p90 - e.p10 > 0, "non-identical pair has nonzero spread");
 });
 check("v2e order invariance", () => {
   const rp = Object.fromEntries(WEEKS.map(k => [k, { QB: [{ id: "x1", ...q(10) }], RB: [{ id: "x2", ...q(6) }, { id: "x3", ...q(6) }], WR: [{ id: "x4", ...q(6) }, { id: "x5", ...q(6) }], TE: [{ id: "x6", ...q(4) }] }]));

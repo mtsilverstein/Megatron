@@ -185,7 +185,7 @@
   }
   // Free-agent replacement pool per week and position: unowned skill players with a projection that week, ranked by
   // p50 (id tie-break), the head count per position from replacementNeeds. `freeAgents` (optional GSIS ids) overrides
-  // the derived pool (every remaining-payload player whose GSIS id maps to no rostered player).
+  // the derived pool, but never admits a rostered player (the owned filter always applies, so no person enters the world twice).
   function poolByWeek(ctx,weeks,freeAgents) {
     const {remaining,rosters,board,catalog,slots}=ctx;
     const owned=new Set();
@@ -196,7 +196,7 @@
     }
     const need=replacementNeeds(slots);
     const pool=Array.isArray(freeAgents)?new Set(freeAgents.map(String)):null;
-    const faList=remaining.players.filter(p=>skill.has(p.position)&&(pool?pool.has(p.player_id):!owned.has(p.player_id))&&Array.isArray(p.weeks));
+    const faList=remaining.players.filter(p=>skill.has(p.position)&&!owned.has(p.player_id)&&(!pool||pool.has(p.player_id))&&Array.isArray(p.weeks));
     const replacement={};
     for(const w of weeks) {
       const byPos={QB:[],RB:[],WR:[],TE:[]};
@@ -259,7 +259,7 @@
       simIds.add(id);
     }
     const replacement=poolByWeek(ctx,weeks,freeAgents);
-    for(const w of weeks)for(const pos of Object.keys(replacement[w]))replacement[w][pos]=replacement[w][pos].filter(r=>!Object.prototype.hasOwnProperty.call(players,r.id)).map(({id,p10,p50,p90})=>({id,p10,p50,p90}));
+    for(const w of weeks)for(const pos of Object.keys(replacement[w]))replacement[w][pos]=replacement[w][pos].map(({id,p10,p50,p90})=>({id,p10,p50,p90}));
     const forcedOut={};
     for(const [id,ws] of Object.entries(excludeWeeks))if(simIds.has(id))forcedOut[id]=ws;
     const world=RosterSim.createWorld({weeks,slots,players,availability,replacement,forcedOut,nSims,seed,copula:{rho:RosterSim.ZERO_RHO}});

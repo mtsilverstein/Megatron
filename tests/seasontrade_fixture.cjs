@@ -157,6 +157,9 @@ assert.throws(()=>analyze({...gaps,catalog:{...catalog,a:{...catalog.a,gsis_id:n
   // explicit free-agent ids override the derived pool; an empty pool cannot fill the slot
   assert.deepEqual(simulate({...args,freeAgents:['ge','gf']}),s1,'derived pool = e and f');
   assert.throws(()=>simulate({...args,freeAgents:[]}),e=>e.name==='RosterSimError'&&/no replacement/.test(e.message));
+  // a rostered player's id in freeAgents is excluded, never admitted as a second copy of himself
+  assert.throws(()=>simulate({...args,freeAgents:['ga']}),e=>e.name==='RosterSimError'&&/no replacement/.test(e.message));
+  assert.deepEqual(simulate({...args,freeAgents:['ga','ge','gf']}),s1,'rostered ga dropped from the override');
   // rostered players are never free agents: with nobody else projected, no replacement
   const noFA=clone(base);
   for(const p of noFA.remaining.players) for(const w of p.weeks) w.points={league:q(w.points.league.p50)};
