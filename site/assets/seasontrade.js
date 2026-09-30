@@ -259,10 +259,10 @@
       simIds.add(id);
     }
     const replacement=poolByWeek(ctx,weeks,freeAgents);
-    for(const w of weeks)for(const pos of Object.keys(replacement[w]))replacement[w][pos]=replacement[w][pos].map(({p10,p50,p90})=>({p10,p50,p90}));
+    for(const w of weeks)for(const pos of Object.keys(replacement[w]))replacement[w][pos]=replacement[w][pos].filter(r=>!Object.prototype.hasOwnProperty.call(players,r.id)).map(({id,p10,p50,p90})=>({id,p10,p50,p90}));
     const forcedOut={};
     for(const [id,ws] of Object.entries(excludeWeeks))if(simIds.has(id))forcedOut[id]=ws;
-    const world=RosterSim.createWorld({weeks,slots,players,availability,replacement,forcedOut,nSims,seed});
+    const world=RosterSim.createWorld({weeks,slots,players,availability,replacement,forcedOut,nSims,seed,copula:{rho:RosterSim.ZERO_RHO}});
     const keep=list=>list.filter(id=>simIds.has(id));
     return {weeks,nSims:world.nSims,sides:selected.map((rid,i)=>{
       const b=keep(before[i]),a=keep(after[i]),c=RosterSim.compare(world,b,a);

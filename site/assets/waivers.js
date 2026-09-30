@@ -550,13 +550,13 @@
           const r = (rosMap.sim.get(id(playerId(p))) || new Map()).get(w);
           if (r && r.status === "play") by[position(p)].push({ id: id(playerId(p)), p10: r.p10, p50: r.p50, p90: r.p90 });
         }
-        for (const pos of Object.keys(by)) by[pos] = by[pos].sort((x, y) => y.p50 - x.p50 || (x.id < y.id ? -1 : 1)).slice(0, need[pos]).map(({ p10, p50, p90 }) => ({ p10, p50, p90 }));
+        for (const pos of Object.keys(by)) by[pos] = by[pos].sort((x, y) => y.p50 - x.p50 || (x.id < y.id ? -1 : 1)).slice(0, need[pos]).map(({ id, p10, p50, p90 }) => ({ id, p10, p50, p90 }));
         replacement[w] = by;
       }
       const world = (nSims, adds) => {
         const players = { ...rosterPlayers };
         adds.forEach(a => { players[id(playerId(a))] = specOf(a); });
-        return ROSTERSIM.createWorld({ weeks, slots: starterSlots, players, availability: args.availability, replacement, nSims, seed: SIM.seed });
+        return ROSTERSIM.createWorld({ weeks, slots: starterSlots, players, availability: args.availability, replacement, nSims, seed: SIM.seed, copula: { rho: ROSTERSIM.ZERO_RHO } });
       };
       const simRosOf = (w, nSims) => {
         const value = ps => w.value(ps.map(x => id(playerId(x))).filter(k => !excluded.has(k))).mean;
