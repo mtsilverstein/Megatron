@@ -166,8 +166,8 @@ Verdicts:
 
 | League | Trade grade | Waiver drop choice |
 | --- | --- | --- |
-| Gabagool Fools | fail | pass |
-| FAM FOOTBALL | fail | not evaluated (rolling waivers, not FAAB) |
+| Gabagool Fools | fail | pass in the canonical run; published as fail (did not replicate, §10.8) |
+| FAM FOOTBALL | fail | fail (replication run, §10.8) |
 
 The trade grade fails in both leagues on one check: 80% interval coverage was
 0.650 (Gabagool) and 0.665 (FAM) against the predeclared band [0.70, 0.90].
@@ -239,9 +239,29 @@ disclosure cuts the other way: naive's share of zero-regret decisions (0.110)
 is higher than the simulation's (0.095) (current: 0.081) even though naive's
 mean regret is worse. The test validates the drop choice, not the drop-cost
 magnitude, and the failed coverage says the magnitudes' spread is too narrow.
-Publishing the slim result file therefore opens the simulated drop cost on the
-waiver desk for Gabagool only (`waiver_verdict === "pass"`). FAM's waiver
-verdict is `not_evaluated`.
+
+Replication in FAM's format (spec §10.8, rule and decision committed before the
+run). The canonical run tested the waiver drop choice in Gabagool only, on the
+reasoning that FAM uses rolling waivers; but choosing whom to drop is the same
+decision in both, so the identical test (same rules, quota, code and inputs) was
+run once more with `draft-fam.json` as the primary league:
+
+`node tools/trade_backtest.cjs --seasons 2023,2024,2025 --origins 5,9 --leagues 20 --trades 125 --sims 2000 --jobs 7 --league site/data/draft-fam.json --out models/diagnostics/trade_sim_eval_fam_waiver.json --site-out .review/trade_sim_eval_fam_waiver.slim.json`
+
+Its trade arm reproduced the canonical FAM trade metrics, strata and bootstrap
+exactly, as §10.8 required. The waiver result (n = 12,000 drop decisions, 0
+excluded cells): mean regret 33.341 for the simulation, 33.648 for current and
+36.912 for naive; bootstrap (sim − current) [−1.138, 0.477] and (sim − naive)
+[−4.847, −2.283]. Verdict: **fail**. The simulation's drop choices beat the
+naive comparator clearly in both formats, but their edge over today's method
+(1.5 points in Gabagool, 0.3 in FAM) did not hold in the second format.
+Zero-regret shares were 0.083 (sim), 0.073 (current), 0.106 (naive).
+
+Decision, as declared in §10.8: the Gabagool pass is treated as not
+replicated. The slim file publishes `waiver_verdict: "fail"` for both leagues
+(with a `waiver_note` giving the reason), so the simulated drop cost stays off
+and the waiver desk keeps today's lineup-only drop cost everywhere. The
+canonical Gabagool numbers above are reported unchanged.
 
 Availability-off diagnostic (not a verdict input; same engine with
 p_out = p_stay = p_tag = 0, n = 30,000 trade sides per league). Pooled MAE with the
@@ -259,8 +279,9 @@ Disclosures:
   replacement-level fill for empty slots. That is stronger than the shipped
   page method, which scores a bye player as a 0-point starter or reports
   "unassessed".
-- The waiver desk's bid guidance now consumes the simulated drop cost for
-  Gabagool. The magnitudes are not calibrated.
+- Had the waiver gate opened, the desk's bid guidance would have consumed the
+  simulated drop cost, whose magnitudes are not calibrated. The gate is closed
+  (§10.8), so this does not apply to the published site.
 - Tag timing: the backtest applies the week O−1 game report to week O. The
   live page applies Sleeper's current `injury_status` to the next week, which
   early in the week can lag by two games. Unmapped Sleeper values (NA, COV,
@@ -284,18 +305,20 @@ What is and isn't claimed:
 
 - Claimed: on 2023–2025 in these two simulated-draft formats, the simulation
   picks trade winners slightly better than today's p50 method and much better
-  than the naive comparator, and its waiver drop choices had lower regret than
-  both in Gabagool.
+  than the naive comparator; its waiver drop choices had lower regret than the
+  naive comparator in both formats.
 - Not claimed: calibrated ranges. The 80% intervals cover 65–67% of outcomes,
   so the trade grade stays off.
+- Not claimed: waiver drop choices better than today's method. That held in
+  Gabagool's format but not in FAM's, so the waiver gate stays closed.
 - Not claimed: a large improvement over today's method, magnitude accuracy for
-  drop costs, any result for FAM waivers, or any result outside these formats
-  and horizons.
+  drop costs, or any result outside these formats and horizons.
 - Not claimed: that a v2 will pass. It will be tested prospectively on 2026.
 
 Artifacts: the full result is committed compressed at
 `models/diagnostics/trade_sim_eval.json.gz` (read it with
 `gzip -dk models/diagnostics/trade_sim_eval.json.gz`; the 26 MB raw file and the
-`*.cells.jsonl` resume checkpoint are git-ignored). The slim file the site reads
+`*.cells.jsonl` resume checkpoint are git-ignored); the §10.8 replication is at
+`models/diagnostics/trade_sim_eval_fam_waiver.json.gz`. The slim file the site reads
 is `site/data/trade_sim_eval.json`; the per-origin forecast inputs are
 `models/backtests/origin_forecasts/forecasts_{2023,2024,2025}_o{5,9}.json`.

@@ -12,7 +12,7 @@
   "FLEX"
  ],
  "verdict": "fail",
- "waiver_verdict": "pass",
+ "waiver_verdict": "fail",
  "k": 2,
  "horizons": [
   {
@@ -86,7 +86,7 @@
    "FLEX"
   ],
   "verdict": "fail",
-  "waiver_verdict": "not_evaluated",
+  "waiver_verdict": "fail",
   "horizons": [
    {
     "origin": 5,
@@ -135,6 +135,8 @@
     "lopsided_cutoff": 53.071
    }
   ],
-  "excluded_cells": 0
- }
+  "excluded_cells": 0,
+  "waiver_note": "FAM waiver replication (spec 10.8): regret sim - current [-1.138, 0.477], not entirely below 0"
+ },
+ "waiver_note": "canonical Gabagool waiver test passed but did not replicate in FAM (spec 10.8); gate closed in both leagues"
 }

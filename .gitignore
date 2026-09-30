@@ -59,3 +59,4 @@ data_snapshots/keepers_*.json
 # committed.
 models/diagnostics/trade_sim_eval.json
 models/diagnostics/*.cells.jsonl
+models/diagnostics/trade_sim_eval_fam_waiver.json
