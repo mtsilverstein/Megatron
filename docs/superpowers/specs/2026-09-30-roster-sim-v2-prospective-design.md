@@ -85,7 +85,7 @@ No fixture asserts "every interval widens".
 
 ## 4. Format contract (the B/C slice A needs)
 
-### 4.1 Primary formats (frozen; astra round 3, `.review/astra-v2-formats-response.md`)
+### 4.1 Primary formats (frozen; astra rounds 3–4, `.review/astra-v2-formats-response.md`, `.review/astra-v2-superflex-response.md`)
 
 Synthetic league configs in the existing `configs/leagues/*.yaml` schema, placed in `configs/formats/`:
 
@@ -94,13 +94,22 @@ Synthetic league configs in the existing `configs/leagues/*.yaml` schema, placed
 | `f12-1qb-ppr-6` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 15 | Gabagool's complete `sleeper_scoring`, copied |
 | `f10-1qb-ppr-6` | 10 | same | 15 | FAM's complete `sleeper_scoring`, copied separately (no distance bonuses) |
 | `f12-1qb-ppr-4` | 12 | same | 15 | reception 1.0, pass TD 4, pass_int −2, pass_int_td 0, no bonuses; else as Gabagool's offensive weights |
-| `f12-sf-ppr-4` | 12 | QB, RB×2, WR×3, TE, SUPER_FLEX×1 (QB/RB/WR/TE) | 15 | same as `f12-1qb-ppr-4` |
+| `f12-1qb-half-4` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 15 | as `f12-1qb-ppr-4` with reception 0.5 |
 
 `f12-1qb-ppr-4` is the four-point full-PPR reference format (no claim that this exact configuration is the modal
-public one). The superflex shape is QB/RB×2/WR×3/TE/SUPER_FLEX because the league schema has one flex type per
-league (`flex_positions` containing QB makes every flex slot SUPER_FLEX). Half-PPR (`f12-1qb-half-4`) runs as an
-exploratory arm and cannot pass; no format inherits another's verdict. A qualifying owner-format trade result opens
-only the labeled experimental trade display, never ordinary advice or waiver advice.
+public one). **Amendment 2026-09-30 (before any freeze; astra round 4):** superflex was replaced by half-PPR as the
+fourth primary format. Reason: simulated opponents draft from the market (`draft_sim.cjs::marketOrder`), and the only
+preseason 2026 market is 1QB PPR ECR (`data_snapshots/fantasypros_ecr_2026-09-08.csv`); a superflex population
+drafted from a 1QB market (and an opponent model that never demands a second starting QB) is not a realistic
+superflex league, and no preseason superflex market exists (a current rolling ADP would leak in-season
+information). `f12-1qb-half-4` uses the PPR ECR as a **declared proxy** for the half-PPR market (same 1QB roster
+demand; reception scoring can still reorder players, size not established). `f12-sf-ppr-4` — QB, RB×2, WR×3, TE,
+SUPER_FLEX×1 (the league schema has one flex type per league) — runs as an **exploratory synthetic stress test**: it
+cannot pass or open any feature. A 2027 superflex test needs a genuinely preseason superflex market and a
+predeclared superflex opponent model. No thresholds changed; the swap was made on input suitability before any
+2026 outcome or evaluation existed. Each format — primary and exploratory — gets its own world valued under its own
+config, with the market source, snapshot date, hash and proxy use recorded (§7.1). A qualifying owner-format trade
+result opens only the labeled experimental trade display, never ordinary advice or waiver advice.
 
 ### 4.2 Format key and compatibility signature
 
@@ -213,7 +222,7 @@ v2, so no waiver rescue is predicted. A trade pass never opens waiver advice, no
 
 Width, tail misses, interval score by origin and stratum; superiority over current; teammate/stack subsets; the
 concentration sensitivity (drop the 10 highest-exposure players / teams, both origins together); support violations;
-the exploratory half-PPR arm; and, as context only, v1's per-season coverage from its frozen outputs
+the exploratory superflex arm; and, as context only, v1's per-season coverage from its frozen outputs
 (Gabagool 2023 0.716, 2024 0.595, 2025 0.640; FAM 0.733, 0.626, 0.637 — a misspecified model's spread, not a
 measurement of v2's season-shock false-failure rate). One season is disclosed as one season: every synthetic league
 shares the same realized 2026 outcomes.
