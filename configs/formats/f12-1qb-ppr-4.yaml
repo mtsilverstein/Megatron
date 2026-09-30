@@ -1,0 +1,28 @@
+# Format f12-1qb-ppr-4: four-point full-PPR reference, Gabagool's shape.
+# Synthetic league for the roster-sim v2 prospective test (spec section 4.1).
+name: f12-1qb-ppr-4
+league_id: "format"
+teams: 12
+roster: {QB: 1, RB: 2, WR: 2, TE: 1}
+flex: 2
+flex_positions: [RB, WR, TE]
+rounds: 15
+roster_size: 13
+scoring: {reception: 1.0, pass_td: 4.0, interception: -2.0, pass_int_td: 0.0, st_td: 0.0}
+# st_td 0: these formats score no special-teams TD (ScoringRules defaults it to 6, which the
+# sleeper_scoring consistency check would otherwise reject).
+depth_cap: {QB: 2, RB: 6, WR: 6, TE: 2}
+sleeper_scoring:
+  pass_yd: 0.04
+  pass_td: 4.0
+  pass_int: -2.0
+  pass_int_td: 0.0
+  rush_yd: 0.1
+  rush_td: 6.0
+  rec: 1.0
+  rec_yd: 0.1
+  rec_td: 6.0
+  fum_lost: -2.0
+  pass_2pt: 2.0
+  rush_2pt: 2.0
+  rec_2pt: 2.0

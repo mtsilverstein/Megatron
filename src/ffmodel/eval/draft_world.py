@@ -160,6 +160,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--scoring", choices=["league", "ppr"], default="league",
                    help="answer-key scoring; defaults to this league's own "
                         "rules (points.md), not generic PPR")
+    p.add_argument("--league-dir", type=Path, default=Path("configs/leagues"),
+                   help="directory of league YAMLs (configs/formats for synthetic formats)")
     p.add_argument("--model", choices=["xgboost", "transformer"], default="xgboost")
     p.add_argument("--artifact-root", type=str, default=None,
                    help="comma-separated transformer roots (required for --model transformer)")

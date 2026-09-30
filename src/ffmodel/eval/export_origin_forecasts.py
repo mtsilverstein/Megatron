@@ -87,7 +87,15 @@ def _origin_forecasts(weekly, schedules, *, season, origin, last_week, league, p
             "players": players}
 
 
-def main():
+def format_meta(cfg, league_dir) -> dict:
+    """format_key + compat, recorded only for configs from configs/formats."""
+    if Path(league_dir).name != "formats":
+        return {}
+    from ffmodel import formats as F
+    return {"format_key": F.format_key(cfg), "compat": F.compat(cfg)}
+
+
+def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--season", type=int, required=True)
     parser.add_argument("--origin", type=int, required=True)
@@ -95,19 +103,26 @@ def main():
     parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
     parser.add_argument("--first-season", type=int, default=2012)
     parser.add_argument("--league", default="gabagool")
+    parser.add_argument("--league-dir", type=Path, default=Path("configs/leagues"))
     parser.add_argument("--root", type=Path, action="append")
     parser.add_argument("--out", type=Path, required=True)
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
     from ffmodel.league import load_league
+    league = load_league(args.league, root=args.league_dir)
     from ffmodel.model.predictor import TransformerPredictor
     from ffmodel.data.pull import pull_weekly, pull_schedules
     span = list(range(args.first_season, args.season+1))
     roots = args.root or [Path("models/transformer/v1"), Path("models/transformer/v1_s43"), Path("models/transformer/v1_s44")]
     out = origin_forecasts(pull_weekly(span, cache_dir=args.data_dir), pull_schedules(span, cache_dir=args.data_dir),
                            season=args.season, origin=args.origin, last_week=args.last_week,
-                           league=load_league(args.league), predictor_factory=lambda f: TransformerPredictor(roots, f))
+                           league=league, predictor_factory=lambda f: TransformerPredictor(roots, f))
     out["artifact_roots"] = [str(root) for root in roots]
     out["history_first_season"] = args.first_season
+    out.update(format_meta(league, args.league_dir))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     atomic_write(args.out, json.dumps(out, indent=1, allow_nan=False))
     print(f"{args.out}: {len(out['players'])} players, weeks {out['weeks'][0]}-{out['weeks'][-1]}")
