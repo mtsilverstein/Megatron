@@ -234,3 +234,44 @@ draft experiments.
 
 Trade suggestions and league-wide scans; pick and keeper valuation; blending expert ranks
 into the number; start/sit changes; ESPN.
+
+## 10. Amendment — test rules fixed before the full run (owner decisions 2026-09-28)
+
+Made after the Task 4 review, before any full-run result existed. They supersede §6 where they differ.
+
+1. **Waiver decision set.** Candidate adds per roster and origin are the top undrafted players by mean frozen p50
+   over origin..17 with a per-position quota: QB 2, RB 3, WR 3, TE 2 (the §6.5 "top 10 by p50" was 100% QBs in a
+   1-QB league). Every arm's replacement pool for a waiver decision excludes that add.
+2. **Trade population.** A sampled trade is kept only if each side gives at least one player who is in its own
+   current-method before-lineup in at least half the weeks origin..17 (frozen p50 only; decided before any
+   prediction). `depth_for_starter` is redefined: a side gives at least one before-lineup starter and receives no
+   player who starts in at least half the weeks of its after-lineup.
+3. **Error band by horizon.** `E` per stratum and the lopsided cutoff are measured and published per origin
+   (origin 5 = 13 weeks remaining, origin 9 = 9 weeks). The live page uses the origin whose remaining-week count is
+   nearest to the live remaining-week count (ties → the shorter horizon). Slim eval file becomes `schema_version: 2`
+   with `horizons: [{origin, weeks, strata:{name:{E,n}}, lopsided_cutoff}]` (and the same under `secondary`).
+4. **Dropped cells fail closed.** If any planned primary (season, origin, league) cell is excluded, `verdict` and
+   `waiver_verdict` are "fail"; the excluded count is published.
+5. **Known before the full run (recorded 2026-09-28, before any full-run result).** A smoke run and a reviewer
+   diagnostic showed the engine's season-total intervals are too narrow: weekly quantiles are calibrated (weekly
+   p10–p90 coverage 0.76–0.80), but a player's forecast errors persist across weeks (between-player variance of mean
+   residuals 1.7–3.0× the independent-weeks prediction), so 80% season intervals cover ≈0.65. The owner chose to run
+   the test exactly as declared and publish the result, pass or fail. Any engine change prompted by this (e.g. a
+   per-player persistent error term) is a v2 with its own predeclared test, evaluated prospectively on the 2026 season
+   — never re-scored against 2023–2025, whose residuals were used to diagnose the problem.
+6. **Bootstrap clusters (owner, 2026-09-28, before the full run).** Resample whole (season, league) clusters —
+   origins 5 and 9 of one league share rosters and realized weeks 9–17, so they move together. Leagues within a season
+   still share one set of real player outcomes; the write-up states this remaining dependence.
+7. **Injured free agents (owner, 2026-09-28, before the full run).** Matching the live desk, undrafted players tagged
+   Out or IR in the week origin−1 report are excluded from both the waiver add set and every arm's waiver
+   replacement pool.
+8. **FAM waiver replication (owner, 2026-09-29, AFTER the canonical run; declared before this replication runs).**
+   The canonical run evaluated the waiver drop choice for Gabagool only (pass). The drop choice is the same decision
+   under rolling waivers, so the identical §6.5 waiver test, with every §10 rule, the same quota (QB 2 / RB 3 / WR 3 /
+   TE 2), frozen code and inputs, is run once for FAM's format by making `draft-fam.json` the primary league. Nothing
+   is tuned between the canonical run and this one. Decision, fixed now: **FAM pass** → the waiver drop-cost gate
+   opens for both leagues (FAM's `secondary.waiver_verdict` in the slim file is set from this run, which is recorded
+   as the source). **FAM fail** → the Gabagool pass is treated as not replicated and the gate stays closed in both
+   leagues (Gabagool's `waiver_verdict` is published as "fail" with the reason given); the canonical numbers are
+   still reported unchanged. The FAM trade arm reruns with identical seeds and must reproduce the canonical FAM
+   trade metrics exactly; any difference voids the replication.

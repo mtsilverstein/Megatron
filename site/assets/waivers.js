@@ -6,6 +6,9 @@
 })(this, function () {
   "use strict";
   const ROS = (typeof module !== "undefined" && module.exports) ? require("./ros.js") : window.ROS;
+  // Season simulation (rostersim.js). Optional at load: a page that did not ship
+  // it simply never opens the simulated drop cost.
+  const ROSTERSIM = (typeof module !== "undefined" && module.exports) ? require("./rostersim.js") : (typeof window !== "undefined" ? window.RosterSim : undefined);
 
   const SKILL = new Set(["QB", "RB", "WR", "TE"]);
   const SLOT_ELIGIBLE = {
@@ -126,6 +129,15 @@
     }
     return { fresh: !reason, starts, covered, reason };
   }
+  // One projection week as the simulation wants it: {status:"bye"} or
+  // {status:"play", p10, p50, p90} with finite ordered quantiles, else null.
+  function simRow(row) {
+    if (row.status === "bye") return { status: "bye" };
+    if (row.status !== "conditional_projection") return null;
+    const l = row.points && row.points.league;
+    const p10 = finite(l && l.p10), p50 = finite(l && l.p50), p90 = finite(l && l.p90);
+    return p10 !== null && p50 !== null && p90 !== null && p10 <= p50 && p50 <= p90 ? { status: "play", p10, p50, p90 } : null;
+  }
   // Rest-of-season projections, guarded like weeklyMap: same league, same
   // scoring contract, same season, start week equal to the analysed week,
   // fresh within 72 hours. Returns per-player per-week points for the FUTURE
@@ -149,26 +161,68 @@
     if (finite(remaining.start_week) === null || expectedWeek === null || finite(remaining.start_week) !== expectedWeek) return none("remaining-season start week does not match requested week");
     if (!Number.isFinite(generated) || age < -3600000 || age > 72 * 3600000) return none("remaining-season projections are stale (over 72 hours old)");
     if (!Array.isArray(remaining.players) || endWeek === null || !Number.isInteger(endWeek) || endWeek < expectedWeek) return none("remaining-season payload is incomplete");
-    const at = new Map(), unmodeled = new Set();
+    const at = new Map(), unmodeled = new Set(), sim = new Map();
     remaining.players.forEach(r => {
       const bp = boardByGsis.get(id(r.player_id));
       const pid = playerId(bp);
       if (!bp || pid === null || pid === undefined) return;
-      const rows = new Map();
+      const rows = new Map(), simRows = new Map();
       const teamOk = playerTeam(bp) && team(r.team) === playerTeam(bp);
       for (let w = expectedWeek + 1; w <= endWeek; w++) {
         const row = (r.weeks || []).find(x => finite(x.week) === w);
         let v = null;
+        // What the season simulation reads: the same rows, but with the p10/p90
+        // band. null means this week cannot be simulated (unknown is never zero).
+        simRows.set(w, teamOk && row ? simRow(row) : null);
         if (teamOk && row && row.status === "bye") v = 0;
         else if (teamOk && row && row.status === "conditional_projection") v = finite(row.points && row.points.league && row.points.league.p50);
         if (v === null) unmodeled.add(id(pid));
         rows.set(w, v);
       }
-      at.set(id(pid), rows);
+      at.set(id(pid), rows); sim.set(id(pid), simRows);
     });
-    return { fresh:true, reason:null, endWeek, generatedAt:remaining.generated_at, dataThrough:remaining.data_through ?? null, at, unmodeled,
+    return { fresh:true, sim, reason:null, endWeek, generatedAt:remaining.generated_at, dataThrough:remaining.data_through ?? null, at, unmodeled,
              evaluation: remaining.evaluation === undefined ? null : remaining.evaluation };
   }
+  // Gate for the simulated drop cost. Mirrors the trade page's evalView
+  // semantics (schema_version 2 only; the league slug matches the primary entry or
+  // the secondary entry, each with its OWN fields; the entry's slots equal the
+  // live starter slots as a multiset) but the field that must read "pass" is
+  // waiver_verdict. FAM's secondary entry is open only on its own
+  // waiver_verdict; the primary's never opens another league. Anything missing,
+  // malformed or mismatched is closed.
+  const STARTER_SLOTS = new Set(["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX"]);
+  const starterSlotList = positions => (Array.isArray(positions) ? positions : []).filter(s => STARTER_SLOTS.has(s));
+  const sameSlots = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.slice().sort().join(",") === b.slice().sort().join(",");
+  function waiverGateOpen(evalFile, league) {
+    if (!evalFile || typeof evalFile !== "object" || evalFile.schema_version !== 2 || !league || typeof league.slug !== "string" || !league.slug) return false;
+    const live = starterSlotList(league.roster_positions);
+    const secondary = evalFile.secondary && typeof evalFile.secondary === "object" ? evalFile.secondary : null;
+    return [evalFile, secondary].some(c => !!c && typeof c.league === "string" && c.league !== "" && c.league === league.slug && c.waiver_verdict === "pass" && sameSlots(c.slots, live));
+  }
+  // Simulation constants. Rows stay ordered by this week's lineup gain; the simulation only re-prices them.
+  // Pass 1 (coarse) prices the rows of the quota adds, whole adds in order while they fit a 60-row work
+  // budget, at 200 sims. Pass 2 re-prices whole adds at 2000 sims with the same seed, but only while they fit
+  // the much smaller 8-row budget: a desk whose adds each have more than 8 drop rows never runs it, so every
+  // simulated row is then at 200 sims. simulationCoverageText reports what actually ran. The caps are the
+  // measured cost of the engine (about 25 ms per row at 200 sims, 270 ms at 2000, over 16 weeks), not a
+  // modelling choice. lastMeasuredWeek: the backtest measured weeks through 17 only.
+  const SIM = Object.freeze({ seed: 20260924, coarseSims: 200, fineSims: 2000, quota: Object.freeze({ QB: 2, RB: 3, WR: 3, TE: 2 }), coarseRowBudget: 60, fineRowBudget: 8, lastMeasuredWeek: 17 });
+  // The replacement pool's head count per position (dedicated + FLEX for RB/WR/TE, + SUPER_FLEX for every
+  // position); the trade page and the backtest size theirs the same way.
+  function poolNeeds(starterSlots) {
+    const count = s => starterSlots.filter(x => x === s).length, flex = count("FLEX"), sflex = count("SUPER_FLEX");
+    return { QB: count("QB") + sflex, RB: count("RB") + flex + sflex, WR: count("WR") + flex + sflex, TE: count("TE") + flex + sflex };
+  }
+  // The coverage line, from the summary of what ran this load. Never claims a pass that did not run.
+  function simulationCoverageText(sim) {
+    if (!sim) return null;
+    if (sim.fallbackReason) return `Simulation unavailable: ${sim.fallbackReason}; lineup-only prices are shown.`;
+    if (!sim.rowsSimulated) return "No add was simulated this load; lineup-only prices are shown.";
+    const plural = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`;
+    return `Drop costs for simulated rows come from a seeded season simulation that includes absences, byes and replacement-level pickups: ${plural(sim.addsSimulatedCoarse, "add")} simulated at ${sim.coarseSims} sims, ${sim.addsSimulatedFine} at ${sim.fineSims}; ${plural(sim.rowsLineupOnly, "row")} lineup-only.`;
+  }
+  const isSimError = e => !!e && e.name === "RosterSimError";
   // Conservative product threshold, not a validated noise or confidence cutoff:
   // a modeled gain under one projected point per week stays visible for
   // research but never becomes a bid or a priority claim. Whether gains this
@@ -198,15 +252,22 @@
     const addContributes = withAdd - ros.baseline;
     if (!drop) {
       if (!Number.isFinite(addContributes)) return { status:"open_slot", label:"no drop required; future roster flexibility is not priced", addContributes:null, rosDelta:null, futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
-      return { status:"open_slot", label:"no drop required; roster flexibility is not priced", addContributes:r2(addContributes), rosDelta:r2(addContributes), futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
+      const open = { status:"open_slot", label:"no drop required; roster flexibility is not priced", addContributes:r2(addContributes), rosDelta:r2(addContributes), futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
+      if (ros.simulated) { open.simulation = { nSims: ros.simulated.nSims }; open.label = `no drop required; simulated rest-of-season add value (absences, byes, replacement) (${ros.simulated.nSims} sims)`; }
+      return open;
     }
     const after = ros.value(ros.roster.filter(x => id(playerId(x)) !== id(playerId(drop))).concat([add]));
     const dropForfeits = withAdd - after, rosDelta = after - ros.baseline;
     if (![withAdd, after, ros.baseline].every(Number.isFinite))
       return { status:"unassessed", label:"drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered", reason:"roster cannot field a full lineup from modeled players in every future week" };
     const weekSpan = ros.futureWeeks === 0 ? "no future weeks remain" : `weeks ${ros.firstWeek}–${ros.endWeek}`;
-    return { status:"priced", label:`priced: rest-of-season lineup change over ${weekSpan}, assuming participation`,
+    const priced = { status:"priced", label:`priced: rest-of-season lineup change over ${weekSpan}, assuming participation`,
              addContributes:r2(addContributes), dropForfeits:r2(dropForfeits), rosDelta:r2(rosDelta), futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
+    if (ros.simulated) {
+      priced.label = `simulated rest-of-season change (absences, byes, replacement) (${ros.simulated.nSims} sims)`;
+      priced.simulation = { nSims: ros.simulated.nSims };
+    }
+    return priced;
   }
   // `gain` is the per-week value the bands read (move value per week, or this
   // week's gain under the fallback). Precedence, first match wins: affordability,
@@ -413,17 +474,154 @@
     const rosUnmodeledOwned = rosMap.fresh ? futureRoster.filter(rosUnmodeled).map(p => ({ id:id(playerId(p)), name:p.name || p.full_name || id(playerId(p)) })) : [];
     if (weekly.fresh && !rosMap.fresh) warnings.push(`${rosMap.reason}; drop costs unassessed, spend guidance limited to open-slot adds`);
     if (rosUnmodeledOwned.length) warnings.push(`${rosUnmodeledOwned.length} roster player(s) have no rest-of-season projection and are excluded from future lineups: ${rosUnmodeledOwned.map(x => x.name).join(", ")}`);
-    const rows = [];
-    const compare = (add, drop, withAdd) => {
+    // ---- gated simulation pass --------------------------------------------
+    function simulateRows(pairs) {
+      const nameOf = p => p.name || p.full_name || id(playerId(p));
+      const noteOf = reason => `simulation unavailable: ${reason}`;
+      // Every row leaves this function with an explicit pricing label. A row is
+      // "simulated" (repriced below) or "lineup" (today's lineup-only price); a
+      // lineup row carries a note only when the engine actually failed.
+      const LINEUP_LABEL = "lineup-only estimate (not simulated; assumes participation)";
+      const finalize = (pair, note) => {
+        const row = pair.row;
+        if (row.pricing === "simulated") return;
+        let dc = row.dropCost;
+        if (dc.status === "priced") dc = { ...dc, label: LINEUP_LABEL };
+        const shown = note && (dc.status === "priced" || dc.status === "open_slot") ? note : null;
+        if (shown) dc = { ...dc, simulationNote: shown };
+        pair.row = { ...row, dropCost: dc, pricing: "lineup", warnings: shown ? [shown] : [] };
+      };
+      const summary = { gate: "open", coarseSims: SIM.coarseSims, fineSims: SIM.fineSims, rowsSimulated: 0, rowsLineupOnly: 0, addsSimulatedCoarse: 0, addsSimulatedFine: 0, fallbackReason: null };
+      const addsAt = nSims => new Set(pairs.filter(x => x.row.pricing === "simulated" && x.row.simulation.nSims === nSims).map(x => id(playerId(x.e.add)))).size;
+      const count = () => {
+        summary.rowsSimulated = pairs.filter(x => x.row.pricing === "simulated").length; summary.rowsLineupOnly = pairs.length - summary.rowsSimulated;
+        summary.addsSimulatedCoarse = addsAt(SIM.coarseSims); summary.addsSimulatedFine = addsAt(SIM.fineSims);
+        return summary;
+      };
+      const fallbackAll = reason => { summary.fallbackReason = reason; pairs.forEach(pr => { if (pr.orig) pr.row = pr.orig; finalize(pr, noteOf(reason)); }); return count(); };
+      if (!ROSTERSIM) return fallbackAll("the roster simulation is not loaded");
+      if (rosMap.endWeek > SIM.lastMeasuredWeek) return fallbackAll(`weeks after ${SIM.lastMeasuredWeek} are not measured`);
+      const weeks = []; for (let w = firstFuture; w <= rosMap.endWeek; w++) weeks.push(w);
+      const specOf = p => {
+        const rowsByWeek = rosMap.sim.get(id(playerId(p)));
+        if (!rowsByWeek) return null;
+        const wk = {};
+        for (const w of weeks) { const r = rowsByWeek.get(w); if (!r) return null; wk[w] = r; }
+        return { position: position(p), tag: p.injury_status || null, weeks: wk };
+      };
+      const invalid = p => `${nameOf(p)} has no valid rest-of-season p10/p50/p90`;
+      // Roster: a lineup-unmodeled member is excluded exactly as today's lineup
+      // path excludes him; one that is modeled for the lineup but not simulatable
+      // blocks the whole simulation (his absence from the sim would misprice everyone).
+      const rosterPlayers = {}, excluded = new Set();
+      for (const p of ros.roster) {
+        if (rosUnmodeled(p)) { excluded.add(id(playerId(p))); continue; }
+        const sp = specOf(p);
+        if (!sp) return fallbackAll(invalid(p));
+        rosterPlayers[id(playerId(p))] = sp;
+      }
+      // Decision set = the backtest's per-position quota of free agents (spec §10.1):
+      // the top free agents by mean ROS p50 over the future weeks, QB 2 / RB 3 /
+      // WR 3 / TE 2. Only adds in that set are simulated, and the replacement pool is
+      // the free agents minus exactly that set (the backtest's rule, in every arm),
+      // so an add is never also his own replacement. One world per desk load keeps
+      // common random numbers. Everything else keeps the lineup-only price.
+      // Spec §10.7: only free agents the engine tags Out or IR (Sus -> Out, PUP -> IR) are excluded from the quota set and
+      // the pool; Doubtful, Questionable and untagged stay eligible. (The lineup-only desk keeps its own unavailable rule.)
+      const heavyTag = p => { const t = ROSTERSIM.normalizeTag(String(p.injury_status || p.status || "")); return t === "Out" || t === "IR"; };
+      const freeAll = board.players.filter(p => mapped(p) && !owned.has(id(playerId(p))) && SKILL.has(position(p)) && !heavyTag(p));
+      // Rest-of-season value: the mean over ALL future weeks, a bye scoring 0.
+      const meanP50 = p => weeks.reduce((sum, w) => { const r = rosMap.sim.get(id(playerId(p))).get(w); return sum + (r && r.status === "play" ? r.p50 : 0); }, 0) / weeks.length;
+      const quotaSet = new Map();
+      for (const pos of Object.keys(SIM.quota)) {
+        freeAll.filter(p => position(p) === pos && !rosUnmodeled(p) && specOf(p))
+          .map(p => ({ p, m: meanP50(p), k: id(playerId(p)) })).sort((x, y) => y.m - x.m || (x.k < y.k ? -1 : 1))
+          .slice(0, SIM.quota[pos]).forEach(x => quotaSet.set(x.k, x.p));
+      }
+      const candidates = quotaSet;
+      // Replacement pool = free agents minus the quota set.
+      const need = poolNeeds(starterSlots);
+      const poolPlayers = board.players.filter(p => mapped(p) && !owned.has(id(playerId(p))) && SKILL.has(position(p)) && !heavyTag(p) && !quotaSet.has(id(playerId(p))));
+      summary.quotaIds = [...quotaSet.keys()]; summary.replacementIds = poolPlayers.map(p => id(playerId(p)));
+      const replacement = {};
+      for (const w of weeks) {
+        const by = { QB: [], RB: [], WR: [], TE: [] };
+        for (const p of poolPlayers) {
+          const r = (rosMap.sim.get(id(playerId(p))) || new Map()).get(w);
+          if (r && r.status === "play") by[position(p)].push({ id: id(playerId(p)), p10: r.p10, p50: r.p50, p90: r.p90 });
+        }
+        for (const pos of Object.keys(by)) by[pos] = by[pos].sort((x, y) => y.p50 - x.p50 || (x.id < y.id ? -1 : 1)).slice(0, need[pos]).map(({ p10, p50, p90 }) => ({ p10, p50, p90 }));
+        replacement[w] = by;
+      }
+      const world = (nSims, adds) => {
+        const players = { ...rosterPlayers };
+        adds.forEach(a => { players[id(playerId(a))] = specOf(a); });
+        return ROSTERSIM.createWorld({ weeks, slots: starterSlots, players, availability: args.availability, replacement, nSims, seed: SIM.seed });
+      };
+      const simRosOf = (w, nSims) => {
+        const value = ps => w.value(ps.map(x => id(playerId(x))).filter(k => !excluded.has(k))).mean;
+        const memo = new Map();
+        const sr = { ...ros, value, simulated: { nSims }, withAdd: add => { const k = id(playerId(add)); if (!memo.has(k)) memo.set(k, value(ros.roster.concat([add]))); return memo.get(k); } };
+        sr.baseline = value(ros.roster);
+        return sr;
+      };
+      const reprice = (pair, sr) => { if (!pair.orig) pair.orig = pair.row; pair.row = { ...buildRow(pair.e, dropCostOf(pair.e.drop, pair.e.add, sr, sr.withAdd(pair.e.add))), pricing: "simulated", simulation: { nSims: sr.simulated.nSims }, warnings: [] }; };
+      // Pricing is per ADD: every drop row of a selected quota add is priced together
+      // at the same nSims. Quota adds are ranked by their best row; the first
+      // coarseAdds are priced at 200 sims, the first fineAdds of those again at 2000.
+      const addOrder = [];
+      pairs.forEach(pr => { const k = id(playerId(pr.e.add)); if (candidates.has(k) && !addOrder.includes(k)) addOrder.push(k); });
+      // Whole adds are taken in rank order while their drop rows fit a work budget
+      // (measured engine cost: about 25 ms per row at 200 sims and 270 ms per row at
+      // 2000 sims over 16 weeks). The top add is always priced at 200 sims; the 2000-sim
+      // pass takes whole adds only while they fit its smaller budget.
+      const rowsOf = new Map(); pairs.forEach(pr => { const k = id(playerId(pr.e.add)); rowsOf.set(k, (rowsOf.get(k) || 0) + 1); });
+      const takeAdds = (budget, force) => { const out = new Set(); let used = 0; for (const k of addOrder) { if (!out.size && force) { out.add(k); used += rowsOf.get(k); continue; } if (used + rowsOf.get(k) > budget) break; out.add(k); used += rowsOf.get(k); } return out; };
+      const coarseAdds = takeAdds(SIM.coarseRowBudget, true), fineAdds = new Set([...takeAdds(SIM.fineRowBudget, false)].filter(k => coarseAdds.has(k)));
+      const priceSet = new Set(pairs.filter(pr => coarseAdds.has(id(playerId(pr.e.add)))));
+      const fineSet = pairs.filter(pr => fineAdds.has(id(playerId(pr.e.add))));
+      try {
+        // Pass 1 (coarse): every row in the price set, one world holding the roster and every candidate add.
+        const coarse = simRosOf(world(SIM.coarseSims, [...candidates.values()]), SIM.coarseSims);
+        for (const pr of priceSet) reprice(pr, coarse);
+        // Pass 2 (fine): the leading rows again at 2000 sims, same seed and same replacement pool.
+        if (fineSet.length) {
+          const fine = simRosOf(world(SIM.fineSims, [...new Map(fineSet.map(pr => [id(playerId(pr.e.add)), pr.e.add])).values()]), SIM.fineSims);
+          for (const pr of fineSet) reprice(pr, fine);
+        }
+      } catch (e) {
+        if (!isSimError(e)) throw e;
+        return fallbackAll(e.message);
+      }
+      for (const pr of pairs) {
+        const add = pr.e.add;
+        const k = id(playerId(add));
+        finalize(pr, !rosUnmodeled(add) && !specOf(add) ? noteOf(invalid(add)) : (candidates.has(k) ? "not simulated: outside the adds priced this load" : null));
+      }
+      return count();
+    }
+    const entries = [];
+    const collect = (add, drop) => {
       const next = availableOwn.filter(p => !drop || id(playerId(p)) !== id(playerId(drop))).concat([add]);
       const result = lineupScore(next, remainingStarterSlots, score);
       if (!Number.isFinite(result)) return;
       const gain = Math.round((result - baseline) * 100) / 100;
       if (gain <= 0) return;
+      entries.push({ add, drop, gain });
+    };
+    // R+A is the same roster value whichever drop is under consideration;
+    // computed once per add (§3.5), lazily, and only for adds that have a row.
+    const withAddMemo = new Map();
+    const withAddOf = add => {
+      const key = id(playerId(add));
+      if (!withAddMemo.has(key)) withAddMemo.set(key, ros.fresh && !ros.isUnmodeled(add) ? ros.value(ros.roster.concat([add])) : null);
+      return withAddMemo.get(key);
+    };
+    const buildRow = (entry, dropCost) => {
+      const { add, drop, gain } = entry;
       const valueEstimate = boardPoints(add);
       const addName = add.name || add.full_name || id(playerId(add));
       const dropName = drop ? (drop.name || drop.full_name || id(playerId(drop))) : null;
-      const dropCost = dropCostOf(drop, add, ros, withAdd);
       const priced = dropCost.rosDelta !== null && dropCost.rosDelta !== undefined;
       const moveValue = priced ? r2(gain + dropCost.rosDelta) : null;
       const basis = !weekly.fresh ? "proxy" : priced ? "move" : "this_week";
@@ -456,7 +654,7 @@
         : (priced
             ? `uses an open roster spot; ${addName} adds ${fmt(dropCost.addContributes)} over ${span}; roster flexibility is not priced`
             : `uses an open roster spot; ${addName}'s rest-of-season contribution is not priced; roster flexibility is not priced`);
-      rows.push({
+      return {
         add: { id: id(playerId(add)), name: addName, position: position(add) },
         drop: drop ? { id: id(playerId(drop)), name: dropName, position: position(drop) } : null,
         lineupGain: gain,
@@ -465,16 +663,22 @@
         valueEstimate: { points: valueEstimate, label: "board value estimate; not a FAAB price" },
         signal, rosterCost, dropCost,
         bid: rolling ? null : bidGuide(perWeekGain, budgetTotal, remaining, reserve, minBid, weak, dropCost, { lineupGain: gain, moveValue, addName, dropName })
-      });
+      };
     };
     freeAgents.forEach(add => {
-      // R+A is the same roster value whichever drop is under consideration;
-      // compute it once per add rather than once per (add, drop) pair.
-      const withAdd = ros.fresh && !ros.isUnmodeled(add) ? ros.value(ros.roster.concat([add])) : null;
-      if (hasOpenSlot) compare(add, null, withAdd);
-      else droppable.forEach(drop => compare(add, drop, withAdd));
+      if (hasOpenSlot) collect(add, null);
+      else droppable.forEach(drop => collect(add, drop));
     });
-    rows.sort((a, b) => b.lineupGain - a.lineupGain || (b.valueEstimate.points || -Infinity) - (a.valueEstimate.points || -Infinity));
+    const pairs = entries.map(e => ({ e, row: buildRow(e, dropCostOf(e.drop, e.add, ros, withAddOf(e.add))) }));
+    pairs.sort((a, b) => b.row.lineupGain - a.row.lineupGain || (b.row.valueEstimate.points || -Infinity) - (a.row.valueEstimate.points || -Infinity));
+    // Gate open: re-price the leading rows through the season simulation. Gate
+    // closed, or no fresh rest-of-season payload: nothing below runs and every
+    // row is exactly what the lineup-only path priced.
+    const gateSlug = args.leagueSlug !== undefined ? args.leagueSlug : (board.league && board.league.slug);
+    const simGate = ros.fresh && waiverGateOpen(args.evalFile, { slug: gateSlug, roster_positions: league.roster_positions });
+    let simSummary = null;
+    if (simGate) simSummary = simulateRows(pairs);
+    const rows = pairs.map(x => x.row);
     if (!rows.length) warnings.push("no positive legal skill-player waiver transaction found");
     const weakRows = rows.filter(r => r.signal.strength === "weak").length;
     if (weakRows) warnings.push(`${weakRows} alternative(s) gain under ${WEAK_SIGNAL_PTS.toFixed(1)} projected pt/week and are shown for research only; no bid or priority spend is suggested for them`);
@@ -494,8 +698,8 @@
                generatedAt: rosMap.generatedAt, dataThrough: rosMap.dataThrough,
                pricedOwned: ros.fresh ? futureRoster.length - rosUnmodeledOwned.length : null, unmodeledOwned: rosUnmodeledOwned,
                pricedFreeAgents: ros.fresh ? freeAgents.filter(p => !rosUnmodeled(p)).length : null,
-               evaluation: rosMap.evaluation } }
+               evaluation: rosMap.evaluation, ...(simSummary ? { simulation: simSummary } : {}) } }
     };
   }
-  return Object.freeze({ analyze });
+  return Object.freeze({ analyze, waiverGateOpen, SIM, poolNeeds, simulationCoverageText });
 });

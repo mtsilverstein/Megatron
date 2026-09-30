@@ -112,6 +112,9 @@ const statics = {
   "data/draft.json": draftBoard,
   "data/weekly.json": { league: { slug: "gabagool", league_id: L }, season: draftBoard.season, week: 3, generated_at: "2026-09-16T00:00:00Z", data_through: "2026-09-15", players: [] },
   "data/kickoffs.json": { season: draftBoard.season, week: 3, games: [] },
+  // The gated simulated drop cost's inputs (waivers.js waiverGateOpen / RosterSim).
+  "data/availability.json": { schema_version: 1, p_out: { QB: 0.08 }, p_stay: { QB: 0.8 }, p_tag: { Out: 0.7 } },
+  "data/trade_sim_eval.json": { schema_version: 2, league: "gabagool", waiver_verdict: "pass", slots: ["QB"] },
 };
 global.fetch = async p => statics[p] ? { ok: true, status: 200, json: async () => statics[p] } : { ok: false, status: 404, json: async () => ({}) };
 
@@ -194,6 +197,9 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal(b1.myRosterStatus, "found"); assert.equal(b1.myRoster.roster_id, 9);
   assert.match(statusText(), /^Connected read-only · roster 9 · rosters received /);
   assert.equal(analyzeCalls.length, 1, "one engine run per committed bundle");
+  // The desk hands the engine the simulation's inputs; the engine (not the desk) owns the gate.
+  assert.deepEqual(analyzeCalls[0].availability, statics["data/availability.json"], "availability.json reaches the engine");
+  assert.deepEqual(analyzeCalls[0].evalFile, statics["data/trade_sim_eval.json"], "the eval file reaches the engine");
   // The engine's kickoff gate is the PRE-request time; the two stamps differ.
   assert.equal(b1.rostersFetchedAt - b1.rostersRequestedAt, ROSTERS_STEP, "the fake rosters request took 5 s");
   assert.equal(analyzeCalls[0].snapshotAt, b1.rostersRequestedAt, "snapshotAt === bundle.rostersRequestedAt (kickoff gate)");
@@ -305,6 +311,19 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal(statusText(), "Roster snapshot expired. Refresh from the league panel before using waiver recommendations.");
   assert.ok($("waiver-results").hidden, "an expired snapshot hides the recommendations");
   assert.equal(analyzeCalls.length, an5 + 2, "expired: the engine is not run");
+
+  // 7. rowText: a fallback note reaches the export line, and only when present.
+  const baseRow = { add: { name: "Add" }, drop: { name: "Drop" }, lineupGain: 2, signal: { strength: "modeled", moveValue: 3, guidance: "g", label: "l" }, bid: { low: 1, high: 2, tier: "small", label: "b" },
+    valueEstimate: { label: "v" }, scoring: { label: "s" }, rosterCost: "rc", dropCost: { status: "priced", rosDelta: 1, endWeek: 5, futureWeeks: 2, label: "lab" } };
+  const result8 = { waiver: { guidance: "x" } };
+  const noted = WaiverMode.rowText({ ...baseRow, dropCost: { ...baseRow.dropCost, simulationNote: "simulation unavailable: reason x" } }, result8);
+  assert.match(noted.exportLine, /; simulation unavailable: reason x$/);
+  assert.doesNotMatch(WaiverMode.rowText(baseRow, result8).exportLine, /simulation/);
+  // A simulated open-slot row shows its label; a lineup one shows nothing extra (today's behaviour).
+  const openLabel = "no drop required; simulated rest-of-season add value (absences, byes, replacement)";
+  const openSim = { ...baseRow, drop: null, dropCost: { status: "open_slot", rosDelta: 4, endWeek: 5, futureWeeks: 2, label: openLabel, simulation: { nSims: 200 } } };
+  assert.equal(WaiverMode.rowText(openSim, result8).dropCostNote, openLabel);
+  assert.equal(WaiverMode.rowText({ ...openSim, dropCost: { ...openSim.dropCost, label: "no drop required; roster flexibility is not priced", simulation: undefined } }, result8).dropCostNote, null);
 
   Date.now = realNow;
   console.log("waivermode_session_fixture: real WaiverMode.init + real Session + real chip (gate, identify, identity change, failed/successful refresh, timestamps) OK");

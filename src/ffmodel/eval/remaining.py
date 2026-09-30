@@ -72,11 +72,16 @@ def evaluate_origin(*args, **kwargs):
         set_league_rules(previous)
 
 
-def _evaluate_origin(weekly, schedules, *, season, origin, horizons, league, predictor_factory):
-    if not 1 <= origin <= 17 or not horizons or any(type(h) is not int or h < 1 or origin+h-1 > 17 for h in horizons):
-        raise ValueError("invalid origin/horizons")
-    if len(set(horizons)) != len(horizons):
-        raise ValueError("duplicate horizons")
+def _origin_context(weekly, schedules, *, season, origin, league, predictor_factory, target_weeks=None):
+    """Everything frozen at the origin: pre-origin history, cohort/team map,
+    fitted model, scoring rules, pick-six prior, naive baseline, starter pool.
+
+    Sets the process-global league rules; callers restore them in a finally.
+    `target_weeks` given: pick-six scope follows whether those weeks' actual
+    counts are observed (the scoring diagnostic's symmetry rule). None: no
+    target-week row is read and pick-six cost is out of scope on both sides
+    (predicted stat components only).
+    """
     history = weekly[(weekly.season < season) | ((weekly.season == season) & (weekly.week < origin))].copy()
     if history.empty or not (history.season == season-1).any():
         raise ValueError("previous-season training history required")
@@ -87,13 +92,31 @@ def _evaluate_origin(weekly, schedules, *, season, origin, horizons, league, pre
     features = build_features(history, schedules)
     model = predictor_factory(features)
     model.fit(features[features.season < season])
-    target_actuals = weekly[(weekly.season == season) & weekly.week.isin([origin+h-1 for h in horizons])]
-    pick_six_observed = "passing_pick_sixes" in target_actuals and target_actuals.passing_pick_sixes.notna().all()
+    if target_weeks is None:
+        pick_six_observed = False
+    else:
+        target_actuals = weekly[(weekly.season == season) & weekly.week.isin(list(target_weeks))]
+        pick_six_observed = "passing_pick_sixes" in target_actuals and target_actuals.passing_pick_sixes.notna().all()
     rules = league.rules if pick_six_observed else replace(league.rules, pass_int_td=0)
     set_league_rules(rules)
     prior = load_pick_six_prior(season) if rules.pass_int_td else None
     baseline = recent_game_baseline(history, rules, include_pick_six=bool(pick_six_observed))
     pool = starter_pool(latest, baseline)
+    return {"history": history, "latest": latest, "teams": teams, "model": model, "rules": rules,
+            "prior": prior, "baseline": baseline, "pick_six_observed": pick_six_observed, "pool": pool}
+
+
+def _evaluate_origin(weekly, schedules, *, season, origin, horizons, league, predictor_factory):
+    if not 1 <= origin <= 17 or not horizons or any(type(h) is not int or h < 1 or origin+h-1 > 17 for h in horizons):
+        raise ValueError("invalid origin/horizons")
+    if len(set(horizons)) != len(horizons):
+        raise ValueError("duplicate horizons")
+    ctx = _origin_context(weekly, schedules, season=season, origin=origin, league=league,
+                          predictor_factory=predictor_factory,
+                          target_weeks=[origin+h-1 for h in horizons])
+    history, teams, model, rules = ctx["history"], ctx["teams"], ctx["model"], ctx["rules"]
+    prior, baseline, pool = ctx["prior"], ctx["baseline"], ctx["pool"]
+    pick_six_observed = ctx["pick_six_observed"]
     reports = []
     for horizon in sorted(horizons):
         week = origin+horizon-1

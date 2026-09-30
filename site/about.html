@@ -140,6 +140,17 @@
   draft board is built. Full numbers in
   models/diagnostics/rb_oos_weekly.json.</p>
   </div>
+  <h2>Trade and waiver simulation</h2>
+  <div class="prose">
+  <p>We built a season simulation to grade trades and tested it walk-forward
+  on 2023&ndash;2025, with the pass/fail rules fixed in advance. It picks
+  trade winners slightly better than today's method, but its ranges are too
+  narrow (80% intervals covered only 65&ndash;67% of outcomes), so the trade
+  grade stays off. Its waiver drop choices beat today's method in one
+  league format but not when we repeated the test in a second, so the
+  waiver desk keeps today's method. A second version will be tested on
+  2026.</p>
+  </div>
   <h2>Rookies</h2>
   <div class="prose">
   <p>Drafted rookies have no NFL games to model, so they get an empirical
