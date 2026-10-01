@@ -35,7 +35,7 @@ function buildWorld(label) {
   const curve = {};
   for (const p of players) (curve[p.position] = curve[p.position] || []).push(p.season_points.league.p50);
   for (const p of players) { p.value_points = curve[p.position][p.position_rank - 1]; p.vorp = p.value_points - curve[p.position][repl[p.position] - 1]; }
-  return { season: SEASON, label, format_key: FORMATS[label].key, compat: compatOf(label), model: "synthetic", replacement_rank: repl, players };
+  return { season: SEASON, format: label, format_key: FORMATS[label].key, compat: compatOf(label), model: "synthetic", replacement_rank: repl, players };
 }
 function buildForecast(label, drop) {
   const w = buildWorld(label), players = {};
