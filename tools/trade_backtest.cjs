@@ -821,6 +821,10 @@ function configHash(cfg) {
 /* Runs `specs` (jobs = worker threads, or in-process at 1) and hands each finished result to onDone(spec index,
    result) as it lands. A worker that errors OR exits without finishing rejects the run; it never hangs. */
 async function runCells(specs, jobs, onDone, { workerFile = __filename } = {}) {
+  if (workerFile !== __filename && (jobs <= 1 || specs.length <= 1)) {
+    // The in-process path below runs THIS file's executeCell; it would silently ignore the caller's worker.
+    throw new Error(`runCells: workerFile ${workerFile} needs jobs > 1 and more than one spec (the in-process path runs executeCell of trade_backtest); run the caller's own cell function in-process instead`);
+  }
   if (jobs <= 1 || specs.length <= 1) {
     specs.forEach((s, i) => onDone(i, executeCell(s)));
     return;
@@ -828,7 +832,7 @@ async function runCells(specs, jobs, onDone, { workerFile = __filename } = {}) {
   const { Worker } = require("worker_threads");
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(jobs, specs.length) }, () => new Promise((resolve, reject) => {
-    const w = new Worker(workerFile, { workerData: { role: "cell-worker" } });
+    const w = new Worker(workerFile, { workerData: { role: "cell-worker", file: workerFile } });
     let closing = false, current = null;
     const fail = err => { if (closing) return; closing = true; w.terminate(); reject(err); };
     const feed = () => {
@@ -1029,7 +1033,9 @@ async function main() {
 }
 
 const { isMainThread, parentPort, workerData } = (() => { try { return require("worker_threads"); } catch (e) { return { isMainThread: true }; } })();
-if (!isMainThread && workerData && workerData.role === "cell-worker") {
+// Only the worker FILE answers: another tool that requires this module and hosts its own cells through
+// runCells(..., { workerFile }) must not get a second (wrong) handler from this one.
+if (!isMainThread && workerData && workerData.role === "cell-worker" && (workerData.file || __filename) === __filename) {
   parentPort.on("message", ({ i, spec }) => {
     try { parentPort.postMessage({ i, result: executeCell(spec) }); }
     catch (e) { parentPort.postMessage({ i, error: e && e.stack || String(e) }); }
@@ -1041,4 +1047,4 @@ if (!isMainThread && workerData && workerData.role === "cell-worker") {
 module.exports = { meanP50ByeZero, frozenStarters, depthForStarter, waiverAdds, markLopsided, horizonsOf, buildSlim, checkAvailability, checkForecastFile, isInside, availabilityOff, availabilityOffBlock, WAIVER_QUOTA, sampleTrades, predictSim, predictLineupOnly, realized, realizedRoster, metrics, bootstrap, bootstrapWaiver,
                    verdict, verdictChecks, waiverVerdict, waiverMetrics, runCell, buildSimWorld, replacementPool, poolSizes,
                    isCovered, replOf, meanP50, afterRoster, overflowDrop, roundDeep, percentile, mulberry32, hashStr, slotsOf,
-                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, readRho, runCells, finalizeLeague, cellKey, starterSet, p50Of, positionOf, HEAVY_TAGS, tradeStrata, probeArms, naiveProjOf, tradeSides };
+                   BacktestError, STRATA, PREDECLARED, clusterKey, parseArgs, openStore, configHash, readRho, runCells, finalizeLeague, cellKey, starterSet, p50Of, positionOf, HEAVY_TAGS, tradeStrata, probeArms, naiveProjOf, tradeSides, block, regretOf };

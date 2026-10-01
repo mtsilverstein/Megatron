@@ -1,7 +1,7 @@
 // tools/prospective_materialize.cjs — the decision population of the prospective test, at one origin.
 //
 //   node tools/prospective_materialize.cjs --season 2026 --origin 5 \
-//        --formats f12-1qb-ppr-6,f10-1qb-ppr-6,f12-1qb-ppr-4,f12-sf-ppr-4 --exploratory f12-1qb-half-4 \
+//        --formats f12-1qb-ppr-6,f10-1qb-ppr-6,f12-1qb-ppr-4,f12-1qb-half-4 --exploratory f12-sf-ppr-4 \
 //        --worlds-dir models/prospective/2026 --forecasts-dir models/prospective/2026/o5 \
 //        --tags models/prospective/2026/o5/tags_w4.json --leagues 20 --trades 125 \
 //        --out models/prospective/2026/o5/decisions \

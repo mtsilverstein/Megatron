@@ -555,6 +555,12 @@ acheck("z_dead_worker_fails_loudly", async () => {
   await assert.rejects(Promise.race([T.runCells(SPECS, 2, () => {}, { workerFile: dead }), timeout]), /worker exited/);
 });
 
+acheck("z2_workerfile_needs_a_pool", async () => {
+  // a custom workerFile with jobs <= 1 (or one spec) would silently run trade_backtest's own executeCell
+  await assert.rejects(T.runCells(SPECS, 1, () => {}, { workerFile: path.join(TMP, "x.js") }), /workerFile/);
+  await assert.rejects(T.runCells(SPECS.slice(0, 1), 4, () => {}, { workerFile: path.join(TMP, "x.js") }), /workerFile/);
+});
+
 /* (aa) review M9: the waiver add set and pool are published per cell in the full file. */
 check("aa_waiver_audit_published", () => {
   const cell = T.runCell(RC({ forecasts: FC4, actualWeeks: ACT4, undrafted: UND4, waiver: true, waiverQuota: { QB: 1, RB: 1, WR: 0, TE: 0 } }));
