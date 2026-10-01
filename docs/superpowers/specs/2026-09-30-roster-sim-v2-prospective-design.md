@@ -286,6 +286,15 @@ After week 17: an outcome artifact (weekly actuals in the modeled scope for week
 **2027-01-12**, hashed and committed separately from the prediction side; later stat corrections are ignored. The
 frozen evaluator runs at the frozen SHA (B's sharded runner if ready, otherwise locally).
 
+**Amendment 2026-10-01 (astra branch review I1, before any freeze):** the outcome source is a **raw stats
+snapshot** captured by the scheduled outcome workflow (cron on 2027-01-12, 13 and 14, UTC) — the nflverse weekly
+player-stats file for 2026 — committed with its SHA-256 and the capture date as `as_of`. The outcome artifact is
+built only from that committed snapshot (a later rebuild reuses it; it never re-downloads). A capture is accepted
+only on 2027-01-12, 2027-01-13 or 2027-01-14 (two scheduler retries); the evaluator requires `as_of` in that window
+and publishes it. No capture in the window → no outcome artifact and the test is reported as not evaluated (a
+published protocol failure); a later download is never backdated. In the origin-9-only contingency (§7.5) the
+outcome workflow builds from the origin-9 tag's code and environment instead of origin 5's.
+
 ## 8. Gates and the site
 
 New `site/data/sim_gates.json` (schema_version 3): one record per (format_key, feature ∈ {trade_grade, waiver_sim}),
