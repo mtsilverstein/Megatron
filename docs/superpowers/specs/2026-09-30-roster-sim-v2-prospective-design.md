@@ -85,22 +85,36 @@ No fixture asserts "every interval widens".
 
 ## 4. Format contract (the B/C slice A needs)
 
-### 4.1 Primary formats (frozen; astra round 3, `.review/astra-v2-formats-response.md`)
+### 4.1 Primary formats (frozen; astra rounds 3–4, `.review/astra-v2-formats-response.md`, `.review/astra-v2-superflex-response.md`)
 
 Synthetic league configs in the existing `configs/leagues/*.yaml` schema, placed in `configs/formats/`:
 
 | Key label | Teams | Starters | Rounds | Scoring |
 | --- | ---: | --- | ---: | --- |
-| `f12-1qb-ppr-6` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 15 | Gabagool's complete `sleeper_scoring`, copied |
-| `f10-1qb-ppr-6` | 10 | same | 15 | FAM's complete `sleeper_scoring`, copied separately (no distance bonuses) |
-| `f12-1qb-ppr-4` | 12 | same | 15 | reception 1.0, pass TD 4, pass_int −2, pass_int_td 0, no bonuses; else as Gabagool's offensive weights |
-| `f12-sf-ppr-4` | 12 | QB, RB×2, WR×3, TE, SUPER_FLEX×1 (QB/RB/WR/TE) | 15 | same as `f12-1qb-ppr-4` |
+| `f12-1qb-ppr-6` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 13 | Gabagool's complete `sleeper_scoring`, copied |
+| `f10-1qb-ppr-6` | 10 | same | 13 | FAM's complete `sleeper_scoring`, copied separately (no distance bonuses) |
+| `f12-1qb-ppr-4` | 12 | same | 13 | reception 1.0, pass TD 4, pass_int −2, pass_int_td 0, no bonuses; else as Gabagool's offensive weights |
+| `f12-1qb-half-4` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 13 | as `f12-1qb-ppr-4` with reception 0.5 |
 
 `f12-1qb-ppr-4` is the four-point full-PPR reference format (no claim that this exact configuration is the modal
-public one). The superflex shape is QB/RB×2/WR×3/TE/SUPER_FLEX because the league schema has one flex type per
-league (`flex_positions` containing QB makes every flex slot SUPER_FLEX). Half-PPR (`f12-1qb-half-4`) runs as an
-exploratory arm and cannot pass; no format inherits another's verdict. A qualifying owner-format trade result opens
-only the labeled experimental trade display, never ordinary advice or waiver advice.
+public one). **Amendment 2026-09-30 (before any freeze; astra round 4):** superflex was replaced by half-PPR as the
+fourth primary format. Reason: simulated opponents draft from the market (`draft_sim.cjs::marketOrder`), and the only
+preseason 2026 market is 1QB PPR ECR (`data_snapshots/fantasypros_ecr_2026-09-08.csv`); a superflex population
+drafted from a 1QB market (and an opponent model that never demands a second starting QB) is not a realistic
+superflex league, and no preseason superflex market exists (a current rolling ADP would leak in-season
+information). `f12-1qb-half-4` uses the PPR ECR as a **declared proxy** for the half-PPR market (same 1QB roster
+demand; reception scoring can still reorder players, size not established). `f12-sf-ppr-4` — QB, RB×2, WR×3, TE,
+SUPER_FLEX×1 (the league schema has one flex type per league) — runs as an **exploratory synthetic stress test**: it
+cannot pass or open any feature. A 2027 superflex test needs a genuinely preseason superflex market and a
+predeclared superflex opponent model. No thresholds changed; the swap was made on input suitability before any
+2026 outcome or evaluation existed. Each format — primary and exploratory — gets its own world valued under its own
+config, with the market source, snapshot date, hash and proxy use recorded (§7.1). A qualifying owner-format trade
+result opens only the labeled experimental trade display, never ordinary advice or waiver advice.
+
+**Amendment 2026-09-30 (final review I2, before any freeze):** the synthetic drafts run **13 rounds** — the
+offensive roster size of §4.3 (both owner leagues draft 15 rounds, two of which go to K and DEF, which are not
+modeled). Drafting 15 skill players per team would overstate roster depth and shrink the free-agent pool relative
+to the real leagues. The Rounds column above is the simulated skill-player draft length.
 
 ### 4.2 Format key and compatibility signature
 
@@ -153,7 +167,9 @@ no v2 trade/waiver score is computed on them.
    negative estimate becomes 0 and is reported as a diagnostic. Uncertainty: 2,000 bootstrap resamples of players
    (all their trajectories together). No origin interaction.
 5. **Other lenses.** Fit once on `f12-1qb-ppr-4`; report each other primary lens's own estimates as diagnostics; the
-   single table is used for all formats. The same player outcomes under several scorings are not extra samples.
+   single table is used for all formats. (Amendment 2026-09-30, before the freeze: those per-lens diagnostics are produced
+   after the freeze in a separate `rho_lens_diagnostics.json`; they are development-data diagnostics, never
+   decision inputs, and cannot change the frozen table.) The same player outcomes under several scorings are not extra samples.
 6. **Output.** `models/prospective/2026/rho.json` (table, counts of players / trajectories / week pairs, support
    violations, bootstrap intervals, diagnostics), frozen in the origin-5 manifest. Sanity check reported: the
    implied season-variance multiplier 1 + (n−1)ρ against the diagnosed 1.7–3.0×.
@@ -213,7 +229,7 @@ v2, so no waiver rescue is predicted. A trade pass never opens waiver advice, no
 
 Width, tail misses, interval score by origin and stratum; superiority over current; teammate/stack subsets; the
 concentration sensitivity (drop the 10 highest-exposure players / teams, both origins together); support violations;
-the exploratory half-PPR arm; and, as context only, v1's per-season coverage from its frozen outputs
+the exploratory superflex arm; and, as context only, v1's per-season coverage from its frozen outputs
 (Gabagool 2023 0.716, 2024 0.595, 2025 0.640; FAM 0.733, 0.626, 0.637 — a misspecified model's spread, not a
 measurement of v2's season-shock false-failure rate). One season is disclosed as one season: every synthetic league
 shares the same realized 2026 outcomes.
@@ -269,6 +285,15 @@ only, labeled **exploratory**, and cannot yield `conditional_pass`.
 After week 17: an outcome artifact (weekly actuals in the modeled scope for weeks 5–17) is built from stats as of
 **2027-01-12**, hashed and committed separately from the prediction side; later stat corrections are ignored. The
 frozen evaluator runs at the frozen SHA (B's sharded runner if ready, otherwise locally).
+
+**Amendment 2026-10-01 (astra branch review I1, before any freeze):** the outcome source is a **raw stats
+snapshot** captured by the scheduled outcome workflow (cron on 2027-01-12, 13 and 14, UTC) — the nflverse weekly
+player-stats file for 2026 — committed with its SHA-256 and the capture date as `as_of`. The outcome artifact is
+built only from that committed snapshot (a later rebuild reuses it; it never re-downloads). A capture is accepted
+only on 2027-01-12, 2027-01-13 or 2027-01-14 (two scheduler retries); the evaluator requires `as_of` in that window
+and publishes it. No capture in the window → no outcome artifact and the test is reported as not evaluated (a
+published protocol failure); a later download is never backdated. In the origin-9-only contingency (§7.5) the
+outcome workflow builds from the origin-9 tag's code and environment instead of origin 5's.
 
 ## 8. Gates and the site
 

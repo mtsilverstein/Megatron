@@ -53,6 +53,9 @@ class LeagueConfig:
     # league gets a static board and the page must not offer it controls that
     # cannot work. Defaults to "sleeper" so both existing configs are unchanged.
     platform: str = "sleeper"
+    # Offensive roster size (starters + BN; K/DEF/IR/TAXI excluded). Optional for
+    # the owner leagues; required by configs/formats/*.yaml (see ffmodel.formats).
+    roster_size: int | None = None
 
     @property
     def dedicated(self) -> dict[str, int]:
@@ -143,6 +146,7 @@ def load_league(slug: str, root: Path | None = None) -> LeagueConfig:
         rounds=int(data["rounds"]), scoring=dict(data["scoring"]),
         depth_cap=dict(data["depth_cap"]), keeper_rules=data.get("keeper_rules"),
         platform=str(data.get("platform", "sleeper")),
+        roster_size=(int(data["roster_size"]) if "roster_size" in data else None),
         sleeper_scoring=(dict(data["sleeper_scoring"])
                          if "sleeper_scoring" in data else None))
     if cfg.sleeper_scoring is not None:

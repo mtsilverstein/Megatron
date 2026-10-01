@@ -791,3 +791,43 @@ def test_snapshot_guard_ignores_an_undated_path(tmp_path):
     from ffmodel.data.pull import assert_snapshot_is_newest
     _snap(tmp_path, "fantasypros_adp_2026-09-07.csv")
     assert_snapshot_is_newest(_snap(tmp_path, "keepers.csv"))
+
+
+def test_frozen_cache_reads_an_expired_file_and_never_calls_the_loader(tmp_path, monkeypatch):
+    from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, _cached
+
+    calls = []
+    _cached(tmp_path, "live", _stub(pd.DataFrame({"a": [1]}), calls), LIVE_MAX_AGE_HOURS)
+    _age(tmp_path / "live.parquet", LIVE_MAX_AGE_HOURS + 100)
+    monkeypatch.setenv("FFMODEL_CACHE_FROZEN", "1")
+    got = _cached(tmp_path, "live", _stub(pd.DataFrame({"a": [2]}), calls), LIVE_MAX_AGE_HOURS)
+    assert got["a"].tolist() == [1] and len(calls) == 1
+
+
+def test_frozen_cache_missing_file_raises_and_never_downloads(tmp_path, monkeypatch):
+    import pytest
+    from ffmodel.data.pull import _cached
+
+    calls = []
+    monkeypatch.setenv("FFMODEL_CACHE_FROZEN", "1")
+    with pytest.raises(RuntimeError, match="cache frozen: nope missing"):
+        _cached(tmp_path, "nope", _stub(pd.DataFrame({"a": [1]}), calls))
+    with pytest.raises(RuntimeError, match="cache frozen"):
+        _cached(None, "nope", _stub(pd.DataFrame({"a": [1]}), calls))
+    assert calls == [] and not (tmp_path / "nope.parquet").exists()
+
+
+def test_frozen_real_cached_path_with_clock_past_ttl_does_not_call_loader(tmp_path, monkeypatch):
+    import ffmodel.data.pull as P
+
+    calls = []
+    P._cached(tmp_path, "w", _stub(pd.DataFrame({"a": [1]}), calls), covers_seasons=[2026])
+    real = P.time.time()
+    monkeypatch.setattr(P.time, "time", lambda: real + (P.LIVE_MAX_AGE_HOURS * 3600 + 1))
+    monkeypatch.setattr(P, "current_nfl_season", lambda d=None: 2026)  # written "during" the covered season
+    # sanity: unfrozen, the same call past the TTL does re-pull
+    P._cached(tmp_path, "w", _stub(pd.DataFrame({"a": [2]}), calls), covers_seasons=[2026])
+    assert len(calls) == 2
+    monkeypatch.setenv("FFMODEL_CACHE_FROZEN", "1")
+    got = P._cached(tmp_path, "w", _stub(pd.DataFrame({"a": [3]}), calls), covers_seasons=[2026])
+    assert len(calls) == 2 and got["a"].tolist() == [2]

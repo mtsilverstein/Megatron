@@ -38,8 +38,8 @@
     const q = p - 0.5, r = q * q;
     return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
   }
-  // Two-piece normal through (p10, p50, p90). Floor is 0 when p10 >= 0; otherwise
-  // it's the reflection of p50 about p10 (2*p10 - p50), which keeps p10 exact
+  // Two-piece normal through (p10, p50, p90). Floor is min(0, 2*p10): 0 when
+  // p10 >= 0, otherwise 2*p10 (twice the negative p10), which keeps p10 exact
   // without piling the whole bottom decile onto one clamped value the way a
   // floor of exactly p10 would. u is clamped away from {0,1}: invNorm(0) is
   // -Infinity, and -Infinity * 0 is NaN whenever the spread on that side is 0
@@ -53,6 +53,16 @@
     const x = q.p50 + z * s, floor = Math.min(0, 2 * q.p10);
     return x < floor ? floor : x;
   }
+  function normCdf(x) { // Abramowitz-Stegun 7.1.26 via erf; |err| < 1.5e-7
+    const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2);
+    const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2);
+    return x >= 0 ? 0.5 * (1 + y) : 0.5 * (1 - y);
+  }
+  function gauss(rand) { // Box-Muller, consumes exactly two uniforms
+    const u1 = Math.max(rand(), 1e-300), u2 = rand();
+    return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  }
+  const ZERO_RHO = Object.freeze({ QB: 0, RB: 0, WR: 0, TE: 0 });
   function checkQ(q, where) {
     if (!q || ![q.p10, q.p50, q.p90].every(Number.isFinite) || !(q.p10 <= q.p50 && q.p50 <= q.p90))
       fail(`invalid quantiles for ${where}`);
@@ -63,14 +73,25 @@
   const TAG_KEYS = ["Out", "Doubtful", "Questionable", "IR"];
 
   function createWorld(cfg) {
-    const { weeks, slots, players, availability: A, replacement, forcedOut = {}, nSims = 2000, seed = 1 } = cfg || {};
+    const { weeks, slots, players, availability: A, replacement, forcedOut = {}, nSims = 2000, seed = 1, copula } = cfg || {};
     if (!Array.isArray(weeks) || !weeks.length || !weeks.every(Number.isInteger)) fail("weeks required");
     if (!Array.isArray(slots) || !slots.length) fail("slots required");
     for (const s of slots) if (!ALLOWED_SLOTS.has(s)) fail(`unsupported lineup slot ${s}; callers must pass starter slots only`);
     for (const pos of POS) if (!(A && Number.isFinite(A.p_out?.[pos]) && Number.isFinite(A.p_stay?.[pos]))) fail(`availability rates missing for ${pos}`);
     for (const t of TAG_KEYS) if (!Number.isFinite(A?.p_tag?.[t])) fail(`availability p_tag.${t} missing or not finite`);
     if (!Number.isInteger(nSims) || nSims < 1) fail("nSims must be a positive integer");
+    const rhoT = copula && copula.rho;
+    for (const pos of POS) { const r = rhoT && rhoT[pos]; if (!(typeof r === "number" && Number.isFinite(r) && r >= 0 && r <= 0.5)) fail(`copula rho ${pos} missing or outside [0, 0.5]`); }
     const W = weeks.length, N = nSims;
+    // Separately keyed streams per (kind, player id): availability, season factor, weekly noise.
+    const rng = (kind, id) => mulberry32((seed ^ hash(kind + ":" + id)) >>> 0);
+    // Per id: one Z per sim (factor stream), one eps per (sim, week index) (noise stream).
+    function latent(id, rho) {
+      const f = rng("factor", id), n = rng("noise", id), a = Math.sqrt(rho), b = Math.sqrt(1 - rho);
+      const u = new Float64Array(N * W);
+      for (let s = 0; s < N; s++) { const z = gauss(f); for (let i = 0; i < W; i++) u[s * W + i] = normCdf(a * z + b * gauss(n)); }
+      return u;
+    }
     const sims = new Map();
     for (const [id, p] of Object.entries(players || {})) {
       if (!POS.includes(p.position)) fail(`unknown position for ${id}`);
@@ -83,40 +104,55 @@
       const tag = normalizeTag(p.tag), forced = new Set(forcedOut[id] || []);
       const firstOut = tag && Number.isFinite(A.p_tag?.[tag]) ? A.p_tag[tag] : A.p_out[p.position];
       const avail = new Uint8Array(N * W), pts = new Float64Array(N * W);
-      const rand = mulberry32((seed ^ hash(id)) >>> 0);
+      const rand = rng("avail", id), u = latent(id, rhoT[p.position]);
       for (let s = 0; s < N; s++) {
         let out = false, started = false;
         for (let i = 0; i < W; i++) {
-          const u1 = rand(), u2 = rand(), r = rows[i];
+          const r = rows[i];
           if (r.status === "bye") continue;                 // state carries across a bye
           // Controller decision: a forced-out week doesn't feed the chain either --
           // the week itself is out (never available), but it's not evidence the
           // player is actually hurt, so it must not seed next week's transition.
           // Skip the state update exactly like a bye, after still marking the week
-          // unavailable (avail stays 0, its default) and still consuming u1/u2 so
-          // every later week's draw stays aligned regardless of forcedOut config.
+          // unavailable (avail stays 0, its default). The avail stream advances one
+          // uniform per non-bye, non-forced week; points draw from the latent streams.
           if (forced.has(weeks[i])) continue;
+          const u1 = rand();
           const pOut = started ? (out ? A.p_stay[p.position] : A.p_out[p.position]) : firstOut;
           out = u1 < pOut; started = true;
-          if (!out) { avail[s * W + i] = 1; pts[s * W + i] = drawPoints(r, u2); }
+          if (!out) { avail[s * W + i] = 1; pts[s * W + i] = drawPoints(r, u[s * W + i]); }
         }
       }
       sims.set(id, { id, position: p.position, rows, avail, pts });
     }
     // Replacement players: always available (you pick up someone who is playing),
     // ranked below every rostered player so they only fill otherwise-empty slots.
+    // Each carries his real id: one factor/noise stream per id, shared across weeks.
+    const replPos = new Map(), latents = new Map();
+    weeks.forEach(w => {
+      const byPos = (replacement && replacement[w]) || {}, seen = new Set();
+      for (const pos of POS) for (const q of (byPos[pos] || [])) {
+        if (!q || typeof q.id !== "string" || !q.id) fail(`replacement ${pos} week ${w} has no string id`);
+        if (seen.has(q.id)) fail(`replacement id ${q.id} repeated in week ${w}`);
+        seen.add(q.id);
+        if (Object.prototype.hasOwnProperty.call(players || {}, q.id)) fail(`replacement id ${q.id} is also a rostered player`);
+        if (replPos.has(q.id) && replPos.get(q.id) !== pos) fail(`replacement id ${q.id} changes position`);
+        replPos.set(q.id, pos);
+      }
+    });
+    for (const [id, pos] of replPos) latents.set(id, latent(id, rhoT[pos]));
     const repl = weeks.map((w, i) => {
       const byPos = (replacement && replacement[w]) || {};
       const list = [];
-      for (const pos of POS) (byPos[pos] || []).forEach((q, k) => {
+      for (const pos of POS) (byPos[pos] || []).forEach(q => {
         checkQ(q, `replacement ${pos} week ${w}`);
-        const id = `~R:${pos}:${k}:${w}`;
-        const rand = mulberry32((seed ^ hash(id)) >>> 0);
-        const draws = new Float64Array(N); for (let s = 0; s < N; s++) { rand(); draws[s] = drawPoints(q, rand()); }
-        list.push({ id, position: pos, p50: q.p50, draws, replacement: true });
+        const u = latents.get(q.id), draws = new Float64Array(N);
+        for (let s = 0; s < N; s++) draws[s] = drawPoints(q, u[s * W + i]);
+        list.push({ id: q.id, position: pos, p50: q.p50, draws, replacement: true });
       });
-      return list;
+      return list.sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));   // order-invariant tie handling
     });
+    latents.clear();   // draws are materialized; release the N*W latent arrays (evaluator memory)
     // Controller decision (item 5): check every week's replacement pool up front --
     // replacement candidates ALONE must fill every slot. Rostered players only ever
     // add candidates on top (never remove replacement ones), so this guarantees
@@ -172,5 +208,5 @@
     diff.sort();
     return { mean: sum / N, p10: diff[Math.floor(0.1 * (N - 1))], p90: diff[Math.floor(0.9 * (N - 1))], pPositive: pos / N };
   }
-  return Object.freeze({ createWorld, compare, drawPoints, normalizeTag, RosterSimError });
+  return Object.freeze({ createWorld, compare, drawPoints, normalizeTag, RosterSimError, ZERO_RHO });
 });

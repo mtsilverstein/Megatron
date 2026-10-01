@@ -219,6 +219,13 @@ def _cached(cache_dir: Path | None, name: str, loader,
     its newest season was still in progress therefore keeps expiring, however
     old it gets; only a file written after that season ended is immutable.
     """
+    if os.environ.get("FFMODEL_CACHE_FROZEN") == "1":
+        # Frozen mode (prospective freeze, astra I3): the cache is an immutable per-run snapshot. Read whatever is
+        # there regardless of age; never download, never write.
+        path = Path(cache_dir) / f"{name}.parquet" if cache_dir is not None else None
+        if path is None or not path.exists():
+            raise RuntimeError(f"cache frozen: {name} missing")
+        return pd.read_parquet(path)
     if cache_dir is not None:
         path = Path(cache_dir) / f"{name}.parquet"
         if path.exists():

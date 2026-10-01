@@ -1,0 +1,168 @@
+{
+ "table": {
+  "QB": 0.2494883139052712,
+  "RB": 0.2591769215963623,
+  "WR": 0.23905838173149518,
+  "TE": 0.16257002874777865
+ },
+ "pooled": 0.22850421438883345,
+ "pooled_raw": 0.22850421438883345,
+ "raw": {
+  "QB": 0.26683054491059166,
+  "RB": 0.26879219031345597,
+  "WR": 0.24117769244287304,
+  "TE": 0.13745224374166254
+ },
+ "clamped_negative": {
+  "QB": false,
+  "RB": false,
+  "WR": false,
+  "TE": false
+ },
+ "n_trajectories": {
+  "QB": 242,
+  "RB": 638,
+  "WR": 996,
+  "TE": 525
+ },
+ "n_players": {
+  "QB": 71,
+  "RB": 171,
+  "WR": 268,
+  "TE": 137
+ },
+ "n_week_pairs": {
+  "QB": 7450,
+  "RB": 21023,
+  "WR": 31881,
+  "TE": 15165
+ },
+ "support_violations": {
+  "QB": 55,
+  "RB": 50,
+  "WR": 25,
+  "TE": 9
+ },
+ "bootstrap_ci": {
+  "QB": [
+   0.19635029167579363,
+   0.2995810951887099
+  ],
+  "RB": [
+   0.2172782116860035,
+   0.30342632401240044
+  ],
+  "WR": [
+   0.20928944302852467,
+   0.26890887107010314
+  ],
+  "TE": [
+   0.13090859473423694,
+   0.19490106016697056
+  ]
+ },
+ "sensitivity_violations_at_atom": {
+  "QB": 0.25997380925099867,
+  "RB": 0.2522176096051468,
+  "WR": 0.23394807555157499,
+  "TE": 0.1640107863362322
+ },
+ "diagnostics": {
+  "QB": {
+   "5": {
+    "pit_mean": 0.5723281437035945,
+    "pit_sd": 0.29624996623239036,
+    "lag1": 0.3221919290612002,
+    "lag4": 0.2623814239380472
+   },
+   "9": {
+    "pit_mean": 0.5728976238646826,
+    "pit_sd": 0.29771166012718564,
+    "lag1": 0.28910256399774364,
+    "lag4": 0.22310102303848178
+   }
+  },
+  "RB": {
+   "5": {
+    "pit_mean": 0.537129921376281,
+    "pit_sd": 0.28697958446949695,
+    "lag1": 0.3372798918583281,
+    "lag4": 0.2815194392639698
+   },
+   "9": {
+    "pit_mean": 0.5486719590788177,
+    "pit_sd": 0.282455388784611,
+    "lag1": 0.3242714528407521,
+    "lag4": 0.2806690664405479
+   }
+  },
+  "WR": {
+   "5": {
+    "pit_mean": 0.5120243600034325,
+    "pit_sd": 0.29839694405513434,
+    "lag1": 0.29088545317114617,
+    "lag4": 0.23097367691159781
+   },
+   "9": {
+    "pit_mean": 0.511018491655328,
+    "pit_sd": 0.2903895718107184,
+    "lag1": 0.26629083447758434,
+    "lag4": 0.20059027378391114
+   }
+  },
+  "TE": {
+   "5": {
+    "pit_mean": 0.5371433681195451,
+    "pit_sd": 0.2948077893411657,
+    "lag1": 0.21409081463690235,
+    "lag4": 0.15642597035762523
+   },
+   "9": {
+    "pit_mean": 0.5345248775860942,
+    "pit_sd": 0.2944873565215787,
+    "lag1": 0.21356191075510597,
+    "lag4": 0.0799010433627691
+   }
+  }
+ },
+ "implied_multiplier": {
+  "QB": {
+   "n9": 2.9959065112421697,
+   "n13": 3.9938597668632543
+  },
+  "RB": {
+   "n9": 3.0734153727708984,
+   "n13": 4.110123059156347
+  },
+  "WR": {
+   "n9": 2.9124670538519615,
+   "n13": 3.868700580777942
+  },
+  "TE": {
+   "n9": 2.300560229982229,
+   "n13": 2.9508403449733436
+  }
+ },
+ "lens": "f12-1qb-ppr-4",
+ "seed": 20260930,
+ "code_sha": "25e36555c15b24a371fec0dfab2aa5bbbf461d42",
+ "source_sha256": "a910018b74268e59df84926479ea7d97fd06f1cc4a0e6247bfc51b99aa26db67",
+ "source_dirty": false,
+ "inputs": [
+  "models/prospective/dev/forecasts_2023_o5_f12-1qb-ppr-4.json",
+  "models/prospective/dev/forecasts_2023_o9_f12-1qb-ppr-4.json",
+  "models/prospective/dev/forecasts_2024_o5_f12-1qb-ppr-4.json",
+  "models/prospective/dev/forecasts_2024_o9_f12-1qb-ppr-4.json",
+  "models/prospective/dev/forecasts_2025_o5_f12-1qb-ppr-4.json",
+  "models/prospective/dev/forecasts_2025_o9_f12-1qb-ppr-4.json"
+ ],
+ "input_sha256": {
+  "models/prospective/dev/forecasts_2023_o5_f12-1qb-ppr-4.json": "79aea6b2ca4fe4d6b7fb2c479799059e178e2366f241f0372eeff5eaccaa16ad",
+  "models/prospective/dev/forecasts_2023_o9_f12-1qb-ppr-4.json": "b7cbe8d7b9166acf0cadbad2288cb455016096694b2c5c5e2bd1cd4e107a9dd8",
+  "models/prospective/dev/forecasts_2024_o5_f12-1qb-ppr-4.json": "b6273815adb30ba93f6531453fb4b963687a89294a609c4a4701a160576f213b",
+  "models/prospective/dev/forecasts_2024_o9_f12-1qb-ppr-4.json": "374321aab02b233a05f4beed67e5de5997ab7278ceb0893e5e23c1a337d00ef5",
+  "models/prospective/dev/forecasts_2025_o5_f12-1qb-ppr-4.json": "fcbd48370a69758519a06db8ec247f2f169deccaa5b656450e1ef552a5636049",
+  "models/prospective/dev/forecasts_2025_o9_f12-1qb-ppr-4.json": "64af82d72de83925bd9c7ee9d9e148fb6421986b0a36d021e5259ae555c2d648"
+ },
+ "stop_flags": []
+}

@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Hard cutoff: the earliest week-5 kickoff (expected `2026-10-09T00:15Z`), read from the nflverse schedule. Dry run green by **2026-10-04**; origin-5 freeze published by **2026-10-07T23:59Z**.
-- Primary formats, exactly: `f12-1qb-ppr-6`, `f10-1qb-ppr-6`, `f12-1qb-ppr-4`, `f12-sf-ppr-4` (M = 4). Exploratory: `f12-1qb-half-4`.
+- Primary formats, exactly: `f12-1qb-ppr-6`, `f10-1qb-ppr-6`, `f12-1qb-ppr-4`, `f12-1qb-half-4` (M = 4). Exploratory: `f12-sf-ppr-4` (spec §4.1 amendment 2026-09-30). One world per format (`world_2026_<label>.json`).
 - ρ fit lens: `f12-1qb-ppr-4`. ρ per position in [0, 0.5], shrinkage `w = n/(n+200)`, clip 1e-4, 2,000 player bootstrap, trajectories ≥ 4 valid weeks.
 - Engine: weekly marginals must be unchanged by ρ; separate keyed streams `avail`, `factor`, `noise` per player id; replacement players carry real ids; no id fills two slots in one week.
 - Decision population per format: 20 drafts, seeds `1000*2026 + k`; 125 trades per draft per origin; origins 5 and 9; waiver quota QB 2 / RB 3 / WR 3 / TE 2; 2,000 sims for v2 and ρ = 0.
@@ -162,7 +162,7 @@ Estimator (spec §5.4): per trajectory (player, season, origin) with ≥ 4 valid
 - Modify: `tools/trade_backtest.cjs` (export the pieces reused: trade sampling with the §10.2 starter filter, waiver quota/pool builder, lopsided measure, replacement pool builder), `tools/draft_sim.cjs` (none expected; `applyLeague` already accepts a config)
 
 **Interfaces:**
-- CLI: `node tools/prospective_materialize.cjs --season 2026 --origin 5 --formats f12-1qb-ppr-6,f10-1qb-ppr-6,f12-1qb-ppr-4,f12-sf-ppr-4 --exploratory f12-1qb-half-4 --world models/prospective/2026/world_2026.json --forecasts-dir models/prospective/2026/o5 --tags models/prospective/2026/o5/tags_w4.json --leagues 20 --trades 125 --out models/prospective/2026/o5/decisions`
+- CLI: `node tools/prospective_materialize.cjs --season 2026 --origin 5 --formats f12-1qb-ppr-6,f10-1qb-ppr-6,f12-1qb-ppr-4,f12-1qb-half-4 --exploratory f12-sf-ppr-4 --world models/prospective/2026/world_2026.json --forecasts-dir models/prospective/2026/o5 --tags models/prospective/2026/o5/tags_w4.json --leagues 20 --trades 125 --out models/prospective/2026/o5/decisions`
 - Output per format: `decisions/<label>.json` = `{format_key, compat, label, primary: bool, season, origin, weeks, drafts: [{k, draft_seed, rosters: [[ids]...]}], trades: [{id, k, a, b, package, give_a, give_b, drop_a, drop_b, strata}], waiver: [{k, team, adds: [ids], pool_by_week}], replacement_by_week: {w: {pos: [ids]}}, lopsided_cutoff, population: {attempts, accepted, rejected_not_starter}, excluded: [{k, reason, players}]}` plus `decisions/cells.json` = the expected cell manifest `[{format, k, origin}]` with deterministic keys `"<label>|2026|<origin>|<k>"`.
 - Draft: `applyLeague(formatConfigAsBoardLeague)` then `runDraft(worldPlayers scored under the format's world ruleset, heroSlot 0, seed 1000*2026 + k, field "measured")` exactly as `trade_backtest.cjs` does for historical worlds (read how it maps a world + league into `runDraft` and reuse that function, do not copy logic). World ruleset key: `-6` formats → `league`; `-4` → `ppr`; half → `half_ppr`.
 - Forecast files for the origin are the per-format exports `forecasts_2026_o5_<label>.json` (Task 7 produces them; the fixture uses tiny synthetic ones).

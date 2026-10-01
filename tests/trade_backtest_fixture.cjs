@@ -555,6 +555,12 @@ acheck("z_dead_worker_fails_loudly", async () => {
   await assert.rejects(Promise.race([T.runCells(SPECS, 2, () => {}, { workerFile: dead }), timeout]), /worker exited/);
 });
 
+acheck("z2_workerfile_needs_a_pool", async () => {
+  // a custom workerFile with jobs <= 1 (or one spec) would silently run trade_backtest's own executeCell
+  await assert.rejects(T.runCells(SPECS, 1, () => {}, { workerFile: path.join(TMP, "x.js") }), /workerFile/);
+  await assert.rejects(T.runCells(SPECS.slice(0, 1), 4, () => {}, { workerFile: path.join(TMP, "x.js") }), /workerFile/);
+});
+
 /* (aa) review M9: the waiver add set and pool are published per cell in the full file. */
 check("aa_waiver_audit_published", () => {
   const cell = T.runCell(RC({ forecasts: FC4, actualWeeks: ACT4, undrafted: UND4, waiver: true, waiverQuota: { QB: 1, RB: 1, WR: 0, TE: 0 } }));
@@ -581,6 +587,34 @@ check("ab_config_hash_ignores_cwd_spelling", () => {
     process.chdir(process.platform === "win32" ? swapDrive(dir) : dir);
     assert.equal(T.configHash(cfg), a, "same files, same hash, whatever the drive-letter case");
   } finally { process.chdir(home); }
+});
+
+/* (ac) rho is part of the checkpoint hash, validated at startup, and refused with --site-out. */
+check("ac_rho_hash_validation_and_site_out", () => {
+  const dir = path.join(TMP, "rho");
+  fs.mkdirSync(dir, { recursive: true });
+  const wr = (n, o) => { const f = path.join(dir, n); fs.writeFileSync(f, JSON.stringify(o)); return f; };
+  const good = wr("good.json", { table: { QB: 0.1, RB: 0.2, WR: 0.3, TE: 0.4 } });
+  const r = T.readRho(good);
+  assert.deepEqual({ ...r }, { QB: 0.1, RB: 0.2, WR: 0.3, TE: 0.4 });
+  assert.match(r.sha256, /^[0-9a-f]{64}$/);
+  for (const [n, t] of [["miss", { QB: 0.1, RB: 0.1, WR: 0.1 }], ["big", { QB: 0.1, RB: 0.1, WR: 0.1, TE: 0.6 }], ["str", { QB: "0.1", RB: 0.1, WR: 0.1, TE: 0.1 }], ["neg", { QB: -0.1, RB: 0.1, WR: 0.1, TE: 0.1 }]])
+    assert.throws(() => T.readRho(wr(n + ".json", { table: t })), e => e.name === "BacktestError", n);
+  const cfgDir = path.join(dir, "h");
+  for (const d of ["fc", "w", "av"]) fs.mkdirSync(path.join(cfgDir, d), { recursive: true });
+  for (const f of ["league.json", "fc/forecasts_2023_o5.json", "w/world_2023.json", "av/availability_2023.json"]) fs.writeFileSync(path.join(cfgDir, f), "{}");
+  const cfg = { seasons: [2023], origins: [5], leagues: 1, trades: 1, sims: 10, diagnosticSims: 1, league: "league.json", secondary: null,
+                forecastsDir: "fc", worldsDir: "w", availabilityDir: "av", rho: null };
+  const home = process.cwd();
+  try {
+    process.chdir(cfgDir);
+    assert.notEqual(T.configHash(cfg), T.configHash({ ...cfg, rho: r }), "rho changes the checkpoint hash");
+    assert.equal(T.configHash(cfg), T.configHash({ ...cfg, rho: { QB: 0, RB: 0, WR: 0, TE: 0 } }), "null rho == explicit zeros");
+  } finally { process.chdir(home); }
+  const base = ["node", "x", "--seasons", "2023", "--origins", "5", "--leagues", "1", "--trades", "1", "--sims", "10", "--league", "l.json", "--out", "o.json"];
+  assert.throws(() => T.parseArgs([...base, "--site-out", "s.json", "--rho", good]), e => e.name === "BacktestError" && /site-out/.test(e.message));
+  assert.ok(T.parseArgs([...base, "--rho", good]).rho, "--rho without --site-out parses");
+  assert.throws(() => T.parseArgs(base), e => /site-out/.test(e.message));
 });
 
 Promise.all(asyncChecks).then(() => {
