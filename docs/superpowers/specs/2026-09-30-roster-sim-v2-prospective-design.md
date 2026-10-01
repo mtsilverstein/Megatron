@@ -91,10 +91,10 @@ Synthetic league configs in the existing `configs/leagues/*.yaml` schema, placed
 
 | Key label | Teams | Starters | Rounds | Scoring |
 | --- | ---: | --- | ---: | --- |
-| `f12-1qb-ppr-6` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 15 | Gabagool's complete `sleeper_scoring`, copied |
-| `f10-1qb-ppr-6` | 10 | same | 15 | FAM's complete `sleeper_scoring`, copied separately (no distance bonuses) |
-| `f12-1qb-ppr-4` | 12 | same | 15 | reception 1.0, pass TD 4, pass_int −2, pass_int_td 0, no bonuses; else as Gabagool's offensive weights |
-| `f12-1qb-half-4` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 15 | as `f12-1qb-ppr-4` with reception 0.5 |
+| `f12-1qb-ppr-6` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 13 | Gabagool's complete `sleeper_scoring`, copied |
+| `f10-1qb-ppr-6` | 10 | same | 13 | FAM's complete `sleeper_scoring`, copied separately (no distance bonuses) |
+| `f12-1qb-ppr-4` | 12 | same | 13 | reception 1.0, pass TD 4, pass_int −2, pass_int_td 0, no bonuses; else as Gabagool's offensive weights |
+| `f12-1qb-half-4` | 12 | QB, RB×2, WR×2, TE, FLEX×2 (RB/WR/TE) | 13 | as `f12-1qb-ppr-4` with reception 0.5 |
 
 `f12-1qb-ppr-4` is the four-point full-PPR reference format (no claim that this exact configuration is the modal
 public one). **Amendment 2026-09-30 (before any freeze; astra round 4):** superflex was replaced by half-PPR as the
@@ -110,6 +110,11 @@ predeclared superflex opponent model. No thresholds changed; the swap was made o
 2026 outcome or evaluation existed. Each format — primary and exploratory — gets its own world valued under its own
 config, with the market source, snapshot date, hash and proxy use recorded (§7.1). A qualifying owner-format trade
 result opens only the labeled experimental trade display, never ordinary advice or waiver advice.
+
+**Amendment 2026-09-30 (final review I2, before any freeze):** the synthetic drafts run **13 rounds** — the
+offensive roster size of §4.3 (both owner leagues draft 15 rounds, two of which go to K and DEF, which are not
+modeled). Drafting 15 skill players per team would overstate roster depth and shrink the free-agent pool relative
+to the real leagues. The Rounds column above is the simulated skill-player draft length.
 
 ### 4.2 Format key and compatibility signature
 
