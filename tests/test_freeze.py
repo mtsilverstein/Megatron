@@ -508,3 +508,66 @@ def test_real_steps_materialize_command_passes_reuse_flag(tmp_path, monkeypatch)
     st.materialize(2026, 9, reuse_drafts=tmp_path / "d", **kw)
     assert "--reuse-drafts" not in seen[0]
     assert seen[1][seen[1].index("--reuse-drafts") + 1] == str(tmp_path / "d")
+
+
+# --- astra review I3: the guard validates the exact weekly-stat snapshot the exporters consume ----------------------
+def _snapshot_world(tmp_path, monkeypatch, *, cached_weeks, live_weeks):
+    """Stub pull_weekly with a real on-disk cache keyed like the real one: a cache hit returns the cached frame, a
+    miss returns the live response and writes it. Returns (root, calls)."""
+    import ffmodel.data.pull as P
+    root = tmp_path / "root"
+    cache = root / "data" / "raw"
+    cache.mkdir(parents=True)
+    span = list(range(F.HISTORY_FIRST_SEASON, 2027))
+    path = cache / f"{P._cache_name('weekly_v2', span)}.parquet"
+    def frame(n):
+        d = all_teams(n)
+        d["season"] = 2026
+        return d
+    frame(cached_weeks).to_parquet(path, index=False)
+    calls = []
+    def fake(seasons, cache_dir=None):
+        calls.append((list(seasons), cache_dir))
+        if cache_dir is None:
+            return frame(live_weeks)
+        p = cache_dir / f"{P._cache_name('weekly_v2', seasons)}.parquet"
+        if p.exists():
+            return pd.read_parquet(p)
+        df = frame(live_weeks)
+        df.to_parquet(p, index=False)
+        return df
+    monkeypatch.setattr(P, "pull_weekly", fake)
+    monkeypatch.setattr(P, "pull_schedules", lambda *a, **k: None)
+    monkeypatch.setattr(P, "pull_injuries", lambda *a, **k: None)
+    return root, path, calls
+
+
+def test_guard_rejects_stale_cached_snapshot_even_though_live_response_is_complete(tmp_path, monkeypatch):
+    # cache lacks week 4; the live response has it. The guard must read the CACHED snapshot (what the exporters read),
+    # never an independent live pull, so without a refresh it refuses.
+    root, path, calls = _snapshot_world(tmp_path, monkeypatch, cached_weeks=3, live_weeks=4)
+    steps = F.Steps(root)
+    with pytest.raises(F.FreezeError) as e:
+        F.check_fresh(sched(), steps.weekly_teams(2026), 2026, 5)
+    assert e.value.code == 4
+    assert all(cd is not None for _, cd in calls)  # the guard never makes an uncached pull
+
+
+def test_prefetch_force_refreshes_the_current_span_cache_then_guard_and_exporters_share_it(tmp_path, monkeypatch):
+    root, path, calls = _snapshot_world(tmp_path, monkeypatch, cached_weeks=3, live_weeks=4)
+    steps = F.Steps(root)
+    steps.prefetch(2026, sleep=lambda s: None)
+    teams = steps.weekly_teams(2026)
+    F.check_fresh(sched(), teams, 2026, 5)  # refreshed: week 4 now present
+    exporter_view = pd.read_parquet(path)  # exactly what export_origin_forecasts reads from data/raw
+    assert set(zip(exporter_view["week"], exporter_view["team"])) == set(zip(teams["week"], teams["team"]))
+    assert max(teams["week"]) == 4
+
+
+def test_incomplete_snapshot_is_refused_when_the_refresh_is_incomplete_too(tmp_path, monkeypatch):
+    root, path, calls = _snapshot_world(tmp_path, monkeypatch, cached_weeks=4, live_weeks=3)
+    steps = F.Steps(root)
+    steps.prefetch(2026, sleep=lambda s: None)  # cache removed and re-pulled: live is still missing week 4
+    with pytest.raises(F.FreezeError) as e:
+        F.check_fresh(sched(), steps.weekly_teams(2026), 2026, 5)
+    assert e.value.code == 4

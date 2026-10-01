@@ -153,9 +153,14 @@ class Steps:
         download failures (nflverse is served from GitHub release assets, which do return 5xx). Each export
         and the tags CLI then read the same cached files instead of re-downloading, so one network hiccup
         cannot abort a freeze. A pull that still fails after the last attempt fails the freeze (exit 8)."""
-        from ffmodel.data.pull import pull_injuries, pull_schedules, pull_weekly
+        from ffmodel.data.pull import _cache_name, pull_injuries, pull_schedules, pull_weekly
 
         span, cache = list(range(HISTORY_FIRST_SEASON, season + 1)), self.root / "data" / "raw"
+        # Force-refresh the current-season weekly stats (astra review I3): a <12 h cache written before the last team
+        # statistics arrived must never be reused. The span is the exporters' own, so the file written here is exactly
+        # the snapshot the freshness guard validates and every exporter then reads.
+        for prefix in ("weekly_v2", "snaps"):
+            (cache / f"{_cache_name(prefix, span)}.parquet").unlink(missing_ok=True)
         for what, pull in (("weekly stats", lambda: pull_weekly(span, cache_dir=cache)),
                            ("schedules", lambda: pull_schedules(span, cache_dir=cache)),
                            ("injuries", lambda: pull_injuries([season], cache_dir=cache))):
@@ -180,9 +185,11 @@ class Steps:
         return df[["season", "week", "gameday", "gametime", "home_team", "away_team"]].reset_index(drop=True)
 
     def weekly_teams(self, season: int):
+        """(week, team) of the EXACT weekly-stats snapshot the exporters consume: same span and cache_dir as
+        `prefetch` and `export_origin_forecasts`, so the guard validates the cached frame, not an independent pull."""
         from ffmodel.data.pull import pull_weekly
 
-        w = pull_weekly([season])
+        w = pull_weekly(list(range(HISTORY_FIRST_SEASON, season + 1)), cache_dir=self.root / "data" / "raw")
         w = w[w["season"] == season]
         return w[["week", "team"]].drop_duplicates().reset_index(drop=True)
 
