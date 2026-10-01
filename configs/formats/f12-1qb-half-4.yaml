@@ -6,7 +6,7 @@ teams: 12
 roster: {QB: 1, RB: 2, WR: 2, TE: 1}
 flex: 2
 flex_positions: [RB, WR, TE]
-rounds: 15
+rounds: 13
 roster_size: 13
 scoring: {reception: 0.5, pass_td: 4.0, interception: -2.0, pass_int_td: 0.0}
 # st_td / fum_rec_td are 6 (Gabagool's offensive weights; spec 4.1), matching the ScoringRules default.

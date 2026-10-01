@@ -8,7 +8,7 @@ teams: 10
 roster: {QB: 1, RB: 2, WR: 2, TE: 1}
 flex: 2
 flex_positions: [RB, WR, TE]
-rounds: 15
+rounds: 13
 roster_size: 13
 # A pick-six costs -2 for the interception PLUS -3 for its return touchdown.
 # The model does not predict pick-sixes; the payload discloses that omission.

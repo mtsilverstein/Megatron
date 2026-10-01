@@ -75,7 +75,7 @@
     "TE": 1,
     "WR": 2
    },
-   "rounds": 15,
+   "rounds": 13,
    "scoring": {
     "fumble_lost": -2.0,
     "interception": -2.0,
@@ -137,7 +137,7 @@
    "slug": "f10-1qb-ppr-6",
    "starters": 8,
    "teams": 10,
-   "total_picks": 150,
+   "total_picks": 130,
    "unprojected_scoring": {
     "fum_rec_td": 6.0,
     "pass_2pt": 2.0,
@@ -224,7 +224,7 @@
     "TE": 1,
     "WR": 2
    },
-   "rounds": 15,
+   "rounds": 13,
    "scoring": {
     "fumble_lost": -2.0,
     "interception": -2.0,
@@ -259,7 +259,7 @@
    "slug": "f12-1qb-half-4",
    "starters": 8,
    "teams": 12,
-   "total_picks": 180,
+   "total_picks": 156,
    "unprojected_scoring": {
     "fum_rec_td": 6.0,
     "pass_2pt": 2.0,
@@ -345,7 +345,7 @@
     "TE": 1,
     "WR": 2
    },
-   "rounds": 15,
+   "rounds": 13,
    "scoring": {
     "fumble_lost": -2.0,
     "interception": -2.0,
@@ -380,7 +380,7 @@
    "slug": "f12-1qb-ppr-4",
    "starters": 8,
    "teams": 12,
-   "total_picks": 180,
+   "total_picks": 156,
    "unprojected_scoring": {
     "fum_rec_td": 6.0,
     "pass_2pt": 2.0,
@@ -466,7 +466,7 @@
     "TE": 1,
     "WR": 2
    },
-   "rounds": 15,
+   "rounds": 13,
    "scoring": {
     "fumble_lost": -2.0,
     "interception": -2.0,
@@ -526,7 +526,7 @@
    "slug": "f12-1qb-ppr-6",
    "starters": 8,
    "teams": 12,
-   "total_picks": 180,
+   "total_picks": 156,
    "unprojected_scoring": {
     "fum_rec_td": 6.0,
     "pass_2pt": 2.0,
@@ -617,7 +617,7 @@
     "TE": 1,
     "WR": 3
    },
-   "rounds": 15,
+   "rounds": 13,
    "scoring": {
     "fumble_lost": -2.0,
     "interception": -2.0,
@@ -652,7 +652,7 @@
    "slug": "f12-sf-ppr-4",
    "starters": 8,
    "teams": 12,
-   "total_picks": 180,
+   "total_picks": 156,
    "unprojected_scoring": {
     "fum_rec_td": 6.0,
     "pass_2pt": 2.0,

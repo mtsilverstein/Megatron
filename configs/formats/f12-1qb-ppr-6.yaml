@@ -8,7 +8,7 @@ teams: 12
 roster: {QB: 1, RB: 2, WR: 2, TE: 1}
 flex: 2
 flex_positions: [RB, WR, TE]
-rounds: 15
+rounds: 13
 roster_size: 13
 # Full PPR with SIX-point passing TDs. See ffmodel/scoring.py: measured on
 # 2023-25 actuals this moves the top 24 QBs +46 to +50 points a season and
