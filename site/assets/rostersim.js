@@ -38,8 +38,8 @@
     const q = p - 0.5, r = q * q;
     return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
   }
-  // Two-piece normal through (p10, p50, p90). Floor is 0 when p10 >= 0; otherwise
-  // it's the reflection of p50 about p10 (2*p10 - p50), which keeps p10 exact
+  // Two-piece normal through (p10, p50, p90). Floor is min(0, 2*p10): 0 when
+  // p10 >= 0, otherwise 2*p10 (twice the negative p10), which keeps p10 exact
   // without piling the whole bottom decile onto one clamped value the way a
   // floor of exactly p10 would. u is clamped away from {0,1}: invNorm(0) is
   // -Infinity, and -Infinity * 0 is NaN whenever the spread on that side is 0
@@ -152,6 +152,7 @@
       });
       return list.sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));   // order-invariant tie handling
     });
+    latents.clear();   // draws are materialized; release the N*W latent arrays (evaluator memory)
     // Controller decision (item 5): check every week's replacement pool up front --
     // replacement candidates ALONE must fill every slot. Rostered players only ever
     // add candidates on top (never remove replacement ones), so this guarantees

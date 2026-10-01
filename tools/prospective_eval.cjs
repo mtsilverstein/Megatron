@@ -505,11 +505,42 @@ function evaluateCell(spec) {
    The freeze.
    ============================================================================================================ */
 const sha256 = buf => crypto.createHash("sha256").update(buf).digest("hex");
+/* The freeze's hashing rule (shared with ffmodel.prospective.freeze): CRLF -> LF for text extensions, raw bytes otherwise.
+   A Windows checkout (core.autocrlf) therefore verifies against hashes taken from LF files on Linux. */
+const HASH_RULE = "sha256; CRLF->LF for .js .cjs .mjs .py .json .yaml .yml .md .csv .txt .toml .cfg .ini";
+const TEXT_EXT = new Set([".js", ".cjs", ".mjs", ".py", ".json", ".yaml", ".yml", ".md", ".csv", ".txt", ".toml", ".cfg", ".ini"]);
+function sha256Norm(file) {
+  let b = fs.readFileSync(file);
+  if (TEXT_EXT.has(path.extname(file).toLowerCase()) && b.includes(13)) {
+    const out = Buffer.alloc(b.length); let m = 0;
+    for (let i = 0; i < b.length; i++) { if (b[i] === 13 && b[i + 1] === 10) continue; out[m++] = b[i]; }
+    b = out.subarray(0, m);
+  }
+  return sha256(b);
+}
+const REPO_ROOT = path.join(__dirname, "..");
+/* I3: recompute every manifest hash from the working tree. Returns the list of mismatches (empty = verified).
+   code: repo-relative paths under the repo root; files: paths relative to the origin dir. */
+function verifyManifest(mf, od, repoRoot) {
+  const bad = [];
+  if (mf.hash_rule !== HASH_RULE) bad.push(`manifest hash_rule is ${JSON.stringify(mf.hash_rule)}, expected ${JSON.stringify(HASH_RULE)}`);
+  for (const [sect, base] of [["code", repoRoot], ["files", od]]) {
+    const m = mf[sect];
+    if (!m || typeof m !== "object" || Array.isArray(m) || !Object.keys(m).length) { bad.push(`manifest has no ${sect} hashes`); continue; }
+    for (const rel of Object.keys(m).sort(byId)) {
+      const f = path.join(base, ...rel.split("/"));
+      if (typeof m[rel] !== "string") bad.push(`${sect}/${rel}: no frozen hash`);
+      else if (!fs.existsSync(f)) bad.push(`${sect}/${rel}: file missing`);
+      else if (sha256Norm(f) !== m[rel]) bad.push(`${sect}/${rel}: hash differs from the manifest`);
+    }
+  }
+  return bad;
+}
 const need = (p, what) => { if (!fs.existsSync(p)) throw new BacktestError(`missing ${what}: ${p}`); return p; };
 function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims, { dryRunOrigin = null } = {}) {
   const dry = dryRunOrigin !== null;
   const rhoBytes = fs.readFileSync(rhoFile);
-  const rhoSha = sha256(rhoBytes);
+  const rhoSha = sha256Norm(rhoFile);
   const rhoTable = Object.assign({}, TB.readRho(rhoFile));
   const rhoJson = JSON.parse(rhoBytes.toString("utf8"));
   const outcomes = cached(path.resolve(outcomesFile));
@@ -549,14 +580,14 @@ function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims, { dryRunOrigin = nu
   }
   const inputs = {};
   const rel = p => path.relative(freezeDir, p).split(path.sep).join("/");
-  const hashIn = p => { inputs[rel(p)] = sha256(fs.readFileSync(p)); return p; };
+  const hashIn = p => { inputs[rel(p)] = sha256Norm(p); return p; };
   const formats = {}, listed = new Map(), kSet = new Set();
   const perOrigin = {};
   for (const O of origins) {
     const od = dirOf(O);
     hashIn(path.join(od, "manifest.json"));
     const frozenRho = need(path.join(od, "inputs", "rho.json"), "frozen rho table");
-    if (sha256(fs.readFileSync(frozenRho)) !== rhoSha) throw new BacktestError(`--rho ${rhoFile} is not byte-identical to the frozen ${frozenRho}`);
+    if (sha256Norm(frozenRho) !== rhoSha) throw new BacktestError(`--rho ${rhoFile} is not byte-identical to the frozen ${frozenRho}`);
     hashIn(frozenRho);
     perOrigin[O] = { availabilityFile: hashIn(need(path.join(od, "inputs", "availability.json"), "availability rates")),
                      tagsFile: hashIn(need(path.join(od, `tags_w${O - 1}.json`), `week-${O - 1} tags`)) };
@@ -621,6 +652,14 @@ function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims, { dryRunOrigin = nu
       }
     }
   }
+  // I3: the frozen evaluator refuses to run over anything but the frozen bytes. Dry runs report and continue.
+  const verification = {};
+  for (const O of origins) {
+    const bad = verifyManifest(readJson(path.join(dirOf(O), "manifest.json")), dirOf(O), REPO_ROOT);
+    verification[O] = { verified: bad.length === 0, mismatches: bad };
+    if (bad.length && !dry) throw new BacktestError(`origin ${O}: the working tree does not match the freeze manifest (run the evaluator from the frozen SHA):\n  ${bad.slice(0, 10).join("\n  ")}${bad.length > 10 ? `\n  (+${bad.length - 10} more)` : ""}`);
+    if (bad.length) console.error(`dry run o${O}: ${bad.length} manifest hash mismatch(es) (reported, not fatal):\n  ${bad.slice(0, 10).join("\n  ")}`);
+  }
   const M = labels.filter(l => formats[l].primary).length;
   if (M !== RULES.primary_M) throw new BacktestError(`${M} primary formats in the freeze; the protocol declares exactly ${RULES.primary_M} (M in the multiplicity correction)`);
   const ks = [...kSet].sort((a, b) => a - b);
@@ -633,12 +672,12 @@ function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims, { dryRunOrigin = nu
   specs.sort((a, b) => byId(a.key, b.key));
   return { freezeDir, origins: expected, evaluated: origins, dryRun: dry ? dryRunOrigin : null, contingency, labels, formats, ks, specs, M, inputs,
            rho: { table: rhoTable, sha256: rhoSha, support_violations: rhoJson.support_violations === undefined ? null : rhoJson.support_violations },
-           outcomes_sha256: sha256(fs.readFileSync(outcomesFile)) };
+           outcomes_sha256: sha256Norm(outcomesFile), verification };
 }
 function configHash(fz, nSims) {
   const code = {};
   for (const p of [__filename, path.join(__dirname, "trade_backtest.cjs"), path.join(__dirname, "..", "site", "assets", "rostersim.js"),
-                   path.join(__dirname, "..", "site", "assets", "ros.js")]) code[path.basename(p)] = sha256(fs.readFileSync(p));
+                   path.join(__dirname, "..", "site", "assets", "ros.js")]) code[path.basename(p)] = sha256Norm(p);
   return sha256(JSON.stringify({ rules: RULES, sims: nSims, inputs: fz.inputs, outcomes: fz.outcomes_sha256, rho: fz.rho.sha256, code }));
 }
 const isPredeclared = (fz, nSims) => !fz.dryRun && nSims === RULES.sims && sameJson(fz.ks, Array.from({ length: RULES.drafts }, (_, i) => i));
@@ -673,7 +712,7 @@ function aggregate(fz, results, { nSims, generatedAt, configHash: ch }) {
     rules: RULES, M: fz.M, alpha: { trade: alphaTrade(fz.M), waiver: alphaWaiver(fz.M) }, sims: nSims,
     bootstrap: { B: R.B, seed: R.seed, clusters: fz.ks }, origins: fz.evaluated.slice(), expected_origins: origins.slice(),
     dry_run: fz.dryRun === null ? null : { origin: fz.dryRun, freeze_consistency_exclusions: countConsistency(results) },
-    rho: fz.rho, inputs: fz.inputs, outcomes_sha256: fz.outcomes_sha256,
+    rho: fz.rho, inputs: fz.inputs, outcomes_sha256: fz.outcomes_sha256, manifest_verification: fz.verification, hash_rule: HASH_RULE,
     formats,
     reporting: { v1_per_season_coverage: V1_CONTEXT, support_violations: fz.rho.support_violations,
                  scope: "one realized NFL season: every synthetic league shares the same 2026 outcomes; bounds describe the draft generator conditional on that season (spec §6.3, §6.5)" },
@@ -781,7 +820,7 @@ async function main(argv) {
 }
 
 module.exports = { RULES, TRADE_RULES, WAIVER_RULES, alphaTrade, alphaWaiver, resampleIndices, tradeBlock, tradeMetrics, equalOrigin,
-                   tradeBootstrap, waiverBootstrap, evaluateFormat, statusOf, evaluateCell, loadFreeze, aggregate, parseArgs, V1_CONTEXT };
+                   tradeBootstrap, waiverBootstrap, evaluateFormat, statusOf, evaluateCell, loadFreeze, aggregate, parseArgs, V1_CONTEXT, sha256Norm, verifyManifest, HASH_RULE };
 
 const { isMainThread, parentPort, workerData } = require("worker_threads");
 if (!isMainThread && workerData && workerData.role === "cell-worker" && workerData.file === __filename) {
