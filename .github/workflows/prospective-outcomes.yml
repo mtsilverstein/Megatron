@@ -1,16 +1,22 @@
 name: prospective outcomes
-# Season-end outcome artifact for the roster-sim v2 prospective test (spec 2026-09-30 §7.6; final review I5).
-# Builds models/prospective/2026/outcomes_2026.json from a FRESH nflverse pull on or after 2027-01-12, with the
-# FROZEN builder: the code runs from the `prospective-2026-o5` tag's tree and its environment is that tag's recorded pip
-# freeze. Never overwrites an existing artifact; refuses (non-zero) while any REG game of weeks 5-17 lacks stats or a
-# final score, so a partial season can never be committed. Run it again (manually) if it refuses.
+# Season-end outcome artifact for the roster-sim v2 prospective test (spec 2026-09-30 §7.6 + the 2026-10-01 amendment;
+# astra branch review I1/I2).
+#   1. CAPTURE: on 2027-01-12, 13 or 14 (UTC) -- the cron plus two scheduler retries -- and only while no capture is
+#      committed, download the raw nflverse 2026 weekly player-stats file (+ the REG schedule) and commit it under
+#      models/prospective/2026/outcomes_source/ with its SHA-256 and as_of = the capture date. Never overwritten.
+#      Incomplete data refuses (nothing written), so the next window day can still capture.
+#   2. BUILD: outcomes_2026.json is built ONLY from the committed snapshot (hashes verified; no network), carrying the
+#      snapshot's as_of and sha256. Never overwritten. No capture in the window -> no outcome artifact: the test is
+#      reported as not evaluated; a later download is never backdated.
+# The code is FROZEN: it runs from the tag chosen by tools/select_outcome_tag.py (`prospective-2026-o5`; or, only when
+# o5 was missed and the o9 manifest verifies the exploratory contingency, `prospective-2026-o9`), with that tag's
+# recorded pip freeze. Ambiguous or inconsistent tag states are refused.
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 15 12 1 *"   # 15:00 UTC on 12 January
+    - cron: "0 15 12-14 1 *"   # 15:00 UTC on 12, 13 and 14 January
 env:
   SEASON: "2026"
-  AS_OF: "2027-01-12"
 concurrency:
   group: prospective-outcomes
   cancel-in-progress: false
@@ -26,49 +32,100 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - name: Date and existence guard
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12.10" }
+      - name: Plan (window, existing capture/outcomes, frozen tag)
         id: guard
         run: |
           TODAY=$(date -u +%Y-%m-%d)
+          NEXT=$((SEASON + 1))
+          SRC="models/prospective/$SEASON/outcomes_source"
           OUT="models/prospective/$SEASON/outcomes_$SEASON.json"
-          if [[ "$TODAY" < "$AS_OF" ]]; then
-            echo "today $TODAY is before $AS_OF; outcomes are never built early" | tee -a "$GITHUB_STEP_SUMMARY"
-            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if [ -e "$OUT" ]; then
+          IN_WINDOW=false
+          case "$TODAY" in "$NEXT-01-12"|"$NEXT-01-13"|"$NEXT-01-14") IN_WINDOW=true;; esac
+          HAVE_CAPTURE=false; [ -e "$SRC/capture.json" ] && HAVE_CAPTURE=true
+          HAVE_OUT=false; [ -e "$OUT" ] && HAVE_OUT=true
+          if [ "$HAVE_OUT" = true ]; then
             echo "$OUT already exists; never overwritten" | tee -a "$GITHUB_STEP_SUMMARY"
             echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          git rev-parse --verify --quiet "refs/tags/prospective-$SEASON-o5^{commit}" >/dev/null || { echo "tag prospective-$SEASON-o5 not found" >&2; exit 1; }
+          NEED_CAPTURE=false
+          if [ "$HAVE_CAPTURE" = false ]; then
+            if [ "$IN_WINDOW" = true ]; then NEED_CAPTURE=true
+            elif [[ "$TODAY" < "$NEXT-01-12" ]]; then
+              echo "today $TODAY is before $NEXT-01-12; nothing to do" | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+            else
+              echo "PROTOCOL FAILURE: no snapshot was captured on $NEXT-01-12..14 and today is $TODAY; the test is not evaluated and a later download is never backdated (spec §7.6)" | tee -a "$GITHUB_STEP_SUMMARY" >&2
+              exit 1
+            fi
+          fi
+          python tools/select_outcome_tag.py --season "$SEASON" > "$RUNNER_TEMP/tag.json"
+          TAG=$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['tag'])" "$RUNNER_TEMP/tag.json")
+          PIP=$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['pip_freeze'])" "$RUNNER_TEMP/tag.json")
+          cat "$RUNNER_TEMP/tag.json" | tee -a "$GITHUB_STEP_SUMMARY"
+          mkdir -p "$RUNNER_TEMP/outcomes_source"
+          if [ "$HAVE_CAPTURE" = true ]; then cp -R "$SRC/." "$RUNNER_TEMP/outcomes_source/"; fi
           echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "need_capture=$NEED_CAPTURE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "pip=$PIP" >> "$GITHUB_OUTPUT"
+          echo "src=$SRC" >> "$GITHUB_OUTPUT"
           echo "out=$OUT" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-python@v6
-        if: steps.guard.outputs.run == 'true'
-        with: { python-version: "3.12.10" }
-      - name: Build from the origin-5 tag's tree and environment
-        if: steps.guard.outputs.run == 'true'
-        run: |
-          git checkout --detach "refs/tags/prospective-$SEASON-o5"
-          pip install -r "models/prospective/$SEASON/o5/inputs/pip_freeze.txt"
-          pip install -e . --no-deps
-          python -m ffmodel.prospective.outcomes --season "$SEASON" --as-of "$AS_OF" --out "${{ steps.guard.outputs.out }}"
-      - name: Commit onto main (never force; up to 3 attempts)
+      - name: Capture and build from the frozen tag's tree and environment
+        id: build
         if: steps.guard.outputs.run == 'true'
         env:
+          TAG: ${{ steps.guard.outputs.tag }}
+          PIP: ${{ steps.guard.outputs.pip }}
+          NEED_CAPTURE: ${{ steps.guard.outputs.need_capture }}
+        run: |
+          git checkout --detach "refs/tags/$TAG"
+          pip install -r "$PIP"
+          pip install -e . --no-deps
+          if [ "$NEED_CAPTURE" = true ]; then
+            python -m ffmodel.prospective.outcomes capture --season "$SEASON" --source-dir "$RUNNER_TEMP/outcomes_source"
+          fi
+          # a failed build must not lose a successful capture: record the result, commit the capture, then fail below
+          if python -m ffmodel.prospective.outcomes build --season "$SEASON" --source-dir "$RUNNER_TEMP/outcomes_source" --out "$RUNNER_TEMP/outcomes_$SEASON.json"; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "built=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Commit onto main (never force; never overwrite; up to 3 attempts)
+        if: steps.guard.outputs.run == 'true'
+        env:
+          SRC: ${{ steps.guard.outputs.src }}
           OUT: ${{ steps.guard.outputs.out }}
+          NEED_CAPTURE: ${{ steps.guard.outputs.need_capture }}
+          BUILT: ${{ steps.build.outputs.built }}
         run: |
           git config user.name "prospective-outcomes-bot"
           git config user.email "actions@users.noreply.github.com"
+          AS_OF=$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['as_of'])" "$RUNNER_TEMP/outcomes_source/capture.json" 2>/dev/null || true)
           for ATTEMPT in 1 2 3; do
             git fetch origin main
             git checkout -q -B main origin/main
-            if [ -e "$OUT" ] && git ls-files --error-unmatch "$OUT" >/dev/null 2>&1; then echo "$OUT appeared on main meanwhile; not overwriting" >&2; exit 1; fi
-            git add "$OUT"
-            git commit -q -m "data: prospective outcomes $SEASON as of $AS_OF"
-            if git push origin HEAD:main; then exit 0; fi
+            if [ "$NEED_CAPTURE" = true ]; then
+              if git ls-files --error-unmatch "$SRC/capture.json" >/dev/null 2>&1; then echo "$SRC/capture.json appeared on main meanwhile; not overwriting" >&2; exit 1; fi
+              mkdir -p "$SRC"; cp -R "$RUNNER_TEMP/outcomes_source/." "$SRC/"
+              git add "$SRC"
+            fi
+            if [ "$BUILT" = true ]; then
+              if git ls-files --error-unmatch "$OUT" >/dev/null 2>&1; then echo "$OUT appeared on main meanwhile; not overwriting" >&2; exit 1; fi
+              cp "$RUNNER_TEMP/outcomes_$SEASON.json" "$OUT"
+              git add "$OUT"
+            fi
+            if git diff --cached --quiet; then echo "nothing to commit"; break; fi
+            git commit -q -m "data: prospective outcomes $SEASON (snapshot as of $AS_OF)"
+            if git push origin HEAD:main; then break; fi
             git reset -q --soft HEAD~1
             git reset -q
             sleep 5
+            if [ "$ATTEMPT" = 3 ]; then echo "push failed 3 times" >&2; exit 1; fi
           done
-          echo "push failed 3 times" >&2
+      - name: Fail if the outcome artifact could not be built
+        if: steps.guard.outputs.run == 'true' && steps.build.outputs.built != 'true'
+        run: |
+          echo "outcome build refused (see the build step); the capture, if any, was committed. Re-run on a window day or manually." >&2
           exit 1

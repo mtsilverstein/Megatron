@@ -33,7 +33,7 @@
 //   <freeze>/o<O>/inputs/rho.json                  the frozen rho table; --rho must be byte-identical
 //   <freeze>/o<O>/manifest.json                    {season, origin, dry_run, exploratory}: dry_run must be false (true only
 //                                                  with --dry-run-origin); exploratory must agree with the §7.5 contingency
-// Outcomes (§7.6, built after week 17 from stats as of 2027-01-12, hashed separately):
+// Outcomes (§7.6, built after week 17 from the raw snapshot captured on 2027-01-12..14, hashed separately):
 //   {schema_version: 1, season: 2026, as_of, actual_weeks: {<label>: {<player id>: {"<week>": points}}}}
 //   points in that format's scoring over the predicted scope (§4.3); an entry means the player played that week.
 "use strict";
@@ -57,7 +57,7 @@ const RULES = deepFreeze({
   origins: [5, 9],                      // §6.1; ALWAYS both, unless o5 is absent AND o9's manifest says exploratory (§7.5)
   primary_labels: ["f12-1qb-ppr-6", "f10-1qb-ppr-6", "f12-1qb-ppr-4", "f12-1qb-half-4"],   // §4.1 (pinned: decisions' flags must agree)
   exploratory_labels: ["f12-sf-ppr-4"],
-  outcomes_as_of: "2027-01-12",         // §7.6
+  outcomes_as_of_window: ["2027-01-12", "2027-01-13", "2027-01-14"],  // §7.6 amendment: the captured snapshot's as_of (two scheduler retries)
   drafts: 20,                           // §6.1: draft seeds 1000*2026 + k, k = 0..19
   trades_per_cell: 125,                 // §6.1: a population target; a short cell is reported, never a verdict input
   sims: 2000,                           // §6.2: v2 and rho = 0, same seeds
@@ -546,7 +546,8 @@ function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims, { dryRunOrigin = nu
   const outcomes = cached(path.resolve(outcomesFile));
   if (outcomes.season !== RULES.season) throw new BacktestError(`${outcomesFile}: season ${outcomes.season}, expected ${RULES.season}`);
   if (!outcomes.actual_weeks || typeof outcomes.actual_weeks !== "object") throw new BacktestError(`${outcomesFile}: no actual_weeks`);
-  if (!dry && outcomes.as_of !== RULES.outcomes_as_of) throw new BacktestError(`${outcomesFile}: as_of ${outcomes.as_of}, the protocol requires stats as of ${RULES.outcomes_as_of} (§7.6)`);
+  if (!dry && !RULES.outcomes_as_of_window.includes(outcomes.as_of)) throw new BacktestError(`${outcomesFile}: as_of ${outcomes.as_of}, the protocol requires a snapshot captured on ${RULES.outcomes_as_of_window.join(", ")} (§7.6)`);
+  if (!dry && !(typeof outcomes.snapshot_sha256 === "string" && /^[0-9a-f]{64}$/.test(outcomes.snapshot_sha256))) throw new BacktestError(`${outcomesFile}: snapshot_sha256 missing or malformed; the outcome artifact must carry the SHA-256 of the committed raw snapshot it was built from (§7.6)`);
 
   // Origins. EXPECTED = what the verdicts are computed over; EVALUATED = the freezes actually present. Outside the
   // §7.5 contingency every expected origin is RULES.origins: an absent origin's cells are all missing (-> inconclusive).
@@ -672,7 +673,7 @@ function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims, { dryRunOrigin = nu
   specs.sort((a, b) => byId(a.key, b.key));
   return { freezeDir, origins: expected, evaluated: origins, dryRun: dry ? dryRunOrigin : null, contingency, labels, formats, ks, specs, M, inputs,
            rho: { table: rhoTable, sha256: rhoSha, support_violations: rhoJson.support_violations === undefined ? null : rhoJson.support_violations },
-           outcomes_sha256: sha256Norm(outcomesFile), verification };
+           outcomes_sha256: sha256Norm(outcomesFile), outcomes_as_of: outcomes.as_of, outcomes_snapshot_sha256: outcomes.snapshot_sha256 === undefined ? null : outcomes.snapshot_sha256, verification };
 }
 function configHash(fz, nSims) {
   const code = {};
@@ -712,7 +713,7 @@ function aggregate(fz, results, { nSims, generatedAt, configHash: ch }) {
     rules: RULES, M: fz.M, alpha: { trade: alphaTrade(fz.M), waiver: alphaWaiver(fz.M) }, sims: nSims,
     bootstrap: { B: R.B, seed: R.seed, clusters: fz.ks }, origins: fz.evaluated.slice(), expected_origins: origins.slice(),
     dry_run: fz.dryRun === null ? null : { origin: fz.dryRun, freeze_consistency_exclusions: countConsistency(results) },
-    rho: fz.rho, inputs: fz.inputs, outcomes_sha256: fz.outcomes_sha256, manifest_verification: fz.verification, hash_rule: HASH_RULE,
+    rho: fz.rho, inputs: fz.inputs, outcomes_sha256: fz.outcomes_sha256, outcomes_as_of: fz.outcomes_as_of, outcomes_snapshot_sha256: fz.outcomes_snapshot_sha256, manifest_verification: fz.verification, hash_rule: HASH_RULE,
     formats,
     reporting: { v1_per_season_coverage: V1_CONTEXT, support_violations: fz.rho.support_violations,
                  scope: "one realized NFL season: every synthetic league shares the same 2026 outcomes; bounds describe the draft generator conditional on that season (spec §6.3, §6.5)" },

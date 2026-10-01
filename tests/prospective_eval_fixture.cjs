@@ -451,7 +451,7 @@ function buildFreeze(dir) {
     // rostered players miss ~8% of weeks; free agents always play (so the realized replay can always fill a slot)
     for (let w = 5; w <= 17; w++) if (rnd() > 0.08 || !ROSTERED.has(id)) aw[id][String(w)] = +(Math.max(0, p.base + (rnd() - 0.5) * p.base * 1.2)).toFixed(2);
   }
-  const outcomes = { schema_version: 1, season: 2026, as_of: "2027-01-12", actual_weeks: Object.fromEntries(LABELS.map(([l]) => [l, aw])) };
+  const outcomes = { schema_version: 1, season: 2026, as_of: "2027-01-12", snapshot_sha256: "ab".repeat(32), actual_weeks: Object.fromEntries(LABELS.map(([l]) => [l, aw])) };
   writeJson(path.join(dir, "outcomes_2026.json"), outcomes);
   fs.writeFileSync(path.join(dir, "rho.json"), RHO_JSON);
 }
@@ -678,7 +678,8 @@ check("C1: origin-9 freeze absent (o5 present, no contingency) -> every primary 
 // M1: the outcome artifact is validated fail-closed; nothing is written on failure
 check("M1: outcome artifact validation (as_of, season, lens, weeks) aborts with no gate output", () => {
   const variants = {
-    as_of: oc => { oc.as_of = "2027-01-05"; }, season: oc => { oc.season = 2025; },
+    as_of: oc => { oc.as_of = "2027-01-05"; }, as_of_late: oc => { oc.as_of = "2027-01-15"; }, as_of_early: oc => { oc.as_of = "2027-01-11"; },
+    snapshot: oc => { delete oc.snapshot_sha256; }, season: oc => { oc.season = 2025; },
     lens: oc => { delete oc.actual_weeks["f12-1qb-ppr-4"]; },
     week: oc => { for (const byW of Object.values(oc.actual_weeks["f10-1qb-ppr-6"])) delete byW["12"]; },
   };
@@ -690,7 +691,21 @@ check("M1: outcome artifact validation (as_of, season, lens, weeks) aborts with 
     const g = path.join(ROOT, `gates_oc_${name}.json`);
     const r = run(evalArgs(F, path.join(ROOT, `eval_oc_${name}.json`), g));
     assert.notEqual(r.status, 0, name); assert.ok(!fs.existsSync(g), name);
-    assert.match(r.stderr, name === "as_of" ? /as_of/ : name === "season" ? /season/ : name === "lens" ? /lens/ : /week 12/, `${name}: ${r.stderr}`);
+    assert.match(r.stderr, name.startsWith("as_of") ? /as_of/ : name === "season" ? /season/ : name === "snapshot" ? /snapshot_sha256/ : name === "lens" ? /lens/ : /week 12/, `${name}: ${r.stderr}`);
+  }
+});
+
+// I1 (astra review): every captured-snapshot date in the window is accepted and published in eval.json
+check("M1b: outcomes as_of 2027-01-12, -13 and -14 are accepted and recorded in eval.json", () => {
+  for (const d of ["2027-01-12", "2027-01-13", "2027-01-14"]) {
+    const F = path.join(ROOT, `freeze_oc_ok_${d}`);
+    fs.cpSync(FREEZE, F, { recursive: true });
+    const op = path.join(F, "outcomes_2026.json");
+    const oc = JSON.parse(fs.readFileSync(op, "utf8")); oc.as_of = d; fs.writeFileSync(op, JSON.stringify(oc));
+    const o = path.join(ROOT, `eval_oc_ok_${d}.json`);
+    ok(run(evalArgs(F, o, path.join(ROOT, `gates_oc_ok_${d}.json`))), d);
+    const ev = JSON.parse(fs.readFileSync(o, "utf8"));
+    assert.equal(ev.outcomes_as_of, d); assert.equal(ev.outcomes_snapshot_sha256, "ab".repeat(32));
   }
 });
 
