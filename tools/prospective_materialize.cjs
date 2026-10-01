@@ -195,7 +195,9 @@ function main(argv) {
     const world = readJson(worldFile);
     if (world.season !== a.season) throw new BacktestError(`${worldFile}: season ${world.season}, expected ${a.season}`);
     const pl = payloads[label];
-    if (world.label !== label || world.format_key !== pl.format_key || JSON.stringify(world.compat) !== JSON.stringify(pl.compat)) {
+    // The world builder (draft_world.py) records the format as `format`; compat is compared key-order-free.
+    const canon = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
+    if (world.format !== label || world.format_key !== pl.format_key || canon(world.compat) !== canon(pl.compat)) {
       throw new BacktestError(`${worldFile}: recorded label/format_key/compat do not match format ${label}'s config`);
     }
     const file = path.join(a.forecastsDir, `forecasts_${a.season}_o${a.origin}_${label}.json`);
