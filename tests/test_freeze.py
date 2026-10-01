@@ -31,7 +31,10 @@ def all_teams(max_week):
 
 
 class StubSteps:
-    def __init__(self, schedule=None, weekly=None, payload_text=None):
+    def __init__(self, schedule=None, weekly=None, payload_text=None, pip="numpy==2.0.0\ntorch==2.9.0\n",
+                 versions=None):
+        self.pip, self._versions = pip, versions or {}
+        self.reuse = []
         self._sched = sched() if schedule is None else schedule
         self._weekly = all_teams(4) if weekly is None else weekly
         self.payload_text = payload_text
@@ -57,8 +60,12 @@ class StubSteps:
     def format_payloads(self, out):
         out.write_text(self.payload_text if self.payload_text is not None else "PAYLOADS\n")
 
-    def materialize(self, season, origin, *, worlds_dir, forecasts_dir, tags, payloads, out):
+    def pip_freeze(self):
+        return self.pip
+
+    def materialize(self, season, origin, *, worlds_dir, forecasts_dir, tags, payloads, out, reuse_drafts=None):
         self.calls.append(("materialize", origin))
+        self.reuse.append(reuse_drafts)
         assert (forecasts_dir / f"forecasts_2026_o{origin}_f12-1qb-ppr-6.json").is_file()
         assert (worlds_dir / "world_2026_f12-sf-ppr-4.json").is_file()
         assert tags.is_file() and payloads.is_file()
@@ -66,7 +73,7 @@ class StubSteps:
         (out / "cells.json").write_text("[]")
 
     def versions(self):
-        return {"node": "v20.0.0", "python": "3.12.0", "git_head": "abc123", "git_dirty": False}
+        return {"node": "v20.0.0", "python": "3.12.0", "git_head": "abc123", "git_dirty": False, **self._versions}
 
 
 def write(p, text):
@@ -85,7 +92,8 @@ def repo(tmp_path):
         write(r / "configs" / "formats" / f"{label}.yaml", f"label: {label}\n")
     write(r / "site" / "data" / "availability.json", '{"a": 1}')
     write(r / F.MARKET_SNAPSHOT, "player,ecr\nx,1\n")
-    for rel in F.REQUIRED_CODE + [F.EVALUATOR]:
+    for rel in F.REQUIRED_CODE + [F.EVALUATOR, "src/ffmodel/scoring.py", "src/ffmodel/eval/export_origin_forecasts.py",
+                                  "src/ffmodel/prospective/outcomes.py"]:
         write(r / rel, f"// {rel}\n")
     for mr in F.MODEL_ROOTS:
         write(r / mr / "through2025" / "model.pt", mr)
@@ -210,12 +218,17 @@ def test_manifest_lists_every_file_with_correct_hashes(repo):
     on_disk = {p.relative_to(o5).as_posix() for p in o5.rglob("*") if p.is_file() and p.name != "manifest.json"}
     assert set(m["files"]) == on_disk
     for rel, h in m["files"].items():
-        assert h == hashlib.sha256((o5 / rel).read_bytes()).hexdigest()
+        assert h == F.sha256_norm(o5 / rel)
     for rel, h in {**m["code"], **m["models"], **m["dependencies"]}.items():
-        assert h == hashlib.sha256((repo / rel).read_bytes()).hexdigest()
+        assert h == F.sha256_norm(repo / rel)
+    assert m["hash_rule"] == F.HASH_RULE and m["hash_rule"].startswith("sha256; CRLF->LF for .js")
+    # the whole Python pipeline is hashed, not just the listed files
+    assert {"src/ffmodel/scoring.py", "src/ffmodel/eval/export_origin_forecasts.py",
+            "src/ffmodel/prospective/outcomes.py"} <= set(m["code"])
+    assert "inputs/pip_freeze.txt" in m["files"] and "inputs/schedule_2026.csv" in m["files"]
     assert set(F.REQUIRED_CODE + [F.EVALUATOR]) <= set(m["code"])
     assert len(m["models"]) == 3 and "requirements-dev.txt" in m["dependencies"]
-    assert m["spec"] == {"path": F.SPEC, "sha256": hashlib.sha256((repo / F.SPEC).read_bytes()).hexdigest()}
+    assert m["spec"] == {"path": F.SPEC, "sha256": F.sha256_norm(repo / F.SPEC)}
     assert m["versions"]["git_head"] == "abc123" and m["versions"]["node"] == "v20.0.0"
     assert m["cutoff_utc"] == "2026-10-09T00:15:00+00:00" and m["cutoff_passed_at_now"] is False
 
@@ -296,7 +309,8 @@ def test_origin9_refuses_if_o5_availability_tampered(repo):
 
 
 @pytest.mark.parametrize("changed", ["site/assets/rostersim.js", "tools/prospective_materialize.cjs",
-                                     F.EVALUATOR, "models/transformer/v1_s43/through2025/model.pt"])
+                                     F.EVALUATOR, "models/transformer/v1_s43/through2025/model.pt",
+                                     "src/ffmodel/scoring.py", "src/ffmodel/eval/export_origin_forecasts.py"])
 def test_origin9_refuses_when_engine_code_or_model_changed_since_o5(repo, changed):
     run(repo, origin=5)
     write(repo / changed, "changed after o5\n")
@@ -416,3 +430,81 @@ def test_prefetch_gives_up_with_exit_8(tmp_path, monkeypatch):
     with pytest.raises(FreezeError) as e:
         Steps(tmp_path).prefetch(2026, sleep=lambda s: None)
     assert e.value.code == 8 and "4 attempts" in str(e.value)
+
+
+def test_hash_rule_crlf_lf_binary(tmp_path):
+    lf, crlf = tmp_path / "a.js", tmp_path / "b.js"
+    lf.write_bytes(b"line1\nline2\n")
+    crlf.write_bytes(b"line1\r\nline2\r\n")
+    assert F.sha256_norm(lf) == F.sha256_norm(crlf) == hashlib.sha256(b"line1\nline2\n").hexdigest()
+    (tmp_path / "c.JSON").write_bytes(b"{}\r\n")  # extension match is case-insensitive
+    assert F.sha256_norm(tmp_path / "c.JSON") == hashlib.sha256(b"{}\n").hexdigest()
+    b1, b2 = tmp_path / "m.pt", tmp_path / "n.pt"
+    b1.write_bytes(b"\x00\r\n\x01")
+    b2.write_bytes(b"\x00\n\x01")
+    assert F.sha256_norm(b1) == hashlib.sha256(b"\x00\r\n\x01").hexdigest()  # binary: raw bytes
+    assert F.sha256_norm(b1) != F.sha256_norm(b2)
+
+
+def test_pip_freeze_normalization_drops_own_line_only():
+    raw = ("# Editable install with no version control (ffmodel==0.1.0)\n-e C:\\x\\Megatron\n"
+           "numpy==2.0.0\n-e git+https://h/r@abc#egg=ffmodel\nffmodel @ file:///x\ntorch==2.9.0\n")
+    assert F.normalize_pip_freeze(raw) == "-e C:\\x\\Megatron\nnumpy==2.0.0\ntorch==2.9.0\n"
+    assert F.normalize_pip_freeze("ffmodel==0.1.0\nnumpy==2.0.0\n") == "numpy==2.0.0\n"
+
+
+def test_o5_records_schedule_and_pip_freeze(repo):
+    run(repo)
+    o5 = repo / O5DIR
+    assert (o5 / "inputs/pip_freeze.txt").read_text() == "numpy==2.0.0\ntorch==2.9.0\n"
+    assert (o5 / "inputs/schedule_2026.csv").read_text().splitlines()[0] == "season,week,gameday,gametime,home_team,away_team"
+
+
+def test_origin9_refuses_on_pip_drift(repo):
+    run(repo, origin=5)
+    s = _origin9(repo)
+    s.pip = "numpy==2.0.1\ntorch==2.9.0\n"
+    with pytest.raises(F.FreezeError) as e:
+        run(repo, origin=9, now=O9_NOW, steps=s)
+    assert e.value.code == 5 and "inputs" in e.value.msg and not (repo / O9DIR).exists()
+
+
+@pytest.mark.parametrize("key,val", [("node", "v24.13.0"), ("python", "3.12.99")])
+def test_origin9_refuses_on_toolchain_drift(repo, key, val):
+    run(repo, origin=5)
+    s = _origin9(repo)
+    s._versions = {key: val}
+    with pytest.raises(F.FreezeError) as e:
+        run(repo, origin=9, now=O9_NOW, steps=s)
+    assert e.value.code == 5 and key in e.value.msg and not (repo / O9DIR).exists()
+
+
+def test_origin9_tolerates_schedule_difference_and_reuses_o5_drafts(repo):
+    run(repo, origin=5)
+    s = _origin9(repo)  # a different schedule than o5's
+    run(repo, origin=9, now=O9_NOW, steps=s)
+    assert s.reuse == [repo / O5DIR / "decisions"]
+    m5 = json.loads((repo / O5DIR / "manifest.json").read_text())
+    m9 = json.loads((repo / O9DIR / "manifest.json").read_text())
+    assert m5["files"]["inputs/schedule_2026.csv"] != m9["files"]["inputs/schedule_2026.csv"]
+
+
+def test_o5_and_contingency_do_not_pass_reuse_drafts(repo):
+    s5 = StubSteps()
+    run(repo, origin=5, steps=s5)
+    assert s5.reuse == [None]
+    sc = _origin9(repo)
+    shutil.rmtree(repo / O5DIR)
+    F.run_freeze(2026, 9, dry_run=False, now=O9_NOW, steps=sc, root=repo, contingency=True)
+    assert sc.reuse == [None]
+
+
+def test_real_steps_materialize_command_passes_reuse_flag(tmp_path, monkeypatch):
+    seen = []
+    st = F.Steps(tmp_path)
+    monkeypatch.setattr(st, "_run", lambda cmd, what: seen.append(cmd) or "")
+    kw = dict(worlds_dir=tmp_path, forecasts_dir=tmp_path, tags=tmp_path, payloads=tmp_path, out=tmp_path)
+    st.materialize(2026, 5, **kw)
+    st.materialize(2026, 9, reuse_drafts=tmp_path / "d", **kw)
+    assert "--reuse-drafts" not in seen[0]
+    assert seen[1][seen[1].index("--reuse-drafts") + 1] == str(tmp_path / "d")

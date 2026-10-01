@@ -54,9 +54,14 @@ REQUIRED_CODE = [
     "src/ffmodel/formats.py", "site/assets/formats.js", "tools/export_format_payloads.py",
     "src/ffmodel/prospective/freeze.py",
 ]
+PY_CODE_ROOT = "src/ffmodel"  # every .py under it is frozen code (the forecast pipeline), spec review I1
 EVALUATOR = "tools/prospective_eval.cjs"  # required for a real run, optional for a dry run
 DEP_FILES = ["pyproject.toml", "package.json", "package-lock.json"]
 ET = ZoneInfo("America/New_York")
+TEXT_EXTS = (".js", ".cjs", ".mjs", ".py", ".json", ".yaml", ".yml", ".md", ".csv", ".txt", ".toml", ".cfg", ".ini")
+HASH_RULE = "sha256; CRLF->LF for " + " ".join(TEXT_EXTS)
+SCHEDULE_INPUT = "inputs/schedule_2026.csv"  # may legitimately differ between origins (flex scheduling)
+PIP_FREEZE_INPUT = "inputs/pip_freeze.txt"
 
 
 class FreezeError(Exception):
@@ -66,11 +71,33 @@ class FreezeError(Exception):
 
 
 def sha256_file(p: Path) -> str:
+    """The shared hashing rule (`HASH_RULE`): text files are hashed with every CRLF replaced by LF so a Windows
+    checkout (core.autocrlf) verifies against the LF bytes the Linux freeze hashed; everything else is raw bytes.
+    The JS evaluator implements the identical rule."""
+    p = Path(p)
+    if p.suffix.lower() in TEXT_EXTS:
+        return hashlib.sha256(p.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
     h = hashlib.sha256()
     with open(p, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+sha256_norm = sha256_file
+
+
+def normalize_pip_freeze(text: str) -> str:
+    """`pip freeze` minus the project's own line (an editable install prints a path or a git SHA that differs per
+    checkout) and editable-install comments; sorted, LF-terminated. Everything else (every dependency pin) stays."""
+    keep = []
+    for ln in text.replace("\r\n", "\n").split("\n"):
+        ln = ln.strip()
+        low = ln.lower()
+        if not ln or low.startswith("# editable") or "#egg=ffmodel" in low or low.startswith(("ffmodel==", "ffmodel @", "ffmodel ")):
+            continue
+        keep.append(ln)
+    return "\n".join(sorted(keep)) + "\n"
 
 
 def target_dir(root: Path, season: int, origin: int, dry_run: bool) -> Path:
@@ -173,12 +200,18 @@ class Steps:
         self._run([sys.executable, "tools/export_format_payloads.py", "--out", str(out)], "format payloads")
 
     def materialize(self, season: int, origin: int, *, worlds_dir: Path, forecasts_dir: Path, tags: Path,
-                    payloads: Path, out: Path) -> None:
-        self._run(["node", "tools/prospective_materialize.cjs", "--season", str(season), "--origin", str(origin),
-                   "--formats", ",".join(PRIMARY), "--exploratory", ",".join(EXPLORATORY),
-                   "--worlds-dir", str(worlds_dir), "--forecasts-dir", str(forecasts_dir), "--tags", str(tags),
-                   "--format-payloads", str(payloads), "--leagues", str(LEAGUES), "--trades", str(TRADES),
-                   "--out", str(out)], "materialize")
+                    payloads: Path, out: Path, reuse_drafts: Path | None = None) -> None:
+        cmd = ["node", "tools/prospective_materialize.cjs", "--season", str(season), "--origin", str(origin),
+               "--formats", ",".join(PRIMARY), "--exploratory", ",".join(EXPLORATORY),
+               "--worlds-dir", str(worlds_dir), "--forecasts-dir", str(forecasts_dir), "--tags", str(tags),
+               "--format-payloads", str(payloads), "--leagues", str(LEAGUES), "--trades", str(TRADES),
+               "--out", str(out)]
+        if reuse_drafts is not None:  # origin 9: reuse origin 5's frozen drafts (spec §7.4), never re-draft
+            cmd += ["--reuse-drafts", str(reuse_drafts)]
+        self._run(cmd, "materialize")
+
+    def pip_freeze(self) -> str:
+        return normalize_pip_freeze(self._run([sys.executable, "-m", "pip", "freeze"], "pip freeze"))
 
     def versions(self) -> dict:
         return {
@@ -210,7 +243,9 @@ def _stage_inputs(root: Path, season: int, tdir: Path, avail_src: Path | None = 
 
 def _code_hashes(root: Path, *, dry_run: bool) -> dict:
     code = {}
-    for rel in REQUIRED_CODE + [EVALUATOR]:
+    py = sorted(p.relative_to(root).as_posix() for p in (root / PY_CODE_ROOT).rglob("*.py")
+                if "__pycache__" not in p.parts)
+    for rel in sorted(set(REQUIRED_CODE + py)) + [EVALUATOR]:
         p = root / rel
         if p.is_file():
             code[rel] = sha256_file(p)
@@ -247,12 +282,20 @@ def _diff(kind: str, cur: dict, ref: dict, origin: int, ref_origin: int) -> None
         raise FreezeError(5, f"origin {origin} {kind} differ from origin {ref_origin}'s manifest: {bad[:8]}")
 
 
-def _check_reuse(root: Path, origin: int, ref_origin: int, ref: dict, tdir: Path, *, dry_run: bool) -> None:
+def _check_reuse(root: Path, origin: int, ref_origin: int, ref: dict, tdir: Path, *, dry_run: bool,
+                 versions: dict | None = None) -> None:
     """Origin-9 identity: only forecasts, tags and decisions may differ from o5 (spec §7.4). Checked against o5's
     manifest, in both directions, for inputs, code (engine, evaluator, materializer, ...) and models."""
     cur_inputs = {p.relative_to(tdir).as_posix(): sha256_file(p)
                   for p in sorted((tdir / "inputs").rglob("*")) if p.is_file()}
-    ref_inputs = {k: v for k, v in ref.get("files", {}).items() if k.startswith("inputs/")}
+    cur_inputs.pop(SCHEDULE_INPUT, None)  # the schedule may differ (flex scheduling); it is recorded, not compared
+    ref_inputs = {k: v for k, v in ref.get("files", {}).items() if k.startswith("inputs/") and k != SCHEDULE_INPUT}
+    if versions is not None:  # same toolchain as the reference origin (the pip environment is an input, above)
+        rv = ref.get("versions", {})
+        bad = [k for k in ("node", "python") if versions.get(k) != rv.get(k)]
+        if bad:
+            raise FreezeError(5, f"origin {origin} toolchain differs from origin {ref_origin}'s: "
+                                 + ", ".join(f"{k} {versions.get(k)} != {rv.get(k)}" for k in bad))
     _diff("inputs", cur_inputs, ref_inputs, origin, ref_origin)
     _diff("code", _code_hashes(root, dry_run=dry_run), ref.get("code", {}), origin, ref_origin)
     _diff("models", _model_hashes(root), ref.get("models", {}), origin, ref_origin)
@@ -276,7 +319,7 @@ def build_manifest(root: Path, season: int, origin: int, tdir: Path, *, dry_run:
         "formats": {"primary": PRIMARY, "exploratory": EXPLORATORY},
         "cutoff_utc": cutoff.isoformat(), "cutoff_passed_at_now": cutoff_passed,
         "started_at": now.isoformat(), "built_at": built_at.isoformat(),
-        "versions": versions,
+        "versions": versions, "hash_rule": HASH_RULE,
         "spec": {"path": SPEC, "sha256": sha256_file(spec)},
         "files": files, "code": code, "models": models, "dependencies": deps,
     }
@@ -340,13 +383,16 @@ def run_freeze(season: int, origin: int, *, dry_run: bool, now: dt.datetime | No
         _stage_inputs(root, season, tdir, avail_src)
         payloads = tdir / "inputs" / "format_payloads.json"
         steps.format_payloads(payloads)
+        (tdir / SCHEDULE_INPUT).write_text(schedule.to_csv(index=False, lineterminator="\n"), encoding="utf-8", newline="")
+        (tdir / PIP_FREEZE_INPUT).write_text(steps.pip_freeze(), encoding="utf-8", newline="")
         committed = root / "models" / "prospective" / str(season) / "format_payloads.json"
         if not committed.is_file() or sha256_file(committed) != sha256_file(payloads):
             raise FreezeError(7, "format_payloads.json regenerated from configs differs from the committed one")
         if ref is not None:
-            _check_reuse(root, origin, ref_origin, ref, tdir, dry_run=dry_run)
+            _check_reuse(root, origin, ref_origin, ref, tdir, dry_run=dry_run, versions=steps.versions())
+        kw = {"reuse_drafts": ref_dir / "decisions"} if ref is not None else {}  # contingency: no o5, fresh drafts
         steps.materialize(season, origin, worlds_dir=tdir / "inputs" / "worlds", forecasts_dir=tdir, tags=tags,
-                          payloads=payloads, out=tdir / "decisions")
+                          payloads=payloads, out=tdir / "decisions", **kw)
         built_at = clock().astimezone(dt.timezone.utc)
         if not dry_run and built_at >= cutoff:
             raise FreezeError(3, f"build finished at {built_at.isoformat()}, at/after cutoff {cutoff.isoformat()}; "
