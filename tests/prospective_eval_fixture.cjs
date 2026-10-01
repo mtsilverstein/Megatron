@@ -322,6 +322,12 @@ check("waiver rules: current-only and naive-only failures; missing cell -> incon
   assert.equal(empty.status, "inconclusive");     // no waiver decisions at origin 9 is unknown, not zero
 });
 
+check("C1 (verdict layer): rows of origin 5 only, expected origins [5, 9] -> inconclusive for both features (never a pass on o5 alone)", () => {
+  const r = evalFmt(BASE.filter(x => x.origin === 5), { waiverRows: makeWaiver().filter(x => x.origin === 5) });
+  assert.equal(r.trade.status, "inconclusive"); assert.ok(r.trade.failed_rules.includes(1));
+  assert.equal(r.waiver.status, "inconclusive");
+});
+
 check("reporting (not verdict inputs): superiority over current, stacks, concentration", () => {
   const r = evalFmt(BASE).trade;
   const rep = r.reporting;
@@ -338,7 +344,7 @@ check("reporting (not verdict inputs): superiority over current, stacks, concent
    drafts k = 0, 1; origins 5 and 9; three trades per cell.
    =========================================================================== */
 const SLOTS = ["QB", "RB", "WR", "TE", "FLEX"];
-const LABELS = [["fx-a", true], ["fx-b", true], ["fx-c", true], ["fx-d", true], ["fx-x", false]];
+const LABELS = [["f12-1qb-ppr-6", true], ["f10-1qb-ppr-6", true], ["f12-1qb-ppr-4", true], ["f12-1qb-half-4", true], ["f12-sf-ppr-4", false]];
 const PLAYERS = {};
 const posList = { QB: 6, RB: 9, WR: 9, TE: 5 };   // 2 rostered teams x (1 QB, 2 RB, 2 WR, 1 TE) + undrafted
 const TEAMS = ["KC", "BUF", "DAL", "SF"];
@@ -419,6 +425,7 @@ const AVAIL = { schema_version: 1, p_out: { QB: 0.08, RB: 0.09, WR: 0.09, TE: 0.
                 p_tag: { Out: 0.7, Doubtful: 0.58, Questionable: 0.22, IR: 0.95 } };
 function writeJson(p, x) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, JSON.stringify(x)); }
 function buildFreeze(dir) {
+  const dryRun = false;
   for (const origin of [5, 9]) {
     const od = path.join(dir, `o${origin}`);
     const cells = [];
@@ -429,6 +436,7 @@ function buildFreeze(dir) {
       for (const k of [0, 1]) cells.push({ format: label, k, origin, key: `${label}|2026|${origin}|${k}`, primary });
     }
     writeJson(path.join(od, "decisions", "cells.json"), cells);
+    writeJson(path.join(od, "manifest.json"), { season: 2026, origin, dry_run: dryRun, exploratory: false });
     writeJson(path.join(od, `tags_w${origin - 1}.json`), { season: 2026, week: origin - 1, source: "fixture", tags: TAGS });
     writeJson(path.join(od, "inputs", "availability.json"), AVAIL);
     fs.mkdirSync(path.join(od, "inputs"), { recursive: true });
@@ -486,12 +494,12 @@ check("pipeline: unsharded run writes eval.json and sim_gates.json (schema 3)", 
     else assert.ok(["conditional_pass", "conditional_fail"].includes(rec.status), rec.status);
     assert.notEqual(rec.status, "pass");
   }
-  const tg = g.records.find(x => x.label === "fx-a" && x.feature === "trade_grade");
+  const tg = g.records.find(x => x.label === "f12-1qb-ppr-6" && x.feature === "trade_grade");
   assert.deepEqual(tg.horizons.map(h => h.origin), [5, 9]);
   assert.ok(Number.isFinite(tg.horizons[0].lopsided_cutoff));
   assert.ok("E" in tg.horizons[0].strata.same_position);
   // eval.json: every cell evaluated, both arms present, support violations and v1 context carried
-  const fa = ev.formats["fx-a"];
+  const fa = ev.formats["f12-1qb-ppr-6"];
   assert.equal(fa.cells.declared, 4); assert.equal(fa.cells.evaluated, 4);
   assert.deepEqual(fa.cells.missing, []); assert.deepEqual(fa.cells.excluded, []);
   assert.equal(fa.trade.metrics.pooled.n, 24);      // 3 trades x 2 sides x 2 drafts x 2 origins
@@ -504,7 +512,7 @@ check("pipeline: unsharded run writes eval.json and sim_gates.json (schema 3)", 
 
 check("pipeline: v2 and rho0 arms share seeds but differ; expected values nearly equal", () => {
   const ev = JSON.parse(fs.readFileSync(OUT, "utf8"));
-  const p = ev.formats["fx-a"].trade.metrics.pooled;
+  const p = ev.formats["f12-1qb-ppr-6"].trade.metrics.pooled;
   assert.ok(p.width.v2 !== p.width.rho0, "rho changes intervals");
 });
 
@@ -534,7 +542,7 @@ check("--jobs 2 (worker threads) == --jobs 1", () => {
 check("(c) one expected cell missing (draft absent from the freeze) -> that format inconclusive, others unaffected", () => {
   const F2 = path.join(ROOT, "freeze_missing");
   fs.cpSync(FREEZE, F2, { recursive: true });
-  const dp = path.join(F2, "o9", "decisions", "fx-b.json");
+  const dp = path.join(F2, "o9", "decisions", "f10-1qb-ppr-6.json");
   const dec = JSON.parse(fs.readFileSync(dp, "utf8"));
   dec.drafts = dec.drafts.filter(d => d.k !== 1);
   dec.trades = dec.trades.filter(t => t.k !== 1); dec.waiver = dec.waiver.filter(w => w.k !== 1);
@@ -542,56 +550,52 @@ check("(c) one expected cell missing (draft absent from the freeze) -> that form
   const o = path.join(ROOT, "eval_missing.json"), g = path.join(ROOT, "gates_missing.json");
   ok(run(evalArgs(F2, o, g)), "missing");
   const ev = JSON.parse(fs.readFileSync(o, "utf8"));
-  const fb = ev.formats["fx-b"];
+  const fb = ev.formats["f10-1qb-ppr-6"];
   assert.equal(fb.cells.missing.length, 1);
-  assert.equal(fb.cells.missing[0].key, "fx-b|2026|9|1");
+  assert.equal(fb.cells.missing[0].key, "f10-1qb-ppr-6|2026|9|1");
   assert.equal(fb.trade.status, "inconclusive");
   assert.equal(fb.waiver.status, "inconclusive");
   assert.ok(fb.trade.checks.some(c => c.id === "cells:missing" && !c.pass));
-  assert.deepEqual(ev.formats["fx-a"].cells.missing, []);
-  assert.notEqual(ev.formats["fx-a"].waiver.status, "inconclusive");
+  assert.deepEqual(ev.formats["f12-1qb-ppr-6"].cells.missing, []);
+  assert.notEqual(ev.formats["f12-1qb-ppr-6"].waiver.status, "inconclusive");
 });
 
 check("review focus 5: a rostered player without a forecast row -> cell excluded -> inconclusive (never dropped)", () => {
   const F3 = path.join(ROOT, "freeze_uncovered");
   fs.cpSync(FREEZE, F3, { recursive: true });
-  const fp = path.join(F3, "o5", "forecasts_2026_o5_fx-c.json");
+  const fp = path.join(F3, "o5", "forecasts_2026_o5_f12-1qb-ppr-4.json");
   const fc = JSON.parse(fs.readFileSync(fp, "utf8"));
   const rostered = draftRosters(0)[0][2];
   delete fc.players[rostered].weeks[10];
   fs.writeFileSync(fp, JSON.stringify(fc));
   const o = path.join(ROOT, "eval_unc.json"), g = path.join(ROOT, "gates_unc.json");
   ok(run(evalArgs(F3, o, g)), "uncovered");
-  const fcx = JSON.parse(fs.readFileSync(o, "utf8")).formats["fx-c"];
-  assert.ok(fcx.cells.excluded.some(e => e.key.startsWith("fx-c|2026|5|") && /coverage/.test(e.reason)), JSON.stringify(fcx.cells));
+  const fcx = JSON.parse(fs.readFileSync(o, "utf8")).formats["f12-1qb-ppr-4"];
+  assert.ok(fcx.cells.excluded.some(e => e.key.startsWith("f12-1qb-ppr-4|2026|5|") && /coverage/.test(e.reason)), JSON.stringify(fcx.cells));
   assert.equal(fcx.trade.status, "inconclusive");
   assert.equal(fcx.waiver.status, "inconclusive");
 });
 
-check("frozen exclusion (decisions.excluded) -> inconclusive; missing outcome lens -> inconclusive", () => {
+check("frozen exclusion (decisions.excluded) -> inconclusive", () => {
   const F4 = path.join(ROOT, "freeze_ex");
   fs.cpSync(FREEZE, F4, { recursive: true });
-  const dp = path.join(F4, "o5", "decisions", "fx-d.json");
+  const dp = path.join(F4, "o5", "decisions", "f12-1qb-half-4.json");
   const dec = JSON.parse(fs.readFileSync(dp, "utf8"));
   dec.excluded.push({ k: 0, reason: "1 rostered player(s) lack full forecast coverage", players: ["RB0"] });
   dec.trades = dec.trades.filter(t => t.k !== 0);
   fs.writeFileSync(dp, JSON.stringify(dec));
-  const op = path.join(F4, "outcomes_2026.json");
-  const oc = JSON.parse(fs.readFileSync(op, "utf8")); delete oc.actual_weeks["fx-c"]; fs.writeFileSync(op, JSON.stringify(oc));
   const o = path.join(ROOT, "eval_ex.json"), g = path.join(ROOT, "gates_ex.json");
   ok(run(evalArgs(F4, o, g)), "excluded");
   const ev = JSON.parse(fs.readFileSync(o, "utf8"));
-  assert.ok(ev.formats["fx-d"].cells.excluded.some(e => e.key === "fx-d|2026|5|0"));
-  assert.equal(ev.formats["fx-d"].trade.status, "inconclusive");
-  assert.equal(ev.formats["fx-c"].cells.excluded.length, 4);
-  assert.equal(ev.formats["fx-c"].waiver.status, "inconclusive");
+  assert.ok(ev.formats["f12-1qb-half-4"].cells.excluded.some(e => e.key === "f12-1qb-half-4|2026|5|0"));
+  assert.equal(ev.formats["f12-1qb-half-4"].trade.status, "inconclusive");
 });
 
 check("M != 4 primary formats is refused; non-predeclared run cannot write under site/", () => {
   const F5 = path.join(ROOT, "freeze_m3");
   fs.cpSync(FREEZE, F5, { recursive: true });
   for (const O of [5, 9]) {
-    const dp = path.join(F5, `o${O}`, "decisions", "fx-d.json");
+    const dp = path.join(F5, `o${O}`, "decisions", "f12-1qb-half-4.json");
     const dec = JSON.parse(fs.readFileSync(dp, "utf8")); dec.primary = false; fs.writeFileSync(dp, JSON.stringify(dec));
   }
   const r = run(evalArgs(F5, path.join(ROOT, "m3.json"), path.join(ROOT, "m3g.json")));
@@ -614,11 +618,145 @@ check("contingency (spec §7.5): origin-5 freeze absent -> every record explorat
   const F6 = path.join(ROOT, "freeze_o9only");
   fs.cpSync(FREEZE, F6, { recursive: true });
   fs.rmSync(path.join(F6, "o5"), { recursive: true });
+  writeJson(path.join(F6, "o9", "manifest.json"), { season: 2026, origin: 9, dry_run: false, exploratory: true });
   const o = path.join(ROOT, "eval_c.json"), g = path.join(ROOT, "gates_c.json");
   ok(run(evalArgs(F6, o, g)), "contingency");
   const gates = JSON.parse(fs.readFileSync(g, "utf8"));
   assert.ok(gates.records.every(r => r.status === "exploratory"), JSON.stringify(gates.records.map(r => r.status)));
   assert.equal(JSON.parse(fs.readFileSync(o, "utf8")).contingency, true);
+  assert.deepEqual(gates.origins, [9]);
+  // contingency must agree with the manifest: an o9 manifest that is NOT exploratory with o5 absent aborts
+  writeJson(path.join(F6, "o9", "manifest.json"), { season: 2026, origin: 9, dry_run: false, exploratory: false });
+  const g2 = path.join(ROOT, "gates_c2.json");
+  const bad = run(evalArgs(F6, path.join(ROOT, "eval_c2.json"), g2));
+  assert.notEqual(bad.status, 0); assert.match(bad.stderr, /exploratory/); assert.ok(!fs.existsSync(g2));
+});
+
+// C1: both origins are required outside the §7.5 contingency
+check("C1: origin-9 freeze absent (o5 present, no contingency) -> every primary record inconclusive, origins evaluated = [5]", () => {
+  const F7 = path.join(ROOT, "freeze_no9");
+  fs.cpSync(FREEZE, F7, { recursive: true });
+  fs.rmSync(path.join(F7, "o9"), { recursive: true });
+  const o = path.join(ROOT, "eval_no9.json"), g = path.join(ROOT, "gates_no9.json");
+  ok(run(evalArgs(F7, o, g)), "no o9");
+  const gates = JSON.parse(fs.readFileSync(g, "utf8")), ev = JSON.parse(fs.readFileSync(o, "utf8"));
+  assert.deepEqual(gates.origins, [5]); assert.deepEqual(ev.origins, [5]); assert.deepEqual(ev.expected_origins, [5, 9]);
+  assert.equal(ev.contingency, false);
+  for (const [label, primary] of LABELS) for (const feature of ["trade_grade", "waiver_sim"]) {
+    const rec = gates.records.find(x => x.label === label && x.feature === feature);
+    assert.equal(rec.status, primary ? "inconclusive" : "exploratory", `${label} ${feature}`);
+    assert.deepEqual(rec.horizons.map(h => h.origin), [5]);
+  }
+  assert.equal(ev.formats["f12-1qb-ppr-6"].cells.missing.length, 2);       // both o9 cells of the format
+  assert.ok(ev.formats["f12-1qb-ppr-6"].trade.checks.some(c => c.id === "cells:missing" && !c.pass));
+});
+
+// M1: the outcome artifact is validated fail-closed; nothing is written on failure
+check("M1: outcome artifact validation (as_of, season, lens, weeks) aborts with no gate output", () => {
+  const variants = {
+    as_of: oc => { oc.as_of = "2027-01-05"; }, season: oc => { oc.season = 2025; },
+    lens: oc => { delete oc.actual_weeks["f12-1qb-ppr-4"]; },
+    week: oc => { for (const byW of Object.values(oc.actual_weeks["f10-1qb-ppr-6"])) delete byW["12"]; },
+  };
+  for (const [name, mutate] of Object.entries(variants)) {
+    const F = path.join(ROOT, `freeze_oc_${name}`);
+    fs.cpSync(FREEZE, F, { recursive: true });
+    const op = path.join(F, "outcomes_2026.json");
+    const oc = JSON.parse(fs.readFileSync(op, "utf8")); mutate(oc); fs.writeFileSync(op, JSON.stringify(oc));
+    const g = path.join(ROOT, `gates_oc_${name}.json`);
+    const r = run(evalArgs(F, path.join(ROOT, `eval_oc_${name}.json`), g));
+    assert.notEqual(r.status, 0, name); assert.ok(!fs.existsSync(g), name);
+    assert.match(r.stderr, name === "as_of" ? /as_of/ : name === "season" ? /season/ : name === "lens" ? /lens/ : /week 12/, `${name}: ${r.stderr}`);
+  }
+});
+
+// M2: pinned labels
+check("M2: primary labels are pinned in RULES; a decisions file that disagrees aborts", () => {
+  assert.deepEqual(PE.RULES.primary_labels, ["f12-1qb-ppr-6", "f10-1qb-ppr-6", "f12-1qb-ppr-4", "f12-1qb-half-4"]);
+  assert.deepEqual(PE.RULES.exploratory_labels, ["f12-sf-ppr-4"]);
+  const F = path.join(ROOT, "freeze_pin");
+  fs.cpSync(FREEZE, F, { recursive: true });
+  for (const O of [5, 9]) {                     // swap which format is primary, keeping M = 4: only the pin can catch it
+    for (const [l, p] of [["f12-1qb-half-4", false], ["f12-sf-ppr-4", true]]) {
+      const dp = path.join(F, `o${O}`, "decisions", `${l}.json`);
+      const dec = JSON.parse(fs.readFileSync(dp, "utf8")); dec.primary = p; fs.writeFileSync(dp, JSON.stringify(dec));
+    }
+  }
+  const g = path.join(ROOT, "gates_pin.json");
+  const r = run(evalArgs(F, path.join(ROOT, "eval_pin.json"), g));
+  assert.notEqual(r.status, 0); assert.match(r.stderr, /pins/); assert.ok(!fs.existsSync(g));
+});
+
+// M3: lopsided marks are recomputed
+check("M3: a frozen lopsided mark that disagrees with the recomputed cutoff excludes the cell", () => {
+  const F = path.join(ROOT, "freeze_lop");
+  fs.cpSync(FREEZE, F, { recursive: true });
+  const dp = path.join(F, "o5", "decisions", "f10-1qb-ppr-6.json");
+  const dec = JSON.parse(fs.readFileSync(dp, "utf8"));
+  const t = dec.trades.find(x => x.k === 0 && !x.strata.includes("lopsided"));
+  assert.ok(t, "fixture has a non-lopsided trade");
+  t.strata.push("lopsided"); fs.writeFileSync(dp, JSON.stringify(dec));
+  const o = path.join(ROOT, "eval_lop.json");
+  ok(run(evalArgs(F, o, path.join(ROOT, "gates_lop.json"))), "lopsided");
+  const fb = JSON.parse(fs.readFileSync(o, "utf8")).formats["f10-1qb-ppr-6"];
+  assert.ok(fb.cells.excluded.some(e => e.key === "f10-1qb-ppr-6|2026|5|0" && /lopsided/.test(e.reason)), JSON.stringify(fb.cells));
+  assert.equal(fb.trade.status, "inconclusive");
+});
+
+// M4: manifests
+check("M4: manifest dry_run / exploratory disagreements abort", () => {
+  for (const [name, mf, re] of [["dry", { season: 2026, origin: 5, dry_run: true, exploratory: false }, /dry_run/],
+                                ["expl", { season: 2026, origin: 5, dry_run: false, exploratory: true }, /exploratory/],
+                                ["origin", { season: 2026, origin: 9, dry_run: false, exploratory: false }, /manifest/]]) {
+    const F = path.join(ROOT, `freeze_mf_${name}`);
+    fs.cpSync(FREEZE, F, { recursive: true });
+    writeJson(path.join(F, "o5", "manifest.json"), mf);
+    const g = path.join(ROOT, `gates_mf_${name}.json`);
+    const r = run(evalArgs(F, path.join(ROOT, `eval_mf_${name}.json`), g));
+    assert.notEqual(r.status, 0, name); assert.match(r.stderr, re, name); assert.ok(!fs.existsSync(g), name);
+  }
+  const F = path.join(ROOT, "freeze_mf_none");
+  fs.cpSync(FREEZE, F, { recursive: true }); fs.rmSync(path.join(F, "o9", "manifest.json"));
+  const r = run(evalArgs(F, path.join(ROOT, "eval_mf_none.json"), path.join(ROOT, "gates_mf_none.json")));
+  assert.notEqual(r.status, 0); assert.match(r.stderr, /manifest/);
+});
+
+// M6: dry-run evaluation
+check("M6: --dry-run-origin evaluates only dryrun-o<O>, never writes a gate file, reports consistency exclusions", () => {
+  const D = path.join(ROOT, "freeze_dry");
+  fs.mkdirSync(D);
+  fs.cpSync(path.join(FREEZE, "o5"), path.join(D, "dryrun-o5"), { recursive: true });
+  writeJson(path.join(D, "dryrun-o5", "manifest.json"), { season: 2026, origin: 5, dry_run: true, exploratory: false });
+  fs.copyFileSync(path.join(FREEZE, "rho.json"), path.join(D, "rho.json"));
+  const oc = JSON.parse(fs.readFileSync(path.join(FREEZE, "outcomes_2026.json"), "utf8")); oc.as_of = "synthetic";
+  for (const lens of Object.values(oc.actual_weeks)) { delete lens.TE0["17"]; delete lens.WR3["16"]; }     // partial outcomes are fine
+  writeJson(path.join(D, "outcomes_2026.json"), oc);
+  const out = path.join(ROOT, "eval_dry.json");
+  const args = ["--freeze", D, "--outcomes", path.join(D, "outcomes_2026.json"), "--rho", path.join(D, "rho.json"), "--sims", "16", "--dry-run-origin", "5", "--out", out];
+  const r = run(args);
+  ok(r, "dry run");
+  assert.match(r.stdout, /0 freeze-consistency exclusion/);
+  const ev = JSON.parse(fs.readFileSync(out, "utf8"));
+  assert.deepEqual(ev.origins, [5]); assert.equal(ev.dry_run.freeze_consistency_exclusions, 0); assert.equal(ev.predeclared, false);
+  assert.equal(ev.formats["f12-1qb-ppr-6"].cells.evaluated, 2);
+  assert.ok(Object.values(ev.formats).every(f => f.trade.status === "exploratory"));
+  // --gates-out is refused; a real (dry_run:false) manifest is refused in dry-run mode
+  const g = path.join(ROOT, "gates_dry.json");
+  const rg = run(args.concat(["--gates-out", g]));
+  assert.notEqual(rg.status, 0); assert.match(rg.stderr, /gate/); assert.ok(!fs.existsSync(g));
+  writeJson(path.join(D, "dryrun-o5", "manifest.json"), { season: 2026, origin: 5, dry_run: false, exploratory: false });
+  assert.notEqual(run(args).status, 0);
+  writeJson(path.join(D, "dryrun-o5", "manifest.json"), { season: 2026, origin: 5, dry_run: true, exploratory: false });
+  // a materializer / evaluator disagreement is counted
+  const dp = path.join(D, "dryrun-o5", "decisions", "f12-1qb-ppr-6.json");
+  const dec = JSON.parse(fs.readFileSync(dp, "utf8"));
+  dec.trades.find(x => x.k === 0 && !x.strata.includes("lopsided")).strata.push("lopsided"); fs.writeFileSync(dp, JSON.stringify(dec));
+  const r2 = run(args);
+  ok(r2, "dry run, disagreeing");
+  assert.match(r2.stdout, /[1-9]\d* freeze-consistency exclusion/); assert.match(r2.stdout, /DISAGREE/);
+  assert.ok(JSON.parse(fs.readFileSync(out, "utf8")).dry_run.freeze_consistency_exclusions >= 1);
+  // the normal mode never sees dryrun-o<O>
+  assert.notEqual(run(evalArgs(D, path.join(ROOT, "x.json"), path.join(ROOT, "xg.json"))).status, 0);
 });
 
 if (!process.env.KEEP) fs.rmSync(ROOT, { recursive: true, force: true }); else console.log(ROOT);

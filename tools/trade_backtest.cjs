@@ -821,6 +821,10 @@ function configHash(cfg) {
 /* Runs `specs` (jobs = worker threads, or in-process at 1) and hands each finished result to onDone(spec index,
    result) as it lands. A worker that errors OR exits without finishing rejects the run; it never hangs. */
 async function runCells(specs, jobs, onDone, { workerFile = __filename } = {}) {
+  if (workerFile !== __filename && (jobs <= 1 || specs.length <= 1)) {
+    // The in-process path below runs THIS file's executeCell; it would silently ignore the caller's worker.
+    throw new Error(`runCells: workerFile ${workerFile} needs jobs > 1 and more than one spec (the in-process path runs executeCell of trade_backtest); run the caller's own cell function in-process instead`);
+  }
   if (jobs <= 1 || specs.length <= 1) {
     specs.forEach((s, i) => onDone(i, executeCell(s)));
     return;

@@ -8,6 +8,10 @@
 //        [--merge <cells files...>]                   aggregate shard files (duplicate / missing cell -> error)
 //        [--cells-out <path>]                         (unsharded) also write every cell's rows
 //        [--sims N] [--generated-at <ISO>]            tests only: any sims != 2000 is not the predeclared run
+//        [--dry-run-origin <O>]                       evaluate ONLY <freeze>/dryrun-o<O> (a freeze --dry-run output) with
+//                                                     synthetic / partial outcomes; needs --out, REFUSES --gates-out, never
+//                                                     writes sim_gates.json; prints the freeze-consistency exclusion count
+//                                                     (0 = the materializer and this evaluator agree; the routine check)
 //
 // Spec 2026-09-30 §6 (predeclared). This file is FROZEN with the origin-5 manifest, before any 2026 outcome
 // exists, and runs after the season (§7.6). Its verdict logic is §6.3 (trade) and §6.4 (waiver) verbatim; every
@@ -27,6 +31,8 @@
 //   <freeze>/o<O>/tags_w<O-1>.json                 week O-1 injury tags {week, tags: {id: status}}
 //   <freeze>/o<O>/inputs/availability.json         availability rates (site/data/availability.json bytes)
 //   <freeze>/o<O>/inputs/rho.json                  the frozen rho table; --rho must be byte-identical
+//   <freeze>/o<O>/manifest.json                    {season, origin, dry_run, exploratory}: dry_run must be false (true only
+//                                                  with --dry-run-origin); exploratory must agree with the §7.5 contingency
 // Outcomes (§7.6, built after week 17 from stats as of 2027-01-12, hashed separately):
 //   {schema_version: 1, season: 2026, as_of, actual_weeks: {<label>: {<player id>: {"<week>": points}}}}
 //   points in that format's scoring over the predicted scope (§4.3); an entry means the player played that week.
@@ -48,7 +54,10 @@ const deepFreeze = o => { for (const v of Object.values(o)) if (v && typeof v ==
    ============================================================================================================ */
 const RULES = deepFreeze({
   season: 2026,                         // §6
-  origins: [5, 9],                      // §6.1; the first one missing = the §7.5 contingency (exploratory only)
+  origins: [5, 9],                      // §6.1; ALWAYS both, unless o5 is absent AND o9's manifest says exploratory (§7.5)
+  primary_labels: ["f12-1qb-ppr-6", "f10-1qb-ppr-6", "f12-1qb-ppr-4", "f12-1qb-half-4"],   // §4.1 (pinned: decisions' flags must agree)
+  exploratory_labels: ["f12-sf-ppr-4"],
+  outcomes_as_of: "2027-01-12",         // §7.6
   drafts: 20,                           // §6.1: draft seeds 1000*2026 + k, k = 0..19
   trades_per_cell: 125,                 // §6.1: a population target; a short cell is reported, never a verdict input
   sims: 2000,                           // §6.2: v2 and rho = 0, same seeds
@@ -464,11 +473,16 @@ function evaluateCell(spec) {
   const byTrade = new Map(trades.map(t => [t.id, t]));
   const teamOf = id => (fc.players[id] && fc.players[id].team) || null;
   const rows = [];
+  const lopsidedMeasure = new Map();       // trade -> max |current| over its two sides (the frozen cutoff's measure)
+  for (const a of r2.rows) lopsidedMeasure.set(a.trade_id, Math.max(lopsidedMeasure.has(a.trade_id) ? lopsidedMeasure.get(a.trade_id) : 0, Math.abs(a.current)));
+  const cutoff = dec.lopsided_cutoff;
+  if (trades.length && !(typeof cutoff === "number" && Number.isFinite(cutoff))) return fail("no frozen lopsided cutoff");
   for (let i = 0; i < r2.rows.length; i++) {
     const a = r2.rows[i], b = r0.rows[i], t = byTrade.get(a.trade_id);
     if (!t) return fail(`row for unknown trade ${a.trade_id}`);
     if (b.trade_id !== a.trade_id || b.side !== a.side || b.real !== a.real || b.current !== a.current || b.naive !== a.naive) return fail(`v2 and rho = 0 runs disagree outside the simulation (${a.trade_id})`);
     if (!Array.isArray(t.strata) || !sameJson(sortedCopy(t.strata.filter(s => s !== "lopsided")), sortedCopy(a.strata))) return fail(`strata of ${a.trade_id} differ from the frozen ones`);
+    if ((lopsidedMeasure.get(a.trade_id) >= cutoff) !== t.strata.includes("lopsided")) return fail(`lopsided mark of ${a.trade_id} disagrees with the cutoff recomputed from the current predictor`);
     const give = a.side === "a" ? t.give_a : t.give_b, receive = a.side === "a" ? t.give_b : t.give_a;
     rows.push({ k, origin, trade_id: a.trade_id, side: a.side, team: a.team, position: a.position, strata: t.strata.slice(),
                 real: a.real, v2: a.sim, v2_p10: a.sim_p10, v2_p90: a.sim_p90, rho0: b.sim, rho0_p10: b.sim_p10, rho0_p90: b.sim_p90,
@@ -492,7 +506,8 @@ function evaluateCell(spec) {
    ============================================================================================================ */
 const sha256 = buf => crypto.createHash("sha256").update(buf).digest("hex");
 const need = (p, what) => { if (!fs.existsSync(p)) throw new BacktestError(`missing ${what}: ${p}`); return p; };
-function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims) {
+function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims, { dryRunOrigin = null } = {}) {
+  const dry = dryRunOrigin !== null;
   const rhoBytes = fs.readFileSync(rhoFile);
   const rhoSha = sha256(rhoBytes);
   const rhoTable = Object.assign({}, TB.readRho(rhoFile));
@@ -500,17 +515,46 @@ function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims) {
   const outcomes = cached(path.resolve(outcomesFile));
   if (outcomes.season !== RULES.season) throw new BacktestError(`${outcomesFile}: season ${outcomes.season}, expected ${RULES.season}`);
   if (!outcomes.actual_weeks || typeof outcomes.actual_weeks !== "object") throw new BacktestError(`${outcomesFile}: no actual_weeks`);
+  if (!dry && outcomes.as_of !== RULES.outcomes_as_of) throw new BacktestError(`${outcomesFile}: as_of ${outcomes.as_of}, the protocol requires stats as of ${RULES.outcomes_as_of} (§7.6)`);
 
-  const origins = RULES.origins.filter(O => fs.existsSync(path.join(freezeDir, `o${O}`, "decisions", "cells.json")));
-  if (!origins.length) throw new BacktestError(`${freezeDir}: no origin freeze (o<O>/decisions/cells.json) found for origins ${RULES.origins.join(", ")}`);
-  const contingency = !origins.includes(RULES.origins[0]);
+  // Origins. EXPECTED = what the verdicts are computed over; EVALUATED = the freezes actually present. Outside the
+  // §7.5 contingency every expected origin is RULES.origins: an absent origin's cells are all missing (-> inconclusive).
+  const dirOf = O => path.join(freezeDir, dry ? `dryrun-o${O}` : `o${O}`);
+  const hasFreeze = O => fs.existsSync(path.join(dirOf(O), "decisions", "cells.json"));
+  const manifestOf = O => {
+    const mf = readJson(need(path.join(dirOf(O), "manifest.json"), `freeze manifest of origin ${O}`));
+    if (mf.season !== RULES.season || mf.origin !== O) throw new BacktestError(`${dirOf(O)}/manifest.json: season ${mf.season} origin ${mf.origin}, expected ${RULES.season} / ${O}`);
+    if (typeof mf.dry_run !== "boolean" || typeof mf.exploratory !== "boolean") throw new BacktestError(`${dirOf(O)}/manifest.json: dry_run / exploratory must be booleans`);
+    if (dry ? mf.dry_run !== true : mf.dry_run !== false) throw new BacktestError(`${dirOf(O)}/manifest.json: dry_run is ${mf.dry_run}${dry ? "; --dry-run-origin evaluates only a dry-run freeze" : "; a dry-run freeze is not evidence (use --dry-run-origin)"}`);
+    return mf;
+  };
+  let expected, origins, contingency;
+  if (dry) {
+    if (!hasFreeze(dryRunOrigin)) throw new BacktestError(`${dirOf(dryRunOrigin)}: no decisions/cells.json (dry-run freeze not found)`);
+    expected = origins = [dryRunOrigin]; contingency = true;
+    manifestOf(dryRunOrigin);
+  } else {
+    const [o1, o2] = RULES.origins;
+    contingency = !hasFreeze(o1);
+    if (contingency) {
+      if (!hasFreeze(o2)) throw new BacktestError(`${freezeDir}: no origin freeze (o<O>/decisions/cells.json) found for origins ${RULES.origins.join(", ")}`);
+      if (!manifestOf(o2).exploratory) throw new BacktestError(`${freezeDir}: origin ${o1} is absent but origin ${o2}'s manifest is not exploratory (§7.5)`);
+      expected = origins = [o2];
+    } else {
+      if (manifestOf(o1).exploratory) throw new BacktestError(`${freezeDir}: origin ${o1}'s manifest is exploratory but its freeze is present`);
+      expected = RULES.origins.slice();
+      origins = RULES.origins.filter(hasFreeze);
+      if (origins.includes(o2) && manifestOf(o2).exploratory) throw new BacktestError(`${freezeDir}: origin ${o2}'s manifest is exploratory but origin ${o1} is frozen`);
+    }
+  }
   const inputs = {};
   const rel = p => path.relative(freezeDir, p).split(path.sep).join("/");
   const hashIn = p => { inputs[rel(p)] = sha256(fs.readFileSync(p)); return p; };
   const formats = {}, listed = new Map(), kSet = new Set();
   const perOrigin = {};
   for (const O of origins) {
-    const od = path.join(freezeDir, `o${O}`);
+    const od = dirOf(O);
+    hashIn(path.join(od, "manifest.json"));
     const frozenRho = need(path.join(od, "inputs", "rho.json"), "frozen rho table");
     if (sha256(fs.readFileSync(frozenRho)) !== rhoSha) throw new BacktestError(`--rho ${rhoFile} is not byte-identical to the frozen ${frozenRho}`);
     hashIn(frozenRho);
@@ -536,12 +580,13 @@ function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims) {
     const f = formats[label];
     for (const O of origins) {
       if (!f.origins[O]) throw new BacktestError(`format ${label} has no cells at origin ${O}: every origin must declare the same formats`);
-      const od = path.join(freezeDir, `o${O}`);
+      const od = dirOf(O);
       const decFile = hashIn(need(path.join(od, "decisions", `${label}.json`), `decisions for ${label}`));
       const fcFile = hashIn(need(path.join(od, `forecasts_${RULES.season}_o${O}_${label}.json`), `forecasts for ${label}`));
       const dec = cached(decFile), fc = cached(fcFile);
       if (dec.label !== label || dec.origin !== O || dec.season !== RULES.season) throw new BacktestError(`${decFile}: holds ${dec.label} / origin ${dec.origin} / season ${dec.season}`);
       if (typeof dec.primary !== "boolean") throw new BacktestError(`${decFile}: primary must be true or false`);
+      if (dec.primary !== RULES.primary_labels.includes(label)) throw new BacktestError(`${decFile}: primary is ${dec.primary} but the protocol pins ${label} as ${RULES.primary_labels.includes(label) ? "primary" : "exploratory"}`);
       for (const k of ["slots", "drafts", "trades", "waiver", "excluded"]) if (!Array.isArray(dec[k])) throw new BacktestError(`${decFile}: ${k} must be a list`);
       if (typeof dec.format_key !== "string" || !dec.compat || typeof dec.compat !== "object") throw new BacktestError(`${decFile}: no format_key / compat`);
       TB.checkForecastFile(fc, RULES.season, O, fcFile);
@@ -561,17 +606,32 @@ function loadFreeze(freezeDir, rhoFile, outcomesFile, nSims) {
       f.files[O] = { decisionsFile: decFile, forecastFile: fcFile };
     }
   }
+  const pinned = RULES.primary_labels.concat(RULES.exploratory_labels).sort(byId);
+  if (!sameJson(labels, pinned)) throw new BacktestError(`the freeze's formats [${labels.join(", ")}] differ from the pinned label set [${pinned.join(", ")}]`);
+  // §7.6 outcome artifact, fail-closed: every lens present, and every week O..17 holds entries (a week with none is missing, not zero).
+  if (!dry) {
+    const first = Math.min(...origins);
+    for (const label of labels) {
+      const lens = outcomes.actual_weeks[label];
+      if (!lens || typeof lens !== "object") throw new BacktestError(`${outcomesFile}: no outcome lens for format ${label}`);
+      for (let w = first; w <= LAST_WEEK; w++) {
+        if (!Object.values(lens).some(byW => byW && typeof byW === "object" && Object.prototype.hasOwnProperty.call(byW, String(w)))) {
+          throw new BacktestError(`${outcomesFile}: lens ${label} has no entries for week ${w} (weeks ${first}..${LAST_WEEK} are required)`);
+        }
+      }
+    }
+  }
   const M = labels.filter(l => formats[l].primary).length;
   if (M !== RULES.primary_M) throw new BacktestError(`${M} primary formats in the freeze; the protocol declares exactly ${RULES.primary_M} (M in the multiplicity correction)`);
   const ks = [...kSet].sort((a, b) => a - b);
   const specs = [];
-  for (const label of labels) for (const O of origins) for (const k of ks) {
+  for (const label of labels) for (const O of expected) for (const k of ks) {
     const key = `${label}|${RULES.season}|${O}|${k}`;
     specs.push(Object.assign({ key, label, origin: O, k, season: RULES.season, listed: listed.has(key), nSims, rhoTable,
-                               outcomesFile: path.resolve(outcomesFile) }, formats[label].files[O], perOrigin[O]));
+                               outcomesFile: path.resolve(outcomesFile) }, origins.includes(O) ? formats[label].files[O] : {}, perOrigin[O]));
   }
   specs.sort((a, b) => byId(a.key, b.key));
-  return { freezeDir, origins, contingency, labels, formats, ks, specs, M, inputs,
+  return { freezeDir, origins: expected, evaluated: origins, dryRun: dry ? dryRunOrigin : null, contingency, labels, formats, ks, specs, M, inputs,
            rho: { table: rhoTable, sha256: rhoSha, support_violations: rhoJson.support_violations === undefined ? null : rhoJson.support_violations },
            outcomes_sha256: sha256(fs.readFileSync(outcomesFile)) };
 }
@@ -581,11 +641,12 @@ function configHash(fz, nSims) {
                    path.join(__dirname, "..", "site", "assets", "ros.js")]) code[path.basename(p)] = sha256(fs.readFileSync(p));
   return sha256(JSON.stringify({ rules: RULES, sims: nSims, inputs: fz.inputs, outcomes: fz.outcomes_sha256, rho: fz.rho.sha256, code }));
 }
-const isPredeclared = (fz, nSims) => nSims === RULES.sims && sameJson(fz.ks, Array.from({ length: RULES.drafts }, (_, i) => i));
+const isPredeclared = (fz, nSims) => !fz.dryRun && nSims === RULES.sims && sameJson(fz.ks, Array.from({ length: RULES.drafts }, (_, i) => i));
 
 /* ============================================================================================================
    Aggregation: cell results -> eval.json and sim_gates.json. Pure in its inputs (cells sorted by key).
    ============================================================================================================ */
+const countConsistency = results => results.filter(r => r.status === "excluded" && /^freeze consistency/.test(r.reason || "")).length;
 function aggregate(fz, results, { nSims, generatedAt, configHash: ch }) {
   const byKey = new Map(results.map(r => [r.key, r]));
   const R = resampleIndices(fz.ks.length);          // generated once, shared by every format and both features
@@ -600,8 +661,8 @@ function aggregate(fz, results, { nSims, generatedAt, configHash: ch }) {
                     short: mine.filter(r => r.status === "evaluated" && r.n_trades < RULES.trades_per_cell).map(r => ({ key: r.key, trades: r.n_trades })) };
     const rows = mine.flatMap(r => r.rows), wrows = mine.flatMap(r => r.waiver_rows);
     const ev = evaluateFormat({ primary: f.primary, contingency: fz.contingency, rows, waiverRows: wrows, cells, origins, ks: fz.ks, R, M: fz.M });
-    const horizons = TB.horizonsOf(asV1(rows, "v2"), Object.fromEntries(origins.map(O => [O, f.lopsided_cutoff[O]])));
-    const wHorizons = origins.map(O => { const b = ev.waiver.metrics.by_origin[O]; return { origin: O, weeks: LAST_WEEK - O + 1, n: b.n, mean_regret: b.mean_regret }; });
+    const horizons = TB.horizonsOf(asV1(rows, "v2"), Object.fromEntries(fz.evaluated.map(O => [O, f.lopsided_cutoff[O]])));
+    const wHorizons = fz.evaluated.map(O => { const b = ev.waiver.metrics.by_origin[O]; return { origin: O, weeks: LAST_WEEK - O + 1, n: b.n, mean_regret: b.mean_regret }; });
     formats[label] = { primary: f.primary, format_key: f.format_key, compat: f.compat, lopsided_cutoff: f.lopsided_cutoff, cells, horizons, trade: ev.trade, waiver: ev.waiver };
     records.push({ label, format_key: f.format_key, compat: f.compat, feature: "trade_grade", status: ev.trade.status, horizons });
     records.push({ label, format_key: f.format_key, compat: f.compat, feature: "waiver_sim", status: ev.waiver.status, horizons: wHorizons });
@@ -610,14 +671,15 @@ function aggregate(fz, results, { nSims, generatedAt, configHash: ch }) {
     schema_version: 1, generated_at: generatedAt, engine: "rostersim-v2", evidence: "2026 prospective, synthetic leagues",
     predeclared: isPredeclared(fz, nSims), contingency: fz.contingency, config_hash: ch,
     rules: RULES, M: fz.M, alpha: { trade: alphaTrade(fz.M), waiver: alphaWaiver(fz.M) }, sims: nSims,
-    bootstrap: { B: R.B, seed: R.seed, clusters: fz.ks }, origins,
+    bootstrap: { B: R.B, seed: R.seed, clusters: fz.ks }, origins: fz.evaluated.slice(), expected_origins: origins.slice(),
+    dry_run: fz.dryRun === null ? null : { origin: fz.dryRun, freeze_consistency_exclusions: countConsistency(results) },
     rho: fz.rho, inputs: fz.inputs, outcomes_sha256: fz.outcomes_sha256,
     formats,
     reporting: { v1_per_season_coverage: V1_CONTEXT, support_violations: fz.rho.support_violations,
                  scope: "one realized NFL season: every synthetic league shares the same 2026 outcomes; bounds describe the draft generator conditional on that season (spec §6.3, §6.5)" },
   };
   const gates = { schema_version: 3, generated_at: generatedAt, engine: "rostersim-v2", rho_sha256: fz.rho.sha256,
-                  evidence: "2026 prospective, synthetic leagues", origins: RULES.origins.slice(), horizon_rule: "nearest origin, ties to shorter", records };
+                  evidence: "2026 prospective, synthetic leagues", origins: fz.evaluated.slice(), horizon_rule: "nearest origin, ties to shorter", records };
   return { evalOut: TB.roundDeep(evalOut), gates: TB.roundDeep(gates) };
 }
 
@@ -625,9 +687,9 @@ function aggregate(fz, results, { nSims, generatedAt, configHash: ch }) {
    CLI.
    ============================================================================================================ */
 function parseArgs(argv) {
-  const a = { freeze: null, outcomes: null, rho: null, out: null, gatesOut: null, jobs: 1, shard: null, cellsOut: null, merge: null, sims: RULES.sims, generatedAt: null };
+  const a = { freeze: null, outcomes: null, rho: null, out: null, gatesOut: null, jobs: 1, shard: null, cellsOut: null, merge: null, sims: RULES.sims, generatedAt: null, dryRunOrigin: null };
   const names = { "--freeze": "freeze", "--outcomes": "outcomes", "--rho": "rho", "--out": "out", "--gates-out": "gatesOut", "--jobs": "jobs",
-                  "--shard": "shard", "--cells-out": "cellsOut", "--sims": "sims", "--generated-at": "generatedAt" };
+                  "--shard": "shard", "--cells-out": "cellsOut", "--sims": "sims", "--generated-at": "generatedAt", "--dry-run-origin": "dryRunOrigin" };
   for (let i = 0; i < argv.length; i++) {
     const f = argv[i];
     if (f === "--merge") { a.merge = []; while (i + 1 < argv.length && !argv[i + 1].startsWith("--")) a.merge.push(argv[++i]); if (!a.merge.length) throw new BacktestError("--merge needs cell files"); continue; }
@@ -639,7 +701,13 @@ function parseArgs(argv) {
   a.jobs = Number(a.jobs); a.sims = Number(a.sims);
   if (!Number.isInteger(a.jobs) || a.jobs < 1) throw new BacktestError("--jobs must be a positive integer");
   if (!Number.isInteger(a.sims) || a.sims < 1) throw new BacktestError("--sims must be a positive integer");
-  if (a.shard !== null) {
+  if (a.dryRunOrigin !== null) {
+    a.dryRunOrigin = Number(a.dryRunOrigin);
+    if (!Number.isInteger(a.dryRunOrigin) || a.dryRunOrigin < 1 || a.dryRunOrigin > LAST_WEEK) throw new BacktestError("--dry-run-origin must be a week number");
+    if (a.gatesOut) throw new BacktestError("--dry-run-origin never writes a gate file; drop --gates-out");
+    if (a.shard !== null || a.merge) throw new BacktestError("--dry-run-origin cannot be combined with --shard / --merge");
+    if (!a.out) throw new BacktestError("--dry-run-origin needs --out");
+  } else if (a.shard !== null) {
     const m = /^(\d+)\/(\d+)$/.exec(a.shard);
     if (!m || Number(m[2]) < 1 || Number(m[1]) >= Number(m[2])) throw new BacktestError(`--shard must be i/n with 0 <= i < n, got ${a.shard}`);
     a.shard = { i: Number(m[1]), n: Number(m[2]) };
@@ -665,7 +733,7 @@ function writeJsonFile(p, obj, pretty = false) {
 }
 async function main(argv) {
   const a = parseArgs(argv);
-  const fz = loadFreeze(path.resolve(a.freeze), a.rho, a.outcomes, a.sims);
+  const fz = loadFreeze(path.resolve(a.freeze), a.rho, a.outcomes, a.sims, { dryRunOrigin: a.dryRunOrigin });
   const ch = configHash(fz, a.sims);
   const predeclared = isPredeclared(fz, a.sims);
   if (a.gatesOut && !predeclared && TB.isInside(path.resolve(__dirname, "..", "site"), a.gatesOut)) {
@@ -702,6 +770,11 @@ async function main(argv) {
   }
   const { evalOut, gates } = aggregate(fz, results, { nSims: a.sims, generatedAt: a.generatedAt || new Date().toISOString(), configHash: ch });
   writeJsonFile(a.out, evalOut);
+  if (fz.dryRun !== null) {
+    const n = countConsistency(results);
+    console.log(`dry run o${fz.dryRun}: ${results.filter(r => r.status === "evaluated").length} of ${results.length} cells evaluated, ${n} freeze-consistency exclusion(s)${n ? " -- the materializer and the evaluator DISAGREE" : ""}\nwrote ${a.out} (no gate file)`);
+    return;
+  }
   writeJsonFile(a.gatesOut, gates, true);
   for (const r of gates.records) console.log(`[${r.label}] ${r.feature}: ${r.status}`);
   console.log(`wrote ${a.out}\nwrote ${a.gatesOut}${predeclared ? "" : "\n(NOT the predeclared configuration)"}`);
