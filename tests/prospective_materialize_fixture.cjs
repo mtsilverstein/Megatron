@@ -188,6 +188,55 @@ check("refuses a missing world and a mismatched format_key/compat", () => {
   const bad2 = JSON.parse(good); bad2.compat = { pick_six: 1 }; fs.writeFileSync(f, JSON.stringify(bad2)); assert.throws(quiet, /do not match/);
   fs.writeFileSync(f, good);
 });
+check("--reuse-drafts: origin-9 materialization reuses the frozen drafts exactly; trades/pools are rebuilt for the new origin", () => {
+  const O9 = 9, W9 = WEEKS.filter(w => w >= O9);
+  const fc9Dir = path.join(tmp, "fc9"); fs.mkdirSync(fc9Dir);
+  for (const l of LABELS) {
+    const f = buildForecast(l); f.origin = O9; f.weeks = W9;
+    for (const p of Object.values(f.players)) for (const w of WEEKS) if (w < O9) delete p.weeks[w];
+    fs.writeFileSync(path.join(fc9Dir, `forecasts_${SEASON}_o${O9}_${l}.json`), JSON.stringify(f));
+  }
+  const tags9 = path.join(tmp, "tags9.json"); fs.writeFileSync(tags9, JSON.stringify({ season: SEASON, week: O9 - 1, tags: {} }));
+  const a9 = (out, reuse) => { const a = args(out); a[a.indexOf("--origin") + 1] = String(O9); a[a.indexOf("--forecasts-dir") + 1] = fc9Dir; a[a.indexOf("--tags") + 1] = tags9; if (reuse) a.push("--reuse-drafts", reuse); return a; };
+  const go = a => { const log = console.log; console.log = () => {}; try { M.main(a); } finally { console.log = log; } };
+  // tamper: swap teams 0 and 1 of draft 0 (still a valid partition) -- a fresh draft would not reproduce it
+  const src = path.join(tmp, "src5"); fs.cpSync(outA, src, { recursive: true });
+  for (const l of LABELS) {
+    const d = read(src, `${l}.json`); const r = d.drafts[0].rosters; [r[0], r[1]] = [r[1], r[0]];
+    fs.writeFileSync(path.join(src, `${l}.json`), JSON.stringify(d));
+  }
+  const o9 = path.join(tmp, "o9"); go(a9(o9, src));
+  for (const l of LABELS) {
+    const A = read(src, `${l}.json`), B = read(o9, `${l}.json`);
+    assert.deepEqual(B.drafts.map(d => d.rosters.map(r => r[0])), A.drafts.map(d => d.rosters.map(r => r[0])), l + " rosters"); assert.deepEqual(B.drafts, A.drafts);
+    assert.equal(B.origin, O9); assert.deepEqual(B.weeks, W9);
+    assert.ok(B.trades.length > 0 && B.trades.every(t => t.id.startsWith(`${SEASON}:${O9}:`)));
+  }
+  // the same reuse of untampered o5 drafts is byte-identical to a fresh o9 draft (the drafts do not depend on the origin)
+  const fresh = path.join(tmp, "o9f"), reuse = path.join(tmp, "o9r"); go(a9(fresh, null)); go(a9(reuse, outA));
+  for (const f of fs.readdirSync(fresh)) assert.equal(fs.readFileSync(path.join(fresh, f), "utf8"), fs.readFileSync(path.join(reuse, f), "utf8"), f);
+  // every mismatch refuses
+  const L0 = LABELS[0];
+  const mutate = (name, fn, re) => {
+    const dir = path.join(tmp, `bad_${name}`); fs.cpSync(outA, dir, { recursive: true });
+    const d = read(dir, `${L0}.json`); fn(d); fs.writeFileSync(path.join(dir, `${L0}.json`), JSON.stringify(d));
+    assert.throws(() => go(a9(path.join(tmp, `bado_${name}`), dir)), re, name);
+  };
+  mutate("label", d => { d.label = "x"; }, /holds label/);
+  mutate("format_key", d => { d.format_key = "x"; }, /format_key/);
+  mutate("compat", d => { d.compat = { pick_six: 1 }; }, /compat/);
+  mutate("slots", d => { d.slots = d.slots.slice(1); }, /slots/);
+  mutate("count", d => { d.drafts.pop(); }, /drafts, expected/);
+  mutate("seed", d => { d.drafts[1].draft_seed += 1; }, /draft_seed/);
+  mutate("partition", d => { d.drafts[0].undrafted.pop(); }, /partition/);
+  const miss = path.join(tmp, "bad_missing"); fs.cpSync(outA, miss, { recursive: true }); fs.unlinkSync(path.join(miss, `${L0}.json`));
+  assert.throws(() => go(a9(path.join(tmp, "bado_missing"), miss)), /--reuse-drafts: missing/);
+});
+check("a forecast file for a different format definition is refused at materialization (m3)", () => {
+  const f = path.join(fcDir, `forecasts_${SEASON}_o${ORIGIN}_${LABELS[0]}.json`), good = fs.readFileSync(f, "utf8");
+  const fc = JSON.parse(good); fc.format_key = "other"; fs.writeFileSync(f, JSON.stringify(fc));
+  try { assert.throws(() => run(path.join(tmp, "m3")), /format_key differs/); } finally { fs.writeFileSync(f, good); }
+});
 check("no outcome data required or read", () => {
   assert.equal(buildWorld(LABELS[0]).actual_weeks, undefined);
   const src = fs.readFileSync(path.join(__dirname, "..", "tools", "prospective_materialize.cjs"), "utf8");

@@ -459,7 +459,31 @@ const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "pe-fixture-"));
 const FREEZE = path.join(ROOT, "freeze");
 buildFreeze(FREEZE);
 const GEN = "2027-01-20T00:00:00.000Z";
-function run(args, env = {}) {
+/* I3: the evaluator verifies the manifest's code / files hashes. The fixture's many "mutate a copy of the freeze" tests
+   re-seal the manifests (what a faithful freeze of the mutated bytes would have written) before each run; the verification
+   tests themselves pass { seal: false }. */
+const CODE_FILES = ["tools/prospective_eval.cjs", "tools/trade_backtest.cjs", "site/assets/rostersim.js", "site/assets/ros.js"];
+const REPO = path.join(__dirname, "..");
+function walk(dir, base = dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(dir, e.name), base)
+    : [path.relative(base, path.join(dir, e.name)).split(path.sep).join("/")]);
+}
+function sealManifest(od) {
+  const mp = path.join(od, "manifest.json");
+  if (!fs.existsSync(mp)) return;
+  const mf = JSON.parse(fs.readFileSync(mp, "utf8"));
+  mf.hash_rule = PE.HASH_RULE;
+  mf.code = Object.fromEntries(CODE_FILES.map(f => [f, PE.sha256Norm(path.join(REPO, f))]));
+  mf.files = Object.fromEntries(walk(od).filter(f => f !== "manifest.json").sort().map(f => [f, PE.sha256Norm(path.join(od, f))]));
+  fs.writeFileSync(mp, JSON.stringify(mf));
+}
+function sealFreeze(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) if (e.isDirectory() && /^(dryrun-)?o\d+$/.test(e.name)) sealManifest(path.join(dir, e.name));
+}
+function run(args, env = {}, { seal = true } = {}) {
+  const i = args.indexOf("--freeze");
+  if (seal && i >= 0) sealFreeze(args[i + 1]);
   const r = spawnSync(process.execPath, [TOOL, ...args], { encoding: "utf8", env: Object.assign({}, process.env, env) });
   return r;
 }
@@ -757,6 +781,93 @@ check("M6: --dry-run-origin evaluates only dryrun-o<O>, never writes a gate file
   assert.ok(JSON.parse(fs.readFileSync(out, "utf8")).dry_run.freeze_consistency_exclusions >= 1);
   // the normal mode never sees dryrun-o<O>
   assert.notEqual(run(evalArgs(D, path.join(ROOT, "x.json"), path.join(ROOT, "xg.json"))).status, 0);
+});
+
+// I3: manifest verification (hash rule shared with ffmodel.prospective.freeze)
+check("I3: sha256Norm -- CRLF == LF for text extensions, raw bytes for others", () => {
+  const sha = b => crypto.createHash("sha256").update(b).digest("hex");
+  const d = path.join(ROOT, "hashrule"); fs.mkdirSync(d);
+  const w = (n, b) => { fs.writeFileSync(path.join(d, n), b); return path.join(d, n); };
+  const lf = Buffer.from("a\nb\n\nc"), crlf = Buffer.from("a\r\nb\r\n\r\nc");
+  for (const ext of [".js", ".cjs", ".mjs", ".py", ".json", ".yaml", ".yml", ".md", ".csv", ".txt", ".toml", ".cfg", ".ini", ".JSON"]) {
+    assert.equal(PE.sha256Norm(w("t" + ext, crlf)), sha(lf), ext);
+    assert.equal(PE.sha256Norm(w("u" + ext, lf)), sha(lf), ext);
+  }
+  assert.equal(PE.sha256Norm(w("lone.txt", Buffer.from("a\rb\r\r\n"))), sha(Buffer.from("a\rb\r\n")));   // only the CRLF pair collapses
+  assert.equal(PE.sha256Norm(w("b.bin", crlf)), sha(crlf));                                              // binary: untouched
+  assert.equal(PE.sha256Norm(w("b.pkl", lf)), sha(lf));
+  assert.notEqual(PE.sha256Norm(w("b2.bin", crlf)), PE.sha256Norm(w("b3.bin", lf)));
+});
+check("I3: a CRLF copy of a hashed text file verifies; a one-byte change aborts with no output", () => {
+  const F = path.join(ROOT, "freeze_i3");
+  fs.cpSync(FREEZE, F, { recursive: true });
+  const jsons = [5, 9].flatMap(O => walk(path.join(F, `o${O}`)).filter(x => x !== "manifest.json" && x !== "inputs/rho.json" && x.endsWith(".json")).map(x => path.join(F, `o${O}`, x)));   // rho.json stays byte-identical to --rho
+  for (const q of jsons) fs.writeFileSync(q, JSON.stringify(JSON.parse(fs.readFileSync(q, "utf8")), null, 1) + "\n");   // multi-line LF files, as committed
+  sealFreeze(F);                                                                                                  // hashes of the LF bytes (the Linux freeze)
+  const o = path.join(ROOT, "eval_i3.json"), g = path.join(ROOT, "gates_i3.json");
+  // a Windows checkout (core.autocrlf): the same files with CRLF line endings
+  for (const q of jsons) fs.writeFileSync(q, fs.readFileSync(q, "utf8").replace(/\n/g, "\r\n"));
+  assert.ok(fs.readFileSync(jsons[0], "utf8").includes("\r\n"));
+  ok(run(evalArgs(F, o, g), {}, { seal: false }), "CRLF copy");
+  const ev = JSON.parse(fs.readFileSync(o, "utf8"));
+  assert.equal(ev.hash_rule, PE.HASH_RULE);
+  assert.ok(ev.manifest_verification[5].verified && ev.manifest_verification[9].verified);
+  // one byte of a decisions file
+  fs.rmSync(o); fs.rmSync(g);
+  const dp = path.join(F, "o9", "decisions", "f12-1qb-ppr-6.json");
+  const was = fs.readFileSync(dp, "utf8");
+  fs.writeFileSync(dp, was + " ");   // one byte; still valid JSON, so only the hash check can object
+  const r = run(evalArgs(F, o, g), {}, { seal: false });
+  assert.notEqual(r.status, 0); assert.match(r.stderr, /does not match the freeze manifest/); assert.match(r.stderr, /files\/decisions\/f12-1qb-ppr-6\.json/);
+  assert.ok(!fs.existsSync(o) && !fs.existsSync(g));
+  fs.writeFileSync(dp, was);
+  // a forecast file, an input and a missing file
+  for (const rel of ["forecasts_2026_o5_f12-1qb-ppr-6.json", "inputs/availability.json", "tags_w4.json"]) {
+    const q = path.join(F, "o5", rel), b = fs.readFileSync(q);
+    fs.writeFileSync(q, Buffer.concat([b, Buffer.from(" ")]));
+    const rr = run(evalArgs(F, o, g), {}, { seal: false });
+    assert.notEqual(rr.status, 0, rel); assert.match(rr.stderr, /does not match the freeze manifest/, rel); assert.ok(!fs.existsSync(o), rel);
+    fs.writeFileSync(q, b);
+  }
+  ok(run(evalArgs(F, o, g), {}, { seal: false }), "restored");
+});
+check("I3: code hashes are verified (a changed manifest.code entry, a missing hash_rule or a missing section aborts)", () => {
+  const F = path.join(ROOT, "freeze_i3code");
+  fs.cpSync(FREEZE, F, { recursive: true }); sealFreeze(F);
+  const mp = path.join(F, "o5", "manifest.json"), good = JSON.parse(fs.readFileSync(mp, "utf8"));
+  const o = path.join(ROOT, "eval_i3c.json"), g = path.join(ROOT, "gates_i3c.json");
+  const tries = [["code", m => { m.code["site/assets/rostersim.js"] = "0".repeat(64); }, /code\/site\/assets\/rostersim\.js: hash differs/],
+                 ["code-missing", m => { m.code["site/assets/nope.js"] = "0".repeat(64); }, /code\/site\/assets\/nope\.js: file missing/],
+                 ["code-null", m => { m.code["tools/prospective_eval.cjs"] = null; }, /no frozen hash/],
+                 ["rule", m => { delete m.hash_rule; }, /hash_rule/],
+                 ["no-code", m => { delete m.code; }, /no code hashes/],
+                 ["no-files", m => { delete m.files; }, /no files hashes/]];
+  for (const [name, mut, re] of tries) {
+    const m = JSON.parse(JSON.stringify(good)); mut(m); fs.writeFileSync(mp, JSON.stringify(m));
+    const r = run(evalArgs(F, o, g), {}, { seal: false });
+    assert.notEqual(r.status, 0, name); assert.match(r.stderr, re, name); assert.ok(!fs.existsSync(o) && !fs.existsSync(g), name);
+  }
+  fs.writeFileSync(mp, JSON.stringify(good));
+  ok(run(evalArgs(F, o, g), {}, { seal: false }), "restored");
+});
+check("I3: dry-run mode reports manifest mismatches on stderr and continues", () => {
+  const D = path.join(ROOT, "freeze_i3dry");
+  fs.mkdirSync(D);
+  fs.cpSync(path.join(FREEZE, "o5"), path.join(D, "dryrun-o5"), { recursive: true });
+  writeJson(path.join(D, "dryrun-o5", "manifest.json"), { season: 2026, origin: 5, dry_run: true, exploratory: false });
+  fs.copyFileSync(path.join(FREEZE, "rho.json"), path.join(D, "rho.json"));
+  const oc = JSON.parse(fs.readFileSync(path.join(FREEZE, "outcomes_2026.json"), "utf8")); oc.as_of = "synthetic";
+  writeJson(path.join(D, "outcomes_2026.json"), oc);
+  sealFreeze(D);
+  const out = path.join(ROOT, "eval_i3dry.json");
+  const args = ["--freeze", D, "--outcomes", path.join(D, "outcomes_2026.json"), "--rho", path.join(D, "rho.json"), "--sims", "16", "--dry-run-origin", "5", "--out", out];
+  const clean = run(args, {}, { seal: false }); ok(clean, "sealed dry run");
+  assert.ok(!/mismatch/.test(clean.stderr)); assert.equal(JSON.parse(fs.readFileSync(out, "utf8")).manifest_verification[5].verified, true);
+  fs.appendFileSync(path.join(D, "dryrun-o5", "tags_w4.json"), " ");
+  const r = run(args, {}, { seal: false });
+  ok(r, "dry run with a mismatch"); assert.match(r.stderr, /manifest hash mismatch/); assert.match(r.stderr, /tags_w4\.json/);
+  const ev = JSON.parse(fs.readFileSync(out, "utf8"));
+  assert.equal(ev.manifest_verification[5].verified, false); assert.ok(ev.manifest_verification[5].mismatches.length >= 1);
 });
 
 if (!process.env.KEEP) fs.rmSync(ROOT, { recursive: true, force: true }); else console.log(ROOT);

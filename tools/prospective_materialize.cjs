@@ -77,7 +77,7 @@ function playersUnder(world, label) {
 
 function readJson(p) { return JSON.parse(fs.readFileSync(p, "utf8")); }
 function parseArgs(argv) {
-  const a = { season: null, origin: null, formats: null, exploratory: "", worldsDir: null, forecastsDir: null, tags: null, leagues: 20, trades: 125, out: null,
+  const a = { season: null, origin: null, formats: null, exploratory: "", worldsDir: null, forecastsDir: null, tags: null, leagues: 20, trades: 125, out: null, reuseDrafts: null,
               formatPayloads: path.join(__dirname, "..", "models", "prospective", "2026", "format_payloads.json") };
   const num = (s, n) => { const v = Number(s); if (!Number.isInteger(v)) throw new BacktestError(`--${n} must be an integer`); return v; };
   for (let i = 0; i < argv.length; i++) {
@@ -92,6 +92,7 @@ function parseArgs(argv) {
     else if (f === "--leagues") a.leagues = num(v(), "leagues");
     else if (f === "--trades") a.trades = num(v(), "trades");
     else if (f === "--out") a.out = v();
+    else if (f === "--reuse-drafts") a.reuseDrafts = v();
     else if (f === "--format-payloads") a.formatPayloads = v();
     else throw new BacktestError(`unknown argument ${f}`);
   }
@@ -110,7 +111,30 @@ function readTags(file, origin) {
 }
 
 /* Decisions for ONE format at ONE origin. Pure in its inputs. */
-function materializeFormat({ label, primary, payload, world, forecasts, tags, season, origin, leagues, trades: nTrades }) {
+/* --reuse-drafts: the drafts of an earlier origin's decisions file, reused verbatim (spec §7.4: later-origin trades and waivers
+   come from the SAME drafted rosters). Everything that could silently differ is checked; any mismatch throws. */
+function checkReusedDrafts(prev, { label, payload, slots, season, leagues, worldIds, file }) {
+  const bad = what => { throw new BacktestError(`--reuse-drafts ${file}: ${what}`); };
+  const canon = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
+  if (!prev || typeof prev !== "object") bad("not a decisions object");
+  if (prev.label !== label) bad(`holds label ${prev.label}, expected ${label}`);
+  if (prev.season !== season) bad(`holds season ${prev.season}, expected ${season}`);
+  if (prev.format_key !== payload.format_key) bad(`format_key ${prev.format_key} differs from the payload's ${payload.format_key}`);
+  if (canon(prev.compat) !== canon(payload.compat)) bad("compat differs from the payload's");
+  if (JSON.stringify(prev.slots) !== JSON.stringify(slots)) bad("slots differ from the payload league's");
+  if (!Array.isArray(prev.drafts) || prev.drafts.length !== leagues) bad(`holds ${Array.isArray(prev.drafts) ? prev.drafts.length : "no"} drafts, expected ${leagues}`);
+  const known = new Set(worldIds);
+  prev.drafts.forEach((d, k) => {
+    if (!d || d.k !== k) bad(`draft ${k}: k is ${d && d.k}`);
+    if (d.draft_seed !== 1000 * season + k) bad(`draft ${k}: draft_seed ${d.draft_seed}, expected ${1000 * season + k}`);
+    if (!Array.isArray(d.rosters) || !Array.isArray(d.undrafted)) bad(`draft ${k}: no rosters / undrafted`);
+    const ids = d.rosters.flat().concat(d.undrafted);
+    if (ids.length !== worldIds.length || new Set(ids).size !== ids.length || ids.some(id => !known.has(id))) bad(`draft ${k}: rosters + undrafted are not a partition of the world's players`);
+  });
+  return prev.drafts;
+}
+
+function materializeFormat({ label, primary, payload, world, forecasts, tags, season, origin, leagues, trades: nTrades, reuse = null, reuseFile = null }) {
   const league = payload.league;
   const slots = BT.slotsOf(league);
   const weeks = forecasts.weeks;
@@ -128,11 +152,16 @@ function materializeFormat({ label, primary, payload, world, forecasts, tags, se
                 drafts: [], trades: [], waiver: [], replacement_by_week: {}, lopsided_cutoff: null,
                 population: { attempts: 0, accepted: 0, rejected_not_starter: 0 }, excluded: [] };
   const rows = [];                         // {trade_id, origin, current, strata} per trade side, for markLopsided
+  const reused = reuse ? checkReusedDrafts(reuse, { label, payload, slots, season, leagues, worldIds, file: reuseFile }) : null;
   for (let k = 0; k < leagues; k++) {
-    const draftSeed = 1000 * season + k;
-    const rosters = D.runDraft(players, 0, draftSeed, "measured").slice(1).map(r => r.map(p => p.player_id));
-    const taken = new Set(rosters.flat());
-    const undrafted = worldIds.filter(id => !taken.has(id));
+    let draftSeed, rosters, undrafted;
+    if (reused) ({ draft_seed: draftSeed, rosters, undrafted } = reused[k]);
+    else {
+      draftSeed = 1000 * season + k;
+      rosters = D.runDraft(players, 0, draftSeed, "measured").slice(1).map(r => r.map(p => p.player_id));
+      const taken = new Set(rosters.flat());
+      undrafted = worldIds.filter(id => !taken.has(id));
+    }
     out.drafts.push({ k, draft_seed: draftSeed, rosters, undrafted });
     const uncovered = rosters.flat().filter(id => !BT.isCovered(id, forecasts)).sort(byId);
     if (uncovered.length) {
@@ -203,7 +232,16 @@ function main(argv) {
     const file = path.join(a.forecastsDir, `forecasts_${a.season}_o${a.origin}_${label}.json`);
     const forecasts = readJson(file);
     BT.checkForecastFile(forecasts, a.season, a.origin, file);
-    const res = materializeFormat({ label, primary: isPrimary, payload: payloads[label], world, forecasts, tags, season: a.season, origin: a.origin, leagues: a.leagues, trades: a.trades });
+    // m3: a forecast file for a different format definition would only be caught (fatally) in January.
+    if (forecasts.format_key !== undefined && forecasts.format_key !== pl.format_key) throw new BacktestError(`${file}: format_key differs from format ${label}'s payload`);
+    if (forecasts.compat !== undefined && canon(forecasts.compat) !== canon(pl.compat)) throw new BacktestError(`${file}: compat differs from format ${label}'s payload`);
+    let reuse = null, reuseFile = null;
+    if (a.reuseDrafts) {
+      reuseFile = path.join(a.reuseDrafts, `${label}.json`);
+      if (!fs.existsSync(reuseFile)) throw new BacktestError(`--reuse-drafts: missing ${reuseFile}`);
+      reuse = readJson(reuseFile);
+    }
+    const res = materializeFormat({ label, primary: isPrimary, payload: payloads[label], world, forecasts, tags, season: a.season, origin: a.origin, leagues: a.leagues, trades: a.trades, reuse, reuseFile });
     fs.writeFileSync(path.join(a.out, `${label}.json`), JSON.stringify(res) + "\n");
     for (let k = 0; k < a.leagues; k++) cells.push({ format: label, k, origin: a.origin, key: `${label}|${a.season}|${a.origin}|${k}`, primary: isPrimary });
     console.log(`[${label}] ${res.trades.length} trades, ${res.waiver.length} waiver rows, lopsided cutoff ${res.lopsided_cutoff}, excluded cells ${res.excluded.length}`);
