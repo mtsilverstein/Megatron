@@ -9,7 +9,7 @@ Node materializer, tool versions) lives behind one injectable `Steps` object so 
 unit-tested without any of it.
 
 Exit codes: 0 ok; 2 schedule lacks the origin week; 3 at/after cutoff or ambiguous clock; 4 stale/incomplete
-stats; 5 origin-reuse inputs differ from the reference origin; 6 target directory exists (never overwrite);
+stats or the input snapshot drifted during the build; 5 origin-reuse inputs differ from the reference origin; 6 target directory exists (never overwrite);
 7 a required input missing or drifted; 8 a build step failed; 9 a required code file missing.
 Exit 3 also covers: the clock read again after the build is at/after the cutoff on a real run, and `--now` on a
 real run. Exit 5 also covers origin-9 code/model/input drift vs origin 5, and contingency-mode misuse.
@@ -33,6 +33,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -62,6 +63,7 @@ TEXT_EXTS = (".js", ".cjs", ".mjs", ".py", ".json", ".yaml", ".yml", ".md", ".cs
 HASH_RULE = "sha256; CRLF->LF for " + " ".join(TEXT_EXTS)
 SCHEDULE_INPUT = "inputs/schedule_2026.csv"  # may legitimately differ between origins (flex scheduling)
 PIP_FREEZE_INPUT = "inputs/pip_freeze.txt"
+FROZEN_ENV = {"FFMODEL_CACHE_FROZEN": "1"}  # exporters/tags read the per-run snapshot, never download or expire
 
 
 class FreezeError(Exception):
@@ -142,28 +144,26 @@ class Steps:
     def __init__(self, root: Path):
         self.root = root
 
-    def _run(self, cmd: list[str], what: str) -> str:
-        r = subprocess.run(cmd, cwd=self.root, capture_output=True, text=True)
+    def _run(self, cmd: list[str], what: str, env: dict | None = None) -> str:
+        r = subprocess.run(cmd, cwd=self.root, capture_output=True, text=True,
+                           env={**os.environ, **env} if env else None)
         if r.returncode != 0:
             raise FreezeError(8, f"{what} failed (exit {r.returncode}): {(r.stderr or r.stdout)[-800:]}")
         return r.stdout
 
-    def prefetch(self, season: int, *, attempts: int = 4, backoff=(30, 60, 120), sleep=time.sleep) -> None:
-        """Pull every feed the exports and tags read, once, into the shared cache, retrying transient
-        download failures (nflverse is served from GitHub release assets, which do return 5xx). Each export
-        and the tags CLI then read the same cached files instead of re-downloading, so one network hiccup
-        cannot abort a freeze. A pull that still fails after the last attempt fails the freeze (exit 8)."""
-        from ffmodel.data.pull import _cache_name, pull_injuries, pull_schedules, pull_weekly
+    def prefetch(self, season: int, dest: Path, *, attempts: int = 4, backoff=(30, 60, 120), sleep=time.sleep) -> None:
+        """Pull every feed the exports and tags read, once, INTO `dest` (a fresh per-run snapshot dir; the shared
+        data/raw cache is never read, written or deleted), retrying transient download failures (nflverse is served
+        from GitHub release assets, which do return 5xx). Every exporter and the tags CLI then read these files
+        frozen (FFMODEL_CACHE_FROZEN=1), so a network hiccup cannot abort the build and no expiry-based refresh can
+        change an input after the freshness guard validated it. A pull that still fails after the last attempt fails
+        the freeze (exit 8)."""
+        from ffmodel.data.pull import pull_injuries, pull_schedules, pull_weekly
 
-        span, cache = list(range(HISTORY_FIRST_SEASON, season + 1)), self.root / "data" / "raw"
-        # Force-refresh the current-season weekly stats (astra review I3): a <12 h cache written before the last team
-        # statistics arrived must never be reused. The span is the exporters' own, so the file written here is exactly
-        # the snapshot the freshness guard validates and every exporter then reads.
-        for prefix in ("weekly_v2", "snaps"):
-            (cache / f"{_cache_name(prefix, span)}.parquet").unlink(missing_ok=True)
-        for what, pull in (("weekly stats", lambda: pull_weekly(span, cache_dir=cache)),
-                           ("schedules", lambda: pull_schedules(span, cache_dir=cache)),
-                           ("injuries", lambda: pull_injuries([season], cache_dir=cache))):
+        span, dest = list(range(HISTORY_FIRST_SEASON, season + 1)), Path(dest)
+        for what, pull in (("weekly stats", lambda: pull_weekly(span, cache_dir=dest)),
+                           ("schedules", lambda: pull_schedules(span, cache_dir=dest)),
+                           ("injuries", lambda: pull_injuries([season], cache_dir=dest))):
             for i in range(attempts):
                 try:
                     pull()
@@ -184,24 +184,27 @@ class Steps:
         df = normalize_schedule_teams(df[df["game_type"] == "REG"])
         return df[["season", "week", "gameday", "gametime", "home_team", "away_team"]].reset_index(drop=True)
 
-    def weekly_teams(self, season: int):
-        """(week, team) of the EXACT weekly-stats snapshot the exporters consume: same span and cache_dir as
-        `prefetch` and `export_origin_forecasts`, so the guard validates the cached frame, not an independent pull."""
+    def weekly_teams(self, season: int, data_dir: Path):
+        """(week, team) of the EXACT weekly-stats snapshot the exporters consume: same span as `prefetch` and
+        `export_origin_forecasts`, read frozen from the per-run snapshot dir, so the guard validates the very file
+        every exporter reads, never an independent pull."""
         from ffmodel.data.pull import pull_weekly
 
-        w = pull_weekly(list(range(HISTORY_FIRST_SEASON, season + 1)), cache_dir=self.root / "data" / "raw")
+        w = pull_weekly(list(range(HISTORY_FIRST_SEASON, season + 1)), cache_dir=Path(data_dir))
         w = w[w["season"] == season]
         return w[["week", "team"]].drop_duplicates().reset_index(drop=True)
 
-    def export_forecasts(self, season: int, origin: int, label: str, out: Path) -> None:
+    def export_forecasts(self, season: int, origin: int, label: str, out: Path, data_dir: Path) -> None:
         self._run([sys.executable, "-m", "ffmodel.eval.export_origin_forecasts", "--season", str(season),
                    "--origin", str(origin), "--last-week", str(LAST_WEEK), "--league-dir", "configs/formats",
-                   "--league", label, "--out", str(out)], f"export {label}")
+                   "--league", label, "--data-dir", str(data_dir), "--out", str(out)], f"export {label}",
+                  env=FROZEN_ENV)
 
-    def tags(self, season: int, week: int, out: Path) -> None:
+    def tags(self, season: int, week: int, out: Path, data_dir: Path) -> None:
         # matches availability.tags_main: `availability tags --season --week [--data-dir] --out`
         self._run([sys.executable, "-m", "ffmodel.eval.availability", "tags", "--season", str(season),
-                   "--week", str(week), "--out", str(out)], "availability tags")
+                   "--week", str(week), "--data-dir", str(data_dir), "--out", str(out)], "availability tags",
+                  env=FROZEN_ENV)
 
     def format_payloads(self, out: Path) -> None:
         self._run([sys.executable, "tools/export_format_payloads.py", "--out", str(out)], "format payloads")
@@ -228,6 +231,11 @@ class Steps:
             "git_dirty": bool(self._run(["git", "status", "--porcelain", "--untracked-files=no"],
                                         "git status").strip()),
         }
+
+
+def snapshot_hashes(d: Path) -> dict:
+    """sha256 of every file under the per-run input snapshot dir (relative posix path -> hash)."""
+    return {p.relative_to(d).as_posix(): sha256_file(p) for p in sorted(Path(d).rglob("*")) if p.is_file()}
 
 
 def _copy(src: Path, dst: Path) -> None:
@@ -309,7 +317,8 @@ def _check_reuse(root: Path, origin: int, ref_origin: int, ref: dict, tdir: Path
 
 
 def build_manifest(root: Path, season: int, origin: int, tdir: Path, *, dry_run: bool, cutoff, now, built_at,
-                   versions: dict, cutoff_passed: bool, contingency: bool = False) -> dict:
+                   versions: dict, cutoff_passed: bool, contingency: bool = False,
+                   inputs_snapshot: dict | None = None) -> dict:
     files = {p.relative_to(tdir).as_posix(): sha256_file(p)
              for p in sorted(tdir.rglob("*")) if p.is_file() and p.name != "manifest.json"}
     code = _code_hashes(root, dry_run=dry_run)
@@ -328,6 +337,7 @@ def build_manifest(root: Path, season: int, origin: int, tdir: Path, *, dry_run:
         "started_at": now.isoformat(), "built_at": built_at.isoformat(),
         "versions": versions, "hash_rule": HASH_RULE,
         "spec": {"path": SPEC, "sha256": sha256_file(spec)},
+        "inputs_snapshot": inputs_snapshot or {},
         "files": files, "code": code, "models": models, "dependencies": deps,
     }
 
@@ -335,6 +345,18 @@ def build_manifest(root: Path, season: int, origin: int, tdir: Path, *, dry_run:
 def run_freeze(season: int, origin: int, *, dry_run: bool, now: dt.datetime | None = None,
                steps: Steps | None = None, root: Path | None = None, contingency: bool = False,
                clock=None) -> str:
+    """Run the freeze with a fresh, isolated, per-run input snapshot dir (astra I3), removed on success or failure.
+    The shared data/raw cache is never touched. See `_run_freeze`."""
+    snap = Path(tempfile.mkdtemp(prefix="ffmodel-freeze-"))
+    try:
+        return _run_freeze(season, origin, dry_run=dry_run, now=now, steps=steps, root=root,
+                           contingency=contingency, clock=clock, snap=snap)
+    finally:
+        shutil.rmtree(snap, ignore_errors=True)
+
+
+def _run_freeze(season: int, origin: int, *, dry_run: bool, now, steps, root, contingency: bool, clock,
+                snap: Path) -> str:
     """Return the manifest SHA-256. Raises FreezeError; codes 2, 3, 4, 6 write nothing.
 
     `clock()` returns the current UTC time and is read again after the build, immediately before the manifest is
@@ -361,13 +383,14 @@ def run_freeze(season: int, origin: int, *, dry_run: bool, now: dt.datetime | No
         if m9.is_file() and json.loads(m9.read_text(encoding="utf-8")).get("exploratory"):
             raise FreezeError(5, "an exploratory contingency origin-9 freeze exists; origin 5 can no longer be frozen")
 
-    steps.prefetch(season)
+    steps.prefetch(season, snap)  # every feed the exporters/tags read, into the isolated snapshot dir
+    snap_before = snapshot_hashes(snap)  # hashed before the guard so even a guard-time rewrite is caught below
     schedule = steps.schedule(season)
     cutoff = cutoff_utc(schedule, season, origin)
     passed = now >= cutoff
     if passed and not dry_run:
         raise FreezeError(3, f"now {now.isoformat()} is at/after cutoff {cutoff.isoformat()}")
-    check_fresh(schedule, steps.weekly_teams(season), season, origin)
+    check_fresh(schedule, steps.weekly_teams(season, snap), season, origin)
 
     ref_dir = ref = None
     if ref_origin is not None:
@@ -379,9 +402,9 @@ def run_freeze(season: int, origin: int, *, dry_run: bool, now: dt.datetime | No
     tdir.mkdir(parents=True)
     try:
         for label in FORMATS:
-            steps.export_forecasts(season, origin, label, tdir / f"forecasts_{season}_o{origin}_{label}.json")
+            steps.export_forecasts(season, origin, label, tdir / f"forecasts_{season}_o{origin}_{label}.json", snap)
         tags = tdir / f"tags_w{origin - 1}.json"
-        steps.tags(season, origin - 1, tags)
+        steps.tags(season, origin - 1, tags, snap)
         avail_src = None
         if ref is not None:  # frozen availability rates: o5's bytes, verified against o5's manifest, never refreshed
             avail_src = ref_dir / "inputs" / "availability.json"
@@ -400,13 +423,16 @@ def run_freeze(season: int, origin: int, *, dry_run: bool, now: dt.datetime | No
         kw = {"reuse_drafts": ref_dir / "decisions"} if ref is not None else {}  # contingency: no o5, fresh drafts
         steps.materialize(season, origin, worlds_dir=tdir / "inputs" / "worlds", forecasts_dir=tdir, tags=tags,
                           payloads=payloads, out=tdir / "decisions", **kw)
+        if snapshot_hashes(snap) != snap_before:  # exporters/tags must have consumed exactly the validated inputs
+            raise FreezeError(4, "input snapshot drifted during the build (file added, removed or changed); "
+                                 "nothing committed")
         built_at = clock().astimezone(dt.timezone.utc)
         if not dry_run and built_at >= cutoff:
             raise FreezeError(3, f"build finished at {built_at.isoformat()}, at/after cutoff {cutoff.isoformat()}; "
                                  "nothing committed")
         manifest = build_manifest(root, season, origin, tdir, dry_run=dry_run, cutoff=cutoff, now=now,
                                   built_at=built_at, versions=steps.versions(), cutoff_passed=passed,
-                                  contingency=contingency)
+                                  contingency=contingency, inputs_snapshot=snap_before)
         body = (json.dumps(manifest, indent=1, sort_keys=True) + "\n").encode("utf-8")
         (tdir / "manifest.json").write_bytes(body)
     except BaseException:

@@ -40,21 +40,28 @@ class StubSteps:
         self.payload_text = payload_text
         self.calls = []
 
-    def prefetch(self, season):
+    def prefetch(self, season, dest):
         self.calls.append(("prefetch", season))
+        (dest / "weekly_stub.parquet").write_bytes(b"weekly-v1")
+        self.dest = dest
 
     def schedule(self, season):
         return self._sched
 
-    def weekly_teams(self, season):
+    def weekly_teams(self, season, data_dir):
+        self.guard_dir = data_dir
         return self._weekly
 
-    def export_forecasts(self, season, origin, label, out):
+    def export_forecasts(self, season, origin, label, out, data_dir):
         self.calls.append(("export", label))
+        self.data_dirs = getattr(self, "data_dirs", []) + [data_dir]
+        if getattr(self, "mutate", None):
+            self.mutate(data_dir)
         out.write_text(json.dumps({"label": label, "origin": origin}))
 
-    def tags(self, season, week, out):
+    def tags(self, season, week, out, data_dir):
         self.calls.append(("tags", week))
+        self.data_dirs = getattr(self, "data_dirs", []) + [data_dir]
         out.write_text(json.dumps({"week": week}))
 
     def format_payloads(self, out):
@@ -417,7 +424,7 @@ def test_prefetch_retries_transient_failures_then_succeeds(tmp_path, monkeypatch
     monkeypatch.setattr(P, "pull_schedules", lambda *a, **k: None)
     monkeypatch.setattr(P, "pull_injuries", lambda *a, **k: None)
     slept = []
-    Steps(tmp_path).prefetch(2026, sleep=slept.append)
+    Steps(tmp_path).prefetch(2026, tmp_path / "snap", sleep=slept.append)
     assert slept == [30, 60]
 
 
@@ -428,7 +435,7 @@ def test_prefetch_gives_up_with_exit_8(tmp_path, monkeypatch):
         raise ConnectionError("500 Server Error")
     monkeypatch.setattr(P, "pull_weekly", down)
     with pytest.raises(FreezeError) as e:
-        Steps(tmp_path).prefetch(2026, sleep=lambda s: None)
+        Steps(tmp_path).prefetch(2026, tmp_path / "snap", sleep=lambda s: None)
     assert e.value.code == 8 and "4 attempts" in str(e.value)
 
 
@@ -510,64 +517,151 @@ def test_real_steps_materialize_command_passes_reuse_flag(tmp_path, monkeypatch)
     assert seen[1][seen[1].index("--reuse-drafts") + 1] == str(tmp_path / "d")
 
 
-# --- astra review I3: the guard validates the exact weekly-stat snapshot the exporters consume ----------------------
-def _snapshot_world(tmp_path, monkeypatch, *, cached_weeks, live_weeks):
-    """Stub pull_weekly with a real on-disk cache keyed like the real one: a cache hit returns the cached frame, a
-    miss returns the live response and writes it. Returns (root, calls)."""
+# --- astra review I3 (rounds 1-2): the guard and every exporter consume ONE isolated, frozen per-run snapshot ------
+def _real_pull_world(monkeypatch, *, snap_weeks, live_weeks):
+    """Patch the three pulls with a TTL-less on-disk cache keyed like the real one; a miss 'downloads' `snap_weeks`
+    (into whatever cache_dir is asked for). `live_weeks` is what a separate live source would return."""
     import ffmodel.data.pull as P
-    root = tmp_path / "root"
-    cache = root / "data" / "raw"
-    cache.mkdir(parents=True)
-    span = list(range(F.HISTORY_FIRST_SEASON, 2027))
-    path = cache / f"{P._cache_name('weekly_v2', span)}.parquet"
+
     def frame(n):
         d = all_teams(n)
         d["season"] = 2026
         return d
-    frame(cached_weeks).to_parquet(path, index=False)
     calls = []
+
     def fake(seasons, cache_dir=None):
-        calls.append((list(seasons), cache_dir))
+        calls.append(cache_dir)
         if cache_dir is None:
             return frame(live_weeks)
         p = cache_dir / f"{P._cache_name('weekly_v2', seasons)}.parquet"
         if p.exists():
             return pd.read_parquet(p)
-        df = frame(live_weeks)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        df = frame(snap_weeks)
         df.to_parquet(p, index=False)
         return df
     monkeypatch.setattr(P, "pull_weekly", fake)
     monkeypatch.setattr(P, "pull_schedules", lambda *a, **k: None)
     monkeypatch.setattr(P, "pull_injuries", lambda *a, **k: None)
-    return root, path, calls
+    return calls
 
 
-def test_guard_rejects_stale_cached_snapshot_even_though_live_response_is_complete(tmp_path, monkeypatch):
-    # cache lacks week 4; the live response has it. The guard must read the CACHED snapshot (what the exporters read),
-    # never an independent live pull, so without a refresh it refuses.
-    root, path, calls = _snapshot_world(tmp_path, monkeypatch, cached_weeks=3, live_weeks=4)
-    steps = F.Steps(root)
+def test_prefetch_pulls_into_the_given_snapshot_dir_and_never_touches_shared_cache(tmp_path, monkeypatch):
+    import ffmodel.data.pull as P
+    root = tmp_path / "root"
+    shared = root / "data" / "raw"
+    shared.mkdir(parents=True)
+    keep = shared / f"{P._cache_name('weekly_v2', list(range(F.HISTORY_FIRST_SEASON, 2027)))}.parquet"
+    keep.write_bytes(b"another run file")
+    _real_pull_world(monkeypatch, snap_weeks=4, live_weeks=4)
+    snap = tmp_path / "snap"
+    F.Steps(root).prefetch(2026, snap, sleep=lambda s: None)
+    assert any(snap.iterdir())
+    assert keep.read_bytes() == b"another run file" and [p.name for p in shared.iterdir()] == [keep.name]
+
+
+def test_guard_validates_the_snapshot_frame_not_a_live_source(tmp_path, monkeypatch):
+    # snapshot lacks week 4; a separate live source has it. The guard reads the snapshot, so it refuses.
+    calls = _real_pull_world(monkeypatch, snap_weeks=3, live_weeks=4)
+    snap = tmp_path / "snap"
+    steps = F.Steps(tmp_path / "root")
+    steps.prefetch(2026, snap, sleep=lambda s: None)
     with pytest.raises(F.FreezeError) as e:
-        F.check_fresh(sched(), steps.weekly_teams(2026), 2026, 5)
+        F.check_fresh(sched(), steps.weekly_teams(2026, snap), 2026, 5)
     assert e.value.code == 4
-    assert all(cd is not None for _, cd in calls)  # the guard never makes an uncached pull
+    assert all(cd is not None for cd in calls)
 
 
-def test_prefetch_force_refreshes_the_current_span_cache_then_guard_and_exporters_share_it(tmp_path, monkeypatch):
-    root, path, calls = _snapshot_world(tmp_path, monkeypatch, cached_weeks=3, live_weeks=4)
-    steps = F.Steps(root)
-    steps.prefetch(2026, sleep=lambda s: None)
-    teams = steps.weekly_teams(2026)
-    F.check_fresh(sched(), teams, 2026, 5)  # refreshed: week 4 now present
-    exporter_view = pd.read_parquet(path)  # exactly what export_origin_forecasts reads from data/raw
-    assert set(zip(exporter_view["week"], exporter_view["team"])) == set(zip(teams["week"], teams["team"]))
-    assert max(teams["week"]) == 4
+def test_run_freeze_refuses_when_snapshot_lacks_a_team_week_even_if_live_has_it(repo, monkeypatch):
+    _real_pull_world(monkeypatch, snap_weeks=3, live_weeks=4)
 
+    class RealGuard(StubSteps):  # real prefetch + weekly_teams (patched pulls), stubbed everything else
+        def prefetch(self, season, dest):
+            self.dest = dest
+            F.Steps(repo).prefetch(season, dest, sleep=lambda s: None)
 
-def test_incomplete_snapshot_is_refused_when_the_refresh_is_incomplete_too(tmp_path, monkeypatch):
-    root, path, calls = _snapshot_world(tmp_path, monkeypatch, cached_weeks=4, live_weeks=3)
-    steps = F.Steps(root)
-    steps.prefetch(2026, sleep=lambda s: None)  # cache removed and re-pulled: live is still missing week 4
+        def weekly_teams(self, season, data_dir):
+            return F.Steps(repo).weekly_teams(season, data_dir)
+
+    st = RealGuard()
     with pytest.raises(F.FreezeError) as e:
-        F.check_fresh(sched(), steps.weekly_teams(2026), 2026, 5)
+        run(repo, steps=st)
     assert e.value.code == 4
+    assert not (repo / "models" / "prospective" / "2026" / "o5").exists()
+    assert not st.dest.exists()
+
+
+def test_freeze_passes_snapshot_dir_to_every_exporter_and_tags_and_guard(repo):
+    st = StubSteps()
+    run(repo, steps=st)
+    assert len(st.data_dirs) == 6 and len(set(st.data_dirs)) == 1
+    assert st.data_dirs[0] == st.dest == st.guard_dir
+    assert st.dest != repo / "data" / "raw"
+
+
+def test_real_steps_run_exporters_and_tags_with_data_dir_and_frozen_env(tmp_path, monkeypatch):
+    seen = []
+    st = F.Steps(tmp_path)
+    monkeypatch.setattr(st, "_run", lambda cmd, what, env=None: seen.append((cmd, env)) or "")
+    snap = tmp_path / "snap"
+    st.export_forecasts(2026, 5, "f12-1qb-ppr-6", tmp_path / "o.json", snap)
+    st.tags(2026, 4, tmp_path / "t.json", snap)
+    assert len(seen) == 2
+    for cmd, env in seen:
+        assert cmd[cmd.index("--data-dir") + 1] == str(snap)
+        assert env == {"FFMODEL_CACHE_FROZEN": "1"}
+
+
+def test_run_helper_merges_frozen_env_into_the_subprocess_env(tmp_path, monkeypatch):
+    got = {}
+
+    def fake_run(cmd, **kw):
+        got.update(kw)
+
+        class R:
+            returncode, stdout, stderr = 0, "", ""
+        return R()
+    monkeypatch.setattr(F.subprocess, "run", fake_run)
+    F.Steps(tmp_path)._run(["x"], "x", env=F.FROZEN_ENV)
+    assert got["env"]["FFMODEL_CACHE_FROZEN"] == "1"
+
+
+@pytest.mark.parametrize("how", ["changed", "added", "removed"])
+def test_snapshot_drift_during_build_exits_4_and_commits_nothing(repo, how):
+    st = StubSteps()
+
+    def mutate(d):
+        if how == "changed":
+            (d / "weekly_stub.parquet").write_bytes(b"weekly-v2")
+        elif how == "added":
+            (d / "extra.parquet").write_bytes(b"x")
+        else:
+            (d / "weekly_stub.parquet").unlink(missing_ok=True)
+    st.mutate = mutate
+    snap = tree(repo)
+    with pytest.raises(F.FreezeError) as e:
+        run(repo, steps=st)
+    assert e.value.code == 4 and "drifted" in e.value.msg
+    assert tree(repo) == snap
+    assert not st.dest.exists()
+
+
+def test_snapshot_dir_is_removed_after_success_and_failure_and_hashed_in_manifest(repo):
+    st = StubSteps()
+    run(repo, steps=st)
+    assert not st.dest.exists()
+    man = json.loads((repo / "models/prospective/2026/o5/manifest.json").read_text())
+    assert man["inputs_snapshot"] == {"weekly_stub.parquet": hashlib.sha256(b"weekly-v1").hexdigest()}
+    bad = StubSteps(weekly=all_teams(3))
+    with pytest.raises(F.FreezeError):
+        run(repo, origin=5, dry=True, steps=bad)
+    assert not bad.dest.exists()
+
+
+def test_freeze_never_writes_or_deletes_the_shared_data_raw(repo):
+    shared = repo / "data" / "raw"
+    shared.mkdir(parents=True)
+    (shared / "weekly_v2_2012_2026.parquet").write_bytes(b"shared")
+    before = {p.name: p.read_bytes() for p in shared.iterdir()}
+    run(repo, steps=StubSteps())
+    assert {p.name: p.read_bytes() for p in shared.iterdir()} == before
