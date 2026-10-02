@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-02T11:11:38+00:00",
+  "generated_at": "2026-10-02T21:22:49+00:00",
   "data_through": "2026-wk3",
   "season": 2026,
   "week": 4,
@@ -48829,93 +48829,6 @@
       }
     },
     {
-      "player_id": "00-0040476",
-      "name": "Ulysses Bentley IV",
-      "team": "IND",
-      "opponent": "WAS",
-      "position": "RB",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.22,
-          "p50": 0.49,
-          "p90": 5.5
-        },
-        "half_ppr": {
-          "p10": -0.23,
-          "p50": 0.41,
-          "p90": 4.9
-        },
-        "standard": {
-          "p10": -0.24,
-          "p50": 0.33,
-          "p90": 4.3
-        },
-        "league": {
-          "p10": -0.26,
-          "p50": 0.48,
-          "p90": 5.52
-        }
-      },
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.23218714840893948,
-          "passing_tds": -0.018258839858022537,
-          "passing_interceptions": -0.011980333848506157,
-          "carries": 0.2788206409575036,
-          "rushing_yards": 0.4078255705692282,
-          "rushing_tds": -0.013864978679424692,
-          "targets": 0.0966417695740156,
-          "receptions": 0.023607171499925916,
-          "receiving_yards": 0.09661874664521763,
-          "receiving_tds": -0.011967800925180818,
-          "fumbles_lost": -0.015635029944319787,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": -0.07361023873090744,
-          "passing_tds": -0.0004705004394054413,
-          "passing_interceptions": 0.00459218630567193,
-          "carries": 1.2006263732910156,
-          "rushing_yards": 3.20831561088562,
-          "rushing_tds": -0.0021754540503025055,
-          "targets": 0.32609453797340393,
-          "receptions": 0.1521957367658615,
-          "receiving_yards": 0.4360567033290863,
-          "receiving_tds": 0.0003452055680099875,
-          "fumbles_lost": 0.003290497465059161,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.3646269829252837,
-          "passing_tds": 0.01136499342789865,
-          "passing_interceptions": 0.00812705608892543,
-          "carries": 4.876269717295642,
-          "rushing_yards": 20.40082048694643,
-          "rushing_tds": 0.13555088286284223,
-          "targets": 1.430134491050996,
-          "receptions": 1.1964742111313065,
-          "receiving_yards": 8.933085787708478,
-          "receiving_tds": 0.07289282166537969,
-          "fumbles_lost": 0.01956705855128038,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.07,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": 1.2,
-        "rushing_yards": 3.21,
-        "rushing_tds": -0.0,
-        "targets": 0.33,
-        "receptions": 0.15,
-        "receiving_yards": 0.44,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.0
-      }
-    },
-    {
       "player_id": "00-0040646",
       "name": "Jalen Royals",
       "team": "KC",
@@ -49433,6 +49346,93 @@
         "targets": 0.58,
         "receptions": 0.35,
         "receiving_yards": 0.7,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0040476",
+      "name": "Ulysses Bentley IV",
+      "team": "NO",
+      "opponent": "ATL",
+      "position": "RB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.22,
+          "p50": 0.47,
+          "p90": 5.44
+        },
+        "half_ppr": {
+          "p10": -0.23,
+          "p50": 0.39,
+          "p90": 4.84
+        },
+        "standard": {
+          "p10": -0.24,
+          "p50": 0.32,
+          "p90": 4.25
+        },
+        "league": {
+          "p10": -0.26,
+          "p50": 0.47,
+          "p90": 5.46
+        }
+      },
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.23604985503494602,
+          "passing_tds": -0.017440351098381626,
+          "passing_interceptions": -0.011519811533250199,
+          "carries": 0.26322870610870686,
+          "rushing_yards": 0.3522636601147111,
+          "rushing_tds": -0.013612431814923193,
+          "targets": 0.08677530472215,
+          "receptions": 0.02232176049481835,
+          "receiving_yards": 0.0912993710785942,
+          "receiving_tds": -0.011722443512633794,
+          "fumbles_lost": -0.015571028632430147,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": -0.07815894484519958,
+          "passing_tds": -0.0007490627467632294,
+          "passing_interceptions": 0.0047022136859595776,
+          "carries": 1.1670581102371216,
+          "rushing_yards": 3.080695390701294,
+          "rushing_tds": -0.0023043949622660875,
+          "targets": 0.30919185280799866,
+          "receptions": 0.14940138161182404,
+          "receiving_yards": 0.43136730790138245,
+          "receiving_tds": 0.0004399465397000313,
+          "fumbles_lost": 0.0035471587907522917,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.3642234809994278,
+          "passing_tds": 0.011538044260347102,
+          "passing_interceptions": 0.008060902590523542,
+          "carries": 4.823634291029421,
+          "rushing_yards": 20.149382921059498,
+          "rushing_tds": 0.13311670927047148,
+          "targets": 1.407286320422223,
+          "receptions": 1.186522156904811,
+          "receiving_yards": 8.882307342321212,
+          "receiving_tds": 0.07236675001292925,
+          "fumbles_lost": 0.020673320224445624,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.08,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": 1.17,
+        "rushing_yards": 3.08,
+        "rushing_tds": -0.0,
+        "targets": 0.31,
+        "receptions": 0.15,
+        "receiving_yards": 0.43,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
