@@ -1,9 +1,10 @@
 # Any Sleeper league, phase 1: the in-season pages — design
 
-**Status:** draft 2, 2026-10-03. Draft 1 was agreed with the owner section by section on 2026-10-01; astra's
-methodology review (`.review/astra-anyleague-spec-response.md`, gitignored, verdict REVISE: 4 blockers, 9 important,
-3 minor) is resolved here, each finding traced in §12. Next: astra re-check, then the owner's review. No
-implementation before both, and nothing merged to `main` before the `prospective-2026-o5` tag exists (§10).
+**Status:** draft 3, 2026-10-03. Draft 1 was agreed with the owner section by section on 2026-10-01. Astra's
+review of draft 1 (`.review/astra-anyleague-spec-response.md`, gitignored: 4 blockers, 9 important, 3 minor) and
+re-check of draft 2 (`.review/astra-anyleague-spec-recheck-response.md`: 11 resolved, F1–F9 new or open) are
+resolved here, traced in §12. Next: astra re-check, then the owner's review. No implementation before both, and
+nothing merged to `main` before the `prospective-2026-o5` tag exists (§10).
 
 **Goal:** any Sleeper league — not just Gabagool Fools and FAM FOOTBALL — gets working weekly start/sit, waivers
 and in-season trade comparison (with rest-of-season projections inside the last two), scored by its own live
@@ -58,9 +59,12 @@ The weekly Actions job publishes one **neutral batch** under `site/data/neutral/
 
 | File | Contents |
 |---|---|
-| `weekly.json` | This week's per-player `stat_quantiles` {p10,p50,p90} × the 12 published stats at **full precision** (as today), the `ppr`/`half_ppr`/`standard` display lenses, `pick_six_forecast` provenance, `stat_projection_schema`. No `league` lens. |
-| `remaining.json` | Weeks `start_week`..`end_week`: per player-week `status` (`conditional_projection` / `bye` / `unmodeled`) with reason, opponent, and for projections the stat block as compact arrays `[quantile][stat]` (stat order and `schema_version` in a header; p10/p90 may be `null` for point-only predictors). Stats rounded to 4 decimals. Provenance fields as today's file minus `league` and minus `evaluation` (moved to §3.2). |
-| `players.json` | The player universe (§3.4): GSIS id ↔ Sleeper id, name, team, scoring position, bye week, preseason ECR with `{source, date, scoring}` provenance (nullable). |
+| `weekly.json` | This week's per-player `stat_quantiles` {p10,p50,p90} × the 12 published stats at **full precision** (as today), the `ppr`/`half_ppr`/`standard` display lenses, `stat_projection_schema`. No `league` lens. |
+| `remaining.json` | Weeks `start_week`..`end_week`: per player-week `status` (`conditional_projection` / `bye` / `unmodeled`) with reason, opponent, and for projections the stat block as compact arrays `[quantile][stat]` (stat order and `schema_version` in a header; p10/p90 may be `null` for point-only predictors). Stats rounded to 4 decimals. Provenance fields as today's file minus `league` and minus `evaluation` (moved to §3.2). When no supported week remains, a valid empty state (§3.3). |
+| `players.json` | The **scorable universe** (§3.4): GSIS id ↔ Sleeper id, name, team, scoring position, bye week, preseason ECR with `{source, date, scoring}` provenance (nullable). |
+
+Both projection payloads carry the batch's **pick-six prior provenance** (`pick_six_forecast`: prior source, rate,
+and the fact that it is an expectation), since `passing_pick_sixes` in every stat block depends on it.
 | `evaluation.json` | Measured-evidence records (§3.2). |
 
 All four are produced from **one validated input snapshot** and must share `season`, `week`, `data_through` and
@@ -73,36 +77,75 @@ Today's `remaining-<slug>.json.evaluation` holds point-scale MAEs measured again
 hardcodes a 56.3% close-call rate and an "≈80% of player-weeks inside the band" calibration claim. None of these
 transfers to other scoring — even a uniform multiplier changes an MAE.
 
-`evaluation.json` therefore holds records `{id, kind, scoring_fingerprint, scoring_description, method, scope,
-values, source}` where `scoring_fingerprint` is the canonical fingerprint of the full offensive scoring the number
-was measured under (the `format_key` predicted-weights part plus `compat`, via `ffmodel.formats` — the same canonical
-JSON, without team/slot fields). A page shows a measured number **only** when the live league's scoring fingerprint
-equals the record's; otherwise it shows "no measured evaluation for your league's scoring". The weekly page's
-close-call and calibration copy becomes data-driven the same way. The plan verifies, from each source artifact, which
-scoring each existing claim was measured under before writing its record. No new fantasy-point error is derived
-from per-stat errors.
+A league's settings are not what was measured. Example: the Gabagool rest-of-season diagnostic carries Gabagool's
+full settings (`pass_int_td = −3`), but all 24 of its horizon reports have `pick_six_evaluated = false`
+(`src/ffmodel/eval/remaining.py:95-103` zeroes the pick-six weight when actual counts are unavailable), while today's
+weekly output *does* apply a pick-six prior. So the 4.612 figure is not a measurement of the current Gabagool lens.
+
+`evaluation.json` therefore holds records with separate identities:
+
+- `source_settings` — the league whose settings were used, for provenance only (never matched on);
+- `effective_scoring` — the weights actually applied when the number was measured, with every omitted or zeroed
+  component explicit (e.g. `pass_int_td: 0` with reason "pick-six actuals unavailable"), in the evidence
+  normalization below;
+- `method` — model artifact id, band construction, lineup/selection policy where the metric depends on one;
+- `population`, `horizon`, `metric`, `values`, `source` (artifact path + sha256).
+
+**Evidence normalization** is its own versioned, lossless canonical form, not the frozen six-decimal format
+fingerprint (`formats.py` / `formats.js` round weights to six decimals, so `pass_yd 0.04` and `0.0400001` collide;
+the frozen fingerprint stays untouched): supported offensive keys only, each weight as its shortest round-trip
+decimal string with one agreed exponent-free rendering, keys sorted; Python and JS must produce identical bytes
+(fixture includes the colliding pair above). The browser builds the same form from what it actually scores
+(including the pick-six prior where `pass_int_td ≠ 0`).
+
+A page shows a number as a **claim about the current output only** when the league's effective scoring equals the
+record's `effective_scoring` **and** the record's `method` equals the current model artifact and band/lineup
+construction. Anything else — including unknown method fields — shows "no measured evaluation for your league's
+scoring and this model". Historical results stay on the about page with their full scope, never as current-output
+claims. The weekly page's close-call and calibration copy follows the same rule. The plan reads each existing
+claim's source artifact to fill its record; a claim whose effective scoring or method cannot be established is not
+published as a current-output claim. No new fantasy-point error is derived from per-stat errors.
 
 ### 3.3 Precision, size, horizon
 
-- Ranking and comparisons use **unrounded** scored values; rounding happens only for display. Python/JS parity is
+- Ranking and comparisons use **unrounded** scored values; rounding happens only for display. (Today start/sit
+  compares published cents and waivers round a gain before filtering; both change, §8.) Waiver admission keeps
+  today's effective threshold explicitly: a move is admitted when its raw weekly gain is ≥ 0.005 points (what
+  "rounds to a positive cent" meant). Heuristic thresholds (3-pt close call, 1-pt weak signal, 2/5-pt FAAB bands)
+  compare raw values. Python/JS parity is
   checked per league against a full-precision Python reference with tolerance
   `0.00005 × Σ|effective stat weight|` per endpoint for `remaining.json` (4-decimal stats) and 1e-9 for `weekly.json`.
-- Horizon: the model's published horizon, `start_week`..17. Leagues whose season runs into week 18 get a disclosed
-  truncation ("projections stop at week 17"). Simulation, if ever enabled, stays within its measured horizon.
+- Horizon: NFL weeks `start_week`..17, the model's published horizon, labeled "through NFL week 17, regardless of
+  your league's schedule" (a league whose season ends earlier or runs into week 18 sees that label; no league-specific
+  clipping in phase 1). Simulation, if ever enabled, stays within its measured horizon.
+- **End state:** when `start_week > 17`, `remaining.json` is a valid empty payload (`status: "no_remaining_weeks"`,
+  no player rows). The batch still publishes; the weekly file stays fresh; rest-of-season values and trade
+  comparisons are disabled with the reason "no projected weeks remain". Fixtures cover weeks 16, 17 and 18.
 - Size: the plan measures the full serialized `remaining.json` at week 1 with the maximum player universe; the cap is
   set to that measurement × 1.25 and enforced by a test and by the generator. **Oversize fails the batch**; players or
   weeks are never dropped to fit.
 
-### 3.4 Player universe
+### 3.4 Two universes: scorable players and roster identities
 
-`players.json` is generated independently of the draft board, VORP, tiers and keeper logic, from the Sleeper player
-catalog and the existing GSIS↔Sleeper crosswalk code (`src/ffmodel/data/sleeper.py`, with its ambiguity handling).
-Universe = union of players in `weekly.json`, `remaining.json`, and every QB/RB/WR/TE in the Sleeper catalog on an
-NFL team. Validation: one-to-one GSIS↔Sleeper mapping (ambiguity → that player is identity-only, never priced),
-team and position agreement between sources, nullable ECR/bye. Players with no projection stay "unknown", never 0.
+**Scorable universe (`players.json`).** Generated independently of the draft board, VORP, tiers and keeper logic.
+Members: every player in `weekly.json` or `remaining.json`. For each, the Sleeper id comes from the Sleeper player
+catalog via a crosswalk built on `src/ffmodel/site/sleeper.py`, with a **stricter rule than that helper**: today it
+falls back to a unique name/position match when a GSIS id is duplicated (`sleeper.py:37-39,64-73`); phase 1 requires
+a one-to-one GSIS↔Sleeper mapping, and any duplicate or ambiguity makes that player identity-only (never priced).
+Source precedence: GSIS id, position and team come from the projection payload; Sleeper id, name and injury status
+from the catalog; a team or position disagreement makes the player identity-only with the reason recorded. Team
+codes go through one normalization table (today's `LAR→LA`, `WSH→WAS`). The catalog cache is refetched when older
+than 24 hours (today it is reused with no age check, `sleeper.py:114-118`).
+
+**Roster identities (browser).** Roster accounting never depends on `players.json`. Every live roster, reserve and
+taxi occupant — K, DEF, IDP, teamless players, players with no or ambiguous GSIS id — is represented by Sleeper id,
+hydrated from the live Sleeper catalog the pages already fetch (generalizing today's K/DEF-only supplement,
+`waivermode.js:98-111`). A null GSIS id never erases ownership or roster capacity; such a player is simply
+"no projection".
 
 This **expands coverage**: today 31 weekly and 304 remaining-payload players are absent from Gabagool's 698-player
-board. That is an intentional change, tested separately from numeric parity (§9).
+board. That is an intentional change, tested separately from numeric parity (§9). Players with no projection stay
+"unknown", never 0.
 
 ### 3.5 Publication
 
@@ -110,7 +153,10 @@ board. That is an intentional change, tested separately from numeric parity (§9
   if every file succeeds; any failure leaves the previously published neutral batch untouched. Today's fail-soft
   remaining-season path (`generate.py:724-742`) does **not** apply to the neutral batch.
 - Optional reference feeds (weekly/ROS ECR) stay optional and outside the batch, as today.
-- During coexistence (§10) the legacy per-league files keep today's behavior.
+- **During coexistence (§10) the legacy in-season files join the same transaction**: legacy weekly and remaining for
+  each league plus the neutral batch publish together or not at all, so the rollback set is always as fresh as the
+  neutral one. This deliberately makes the legacy remaining-season failure fatal for the coexistence period (today
+  it is skipped, `generate.py:712-728`). Draft-board generation is not part of the transaction.
 
 ## 4. Scoring lens (browser)
 
@@ -179,10 +225,21 @@ unique ownership, reserve/taxi handling and capacity.
 
 On load the page runs `Formats.match` (exact `format_key` + `compat`) and shows one line:
 "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format test (results January 2027)" or "Format: not in the
-format test". **"In the test" is not "tested".** Best-ball leagues and leagues with IDP or other unrecognised slots
-can share a `format_key` with a grid format (`Formats.describeSleeper` ignores `best_ball` and `type`), so the line
-also runs a separate **eligibility check**: managed-lineup redraft/keeper/dynasty leagues with only recognised slots
-are eligible for a simulation verdict; best-ball leagues and leagues with unrecognised slots never are.
+format test". **"In the test" is not "tested".** The frozen fingerprint is untouched. Two different cases:
+
+- **Unrecognised roster slots (IDP etc.) produce no match at all.** `formats.js` / `formats.py` drop only
+  K/DEF/IR/TAXI and throw on any other unknown slot, so `match` returns null (`tests/formats_fixture.cjs` already
+  asserts this for `IDP_FLEX`). Such a league is "not in the format test".
+- **Best ball shares the fingerprint** (`describeSleeper` ignores `best_ball` and `type`; the owner fixture with
+  `best_ball: 1, type: 2` still matches `f12-1qb-ppr-6`). So a separate **eligibility check** runs first and
+  overrides the format line: best-ball leagues read "Best ball — not eligible for the format test".
+
+Eligible for a future simulation verdict: managed-lineup redraft/keeper/dynasty leagues (`settings.type` 0/1/2)
+whose slots all come from the frozen recognised set. Never eligible: best ball, any other type, any unrecognised slot.
+
+**Projection-UI slots** are a separate, explicit list: modeled `QB, RB, WR, TE, FLEX, SUPER_FLEX, WRRB_FLEX,
+REC_FLEX`; recognised-unmodeled `K, DEF, DL, LB, DB, IDP_FLEX` (occupant kept, capacity counted). A league with any
+slot outside both lists gets projections and rest-of-season values but no lineup-based advice, with the slot named.
 
 ### 6.2 Simulation outputs are off in phase 1
 
@@ -221,21 +278,36 @@ Phase 1 adds one kernel module, used by start/sit, waivers and in-season trade. 
   order (string comparison). No epsilon perturbation of scores.
 - **Validation:** duplicate occupants, a fixed player ineligible for its slot, or an infeasible required lineup →
   refuse with a reason; never a partial sum. (Today `startsit.js:59` can place one player in two slots.)
-- **Caller policies stay explicit and separate** (shared kernel, not shared preprocessing):
-  - start/sit (current week): exclude declared bye, user-excluded, IR, taxi; game-started slots fixed; an unfillable
-    active slot refuses;
-  - waivers (current week + rest of season): owned unavailable/bye players allowed at 0; started slots removed and
-    their fixed contributions cancelled from transaction deltas; unknown-projection members excluded with a warning;
-  - trade (future weeks only): current week skipped; bye/unavailable candidates at 0; missing projection coverage
-    refuses.
+- **Caller policies are preserved exactly as today's code implements them** (shared kernel, not shared
+  preprocessing). Any deviation must be listed in §8; none is intended.
+  - **Start/sit (current week)** — `startsit.js:7,40-53,65`: exclude declared bye, injury tags
+    OUT/IR/SUSPENDED/PUP/DOUBTFUL, user exclusions, reserve and taxi; game-started slots are fixed and the
+    refresh-after-kickoff rule stays; **a missing projection for any eligible, unlocked player refuses the plan**
+    even if the rest of the roster could fill the slots (a projection for a different team than the player's current
+    team counts as missing). Locked (started) players stay fixed in their slot whether or not they have a projection,
+    and a locked player in an ineligible slot refuses. Start/sit reports **no lineup total**, as today, so an unknown
+    locked score can never become a fabricated total.
+  - **Waivers, this week** — `waivers.js:398-442`: owned unavailable/bye players allowed at 0; started slots removed
+    and their fixed contributions cancelled from transaction deltas; started bench players excluded; **any unknown
+    contributor blocks the result and withholds lineup gains** (`:437-440`).
+  - **Waivers, rest of season** — `waivers.js:459-476`: weeks `currentWeek+1`..17; unknown-projection members
+    excluded with a warning.
+  - **Trade (future weeks)** — `seasontrade.js:107-125,157-161`: current week skipped; a player scores 0 only in a
+    declared bye week or a week the user explicitly excluded; catalog injury tags are warnings, not exclusions;
+    missing projection coverage refuses.
+- Phase-1 pages make **no simulation calls**.
 
 ### 7.2 Per page
 
 | Page | Behavior |
 |---|---|
-| Start/sit | Any in-season league. Best ball: projections with a note, no start/sit advice. |
-| Waivers | FAAB (`waiver_type 2`) and rolling (`0`) as today; reverse standings (`1`, refused today) shares the non-dollar ranking mechanics, labeled "reverse-standings waivers", without claiming its priority rules. FAAB reserve default = 20% of the league's budget, rounded to whole dollars (Gabagool's $100 → $20, unchanged; the plan verifies the budget). Shortlist (this-week and rest-of-season lineup gain) everywhere; rest-of-season shown as "sum of weekly medians, not a season median". |
+| Start/sit | Any in-season league with only projection-UI slots (§6.1). |
+| Waivers | FAAB (`waiver_type 2`) and rolling (`0`) as today; reverse standings (`1`, refused today) shares the non-dollar ranking mechanics, labeled "reverse-standings waivers", without claiming its priority rules. Candidates are admitted by **this-week** gain (≥ 0.005, §3.3), as today; a separate stash list for players with zero gain this week but positive rest-of-season value is out of scope. Rest-of-season value and the "why" value both use weeks `currentWeek+1`..17, shown as "sum of weekly medians through NFL week 17, not a season median". FAAB reserve default = 20% of the league's `waiver_budget`, rounded to whole dollars (a $100 league defaults to $20, today's fixed default; owner parity holds only if the owner league's budget is verified as $100). The default resets when the league or its budget changes, unless the user has typed a value; remaining/spendable clamps as today. |
 | In-season trade | Side-by-side lineup comparison everywhere. **Future draft picks are removed** from the in-season asset list: they came from `Keepers.DRAFT_ROUNDS` (Gabagool's 15 rounds × 2 seasons, `seasontrademode.js:467-478`) and were never valued. |
+
+**Best ball** (`settings.best_ball = 1`): projections and rest-of-season values only. No start/sit plan, no waiver
+lineup gain, no trade lineup comparison — the managed-lineup p50 model does not describe best-ball scoring — with the
+note "best-ball scoring picks your top scorers after the games; lineup advice doesn't apply".
 
 Point thresholds (start/sit 3-pt close call; waivers 1-pt weak signal, 2/5-pt FAAB bands) stay, labeled as
 heuristics in the league's own points. Weekly and ROS ECR stay labeled as PPR reference rankings on every league.
@@ -243,53 +315,85 @@ heuristics in the league's own points. Weekly and ROS ECR stay labeled as PPR re
 ## 8. Behavior changes for Gabagool and FAM (intentional, enumerated)
 
 Replaces draft 1's "everything else identical", which the current code cannot satisfy (its two solvers break ties
-differently: astra's counterexamples, review §B4).
+differently: astra's counterexamples, review §B4). Caller policies (§7.1) are **not** on this list: they are preserved.
 
 1. Lineup ties resolve by §7.1's rule (affects only equal-score alternatives; totals unchanged).
-2. The waiver shortlist's tie-break and "why" value change from the board's `value_points` (an ECR-ordered value
-   curve, not the player's own projection) to the rest-of-season p50 sum; this can change which rows survive the
-   40-row cut.
-3. More players are in scope (§3.4).
-4. Remaining-season stats are 4-decimal; a few published cents can differ (astra: 47 of 2,085 weekly endpoints at
-   4-decimal stats), while comparisons use unrounded values.
-5. The dead preseason-proxy code path is removed (already unreachable for in-season leagues: `waivers.js:384-385`,
+2. **Comparisons move from published cents to raw values.** Start/sit compares raw p50s instead of rounded ones
+   (e.g. this week DK Metcalf 9.17528 vs Luther Burden III 9.17795, both published 9.18: tied today, ordered under
+   phase 1); waiver gains are no longer rounded before filtering, with admission pinned at ≥ 0.005 (§3.3); heuristic
+   thresholds (3/1/2/5 pt) compare raw values, so near-boundary cases can flip.
+3. The waiver shortlist's tie-break and "why" value change from the board's `value_points` (an ECR-ordered value
+   curve, not the player's own projection) to the rest-of-season p50 sum over `currentWeek+1`..17; this can change
+   which rows survive the 40-row cut.
+4. Scorable coverage changes both ways (§3.4): more players are in scope (31 weekly, 304 remaining-payload players
+   absent from today's board), and the stricter one-to-one crosswalk makes any duplicate-GSIS player identity-only
+   where today's name fallback priced it.
+5. Remaining-season stats are 4-decimal; a few published cents can differ (astra: 47 of 2,085 weekly endpoints at
+   4-decimal stats).
+6. The dead preseason-proxy code path is removed (already unreachable for in-season leagues: `waivers.js:384-385`,
    `waivermode.js:29`).
-6. Contract-mismatch refusals disappear; a mid-season scoring change is rescored, not refused.
-7. Future picks leave the in-season trade page; v1 gate note rewording; evaluation numbers appear only under their
-   measured scoring (Gabagool's and FAM's own numbers still appear for them if measured under their scoring).
+7. Contract-mismatch refusals disappear; a mid-season scoring change is rescored, not refused.
+8. Future picks leave the in-season trade page; the v1 gate note is reworded.
+9. **Evidence lines can disappear for Gabagool and FAM themselves.** A measured number shows only under §3.2's
+   effective-scoring + method match; the rest-of-season MAE (measured with pick-six penalties excluded, against
+   today's pick-six-inclusive output) therefore no longer shows on the waiver/trade panels and moves to the about
+   page with its scope. The weekly close-call and calibration lines stay only if their records match.
+10. During coexistence a legacy remaining-season failure blocks the whole publication (§3.5) instead of being skipped.
 
 ## 9. Testing (acceptance criteria)
 
 1. **Scoring:** Python/JS parity per §3.3 on Gabagool and FAM, for weekly and every remaining week, using an
    independent Python reference scorer (Python `ScoringRules` has no per-carry or position bonus fields). Fixtures:
-   position bonuses, opposing/cancelling weights, `pass_int_td` disclosure, null bands, missing stats, every class in
-   §4 including unknown keys and the no-predicted-stat refusal.
+   position bonuses, opposing/cancelling weights, `pass_int_td` disclosure, null bands, missing stats, overflow, every
+   class in §4 including unknown keys and the no-predicted-stat refusal.
 2. **Kernel:** equals brute force on seeded random rosters across FLEX, SUPER_FLEX, WRRB_FLEX, REC_FLEX, fixed slots,
-   unmodeled occupancy (incl. empty unmodeled slots), negative scores, infeasible lineups, duplicate occupants and the
-   tie-break; separate tests for each caller policy.
-3. **Baseline:** a captured offline snapshot of today's outputs (start/sit plans, waiver shortlists, trade
+   recognised-unmodeled occupancy (incl. empty unmodeled slots), negative scores, infeasible lineups, duplicate
+   occupants and the tie-break.
+3. **Caller policies:** one focused suite per policy in §7.1, each case taken from today's code and asserting today's
+   outcome: start/sit injury tags, unlocked missing projection → refusal, wrong-team projection, locked player
+   without projection, locked player in an ineligible slot, refresh-after-kickoff; weekly waivers unknown contributor
+   → blocked, started bench excluded, fixed-contribution cancellation; ROS waivers unknown member → warning; trade
+   declared bye / user-excluded week → 0, injury tag → warning only, missing coverage → refusal.
+4. **Baseline:** a captured offline snapshot of today's outputs (start/sit plans, waiver shortlists, trade
    comparisons) for Gabagool and FAM fixtures, compared to the new outputs; every difference must belong to a §8 item.
-4. **Evidence:** a number appears only under a matching scoring fingerprint; mismatches show the "no measured
-   evaluation" copy.
-5. **Eligibility and format line:** grid match, compat-only difference (e.g. TE premium) → not in the test,
-   best-ball and IDP leagues sharing a grid `format_key` → ineligible.
-6. **Lifecycle and navigation:** anonymous load and team viewing, owner/non-owner identity, league switch during an
-   async load, settings change on refresh, in/out of draft pages with owner and non-owner ids; pre-draft trade and
-   ESPN unchanged.
-7. **Data:** complete neutral schema, players universe validation, batch-field agreement, size cap at week 1 full
-   horizon, oversize refusal; fault injection at every batch stage leaves the previous batch published.
-8. **No other managers' data in the repo:** league fixtures synthetic, in Sleeper's response shape; real third-party
-   leagues only in live browser checks, never committed.
-9. **Browser, before merge:** Gabagool and FAM end to end on all three pages; one public superflex league and one
-   best-ball league pasted by id.
+   Near-tie, zero-gain (incl. a 0.004 and a 0.006 gain) and heuristic-boundary fixtures cover §8.2.
+5. **Evidence:** Python/JS byte-identical evidence normalization (incl. `0.04` vs `0.0400001`); a number appears only
+   under an effective-scoring + method match; same league settings with different evaluated components (the pick-six
+   case) or a different band method → no claim; unknown method fields → no claim.
+6. **Eligibility and format line:** grid match → "in the test"; compat-only difference (e.g. TE premium) → not in
+   the test; IDP/unrecognised slot → no fingerprint match; best ball with a matching fingerprint → ineligible and the
+   eligibility line wins; projection-UI slot lists; unknown slot → projections only.
+7. **Roster identities:** K, DEF, IDP, teamless, null-GSIS and ambiguous-GSIS roster occupants keep ownership and
+   capacity with "no projection".
+8. **Waivers money and horizon:** budgets $0, $10, $100 and exhausted; default reset on league/budget change vs a
+   typed override; reverse-standings labeling; weeks 16, 17, 18 including the empty `remaining.json` state and
+   disabled trade comparisons.
+9. **Lifecycle and navigation:** anonymous load and team viewing (never "your roster"; `myRoster` only from the exact
+   owner match), owner/non-owner identity, league switch during an async load, settings change on refresh, in/out of
+   draft pages with owner and non-owner ids; pre-draft trade and ESPN unchanged.
+10. **Data:** complete neutral schema incl. pick-six provenance in both payloads, scorable-universe validation
+    (one-to-one rule, team/position disagreement → identity-only), catalog age refetch, batch-field agreement, size
+    cap at week 1 full horizon, oversize refusal; fault injection at every stage of the coexistence transaction
+    (neutral and legacy files) leaves the previous complete set published.
+11. **No other managers' data in the repo:** league fixtures synthetic, in Sleeper's response shape; real third-party
+    leagues only in live browser checks, never committed.
+12. **Browser, before merge:** Gabagool and FAM end to end on all three pages; one public superflex league and one
+    best-ball league pasted by id.
 
 ## 10. Rollout
 
 - Branch `feat/any-league-inseason`. **No merge to `main` until the `prospective-2026-o5` tag exists.**
-- Coexistence: after merge the weekly job publishes the legacy per-league files (today's behavior) and the neutral
-  batch. Rollback = revert the phase-1 code commits only; data commits stay, so the legacy pages come back with the
-  freshest legacy files. The legacy in-season files and the `league` lens are retired after **two consecutive
-  successful weekly refreshes** with the neutral pages verified, and a rollback rehearsal on a branch.
+- **Coexistence:** after merge the weekly job publishes legacy in-season files and the neutral batch as one
+  transaction (§3.5). The workflow runs twice daily (`weekly-update.yml:3-4`), so "success" is counted per **NFL
+  week**, not per job.
+- **Rollback** = revert the phase-1 code commits only; data commits stay. Because of the shared transaction, the
+  retained legacy files are always as fresh as the last neutral publish. The rollback rehearsal (on a branch)
+  loads the restored legacy pages against the retained data, including rest-of-season and schedule checks.
+- **Retirement** of the legacy in-season files (`weekly-fam.json`, `remaining-gabagool.json`, `remaining-fam.json`)
+  and of the `league` lens **in the in-season weekly output only**, after: two distinct NFL weeks each with at least
+  one complete transaction and the neutral pages verified, plus a passed rollback rehearsal. The draft board's
+  `league` lens (built through `site/weekly.py`'s rule set for the board) is unchanged. After retirement, rollback
+  means a forward fix; the legacy path is not supported.
 - Draft regeneration and the draft pages are untouched.
 
 ## 11. Out of scope
@@ -299,6 +403,8 @@ simulation display (January project). Long-term/dynasty value. Non-Sleeper platf
 redraft/keeper/dynasty with managed or best-ball lineups get "this league type isn't supported yet".
 
 ## 12. Astra review trace (2026-10-03)
+
+Draft-1 review:
 
 | Finding | Resolution |
 |---|---|
@@ -319,3 +425,17 @@ redraft/keeper/dynasty with managed or best-ball lineups get "this league type i
 | M2 heuristics/budget/reverse standings | §7.2 |
 | M3 ECR scope | §3.1 provenance; §7.2 labels |
 | Orchestration on main | §2 do-not-touch list |
+
+Draft-2 re-check (B3, B4, I1, I3, I4, I7, I8 were reopened under these):
+
+| Finding | Resolution |
+|---|---|
+| F1 settings ≠ measured scoring/method (Blocker) | §3.2: `effective_scoring` + `method` identity, match on both; pick-six provenance in both payloads (§3.1); §8.9 |
+| F2 lossy six-decimal fingerprint | §3.2: separate lossless evidence normalization; frozen fingerprint untouched |
+| F3 caller policies misdescribed | §7.1 rewritten from the code, preserved exactly; §9.3 suite |
+| F4 roster identities / crosswalk | §3.4: two universes, stricter one-to-one rule, catalog age, correct module path; §9.7 |
+| F5 IDP vs best ball | §6.1: IDP → no match, best ball → separate eligibility; projection-UI slot lists; best ball gets no lineup advice (§7.2) |
+| F6 raw comparisons unlisted | §3.3 admission threshold; §8.2; §9.4 boundary fixtures |
+| F7 rollback readiness / counter | §3.5 coexistence transaction; §10 per-NFL-week counter, rehearsal, lens scope |
+| F8 ROS candidates / terminal horizon | §7.2 admission + interval; §3.3 empty end state; §9.8 |
+| F9 unverified $100 budget | §7.2 wording; reset rule; §9.8 budgets |
