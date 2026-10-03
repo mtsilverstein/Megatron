@@ -1,6 +1,6 @@
 # Any Sleeper league, phase 1: the in-season pages — design
 
-**Status:** draft 3, 2026-10-03. Draft 1 was agreed with the owner section by section on 2026-10-01. Astra's
+**Status:** draft 4, 2026-10-03. Draft 1 was agreed with the owner section by section on 2026-10-01. Astra's
 review of draft 1 (`.review/astra-anyleague-spec-response.md`, gitignored: 4 blockers, 9 important, 3 minor) and
 re-check of draft 2 (`.review/astra-anyleague-spec-recheck-response.md`: 11 resolved, F1–F9 new or open) are
 resolved here, traced in §12. Next: astra re-check, then the owner's review. No implementation before both, and
@@ -205,8 +205,10 @@ timestamps.
 Removed: comparisons of a published league contract with the live league (scoring, slots, team count, league id vs
 board, `waiver_type` restriction for start/sit).
 
-Kept: projections are for the league's season and current week; age limits as today (7 days weekly, 72 h
-remaining); league `status` is `in_season`, else a plain message naming the state; every rostered skill player has
+Kept: projections are for the league's season and current week; **age limits per caller, exactly as today** —
+start/sit: weekly projections and kickoffs ≤ 7 days (`startsit.js:14-17`); waivers: weekly projections, kickoff
+coverage and remaining-season ≤ 72 h (`waivers.js:95,119,162`); trade: remaining-season ≤ 72 h
+(`seasontrade.js:50-51`); existing future-timestamp and roster-snapshot checks stay; league `status` is `in_season`, else a plain message naming the state; every rostered skill player has
 either a declared bye or kickoff coverage (a declared bye is not "missing coverage"); live roster completeness,
 unique ownership, reserve/taxi handling and capacity.
 
@@ -238,8 +240,11 @@ Eligible for a future simulation verdict: managed-lineup redraft/keeper/dynasty 
 whose slots all come from the frozen recognised set. Never eligible: best ball, any other type, any unrecognised slot.
 
 **Projection-UI slots** are a separate, explicit list: modeled `QB, RB, WR, TE, FLEX, SUPER_FLEX, WRRB_FLEX,
-REC_FLEX`; recognised-unmodeled `K, DEF, DL, LB, DB, IDP_FLEX` (occupant kept, capacity counted). A league with any
-slot outside both lists gets projections and rest-of-season values but no lineup-based advice, with the slot named.
+REC_FLEX`; recognised-unmodeled starting slots `K, DEF, DL, LB, DB, IDP_FLEX` (occupant kept, capacity counted);
+non-starting `BN, IR, TAXI` (`BN` counts toward active capacity but never creates a lineup assignment; `IR` and
+`TAXI` keep today's separate reserve/taxi accounting and exclusions). The unknown-slot rule applies only to
+*starting* slots after the non-starting ones are classified: a league with any other starting slot gets projections
+and rest-of-season values but no lineup-based advice, with the slot named.
 
 ### 6.2 Simulation outputs are off in phase 1
 
@@ -339,6 +344,11 @@ differently: astra's counterexamples, review §B4). Caller policies (§7.1) are 
    today's pick-six-inclusive output) therefore no longer shows on the waiver/trade panels and moves to the about
    page with its scope. The weekly close-call and calibration lines stay only if their records match.
 10. During coexistence a legacy remaining-season failure blocks the whole publication (§3.5) instead of being skipped.
+11. The FAAB reserve default becomes 20% of the league budget with reset-on-change (§7.2); identical to today's
+    fixed $20 only for a $100 budget.
+12. Malformed roster occupancy (duplicate occupants, a fixed player in an ineligible slot) now refuses (§7.1)
+    where today's start/sit could place one player in two slots.
+13. In week 18 the rest-of-season state is the explicit empty payload (§3.3) instead of a skipped file.
 
 ## 9. Testing (acceptance criteria)
 
@@ -439,3 +449,12 @@ Draft-2 re-check (B3, B4, I1, I3, I4, I7, I8 were reopened under these):
 | F7 rollback readiness / counter | §3.5 coexistence transaction; §10 per-NFL-week counter, rehearsal, lens scope |
 | F8 ROS candidates / terminal horizon | §7.2 admission + interval; §3.3 empty end state; §9.8 |
 | F9 unverified $100 budget | §7.2 wording; reset rule; §9.8 budgets |
+
+Draft-3 re-check (`.review/astra-anyleague-spec-recheck2-response.md`): F1–F4, F6–F9 and B3, I1, I4, I7, I8
+resolved; §7.1 caller bullets verified faithful.
+
+| Finding | Resolution |
+|---|---|
+| G1 slot list omitted `BN/IR/TAXI` | §6.1 three slot categories; unknown-slot rule applies to starting slots only |
+| G2 freshness relaxed for waivers | §5.3 age limits per caller, exactly as today |
+| P1–P4 (plan-level) | carried into the implementation plan: evidence normalization domain and display binding (P1); single validated mapping, unknown-ID placeholders, shared team-alias table incl. `JAC→JAX` (P2); §8 items 11–13 added (P3); staged publication incl. the kickoff artifact, rollover and week-18 tests (P4) |
