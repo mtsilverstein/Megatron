@@ -1,10 +1,10 @@
 # Any Sleeper league, phase 1: the in-season pages — design
 
-**Status:** draft 4, 2026-10-03. Draft 1 was agreed with the owner section by section on 2026-10-01. Astra's
-review of draft 1 (`.review/astra-anyleague-spec-response.md`, gitignored: 4 blockers, 9 important, 3 minor) and
-re-check of draft 2 (`.review/astra-anyleague-spec-recheck-response.md`: 11 resolved, F1–F9 new or open) are
-resolved here, traced in §12. Next: astra re-check, then the owner's review. No implementation before both, and
-nothing merged to `main` before the `prospective-2026-o5` tag exists (§10).
+**Status:** draft 4, 2026-10-03 — **astra: READY FOR PLAN** (`.review/astra-anyleague-spec-recheck3-response.md`).
+Draft 1 was agreed with the owner section by section on 2026-10-01; three astra rounds (draft 1: 4 blockers,
+9 important, 3 minor; draft 2: F1–F9; draft 3: G1–G2) are resolved here and traced in §12. Next: the owner's
+review of this file. No implementation before that, and nothing merged to `main` before the `prospective-2026-o5`
+tag exists (§10).
 
 **Goal:** any Sleeper league — not just Gabagool Fools and FAM FOOTBALL — gets working weekly start/sit, waivers
 and in-season trade comparison (with rest-of-season projections inside the last two), scored by its own live
@@ -348,7 +348,7 @@ differently: astra's counterexamples, review §B4). Caller policies (§7.1) are 
     fixed $20 only for a $100 budget.
 12. Malformed roster occupancy (duplicate occupants, a fixed player in an ineligible slot) now refuses (§7.1)
     where today's start/sit could place one player in two slots.
-13. In week 18 the rest-of-season state is the explicit empty payload (§3.3) instead of a skipped file.
+13. In week 18 the rest-of-season state is the explicit empty payload (§3.3) instead of attempting a week-18 legacy payload (`end_week = max(week, 17)`, failures skipped).
 
 ## 9. Testing (acceptance criteria)
 
