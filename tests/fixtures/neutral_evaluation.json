@@ -1,0 +1,516 @@
+{
+  "season": 2026,
+  "week": 6,
+  "data_through": "2026-wk5",
+  "generated_at": "2026-10-08T12:00:00+00:00",
+  "batch_id": "2026-10-08T12:00:00+00:00|2026-wk5|w6",
+  "schema_version": 1,
+  "kind": "neutral_evaluation",
+  "records": [
+    {
+      "id": "ros_mae_gabagool",
+      "metric": "rest_of_season_points_mae",
+      "source": {
+        "path": "models/diagnostics/remaining_matrix_gabagool.json",
+        "sha256": "d11f4e66c7d15113e7ab39b6c1ff10255a93422dc8e1ff776b7b91a09d76c81c"
+      },
+      "source_settings": {
+        "league": "Gabagool Fools",
+        "scoring": {
+          "pass_yd": 0.04,
+          "pass_td": 6.0,
+          "pass_int": -2.0,
+          "pass_int_td": -3.0,
+          "pass_2pt": 2.0,
+          "pass_td_50p": 2.0,
+          "rush_yd": 0.1,
+          "rush_td": 6.0,
+          "rush_2pt": 2.0,
+          "rush_td_50p": 2.0,
+          "rec": 1.0,
+          "rec_yd": 0.1,
+          "rec_td": 6.0,
+          "rec_2pt": 2.0,
+          "rec_td_50p": 2.0,
+          "fum_lost": -2.0,
+          "fum_rec_td": 6.0,
+          "st_td": 6.0,
+          "st_fum_rec": 1.0,
+          "st_ff": 1.0,
+          "sack": 1.0,
+          "int": 2.0,
+          "ff": 1.0,
+          "fum_rec": 2.0,
+          "safe": 2.0,
+          "blk_kick": 2.0,
+          "def_td": 6.0,
+          "def_st_td": 6.0,
+          "def_st_fum_rec": 1.0,
+          "def_st_ff": 1.0,
+          "pts_allow_0": 10.0,
+          "pts_allow_1_6": 7.0,
+          "pts_allow_7_13": 4.0,
+          "pts_allow_14_20": 1.0,
+          "pts_allow_28_34": -1.0,
+          "pts_allow_35p": -4.0,
+          "fgm_yds": 0.1,
+          "fgmiss": -1.0,
+          "xpm": 1.0,
+          "xpmiss": -1.0
+        }
+      },
+      "effective_scoring": "{\"v\":1,\"w\":{\"QB\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"RB\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"WR\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"TE\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"}}}",
+      "prediction_scoring": "{\"v\":1,\"w\":{\"QB\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"RB\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"WR\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"TE\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"}}}",
+      "omitted": [
+        {
+          "key": "pass_int_td",
+          "reason": "pick-six actuals unavailable"
+        },
+        {
+          "key": "pass_td_50p",
+          "reason": "no projection head; predicted stat components only"
+        },
+        {
+          "key": "rush_td_50p",
+          "reason": "no projection head; predicted stat components only"
+        },
+        {
+          "key": "rec_td_50p",
+          "reason": "no projection head; predicted stat components only"
+        },
+        {
+          "key": "pass_2pt",
+          "reason": "no projection head; predicted stat components only"
+        },
+        {
+          "key": "rush_2pt",
+          "reason": "no projection head; predicted stat components only"
+        },
+        {
+          "key": "rec_2pt",
+          "reason": "no projection head; predicted stat components only"
+        },
+        {
+          "key": "fum_rec_td",
+          "reason": "no projection head; predicted stat components only"
+        },
+        {
+          "key": "st_td",
+          "reason": "no projection head; predicted stat components only"
+        }
+      ],
+      "method": null,
+      "population": {
+        "seasons": [
+          2023,
+          2024,
+          2025
+        ],
+        "origin_weeks": [
+          5,
+          9
+        ],
+        "baseline": "Mean of last four recorded pre-origin games (or all if fewer); frozen across horizons; no absence imputation.",
+        "comparison": "Model minus baseline absolute error on identical observed same-team rows; negative favors model. No significance claim.",
+        "scoring_scope": "Predicted stat components only; pick-six costs excluded from BOTH sides when actual counts are unavailable. Not complete platform scoring.",
+        "limitations": [
+          "Retrospective diagnostic, not a captured point-in-time roster backtest.",
+          "Cohort and teams are last observed before origin; no future roster information used.",
+          "Metrics condition on observed same-team stat rows; absent actuals are not zero.",
+          "Target schedules are retrospectively known; schedule revisions are not reconstructed.",
+          "Availability, traded players and cold-start omissions need separate evaluation.",
+          "No retraining, hyperparameter selection, statistical superiority or trade-readiness claim.",
+          "Repeated players and overlapping forecast windows are dependent. Weighted descriptive errors, not independent trials, causal estimates or a promotion gate."
+        ]
+      },
+      "horizon": {
+        "unit": "weeks_ahead",
+        "weeks_ahead": [
+          1,
+          2,
+          4,
+          8
+        ]
+      },
+      "values": [
+        {
+          "horizon": 1,
+          "position": "ALL",
+          "cells": 6,
+          "paired_player_forecasts": 1817,
+          "model_mae": 4.612129884424877,
+          "baseline_mae": 4.815406347459183,
+          "paired_mae_delta": -0.20327646303430558,
+          "forecast_players": 3701,
+          "missing_actuals": 1857
+        },
+        {
+          "horizon": 1,
+          "position": "QB",
+          "cells": 6,
+          "paired_player_forecasts": 195,
+          "model_mae": 7.928358974358975,
+          "baseline_mae": 8.096145299145299,
+          "paired_mae_delta": -0.1677863247863249,
+          "forecast_players": 490,
+          "missing_actuals": 290
+        },
+        {
+          "horizon": 1,
+          "position": "RB",
+          "cells": 6,
+          "paired_player_forecasts": 486,
+          "model_mae": 4.275020576131687,
+          "baseline_mae": 4.485414951989027,
+          "paired_mae_delta": -0.2103943758573387,
+          "forecast_players": 995,
+          "missing_actuals": 503
+        },
+        {
+          "horizon": 1,
+          "position": "TE",
+          "cells": 6,
+          "paired_player_forecasts": 382,
+          "model_mae": 4.068848167539267,
+          "baseline_mae": 4.176396160558464,
+          "paired_mae_delta": -0.10754799301919724,
+          "forecast_players": 765,
+          "missing_actuals": 380
+        },
+        {
+          "horizon": 1,
+          "position": "WR",
+          "cells": 6,
+          "paired_player_forecasts": 754,
+          "model_mae": 4.247015915119364,
+          "baseline_mae": 4.503381962864721,
+          "paired_mae_delta": -0.256366047745358,
+          "forecast_players": 1451,
+          "missing_actuals": 684
+        },
+        {
+          "horizon": 2,
+          "position": "ALL",
+          "cells": 6,
+          "paired_player_forecasts": 1791,
+          "model_mae": 4.452110552763819,
+          "baseline_mae": 4.722327377628885,
+          "paired_mae_delta": -0.27021682486506604,
+          "forecast_players": 3764,
+          "missing_actuals": 1938
+        },
+        {
+          "horizon": 2,
+          "position": "QB",
+          "cells": 6,
+          "paired_player_forecasts": 194,
+          "model_mae": 7.1420103092783505,
+          "baseline_mae": 7.566623711340204,
+          "paired_mae_delta": -0.4246134020618554,
+          "forecast_players": 486,
+          "missing_actuals": 287
+        },
+        {
+          "horizon": 2,
+          "position": "RB",
+          "cells": 6,
+          "paired_player_forecasts": 493,
+          "model_mae": 4.410689655172414,
+          "baseline_mae": 4.489570655848547,
+          "paired_mae_delta": -0.07888100067613246,
+          "forecast_players": 1014,
+          "missing_actuals": 512
+        },
+        {
+          "horizon": 2,
+          "position": "TE",
+          "cells": 6,
+          "paired_player_forecasts": 375,
+          "model_mae": 3.3746400000000008,
+          "baseline_mae": 3.766213333333334,
+          "paired_mae_delta": -0.3915733333333333,
+          "forecast_players": 778,
+          "missing_actuals": 397
+        },
+        {
+          "horizon": 2,
+          "position": "WR",
+          "cells": 6,
+          "paired_player_forecasts": 729,
+          "model_mae": 4.3185459533607675,
+          "baseline_mae": 4.614643347050754,
+          "paired_mae_delta": -0.29609739368998633,
+          "forecast_players": 1486,
+          "missing_actuals": 742
+        },
+        {
+          "horizon": 4,
+          "position": "ALL",
+          "cells": 6,
+          "paired_player_forecasts": 1829,
+          "model_mae": 4.662679059595407,
+          "baseline_mae": 4.8734426827045745,
+          "paired_mae_delta": -0.21076362310916708,
+          "forecast_players": 3861,
+          "missing_actuals": 1978
+        },
+        {
+          "horizon": 4,
+          "position": "QB",
+          "cells": 6,
+          "paired_player_forecasts": 192,
+          "model_mae": 7.843177083333333,
+          "baseline_mae": 8.371050347222221,
+          "paired_mae_delta": -0.5278732638888889,
+          "forecast_players": 498,
+          "missing_actuals": 297
+        },
+        {
+          "horizon": 4,
+          "position": "RB",
+          "cells": 6,
+          "paired_player_forecasts": 497,
+          "model_mae": 4.533903420523139,
+          "baseline_mae": 4.709765258215963,
+          "paired_mae_delta": -0.1758618376928236,
+          "forecast_players": 1043,
+          "missing_actuals": 538
+        },
+        {
+          "horizon": 4,
+          "position": "TE",
+          "cells": 6,
+          "paired_player_forecasts": 383,
+          "model_mae": 3.726736292428199,
+          "baseline_mae": 3.938568320278503,
+          "paired_mae_delta": -0.21183202785030453,
+          "forecast_players": 799,
+          "missing_actuals": 412
+        },
+        {
+          "horizon": 4,
+          "position": "WR",
+          "cells": 6,
+          "paired_player_forecasts": 757,
+          "model_mae": 4.414081902245706,
+          "baseline_mae": 4.566789960369881,
+          "paired_mae_delta": -0.15270805812417437,
+          "forecast_players": 1521,
+          "missing_actuals": 731
+        },
+        {
+          "horizon": 8,
+          "position": "ALL",
+          "cells": 6,
+          "paired_player_forecasts": 1834,
+          "model_mae": 4.8002126499454745,
+          "baseline_mae": 4.987237368229735,
+          "paired_mae_delta": -0.18702471828426026,
+          "forecast_players": 3987,
+          "missing_actuals": 2067
+        },
+        {
+          "horizon": 8,
+          "position": "QB",
+          "cells": 6,
+          "paired_player_forecasts": 191,
+          "model_mae": 8.306753926701571,
+          "baseline_mae": 8.766474694589878,
+          "paired_mae_delta": -0.45972076788830724,
+          "forecast_players": 516,
+          "missing_actuals": 312
+        },
+        {
+          "horizon": 8,
+          "position": "RB",
+          "cells": 6,
+          "paired_player_forecasts": 495,
+          "model_mae": 4.833616161616162,
+          "baseline_mae": 4.758986531986531,
+          "paired_mae_delta": 0.07462962962962966,
+          "forecast_players": 1082,
+          "missing_actuals": 574
+        },
+        {
+          "horizon": 8,
+          "position": "TE",
+          "cells": 6,
+          "paired_player_forecasts": 392,
+          "model_mae": 3.6205612244897964,
+          "baseline_mae": 3.8384056122448977,
+          "paired_mae_delta": -0.21784438775510193,
+          "forecast_players": 822,
+          "missing_actuals": 422
+        },
+        {
+          "horizon": 8,
+          "position": "WR",
+          "cells": 6,
+          "paired_player_forecasts": 756,
+          "model_mae": 4.504100529100528,
+          "baseline_mae": 4.777570546737214,
+          "paired_mae_delta": -0.2734700176366843,
+          "forecast_players": 1567,
+          "missing_actuals": 759
+        }
+      ]
+    },
+    {
+      "id": "start_sit_close_calls",
+      "metric": "close_start_sit_choice_accuracy",
+      "source": {
+        "path": "site/data/start_sit_evaluation.json",
+        "sha256": "ae03e66e80cbb4aaa66d10eb4c140beaf406f9d12a5c78d55d53e5522c3811d9"
+      },
+      "source_settings": {
+        "league": "Gabagool Fools",
+        "scoring": {
+          "name": "Gabagool Fools",
+          "pass_yd": 0.04,
+          "pass_td": 6,
+          "interception": -2,
+          "pass_int_td": -3,
+          "rush_yd": 0.1,
+          "rush_td": 6,
+          "rec_yd": 0.1,
+          "rec_td": 6,
+          "reception": 1,
+          "fumble_lost": -2,
+          "two_point": 2,
+          "st_td": 6
+        }
+      },
+      "effective_scoring": "{\"v\":1,\"w\":{\"QB\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"RB\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"WR\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"TE\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"}}}",
+      "prediction_scoring": "{\"v\":1,\"w\":{\"QB\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_pick_sixes\":\"-3\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"RB\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_pick_sixes\":\"-3\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"WR\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_pick_sixes\":\"-3\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"},\"TE\":{\"fumbles_lost\":\"-2\",\"passing_interceptions\":\"-2\",\"passing_pick_sixes\":\"-3\",\"passing_tds\":\"6\",\"passing_yards\":\"0.04\",\"receiving_tds\":\"6\",\"receiving_yards\":\"0.1\",\"receptions\":\"1\",\"rushing_tds\":\"6\",\"rushing_yards\":\"0.1\"}}}",
+      "omitted": [
+        {
+          "key": "pass_int_td",
+          "reason": "actual pick-six penalties unavailable"
+        },
+        {
+          "key": "pass_td_50p",
+          "reason": "not modeled; omitted from the evaluation"
+        },
+        {
+          "key": "rush_td_50p",
+          "reason": "not modeled; omitted from the evaluation"
+        },
+        {
+          "key": "rec_td_50p",
+          "reason": "not modeled; omitted from the evaluation"
+        },
+        {
+          "key": "two_point",
+          "reason": "no projection head; outside the evidence normalization"
+        },
+        {
+          "key": "st_td",
+          "reason": "no projection head; outside the evidence normalization"
+        }
+      ],
+      "method": null,
+      "population": {
+        "seasons": [
+          2023,
+          2024,
+          2025
+        ],
+        "conditioning": {
+          "pair_rule": "all unordered pairs in the same season/week/position",
+          "projected_gap_points_lte": 3,
+          "each_player_projected_points_gte": 5,
+          "cutoff_rationale": "fixed plausible-starter screen; ECR was unavailable",
+          "projection_ties": "excluded (the model expressed no preference)",
+          "actual_ties": "excluded from accuracy; zero regret",
+          "population": "player-weeks with realized stat lines; not actual rosters",
+          "dependence": "pairs reuse players within cells; no naive binomial CI is reported"
+        },
+        "pair_universe": {
+          "played_player_weeks_before_projection_screen": 17908,
+          "eligible_player_weeks_after_projection_screen": 7736,
+          "eligible_week_position_cells": 216,
+          "warning": "The projection screen narrows the broad tail but is only a plausible-starter proxy; eligible players were not observed on the same fantasy roster."
+        },
+        "scope_note": "This measures pairwise choices among players who recorded a historical stat line. It does not reconstruct any fantasy roster.",
+        "scoring_coverage": "modeled Gabagool scoring subset, not complete Sleeper scoring"
+      },
+      "horizon": {
+        "unit": "single_week",
+        "test_seasons": [
+          2023,
+          2024,
+          2025
+        ],
+        "folds": [
+          "through2022",
+          "through2023",
+          "through2024"
+        ]
+      },
+      "values": {
+        "overall": {
+          "pairs": 97331,
+          "decided_pairs": 96967,
+          "actual_ties": 364,
+          "choice_accuracy": 0.5627,
+          "mean_regret_points": 3.5881,
+          "total_regret_points": 349231.52,
+          "p90_regret_points": 12.5,
+          "max_regret_points": 50.1
+        },
+        "by_position": {
+          "QB": {
+            "pairs": 15662,
+            "decided_pairs": 15654,
+            "actual_ties": 8,
+            "choice_accuracy": 0.564,
+            "mean_regret_points": 4.555,
+            "total_regret_points": 71340.12,
+            "p90_regret_points": 15.9,
+            "max_regret_points": 49.12
+          },
+          "RB": {
+            "pairs": 19857,
+            "decided_pairs": 19794,
+            "actual_ties": 63,
+            "choice_accuracy": 0.5668,
+            "mean_regret_points": 3.4362,
+            "total_regret_points": 68232.36,
+            "p90_regret_points": 12.2,
+            "max_regret_points": 44.3
+          },
+          "TE": {
+            "pairs": 7275,
+            "decided_pairs": 7241,
+            "actual_ties": 34,
+            "choice_accuracy": 0.5625,
+            "mean_regret_points": 2.9304,
+            "total_regret_points": 21318.72,
+            "p90_regret_points": 10,
+            "max_regret_points": 42
+          },
+          "WR": {
+            "pairs": 54537,
+            "decided_pairs": 54278,
+            "actual_ties": 259,
+            "choice_accuracy": 0.5609,
+            "mean_regret_points": 3.4534,
+            "total_regret_points": 188340.32,
+            "p90_regret_points": 11.9,
+            "max_regret_points": 50.1
+          }
+        },
+        "week_1": {
+          "pairs": 5439,
+          "decided_pairs": 5417,
+          "actual_ties": 22,
+          "choice_accuracy": 0.5723,
+          "mean_regret_points": 3.3355,
+          "total_regret_points": 18141.7,
+          "p90_regret_points": 11.604,
+          "max_regret_points": 33.14
+        }
+      }
+    }
+  ]
+}
