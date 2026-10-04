@@ -1,0 +1,93 @@
+{
+ "_header": "SYNTHETIC ANALYZER PARITY: fictional manager-free league, not historical forecast reproduction. now = generated_at + 60s; snapshotAt = now - 30s.",
+ "gabagool": {
+  "startsit": {
+   "rosterId": 1,
+   "excludeIds": [],
+   "now": 1790892960000,
+   "snapshotAt": 1790892930000
+  },
+  "waivers": {
+   "rosterId": 1,
+   "week": 4,
+   "now": 1790892960000,
+   "snapshotAt": 1790892930000,
+   "budgetReserve": 20,
+   "protectedIds": [
+    "4984",
+    "9221",
+    "12490",
+    "7564",
+    "2133",
+    "11604",
+    "4983",
+    "12529",
+    "k1",
+    "d1"
+   ]
+  },
+  "trade": {
+   "rosterIds": [
+    1,
+    2
+   ],
+   "give": [
+    "13294"
+   ],
+   "receive": [
+    "9511"
+   ],
+   "drops": {},
+   "excludeWeeks": {},
+   "assumeAvailable": true,
+   "currentWeek": 4,
+   "now": 1790892960000,
+   "snapshotAt": 1790892930000
+  }
+ },
+ "fam": {
+  "startsit": {
+   "rosterId": 1,
+   "excludeIds": [],
+   "now": 1790892960000,
+   "snapshotAt": 1790892930000
+  },
+  "waivers": {
+   "rosterId": 1,
+   "week": 4,
+   "now": 1790892960000,
+   "snapshotAt": 1790892930000,
+   "budgetReserve": 20,
+   "protectedIds": [
+    "6904",
+    "8138",
+    "7588",
+    "6794",
+    "8146",
+    "12506",
+    "4983",
+    "12529",
+    "k1",
+    "d1"
+   ]
+  },
+  "trade": {
+   "rosterIds": [
+    1,
+    2
+   ],
+   "give": [
+    "11631"
+   ],
+   "receive": [
+    "7611"
+   ],
+   "drops": {},
+   "excludeWeeks": {},
+   "assumeAvailable": true,
+   "currentWeek": 4,
+   "now": 1790892960000,
+   "snapshotAt": 1790892930000
+  }
+ }
+}
