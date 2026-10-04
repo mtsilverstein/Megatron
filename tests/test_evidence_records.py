@@ -26,6 +26,9 @@ def test_header_and_no_borrowing():
 
 # --- beyond the brief's minimum -------------------------------------------
 
+import hashlib
+
+from ffmodel.scoring import BAND_CONSTRUCTION
 from ffmodel.site import evidence_records as er
 from ffmodel.site.leaguelens import effective_weights, evidence_identity
 from ffmodel.site.method import current_method
@@ -34,26 +37,67 @@ PRIOR = {"method": "pooled_return_rate_expected_cost_v1", "rate": 0.09, "interce
          "first_season": 2021, "through_season": 2025, "source": "s"}
 
 
-def test_current_method_shape_and_normalisation():
-    m = current_method(["models/transformer/v1_s44", "models\\transformer\\v1"], PRIOR)
+def _calibrated_root(tmp_path, first="models/transformer/v1", through=2025, body=b'{"a": 1}\r\n'):
+    path = tmp_path / first / f"through{through}" / "calibration.json"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(body)
+    return path
+
+
+def test_current_method_shape_and_normalisation(tmp_path):
+    _calibrated_root(tmp_path, "models/transformer/v1_s44")
+    m = current_method(["models/transformer/v1_s44", "models\\transformer\\v1"], PRIOR, through=2025,
+                       root=tmp_path)
     assert m == {"v": 1, "model": "transformer",
                  "artifacts": ["models/transformer/v1", "models/transformer/v1_s44"],
-                 "ensemble": "mean_of_seed_quantiles", "band_construction": "component_sign_coherent_v1",
+                 "ensemble": "mean_of_seed_quantiles", "band_construction": BAND_CONSTRUCTION,
+                 "calibration": [{"path": "models/transformer/v1_s44/through2025/calibration.json",
+                                  "sha256": hashlib.sha256(b'{"a": 1}\n').hexdigest()}],
                  "prior": {"method": "pooled_return_rate_expected_cost_v1", "rate": 0.09,
                            "first_season": 2021, "through_season": 2025}}
+    assert m["band_construction"] == "sign_coherent_v1"
 
 
-@pytest.mark.parametrize("bad", [None, {"method": "m", "rate": 0.1, "first_season": 2021}])
-def test_current_method_requires_full_prior(bad):
+def test_calibration_follows_the_predictors_first_root_and_fit_season(tmp_path):
+    _calibrated_root(tmp_path, "models/transformer/v1", 2025)
+    roots = ["models/transformer/v1", "models/transformer/v1_s43"]
+    assert current_method(roots, PRIOR, through=2025, root=tmp_path)["calibration"][0]["path"] == \
+        "models/transformer/v1/through2025/calibration.json"
+    # absent for that fit season -> null
+    assert current_method(roots, PRIOR, through=2026, root=tmp_path)["calibration"] is None
+    # the predictor reads only artifact_roots[0]; a later root's file is never applied
+    assert current_method(list(reversed(roots)), PRIOR, through=2025, root=tmp_path)["calibration"] is None
+
+
+def test_calibration_hash_matches_the_real_committed_file():
+    roots = ["models/transformer/v1", "models/transformer/v1_s43", "models/transformer/v1_s44"]
+    cal = current_method(roots, PRIOR, through=2024)["calibration"]
+    assert cal == [{"path": "models/transformer/v1/through2024/calibration.json",
+                    "sha256": er.committed_sha256("models/transformer/v1/through2024/calibration.json")}]
+
+
+@pytest.mark.parametrize("bad", [
+    None, {"method": "m", "rate": 0.1, "first_season": 2021},
+    {**PRIOR, "method": 3}, {**PRIOR, "method": ""},
+    {**PRIOR, "rate": "0.1"}, {**PRIOR, "rate": True}, {**PRIOR, "rate": float("nan")},
+    {**PRIOR, "rate": float("inf")}, {**PRIOR, "rate": -0.01}, {**PRIOR, "rate": 1.01},
+    {**PRIOR, "first_season": 2021.0}, {**PRIOR, "through_season": "2025"},
+    {**PRIOR, "first_season": True}, {**PRIOR, "first_season": 2026},
+])
+def test_current_method_validates_the_prior(bad):
     with pytest.raises(ValueError):
-        current_method(["models/transformer/v1"], bad)
+        current_method(["models/transformer/v1"], bad, through=2025)
 
 
-def test_current_method_rejects_empty_or_duplicate_roots():
+def test_current_method_rejects_empty_or_duplicate_roots_and_bad_through():
     with pytest.raises(ValueError):
-        current_method([], PRIOR)
+        current_method([], PRIOR, through=2025)
     with pytest.raises(ValueError):
-        current_method(["models/transformer/v1", "models\\transformer\\v1"], PRIOR)
+        current_method(["models/transformer/v1", "models\\transformer\\v1"], PRIOR, through=2025)
+    with pytest.raises(ValueError):
+        current_method(["models/transformer/v1"], PRIOR, through="2025")
+    with pytest.raises(TypeError):
+        current_method(["models/transformer/v1"], PRIOR)  # the fit season is never guessed
 
 
 def test_unmapped_internal_scoring_key_raises():

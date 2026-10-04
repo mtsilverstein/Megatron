@@ -71,11 +71,11 @@ Findings per source (read 2026-10-04)
 """
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
 from ffmodel.site.leaguelens import effective_weights, evidence_identity
+from ffmodel.site.method import committed_sha256
 
 SCHEMA_VERSION = 1
 KIND = "neutral_evaluation"
@@ -122,11 +122,7 @@ def _identity(sleeper_scoring: dict) -> str:
     return evidence_identity(effective_weights(sleeper_scoring))
 
 
-def _committed_sha256(path: Path) -> str:
-    """sha256 of the committed (LF) bytes: a Windows autocrlf checkout and the
-    Linux runner must name the same artifact."""
-    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
-
+_committed_sha256 = committed_sha256
 
 def _load(root: Path, rel: str) -> tuple[dict, dict]:
     path = root / rel
