@@ -185,3 +185,48 @@ def test_pull_propagates_fetch_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(sleeper_mod, "_fetch_players", boom)
     with pytest.raises(OSError):
         pull_sleeper_players(cache_dir=tmp_path)
+
+
+# --- cache age (spec §3.4: refetch when older than 24 h) -------------------------
+
+def _aged_cache(tmp_path, hours: float):
+    import os
+    import time
+
+    path = tmp_path / "sleeper_players.json"
+    path.write_text(json.dumps(_fake_dump(n=1100)))
+    stamp = time.time() - hours * 3600
+    os.utime(path, (stamp, stamp))
+    return path
+
+
+def test_pull_refetches_cache_older_than_max_age(tmp_path, monkeypatch):
+    import ffmodel.site.sleeper as sleeper_mod
+
+    _aged_cache(tmp_path, 25)
+    calls = []
+    monkeypatch.setattr(sleeper_mod, "_fetch_players", lambda: calls.append(1) or _fake_dump())
+    data = pull_sleeper_players(cache_dir=tmp_path, max_age_hours=24)
+    assert calls == [1] and len(data) == 1200
+    assert len(json.loads((tmp_path / "sleeper_players.json").read_text())) == 1200
+
+
+def test_pull_keeps_cache_younger_than_max_age(tmp_path, monkeypatch):
+    import ffmodel.site.sleeper as sleeper_mod
+
+    _aged_cache(tmp_path, 23)
+    calls = []
+    monkeypatch.setattr(sleeper_mod, "_fetch_players", lambda: calls.append(1) or _fake_dump())
+    assert len(pull_sleeper_players(cache_dir=tmp_path, max_age_hours=24)) == 1100
+    assert calls == []
+
+
+def test_pull_without_max_age_never_refetches(tmp_path, monkeypatch):
+    import ffmodel.site.sleeper as sleeper_mod
+
+    _aged_cache(tmp_path, 24 * 365)
+    calls = []
+    monkeypatch.setattr(sleeper_mod, "_fetch_players", lambda: calls.append(1) or _fake_dump())
+    assert len(pull_sleeper_players(cache_dir=tmp_path)) == 1100
+    assert len(pull_sleeper_players(cache_dir=tmp_path, max_age_hours=None)) == 1100
+    assert calls == []

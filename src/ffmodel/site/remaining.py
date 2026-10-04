@@ -3,12 +3,15 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import math
+
 import pandas as pd
 
 from ffmodel.data.future import combined_future_features
 from ffmodel.site.weekly import build_weekly_projections, RULESETS
 from ffmodel.league import SLEEPER_RULE_FIELDS
 from ffmodel.scoring import PREDICTED_STATS
+from ffmodel.site.leaguelens import STATS
 
 DIAGNOSTICS_DIR = Path(__file__).resolve().parents[3] / "models" / "diagnostics"
 BASELINE_DESCRIPTION = "mean league-scored production in the last four recorded pre-origin games"
@@ -62,16 +65,64 @@ def _scoring_equal(a, b):
     return all(float((a or {}).get(k, 0)) == float((b or {}).get(k, 0)) for k in keys)
 
 
+_QUANTILES = ("p10", "p50", "p90")
+
+
+def _stat_vector(block, quantile):
+    """One quantile's stat block as floats in `STATS` order, unrounded; fail closed."""
+    if not isinstance(block, dict) or any(s not in block for s in STATS):
+        raise ValueError(f"{quantile} stat block missing a published stat")
+    values = [float(block[s]) for s in STATS]
+    if not all(math.isfinite(v) for v in values):
+        raise ValueError(f"nonfinite {quantile} stat projection")
+    return values
+
+
+def _neutral_stats(stat_quantiles):
+    """`[p10|None, p50, p90|None]` unrounded vectors; bands are both present or both absent."""
+    sq = stat_quantiles or {}
+    if (sq.get("p10") is None) != (sq.get("p90") is None):
+        raise ValueError("one-sided stat band")
+    return [None if q != "p50" and sq.get(q) is None else _stat_vector(sq.get(q), q)
+            for q in _QUANTILES]
+
+
 def build_remaining(weekly, schedules, predictor, season, start_week, *,
-                    current_teams, league, end_week=17, pick_six_prior=None, evaluation=None):
+                    current_teams, league=None, end_week=17, pick_six_prior=None, evaluation=None,
+                    generated_at=None, emit="league", full_precision_out=None, ctx=None, method=None):
+    """Remaining-season payload.
+
+    ``emit="league"`` (default) is today's per-league file, byte for byte.
+    ``emit="neutral"`` is the league-neutral ``remaining.json`` (spec §3.1): it
+    skips only the league-scoring validation, takes its batch header from
+    ``ctx`` (a ``neutral.BatchContext``; season, week and data_through must
+    agree with this build) and publishes compact 4-decimal stat arrays in
+    ``STATS`` order. ``full_precision_out``, when a dict, receives the
+    unrounded neutral blocks ``{player_id: {week: {p10, p50, p90}}}`` -- a
+    parity reference that is never published. ``generated_at`` replaces the
+    clock read."""
+    if emit not in ("league", "neutral"):
+        raise ValueError(f"unknown emit mode {emit!r}")
+    neutral = emit == "neutral"
     if not 1 <= start_week <= end_week <= 18:
         raise ValueError("invalid remaining-week horizon")
-    if not current_teams or not league.get("league_id") or not league.get("sleeper_scoring"):
-        raise ValueError("current teams and explicit league scoring required")
-    for key, value in league["sleeper_scoring"].items():
-        field = SLEEPER_RULE_FIELDS.get(key)
-        if field and float(value) != float(getattr(RULESETS["league"], field)):
-            raise ValueError("active projection rules disagree with league scoring")
+    if neutral:
+        if not current_teams:
+            raise ValueError("current teams required")
+        if ctx is None or method is None:
+            raise ValueError("neutral remaining requires a batch context and a method")
+        if generated_at is not None and generated_at != ctx.generated_at:
+            raise ValueError("generated_at disagrees with the batch context")
+        if evaluation is not None:
+            raise ValueError("neutral remaining carries no evaluation (spec §3.2)")
+    else:
+        league = league or {}
+        if not current_teams or not league.get("league_id") or not league.get("sleeper_scoring"):
+            raise ValueError("current teams and explicit league scoring required")
+        for key, value in league["sleeper_scoring"].items():
+            field = SLEEPER_RULE_FIELDS.get(key)
+            if field and float(value) != float(getattr(RULESETS["league"], field)):
+                raise ValueError("active projection rules disagree with league scoring")
     # Even an accidentally supplied full season cannot enter the forecast.
     history = weekly[(weekly.season < season) |
                      ((weekly.season == season) & (weekly.week < start_week))].copy()
@@ -79,6 +130,10 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
         raise ValueError("no observed pre-slate history")
     last = history.sort_values(["season", "week"]).iloc[-1]
     through = f"{int(last.season)}-wk{int(last.week)}"
+    if neutral and (ctx.season != season or ctx.week != start_week or ctx.data_through != through):
+        raise ValueError("batch context disagrees with the remaining-season build "
+                         f"(ctx {ctx.season}/w{ctx.week}/{ctx.data_through}, "
+                         f"build {season}/w{start_week}/{through})")
     schedule = schedules[schedules.season == season].copy()
     if "game_type" in schedule:
         schedule = schedule[schedule.game_type == "REG"]
@@ -130,6 +185,16 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
                 if p["team"] != record["team"]:
                     raise ValueError("projection team does not match current team")
                 record.update({"name": p["name"], "position": p["position"]})
+                if neutral:
+                    vectors = _neutral_stats(p.get("stat_quantiles"))
+                    if full_precision_out is not None:
+                        full_precision_out.setdefault(pid, {})[week] = {
+                            q: None if v is None else dict(zip(STATS, v))
+                            for q, v in zip(_QUANTILES, vectors)}
+                    record["weeks"].append({
+                        "week": week, "status": "conditional_projection", "opponent": p["opponent"],
+                        "stats": [None if v is None else [round(x, 4) for x in v] for v in vectors]})
+                    continue
                 points = p.get("points") or {}
                 if not isinstance(points.get("league"), dict):
                     raise ValueError("league lens missing from weekly projection")
@@ -137,10 +202,11 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
                        "opponent": p["opponent"],
                        "points": {"league": dict(points["league"])}}
             record["weeks"].append(row)
-    return {"schema_version": 1, "horizon": "remaining_season", "status": "experimental",
+    payload = {"schema_version": 1, "horizon": "remaining_season", "status": "experimental",
             "evaluation": evaluation, "season": season, "start_week": start_week,
             "end_week": end_week,
-            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "generated_at": (generated_at if generated_at is not None
+                             else datetime.now(timezone.utc).isoformat(timespec="seconds")),
             "data_through": through, "league": league, "model": predictor.name,
             "forecast_cutoff": f"before {season} week {start_week}",
             "observed_target_rows_ignored": int(((weekly.season == season) & (weekly.week >= start_week)).sum()),
@@ -161,3 +227,14 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
                             "Current-week rows can include started games; not executable advice.",
                             "Byes and missing projections are distinct; no season totals fabricated."],
             "players": list(records.values())}
+    if not neutral:
+        return payload
+    # Today's provenance minus `league` and `evaluation` (spec §3.1), under the batch header.
+    dropped = ("schema_version", "evaluation", "league", "season", "generated_at", "data_through",
+               "players")
+    return {**ctx.header(), "schema_version": 2, "kind": "neutral_remaining",
+            **{k: v for k, v in payload.items() if k not in dropped},
+            "stat_order": list(STATS),
+            "pick_six_forecast": None if pick_six_prior is None else dict(pick_six_prior),
+            "method": method,
+            "players": payload["players"]}

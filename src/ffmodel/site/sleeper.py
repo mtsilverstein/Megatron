@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 import unicodedata
 from pathlib import Path
 
@@ -104,15 +105,22 @@ def _validate_players(data) -> None:
                            "build a crosswalk")
 
 
-def pull_sleeper_players(cache_dir: Path | None = None) -> dict:
+def pull_sleeper_players(cache_dir: Path | None = None,
+                         max_age_hours: float | None = None) -> dict:
     """Sleeper's full player dump, cached like the nflverse pulls.
+
+    ``max_age_hours`` bounds how old a cached copy may be (by file mtime)
+    before it is refetched; ``None`` keeps the historical behavior of reusing
+    any cache forever. The neutral batch passes 24 (spec §3.4).
 
     Raises on any fetch/parse/sanity failure; site.generate lets that
     propagate so a --draft run aborts before writing anything (fail-safe:
     the published site keeps its last-good data AND last-good crosswalk).
     """
     path = Path(cache_dir) / "sleeper_players.json" if cache_dir is not None else None
-    if path is not None and path.exists():
+    if path is not None and path.exists() and (
+            max_age_hours is None
+            or time.time() - path.stat().st_mtime <= max_age_hours * 3600):
         data = json.loads(path.read_text())
         _validate_players(data)   # a stale/corrupt cache must not slip through
         return data

@@ -71,7 +71,9 @@ def _stat_quantiles(frames: dict[str, pd.DataFrame | None], idx) -> dict:
 
 def build_weekly_projections(future: pd.DataFrame, predictor, season: int,
                              week: int, data_through: str, *,
-                             pick_six_prior: dict | None = None) -> dict:
+                             pick_six_prior: dict | None = None,
+                             generated_at: str | None = None) -> dict:
+    """``generated_at``, when given, replaces the clock read (one batch, one stamp)."""
     if future.empty:
         raise RuntimeError(
             f"no future rows for season {season} week {week} — "
@@ -110,7 +112,8 @@ def build_weekly_projections(future: pd.DataFrame, predictor, season: int,
         })
     players.sort(key=lambda p: p["points"]["ppr"]["p50"], reverse=True)
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_at": (generated_at if generated_at is not None
+                         else datetime.now(timezone.utc).isoformat(timespec="seconds")),
         "data_through": data_through,
         "season": season, "week": week,
         "model": predictor.name,
