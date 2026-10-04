@@ -14,7 +14,9 @@ priced), with the reason recorded.
 from __future__ import annotations
 
 import copy
+import json
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import pandas as pd
 
@@ -25,6 +27,17 @@ NEUTRAL_LENSES = ("ppr", "half_ppr", "standard")
 TEAM_ALIASES = {"LAR": "LA", "WSH": "WAS", "JAC": "JAX"}
 LAST_PROJECTED_WEEK = 17
 _ECR_COLUMNS = ("player_id", "ecr", "scrape_date", "fp_page")
+# The frozen 2026 per-format test's payloads (read only; never rewritten here).
+FORMAT_PAYLOADS = Path(__file__).resolve().parents[3] / "models" / "prospective" / "2026" / "format_payloads.json"
+# Published order and wording of `neutral/formats.json`.
+FORMAT_DESCRIPTIONS = {
+    "f12-1qb-ppr-6": "12-team 1QB PPR, 6-pt pass TD",
+    "f10-1qb-ppr-6": "10-team 1QB PPR, 6-pt pass TD",
+    "f12-1qb-ppr-4": "12-team 1QB PPR, 4-pt pass TD",
+    "f12-1qb-half-4": "12-team 1QB half-PPR, 4-pt pass TD",
+    "f12-sf-ppr-4": "12-team superflex PPR, 4-pt pass TD (exploratory)",
+}
+EXPLORATORY_FORMATS = frozenset({"f12-sf-ppr-4"})
 
 
 @dataclass(frozen=True)
@@ -84,6 +97,28 @@ def neutral_weekly(weekly_payload: dict, ctx: BatchContext, pick_six_prior: dict
             "pick_six_forecast": None if pick_six_prior is None else dict(pick_six_prior),
             "method": method,
             "players": players}
+
+
+def format_table(path: Path = FORMAT_PAYLOADS) -> list[dict]:
+    """`neutral/formats.json`'s `formats`: one row per format in the 2026 test.
+
+    `format_key` and `compat` are copied unchanged from the frozen
+    `format_payloads.json` (a dict keyed by label), so the browser's
+    `Formats.match` sees exactly what the test froze. A label set that differs
+    from the published descriptions raises rather than publishing a partial or
+    undescribed table."""
+    payloads = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payloads, dict) or set(payloads) != set(FORMAT_DESCRIPTIONS):
+        raise ValueError(f"format payload labels {sorted(payloads) if isinstance(payloads, dict) else payloads!r} "
+                         f"disagree with the published descriptions {sorted(FORMAT_DESCRIPTIONS)}")
+    rows = []
+    for label, description in FORMAT_DESCRIPTIONS.items():
+        entry = payloads[label]
+        if "format_key" not in entry or "compat" not in entry:
+            raise ValueError(f"format payload {label} missing format_key or compat")
+        rows.append({"label": label, "format_key": entry["format_key"], "compat": entry["compat"],
+                     "description": description, "exploratory": label in EXPLORATORY_FORMATS})
+    return rows
 
 
 def empty_remaining(ctx: BatchContext, model: str) -> dict:

@@ -1051,7 +1051,15 @@ def test_remaining_success_is_published_with_evaluation(monkeypatch, tmp_path):
     assert seen["league"]["slug"] == "gabagool"
 
 
-def test_weekly_workflow_publishes_remaining_for_both_leagues():
+def test_weekly_workflow_publishes_one_validated_batch_for_both_leagues():
+    # The in-season path moved from a per-league generate loop to one batch
+    # process plus a validating publish (plan Task 7); the draft loop stays.
     text = Path(".github/workflows/weekly-update.yml").read_text(encoding="utf-8")
-    assert 'ARGS="$ARGS --week auto --remaining"' in text
-    assert "for LEAGUE in gabagool fam; do" in text
+    batch = ('python -m ffmodel.site.batch --out "$STAGE" --model "$MODEL" --season "$SEASON" '
+             '--week auto --leagues gabagool,fam --artifact-root "$ARTIFACT_ROOT"')
+    publish = 'python -m ffmodel.site.publish --stage "$STAGE" --out site/data'
+    assert batch in text and publish in text
+    assert text.index(batch) < text.index(publish) < text.index("Commit refreshed data")
+    assert "--remaining" not in text
+    assert "for LEAGUE in fam gabagool; do" in text           # draft branch unchanged
+    assert "for LEAGUE in gabagool fam; do" not in text
