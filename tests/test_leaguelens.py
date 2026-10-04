@@ -37,3 +37,34 @@ def test_classify_owner_league():
     gab = json.loads(Path("tests/fixtures/owner_league_settings.json").read_text())["gabagool"]["scoring_settings"]
     c = L.classify(gab)
     assert c["recurring"] == [] and "pass_int_td" in c["approx"] and not c["refused"]
+
+def test_parity_fixture_reproducible():
+    data = json.loads(Path("tests/fixtures/leaguelens_parity.json").read_text())
+    for c in data["cases"]:
+        w = L.effective_weights(c["scoring"])
+        if c.get("expected_error"):
+            with pytest.raises(ValueError, match=c["expected_error"]):
+                L.reference_score(c["stat_quantiles"], c["position"], w)
+        else:
+            assert L.reference_score(c["stat_quantiles"], c["position"], w) == c["expected"], c["name"]
+
+def test_reference_matches_published_league_points():
+    w = json.loads(Path("site/data/weekly.json").read_text())
+    weights = L.effective_weights(w["league"]["sleeper_scoring"])
+    for p in w["players"]:
+        got = L.reference_score(p["stat_quantiles"], p["position"], weights)
+        for k in ("p10", "p50", "p90"):
+            assert abs(got[k] - p["points"]["league"][k]) <= 0.005 + 1e-9, (p["name"], k)
+
+@pytest.mark.parametrize("sq,err", [
+    ({"p10": None, "p50": {"receptions": 5}, "p90": {"receptions": 8}}, "Incomplete"),
+    ({"p10": None, "p50": {"receptions": "5"}, "p90": None}, "invalid"),
+    ({"p10": None, "p50": {"receptions": True}, "p90": None}, "invalid"),
+    ({"p10": None, "p50": {"receptions": float("nan")}, "p90": None}, "invalid"),
+    ({"p10": {"receptions": 8}, "p50": {"receptions": 5}, "p90": {"receptions": 2}}, "Malformed band"),
+    ({"p10": [2], "p50": {"receptions": 5}, "p90": [8]}, "Incomplete"),
+    ({"p10": None, "p50": [5], "p90": None}, "Incomplete"),
+])
+def test_reference_validation(sq, err):
+    with pytest.raises(ValueError, match=err):
+        L.reference_score(sq, "WR", L.effective_weights({"rec": 1}))

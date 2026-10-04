@@ -107,3 +107,36 @@ def evidence_identity(weights: dict) -> str:
         inner = ",".join(json.dumps(s) + ":" + json.dumps(plain(ws[s])) for s in sorted(ws))
         parts.append(json.dumps(pos) + ":{" + inner + "}")
     return '{"v":1,"w":{' + ",".join(parts) + "}}"
+
+
+def reference_score(sq: dict, position: str, weights: dict) -> dict:
+    if position not in POSITIONS:
+        raise ValueError(f"Unsupported scoring position: {position}")
+    if not isinstance(sq, dict) or not isinstance(sq.get("p50"), dict):
+        raise ValueError("Incomplete stat quantiles.")
+    low_null, high_null = sq.get("p10") is None, sq.get("p90") is None
+    if low_null != high_null:
+        raise ValueError("Incomplete stat quantiles.")
+    bands = not low_null
+    if bands and not (isinstance(sq["p10"], dict) and isinstance(sq["p90"], dict)):
+        raise ValueError("Incomplete stat quantiles.")
+    out = {"p10": 0.0 if bands else None, "p50": 0.0, "p90": 0.0 if bands else None}
+    for stat, w in weights.get(position, {}).items():
+        mid = sq["p50"].get(stat)
+        if not _finite(mid):
+            raise ValueError(f"Missing or invalid p50 stat: {stat}")
+        out["p50"] += w * mid
+        if bands:
+            lo, hi = sq["p10"].get(stat), sq["p90"].get(stat)
+            if not _finite(lo):
+                raise ValueError(f"Missing or invalid p10 stat: {stat}")
+            if not _finite(hi):
+                raise ValueError(f"Missing or invalid p90 stat: {stat}")
+            if not lo <= mid <= hi:
+                raise ValueError(f"Malformed band for {stat}")
+            a, b = w * lo, w * hi
+            out["p10"] += min(a, b)
+            out["p90"] += max(a, b)
+    if any(v is not None and not math.isfinite(v) for v in out.values()):
+        raise ValueError("Scoring overflow.")
+    return out

@@ -92,5 +92,40 @@
     });
     return '{"v":1,"w":{' + parts.join(",") + "}}";
   }
-  return Object.freeze({ POSITIONS, STATS, KEYS, APPROX, RARE, RECURRING, effectiveWeights, classify, plain, evidenceIdentity });
+  const isNum = v => typeof v === "number" && Number.isFinite(v);
+  function score(sq, position, weights) {
+    if (!POSITIONS.includes(position)) throw new Error(`Unsupported scoring position: ${position}`);
+    const isObj = v => v !== null && typeof v === "object" && !Array.isArray(v);
+    if (!isObj(sq) || !isObj(sq.p50)) throw new Error("Incomplete stat quantiles.");
+    const lowNull = sq.p10 == null, highNull = sq.p90 == null;
+    if (lowNull !== highNull) throw new Error("Incomplete stat quantiles.");
+    const bands = !lowNull;
+    if (bands && !(isObj(sq.p10) && isObj(sq.p90))) throw new Error("Incomplete stat quantiles.");
+    const out = { p10: bands ? 0 : null, p50: 0, p90: bands ? 0 : null };
+    for (const [stat, w] of Object.entries(weights[position] || {})) {
+      const mid = sq.p50[stat];
+      if (!isNum(mid)) throw new Error(`Missing or invalid p50 stat: ${stat}`);
+      out.p50 += w * mid;
+      if (bands) {
+        const lo = sq.p10[stat], hi = sq.p90[stat];
+        if (!isNum(lo)) throw new Error(`Missing or invalid p10 stat: ${stat}`);
+        if (!isNum(hi)) throw new Error(`Missing or invalid p90 stat: ${stat}`);
+        if (!(lo <= mid && mid <= hi)) throw new Error(`Malformed band for ${stat}`);
+        const a = w * lo, b = w * hi;
+        out.p10 += Math.min(a, b); out.p90 += Math.max(a, b);
+      }
+    }
+    if (Object.values(out).some(v => v !== null && !Number.isFinite(v))) throw new Error("Scoring overflow.");
+    return out;
+  }
+  function disclosures(c) {
+    const footnotes = [];
+    if (c.approx.includes("pass_int_td")) footnotes.push("Pick-sixes use an average rate, not a forecast.");
+    if (c.rare.length) footnotes.push(`Not projected: ${c.rare.join(", ")} (rare events).`);
+    const banner = c.recurring.length
+      ? `Your league also scores ${c.recurring.join(", ")}, which these projections leave out; rankings may be off for your league.`
+      : null;
+    return { banner, footnotes };
+  }
+  return Object.freeze({ POSITIONS, STATS, KEYS, APPROX, RARE, RECURRING, effectiveWeights, classify, plain, evidenceIdentity, score, disclosures });
 });

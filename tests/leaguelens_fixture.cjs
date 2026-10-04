@@ -28,4 +28,34 @@ assert.deepStrictEqual(L.classify({ rec: 1, bonus_fd_wr: 0.5, fum: -1, zzz_new: 
 assert.ok(L.classify({ fgm_yds: 0.1, def_td: 6 }).refused);
 assert.ok(L.classify({ bonus_rush_td_qb: 2, pass_yd: 0.04 }).recurring.includes("bonus_rush_td_qb"));
 assert.throws(() => L.classify({ pass_yd: "x" })); assert.throws(() => L.classify({ pass_yd: NaN }));
+const q = { p10: { receptions: 2 }, p50: { receptions: 5 }, p90: { receptions: 8 } };
+assert.deepStrictEqual(L.score(q, "TE", L.effectiveWeights({ rec: -1, bonus_rec_te: 2 })), { p10: 2, p50: 5, p90: 8 });
+assert.deepStrictEqual(L.score(q, "WR", L.effectiveWeights({ rec: -1, bonus_rec_te: 2 })), { p10: -8, p50: -5, p90: -2 });
+assert.deepStrictEqual(L.score({ p10: null, p50: { receptions: 5 }, p90: null }, "WR", L.effectiveWeights({ rec: 1 })), { p10: null, p50: 5, p90: null });
+assert.deepStrictEqual(L.score(q, "QB", L.effectiveWeights({ bonus_rec_te: 1 })), { p10: 0, p50: 0, p90: 0 });
+assert.throws(() => L.score({ p10: {}, p50: {}, p90: {} }, "WR", L.effectiveWeights({ rec: 1 })), /receptions/);
+assert.throws(() => L.score(q, "K", L.effectiveWeights({ rec: 1 })), /Unsupported scoring position/);
+assert.throws(() => L.score({ p10: null, p50: { receptions: 5 }, p90: { receptions: 8 } }, "WR", L.effectiveWeights({ rec: 1 })), /Incomplete/);
+assert.throws(() => L.score({ p10: { receptions: 8 }, p50: { receptions: 5 }, p90: { receptions: 2 } }, "WR", L.effectiveWeights({ rec: 1 })), /Malformed band/);
+assert.throws(() => L.score({ p10: { receptions: 2 }, p50: { receptions: 100 }, p90: { receptions: 8 } }, "WR", L.effectiveWeights({ rec: 1 })), /Malformed band/);
+assert.throws(() => L.score({ p10: null, p50: { receptions: "5" }, p90: null }, "WR", L.effectiveWeights({ rec: 1 })), /invalid/);
+assert.throws(() => L.score({ p10: null, p50: { receptions: 1e308 }, p90: null }, "WR", L.effectiveWeights({ rec: 1e10 })), /overflow/);
+assert.throws(() => L.score({ p10: [2], p50: { receptions: 5 }, p90: [8] }, "WR", L.effectiveWeights({ rec: 1 })), /Incomplete/);
+assert.throws(() => L.score({ p10: [2], p50: { receptions: 5 }, p90: [8] }, "QB", L.effectiveWeights({ bonus_rec_te: 1 })), /Incomplete/, "containers checked even with no weights");
+const odd = L.classify({ pass_yd: 0.05, rec: 0.25, bonus_fd_wr: 0.5 });
+assert.strictEqual(odd.refused, false);
+assert.strictEqual(L.disclosures(odd).banner, "Your league also scores bonus_fd_wr, which these projections leave out; rankings may be off for your league.");
+const gabD = L.disclosures(L.classify(gab));
+assert.strictEqual(gabD.banner, null);
+assert.ok(gabD.footnotes.includes("Pick-sixes use an average rate, not a forecast."));
+assert.ok(gabD.footnotes.some(f => f.startsWith("Not projected: ") && f.endsWith(" (rare events).")));
+const P = require("./fixtures/leaguelens_parity.json");
+for (const cs of P.cases) {
+  if (cs.expected_error) { assert.throws(() => L.score(cs.stat_quantiles, cs.position, L.effectiveWeights(cs.scoring)), new RegExp(cs.expected_error)); continue; }
+  const got = L.score(cs.stat_quantiles, cs.position, L.effectiveWeights(cs.scoring));
+  for (const k of ["p10", "p50", "p90"]) {
+    if (cs.expected[k] === null) assert.strictEqual(got[k], null);
+    else assert.ok(Math.abs(got[k] - cs.expected[k]) <= 1e-9, `${cs.name} ${k}`);
+  }
+}
 console.log("leaguelens_fixture: ok");
