@@ -440,6 +440,8 @@ assert.throws(() => L.score({ p10: { receptions: 8 }, p50: { receptions: 5 }, p9
 assert.throws(() => L.score({ p10: { receptions: 2 }, p50: { receptions: 100 }, p90: { receptions: 8 } }, "WR", L.effectiveWeights({ rec: 1 })), /Malformed band/);
 assert.throws(() => L.score({ p10: null, p50: { receptions: "5" }, p90: null }, "WR", L.effectiveWeights({ rec: 1 })), /invalid/);
 assert.throws(() => L.score({ p10: null, p50: { receptions: 1e308 }, p90: null }, "WR", L.effectiveWeights({ rec: 1e10 })), /overflow/);
+assert.throws(() => L.score({ p10: [2], p50: { receptions: 5 }, p90: [8] }, "WR", L.effectiveWeights({ rec: 1 })), /Incomplete/);
+assert.throws(() => L.score({ p10: [2], p50: { receptions: 5 }, p90: [8] }, "QB", L.effectiveWeights({ bonus_rec_te: 1 })), /Incomplete/, "containers checked even with no weights");
 const odd = L.classify({ pass_yd: 0.05, rec: 0.25, bonus_fd_wr: 0.5 });
 assert.strictEqual(odd.refused, false);
 assert.strictEqual(L.disclosures(odd).banner, "Your league also scores bonus_fd_wr, which these projections leave out; rankings may be off for your league.");
@@ -483,6 +485,8 @@ def test_reference_matches_published_league_points():
     ({"p10": None, "p50": {"receptions": True}, "p90": None}, "invalid"),
     ({"p10": None, "p50": {"receptions": float("nan")}, "p90": None}, "invalid"),
     ({"p10": {"receptions": 8}, "p50": {"receptions": 5}, "p90": {"receptions": 2}}, "Malformed band"),
+    ({"p10": [2], "p50": {"receptions": 5}, "p90": [8]}, "Incomplete"),
+    ({"p10": None, "p50": [5], "p90": None}, "Incomplete"),
 ])
 def test_reference_validation(sq, err):
     with pytest.raises(ValueError, match=err):
@@ -494,10 +498,12 @@ def test_reference_validation(sq, err):
   const isNum = v => typeof v === "number" && Number.isFinite(v);
   function score(sq, position, weights) {
     if (!POSITIONS.includes(position)) throw new Error(`Unsupported scoring position: ${position}`);
-    if (!sq || typeof sq.p50 !== "object" || sq.p50 === null) throw new Error("Incomplete stat quantiles.");
+    const isObj = v => v !== null && typeof v === "object" && !Array.isArray(v);
+    if (!isObj(sq) || !isObj(sq.p50)) throw new Error("Incomplete stat quantiles.");
     const lowNull = sq.p10 == null, highNull = sq.p90 == null;
     if (lowNull !== highNull) throw new Error("Incomplete stat quantiles.");
     const bands = !lowNull;
+    if (bands && !(isObj(sq.p10) && isObj(sq.p90))) throw new Error("Incomplete stat quantiles.");
     const out = { p10: bands ? 0 : null, p50: 0, p90: bands ? 0 : null };
     for (const [stat, w] of Object.entries(weights[position] || {})) {
       const mid = sq.p50[stat];
@@ -536,6 +542,8 @@ def reference_score(sq: dict, position: str, weights: dict) -> dict:
     if low_null != high_null:
         raise ValueError("Incomplete stat quantiles.")
     bands = not low_null
+    if bands and not (isinstance(sq["p10"], dict) and isinstance(sq["p90"], dict)):
+        raise ValueError("Incomplete stat quantiles.")
     out = {"p10": 0.0 if bands else None, "p50": 0.0, "p90": 0.0 if bands else None}
     for stat, w in weights.get(position, {}).items():
         mid = sq["p50"].get(stat)
@@ -903,7 +911,7 @@ Spec §3, §4, §5.3, §6.1, §3.2, §11. Astra I5, I6, I11. Model: **opus**.
   - `remaining` = today's legacy shape (`schema_version:1, horizon:"remaining_season", status:"experimental", evaluation:null, season, start_week, end_week, generated_at, data_through, players:[{player_id, team, weeks:[{week, status, opponent?, reason?, points:{league:{…}}|null}]}]`) rebuilt from `stats` + `stat_order`; `null` with `remainingReason: "No projected weeks remain."` for `no_remaining_weeks`, or `"remaining-season projections unavailable"` when missing.
   - `board` = `{season, players:[{player_id, sleeper_id, name, position, team, bye, ecr, ros_value}]}` from non-`identity_only` players; `ros_value` = sum of league p50 over weeks `week+1..17`, `null` if any is null.
   - Live revalidation against `catalog`: a mapped player whose live `position` differs from the projection's is removed from `weekly`, `remaining` and `board` and listed in `excluded` (`reason:"position_changed"`). A live **team** difference keeps the player with the projection team, so each analyzer's existing team guard fires as today.
-  - **One scorable mapping for every view (astra R2):** build `scorable = Map<player_id, sleeper_id>` from `players.json` entries with `identity_only === false` only. `weekly`, `remaining` and `board` contain **only** players in `scorable`; published identity-only players never reach any priced view, whatever the live catalog says (they stay in `rosterIdentities` with their reason). Live revalidation per mapped player against `catalog[sleeper_id]`: a catalog `gsis_id` that is present and differs from `player_id` → excluded (`reason:"gsis_changed"`); position differs → excluded (`"position_changed"`); team differs → kept with the projection team (existing guards refuse). The view also exposes `scorableBySleeper` for callers.
+  - **One scorable mapping for every view (astra R2):** build `scorable = Map<player_id, sleeper_id>` from `players.json` entries with `identity_only === false` only. `weekly`, `remaining` and `board` contain **only** players in `scorable`; published identity-only players never reach any priced view, whatever the live catalog says (they stay in `rosterIdentities` with their reason). Live revalidation per mapped player: first index the live catalog by trimmed `gsis_id`; if more than one live Sleeper id claims a mapped player's GSIS → excluded (`reason:"gsis_ambiguous"`, matching spec §3.4 and today's trade guard `Missing/ambiguous GSIS identity`, `seasontrade.js` `gsisOwners`). Then against `catalog[sleeper_id]`: a catalog `gsis_id` that is present and differs from `player_id` → excluded (`reason:"gsis_changed"`); position differs → excluded (`"position_changed"`); team differs → kept with the projection team (existing guards refuse). The view also exposes `scorableBySleeper` for callers.
   - `method` = `batch.weekly.method`.
 - `rosterIdentities(rosters, catalog)` → Map over every roster/reserve/taxi occupant (K/DEF/IDP/teamless/unknown); a catalog miss → `{name:id, position:null, team:null, unknown:true}`.
 - `leagueType(league) → {supported, bestBall, message|null}`: `settings.type` ∈ {0,1,2} else `This league type isn't supported yet.`; `bestBall = settings.best_ball === 1`.
@@ -912,7 +920,7 @@ Spec §3, §4, §5.3, §6.1, §3.2, §11. Astra I5, I6, I11. Model: **opus**.
 - `evidenceFor(evaluation, id, lens, method) → record|null` per Task 6's matching rule.
 
 - [ ] **Step 1: Synthetic leagues** `tests/fixtures/leagues_synthetic.json` (fictional ids): `gabagool_like`, `fam_like`, `superflex_half`, `te_premium`, `best_ball`, `idp` (adds `DL, LB, IDP_FLEX`), `weird_slot` (`XFLEX`), `fd_league`, `type_9`, `two_team`, `thirty_two_team`.
-- [ ] **Step 2: Failing tests** `tests/leaguedata_fixture.cjs` (inline 4-player batch, 3 remaining weeks): scores equal `LeagueLens.score`; reference lenses present; remaining rows rebuild exactly; `ros_value` null when a future week is null; empty-state vs missing copy differ; mixed `batch_id` rejected; catalog position change → excluded everywhere with reason; team change → kept with projection team; `rosterIdentities` keeps K, DEF, IDP, teamless, unknown; `formatLine` with `tests/fixtures/neutral_formats.json`: gabagool_like in test, te_premium not, best_ball best-ball copy, idp not, weird_slot not, type_9 unsupported; `slotSupport(gabagool_like)`: `BN` in `nonStarting`, `unknown` empty; `evidenceFor`: synthetic fully matching record → returned; real ROS record under Gabagool lens → null; `method: null` → null; partial method → null; an identity-only player (e.g. `projection_identity_conflict`) whose live catalog GSIS would match is absent from `weekly`, `remaining` and `board`; catalog `gsis_id` change → excluded; unknown `kind` → reject; absent remaining → null without rejecting, malformed remaining → reject.
+- [ ] **Step 2: Failing tests** `tests/leaguedata_fixture.cjs` (inline 4-player batch, 3 remaining weeks): scores equal `LeagueLens.score`; reference lenses present; remaining rows rebuild exactly; `ros_value` null when a future week is null; empty-state vs missing copy differ; mixed `batch_id` rejected; catalog position change → excluded everywhere with reason; team change → kept with projection team; `rosterIdentities` keeps K, DEF, IDP, teamless, unknown; `formatLine` with `tests/fixtures/neutral_formats.json`: gabagool_like in test, te_premium not, best_ball best-ball copy, idp not, weird_slot not, type_9 unsupported; `slotSupport(gabagool_like)`: `BN` in `nonStarting`, `unknown` empty; `evidenceFor`: synthetic fully matching record → returned; real ROS record under Gabagool lens → null; `method: null` → null; partial method → null; an identity-only player (e.g. `projection_identity_conflict`) whose live catalog GSIS would match is absent from `weekly`, `remaining` and `board`; catalog `gsis_id` change → excluded; a second live Sleeper id claiming a mapped GSIS → excluded as `gsis_ambiguous` from every priced view and `scorableBySleeper`, roster identity kept; unknown `kind` → reject; absent remaining → null without rejecting, malformed remaining → reject.
 - [ ] **Step 3: Implement**; **Step 4: Run** → PASS; **Step 5: Commit** `feat: league data adapter - batch-consistent views, live identity revalidation, format line, league types, evidence binding`.
 
 ---
@@ -1017,7 +1025,7 @@ Edits to `seasontrade.js` `resolveScenario` (by condition):
 
 `seasontrademode.js`: delete `pickOwnership`, the `traded_picks` fetch, pick rows and `picksUnknown` notes; delete `evalView`/gate and the `trade_sim_eval.json` fetch; in `preflight` delete the `remaining.league` league-id check (keep season, regular-season state, week alignment, end-week, catalog checks); `remaining`/`board` from `LeagueData.views` per bundle; read `league` from each committed bundle (no closure copy) and recompute on settings change; gate `load`/`sync` on `analysisRoster` (owner or viewer), destructuring it instead of `myRoster`; `renderWarn` uses `LeagueData.evidenceFor` (else fallback); render format line, banner, footnotes, settings stamp, simulation note, aggregation label; best ball → projections + note; week 18 → `No projected weeks remain.`. `trade.html`: resolve mode first via `Session.ready({leagueId})` and the bundle's `league.status`; only `pre_draft` **and** the registered Gabagool league loads `draft.json` and runs `TradeMode` as today; `in_season` never fetches draft data; other states keep today's message.
 
-- [ ] **Step 1: Tests first.** `seasontrade_fixture.cjs` (engine): delete league-id/scoring contract cases; independent failures for bad week, wrong season, future-dated remaining, > 72 h remaining, roster snapshot > 60 s; a contract-free view passes; SUPER_FLEX/WRRB_FLEX/REC_FLEX/IDP leagues (a rostered `LB` returns null, not `Unknown roster player position`); unknown slot → `Unsupported roster slots`; current week skipped; declared bye → 0; user-excluded week → 0; `OUT` tag → warning only, still scored; a projected p50 of exactly 0 stays 0; missing coverage → refusal; wrong-team → `Missing projection or current-team mismatch` (**Review Focus 1**); an identity-only player whose live catalog carries a matching GSIS is still refused (adapter-to-trade test through real `LeagueData.views`, astra R2). `seasontrademode_fixture.cjs` (controller/DOM): no pick rows and no `traded_picks` request; no `trade_sim_eval.json` request; week-18 copy; best ball; viewer flow; settings change recomputes; the in-season page never requests `draft.json` (stub fetch log).
+- [ ] **Step 1: Tests first.** `seasontrade_fixture.cjs` (engine): delete league-id/scoring contract cases; independent failures for bad week, wrong season, future-dated remaining, > 72 h remaining, roster snapshot > 60 s; a contract-free view passes; SUPER_FLEX/WRRB_FLEX/REC_FLEX/IDP leagues (a rostered `LB` returns null, not `Unknown roster player position`); unknown slot → `Unsupported roster slots`; current week skipped; declared bye → 0; user-excluded week → 0; `OUT` tag → warning only, still scored; a projected p50 of exactly 0 stays 0; missing coverage → refusal; wrong-team → `Missing projection or current-team mismatch` (**Review Focus 1**); an identity-only player whose live catalog carries a matching GSIS is still refused, and a published player whose GSIS a second live Sleeper id also claims is refused (keep the existing `tests/seasontrade_fixture.cjs` ambiguity regression passing through the view path) — both adapter-to-trade tests through real `LeagueData.views` (astra R2). `seasontrademode_fixture.cjs` (controller/DOM): no pick rows and no `traded_picks` request; no `trade_sim_eval.json` request; week-18 copy; best ball; viewer flow; settings change recomputes; the in-season page never requests `draft.json` (stub fetch log).
 - [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** `node tests/seasontrade_fixture.cjs && node tests/seasontrademode_fixture.cjs && node tests/trademode_fixture.cjs` → PASS.
 - [ ] **Step 5: Commit** `feat: in-season trade on neutral league views and the lineup kernel; mode-first trade page; no future picks; simulation off`.
 
@@ -1074,3 +1082,5 @@ Spec §9.1, §9.4, §9.12, §3.3. Astra B3, I10, P4.
 | R1 formats schema / validation holes | Task 7: enveloped `formats.json`, kind/schema/horizon/duplicate/numeric/paired-null invariants with negative tests; Task 8: present-but-malformed rejects, absent optional → null, unwraps `.formats` |
 | R2 identity-only reachable via trade | Task 8: one scorable mapping governs every view, live GSIS/position revalidation; Task 13: trade resolves through the board view's mapping, adapter-to-trade test |
 | Implementation-level | Task 1 timestamp normalization + "synthetic analyzer parity" label; Task 3 container validation; Task 7 predictor re-attachment + stateful-fake test, optional ECR; Task 10 script tags and conventions |
+| R2 follow-up (live GSIS ambiguity) | Task 8 excludes a mapping when several live Sleeper ids claim its GSIS (`gsis_ambiguous`); Task 13 keeps the existing ambiguity regression through the view path |
+| Task 3 snippets | JS/Python `score` code now validates the quantile containers; list-valued band tests added |
