@@ -45,6 +45,9 @@ for (let t = 0; t < 600; t++) {
   const current = slots.map(() => rand() < 0.5 ? candidates[Math.floor(rand() * candidates.length)].id : null);
   const fixed = {};
   slots.forEach((s, i) => { if (Lx.UNMODELED.includes(s) && rand() < 0.5) fixed[i] = { id: "u" + i, score: null }; });
+  const ms = slots.filter(s => Lx.MODELED.includes(s));
+  const pl = candidates.map(c => ({ id: c.id, position: c.position, s: c.score }));
+  assert.strictEqual(Lx.lineupScore(pl, ms, p => p.s), Lx.bestLineup(pl, ms, p => p.s).total, `trial ${t} lineupScore parity`);
   const want = brute({ slots, candidates, current, fixed });
   const got = Lx.solve({ slots, candidates, current, fixed });
   if (!want) { assert.strictEqual(got.ok, false, `trial ${t} should be infeasible`); continue; }
@@ -78,4 +81,14 @@ assert.strictEqual(Lx.bestLineup(players, ["RB"], () => 5).starters[0].player.sl
 assert.strictEqual(Lx.lineupScore(players, ["RB", "RB", "RB"], () => 5), -Infinity);
 assert.strictEqual(Lx.lineupScore(players, ["RB"], p => p.sleeper_id === "z" ? null : 3), 3);
 assert.throws(() => Lx.bestLineup(players, ["RB", "K"], () => 1), /modeled/);
+{
+  const pos = ["QB", "QB", "RB", "RB", "RB", "RB", "WR", "WR", "WR", "WR", "WR", "TE", "TE", "RB", "WR"];
+  const roster = pos.map((position, i) => ({ sleeper_id: "p" + i, position, s: 5 + ((i * 7) % 11) + i / 10 }));
+  const sl = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX"];
+  const t0 = process.hrtime.bigint();
+  for (let i = 0; i < 2000; i++) Lx.lineupScore(roster, sl, p => p.s);
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  console.log("lineupScore 2000 calls: " + ms.toFixed(1) + " ms");
+  assert.ok(ms < 300, "lineupScore too slow: " + ms);
+}
 console.log("lineup_fixture: ok");

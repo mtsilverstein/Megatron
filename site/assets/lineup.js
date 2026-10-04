@@ -117,6 +117,30 @@
     if (!r.ok) return { total: -Infinity, starters: [], unfillable: r.slot };
     return { total: r.total, starters: r.assignment.map(a => ({ player: byId.get(a.id), slot: a.slot, points: a.score })) };
   }
-  const lineupScore = (players, slots, scoreOf) => bestLineup(players, slots, scoreOf).total;
+  // Stage-1 only (no keep term, no id fixing): the optimal total cannot depend on tie-breaks.
+  function lineupScore(players, slots, scoreOf) {
+    for (const s of slots) if (!MODELED.includes(s)) throw new Error(`bestLineup accepts modeled slots only, got ${s}`);
+    const pool = [], seen = new Set();
+    for (const p of players || []) {
+      if (!["QB", "RB", "WR", "TE"].includes(p.position)) continue;
+      const v = scoreOf(p);
+      if (v === null || v === undefined || Number.isNaN(v)) continue;
+      const id = pid(p);
+      if (seen.has(id)) throw new Error(`Duplicate or invalid candidate id: ${id}`);
+      if (typeof v !== "number" || !Number.isFinite(v)) throw new Error(`Invalid score for ${id}`);
+      seen.add(id); pool.push({ position: p.position, score: v });
+    }
+    if (!slots.length) return 0;
+    if (pool.length < slots.length) return -Infinity;
+    const parts = pool.map(c => decompose(c.score));
+    const minE = Math.min(...parts.filter(([m]) => m !== 0n).map(([, e]) => e), 0);
+    const ints = parts.map(([m, e]) => m << BigInt(e - minE));
+    const cost = slots.map(sl => pool.map((c, j) => ELIG[sl].includes(c.position) ? -ints[j] : null));
+    const res = hungarian(cost, slots.length, pool.length);
+    if (!res) return -Infinity;
+    let total = 0;
+    for (let r = 0; r < slots.length; r++) total += pool[res.col[r]].score;
+    return total;
+  }
   return Object.freeze({ MODELED, UNMODELED, NON_STARTING, UNMODELED_POSITIONS, solve, bestLineup, lineupScore });
 });
