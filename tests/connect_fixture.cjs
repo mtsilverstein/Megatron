@@ -78,14 +78,42 @@ async function configuredLeagueCardsLinkDraftWeeklyWaivers() {
   const hrefs = collectAnchors(ids['connect-results']).map(a => a.href);
   assert.deepEqual(hrefs, [
     'index.html?league=gabagool',
-    'weekly.html?league=gabagool',
-    'waivers.html?league=gabagool',
-  ], 'a configured league card must link draft, weekly and waivers, in that order, without touching other tabs');
+    `weekly.html?league=${GABAGOOL}`,
+    `waivers.html?league=${GABAGOOL}`,
+    `trade.html?league=${GABAGOOL}`,
+  ], 'a registered league card links its draft board by slug and its in-season pages by league id, without touching other tabs');
   assert.match(ids['connect-status'].textContent, /^1 leagues for Max · 2026\./);
   assert.equal(Session.identity()?.userId, '123', 'the form identifies through the shared session');
   assert.equal(Session.state(), 'identified');
   assert.equal(ids['connect-user'].value, 'Max973', 'the form reflects the canonical username the session resolved');
   return ids;
+}
+
+// Every current-season league gets in-season links by its Sleeper id (any-
+// league spec 5.4); only a registered league also gets a draft board link.
+async function unregisteredLeaguesGetInSeasonLinks() {
+  reset();
+  const ids = mountPage();
+  const X = '700000000000000001';
+  window.Sleeper = sleeperFor(path => path === '/user/123/leagues/nfl/2026'
+    ? [{league_id: X, season: '2026', name: 'Synthetic Six', status: 'in_season'}, {league_id: GABAGOOL, season: '2026', name: 'Gabagool'}]
+    : maxRoutes(path));
+  init();
+  ids['connect-user'].value = 'max973';
+  await submit(ids);
+  const [first, second] = ids['connect-results'].children;
+  assert.deepEqual(collectAnchors(first).map(a => [a.href, a.textContent]), [
+    [`weekly.html?league=${X}`, 'Weekly / start-sit'],
+    [`waivers.html?league=${X}`, 'Waiver research'],
+    [`trade.html?league=${X}`, 'In-season trade scenarios'],
+  ], 'an unregistered league links the in-season pages by id and no draft board');
+  const texts = node => [node.textContent, ...node.children.flatMap(texts)];
+  assert.ok(texts(first).includes('The draft board is only built for registered leagues.'));
+  assert.ok(!texts(first).some(t => /not supported yet/.test(t || '')), 'discovery no longer refuses unregistered leagues');
+  assert.deepEqual(collectAnchors(second).map(a => a.href), [
+    'index.html?league=gabagool', `weekly.html?league=${GABAGOOL}`, `waivers.html?league=${GABAGOOL}`, `trade.html?league=${GABAGOOL}`,
+  ]);
+  assert.match(ids['connect-status'].textContent, /^2 leagues for Max · 2026\./);
 }
 
 async function forgetClearsRenderedResults(ids) {
@@ -98,7 +126,7 @@ async function forgetClearsRenderedResults(ids) {
 async function chipIdentityChangeClearsResultsAndReflectsUser(ids) {
   ids['connect-user'].value = 'max973';
   await submit(ids);
-  assert.equal(collectAnchors(ids['connect-results']).length, 3, 'results rendered again for max973');
+  assert.equal(collectAnchors(ids['connect-results']).length, 4, 'results rendered again for max973');
   // The chip identifies another account: results clear BEFORE the lookup
   // resolves, and the form shows the new account without auto-discovering.
   const pending = Session.identify('other', {get: maxRoutes});
@@ -208,6 +236,7 @@ async function identifiedSessionPrefillsTheForm() {
   await typingDuringAPendingLookupKeepsTheTypedName();
   await unknownUsernameSurfacesTheSessionError();
   await identifiedSessionPrefillsTheForm();
+  await unregisteredLeaguesGetInSeasonLinks();
 
   // Configured-league detection comes from FC.REGISTRY, never a local map.
   assert.equal(slugForLeague(GABAGOOL), 'gabagool');

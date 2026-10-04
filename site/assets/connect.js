@@ -7,6 +7,11 @@
   const FC = dep("FC", "./app.js");
   const SharedSession = dep("Session", "./session.js");
   const IDLE = "Load leagues for this username.";
+  const DRAFT_ONLY = "The draft board is only built for registered leagues.";
+  // Every current-season league opens in the in-season pages BY ITS SLEEPER
+  // ID (any-league spec 5.4); only a registered league also has a draft board,
+  // linked by its registry slug.
+  const IN_SEASON_LINKS = [["weekly", "Weekly / start-sit"], ["waivers", "Waiver research"], ["trade", "In-season trade scenarios"]];
 
   // Configured-league detection reads FC.REGISTRY, the single source of league
   // capabilities (spec §3): a Sleeper entry whose live id equals the league's.
@@ -89,14 +94,19 @@
           section.append(node("p", `Roster slots: ${Array.isArray(league.roster_positions) ? league.roster_positions.join(" / ") : "Unavailable"}`));
           const details = node("details", ""); details.append(node("summary", "Live scoring settings"));
           details.append(node("pre", JSON.stringify(league.scoring_settings || {}, null, 2))); section.append(details);
+          const id = String(league.league_id);
+          const links = [];
           if (slug) {
-            section.append(node("p", "Configured league. Each tool rechecks live settings against its projections before giving advice; discovery alone does not confirm data freshness or compatibility."));
-            for (const [page, label] of [["index", "Draft board"], ["weekly", "Weekly / start-sit"], ["waivers", "Waiver research"]]) {
-              const link = node("a", label); link.href = `${page}.html?league=${slug}`;
-              const p = node("p", ""); p.append(link); section.append(p);
-            }
+            section.append(node("p", "Registered league: draft board and in-season tools. Each in-season tool reads this league's live settings when it loads; discovery alone does not confirm data freshness."));
+            links.push(["index", "Draft board", slug]);
           } else {
-            section.append(node("p", "Discovered, but advice is not supported yet. This league needs validated scoring, player identities and lineup rules. No other league's rankings or bids are substituted."));
+            section.append(node("p", "Each in-season tool reads this league's live settings when it loads; discovery alone does not confirm data freshness."));
+            section.append(node("p", DRAFT_ONLY));
+          }
+          for (const [page, label] of IN_SEASON_LINKS) links.push([page, label, id]);
+          for (const [page, label, value] of links) {
+            const link = node("a", label); link.href = `${page}.html?league=${encodeURIComponent(value)}`;
+            const p = node("p", ""); p.append(link); section.append(p);
           }
           $("connect-results").append(section);
         }

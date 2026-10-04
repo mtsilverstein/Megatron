@@ -19,6 +19,34 @@
    - storage that throws degrades to a memory-only identity; corrupt JSON is
      anonymous; nothing here ever throws because of storage.
 
+   Two ways in (any-league spec 5.1). ready({slug, board}) is the draft
+   pages' registry path, unchanged: a registry entry and a static board whose
+   league id the live league must match. ready({leagueId}) is the in-season
+   path for ANY Sleeper league: a synthetic entry {slug: null, platform:
+   "sleeper", leagueId, tools: {startsit, waivers, trade}}, no board, no
+   identity required (an anonymous visitor may load any league read-only). It
+   refuses a league Sleeper does not know (`Sleeper has no league with id
+   {id}.`) and a league from another season than live /state/nfl (`This league
+   is from the {season} season; projections are for {current}.`), on load and
+   on every refresh.
+
+   Live settings (spec 5.2): every ready() AND every refresh() re-reads
+   /league/<id>, whatever the scope -- scoring, slots, status and season are
+   never reused from an earlier fetch. `leagueFetchedAt` is the moment that
+   read resolved. Users are re-read on a "league"-scope refresh only.
+
+   Whose roster is analysed. `myRoster` is ONLY ever the exact owner/co-owner
+   match for the identity -- never set from a view. `viewedRosterId` is the
+   team an anonymous or non-member visitor chose with view(); `analysisRoster`
+   and `analysisRole` are derived on every bundle: "owner" = myRoster when
+   found, else "viewer" = the roster with viewedRosterId, else null. An owner's
+   bundle never carries a viewed team: an identify (or any bundle build) that
+   finds an owned roster drops viewedRosterId -- dropped, not merged. view()
+   is synchronous and fetches nothing: it re-derives the committed bundle
+   under the SAME generation, and an in-flight refresh commits with the
+   newest viewedRosterId and identity rather than the ones it started from.
+   Superseded results stay discarded whatever view()/identify() did meanwhile.
+
    Errors live in TWO slots. `identityError` is set by a failed identify() and
    cleared only by identify()/forget(); `leagueError` is set by a failed
    ready() and cleared only by ready()/forget(). state() reports "error"
@@ -43,6 +71,11 @@
   const ID_MISMATCH = "live league does not match this board; refusing to load advice";
   const NO_BOARD = "No static board is loaded for this page.";
   const REMEMBERED = "Remembered on this device until you choose forget.";
+  const NO_LEAGUE = id => `Sleeper has no league with id ${id}.`;
+  const WRONG_SEASON = (season, current) => `This league is from the ${season} season; projections are for ${current}.`;
+  const NOT_LOADED = "No Sleeper league is loaded.";
+  const OWNER_VIEW = "This account owns a roster in this league; that roster is the one analysed.";
+  const ID_TOOLS = Object.freeze({ startsit: true, waivers: true, trade: true });
   const STATES = Object.freeze(["anonymous", "identifying", "identified", "loadingLeague", "ready", "refreshing", "error"]);
 
   // ---- lazy dependencies ----------------------------------------------------
@@ -109,6 +142,21 @@
       return name || null;
     } catch (_) { return null; }
   }
+  // The in-season pages' entry for any Sleeper league id (no registry row).
+  function idEntry(leagueId) {
+    return Object.freeze({ slug: null, platform: "sleeper", leagueId, tools: ID_TOOLS });
+  }
+  const isIdEntry = entry => !!entry && entry.slug === null && entry.platform === "sleeper";
+  // Whose roster the in-season analysis reads (header). The owner match wins
+  // and clears any viewed team; a viewed id that is no longer in the rosters
+  // analyses nothing rather than guessing.
+  function analysisFor(rosters, myRoster, viewedRosterId) {
+    if (myRoster) return { viewedRosterId: null, analysisRoster: myRoster, analysisRole: "owner" };
+    const v = viewedRosterId === undefined ? null : viewedRosterId;
+    if (v === null || !Array.isArray(rosters)) return { viewedRosterId: v, analysisRoster: null, analysisRole: null };
+    const hit = rosters.find(r => r && r.roster_id === v) || null;
+    return { viewedRosterId: v, analysisRoster: hit, analysisRole: hit ? "viewer" : null };
+  }
   function ageText(fetchedAt, nowMs) {
     const s = Math.max(0, Math.floor(((Number.isFinite(nowMs) ? nowMs : Date.now()) - fetchedAt) / 1000));
     return s < 60 ? `rosters ${s} s ago` : `rosters ${Math.floor(s / 60)} min ago`;
@@ -119,6 +167,13 @@
     if (stateName === "error") return String(reason || "Something went wrong.");
     if (stateName === "identifying") return "Looking up Sleeper account…";
     if (stateName === "loadingLeague") return "Loading league…";
+    // A viewer is never "your roster": the line names the viewed team.
+    if (bundle && bundle.analysisRole === "viewer" && bundle.analysisRoster) {
+      let text = `Viewing ${teamName(bundle.users, bundle.analysisRoster)}`;
+      if (Number.isFinite(bundle.rostersFetchedAt)) text += ` · ${ageText(bundle.rostersFetchedAt, nowMs)}`;
+      if (stateName === "refreshing") text += " · refreshing…";
+      return text;
+    }
     const identity = bundle && bundle.identity;
     if (!identity) return REMEMBERED;
     const name = identity.displayName || identity.username;
@@ -129,6 +184,13 @@
     if (Number.isFinite(bundle.rostersFetchedAt)) text += ` · ${ageText(bundle.rostersFetchedAt, nowMs)}`;
     if (stateName === "refreshing") text += " · refreshing…";
     return text;
+  }
+
+  // The live-settings stamp shown beside the data timestamps (spec 5.2).
+  function settingsText(bundle) {
+    if (!bundle || !Number.isFinite(bundle.leagueFetchedAt)) return "";
+    const clock = new Date(bundle.leagueFetchedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    return `League settings read ${clock}`;
   }
 
   // ---- session state ------------------------------------------------------------
@@ -210,51 +272,73 @@
     b.warnings = Object.freeze((b.warnings || []).slice());
     return Object.freeze(b);
   }
-  function buildBundle(entry, parts, gen, extra) {
+  function buildBundle(entry, parts, gen, extra, viewedRosterId) {
     const identity = identityRec;
     const { league, users, rosters, state } = parts;
     const warnings = [];
     if (state && league && String(state.season) !== String(league.season)) warnings.push(`NFL state season ${state.season} differs from league season ${league.season}.`);
     if (state && state.season_type !== "regular") warnings.push(`NFL season type is ${state.season_type}, not regular.`);
+    const mine = deriveRoster(entry, rosters, identity);
     return freezeBundle({
       registry: entry, identity, league, users, rosters, state,
+      leagueFetchedAt: parts.leagueFetchedAt,
       rostersRequestedAt: parts.rostersRequestedAt, rostersFetchedAt: parts.rostersFetchedAt,
-      ...deriveRoster(entry, rosters, identity), warnings, extra: extra === undefined ? null : extra, generation: gen,
+      ...mine, ...analysisFor(rosters, mine.myRoster, viewedRosterId),
+      warnings, extra: extra === undefined ? null : extra, generation: gen,
     });
   }
   function espnBundle(entry, gen) {
     return freezeBundle({
       registry: entry, identity: identityRec, league: null, users: null, rosters: null, state: null,
-      rostersRequestedAt: null, rostersFetchedAt: null, myRoster: null, myRosterStatus: "anonymous",
+      leagueFetchedAt: null, rostersRequestedAt: null, rostersFetchedAt: null, myRoster: null, myRosterStatus: "anonymous",
+      viewedRosterId: null, analysisRoster: null, analysisRole: null,
       warnings: [], extra: null, generation: gen,
     });
   }
-  // Same league data, identity re-derived (identify/forget never refetch).
-  function rederive(bundle) {
+  // Same league data, identity re-derived (identify/forget/view never
+  // refetch, and keep the bundle's generation). `viewedRosterId` undefined
+  // keeps the bundle's own choice.
+  function rederive(bundle, viewedRosterId) {
     if (!bundle) return null;
-    return freezeBundle({ ...bundle, identity: identityRec, ...deriveRoster(bundle.registry, bundle.rosters, identityRec) });
+    const mine = deriveRoster(bundle.registry, bundle.rosters, identityRec);
+    const v = viewedRosterId === undefined ? (bundle.viewedRosterId === undefined ? null : bundle.viewedRosterId) : viewedRosterId;
+    return freezeBundle({ ...bundle, identity: identityRec, ...mine, ...analysisFor(bundle.rosters, mine.myRoster, v) });
   }
 
   // Fetch the live league. `requestedAt` is taken BEFORE the rosters request
   // is issued and `fetchedAt` the moment it resolves -- two timestamps because
   // the waiver/start-sit kickoff gate needs the former and the 60 s UI expiry
-  // the latter (spec §4.2). Shapes are validated here; a malformed component
-  // fails the whole load.
+  // the latter (spec §4.2). The league object is re-read on EVERY call (any-
+  // league spec 5.2); users only for a full load. Shapes are validated here;
+  // a malformed component fails the whole load. On the id path a null league
+  // is Sleeper's "no such league" and is named so even when a sibling
+  // request failed too (all four settle before anything is judged).
   async function fetchLeague(entry, get, scope, base) {
     const id = entry.leagueId;
     const full = scope === "league" || !base;
-    const leagueP = full ? get(`/league/${id}`) : Promise.resolve(base.league);
+    let leagueFetchedAt = null;
+    const leagueP = get(`/league/${id}`).then(l => { leagueFetchedAt = Date.now(); return l; });
     const usersP = full ? get(`/league/${id}/users`) : Promise.resolve(base.users);
     const rostersRequestedAt = Date.now();
     let rostersFetchedAt = null;
     const rostersP = get(`/league/${id}/rosters`).then(r => { rostersFetchedAt = Date.now(); return r; });
     const stateP = get("/state/nfl");
-    const [league, users, rosters, state] = await Promise.all([leagueP, usersP, rostersP, stateP]);
+    const settled = await Promise.allSettled([leagueP, usersP, rostersP, stateP]);
+    if (isIdEntry(entry) && settled[0].status === "fulfilled" && (settled[0].value === null || settled[0].value === undefined)) throw new Error(NO_LEAGUE(id));
+    for (const r of settled) if (r.status === "rejected") throw r.reason;
+    const [league, users, rosters, state] = settled.map(r => r.value);
     if (!league || typeof league !== "object" || league.league_id === undefined || league.league_id === null) throw new Error("Sleeper returned a malformed league.");
     if (!Array.isArray(users)) throw new Error("Sleeper returned malformed league users.");
     if (!Array.isArray(rosters)) throw new Error("Sleeper returned malformed rosters.");
     if (!state || typeof state !== "object" || state.season === undefined || state.season === null) throw new Error("Sleeper returned a malformed NFL state.");
-    return { league, users, rosters, state, rostersRequestedAt, rostersFetchedAt };
+    return { league, users, rosters, state, leagueFetchedAt, rostersRequestedAt, rostersFetchedAt };
+  }
+  // The id path's own refusals, on load and on every refresh: the league
+  // Sleeper answered with must be the one asked for, and of the live season.
+  function checkIdLeague(entry, parts) {
+    if (!isIdEntry(entry)) return;
+    if (String(parts.league.league_id) !== String(entry.leagueId)) throw new Error(`Sleeper answered for league ${parts.league.league_id}, not ${entry.leagueId}.`);
+    if (String(parts.league.season) !== String(parts.state.season)) throw new Error(WRONG_SEASON(parts.league.season, parts.state.season));
   }
 
   // ---- API ----------------------------------------------------------------------
@@ -312,7 +396,8 @@
 
   async function ready(opts) {
     ensureLoaded();
-    const { slug, board } = opts || {};
+    const { slug, board, leagueId } = opts || {};
+    const byId = leagueId !== undefined && leagueId !== null;
     const gen = ++leagueGen;
     refreshPromise = null;       // an in-flight refresh belongs to the old league
     committed = null;            // no prior bundle stays usable while a new league loads
@@ -321,20 +406,32 @@
     fire();
     let bundle;
     try {
-      const entry = registryFor(slug);
-      if (!entry) throw new Error(`Unknown league "${slug}".`);
-      if (entry.platform !== "sleeper") {
-        bundle = espnBundle(entry, gen);   // ESPN never creates a Sleeper session
-      } else {
-        // No board id is an integration fault of the page, not a mismatch:
-        // say so by name, before any Sleeper call is spent on it.
-        const staticId = board && board.league ? board.league.league_id : undefined;
-        if (staticId === undefined || staticId === null) throw new Error(NO_BOARD);
+      if (byId) {
+        // Any Sleeper league, no board, identity optional (header).
+        const id = String(leagueId).trim();
+        if (!/^\d+$/.test(id)) throw new Error(NO_LEAGUE(id));
+        const entry = idEntry(id);
         const get = resolveGet(opts);   // per-call only: never installed document-wide
         const parts = await fetchLeague(entry, get, "league", null);
-        if (String(parts.league.league_id) !== String(staticId)) throw new Error(ID_MISMATCH);
         if (gen !== leagueGen) throw superseded();
+        checkIdLeague(entry, parts);
         bundle = buildBundle(entry, parts, gen);
+      } else {
+        const entry = registryFor(slug);
+        if (!entry) throw new Error(`Unknown league "${slug}".`);
+        if (entry.platform !== "sleeper") {
+          bundle = espnBundle(entry, gen);   // ESPN never creates a Sleeper session
+        } else {
+          // No board id is an integration fault of the page, not a mismatch:
+          // say so by name, before any Sleeper call is spent on it.
+          const staticId = board && board.league ? board.league.league_id : undefined;
+          if (staticId === undefined || staticId === null) throw new Error(NO_BOARD);
+          const get = resolveGet(opts);   // per-call only: never installed document-wide
+          const parts = await fetchLeague(entry, get, "league", null);
+          if (String(parts.league.league_id) !== String(staticId)) throw new Error(ID_MISMATCH);
+          if (gen !== leagueGen) throw superseded();
+          bundle = buildBundle(entry, parts, gen);
+        }
       }
     } catch (e) {
       if (gen !== leagueGen) throw superseded();
@@ -369,6 +466,7 @@
         const parts = await fetchLeague(base.registry, get, scope, base);
         if (gen !== leagueGen) throw superseded();
         if (String(parts.league.league_id) !== String(base.league.league_id)) throw new Error(ID_MISMATCH);
+        checkIdLeague(base.registry, parts);
         // The controller's extra fetch (e.g. the waiver desk's week
         // transactions) runs in THIS generation, BEFORE the commit: if it
         // rejects, nothing is committed and rostersFetchedAt does not move;
@@ -378,7 +476,10 @@
           extra = await also(Object.freeze({ ...parts }), get);
           if (gen !== leagueGen) throw superseded();
         }
-        const bundle = buildBundle(base.registry, parts, gen, extra);
+        // The NEWEST view and identity, not the ones this refresh started
+        // under: a view()/identify() made meanwhile is not undone (header).
+        const viewed = committed && committed.viewedRosterId !== undefined ? committed.viewedRosterId : null;
+        const bundle = buildBundle(base.registry, parts, gen, extra, viewed);
         committed = bundle;
         flow = "ready";
         fire();
@@ -396,6 +497,24 @@
     const release = () => { if (refreshPromise === p) refreshPromise = null; };
     p.then(release, release);
     return p;
+  }
+
+  // Choose the team an anonymous or non-member visitor views (null clears).
+  // Synchronous, fetches nothing, keeps the generation; never sets myRoster.
+  function view(rosterId) {
+    ensureLoaded();
+    const base = committed;
+    if (!base || !base.registry || base.registry.platform !== "sleeper" || !Array.isArray(base.rosters)) throw new Error(NOT_LOADED);
+    let v = null;
+    if (rosterId !== null && rosterId !== undefined && rosterId !== "") {
+      const hit = base.rosters.find(r => r && String(r.roster_id) === String(rosterId));
+      if (!hit) throw new Error(`No team with roster id ${rosterId} in this league.`);
+      v = hit.roster_id;
+    }
+    if (v !== null && base.myRoster) throw new Error(OWNER_VIEW);
+    committed = rederive(base, v);
+    fire();
+    return committed;
   }
 
   function catalog(opts) {
@@ -470,14 +589,14 @@
 
   return Object.freeze({
     STATES,
-    identify, forget, ready, refresh, catalog, leaguesFor, previousLeagueRoster, onChange,
+    identify, forget, ready, refresh, view, catalog, leaguesFor, previousLeagueRoster, onChange,
     state: () => { ensureLoaded(); return currentState(); },
     error: () => currentError(),
     bundle: () => committed,
     identity: () => { ensureLoaded(); return identityRec ? { ...identityRec } : null; },
     pendingUsername: () => { ensureLoaded(); return pendingName; },
     catalogFetchedAt: () => catalogAt,
-    identifyRoster, teamName, chipText, readIdentity, migrateLegacy, isSuperseded: e => !!(e && e.superseded),
+    identifyRoster, teamName, chipText, settingsText, readIdentity, migrateLegacy, isSuperseded: e => !!(e && e.superseded),
     _storage, _get,
   });
 });

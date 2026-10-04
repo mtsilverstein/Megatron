@@ -187,7 +187,7 @@ const sorted = a => a.slice().sort();
     assert.throws(() => Session.identifyRoster([null, undefined], "u1"), { message: "Could not uniquely match this account to a roster in this league." });
   });
 
-  await check("6. refresh scopes: rosters re-fetches rosters+state only; league re-fetches all four", async () => {
+  await check("6. refresh scopes: rosters re-fetches league+rosters+state (users kept); league re-fetches all four", async () => {
     Session._storage(fakeStorage());
     const { get, calls } = fakeGet(routes());
     Session._get(get);
@@ -196,13 +196,14 @@ const sorted = a => a.slice().sort();
     await pause(5);
     calls.length = 0;
     const b2 = await Session.refresh({ scope: "rosters" });
-    assert.deepEqual(sorted(calls), sorted([`/league/${L}/rosters`, "/state/nfl"]));
+    assert.deepEqual(sorted(calls), sorted([`/league/${L}`, `/league/${L}/rosters`, "/state/nfl"]),
+      "every refresh re-reads the league object (spec 5.2); users only on a league-scope refresh");
     assert.notEqual(b2, b1, "refresh swaps in a NEW bundle");
+    assert.ok(b2.leagueFetchedAt > b1.leagueFetchedAt, "the settings timestamp moves with every refresh");
     assert.equal(Session.bundle(), b2);
     assert.ok(b2.rostersFetchedAt > b1.rostersFetchedAt, "a successful refresh advances rostersFetchedAt");
     assert.ok(b2.rostersRequestedAt >= b1.rostersFetchedAt);
     assert.equal(b2.users, b1.users, "users object identity is unchanged on a rosters-scope refresh");
-    assert.equal(b2.league, b1.league);
     assert.equal(b2.myRoster.roster_id, 9);
     assert.ok(b2.generation > b1.generation);
     assert.equal(Session.state(), "ready");
@@ -215,7 +216,7 @@ const sorted = a => a.slice().sort();
     const p1 = Session.refresh(), p2 = Session.refresh();
     assert.equal(p1, p2, "a second refresh while one is in flight returns the same promise");
     await p1;
-    assert.deepEqual(sorted(calls), sorted([`/league/${L}/rosters`, "/state/nfl"]));
+    assert.deepEqual(sorted(calls), sorted([`/league/${L}`, `/league/${L}/rosters`, "/state/nfl"]));
   });
 
   await check("7. a failed refresh keeps the old bundle and its timestamps; state returns to ready", async () => {
@@ -523,7 +524,7 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.bundle().rostersFetchedAt, b1.rostersFetchedAt);
     assert.equal(Session.state(), "ready");
     assert.equal(Session.error(), null);
-    assert.deepEqual(Object.keys(seenParts).sort(), ["league", "rosters", "rostersFetchedAt", "rostersRequestedAt", "state", "users"]);
+    assert.deepEqual(Object.keys(seenParts).sort(), ["league", "leagueFetchedAt", "rosters", "rostersFetchedAt", "rostersRequestedAt", "state", "users"]);
     assert.equal(seenParts.rosters, rosters);
     assert.ok(seenParts.rostersRequestedAt <= seenParts.rostersFetchedAt);
     assert.ok(seenParts.rostersFetchedAt > b1.rostersFetchedAt, "the hook sees the fresh timestamps that were NOT committed");
@@ -734,6 +735,261 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.identity().userId, "u1");
     await assert.rejects(Session.identify("nobody"), /was not found/);   // the storage error never surfaces
     assert.equal(Session.identity(), null);
+  });
+
+  // ---- any Sleeper league by id (any-league spec 5.1, 5.2) -----------------
+  // A fictional, unregistered league: synthetic owners, ids and team names.
+  const X = "700000000000000001";
+  const leagueX = { league_id: X, name: "Synthetic Six", season: "2026", status: "in_season", scoring_settings: { rec: 0.5, pass_td: 4 } };
+  const usersX = [
+    { user_id: "s1", display_name: "Alpha", metadata: { team_name: "Alpha Squad" } },
+    { user_id: "s2", display_name: "Beta" },
+    { user_id: "s3", display_name: "Gamma", metadata: { team_name: "Gamma Rays" } },
+  ];
+  const rostersX = [
+    { roster_id: 1, owner_id: "s1", co_owners: null, players: ["p1"] },
+    { roster_id: 2, owner_id: "s2", co_owners: null, players: ["p2"] },
+    { roster_id: 3, owner_id: "s3", co_owners: null, players: ["p3"] },
+  ];
+  const routesX = () => ({
+    [`/league/${X}`]: leagueX, [`/league/${X}/users`]: usersX, [`/league/${X}/rosters`]: rostersX, "/state/nfl": state,
+    "/user/alpha": { user_id: "s1", username: "alpha", display_name: "Alpha" },
+    "/user/gamma": { user_id: "s3", username: "gamma", display_name: "Gamma" },
+    "/user/outsider": { user_id: "s9", username: "outsider", display_name: "Outsider" },
+  });
+  const ID_TOOLS = { startsit: true, waivers: true, trade: true };
+
+  await check("23. ready({leagueId}): anonymous, owner and non-owner, no board, synthetic registry entry", async () => {
+    Session._storage(fakeStorage());
+    const { get, calls } = fakeGet(routesX());
+    Session._get(get);
+    // Anonymous: identity is optional on the id path.
+    const b = await Session.ready({ leagueId: X });
+    assert.deepEqual(sorted(calls), sorted([`/league/${X}`, `/league/${X}/users`, `/league/${X}/rosters`, "/state/nfl"]));
+    assert.deepEqual({ ...b.registry, tools: { ...b.registry.tools } }, { slug: null, platform: "sleeper", leagueId: X, tools: ID_TOOLS });
+    assert.ok(Object.isFrozen(b.registry) && Object.isFrozen(b.registry.tools));
+    assert.ok(Object.isFrozen(b));
+    assert.equal(b.identity, null);
+    assert.equal(b.myRoster, null); assert.equal(b.myRosterStatus, "anonymous");
+    assert.equal(b.viewedRosterId, null); assert.equal(b.analysisRoster, null); assert.equal(b.analysisRole, null);
+    assert.equal(b.league, leagueX); assert.equal(b.users, usersX); assert.equal(b.rosters, rostersX);
+    assert.ok(Number.isFinite(b.leagueFetchedAt), "bundles carry leagueFetchedAt");
+    assert.equal(Session.state(), "ready");
+    assert.equal(Session.error(), null);
+    // A number id names the same league as its string.
+    Session._get(fakeGet({ ...routesX(), "/league/7000": { ...leagueX, league_id: "7000" }, "/league/7000/users": usersX, "/league/7000/rosters": rostersX }).get);
+    assert.equal((await Session.ready({ leagueId: 7000 })).registry.leagueId, "7000");
+    Session._get(get);
+    // Owner: the exact matcher finds roster 1; analysis = myRoster.
+    await Session.identify("alpha");
+    const own = await Session.ready({ leagueId: X });
+    assert.equal(own.myRosterStatus, "found");
+    assert.equal(own.myRoster.roster_id, 1);
+    assert.equal(own.analysisRoster, own.myRoster);
+    assert.equal(own.analysisRole, "owner");
+    assert.equal(own.viewedRosterId, null);
+    // Non-owner: the league loads, no roster is claimed, nothing is analysed until a team is chosen.
+    await Session.identify("outsider");
+    const out = await Session.ready({ leagueId: X });
+    assert.equal(out.myRosterStatus, "none"); assert.equal(out.myRoster, null);
+    assert.equal(out.analysisRoster, null); assert.equal(out.analysisRole, null);
+    // The registry board path still works, and its bundles carry the same new fields.
+    Session._get(fakeGet(routes()).get);
+    const reg = await Session.ready({ slug: "gabagool", board });
+    assert.equal(reg.registry.slug, "gabagool");
+    assert.ok(Number.isFinite(reg.leagueFetchedAt));
+    assert.equal(reg.viewedRosterId, null); assert.equal(reg.analysisRole, null);
+    const esp = await Session.ready({ slug: "espnfam", board: { league: { league_id: "69827905" } } });
+    assert.equal(esp.leagueFetchedAt, null); assert.equal(esp.analysisRoster, null); assert.equal(esp.analysisRole, null); assert.equal(esp.viewedRosterId, null);
+  });
+
+  await check("24. ready({leagueId}) refusals: unknown id, last season's league, not an id", async () => {
+    Session._storage(fakeStorage());
+    const Z = "700000000000000099";
+    const r = { ...routesX(), [`/league/${Z}`]: null, [`/league/${Z}/users`]: null, [`/league/${Z}/rosters`]: null };
+    const { get, calls } = fakeGet(r);
+    Session._get(get);
+    await assert.rejects(Session.ready({ leagueId: Z }), { message: `Sleeper has no league with id ${Z}.` });
+    assert.equal(Session.bundle(), null);
+    assert.equal(Session.state(), "error");
+    assert.equal(Session.error(), `Sleeper has no league with id ${Z}.`);
+    // The unknown-league message wins even when a sibling request rejects.
+    r[`/league/${Z}/rosters`] = new Error("HTTP 404");
+    await assert.rejects(Session.ready({ leagueId: Z }), { message: `Sleeper has no league with id ${Z}.` });
+    // Last season's league id: the league exists but projections are for the current season.
+    r[`/league/${X}`] = { ...leagueX, season: "2025" };
+    await assert.rejects(Session.ready({ leagueId: X }), { message: "This league is from the 2025 season; projections are for 2026." });
+    assert.equal(Session.bundle(), null);
+    assert.equal(Session.error(), "This league is from the 2025 season; projections are for 2026.");
+    // Not a Sleeper id at all: refused before any call.
+    calls.length = 0;
+    await assert.rejects(Session.ready({ leagueId: "../x" }), { message: "Sleeper has no league with id ../x." });
+    assert.deepEqual(calls, []);
+    // A good load clears the league error.
+    r[`/league/${X}`] = leagueX;
+    await Session.ready({ leagueId: X });
+    assert.equal(Session.error(), null);
+    assert.equal(Session.state(), "ready");
+  });
+
+  await check("25. refresh always re-reads /league/<id>; changed scoring_settings commit a new bundle", async () => {
+    Session._storage(fakeStorage());
+    const r = routesX();
+    const { get, calls } = fakeGet(r);
+    Session._get(get);
+    const b1 = await Session.ready({ leagueId: X });
+    await pause(5);
+    r[`/league/${X}`] = { ...leagueX, scoring_settings: { rec: 1, pass_td: 6 } };
+    calls.length = 0;
+    const b2 = await Session.refresh();       // default scope: rosters
+    assert.deepEqual(sorted(calls), sorted([`/league/${X}`, `/league/${X}/rosters`, "/state/nfl"]));
+    assert.notEqual(b2, b1);
+    assert.equal(Session.bundle(), b2);
+    assert.deepEqual(b2.league.scoring_settings, { rec: 1, pass_td: 6 }, "the live settings, not the load-time ones");
+    assert.deepEqual(b1.league.scoring_settings, { rec: 0.5, pass_td: 4 }, "the old bundle is untouched");
+    assert.ok(b2.leagueFetchedAt > b1.leagueFetchedAt);
+    assert.equal(b2.registry, b1.registry);
+    // The id path's season rule holds on refresh too; a failure keeps the old bundle.
+    r[`/league/${X}`] = { ...leagueX, season: "2025" };
+    await assert.rejects(Session.refresh(), { message: "This league is from the 2025 season; projections are for 2026." });
+    assert.equal(Session.bundle(), b2);
+    assert.equal(Session.state(), "ready");
+    // A league that vanished mid-session is the unknown-league refusal.
+    r[`/league/${X}`] = null;
+    await assert.rejects(Session.refresh(), { message: `Sleeper has no league with id ${X}.` });
+    assert.equal(Session.bundle(), b2);
+  });
+
+  await check("26. view(): a viewer is never an owner; identify as an owner drops the viewed team", async () => {
+    Session._storage(fakeStorage());
+    const r = routesX();
+    Session._get(fakeGet(r).get);
+    assert.throws(() => Session.view(2), { message: "No Sleeper league is loaded." });
+    const b1 = await Session.ready({ leagueId: X });
+    const seen = [];
+    const off = Session.onChange(s => seen.push(s.bundle));
+    const v = Session.view(2);
+    assert.equal(seen.length, 1, "view fires onChange");
+    assert.equal(Session.bundle(), v);
+    assert.ok(Object.isFrozen(v));
+    assert.notEqual(v, b1);
+    assert.equal(v.viewedRosterId, 2);
+    assert.equal(v.analysisRole, "viewer");
+    assert.equal(v.analysisRoster.roster_id, 2);
+    assert.equal(v.myRoster, null, "myRoster is never set from a view");
+    assert.equal(v.myRosterStatus, "anonymous");
+    assert.equal(v.generation, b1.generation, "a view is not a fetch");
+    assert.equal(v.rostersFetchedAt, b1.rostersFetchedAt);
+    assert.equal(b1.viewedRosterId, null, "the old bundle is untouched");
+    assert.equal(Session.chipText(v, "ready", v.rostersFetchedAt + 3000), "Viewing Beta · rosters 3 s ago");
+    // An unknown roster id is refused; nothing changes.
+    assert.throws(() => Session.view(99), { message: "No team with roster id 99 in this league." });
+    assert.equal(Session.bundle(), v);
+    // A string id from a <select> resolves to the roster's own id.
+    assert.equal(Session.view("3").viewedRosterId, 3);
+    assert.equal(Session.chipText(Session.bundle(), "refreshing", Session.bundle().rostersFetchedAt), "Viewing Gamma Rays · rosters 0 s ago · refreshing…");
+    Session.view(2);
+    // Identify as a NON-owner: the viewed team stays.
+    await Session.identify("outsider");
+    assert.equal(Session.bundle().viewedRosterId, 2);
+    assert.equal(Session.bundle().analysisRole, "viewer");
+    assert.equal(Session.chipText(Session.bundle(), "ready", Session.bundle().rostersFetchedAt), "Viewing Beta · rosters 0 s ago",
+      "a viewer line, not 'could not uniquely match', once a team is chosen");
+    // Identify as the owner of roster 3: switch to the owner's roster, drop the view.
+    await Session.identify("gamma");
+    const o = Session.bundle();
+    assert.equal(o.analysisRoster.roster_id, 3);
+    assert.equal(o.analysisRole, "owner");
+    assert.equal(o.viewedRosterId, null, "the viewed choice is dropped, not merged");
+    assert.equal(o.myRoster.roster_id, 3);
+    assert.equal(Session.chipText(o, "ready", o.rostersFetchedAt), "Gamma · Synthetic Six · your roster: 3 · rosters 0 s ago");
+    // An owner cannot view another team.
+    assert.throws(() => Session.view(1), { message: "This account owns a roster in this league; that roster is the one analysed." });
+    assert.equal(Session.view(null).viewedRosterId, null, "clearing is always allowed");
+    // forget: back to anonymous, nothing viewed.
+    Session.forget();
+    const f = Session.bundle();
+    assert.equal(f.myRoster, null); assert.equal(f.viewedRosterId, null); assert.equal(f.analysisRole, null); assert.equal(f.analysisRoster, null);
+    // A new ready() starts unviewed.
+    Session.view(1);
+    const fresh = await Session.ready({ leagueId: X });
+    assert.equal(fresh.viewedRosterId, null);
+    off();
+  });
+
+  await check("27. superseded generations stay discarded across view / identify / settings changes", async () => {
+    Session._storage(fakeStorage());
+    const r = routesX();
+    const { get } = fakeGet(r);
+    Session._get(get);
+    await Session.ready({ leagueId: X });
+    // a) A view made while a refresh is in flight survives that refresh's commit.
+    const d1 = deferred();
+    r[`/league/${X}/rosters`] = () => d1.promise;
+    r[`/league/${X}`] = { ...leagueX, scoring_settings: { rec: 1 } };
+    const p1 = Session.refresh();
+    Session.view(2);
+    d1.resolve(rostersX);
+    const b1 = await p1;
+    assert.equal(b1.viewedRosterId, 2, "the newest view rides on the refreshed bundle");
+    assert.equal(b1.analysisRole, "viewer");
+    assert.deepEqual(b1.league.scoring_settings, { rec: 1 });
+    // b) An owner identify during a refresh: the refresh commits the owner, not the stale view.
+    const d2 = deferred();
+    r[`/league/${X}/rosters`] = () => d2.promise;
+    const p2 = Session.refresh();
+    await Session.identify("gamma");
+    assert.equal(Session.bundle().viewedRosterId, null);
+    d2.resolve(rostersX);
+    const b2 = await p2;
+    assert.equal(b2.viewedRosterId, null);
+    assert.equal(b2.analysisRole, "owner");
+    assert.equal(b2.analysisRoster.roster_id, 3);
+    Session.forget();
+    // c) A slow ready for league X, overtaken by a ready for league W that is
+    //    then viewed: X's late result is superseded and fires nothing.
+    const W = "700000000000000002";
+    const leagueW = { ...leagueX, league_id: W, name: "Synthetic Seven" };
+    Object.assign(r, { [`/league/${W}`]: leagueW, [`/league/${W}/users`]: usersX, [`/league/${W}/rosters`]: rostersX });
+    const dX = deferred();
+    r[`/league/${X}/rosters`] = () => dX.promise;
+    const pX = Session.ready({ leagueId: X });
+    const bW = await Session.ready({ leagueId: W });
+    const vW = Session.view(1);
+    const fired = [];
+    const off = Session.onChange(() => fired.push(Session.state()));
+    dX.resolve(rostersX);
+    await assert.rejects(pX, e => Session.isSuperseded(e));
+    await pause(2);
+    assert.equal(Session.bundle(), vW);
+    assert.equal(Session.bundle().registry.leagueId, W);
+    assert.equal(Session.bundle().viewedRosterId, 1);
+    assert.equal(fired.length, 0, "the stale ready fired nothing");
+    assert.equal(bW.generation, vW.generation);
+    // d) A refresh carrying changed settings, overtaken by a new ready():
+    //    the stale settings never land.
+    const dR = deferred();
+    r[`/league/${W}/rosters`] = () => dR.promise;
+    r[`/league/${W}`] = { ...leagueW, scoring_settings: { rec: 0 } };
+    const pR = Session.refresh();
+    r[`/league/${W}/rosters`] = rostersX;
+    r[`/league/${W}`] = leagueW;
+    const bNew = await Session.ready({ leagueId: W });
+    dR.resolve(rostersX);
+    await assert.rejects(pR, e => Session.isSuperseded(e));
+    await pause(2);
+    assert.equal(Session.bundle(), bNew);
+    assert.deepEqual(Session.bundle().league.scoring_settings, { rec: 0.5, pass_td: 4 });
+    assert.equal(Session.bundle().viewedRosterId, null);
+    off();
+  });
+
+  await check("28. settingsText: League settings read {time}", () => {
+    const t = Date.UTC(2026, 9, 4, 17, 5, 9);
+    const clock = new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    assert.equal(Session.settingsText({ leagueFetchedAt: t }), `League settings read ${clock}`);
+    assert.equal(Session.settingsText({ leagueFetchedAt: null }), "");
+    assert.equal(Session.settingsText(null), "");
   });
 
   await check("registry and module hygiene", () => {

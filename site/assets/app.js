@@ -27,6 +27,47 @@
   // about, connect) are always connected.
   const TOOL_FOR_PAGE = { "trade.html": "trade", "weekly.html": "startsit", "waivers.html": "waivers" };
 
+  // ---- league selection by Sleeper id (any-league spec 5.1, 5.4) ----------
+  // In-season pages take ANY Sleeper league id; the registry slugs gabagool /
+  // fam are legacy aliases of their ids. Draft-side pages (the board, its
+  // keeper panel, pre-draft trade) stay registry-only: a registered id maps to
+  // its slug, any other id is refused by name -- never a substituted league.
+  // ESPN keeps its registry route.
+  const DRAFT_ONLY = "The draft board is only built for registered leagues.";
+  const ESPN_IN_SEASON = "ESPN in-season tools are not connected yet; use its draft board only.";
+  const ID_TOOLS = Object.freeze({ startsit: true, waivers: true, trade: true });
+  // Destinations whose league parameter is the id between in-season pages.
+  const IN_SEASON_DEST = new Set(["weekly.html", "waivers.html", "trade.html"]);
+  // Pages that are in-season whatever the parameter's spelling.
+  const IN_SEASON_HOME = new Set(["weekly.html", "waivers.html"]);
+  // Pages that exist only for a registered board.
+  const DRAFT_HOME = new Set(["index.html", ""]);
+  const isLeagueId = v => typeof v === "string" && /^\d+$/.test(v);
+  const sleeperEntryForId = id => REGISTRY.find(r => r.platform === "sleeper" && r.leagueId === id) || null;
+  const pageOf = href => new URL(href, "https://x.invalid/").pathname.split("/").pop();
+  // The ONE reading of ?league= for every page. No parameter is Gabagool, as
+  // before; a slug is its registry row; a numeric id is a Sleeper league,
+  // registered or not; anything else is invalid and never defaults.
+  function leagueParam(value) {
+    const raw = value === undefined ? new URLSearchParams(location.search).get("league") : value;
+    const v = raw === null || raw === undefined || raw === "" ? "gabagool" : String(raw);
+    const bySlug = registryFor(v);
+    if (bySlug) return { raw: v, slug: v, entry: bySlug, leagueId: bySlug.platform === "sleeper" ? bySlug.leagueId : null, isId: false, invalid: false };
+    if (isLeagueId(v)) {
+      const e = sleeperEntryForId(v);
+      return { raw: v, slug: e ? e.slug : null, entry: e, leagueId: v, isId: true, invalid: false };
+    }
+    return { raw: v, slug: null, entry: null, leagueId: null, isId: false, invalid: true };
+  }
+  // The in-season pages' league: the Sleeper id, and the registry slug when
+  // the league is registered (null otherwise) for the legacy data files.
+  function inSeasonLeague() {
+    const p = leagueParam();
+    if (p.invalid) throw new Error(`Unknown league "${p.raw}".`);
+    if (!p.leagueId) throw new Error(ESPN_IN_SEASON);
+    return { leagueId: p.leagueId, legacySlug: p.slug };
+  }
+
   async function loadJSON(path) {
     const res = await fetch(path, { cache: "no-cache" });
     if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
@@ -34,9 +75,13 @@
   }
 
   function leagueDataPath(kind) {
-    const slug = new URLSearchParams(location.search).get("league") || "gabagool";
-    if (!LEAGUE_SLUGS.includes(slug)) throw Error("Unknown league");
+    const p = leagueParam();
+    if (p.invalid) throw Error("Unknown league");
     if (!["draft", "weekly", "remaining"].includes(kind)) throw Error("Unknown league data kind");
+    // Per-league files exist only for registered leagues (a registered id
+    // reads its slug's files); an unregistered id has no board to read.
+    if (p.slug === null) throw Error(kind === "draft" ? DRAFT_ONLY : "Unknown league");
+    const slug = p.slug;
     // remaining-<slug>.json is named per league for every league, including
     // Gabagool; the bare-name convention applies to draft/weekly only.
     if (kind === "remaining") return `data/remaining-${slug}.json`;
@@ -60,7 +105,7 @@
   };
   const swallow = () => {};   // identify/ready failures surface via Session.error(); superseded ones never
   const chip = {
-    slug: null, board: null, readyFor: null, els: null, unsub: null, ticker: null,
+    slug: null, board: null, leagueId: null, readyFor: null, els: null, unsub: null, ticker: null,
     lastName: "", changing: false, notice: "", prefill: "", controlsSig: null,
   };
   function chipEntry() { return registryFor(chip.slug); }
@@ -69,16 +114,36 @@
   // bundle has been committed for THIS board yet. ESPN never calls ready
   // (Session would answer with zero calls, but the chip's UI does not rely on
   // that). Pages that never set a board (about, connect) only identify.
+  // The in-season id path (FC.setLeague) loads at once: identity is optional
+  // there (an anonymous visitor views any league read-only).
   function maybeReady() {
     const S = session();
-    if (!S || !chip.slug || !chip.board || isEspn()) return;
+    if (!S) return;
+    if (chip.leagueId) {
+      if (S.bundle() && chip.readyFor === chip.leagueId) return;
+      const leagueId = chip.leagueId;
+      chip.readyFor = leagueId;
+      Promise.resolve().then(() => S.ready({ leagueId })).catch(swallow);
+      return;
+    }
+    if (!chip.slug || !chip.board || isEspn()) return;
     if (!S.identity()) return;
     if (S.bundle() && chip.readyFor === chip.board) return;
     chip.readyFor = chip.board;
-    Promise.resolve().then(() => S.ready({ slug: chip.slug, board: chip.board })).catch(swallow);
+    const slug = chip.slug, board = chip.board;   // captured now: a later mount must not retarget this load
+    Promise.resolve().then(() => S.ready({ slug, board })).catch(swallow);
   }
   function setBoard(board) {
     chip.board = board || null;
+    chip.leagueId = null;            // a board page is the registry path
+    chip.readyFor = null;
+    maybeReady();
+  }
+  // In-season pages: load ANY Sleeper league by id (Session.ready({leagueId}))
+  // immediately, with or without an identity. null clears.
+  function setLeague(leagueId) {
+    chip.leagueId = leagueId === null || leagueId === undefined || leagueId === "" ? null : String(leagueId);
+    chip.board = null;
     chip.readyFor = null;
     maybeReady();
   }
@@ -132,6 +197,9 @@
   function chipRetry() {
     const S = session();
     if (!S) return;
+    // The id path: a failed league load (no bundle) retries the load itself,
+    // identity or not; otherwise the failure was the identify.
+    if (chip.leagueId && !S.bundle()) { chip.readyFor = null; maybeReady(); return; }
     if (!S.identity()) { chipIdentify(chip.lastName); return; }
     if (chip.board && !isEspn()) { chip.readyFor = null; maybeReady(); }
   }
@@ -152,6 +220,36 @@
     chip.els.input = input;
     return form;
   }
+  // The id path's bundle: a Sleeper league loaded for THIS page's league id.
+  function idPathBundle(b) {
+    return !!(chip.leagueId && b && b.registry && b.registry.platform === "sleeper"
+      && String(b.registry.leagueId) === chip.leagueId && Array.isArray(b.rosters));
+  }
+  function pickerTeams(S, b) {
+    return b.rosters.filter(r => r).map(r => [String(r.roster_id), S.teamName(b.users, r)]);
+  }
+  // A visitor who is not this league's owner (anonymous, or an account with
+  // no unique roster here) chooses a team to VIEW, by the league's own names.
+  // Session.view never sets myRoster.
+  function teamPicker(S, b) {
+    const label = document.createElement("label");
+    label.textContent = "View team ";
+    const select = document.createElement("select");
+    select.id = "session-team";
+    const none = document.createElement("option"); none.value = ""; none.textContent = "Choose a team";
+    select.append(none);
+    for (const [value, name] of pickerTeams(S, b)) {
+      const o = document.createElement("option"); o.value = value; o.textContent = name; select.append(o);
+    }
+    select.value = b.viewedRosterId === null || b.viewedRosterId === undefined ? "" : String(b.viewedRosterId);
+    select.addEventListener("change", () => {
+      chip.notice = "";
+      try { S.view(select.value === "" ? null : select.value); }
+      catch (e) { chip.notice = String((e && e.message) || e); renderChip(); }
+    });
+    label.append(select);
+    return label;
+  }
   // Called on every Session.onChange fire, on every chip action AND by the
   // 1 s ticker. The line (Session.chipText, whose age moves) is rewritten on
   // every call; the controls are rebuilt only when the state they are built
@@ -168,6 +266,18 @@
     const view = b || (id ? { identity: id, registry: entry } : null);
     const changeBtn = () => chipButton("session-change", "change", () => { chip.changing = true; renderChip(); });
     const forgetBtn = () => chipButton("session-forget", "forget", () => { chip.changing = false; chip.notice = ""; S.forget(); });
+    const refreshBtn = refreshing => {
+      const r = chipButton("session-refresh", "refresh", () => { chipRefreshClick(); });
+      if (refreshing) r.disabled = true;
+      return r;
+    };
+    // In-season id path: a non-owner gets the team picker (and, anonymous,
+    // the refresh button the owner line carries). Its signature is the teams
+    // and the choice, so a tick never rebuilds an open dropdown.
+    const idPath = idPathBundle(b);
+    const viewing = idPath && b.analysisRole !== "owner";
+    const extras = () => (viewing ? [teamPicker(S, b)] : []);
+    const extrasSig = viewing ? [pickerTeams(S, b), b.viewedRosterId === undefined ? null : b.viewedRosterId] : null;
     let line, build, sig;
     if (st === "identifying") {
       line = S.chipText(null, "identifying", now);
@@ -175,17 +285,23 @@
     } else if (chip.changing || (!id && !err)) {
       // The username form: anonymous, or "change" clicked from any state
       // (including error, where the previous attempt prefills the box).
-      line = err ? S.chipText(view, "error", now, err) : S.chipText(view, id ? st : "anonymous", now);
+      // On the id path an anonymous bundle is a real state (ready /
+      // refreshing, a viewed team), so the line follows it.
+      line = err ? S.chipText(view, "error", now, err) : S.chipText(view, id || idPath ? st : "anonymous", now);
       const prefill = id ? id.username : (chip.changing && chip.lastName) || chip.prefill;
       const cancel = !!(id || err);
+      const anonRefresh = idPath && !id && !err;
+      const refreshing = st === "refreshing";
       build = () => {
         const c = [identifyForm(prefill)];
         // Anonymous: the line already reads "Remembered on this device until
         // you choose forget." (chipText), so no second copy is added here.
         if (cancel) c.push(chipButton("session-cancel", "cancel", () => { chip.changing = false; renderChip(); }));
+        c.push(...extras());
+        if (anonRefresh) c.push(refreshBtn(refreshing));
         return c;
       };
-      sig = ["form", prefill, cancel];
+      sig = ["form", prefill, cancel, extrasSig, anonRefresh && refreshing];
     } else if (err) {
       line = S.chipText(view, "error", now, err);
       build = () => [chipButton("session-retry", "retry", chipRetry), changeBtn()]; sig = ["error"];
@@ -197,15 +313,13 @@
       build = () => [changeBtn(), forgetBtn()]; sig = ["espn"];
     } else if (b && (b.myRosterStatus === "none" || b.myRosterStatus === "ambiguous")) {
       line = S.chipText(b, st, now);
-      build = () => [changeBtn()]; sig = ["noroster"];
+      const refreshing = st === "refreshing";
+      build = () => [changeBtn(), ...extras(), ...(idPath ? [refreshBtn(refreshing)] : [])];
+      sig = ["noroster", extrasSig, idPath && refreshing];
     } else if (b && b.myRoster) {
       line = S.chipText(b, st, now);
       const refreshing = st === "refreshing";
-      build = () => {
-        const refresh = chipButton("session-refresh", "refresh", () => { chipRefreshClick(); });
-        if (refreshing) refresh.disabled = true;
-        return [refresh, changeBtn(), forgetBtn()];
-      };
+      build = () => [refreshBtn(refreshing), changeBtn(), forgetBtn()];
       sig = ["ready", refreshing];
     } else {
       // Identified with no bundle on this page (no board set yet): the line is
@@ -221,6 +335,11 @@
     }
     sig.push(chip.notice);
     els.line.textContent = line;
+    // The live-settings stamp (spec 5.2) beside the line, from leagueFetchedAt.
+    if (els.settings) {
+      els.settings.textContent = b && b.registry && b.registry.platform === "sleeper" && typeof S.settingsText === "function"
+        ? S.settingsText(b) : "";
+    }
     const key = JSON.stringify(sig);
     if (key === chip.controlsSig) return;
     chip.controlsSig = key;
@@ -253,10 +372,11 @@
     if (chip.unsub) { try { chip.unsub(); } catch (_) {} chip.unsub = null; }
     const wrap = document.createElement("div"); wrap.id = "session-chip"; wrap.className = "session-chip";
     const line = document.createElement("span"); line.id = "session-text"; line.className = "session-text";
+    const settings = document.createElement("span"); settings.id = "session-settings"; settings.className = "session-settings";
     const controls = document.createElement("div"); controls.className = "session-controls";
-    wrap.append(line, controls);
+    wrap.append(line, settings, controls);
     panel.append(wrap);
-    chip.els = { wrap, line, controls, input: null };
+    chip.els = { wrap, line, settings, controls, input: null };
     chip.controlsSig = null;             // fresh controls node: nothing is built yet
     // Legacy key (spec §7): migrated once into a prefill, never auto-identified.
     // Session.identity() loads storage (and migrates) first; either source wins.
@@ -274,27 +394,37 @@
     maybeReady();
   }
 
-  function mountLeagueContext(slug) {
+  // `league` is a registry slug or a Sleeper league id (leagueNavigation
+  // passes the slug for a registered league, the id otherwise).
+  function mountLeagueContext(league) {
     if (!document.createElement || document.getElementById("league-context")) return;
+    const p = leagueParam(league);
+    const slug = p.slug, current = slug !== null ? slug : p.raw;
     const panel=document.createElement("section"), label=document.createElement("label"), select=document.createElement("select");
     panel.id="league-context"; panel.className="league-links";
     label.textContent="League "; select.setAttribute("aria-label","Selected league");
     for(const [value,name] of LEAGUES) {
       const option=document.createElement("option"); option.value=value; option.textContent=name; select.append(option);
     }
-    select.value=slug;
+    // An unregistered Sleeper league is offered by its id beside the registry.
+    if (slug === null && p.leagueId) {
+      const option=document.createElement("option"); option.value=p.leagueId; option.textContent=`Sleeper league ${p.leagueId}`; select.append(option);
+    }
+    select.value=current;
     select.addEventListener("change",()=>{const url=new URL(location.href);url.searchParams.set("league",select.value);location.assign(url.href);});
     label.append(select);panel.append(label);
-    mountChip(panel, slug);
+    mountChip(panel, current);
     const note=document.createElement("p");
-    note.textContent=slug==="espnfam"?"ESPN: draft board supported; live in-season tools are not connected yet.":"Draft board, weekly/start-sit, waiver research and in-season trade scenarios use this league. Pre-draft trade values remain Gabagool only. No password needed.";
+    note.textContent=slug==="espnfam"?"ESPN: draft board supported; live in-season tools are not connected yet."
+      :slug===null?`In-season tools read this league's live Sleeper settings. ${DRAFT_ONLY}`
+      :"Draft board, weekly/start-sit, waiver research and in-season trade scenarios use this league. Pre-draft trade values remain Gabagool only. No password needed.";
     panel.append(note);
     // The connect page already IS "Find my Sleeper leagues" -- a link back to
     // itself from its own league panel would be a dead, redundant nav entry.
     if (!/\/connect\.html$/.test(location.pathname)) {
       const connect=document.createElement("a");
       const connectUrl=new URL("connect.html", location.href);
-      connectUrl.searchParams.set("league", slug);
+      connectUrl.searchParams.set("league", current);
       connect.href=connectUrl.href; connect.textContent="Find my Sleeper leagues";
       panel.append(connect);
     }
@@ -332,26 +462,67 @@
     else document.body?.append(panel);
   }
 
+  // A draft-side page given an unregistered league id: say so by name and
+  // offer THIS league's in-season pages -- never another league's board.
+  function mountDraftBoundary(leagueId) {
+    if (!document.createElement || document.getElementById("draft-boundary")) return;
+    const panel = document.createElement("section");
+    const note = document.createElement("p");
+    const list = document.createElement("ul");
+    panel.id = "draft-boundary";
+    panel.className = "league-links";
+    note.textContent = DRAFT_ONLY;
+    panel.append(note);
+    for (const [page, name] of [["weekly.html", "Weekly / start-sit"], ["waivers.html", "Waiver research"], ["trade.html", "In-season trade scenarios"]]) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      const url = new URL(page, location.href);
+      url.searchParams.set("league", leagueId);
+      link.href = url.href;
+      link.textContent = name;
+      item.append(link);
+      list.append(item);
+    }
+    panel.append(list);
+    const main = document.querySelector("main");
+    if (main?.prepend) main.prepend(panel);
+    else document.body?.append(panel);
+  }
+
   function leagueNavigation() {
     // Keep the choice in each tab's URL, including the trip back from another
     // page. A shared stored preference would let one league change the other.
-    const slug = new URLSearchParams(location.search).get("league") || "gabagool";
-    if (!LEAGUE_SLUGS.includes(slug)) {
-      mountInvalidLeagueRecovery(slug);
-      throw new Error(`Unknown league "${slug}". Choose gabagool, fam or espnfam.`);
+    const p = leagueParam();
+    if (p.invalid) {
+      mountInvalidLeagueRecovery(p.raw);
+      throw new Error(`Unknown league "${p.raw}". Choose gabagool, fam or espnfam.`);
     }
+    const here = pageOf(location.href);
+    // The draft board exists only for registered leagues (spec 5.4).
+    if (p.slug === null && DRAFT_HOME.has(here)) {
+      mountDraftBoundary(p.leagueId);
+      throw new Error(DRAFT_ONLY);
+    }
+    // Between in-season pages the canonical parameter is the league id: on
+    // an in-season page, or wherever the URL already names the league by id.
+    // Draft and neutral destinations keep the registry slug when there is one.
+    const idContext = p.leagueId !== null && (p.isId || IN_SEASON_HOME.has(here));
+    const slug = p.slug;
     // Suffixes are stripped before recompute so a second call against the
     // SAME <a> elements (repeated init) stays deterministic instead of
     // stacking " · not connected · not connected". " · Gabagool only" is the
     // retired trade label, still stripped so stale markup cannot keep it.
     const SUFFIXES = [" · Gabagool only", " · not connected"];
-    const entry = registryFor(slug);
+    const tools = p.entry ? p.entry.tools : ID_TOOLS;
     document.querySelectorAll(".masthead nav a").forEach(link => {
       const url = new URL(link.getAttribute("href"), location.href);
+      const dest = url.pathname.split("/").pop();
       // The URL keeps THIS tab's league -- clicking trade or an ESPN
       // weekly/waivers link must never silently switch you to another
       // league just because that's the only one the destination supports.
-      url.searchParams.set("league", slug);
+      // An unregistered id keeps its id even toward the draft board, which
+      // then refuses it by name.
+      url.searchParams.set("league", IN_SEASON_DEST.has(dest) && idContext ? p.leagueId : slug !== null ? slug : p.leagueId);
       link.href = url.href;
       let label = link.textContent;
       for (const suf of SUFFIXES) if (label.endsWith(suf)) label = label.slice(0, -suf.length);
@@ -360,11 +531,13 @@
       // none). The href above still points at THIS league, so the label says
       // the tool is not connected rather than implying a click will switch
       // leagues.
-      const tool = TOOL_FOR_PAGE[url.pathname.split("/").pop()];
-      if (tool && !entry.tools[tool]) label += " · not connected";
+      const tool = TOOL_FOR_PAGE[dest];
+      if (tool && !tools[tool]) label += " · not connected";
       link.textContent = label;
     });
-    mountLeagueContext(slug);
+    mountLeagueContext(slug !== null ? slug : p.leagueId);
+    // The registry slug for a registered league (a registered id included),
+    // null for any other Sleeper league.
     return slug;
   }
 
@@ -514,7 +687,7 @@
 
   return { POS_CLASS, REGISTRY, registryFor, loadJSON, leagueDataPath, leagueNavigation, stampHeader, staleBanner,
            fmt, makeSortable, posFilter, esc, scoringFilter, LENS_LABEL,
-           setBoard, mountLeagueContext,
+           setBoard, setLeague, inSeasonLeague, mountLeagueContext, mountDraftBoundary, DRAFT_ONLY,
            chip: { refresh: chipRefresh, onRefresh, render: renderChip },
            _session: stub => { sessionOverride = stub || null; } };
 });

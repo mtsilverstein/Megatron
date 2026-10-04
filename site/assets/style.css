@@ -186,6 +186,9 @@ main #league-context > label { display: flex; flex-direction: row; align-items: 
   padding: .4rem .6rem; border-radius: 4px; font: 400 .9rem/1.3 "Source Sans 3", sans-serif; min-width: 11rem;
 }
 .session-notice, #session-who { font-size: .85rem; color: var(--chalk-dim); }
+.session-settings { font-size: .8rem; color: var(--chalk-dim); }
+.session-settings:empty { display: none; }
+.session-controls label { display: flex; align-items: center; gap: .4rem; font-size: .85rem; color: var(--chalk-dim); }
 #session-who { color: var(--chalk); }
 @media (max-width: 560px) {
   /* One compact row: league select · the chip line; details wrap below. */

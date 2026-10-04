@@ -171,7 +171,62 @@ async function realTick(panel) {
   assert.match(byId(panel, "session-text").textContent, /^Max973 · Gabagool Fools · your roster: 9 · rosters [3-9] s ago$/);
   assert.ok(byId(panel, "session-refresh") && byId(panel, "session-forget") && !byId(panel, "session-user"));
 
+  // 8. An in-season page by Sleeper id (any-league spec 5.1, 5.2), real
+  //    Session: anonymous load at once, choose a team to VIEW, then identify
+  //    as the owner of a DIFFERENT team -- the owner's roster wins and the
+  //    viewed choice is dropped. Refresh re-reads the league's settings.
   FC.setBoard(null);
-  console.log("chip_session_fixture: real chip + real Session (mount, identify, tick, change, forget) OK");
+  Session._storage(store);                             // a fresh document: anonymous again
+  m.clear();
+  const X = "700000000000000001";
+  Object.assign(routes, {
+    [`/league/${X}`]: { league_id: X, name: "Synthetic Six", season: "2026", status: "in_season", scoring_settings: { rec: 0.5 } },
+    [`/league/${X}/users`]: [{ user_id: "s1", display_name: "Alpha", metadata: { team_name: "Alpha Squad" } }, { user_id: "s2", display_name: "Beta" }, { user_id: "s3", display_name: "Gamma" }],
+    [`/league/${X}/rosters`]: [{ roster_id: 1, owner_id: "s1", players: ["p1"] }, { roster_id: 2, owner_id: "s2", players: ["p2"] }, { roster_id: 3, owner_id: "s3", players: ["p3"] }],
+    "/user/gamma": { user_id: "s3", username: "gamma", display_name: "Gamma" },
+  });
+  const idMain = dom(`https://example.test/Megatron/weekly.html?league=${X}`);
+  FC.mountLeagueContext(X);
+  const idPanel = idMain.children[0];
+  calls.length = 0;
+  FC.setLeague(X);
+  await until(() => Session.state() === "ready", "the anonymous league load by id");
+  assert.deepEqual(calls.slice().sort(), [`/league/${X}`, `/league/${X}/users`, `/league/${X}/rosters`, "/state/nfl"].sort(),
+    "identity is optional: the league loads without one");
+  const v0 = Session.bundle();
+  assert.equal(v0.registry.leagueId, X); assert.equal(v0.registry.slug, null); assert.equal(v0.identity, null);
+  assert.equal(byId(idPanel, "session-text").textContent, REMEMBERED);
+  assert.equal(byId(idPanel, "session-settings").textContent, Session.settingsText(v0));
+  const picker = byId(idPanel, "session-team");
+  assert.deepEqual(picker.children.map(o => o.textContent), ["Choose a team", "Alpha Squad", "Beta", "Gamma"]);
+  picker.value = "2"; picker.dispatch("change");
+  assert.equal(Session.bundle().analysisRole, "viewer");
+  assert.equal(Session.bundle().myRoster, null);
+  assert.match(byId(idPanel, "session-text").textContent, /^Viewing Beta · rosters [0-2] s ago$/);
+  // Identify as the owner of roster 3 through the chip's own form.
+  byId(idPanel, "session-user").value = "gamma";
+  all(idPanel).find(n => n.tagName === "form").dispatch("submit");
+  await until(() => Session.state() === "ready" && Session.bundle().myRoster, "identify as the owner");
+  const o = Session.bundle();
+  assert.equal(o.analysisRoster.roster_id, 3);
+  assert.equal(o.analysisRole, "owner");
+  assert.equal(o.viewedRosterId, null, "the viewed choice is dropped, not merged");
+  assert.match(byId(idPanel, "session-text").textContent, /^Gamma · Synthetic Six · your roster: 3 · rosters [0-3] s ago$/);
+  assert.ok(!byId(idPanel, "session-team"), "an owner is not offered other teams");
+  assert.ok(!calls.slice(4).some(c => c.startsWith("/league/")), "identify never refetches the league");
+  // The chip's refresh re-reads /league/<id>; changed settings land in a new bundle.
+  routes[`/league/${X}`] = { ...routes[`/league/${X}`], scoring_settings: { rec: 1 } };
+  await pause(5);
+  calls.length = 0;
+  byId(idPanel, "session-refresh").dispatch("click");
+  await until(() => Session.bundle() !== o && Session.state() === "ready", "the refresh to commit");
+  assert.ok(calls.includes(`/league/${X}`), "refresh always re-reads the league object");
+  assert.deepEqual(Session.bundle().league.scoring_settings, { rec: 1 });
+  assert.ok(Session.bundle().leagueFetchedAt > o.leagueFetchedAt);
+  assert.equal(byId(idPanel, "session-settings").textContent, Session.settingsText(Session.bundle()));
+  FC.setLeague(null);
+
+  FC.setBoard(null);
+  console.log("chip_session_fixture: real chip + real Session (mount, identify, tick, change, forget; by-id viewer then owner) OK");
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

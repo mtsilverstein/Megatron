@@ -159,6 +159,98 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
     "repeated init must keep preserving the URL's league context");
 }
 
+// League selection by Sleeper id (any-league spec 5.1, 5.4). Between in-season
+// pages the canonical parameter is the league id; a draft destination gets
+// the registry slug for a registered id and otherwise keeps the id, where the
+// draft page refuses it by name -- never a substituted league. ESPN keeps its
+// registry route.
+{
+  const GAB = "1376245373244301312", FAMID = "1389736745205002240", X = "700000000000000001";
+  const DRAFT_ONLY = "The draft board is only built for registered leagues.";
+  const params = p => Object.fromEntries(p.links.map(l => {
+    const u = new URL(l.href);
+    return [u.pathname.split("/").pop(), u.searchParams.get("league")];
+  }));
+  const famIn = { "index.html": "fam", "trade.html": FAMID, "weekly.html": FAMID, "about.html": "fam", "waivers.html": FAMID };
+
+  // An in-season page reached by its legacy slug writes the id into in-season links.
+  const wf = page(`${base}weekly.html?league=fam`);
+  assert.strictEqual(wf.slug, "fam", "a registered league still returns its slug");
+  assert.deepStrictEqual(params(wf), famIn);
+  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: FAMID, legacySlug: "fam" });
+  // The same league by id: same links, same legacy data paths.
+  const wi = page(`${base}waivers.html?league=${FAMID}`);
+  assert.strictEqual(wi.slug, "fam");
+  assert.deepStrictEqual(params(wi), famIn);
+  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: FAMID, legacySlug: "fam" });
+  assert.strictEqual(FC.leagueDataPath("weekly"), "data/weekly-fam.json");
+  assert.strictEqual(FC.leagueDataPath("draft"), "data/draft-fam.json");
+  // Trade reached by id stays in the id world; the draft page by a registered id maps to its slug.
+  assert.deepStrictEqual(params(page(`${base}trade.html?league=${FAMID}`)), famIn);
+  const di = page(`${base}index.html?league=${FAMID}`);
+  assert.strictEqual(di.slug, "fam", "a registered id on a draft page is that league's board");
+  assert.strictEqual(params(di)["index.html"], "fam");
+  // Gabagool: no parameter and the slug both name Gabagool's id.
+  page(`${base}weekly.html`);
+  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: GAB, legacySlug: "gabagool" });
+  assert.strictEqual(params(page(`${base}weekly.html?league=gabagool`))["waivers.html"], GAB);
+
+  // An unregistered id on an in-season page: the id goes everywhere (the draft
+  // link included -- the draft page refuses it), no "not connected" labels.
+  const wx = page(`${base}weekly.html?league=${X}`);
+  assert.strictEqual(wx.slug, null, "an unregistered league has no slug");
+  assert.deepStrictEqual(params(wx), { "index.html": X, "trade.html": X, "weekly.html": X, "about.html": X, "waivers.html": X });
+  assert.deepStrictEqual(wx.links.map(l => l.textContent), ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"]);
+  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: X, legacySlug: null });
+  assert.throws(() => FC.leagueDataPath("draft"), { message: DRAFT_ONLY });
+  assert.throws(() => FC.leagueDataPath("weekly"), /Unknown league/);
+  // Neutral pages accept it too.
+  assert.strictEqual(page(`${base}about.html?league=${X}`).slug, null);
+  // The draft board's league link from a draft page with a slug is unchanged (slug everywhere).
+  assert.deepStrictEqual(params(page(`${base}index.html?league=fam`)),
+    { "index.html": "fam", "trade.html": "fam", "weekly.html": "fam", "about.html": "fam", "waivers.html": "fam" });
+
+  // ESPN keeps its registry route, and has no in-season Sleeper league.
+  const we = page(`${base}weekly.html?league=espnfam`);
+  assert.deepStrictEqual(Object.values(params(we)), ["espnfam", "espnfam", "espnfam", "espnfam", "espnfam"]);
+  assert.strictEqual(we.links[2].textContent, "Weekly · not connected");
+  assert.throws(() => FC.inSeasonLeague(), /ESPN/);
+  global.location = new URL(`${base}weekly.html?league=nope`);
+  assert.throws(() => FC.inSeasonLeague(), /Unknown league/);
+}
+
+// A draft page given an unregistered id refuses by name and loads nothing.
+{
+  function element(tagName) {
+    return {
+      tagName, children: [], textContent: "", className: "", id: "", href: "",
+      append(...nodes) { this.children.push(...nodes); },
+      prepend(...nodes) { this.children.unshift(...nodes); },
+    };
+  }
+  const all = node => [node, ...node.children.flatMap(all)];
+  const main = element("main");
+  const X = "700000000000000001";
+  global.location = new URL(`${base}index.html?league=${X}`);
+  global.document = {
+    createElement: element,
+    querySelector(selector) { return selector === "main" ? main : null; },
+    querySelectorAll() { return []; },
+    getElementById(id) { return all(main).find(n => n.id === id) || null; },
+  };
+  assert.throws(() => FC.leagueNavigation(), { message: "The draft board is only built for registered leagues." });
+  assert.strictEqual(main.children.length, 1);
+  const panel = main.children[0];
+  assert.strictEqual(panel.id, "draft-boundary");
+  assert.ok(all(panel).some(n => n.textContent === "The draft board is only built for registered leagues."));
+  const hrefs = all(panel).filter(n => n.tagName === "a").map(a => a.href);
+  assert.deepStrictEqual(hrefs, [`${base}weekly.html?league=${X}`, `${base}waivers.html?league=${X}`, `${base}trade.html?league=${X}`],
+    "the way forward is this league's in-season pages, never another league's board");
+  assert.ok(!all(main).some(n => n.id === "league-context"), "no league panel (and no chip) for a board that does not exist");
+  assert.throws(() => FC.leagueNavigation(), /only built for registered leagues/);
+  assert.strictEqual(main.children.length, 1, "repeated init must not duplicate the panel");
+}
+
 // One identity input for the whole site (spec §6/§8): the chip's #session-user
 // and the connect page's #connect-user are the only username inputs left.
 // Every retired per-page input id must be gone from the static site, or a
@@ -222,14 +314,14 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
       pendingUsername: () => null, migrateLegacy: () => null,
       isSuperseded: e => !!(e && e.superseded),
       onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-      chipText: Session.chipText,
+      chipText: Session.chipText, teamName: Session.teamName, settingsText: Session.settingsText,
       set(next) { ({ st = st, err = err, id = id, bundle = bundle } = next); fire(); },
       identify(name) {
         S.calls.push(["identify", name]);
         const e = new Error("Superseded by a newer request."); e.superseded = true;
         return Promise.reject(e);
       },
-      ready(opts) { S.calls.push(["ready", opts.slug]); return Promise.resolve(bundle); },
+      ready(opts) { S.calls.push(["ready", opts.leagueId !== undefined ? { leagueId: opts.leagueId } : opts.slug]); return Promise.resolve(bundle); },
       refresh(opts) { S.calls.push(["refresh", opts && opts.scope, typeof (opts && opts.also) === "function"]); return Promise.resolve(bundle); },
       // Like the real module, forget() re-derives the committed bundle for
       // "no account" (identity null, no roster) and keeps its timestamps.
@@ -382,6 +474,73 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
     assert.ok(byId(m.children[0], "session-chip"), `${pageName}: chip present in #league-context`);
   }
 
+  // In-season pages by Sleeper id (any-league spec 5.1): FC.setLeague loads
+  // the league at once -- identity optional -- and a non-owner chooses a team
+  // to VIEW from the league's own team names.
+  const X = "700000000000000001";
+  const V = stubSession(); FC._session(V);
+  V.view = rosterId => {
+    V.calls.push(["view", rosterId]);
+    const b = V.bundle();
+    const hit = rosterId === null ? null : b.rosters.find(r => String(r.roster_id) === String(rosterId));
+    V.set({ bundle: { ...b, viewedRosterId: hit ? hit.roster_id : null, analysisRoster: hit, analysisRole: hit ? "viewer" : null } });
+    return V.bundle();
+  };
+  const idMain = dom(`${base}weekly.html?league=${X}`);
+  FC.mountLeagueContext(X);
+  const idPanel = idMain.children[0];
+  const leagueSelect = all(idPanel).find(n => n.tagName === "select" && n.attrs["aria-label"] === "Selected league");
+  assert.strictEqual(leagueSelect.value, X, "the panel's league select names this league by id");
+  assert.ok(leagueSelect.children.some(o => o.value === X && o.textContent === `Sleeper league ${X}`));
+  assert.ok(idPanel.children.some(n => n.textContent === "In-season tools read this league's live Sleeper settings. The draft board is only built for registered leagues."));
+  FC.setLeague(X);
+  const usersX = [{ user_id: "s1", display_name: "Alpha", metadata: { team_name: "Alpha Squad" } }, { user_id: "s2", display_name: "Beta" }, { user_id: "s3", display_name: "Gamma", metadata: { team_name: "Gamma Rays" } }];
+  const rostersX = [{ roster_id: 1, owner_id: "s1" }, { roster_id: 2, owner_id: "s2" }, { roster_id: 3, owner_id: "s3" }];
+  const fetchedAt = Date.now() - 2000;
+  const vb = {
+    registry: { slug: null, platform: "sleeper", leagueId: X, tools: { startsit: true, waivers: true, trade: true } },
+    identity: null, league: { name: "Synthetic Six", league_id: X }, users: usersX, rosters: rostersX, state: {},
+    leagueFetchedAt: fetchedAt, rostersRequestedAt: fetchedAt - 5, rostersFetchedAt: fetchedAt,
+    myRoster: null, myRosterStatus: "anonymous", viewedRosterId: null, analysisRoster: null, analysisRole: null,
+    warnings: [], extra: null, generation: 1,
+  };
+  V.set({ st: "ready", bundle: vb });
+  const teamSel = byId(idPanel, "session-team");
+  assert.ok(teamSel, "an anonymous viewer is offered the league's teams");
+  assert.deepStrictEqual(teamSel.children.map(o => [o.value, o.textContent]),
+    [["", "Choose a team"], ["1", "Alpha Squad"], ["2", "Beta"], ["3", "Gamma Rays"]]);
+  assert.strictEqual(teamSel.value, "");
+  assert.ok(byId(idPanel, "session-user"), "identity stays optional: the username form is still offered");
+  assert.ok(byId(idPanel, "session-refresh"), "an anonymous viewer can refresh the league");
+  assert.strictEqual(byId(idPanel, "session-settings").textContent, Session.settingsText(vb));
+  assert.match(byId(idPanel, "session-settings").textContent, /^League settings read \S/);
+  teamSel.value = "2";
+  teamSel.dispatch("change");
+  assert.deepStrictEqual(V.calls.filter(c => c[0] === "view"), [["view", "2"]]);
+  assert.match(byId(idPanel, "session-text").textContent, /^Viewing Beta · rosters [23] s ago$/);
+  assert.strictEqual(byId(idPanel, "session-team").value, "2", "the picker shows the viewed team");
+  // The ticker must not rebuild the picker (focus / open dropdown survive).
+  const pickerNode = byId(idPanel, "session-team");
+  FC.chip.render();
+  assert.strictEqual(byId(idPanel, "session-team"), pickerNode);
+  // Identified as the owner of roster 3: the owner line, no picker.
+  const gamma = { username: "gamma", userId: "s3", displayName: "Gamma" };
+  V.set({ id: gamma, bundle: { ...vb, identity: gamma, myRoster: rostersX[2], myRosterStatus: "found", analysisRoster: rostersX[2], analysisRole: "owner" } });
+  assert.match(byId(idPanel, "session-text").textContent, /^Gamma · Synthetic Six · your roster: 3 · rosters [23] s ago$/);
+  assert.ok(!byId(idPanel, "session-team"), "an owner is not offered other teams");
+  assert.ok(byId(idPanel, "session-refresh") && byId(idPanel, "session-forget"));
+  // Identified but not in this league: still a viewer's picker.
+  const out = { username: "outsider", userId: "s9", displayName: "Outsider" };
+  V.set({ id: out, bundle: { ...vb, identity: out, myRosterStatus: "none" } });
+  assert.ok(byId(idPanel, "session-team"), "a non-owner can choose a team to view");
+  assert.strictEqual(byId(idPanel, "session-text").textContent, "Could not uniquely match this account to a roster in this league.");
+  // A failed league load (no bundle): retry re-runs ready by id, identity or not.
+  V.set({ st: "error", err: `Sleeper has no league with id ${X}.`, id: null, bundle: null });
+  assert.strictEqual(byId(idPanel, "session-text").textContent, `Sleeper has no league with id ${X}.`);
+  byId(idPanel, "session-retry").dispatch("click");
+  const idCalls = V.calls;
+  FC.setLeague(null);
+
   setTimeout(() => {
     // Async settlements: the superseded identify rejection left the anonymous
     // chip untouched (no error text, input still offered) and the identified
@@ -391,6 +550,8 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
     assert.ok(byId(anonPanel, "session-user"));
     assert.deepStrictEqual(R.calls, [["refresh", "rosters", false], ["refresh", "league", true], ["refresh", "rosters", false], ["forget"], ["ready", "gabagool"]], "identified + board loads the league once");
     assert.strictEqual(E.calls.length, 0, "ESPN never calls ready()");
+    assert.deepStrictEqual(idCalls.filter(c => c[0] === "ready"), [["ready", { leagueId: X }], ["ready", { leagueId: X }]],
+      "setLeague loads by id without an identity, and retry re-runs that load");
     FC._session(null);
     console.log("navigation_fixture: league selection, return paths and identity chip OK");
   }, 0);
