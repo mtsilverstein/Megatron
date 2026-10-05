@@ -39,7 +39,9 @@ The live contracts were checked on 2026-09-07. Both leagues use full PPR,
 thrown. The YAML files in `configs/leagues/` record **every nonzero Sleeper
 scoring category**, including the leagues' different kicking and long-TD rules.
 The board displays its league and scoring; navigation preserves the choice
-per tab. Trade and Weekly remain explicitly Gabagool-only.
+per tab. The in-season pages (Weekly, FAAB & waivers, Trade) are not
+tied to these two leagues: they read any Sleeper league's own settings from the
+league-neutral data (see `docs/remaining-season-projections.md`).
 
 Before either draft, run this read-only check from the repository root:
 

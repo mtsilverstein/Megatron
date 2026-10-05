@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Fantasy football projections with a calibrated floor and ceiling, and a draft board that plays your roster out pick by pick.">
+<meta name="description" content="Fantasy football projections with a floor and ceiling band, how they were measured, and the scope of every measured result.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%3E%3Crect%20width%3D%2716%27%20height%3D%2716%27%20rx%3D%273%27%20fill%3D%27%231B2127%27%2F%3E%3Cpath%20d%3D%27M1%2013%20Q2.5%2013%203.2%209.4%20Q4.2%203.2%205.8%203.2%20Q7.4%203.2%208.8%207.4%20Q11%2012.1%2015%2012.7%20L15%2013%20Z%27%20fill%3D%27%23E8A33D%27%2F%3E%3Crect%20x%3D%271%27%20y%3D%2713%27%20width%3D%2714%27%20height%3D%271%27%20fill%3D%27%239AA3AB%27%2F%3E%3C%2Fsvg%3E">
 <title>How the model works — Megatron</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,6 +12,17 @@
 <style>
   /* Page-scoped: give OVERALL rows visual weight in the backtest tables. */
   #reports tr.overall { font-weight: 700; }
+  /* Scoped historical results (neutral/evaluation.json). */
+  .scoped-record { border-top: 1px solid var(--rule); padding: var(--s4) 0; max-width: 68ch; }
+  .scoped-record h3 { margin: 0 0 var(--s2); }
+  .scoped-tag { font: 600 .7rem/1.5 "Barlow Condensed", sans-serif; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--board); background: var(--chalk-dim);
+    border-radius: 3px; padding: 0 .4rem; margin-left: .5rem; vertical-align: middle; }
+  .scoped-record dl { margin: 0; }
+  .scoped-record dt { font: var(--t-micro); letter-spacing: .06em; text-transform: uppercase;
+    color: var(--chalk-dim); margin-top: var(--s3); }
+  .scoped-record dd { margin: .15rem 0 0; color: var(--chalk); overflow-wrap: anywhere; }
+  .scoped-record ul { margin: .15rem 0 0; padding-left: 1.2rem; }
 </style>
 </head>
 <body>
@@ -33,14 +44,14 @@
   <!-- The strongest evidence on the site leads the page. Both figures are
        drawn from data/about.json at load; nothing here is hardcoded. -->
   <section class="evidence" id="calibration" aria-labelledby="cal-h">
-    <h2 id="cal-h">The bands mean what they say</h2>
+    <h2 id="cal-h">Historical band coverage (2023&ndash;2025 held-out seasons)</h2>
     <p class="chart-lead" id="cal-lead"></p>
     <div class="chart" id="cal-chart"></div>
     <p class="chart-note" id="cal-note"></p>
   </section>
 
   <section class="evidence" id="bakeoff-chart" aria-labelledby="bo-h">
-    <h2 id="bo-h">Walk-forward bake-off</h2>
+    <h2 id="bo-h">Walk-forward bake-off (historical)</h2>
     <p class="chart-lead" id="bo-lead"></p>
     <div class="chart-legend" id="bo-legend"></div>
     <div class="chart" id="bo-chart"></div>
@@ -55,11 +66,17 @@
     <p>The headline model is a small quantile transformer (PyTorch) that reads each
     player's recent game log and the matchup, and predicts a <strong>floor (p10),
     median (p50) and ceiling (p90)</strong> for every stat. The range bands you see
-    on the weekly page start from those raw quantiles, then get calibrated
-    per position — widened or narrowed so measured coverage tracks the 0.80
-    target — before they reach the site. Season bands on the draft board build
-    on that calibrated weekly band through a season-long simulation (more on
-    that below); uncertainty is the product, not an afterthought. The
+    on the draft board and the weekly page start from those raw quantiles. In
+    the 2023&ndash;2025 bake-off the weekly bands were calibrated per position
+    &mdash; widened or narrowed so measured coverage tracks the 0.80 target
+    &mdash; and that measurement is reported under &ldquo;Historical band
+    coverage&rdquo; below, for the scoring and setup it was run with. It is
+    not a claim about any particular league&rsquo;s scoring: the in-season
+    pages score a league&rsquo;s own settings with sign-coherent component
+    bands, which are not calibrated coverage for custom scoring. Season bands
+    on the draft board build on the weekly band through a season-long
+    simulation (more on that below); uncertainty is the product, not an
+    afterthought. The
     deployed projections average three
     independently seeded training runs of that model (a small ensemble), and the
     bake-off table below scores exactly that ensemble. Classical baselines (a
@@ -75,16 +92,17 @@
     consensus and ADP. Across positions the board is ordered by VORP — value over
     replacement — which is what prices positional scarcity, so a tight end can sit
     above a receiver with a better raw consensus rank. The model earns its place with
-    calibrated floor/ceiling bands and that value curve — the parts ADP and ECR don't
-    give you.</p>
+    floor/ceiling bands (historical coverage is reported below, with its scope)
+    and that value curve — the parts ADP and ECR don't give you.</p>
     <p class="lim"><strong>Known limitations:</strong> undrafted rookies are not projected; drafted rookies get a draft-capital prior on the board (see Rookies below), and rookies enter weekly projections only once they have NFL games; players who changed teams keep their personal history with
     updated matchup context; retired players may appear until rosters are pruned;
     season projections seed every week from end-of-prior-season form, so a short
     late-season role spike (an injury fill-in) can be over-extrapolated across a
     full year while a star's slow finish under-ranks them — expect the board to
-    have loud recency opinions; weekly bands are calibrated per position so
-    roughly 80% of actual player-weeks land inside them, measured on
-    2023–2025 held-out seasons; season bands come from a Monte-Carlo
+    have loud recency opinions; in the historical bake-off the weekly bands were
+    calibrated per position so roughly 80% of actual player-weeks landed inside
+    them, measured on 2023–2025 held-out seasons under the bake-off&rsquo;s PPR
+    setup (not a measurement of any league&rsquo;s own scoring); season bands come from a Monte-Carlo
     simulation — games played sampled from historical position availability,
     weeks linked by a measured week-to-week correlation — and measured
     <span id="season-cov-prose">season coverage is measured per position
@@ -92,8 +110,11 @@
     rounding up; snap-count data has no 2012 source and is treated as missing
     for that season. These are design choices, documented, not surprises.</p>
   </div>
-  <h2>Weekly ranking</h2>
+  <h2>Weekly ranking (historical)</h2>
   <div class="prose">
+  <p class="lim">Historical results: measured on past seasons by the
+  diagnostics named below, not a claim about the current output or about any
+  league&rsquo;s own scoring.</p>
   <p>Season-long draft ranking loses to expert consensus, as stated above.
   Weekly ranking is measured separately, and overall it's close: across all
   four positions on <strong>2023&ndash;2025</strong>, the model's weekly
@@ -142,14 +163,12 @@
   </div>
   <h2>Trade and waiver simulation</h2>
   <div class="prose">
-  <p>We built a season simulation to grade trades and tested it walk-forward
-  on 2023&ndash;2025, with the pass/fail rules fixed in advance. It picks
-  trade winners slightly better than today's method, but its ranges are too
-  narrow (80% intervals covered only 65&ndash;67% of outcomes), so the trade
-  grade stays off. Its waiver drop choices beat today's method in one
-  league format but not when we repeated the test in a second, so the
-  waiver desk keeps today's method. A second version will be tested on
-  2026.</p>
+  <p id="simulation-note">Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.</p>
+  <p class="lim">Historical context, scoped: the walk-forward test on
+  2023&ndash;2025 used two simulated-draft formats (Gabagool Fools and FAM
+  FOOTBALL) only. Its 80% intervals covered 65&ndash;67% of outcomes in those
+  formats, and its waiver drop choices beat the existing method in one format
+  but not in the second. Nothing here is a measurement of your league.</p>
   </div>
   <h2>Rookies</h2>
   <div class="prose">
@@ -168,9 +187,20 @@
   all. The walk-forward rookie backtest behind this lives in
   models/diagnostics/.</p>
   </div>
-  <h2>Backtest results</h2>
-  <p class="prose lim">Walk-forward mean absolute error in PPR points per
-  player-week, by position. Lower is better. Quantile columns appear for models
+  <h2 id="scoped-h">Measured results and their scope</h2>
+  <div class="prose">
+  <p class="lim">Every figure in this section is <strong>historical</strong>:
+  it was measured on past seasons under the scoring and method named in its
+  record, and it is not a claim about any current league&rsquo;s projections.
+  A result applies to today&rsquo;s output only when your league&rsquo;s scoring
+  and the current model and band construction match the record exactly;
+  otherwise the pages say &ldquo;No measured evaluation for your league&rsquo;s
+  scoring and this model.&rdquo;</p>
+  </div>
+  <div id="scoped-results" aria-live="polite"><p class="chart-none">Loading scoped results&hellip;</p></div>
+  <h2>Backtest results (historical)</h2>
+  <p class="prose lim">Historical walk-forward mean absolute error in PPR points per
+  player-week, by position, from the 2023&ndash;2025 bake-off. Lower is better. Quantile columns appear for models
   that predict bands; coverage is the share of outcomes that landed inside the
   p10–p90 band (ideal: 0.80).</p>
   <div id="reports"></div>
@@ -461,9 +491,10 @@ window.AboutCharts = (() => {
       const worst = cal.reduce((a, b) =>
         Math.abs(b.coverage_p10_p90 - TARGET) > Math.abs(a.coverage_p10_p90 - TARGET) ? b : a);
       lead(calLead,
-        `The transformer predicts a p10 floor and a p90 ceiling, so the honest ` +
-        `test is whether reality lands inside them. On ${cal.length} held-out ` +
-        `season${cal.length === 1 ? "" : "s"} it never touched, the band caught `,
+        `Historical result (bake-off, PPR setup; not a measurement of any league's ` +
+        `own scoring). The transformer predicts a p10 floor and a p90 ceiling, so ` +
+        `the honest test is whether reality lands inside them. On ${cal.length} ` +
+        `held-out season${cal.length === 1 ? "" : "s"} it never touched, the band caught `,
         `${(Math.min(...vs) * 100).toFixed(1)}–${(Math.max(...vs) * 100).toFixed(1)}%`,
         ` of actual player-weeks against an ${(TARGET * 100).toFixed(0)}% target.`);
       renderCalibration(cal, calHost);
@@ -538,8 +569,171 @@ window.AboutCharts = (() => {
 })();
 </script>
 <script>
+/* Scoped historical results from data/neutral/evaluation.json (kind
+   "neutral_evaluation"). Renders whatever records the batch published, each
+   labelled historical with its own scope. Nothing here is hardcoded per
+   record and nothing is interpolated into markup: textContent only. */
+window.AboutScoped = (() => {
+  const LABELS = {
+    rest_of_season_points_mae: "Rest-of-season points: model vs four-game-mean baseline (MAE)",
+    close_start_sit_choice_accuracy: "Close start/sit calls: choice accuracy"
+  };
+  const el = (tag, text, cls) => {
+    const n = document.createElement(tag);
+    if (text != null) n.textContent = text;
+    if (cls) n.className = cls;
+    return n;
+  };
+  const num = (v, d) => typeof v === "number" ? v.toFixed(d) : "—";
+  const cnt = v => v == null ? "—" : String(v);
+
+  // Any JSON value as readable text / a nested list; never markup.
+  function describe(v) {
+    if (v == null) return el("span", "not recorded");
+    if (typeof v !== "object") {
+      const str = String(v);
+      return el("span", /^[a-z0-9]+(_[a-z0-9]+)+$/.test(str) ? str.replaceAll("_", " ") : str);
+    }
+    if (Array.isArray(v) && v.every(x => x == null || typeof x !== "object"))
+      return el("span", v.join(", "));
+    const ul = el("ul");
+    const entries = Array.isArray(v) ? v.map(x => [null, x]) : Object.entries(v);
+    for (const [k, x] of entries) {
+      const li = el("li");
+      if (k != null) li.append(el("span", String(k).replaceAll("_", " ") + ": "));
+      li.append(describe(x));
+      ul.append(li);
+    }
+    return ul;
+  }
+
+  function hasPickSixPrior(identity) {
+    return typeof identity === "string" && identity.includes("passing_pick_sixes");
+  }
+
+  function scoringLines(r) {
+    const same = r.prediction_scoring === r.effective_scoring;
+    const pickSixOmitted = (r.omitted || []).some(o => o.key === "pass_int_td");
+    const lines = [];
+    if (same) {
+      lines.push("Forecasts and realized outcomes were scored with the same weights.");
+      if (pickSixOmitted) lines.push("Pick-six penalties excluded from both forecasts and outcomes.");
+    } else {
+      lines.push("Forecasts and realized outcomes were scored with different weights.");
+      lines.push(hasPickSixPrior(r.prediction_scoring)
+        ? "Forecast scoring includes an average-rate pick-six prior."
+        : "Forecast scoring omits pick-six penalties.");
+      if (pickSixOmitted) lines.push("Pick-six penalties excluded from outcomes.");
+    }
+    return lines;
+  }
+
+  function table(cols, rows) {
+    const wrap = el("div", null, "table-wrap");
+    const t = el("table");
+    const head = el("tr");
+    cols.forEach(c => head.append(el("th", c)));
+    const thead = el("thead");
+    thead.append(head);
+    const body = el("tbody");
+    rows.forEach(cells => {
+      const tr = el("tr");
+      cells.forEach(([text, isNum]) => tr.append(el("td", text, isNum ? "num" : null)));
+      body.append(tr);
+    });
+    t.append(thead, body);
+    wrap.append(t);
+    return wrap;
+  }
+
+  function valuesBlock(r) {
+    const v = r.values;
+    if (r.metric === "rest_of_season_points_mae" && Array.isArray(v)) {
+      return [
+        el("p", "Negative delta favors the model. Descriptive, not a significance test.", "report-meta"),
+        table(["weeks ahead", "position", "model MAE", "baseline MAE", "paired delta", "paired forecasts"],
+          v.map(x => [[cnt(x.horizon), true], [String(x.position)], [num(x.model_mae, 3), true],
+                      [num(x.baseline_mae, 3), true], [num(x.paired_mae_delta, 3), true],
+                      [cnt(x.paired_player_forecasts), true]]))
+      ];
+    }
+    if (r.metric === "close_start_sit_choice_accuracy" && v && v.overall) {
+      const rows = [["All positions", v.overall], ...Object.entries(v.by_position || {}), ["Week 1", v.week_1]]
+        .filter(([, x]) => x);
+      return [table(["group", "decided pairs", "choice accuracy", "mean regret (pts)"],
+        rows.map(([name, x]) => [[name], [cnt(x.decided_pairs), true],
+                                 [num(x.choice_accuracy, 4), true], [num(x.mean_regret_points, 3), true]]))];
+    }
+    return [el("p", "Values for this metric are in the source file named above.", "report-meta")];
+  }
+
+  function renderRecord(r) {
+    const sec = el("section", null, "scoped-record");
+    const h = el("h3", LABELS[r.metric] || String(r.metric || r.id));
+    h.append(el("span", "historical", "scoped-tag"));
+    sec.append(h);
+    const dl = el("dl");
+    const add = (term, ...nodes) => {
+      dl.append(el("dt", term));
+      const dd = el("dd");
+      dd.append(...nodes);
+      dl.append(dd);
+    };
+    const sl = r.source_settings || {};
+    add("Source league", el("span", (sl.league ? String(sl.league) : "not recorded") +
+      " (provenance only; not matched to any other league)"));
+    add("Scoring", ...scoringLines(r).map(t => el("p", t)));
+    const omitted = Array.isArray(r.omitted) ? r.omitted : [];
+    if (omitted.length) {
+      const ul = el("ul");
+      omitted.forEach(o => ul.append(el("li", `${o.key}: ${o.reason}`)));
+      add("Omitted components", ul);
+    } else {
+      add("Omitted components", el("span", "none recorded"));
+    }
+    add("Method", r.method == null
+      ? el("span", "method not recorded (so this result is never shown as a claim about today's output)")
+      : describe(r.method));
+    add("Population", describe(r.population));
+    add("Horizon", describe(r.horizon));
+    const src = r.source || {};
+    add("Source file", el("span", src.path ? String(src.path) : "not recorded"));
+    sec.append(dl, ...valuesBlock(r));
+    return sec;
+  }
+
+  function render(doc, host) {
+    host.replaceChildren();
+    const records = doc && Array.isArray(doc.records) ? doc.records : null;
+    if (!records) {
+      host.append(el("p", "The scoped results file has an unexpected shape, so no scoped results are shown.", "chart-none"));
+      return;
+    }
+    if (doc.batch_id)
+      host.append(el("p", `Historical results published with batch ${doc.batch_id} (data through ${doc.data_through || "unknown"}).`, "report-meta"));
+    if (!records.length) host.append(el("p", "No scoped results were published.", "chart-none"));
+    records.forEach(r => host.append(renderRecord(r)));
+    if (!records.some(r => /calibrat/i.test(String(r.id) + String(r.metric))))
+      host.append(el("p", "No band-calibration record is published. The ~80% coverage figure above comes from the 2023–2025 bake-off, which records its scoring only as the name “ppr”, so it is shown as a historical measurement and is never offered as a claim about any league's current output.", "chart-note"));
+  }
+
+  async function load(host) {
+    try {
+      render(await FC.loadJSON("data/neutral/evaluation.json"), host);
+    } catch (e) {
+      const absent = /HTTP 404/.test(String(e && e.message));
+      host.replaceChildren(el("p", absent
+        ? "The scoped results file (data/neutral/evaluation.json) is not published yet, so no scoped results are shown here."
+        : `The scoped results file could not be read (${e && e.message}), so no scoped results are shown here.`, "chart-none"));
+    }
+  }
+  return { render, load };
+})();
+</script>
+<script>
 (async () => {
   FC.leagueNavigation();
+  AboutScoped.load(document.getElementById("scoped-results"));
   const about = await FC.loadJSON("data/about.json");
   FC.stampHeader(about);
   AboutCharts.render(about);

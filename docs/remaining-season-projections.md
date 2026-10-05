@@ -322,3 +322,68 @@ Artifacts: the full result is committed compressed at
 `models/diagnostics/trade_sim_eval_fam_waiver.json.gz`. The slim file the site reads
 is `site/data/trade_sim_eval.json`; the per-origin forecast inputs are
 `models/backtests/origin_forecasts/forecasts_{2023,2024,2025}_o{5,9}.json`.
+
+## League-neutral data (phase 1)
+
+The in-season pages (start/sit, waivers, trade) score any Sleeper league's own
+settings in the browser from league-neutral projections. The pages make no
+simulation calls and publish no gate file. Design:
+`docs/superpowers/specs/2026-10-01-any-league-inseason-design.md`.
+
+Files, all under `site/data/neutral/` (each carries `schema_version`, `kind`,
+and the shared batch fields `season`, `week`, `data_through`, `generated_at`,
+`batch_id`):
+
+| File | kind | schema_version | Contents |
+| --- | --- | ---: | --- |
+| `weekly.json` | `neutral_weekly` | 1 | Current-week stat-line quantiles per player (no `league` lens) |
+| `remaining.json` | `neutral_remaining` | 2 | Per-week stat-line quantiles for NFL weeks `start_week`..17; empty with `status: "no_remaining_weeks"` when `start_week > 17` |
+| `players.json` | `neutral_players` | 1 | Scorable universe: Sleeper id crosswalk, position, team, ECR |
+| `formats.json` | `neutral_formats` | 1 | Format table the page matches a league's format against |
+| `evaluation.json` | `neutral_evaluation` | 1 | Scoped evidence records (below) |
+
+`batch_id` (`<generated_at>|<data_through>|w<week>`) is identical in every
+file of a batch and in `manifest.json` (kind `batch_manifest`); publish rejects a
+mixed set. Projections are raw stat lines; points are computed in the browser
+from the league's effective scoring, with unrounded comparisons and rounding at
+display only.
+
+Labels the pages show verbatim:
+
+- Horizon: `through NFL week 17, regardless of your league's schedule`.
+- Aggregation: `sum of weekly medians through NFL week 17, not a season median`
+  (rest-of-season values add weekly p50s; no season median is asserted).
+- Heuristic thresholds: `{n}-point threshold in your league's points (a heuristic)`.
+- Reference ranking: `PPR reference ranking` (ECR is a PPR ranking, never a
+  league-specific one).
+
+Scoped evidence. `evaluation.json` holds historical measurements, each record
+carrying its source league (provenance only), the weights applied to forecasts
+(`prediction_scoring`) and to realized outcomes (`effective_scoring`), every
+omitted component, the `method` (or `null` when the source does not record it),
+population and horizon. A number is a claim about today's output only when the
+league's effective scoring and the current method both match exactly; a `null`
+method never matches. Today's records: rest-of-season MAE (pick-sixes excluded
+from both sides) and close start/sit calls (forecast includes a pick-six prior,
+realized outcomes exclude it); both are Gabagool-sourced and method `null`, so
+they appear on the about page ("Measured results and their scope") as
+historical results only. There is no calibration record.
+
+Publication. `python -m ffmodel.site.batch` writes the whole batch (legacy and
+neutral files) into an empty stage directory in one process, manifest last;
+`python -m ffmodel.site.publish` validates it as a whole (schemas, ids, shared
+batch fields, size cap) and copies it into `site/data` only if every check
+passes. Both run from `.github/workflows/weekly-update.yml`, and the workflow
+commits once after publish: the commit is the boundary, so a failed stage or
+validation leaves the previously published batch untouched. The neutral batch
+has no fail-soft path.
+
+Coexistence and retirement (spec §10). While both exist, the legacy in-season
+files (`weekly-fam.json`, `remaining-gabagool.json`, `remaining-fam.json`) are
+part of the same transaction as the neutral batch, so a legacy remaining-season
+failure blocks the whole publication and the rollback set is always as fresh as
+the neutral one. Rollback is reverting the phase-1 code commits; data commits
+stay. Retirement of the legacy files (and of the `league` lens in the in-season
+weekly output only; the draft board's lens is unchanged) follows two distinct
+NFL weeks each with a complete transaction and the neutral pages verified, plus
+a passed rollback rehearsal. After retirement, rollback means a forward fix.
