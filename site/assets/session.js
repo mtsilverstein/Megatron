@@ -175,6 +175,12 @@
       return text;
     }
     const identity = bundle && bundle.identity;
+    // Anonymous on the id path with no team chosen: what to do next, not
+    // the storage sentence.
+    if (!identity && isIdEntry(bundle && bundle.registry) && bundle.league) {
+      const name = bundle.league.name || `League ${bundle.league.league_id}`;
+      return `${name} · choose a team to view, or enter your Sleeper username${stateName === "refreshing" ? " · refreshing…" : ""}`;
+    }
     if (!identity) return REMEMBERED;
     const name = identity.displayName || identity.username;
     if (!bundle.registry || bundle.registry.platform !== "sleeper") return `${name} · ${bundle.registry ? bundle.registry.label : "no league"}`;
@@ -465,8 +471,10 @@
       try {
         const parts = await fetchLeague(base.registry, get, scope, base);
         if (gen !== leagueGen) throw superseded();
-        if (String(parts.league.league_id) !== String(base.league.league_id)) throw new Error(ID_MISMATCH);
-        checkIdLeague(base.registry, parts);
+        // The id path names its own refusals; "does not match this board"
+        // is the registry (draft) path's message only.
+        if (isIdEntry(base.registry)) checkIdLeague(base.registry, parts);
+        else if (String(parts.league.league_id) !== String(base.league.league_id)) throw new Error(ID_MISMATCH);
         // The controller's extra fetch (e.g. the waiver desk's week
         // transactions) runs in THIS generation, BEFORE the commit: if it
         // rejects, nothing is committed and rostersFetchedAt does not move;

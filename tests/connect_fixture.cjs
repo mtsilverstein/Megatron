@@ -6,7 +6,7 @@
 const assert = require('node:assert/strict');
 global.window = {};
 const Session = require('../site/assets/session.js');
-const {discover, slugForLeague} = require('../site/assets/connect.js');
+const {discover, slugForLeague, parseLeagueInput} = require('../site/assets/connect.js');
 const {init} = window.LeagueConnect;
 
 const IDLE = 'Load leagues for this username.';
@@ -49,9 +49,11 @@ function collectAnchors(el, out = []) {
 }
 function mountPage() {
   const ids = {};
-  for (const id of ['connect-user', 'connect-status', 'connect-results', 'connect-form'])
+  for (const id of ['connect-user', 'connect-status', 'connect-results', 'connect-form', 'connect-league', 'connect-league-form', 'connect-league-status'])
     ids[id] = makeEl();
   ids['connect-user'].value = '';
+  ids['connect-league'].value = '';
+  ids['connect-league-status'].textContent = '';
   ids['connect-status'].textContent = 'Gabagool and FAM use the same account: Max973.';
   global.document = {getElementById: id => ids[id], createElement: () => makeEl()};
   return ids;
@@ -114,6 +116,40 @@ async function unregisteredLeaguesGetInSeasonLinks() {
     'index.html?league=gabagool', `weekly.html?league=${GABAGOOL}`, `waivers.html?league=${GABAGOOL}`, `trade.html?league=${GABAGOOL}`,
   ]);
   assert.match(ids['connect-status'].textContent, /^2 leagues for Max · 2026\./);
+}
+
+// Spec 5.1: without a username, a pasted league link or id loads the league
+// read-only. Bare digits or a sleeper.com URL containing /leagues/<digits>
+// opens weekly.html?league=<id>; anything else says so and goes nowhere.
+async function pastedLeagueLinkOpensTheLeagueWithoutIdentity() {
+  reset();
+  const ids = mountPage();
+  const navigated = [];
+  global.location = {assign: url => navigated.push(url)};
+  window.Sleeper = sleeperFor(() => { throw new Error('opening a pasted league must make no Sleeper call here'); });
+  init();
+  const X = '1376245373244301312';
+  const open = value => { ids['connect-league'].value = value; ids['connect-league-form']._listeners.submit({preventDefault() {}}); };
+  const MSG = 'Enter a Sleeper league id or a sleeper.com league link.';
+  open(` ${X} `);
+  open(`https://sleeper.com/leagues/${X}`);
+  open(`https://sleeper.com/leagues/${X}/team`);
+  open(`sleeper.com/leagues/700000000000000001/matchup?week=3`);
+  assert.deepEqual(navigated, [`weekly.html?league=${X}`, `weekly.html?league=${X}`, `weekly.html?league=${X}`, 'weekly.html?league=700000000000000001']);
+  assert.equal(ids['connect-league-status'].textContent, '', 'a good link leaves no error');
+  for (const bad of ['gabagool', '', '   ', 'https://example.com/leagues/123', 'https://sleeper.com/leagues/abc/team', '12a3', 'https://sleeper.com/users/123']) {
+    ids['connect-league-status'].textContent = '';
+    open(bad);
+    assert.equal(ids['connect-league-status'].textContent, MSG, `${JSON.stringify(bad)} must be refused`);
+  }
+  assert.equal(navigated.length, 4, 'an invalid entry never navigates');
+  assert.equal(Session.identity(), null, 'no identity was needed or created');
+  assert.equal(parseLeagueInput(X), X);
+  assert.equal(parseLeagueInput(`https://sleeper.com/leagues/${X}/team`), X);
+  assert.equal(parseLeagueInput('https://www.sleeper.com/leagues/42'), '42');
+  assert.equal(parseLeagueInput('https://evilsleeper.com/leagues/42'), null);
+  assert.equal(parseLeagueInput(null), null);
+  delete global.location;
 }
 
 async function forgetClearsRenderedResults(ids) {
@@ -237,6 +273,7 @@ async function identifiedSessionPrefillsTheForm() {
   await unknownUsernameSurfacesTheSessionError();
   await identifiedSessionPrefillsTheForm();
   await unregisteredLeaguesGetInSeasonLinks();
+  await pastedLeagueLinkOpensTheLeagueWithoutIdentity();
 
   // Configured-league detection comes from FC.REGISTRY, never a local map.
   assert.equal(slugForLeague(GABAGOOL), 'gabagool');

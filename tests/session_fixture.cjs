@@ -858,6 +858,12 @@ const sorted = a => a.slice().sort();
     r[`/league/${X}`] = null;
     await assert.rejects(Session.refresh(), { message: `Sleeper has no league with id ${X}.` });
     assert.equal(Session.bundle(), b2);
+    // Sleeper answering for another league: the id path's own message, never
+    // the draft board's "does not match this board".
+    r[`/league/${X}`] = { ...leagueX, league_id: "700000000000000777" };
+    await assert.rejects(Session.refresh(), { message: `Sleeper answered for league 700000000000000777, not ${X}.` });
+    assert.equal(Session.bundle(), b2);
+    await assert.rejects(Session.ready({ leagueId: X }), { message: `Sleeper answered for league 700000000000000777, not ${X}.` });
   });
 
   await check("26. view(): a viewer is never an owner; identify as an owner drops the viewed team", async () => {
@@ -882,6 +888,10 @@ const sorted = a => a.slice().sort();
     assert.equal(v.rostersFetchedAt, b1.rostersFetchedAt);
     assert.equal(b1.viewedRosterId, null, "the old bundle is untouched");
     assert.equal(Session.chipText(v, "ready", v.rostersFetchedAt + 3000), "Viewing Beta · rosters 3 s ago");
+    // Anonymous with no team chosen: a neutral line naming the league.
+    assert.equal(Session.chipText(b1, "ready", Date.now()), "Synthetic Six · choose a team to view, or enter your Sleeper username");
+    assert.equal(Session.chipText(b1, "refreshing", Date.now()), "Synthetic Six · choose a team to view, or enter your Sleeper username · refreshing…");
+    assert.equal(Session.chipText(b1, "anonymous", Date.now()), "Synthetic Six · choose a team to view, or enter your Sleeper username");
     // An unknown roster id is refused; nothing changes.
     assert.throws(() => Session.view(99), { message: "No team with roster id 99 in this league." });
     assert.equal(Session.bundle(), v);

@@ -21,16 +21,20 @@
 <main>
 <h1>Find my Sleeper leagues</h1>
 <p>Enter your public username to discover current-season leagues and inspect their settings. No password needed. Your public Sleeper identity (username, display name and account id) and the time it was stored are kept on this device until you choose forget in the league panel; opening one league does not switch another tab.</p>
+<h2>Open a league without a username</h2>
+<form id="connect-league-form"><label for="connect-league">Sleeper league id or link</label> <input id="connect-league" autocomplete="off" spellcheck="false" placeholder="https://sleeper.com/leagues/…"> <button type="submit">Open league</button></form>
+<p id="connect-league-status" role="status"></p>
+<h2>Find leagues by username</h2>
 <form id="connect-form"><label for="connect-user">Sleeper username</label> <input id="connect-user" required autocomplete="off" spellcheck="false"> <button type="submit">Find / refresh leagues</button></form>
 <p id="connect-status" role="status">Gabagool and FAM use the same account: Max973.</p>
 <div id="connect-results"></div>
 <h2>What is supported?</h2>
 <p>Every current-season Sleeper league opens in the weekly/start-sit, waiver and in-season trade pages by its league id; those pages read the league's live settings each time they load. The draft board is only built for registered leagues (Gabagool and FAM on Sleeper, plus the ESPN family board), and the pre-draft trade grader is Gabagool only. ESPN in-season tools are not connected.</p>
 </main>
-<script src="assets/session.js?v=3"></script>
-<script src="assets/app.js?v=league1"></script>
+<script src="assets/session.js?v=4"></script>
+<script src="assets/app.js?v=league2"></script>
 <script src="assets/sleeper.js"></script>
-<script src="assets/connect.js?v=5"></script>
+<script src="assets/connect.js?v=6"></script>
 <script>
 // Set up the shared masthead/league-context nav first so a bad ?league=
 // value fails safely into the discovery form instead of blocking it.

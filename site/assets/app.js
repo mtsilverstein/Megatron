@@ -498,15 +498,26 @@
       throw new Error(`Unknown league "${p.raw}". Choose gabagool, fam or espnfam.`);
     }
     const here = pageOf(location.href);
-    // The draft board exists only for registered leagues (spec 5.4).
-    if (p.slug === null && DRAFT_HOME.has(here)) {
-      mountDraftBoundary(p.leagueId);
-      throw new Error(DRAFT_ONLY);
-    }
     // Between in-season pages the canonical parameter is the league id: on
     // an in-season page, or wherever the URL already names the league by id.
     // Draft and neutral destinations keep the registry slug when there is one.
     const idContext = p.leagueId !== null && (p.isId || IN_SEASON_HOME.has(here));
+    const slug = p.slug;
+    // The masthead is rewritten FIRST, even on a page about to refuse: a
+    // bare href would resolve to the default league -- a substitution.
+    rewriteMasthead(p, idContext);
+    // The draft board exists only for registered leagues (spec 5.4).
+    if (slug === null && DRAFT_HOME.has(here)) {
+      mountDraftBoundary(p.leagueId);
+      throw new Error(DRAFT_ONLY);
+    }
+    mountLeagueContext(slug !== null ? slug : p.leagueId);
+    // The registry slug for a registered league (a registered id included),
+    // null for any other Sleeper league.
+    return slug;
+  }
+
+  function rewriteMasthead(p, idContext) {
     const slug = p.slug;
     // Suffixes are stripped before recompute so a second call against the
     // SAME <a> elements (repeated init) stays deterministic instead of
@@ -535,10 +546,6 @@
       if (tool && !tools[tool]) label += " · not connected";
       link.textContent = label;
     });
-    mountLeagueContext(slug !== null ? slug : p.leagueId);
-    // The registry slug for a registered league (a registered id included),
-    // null for any other Sleeper league.
-    return slug;
   }
 
   function stampHeader(payload) {

@@ -11,6 +11,20 @@
   // Every current-season league opens in the in-season pages BY ITS SLEEPER
   // ID (any-league spec 5.4); only a registered league also has a draft board,
   // linked by its registry slug.
+  const BAD_LEAGUE = "Enter a Sleeper league id or a sleeper.com league link.";
+  // Spec 5.1, anonymous path: bare digits, or a sleeper.com URL containing
+  // /leagues/<digits> (any trailing path or query), gives the league id;
+  // anything else is null. The host must be sleeper.com or a subdomain of it.
+  function parseLeagueInput(text) {
+    const t = String(text === null || text === undefined ? "" : text).trim();
+    if (/^\d+$/.test(t)) return t;
+    let url;
+    try { url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`); } catch (_) { return null; }
+    const host = url.hostname.toLowerCase();
+    if (host !== "sleeper.com" && !host.endsWith(".sleeper.com")) return null;
+    const m = /^\/leagues\/(\d+)(?:\/|$)/.exec(url.pathname);
+    return m ? m[1] : null;
+  }
   const IN_SEASON_LINKS = [["weekly", "Weekly / start-sit"], ["waivers", "Waiver research"], ["trade", "In-season trade scenarios"]];
 
   // Configured-league detection reads FC.REGISTRY, the single source of league
@@ -75,6 +89,15 @@
       else if (snapshot.state === "anonymous") writeUser("");
     });
     $("connect-user").addEventListener("input", () => { generation++; clearResults(); });
+    // Open any league read-only from a pasted link or id; no username needed.
+    const leagueForm = $("connect-league-form");
+    if (leagueForm) leagueForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const id = parseLeagueInput($("connect-league").value);
+      if (!id) { $("connect-league-status").textContent = BAD_LEAGUE; return; }
+      $("connect-league-status").textContent = "";
+      location.assign(`weekly.html?league=${id}`);
+    });
     $("connect-form").addEventListener("submit", async event => {
       event.preventDefault();
       const request = ++generation, username = $("connect-user").value.trim();
@@ -119,6 +142,6 @@
       }
     });
   }
-  if (typeof module !== "undefined" && module.exports) module.exports = {discover, slugForLeague};
-  if (typeof window !== "undefined") window.LeagueConnect = {discover, slugForLeague, init};
+  if (typeof module !== "undefined" && module.exports) module.exports = {discover, slugForLeague, parseLeagueInput};
+  if (typeof window !== "undefined") window.LeagueConnect = {discover, slugForLeague, parseLeagueInput, init};
 })();

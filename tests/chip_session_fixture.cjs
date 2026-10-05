@@ -195,7 +195,8 @@ async function realTick(panel) {
     "identity is optional: the league loads without one");
   const v0 = Session.bundle();
   assert.equal(v0.registry.leagueId, X); assert.equal(v0.registry.slug, null); assert.equal(v0.identity, null);
-  assert.equal(byId(idPanel, "session-text").textContent, REMEMBERED);
+  assert.equal(byId(idPanel, "session-text").textContent, "Synthetic Six · choose a team to view, or enter your Sleeper username",
+    "an anonymous visitor with a league loaded is told what to do, not about storage");
   assert.equal(byId(idPanel, "session-settings").textContent, Session.settingsText(v0));
   const picker = byId(idPanel, "session-team");
   assert.deepEqual(picker.children.map(o => o.textContent), ["Choose a team", "Alpha Squad", "Beta", "Gamma"]);

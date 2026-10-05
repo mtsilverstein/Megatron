@@ -232,13 +232,23 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
   const main = element("main");
   const X = "700000000000000001";
   global.location = new URL(`${base}index.html?league=${X}`);
+  const names = ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"];
+  const navLinks = ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"]
+    .map((path, i) => ({ href: path, textContent: names[i], getAttribute() { return this.href; } }));
   global.document = {
     createElement: element,
     querySelector(selector) { return selector === "main" ? main : null; },
-    querySelectorAll() { return []; },
+    querySelectorAll(selector) { return selector === ".masthead nav a" ? navLinks : []; },
     getElementById(id) { return all(main).find(n => n.id === id) || null; },
   };
   assert.throws(() => FC.leagueNavigation(), { message: "The draft board is only built for registered leagues." });
+  // The masthead is rewritten BEFORE the refusal: a bare href would resolve
+  // to the default league (Gabagool) -- a substitution spec 5.4 forbids.
+  assert.deepStrictEqual(navLinks.map(l => new URL(l.href).searchParams.get("league")), [X, X, X, X, X],
+    "every masthead link keeps this league's id, the draft link included");
+  assert.deepStrictEqual(navLinks.map(l => new URL(l.href).pathname.split("/").pop()),
+    ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"]);
+  assert.deepStrictEqual(navLinks.map(l => l.textContent), names, "no not-connected labels for an in-season league");
   assert.strictEqual(main.children.length, 1);
   const panel = main.children[0];
   assert.strictEqual(panel.id, "draft-boundary");
