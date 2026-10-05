@@ -155,9 +155,9 @@ check("contextLines: format line, banner, footnotes, the aggregation label and t
   const view = { disclosures: { banner: "Your league also scores first downs, which these projections leave out; rankings may be off for your league.", footnotes: ["Pick-sixes use an average rate, not a forecast.", "Not projected: pass_2pt (rare events)."] } };
   assert.deepEqual(M.contextLines({ format: { text: "Format: not in the format test" }, view }), [
     "Format: not in the format test", view.disclosures.banner, ...view.disclosures.footnotes,
-    `Lineup totals are the ${AGG}, ${HORIZON}.`, SIM_OFF]);
+    `Lineup totals. Horizon: ${HORIZON}. Totals: ${AGG}.`, SIM_OFF]);
   assert.deepEqual(M.contextLines({ format: { text: "Best ball — not eligible for the format test" }, view: { disclosures: { banner: null, footnotes: [] } } }),
-    ["Best ball — not eligible for the format test", `Lineup totals are the ${AGG}, ${HORIZON}.`, SIM_OFF]);
+    ["Best ball — not eligible for the format test", `Lineup totals. Horizon: ${HORIZON}. Totals: ${AGG}.`, SIM_OFF]);
 });
 const EVAL_DOC = require("./fixtures/neutral_evaluation.json");
 check("evidenceLines: the fallback unless a rest-of-season record binds to the live lens and the current method", () => {
@@ -179,7 +179,7 @@ check("rosValueLines: each active skill player's rest-of-season value with the a
   const board = { players: [{ sleeper_id: "a", name: "A Back", position: "RB", ros_value: 41.25 }, { sleeper_id: "b", name: "B Wide", position: "WR", ros_value: null }] };
   const catalog = { a: { full_name: "A Back", position: "RB" }, b: { full_name: "B Wide", position: "WR" }, x: { full_name: "X Only", position: "TE" }, k: { full_name: "Kicker", position: "K" }, r: { full_name: "Res", position: "RB" } };
   assert.deepEqual(M.rosValueLines(board, { players: ["a", "b", "x", "k", "r"], reserve: ["r"] }, catalog), [
-    `Rest-of-season values: the ${AGG}, ${HORIZON}.`,
+    `Rest-of-season values. Horizon: ${HORIZON}. Totals: ${AGG}.`,
     "A Back · RB · 41.25", "B Wide · WR · no rest-of-season projection", "X Only · TE · no rest-of-season projection"]);
 });
 check("sources: no traded_picks, future picks, gate file or simulation in the controller; trade.html loads the kernel and the adapter", () => {
@@ -381,7 +381,7 @@ async function ownerFlow() {
     const format = await LD.formatLine(league, statics["data/neutral/formats.json"].formats);
     const ctxText = els.context.children.map(x => x.textContent);
     assert.deepEqual(ctxText, M.contextLines({ format, view }));
-    for (const s of [format.text, ...view.disclosures.footnotes, `Lineup totals are the ${AGG}, ${HORIZON}.`, SIM_OFF]) assert.ok(ctxText.includes(s), s);
+    for (const s of [format.text, ...view.disclosures.footnotes, `Lineup totals. Horizon: ${HORIZON}. Totals: ${AGG}.`, SIM_OFF]) assert.ok(ctxText.includes(s), s);
     assert.equal(els.context.hidden, false);
     assert.equal(els.warn.textContent, NO_EVIDENCE); assert.equal(els.warn.hidden, false);
     assert.match(els.provenance.textContent, /League settings read /);
@@ -443,6 +443,15 @@ async function ownerFlow() {
     await clickCompare(els, () => analyzeCalls.length === before + 1 && !els.result.hidden, "the comparison after the reload");
     assert.equal(analyzeCalls.at(-1).league.scoring_settings.rec, 0.25);
   });
+  await sub("a refresh that moves only waiver bookkeeping (daily_waivers_last_ran, leg) keeps the comparison and selections", async () => {
+    tickPlayer(els.mine, "d"); tickPlayer(els.theirs, "b");
+    const before = analyzeCalls.length;
+    league = { ...league, settings: { ...league.settings, daily_waivers_last_ran: 7, leg: 99 } };
+    els.compare.dispatch("click");
+    await until(() => analyzeCalls.length === before + 1 && !els.result.hidden, "the comparison across the bookkeeping change");
+    assert.equal(analyzeCalls.at(-1).league.settings.leg, 99, "it analysed the refreshed league");
+    assert.ok(!els.result.hidden, "the result stands");
+  });
 }
 
 // A tiny stand-in for the batch the controller loaded (same statics), for computing expectations.
@@ -500,7 +509,7 @@ async function bestBall() {
   assert.equal(els.cols.hidden, true); assert.equal(els.controls.hidden, true);
   const lines = els.result.children.map(x => x.textContent);
   assert.equal(lines[0], BEST_BALL);
-  assert.equal(lines[1], `Rest-of-season values: the ${AGG}, ${HORIZON}.`);
+  assert.equal(lines[1], `Rest-of-season values. Horizon: ${HORIZON}. Totals: ${AGG}.`);
   assert.ok(lines.some(l => /^A Back · RB · \d+\.\d\d$/.test(l)), lines.join(" | "));
   assert.ok(els.context.children.some(x => x.textContent === "Best ball — not eligible for the format test"));
   assert.ok(els.context.children.some(x => x.textContent === SIM_OFF));

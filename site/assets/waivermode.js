@@ -179,10 +179,10 @@
   function rosText(ros, { remainingReason, activeOwnedSkills, owner = true } = {}) {
     if (remainingReason === LeagueData.COPY.noWeeks)
       return `${LeagueData.COPY.noWeeks} Rest-of-season values and drop-cost pricing are off.`;
-    const label = `Rest-of-season values are the ${COPY.aggregation}, ${COPY.horizon}.`;
+    const label = `Rest-of-season values. Horizon: ${COPY.horizon}. Totals: ${COPY.aggregation}.`;
     if (!ros) return label;
     if (ros.fresh) {
-      return `Rest-of-season projections: weeks ${ros.endWeek - ros.futureWeeks + 1}–${ros.endWeek}, ${COPY.horizon}; generated ${ros.generatedAt}, data through ${ros.dataThrough || "unknown"}; ${ros.pricedOwned}/${activeOwnedSkills} ${owner ? "roster" : "of this team's"} players priced.${ros.unmodeledOwned.length ? ` No rest-of-season projection: ${ros.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} ${label} Values assume participation; injuries and returns are not forecast.`;
+      return `Rest-of-season projections: weeks ${ros.endWeek - ros.futureWeeks + 1}–${ros.endWeek}; generated ${ros.generatedAt}, data through ${ros.dataThrough || "unknown"}; ${ros.pricedOwned}/${activeOwnedSkills} ${owner ? "roster" : "of this team's"} players priced.${ros.unmodeledOwned.length ? ` No rest-of-season projection: ${ros.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} ${label} Values assume participation; injuries and returns are not forecast.`;
     }
     return `Rest-of-season projections unavailable${ros.reason ? ` (${ros.reason})` : ""}; drop costs are unassessed and spend guidance is limited to open-slot adds. ${label}`;
   }
@@ -293,7 +293,7 @@
       const negativeCount = rows.filter(r => r.dropCost?.status === "priced" && r.signal.moveValue <= 0).length;
       const pricedCount = rows.filter(r => r.dropCost?.status === "priced" && r.signal.moveValue > 0).length;
       $("waiver-count").textContent = snap.note ? snap.note
-        : rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against ${whose} current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals (under ${COPY.heuristic(rows[0].signal.thresholdPerWeek)} per week) kept for research; no bid or priority spend is suggested for them.` : ""}${heldCount ? ` ${heldCount} require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them.` : ""}${pricedCount ? ` ${pricedCount} required-drop alternatives are priced on this week's gain plus the rest-of-season lineup change.` : ""}${negativeCount ? ` ${negativeCount} would forfeit more rest-of-season lineup value than the add returns; no bid or priority spend is suggested for them.` : ""}`
+        : rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against ${whose} current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals: under 1 point per week — ${COPY.heuristic(rows[0].signal.thresholdPerWeek)} — kept for research; no bid or priority spend is suggested for them.` : ""}${heldCount ? ` ${heldCount} require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them.` : ""}${pricedCount ? ` ${pricedCount} required-drop alternatives are priced on this week's gain plus the rest-of-season lineup change.` : ""}${negativeCount ? ` ${negativeCount} would forfeit more rest-of-season lineup value than the add returns; no bid or priority spend is suggested for them.` : ""}`
         : result?.recommendationBlock || "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.";
       for (const r of rows) {
         const text = rowText(r, result, { ownerOnly: viewer() });
@@ -386,7 +386,13 @@
         const league = s.world.league, wt = waiverType(), faab = wt === 2, isViewer = viewer();
         let reserve;
         if (faab) {
-          const raw = isViewer ? String(defaultReserve(league) ?? "") : $("waiver-reserve").value;
+          if (!isViewer && !$("waiver-reserve").value.trim()) {
+          // An emptied box hands control back to the default.
+          userTyped = false;
+          const d = defaultReserve(league);
+          if (d !== null) $("waiver-reserve").value = String(d);
+        }
+        const raw = isViewer ? String(defaultReserve(league) ?? "") : $("waiver-reserve").value;
           reserve = Number(raw);
           if (!String(raw).trim() || !Number.isInteger(reserve) || reserve < 0) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
         }

@@ -381,6 +381,17 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   league = baseLeague;
   await refresh("back to $100");
   assert.equal($("waiver-reserve").value, "20");
+  // Emptying the box (change, no budget change) refills the default and keeps the results visible.
+  $("waiver-reserve").value = ""; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
+  assert.equal($("waiver-reserve").value, "20", "emptied box refills the league default");
+  assert.ok(!$("waiver-results").hidden, "results stay visible");
+  assert.equal(analyzeCalls.at(-1).budgetReserve, 20);
+  $("waiver-reserve").value = "9"; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
+  assert.equal(analyzeCalls.at(-1).budgetReserve, 9, "a typed value still persists");
+  assert.equal($("waiver-reserve").value, "9");
+  $("waiver-reserve").value = "20"; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
+  // The weak-signal sentence carries a single parenthetical.
+  assert.ok(!/\([^)]*\([^)]*\)/.test($("waiver-count").textContent), "no nested parentheses in the count line");
 
   // 8. Viewer flow: forget -> choose Bo's team -> "Viewing ...", protections and bids owner-only.
   $("session-forget").dispatch("click");

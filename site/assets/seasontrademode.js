@@ -155,7 +155,7 @@
       if (view.disclosures.banner) out.push(view.disclosures.banner);
       for (const f of view.disclosures.footnotes || []) out.push(f);
     }
-    out.push(`Lineup totals are the ${COPY.aggregation}, ${COPY.horizon}.`);
+    out.push(`Lineup totals. Horizon: ${COPY.horizon}. Totals: ${COPY.aggregation}.`);
     out.push(COPY.simulationOff);
     return out;
   }
@@ -181,7 +181,7 @@
   function rosValueLines(board, roster, catalog) {
     const bySleeper = new Map(((board && board.players) || []).map(p => [String(p.sleeper_id), p]));
     const locked = new Set([...(roster.reserve || []), ...(roster.taxi || [])].map(String));
-    const lines = [`Rest-of-season values: the ${COPY.aggregation}, ${COPY.horizon}.`];
+    const lines = [`Rest-of-season values. Horizon: ${COPY.horizon}. Totals: ${COPY.aggregation}.`];
     for (const id of (roster.players || []).map(String)) {
       const c = (catalog && catalog[id]) || {}, b = bySleeper.get(id);
       if (locked.has(id) || !SKILL.has(c.position)) continue;
@@ -344,7 +344,9 @@
   const statusWord = s => String(s || "").replace(/_/g, " ");
   // What a compare's own refresh must not move for its result to stand: the
   // league settings the views and the lineup slots were built from.
-  const settingsKey = league => JSON.stringify(league ? [league.league_id, league.season, league.status, league.total_rosters, league.roster_positions, league.scoring_settings, league.settings] : null);
+  // Waiver bookkeeping inside league.settings (daily_waivers_last_ran, leg, ...) moves
+  // on every refresh, so only the settings that shape views and slots are keyed.
+  const settingsKey = league => JSON.stringify(league ? [league.league_id, league.season, league.status, league.total_rosters, league.roster_positions, league.scoring_settings, league.settings && league.settings.type, league.settings && league.settings.best_ball] : null);
   const sameIdentity = (a, b) => (!a && !b) || (!!a && !!b && a.userId === b.userId);
   class PreflightError extends Error {}
 

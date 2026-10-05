@@ -127,9 +127,9 @@ const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15
   const AGG = "sum of weekly medians through NFL week 17, not a season median", HOR = "through NFL week 17, regardless of your league's schedule";
   const fresh = { fresh:true, endWeek:17, futureWeeks:14, generatedAt:"2026-09-16T00:00:00Z", dataThrough:"2026-wk2", pricedOwned:5, unmodeledOwned:[{ id:"8", name:"WR8" }] };
   const t = M.rosText(fresh, { activeOwnedSkills:6 });
-  assert.equal(t, `Rest-of-season projections: weeks 4–17, ${HOR}; generated 2026-09-16T00:00:00Z, data through 2026-wk2; 5/6 roster players priced. No rest-of-season projection: WR8. Rest-of-season values are the ${AGG}, ${HOR}. Values assume participation; injuries and returns are not forecast.`);
+  assert.equal(t, `Rest-of-season projections: weeks 4–17; generated 2026-09-16T00:00:00Z, data through 2026-wk2; 5/6 roster players priced. No rest-of-season projection: WR8. Rest-of-season values. Horizon: ${HOR}. Totals: ${AGG}. Values assume participation; injuries and returns are not forecast.`);
   assert.match(M.rosText({ fresh:false, reason:"remaining-season projections unavailable" }, {}), new RegExp(`^Rest-of-season projections unavailable \\(remaining-season projections unavailable\\); drop costs are unassessed.*${AGG}`));
-  assert.equal(M.rosText(null, {}), `Rest-of-season values are the ${AGG}, ${HOR}.`, "best ball / unknown slot: the label alone");
+  assert.equal(M.rosText(null, {}), `Rest-of-season values. Horizon: ${HOR}. Totals: ${AGG}.`, "best ball / unknown slot: the label alone");
   const end = M.rosText({ fresh:false, reason:"no projected weeks remain" }, { remainingReason: LD.COPY.noWeeks });
   assert.equal(end, "No projected weeks remain. Rest-of-season values and drop-cost pricing are off.");
   assert.ok(end.startsWith("No projected weeks remain."), "the exact end-state copy");

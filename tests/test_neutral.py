@@ -490,3 +490,9 @@ def test_players_accept_empty_remaining():
     wk = {**ctx18.header(), "players": [{"player_id": "00-1", "name": "A", "team": "KC", "position": "QB"}]}
     out = build_players(ctx18, wk, empty_remaining(ctx18, "m"), {}, None, _schedule())
     assert [p["player_id"] for p in out["players"]] == ["00-1"]
+
+
+def test_build_players_schedule_none_gives_null_bye():
+    catalog = {"4046": {"gsis_id": "00-1", "full_name": "Patrick Mahomes II", "team": "KC", "position": "QB"}}
+    out = build_players(CTX, _wk(("00-1", "P. Mahomes", "KC", "QB")), _rem(), catalog, None, None)
+    assert out["players"][0]["bye"] is None

@@ -247,7 +247,7 @@ def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_
                 raise ValueError(f"duplicate {name} player {pid}")
             by[pid] = p
     ecr_source, ranks = _ecr(ecr_rows)
-    byes = _bye_weeks(schedule, ctx.season)
+    byes = _bye_weeks(schedule, ctx.season) if schedule is not None else {}
     by_gsis, by_name_pos = _catalog_index(sleeper_players)
     union = sorted(set(weekly_by) | set(remaining_by))
     proj_key_counts: dict = {}
