@@ -81,7 +81,8 @@
     const assigned = solved.assignment.map(a=>a.unmodeled
       ? {id:starters[a.index],name:catalog[starters[a.index]]?.full_name||starters[a.index],unmodeled:true}
       : lookup.get(a.id));
-    const used = new Set(assigned.filter(p=>!p.unmodeled).map(p=>p.id));
+    // Every slot occupant, unmodeled-slot occupants included (they are reserved there).
+    const used = new Set(assigned.filter(p=>p && p.id && p.id!=="0").map(p=>p.id));
     const decisions = [];
     for (const p of players.filter(p=>!used.has(p.id))) {
       const comparisons=assigned.map((a,i)=>({a,i})).filter(({a,i})=>!a.unmodeled&&!a.locked&&p.points&&a.points&&p.eligible&&!p.locked&&eligibleFor(p,slots[i]));

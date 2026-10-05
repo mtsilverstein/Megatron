@@ -84,7 +84,8 @@ Session._get(get);
 const analyzeCalls = [];
 const ENGINE = { label: "Model lineup", warnings: ["w1"], lineup: [],
   bench: [{ id: "b", name: "B Wide", alternative: "A Back", gap: 1.5, close: true, overlap: true, eligible: true, locked: false, bye: false }] };
-global.StartSit = window.StartSit = { analyze(args) { analyzeCalls.push(args); return ENGINE; } };
+let engineThrows = null;
+global.StartSit = window.StartSit = { analyze(args) { analyzeCalls.push(args); if (engineThrows) throw new Error(engineThrows); return ENGINE; } };
 require("../site/assets/startsitmode.js");
 const StartSitMode = window.StartSitMode;
 assert.equal(typeof StartSitMode.init, "function");
@@ -328,6 +329,14 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.match(statusText(), /^Viewing Bo's Bunch; week 3; rosters requested /);
   assert.doesNotMatch(statusText(), /Read-only roster|your roster/i);
   assert.equal($("ss-exclude").children.length, 0, "exclusion checkboxes are owner-only");
+  // A viewer cannot exclude: a missing-projection refusal says who can.
+  const MISSING = "B Wide: missing current-team weekly projection";
+  engineThrows = MISSING;
+  const an7b = analyzeCalls.length;
+  picker().value = "3"; picker().dispatch("change");
+  await until(() => analyzeCalls.length === an7b + 1, "the viewer re-render", 5000);
+  assert.equal(statusText(), `No safe full-lineup recommendation: ${MISSING} Only the team's owner can exclude players here.`);
+  engineThrows = null;
   // ...then identifies as the owner of ANOTHER roster: owner's plan, viewer label gone.
   $("session-user").value = "max973";
   chipForm().dispatch("submit");
@@ -336,6 +345,13 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.equal(b7.analysisRole, "owner"); assert.equal(b7.viewedRosterId, null, "the viewed choice is dropped, not merged");
   assert.doesNotMatch(statusText(), /Viewing/); assert.doesNotMatch(outputText(), /Viewing/);
   assert.match(excludeText(), /A Back/, "the owner's exclusions are back");
+  // The owner's refusal copy is unchanged (exclusions are available to him).
+  engineThrows = "A Back: missing current-team weekly projection";
+  box().dispatch("change");
+  assert.equal(statusText(), "No safe full-lineup recommendation: A Back: missing current-team weekly projection");
+  engineThrows = null;
+  box().dispatch("change");
+  assert.match(statusText(), /^Read-only roster 9;/);
 
   // 8. Live settings (spec 5.2): the refresh re-reads the league; changed
   //    scoring recomputes the views and the plan.

@@ -121,6 +121,10 @@ assert.throws(()=>S.analyze({...base,roster:{...roster,starters:roster.starters.
   r=S.analyze({...base,roster:ro});
   assert.equal(ids(r).filter(id=>id==='4').length,1,'never placed in two slots');
   assert.equal(r.lineup[8].id,'4');assert.equal(r.lineup[8].unmodeled,true);
+  assert.ok(!r.bench.some(p=>p.id==='4'),'a reserved unmodeled-slot occupant is not a bench candidate');
+  // Same in an IDP slot: a WR worth 18 in a DB slot is never listed with a negative gap.
+  r=S.analyze({...base,roster:{...roster,starters:['1','2','3','5','7','6','13','8','4','10']},league:{...league,roster_positions:['QB','RB','RB','WR','WR','TE','FLEX','FLEX','DB','DEF','BN','BN','BN']}});
+  assert.ok(!r.bench.some(p=>p.id==='4'));assert.ok(r.bench.every(p=>p.gap===null||p.gap>=0));
   // With no other WR-eligible player left, the plan refuses instead of double-placing him.
   const thin={...base,roster:{players:['1','2','3','4','6','8','9','10'],starters:['1','2','3','0','0','6','0','0','4','10']},league:{...league,roster_positions:['QB','RB','RB','WR','WR','TE','FLEX','FLEX','K','DEF']}};
   assert.throws(()=>S.analyze(thin),/Cannot fill WR with available, projected players/);

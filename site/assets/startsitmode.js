@@ -65,12 +65,8 @@
           ? `Close calls: ${(acc*100).toFixed(1)}% correct on same-position, played-player pairs within 3 projected points (both projected ≥5), measured under this league's scoring and this model. Not a roster, cross-position FLEX or expert-comparison backtest. Tiny differences are weak leans.`
           : `Close calls: ${NO_EVIDENCE} Tiny differences are weak leans.`;
       }
-      if(band){
-        const r=rec("band_calibration"), cov=r&&r.values&&r.values.coverage_p10_p90;
-        band.textContent=Number.isFinite(cov)
-          ? `about ${Math.round(cov*100)}% of held-out player-weeks landed inside the band, measured under this league's scoring and this model.`
-          : NO_EVIDENCE;
-      }
+      // No calibration evidence record exists yet (src/ffmodel/site/evidence_records.py docstring, item 3).
+      if(band)band.textContent=NO_EVIDENCE;
     }
     const who=s=>s.world.role==="viewer"?`Viewing ${S.teamName(s.world.users,s.roster)}`:`Read-only roster ${s.world.rosterId}`;
     function stamps(s){
@@ -104,7 +100,11 @@
         for(const p of r.lineup){const tr=document.createElement("tr");for(const t of [p.slot,p.name,p.points?.p50?.toFixed(2)??"Not modeled",p.unmodeled?"Not projected; current starter kept":p.locked?"Game started — locked":p.changed?"Model lean — review close calls":"Keep"] )tr.append(el("td",t));table.append(tr);}
         out.append(table,el("h3","Bench and close calls"),el("p",`Close call: ${HEURISTIC(3)}; not a confidence estimate.`));
         for(const p of r.bench)out.append(el("p",`${p.name}: ${p.locked?"game started; cannot enter lineup":p.bye?"bye":!p.eligible?"excluded / unavailable":p.alternative?`${p.alternative} projects ${p.gap.toFixed(2)} points higher${p.close?" — close call":""}${p.overlap?"; uncertainty bands overlap":""}`:"no modeled swap"}.`));
-      }catch(e){status(`No safe full-lineup recommendation: ${e.message}`);}
+      }catch(e){
+        // Viewers get no exclusion checkboxes, so say who can resolve a missing projection.
+        const viewerHint=s.world.role!=="owner"&&/missing current-team weekly projection/.test(e.message)?" Only the team's owner can exclude players here.":"";
+        status(`No safe full-lineup recommendation: ${e.message}${viewerHint}`);
+      }
     }
     // Why no plan is shown: the session's error, still loading, or the live
     // resolver's own refusal in its order (league status, league type, no
