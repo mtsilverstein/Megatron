@@ -38,8 +38,9 @@ function run(legacyRaw, scenario) {
     board: l.board, weekly: l.weekly, league: l.league, roster: own, catalog: l.catalog, kickoffs: l.kickoffs,
     excludeIds: scenario.startsit.excludeIds, now: scenario.startsit.now, snapshotAt: scenario.startsit.snapshotAt,
   });
-  // Controller preparation: the board is hydrated with catalog injury/team and K/DEF identity first.
-  const hydrated = WaiverMode.hydrateBoard(l.board, l.catalog);
+  // Controller preparation: the board is hydrated with catalog injury/team and the identity of
+  // every roster occupant it does not price (K/DEF here) first.
+  const hydrated = WaiverMode.hydrateBoard(l.board, l.catalog, l.rosters);
   const w = scenario.waivers;
   const waivers = Waivers.analyze({
     board: hydrated, league: l.league, rosters: l.rosters, rosterId: w.rosterId, transactions: l.transactions,

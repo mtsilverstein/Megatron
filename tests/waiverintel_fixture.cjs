@@ -80,6 +80,21 @@ out=I.analyze({...roleBase,board:{players:roleBase.board.players.map(p=>p.sleepe
   roles:{...roles,players:[{...roles.players[0],team:"LA"}]}});
 assert.equal(out.radar.find(p=>p.id==="6").roleFlags.length,1);
 assert.deepEqual(out.radar.find(p=>p.id==="6").byeCover,[8]);
+// The league view's board (LeagueData.views, hydrated by the desk): ecr/bye/sleeper_id from players.json,
+// identity-only roster occupants alongside; every rank stays a PPR reference ranking.
+{
+  const viewBoard={players:[{player_id:"00-1",sleeper_id:"1",name:"Own RB",position:"RB",team:"NO",bye:8,ecr:30,ros_value:50},
+    {player_id:"00-6",sleeper_id:"6",name:"Free RB",position:"RB",team:"CLE",bye:9,ecr:44,ros_value:20},
+    {sleeper_id:"2",name:"Moved",position:"RB",team:"NYG",identity_only:true,reason:"position_changed"},
+    {sleeper_id:"77",name:"Kicker",position:"K",team:"NO",identity_only:true,reason:null}]};
+  const v=I.analyze({...base,board:viewBoard,rosters:[{roster_id:1,players:["1","2","77"],reserve:[]},{roster_id:2,players:[],reserve:[]}],signals:{add:[{player_id:"6",count:3}],drop:[]}});
+  const fa=v.radar.find(x=>x.id==="6");
+  assert.equal(fa.ecr,44); assert.equal(fa.projectionCovered,true);
+  assert.ok(!v.radar.some(x=>["1","2","77"].includes(x.id)),"rostered identities are never research candidates");
+  assert.match(v.warnings.join(" "),/unknown byes/,"an identity-only skill occupant has no known bye: coverage is incomplete, said so");
+  assert.match(v.rosStatus,/PPR reference ranking/);
+  assert.match(I.analyze({...rosBase}).rosStatus,/PPR overall \(PPR reference ranking\)/);
+}
 (async()=>{
   const calls=[];
   const signals=await M.loadSignals(async path=>{calls.push(path);if(path.includes('/drop?'))throw Error('offline');return [];});

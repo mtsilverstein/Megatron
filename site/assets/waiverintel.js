@@ -1,4 +1,9 @@
-/* Research signals, not projections or bid prices. Pure and read-only. */
+/* Research signals, not projections or bid prices. Pure and read-only.
+   `board` is the league view's board (LeagueData.views, hydrated by the
+   waiver desk): players.json identity plus `ecr` (preseason, a PPR reference
+   ranking whatever the league's scoring), `bye` and `sleeper_id`; roster
+   occupants the projections do not price ride along as identity-only rows.
+   Every ECR/ROS rank here stays a PPR reference ranking, never league points. */
 (function () {
   "use strict";
   const skill = new Set(["QB", "RB", "WR", "TE"]);
@@ -28,15 +33,15 @@
     if (!mine) throw new Error("Research roster is missing.");
     const owned = new Set(rosters.flatMap(ids));
     const players = new Map();
-    for (const p of board.players) if (p.sleeper_id) players.set(String(p.sleeper_id), { ...p, id: String(p.sleeper_id) });
+    for (const p of board.players) if (p.sleeper_id) players.set(String(p.sleeper_id), { ...p, id: String(p.sleeper_id), ecr: num(p.ecr), bye: num(p.bye) });
     // Add genuinely trending players absent from the projection board. Missing
     // projections must not hide new rookies; they remain research-only entries.
     const warnings = [], trends = {}, usage = new Map();
-    let rosRanks = new Map(), rosStatus = "Live ROS reference unavailable; preseason ECR remains separately labeled.";
+    let rosRanks = new Map(), rosStatus = "Live ROS reference unavailable; preseason ECR (PPR reference ranking) remains separately labeled.";
     if (ros) {
       try {
         rosRanks = prepareRos(ros, league.season);
-        rosStatus = `ROS reference: ${ros.source}, PPR overall, snapshot ${ros.snapshot_at} (date only). Independent consensus ranks—not league-specific points, trade prices or bid amounts.`;
+        rosStatus = `ROS reference: ${ros.source}, PPR overall (PPR reference ranking), snapshot ${ros.snapshot_at} (date only). Independent consensus ranks—not league-specific points, trade prices or bid amounts.`;
       } catch (error) { rosStatus = `${error.message} ROS ranks withheld.`; }
     }
     let roleStatus = "Observed usage unavailable; no role-growth claims.";
@@ -82,7 +87,7 @@
     const locked = new Set([...(mine.reserve || []), ...(mine.taxi || [])].map(String));
     const active = (mine.players || []).map(String).filter(id => !locked.has(id)).map(id => players.get(id)).filter(p => p && skill.has(p.position));
     const missing = (mine.players || []).map(String).filter(id => !locked.has(id) && !players.has(id) && skill.has(catalog[id]?.position));
-    if (missing.length) warnings.push(`${missing.length} owned skill player(s) missing from the board; depth counts may be understated.`);
+    if (missing.length) warnings.push(`${missing.length} owned skill player(s) missing from the projections; depth counts may be understated.`);
     const unknownByes = active.filter(p => num(p.bye) === null);
     if (unknownByes.length) warnings.push(`${unknownByes.length} owned player(s) have unknown byes; coverage is incomplete.`);
     const needs = {};
@@ -109,7 +114,7 @@
       if (!sameTeam.length && !byeCover.length && adds === null && drops === null && !roleFlags.length && rosRank === null) continue;
       if (num(p.ecr) === null && adds === null && drops === null && !roleFlags.length && rosRank === null) continue;
       radar.push({ id:p.id, name:p.name || p.id, position:p.position, team:p.team || "Unknown", status:p.injury_status || null,
-        ecr:num(p.ecr), rosRank, adds, drops, sameTeam, byeCover, role, roleFlags, projectionCovered:board.players.some(b => String(b.sleeper_id) === p.id) });
+        ecr:num(p.ecr), rosRank, adds, drops, sameTeam, byeCover, role, roleFlags, projectionCovered:board.players.some(b => String(b.sleeper_id) === p.id && !b.identity_only) });
     }
     const unavailable = p => ["IR", "OUT", "SUSPENDED", "PUP", "DOUBTFUL"].includes(String(p.status || "").toUpperCase());
     radar.sort((a,b) => Number(unavailable(a))-Number(unavailable(b)) || Number(!!b.sameTeam.length)-Number(!!a.sameTeam.length) || (a.ecr ?? Infinity)-(b.ecr ?? Infinity) || b.byeCover.length-a.byeCover.length || (b.adds ?? -1)-(a.adds ?? -1) || a.id.localeCompare(b.id));

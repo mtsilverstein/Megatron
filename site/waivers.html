@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Read-only Sleeper waiver planning: available players, lineup upgrades, drop costs, FAAB guardrails, and rolling priority guidance.">
+<meta name="description" content="Read-only waiver planning for any Sleeper league: available players, lineup upgrades in your league's scoring, drop costs, FAAB guardrails, and rolling or reverse-standings claim guidance.">
 <title>Waivers — Megatron</title>
 <link rel="stylesheet" href="assets/style.css?v=league1">
 <link rel="stylesheet" href="assets/waivers.css">
@@ -23,16 +23,17 @@
 <main id="waiver-app">
   <p class="eyebrow">In-season waiver desk · research radar</p>
   <h1>Buy lineup improvement. Keep options open.</h1>
-  <p class="waiver-intro">Compare available skill players against your actual roster.
-    FAAB bid ranges are transparent budgeting heuristics; rolling leagues receive claim-order guidance. Neither predicts a successful claim.
+  <p class="waiver-intro">Compare available skill players against a roster in any Sleeper league, scored by that league's own settings.
+    FAAB bid ranges are transparent budgeting heuristics; rolling and reverse-standings leagues receive claim-order guidance. Neither predicts a successful claim.
     Verify injuries, roles, waiver eligibility, and deadlines in Sleeper before acting.</p>
   <div id="waiver-controls" class="waiver-controls">
     <label>Week <input id="waiver-week" type="number" min="1" max="18" placeholder="Auto" title="Automatically follows the current NFL week. Enter a number to override; clear to restore automatic selection."></label>
-    <label>Budget to keep ($) <input id="waiver-reserve" type="number" min="0" step="1" value="20" required></label>
+    <label>Budget to keep ($) — default 20% of your league budget <input id="waiver-reserve" type="number" min="0" step="1" required></label>
   </div>
-  <p id="waiver-status" role="status" aria-live="polite">Your roster loads from the Sleeper account in the league panel above; refresh it there before placing a claim.</p>
+  <p id="waiver-status" role="status" aria-live="polite">The desk loads from the league panel above: enter your Sleeper username, or choose a team to view. Refresh it there before placing a claim.</p>
   <div id="waiver-warnings" class="waiver-warnings" hidden></div>
   <section id="waiver-results" hidden>
+    <div id="waiver-context" class="waiver-source" aria-label="League format, scoring coverage and heuristics"></div>
     <div id="waiver-budget" class="waiver-budget" aria-label="Waiver budget or rolling priority"></div>
     <p id="waiver-coverage" class="waiver-source" aria-live="polite"></p>
     <p id="waiver-ros" class="waiver-source" aria-live="polite"></p>
@@ -40,6 +41,7 @@
       <summary>Data sources and timestamps</summary>
       <p id="waiver-source" class="waiver-source"></p>
       <div id="waiver-evaluation" class="waiver-source" aria-label="Remaining-season projection evaluation"></div>
+      <p class="waiver-source"><a href="about.html">Historical results and their scope</a> are on the about page; they are not claims about your league's scoring.</p>
     </details>
     <div class="waiver-toolbar">
       <label>Position <select id="waiver-position"><option value="ALL">All skill positions</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option></select></label>
@@ -67,14 +69,14 @@
       <p>Usage flags describe observed workload—not a breakout probability. Growth requires at least two comparable prior same-team games. Routes and red-zone usage are not available in this layer. Snap share is not route participation.</p>
       <ul id="waiver-byes"></ul>
       <p>Bye counts cover dedicated positions only, assuming other active-roster players are healthy. FLEX coverage and unknown byes need separate review.</p>
-      <label>Research order <select id="waiver-radar-sort"><option value="usage">Observed usage flags first</option><option value="ros">Live ROS PPR rank</option><option value="fit">Roster fit first</option><option value="adds">Most added first</option></select></label>
+      <label>Research order <select id="waiver-radar-sort"><option value="usage">Observed usage flags first</option><option value="ros">Live ROS rank (PPR reference ranking)</option><option value="fit">Roster fit first</option><option value="adds">Most added first</option></select></label>
       <div class="table-wrap"><table id="waiver-radar"><caption>Available research candidates · position filter applies to both tables</caption>
         <thead><tr><th>Player</th><th>Why investigate</th><th>Observed workload</th><th>Sleeper 24h adds / drops</th><th>Before bidding</th></tr></thead><tbody></tbody></table></div>
       <p>Usage sources: <a href="https://nflreadr.nflverse.com/reference/load_player_stats.html">nflverse player statistics</a> and <a href="https://nflreadr.nflverse.com/reference/load_snap_counts.html">PFR snap counts via nflverse</a>.</p>
       <p id="waiver-market"></p>
       <p><a href="https://docs.sleeper.com/#trending-players">Trending data: Sleeper</a>. Counts are platform-wide activity, not selected-league demand. “Not listed” is not zero. No net-add rate or claim-success probability is inferred.</p>
     </section>
-    <details><summary>Available watchlist — preseason ECR, not a buy ranking</summary>
+    <details><summary>Available watchlist — preseason ECR (PPR reference ranking), not a buy ranking</summary>
       <p>These players are unrostered now. They may be stash candidates even without a projected lineup gain; role changes and injury contingencies are not priced by this version.</p>
       <ol id="waiver-watchlist"></ol>
     </details>
@@ -86,10 +88,11 @@
       <li>Availability means absent from every league roster, including IR/taxi. It does not prove a player is an immediate free agent rather than awaiting waivers.</li>
       <li>Current-week recommendations require fresh aligned projections and a complete modeled roster baseline. Otherwise recommendations are withheld; research lists are not bid advice.</li>
       <li>For FAAB, the budget reserve is your choice, not a measured optimum. For rolling waivers, no dollar amounts are invented: current priority is context and add/drop alternatives remain value-based.</li>
-      <li>Weak signals: an alternative gaining under 1.0 projected point per week stays listed for research but gets no bid range and no priority-claim suggestion. The 1.0-point cutoff is a conservative product convention, not a validated noise or confidence threshold, and projection quantiles are not claim-success probabilities.</li>
-      <li>Drop cost is priced as the change in your own lineup's projected points over the remaining weeks, from the model's remaining-season projections: what the add contributes to your roster, and what the drop then forfeits with the add on it. A bench player who never starts forfeits little whatever his season total. Values assume participation; injuries and returns are not forecast. The measured accuracy of those projections against a four-game average is shown under "Data sources and timestamps".</li>
+      <li>Weak signals: an alternative gaining under 1.0 projected point per week stays listed for research but gets no bid range and no priority-claim suggestion. The 1-point cutoff (like the 2- and 5-point FAAB bands) is a heuristic in your league's points, not a validated noise or confidence threshold, and projection quantiles are not claim-success probabilities.</li>
+      <li>Drop cost is priced as the change in the roster's lineup projected points over the remaining weeks, from the model's remaining-season projections (NFL weeks through 17, regardless of your league's schedule): what the add contributes to the roster, and what the drop then forfeits with the add on it. A bench player who never starts forfeits little whatever his season total. Values assume participation; injuries and returns are not forecast. A measured accuracy is shown under "Data sources and timestamps" only when it was measured under your league's scoring and this model.</li>
+      <li>Rest-of-season values are a sum of weekly medians through NFL week 17, not a season median. Simulation-based drop costs are off for every league in this version.</li>
       <li>Spend guidance reads this week's gain plus that rest-of-season change, averaged per remaining week, through the same uncalibrated bands as before. A swap whose drop forfeits more than the add returns shows both numbers and gets no bid or priority claim; it is not called wrong. When a player has no rest-of-season projection, or the projections are stale or misaligned, the drop cost is unassessed and no spend guidance is offered for that swap — unknown is never priced as zero.</li>
-      <li>No inferred hidden bids, calibrated win probabilities, automated transactions, or K/DST projections. No keeper-value premium is priced yet.</li>
+      <li>No inferred hidden bids, calibrated win probabilities, automated transactions, or K/DST/IDP projections. No keeper-value premium is priced yet.</li>
     </ul>
     <p><a id="waiver-league-link" href="https://sleeper.com/">Open selected league in Sleeper</a> · <a href="https://docs.sleeper.com/">Read-only API documentation</a></p>
   </section>
@@ -97,16 +100,14 @@
 <script src="assets/session.js?v=4"></script>
 <script src="assets/app.js?v=league2"></script>
 <script src="assets/sleeper.js"></script>
-<script src="assets/ros.js?v=1"></script>
-<script src="assets/rostersim.js?v=1"></script>
-<script src="assets/waivers.js?v=sim5"></script>
-<script src="assets/waiverintel.js?v=ros1"></script>
 <script src="assets/formats.js?v=1"></script>
 <script src="assets/lineup.js?v=1"></script>
 <script src="assets/leaguelens.js?v=1"></script>
 <script src="assets/leaguedata.js?v=1"></script>
 <script src="assets/liveworld.js?v=1"></script>
-<script src="assets/waivermode.js?v=live1"></script>
+<script src="assets/waivers.js?v=neutral1"></script>
+<script src="assets/waiverintel.js?v=neutral1"></script>
+<script src="assets/waivermode.js?v=neutral1"></script>
 <script>WaiverMode.init();</script>
 </body>
 </html>

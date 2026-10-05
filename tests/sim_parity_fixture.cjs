@@ -1,7 +1,7 @@
 // tests/sim_parity_fixture.cjs — run: node tests/sim_parity_fixture.cjs
 //
 // Several rules exist twice: once in tools/trade_backtest.cjs (which measured the error bands) and once in the
-// pages that apply those bands (seasontrade.js / seasontrademode.js / waivers.js). A band measured under one
+// pages that apply those bands (seasontrade.js / seasontrademode.js). A band measured under one
 // rule and applied under another is not the measured band. This fixture feeds the SAME hand-built inputs to
 // both implementations and asserts they agree. Where a rule legitimately differs, the difference is pinned
 // below with a comment naming the review item, so a change to either side shows up here.
@@ -9,7 +9,8 @@ const assert = require("node:assert/strict");
 const T = require("../tools/trade_backtest.cjs");
 const ST = require("../site/assets/seasontrade.js");
 const STM = require("../site/assets/seasontrademode.js");
-const W = require("../site/assets/waivers.js");
+// The waiver desk no longer simulates (any-league spec §6.2): its quota/pool parity cases were removed with
+// its simulation code; the backtest's own waiver arm is covered by trade_backtest_fixture.
 
 let n = 0; const failed = [];
 const check = (name, fn) => { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; if (process.env.FIXTURE_ALL) { failed.push(e.message.split("\n")[0]); return; } throw e; } };
@@ -139,81 +140,12 @@ check("lopsided measure and membership agree between markLopsided and the page",
   assert.ok(flagged >= 1 && flagged < comparable.length, `some but not all trades are lopsided (${flagged})`);
 });
 
-/* Replacement pool sizing (dedicated + FLEX [+ SUPER_FLEX] per position): one rule in the backtest, the trade page
-   and the waiver desk. */
-check("replacement pool sizing agrees across the backtest, the trade page and the waiver desk, SUPER_FLEX included", () => {
+/* Replacement pool sizing (dedicated + FLEX [+ SUPER_FLEX] per position): one rule in the backtest and the
+   trade page. (The waiver desk's copy left with its simulation, spec §6.2.) */
+check("replacement pool sizing agrees between the backtest and the trade page, SUPER_FLEX included", () => {
   for (const slots of [["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX"], ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX", "SUPER_FLEX"], ["QB", "SUPER_FLEX"], ["QB", "RB", "WR", "TE", "FLEX"]]) {
-    const want = T.poolSizes(slots);
-    assert.deepEqual(ST.replacementNeeds(slots), want, `trade page ${slots}`);
-    assert.deepEqual(W.poolNeeds(slots), want, `waiver desk ${slots}`);
+    assert.deepEqual(ST.replacementNeeds(slots), T.poolSizes(slots), `trade page ${slots}`);
   }
-});
-
-/* Waiver desk: quota selection and pool exclusion (spec §10.1, §10.7). Same free agents, same projections, run
-   through the page's analyze and the backtest's runCell. */
-const wp = (id, pos, pts, extra = {}) => ({ sleeper_id: String(id), player_id: `g${id}`, name: `${pos}${id}`, position: pos, team: "A", value_points: pts, ...extra });
-const wboard = { players: [
-  wp(1, "QB", 20), wp(13, "QB", 8), wp(2, "RB", 10), wp(3, "WR", 11), wp(4, "TE", 8), wp(8, "WR", 7), wp(5, "K", 7), wp(6, "DEF", 6), wp(51, "RB", 6),
-  // free agents; 40 is Out, 41 is IR, 42 is Doubtful, 43 is only Questionable
-  wp(9, "QB", 25), wp(14, "QB", 5), wp(22, "QB", 4), wp(23, "QB", 3.5), wp(40, "QB", 30, { injury_status: "OUT" }),
-  wp(7, "RB", 18), wp(15, "RB", 3), wp(16, "RB", 2.5), wp(24, "RB", 2.2), wp(25, "RB", 2.1), wp(41, "RB", 28, { injury_status: "IR" }), wp(42, "RB", 17, { injury_status: "DOUBTFUL" }),
-  wp(17, "WR", 3), wp(18, "WR", 2.5), wp(27, "WR", 2.2), wp(28, "WR", 2.1), wp(29, "WR", 2), wp(43, "WR", 26, { injury_status: "QUESTIONABLE" }),
-  wp(44, "WR", 27, { injury_status: "PUP" }), wp(45, "TE", 14, { injury_status: "Sus" }),
-  wp(10, "TE", 13), wp(19, "TE", 3), wp(20, "TE", 2.5), wp(30, "TE", 2.2), wp(31, "TE", 2.1),
-] };
-const mine = ["1", "13", "2", "3", "4", "8", "5", "6"], theirs = ["51"];
-const wleague = { league_id: "L1", season: 2026, total_rosters: 2, scoring_settings: { pass_td: 4, rec: 1 }, roster_positions: ["QB", "RB", "WR", "TE", "FLEX", "K", "DEF", "BN", "IR", "TAXI"], settings: { waiver_budget: 100, waiver_bid_min: 1 } };
-const wrosters = [{ roster_id: 1, players: mine, starters: ["1", "2", "3", "4", "8", "5", "6"], reserve: [], taxi: [], settings: { waiver_budget_used: 40 } },
-                  { roster_id: 2, players: theirs, reserve: [], taxi: [], settings: { waiver_budget_used: 0 } }];
-const rosRow = (week, p50) => ({ week, status: "conditional_projection", opponent: "B", points: { league: { p10: p50 - 3, p50, p90: p50 + 3 } } });
-const wremaining = { schema_version: 1, horizon: "remaining_season", status: "experimental", season: 2026, start_week: 1, end_week: 3, generated_at: new Date(NOW).toISOString(),
-  data_through: "2026-wk00", league: { league_id: "L1", slug: "fixture", sleeper_scoring: { pass_td: 4, rec: 1 } }, evaluation: null,
-  players: wboard.players.filter(x => ["QB", "RB", "WR", "TE"].includes(x.position)).map(x => ({ player_id: x.player_id, team: "A", weeks: [1, 2, 3].map(w => rosRow(w, x.value_points)) })) };
-const wweekly = { season: 2026, week: 1, generated_at: new Date(NOW).toISOString(), league: { league_id: "L1", slug: "fixture", sleeper_scoring: { pass_td: 4, rec: 1 } },
-  players: wboard.players.map(x => ({ player_id: x.player_id, team: "A", points: { league: { p50: x.value_points } } })) };
-const kickoffs = { season: 2026, week: 1, generated_at: new Date(NOW).toISOString(), teams: ["A", "B"], games: [{ home: "A", away: "B", kickoff: new Date(NOW + 3600000).toISOString() }] };
-const evalFile = { schema_version: 2, league: "fixture", slots: ["QB", "RB", "WR", "TE", "FLEX"], verdict: "pass", waiver_verdict: "pass" };
-const pageWaiver = W.analyze({ board: wboard, league: wleague, rosters: wrosters, rosterId: 1, weekly: wweekly, kickoffs, snapshotAt: NOW, now: NOW, week: 1, protectedIds: [], budgetReserve: 20, transactions: [],
-  remaining: wremaining, availability: AV, leagueSlug: "fixture", evalFile });
-const quota = pageWaiver.coverage.ros.simulation.quotaIds;
-
-// The same league in the backtest: gsis ids, weeks 2..3, the injury tags the availability tables would carry.
-const wfc = { schema_version: 1, season: 2026, origin: 2, weeks: [2, 3], players: Object.fromEntries(wboard.players.filter(x => ["QB", "RB", "WR", "TE"].includes(x.position))
-  .map(x => [x.player_id, { position: x.position, baseline: 1, weeks: { 2: play(x.value_points), 3: play(x.value_points) } }])) };
-const wact = Object.fromEntries(Object.keys(wfc.players).map(id => [id, { 2: wfc.players[id].weeks[2].p50, 3: wfc.players[id].weeks[3].p50 }]));
-const skill = ids => ids.filter(id => wfc.players["g" + id]);
-const wdrafted = [skill(mine).map(id => "g" + id), skill(theirs).map(id => "g" + id)];
-const wundrafted = Object.keys(wfc.players).filter(id => !wdrafted.flat().includes(id));
-const wcell = T.runCell({ season: 2026, origin: 2, k: 0, rosters: wdrafted, undrafted: wundrafted, forecasts: wfc, actualWeeks: wact, availability: AV,
-  tags: { g40: "Out", g41: "IR", g42: "Doubtful", g43: "Questionable", g44: "IR", g45: "Out" }, slots: ["QB", "RB", "WR", "TE", "FLEX"], nSims: 40, simSeed: 2, trades: [], waiver: true });
-const byPos = (ids, pos, catalogOf) => ids.filter(id => catalogOf(id) === pos).sort();
-const posOfSleeper = id => (wboard.players.find(x => x.sleeper_id === id) || {}).position;
-
-check("waiver quota: the page and the backtest pick the same free agents by mean frozen p50 (bye = 0, id tie-break)", () => {
-  assert.equal(wcell.excluded, null, String(wcell.excluded));
-  const pageQuota = quota.slice().sort();
-  const backtestQuota = wcell.waiver_adds.map(id => id.slice(1)).sort();
-  // QB / WR / TE agree exactly. The Out QB (40) and the IR RB (41) are excluded on both sides (spec §10.7).
-  for (const pos of ["QB", "WR", "TE"]) assert.deepEqual(byPos(backtestQuota, pos, posOfSleeper), byPos(pageQuota, pos, posOfSleeper), pos);
-  assert.ok(!pageQuota.includes("40") && !backtestQuota.includes("40"), "Out is excluded on both sides");
-  assert.ok(!pageQuota.includes("41") && !backtestQuota.includes("41"), "IR is excluded on both sides");
-  assert.ok(pageQuota.includes("43") && backtestQuota.includes("43"), "Questionable stays available on both sides");
-  // Aligned (spec §10.7): the desk excludes exactly the free agents RosterSim.normalizeTag maps to Out or IR (Sus -> Out,
-  // PUP -> IR); Doubtful and Questionable stay eligible on both sides.
-  assert.ok(pageQuota.includes("42") && backtestQuota.includes("42"), "Doubtful stays available on both sides");
-  for (const id of ["44", "45"]) assert.ok(!pageQuota.includes(id) && !backtestQuota.includes(id), `${id} (PUP/Sus) is excluded on both sides`);
-  assert.deepEqual(byPos(pageQuota, "RB", posOfSleeper), byPos(backtestQuota, "RB", posOfSleeper));
-  assert.deepEqual(pageQuota, backtestQuota);
-});
-check("waiver pool: neither side lets an add be its own replacement, or an Out/IR free agent replace anyone", () => {
-  const page = new Set(pageWaiver.coverage.ros.simulation.replacementIds);
-  for (const id of quota) assert.ok(!page.has(id), `page pool contains its own add ${id}`);
-  for (const id of ["40", "41", "44", "45"]) assert.ok(!page.has(id), `page pool contains injured ${id}`);
-  const pool = new Set(wcell.waiver_pool.map(id => id.slice(1)));
-  for (const id of wcell.waiver_adds.map(x => x.slice(1))) assert.ok(!pool.has(id), `backtest pool contains its own add ${id}`);
-  for (const id of ["40", "41", "44", "45"]) assert.ok(!pool.has(id), `backtest pool contains injured ${id}`);
-  for (const id of pool) assert.ok(page.has(id), `backtest pool member ${id} is not a desk free agent`);
-  assert.deepEqual(wcell.waiver_injured_excluded.map(id => id.slice(1)).sort(), ["40", "41", "44", "45"]);
 });
 
 if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
