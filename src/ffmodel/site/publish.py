@@ -26,9 +26,8 @@ from pathlib import Path, PurePosixPath
 from ffmodel.site.leaguelens import STATS
 from ffmodel.site.neutral import LAST_PROJECTED_WEEK
 
-# Bound on `neutral/remaining.json`. Provisional until Task 15 measures the
-# week-1, full-universe file and sets this to ceil(bytes * 1.25 / 100_000) * 100_000.
-SIZE_CAP_BYTES = 4_000_000
+# Bound on `neutral/remaining.json`; derived from tests/fixtures/neutral_size_measurement.json.
+SIZE_CAP_BYTES = 4_600_000
 
 MANIFEST = "manifest.json"
 BATCH_FIELDS = ("season", "week", "data_through", "generated_at", "batch_id")

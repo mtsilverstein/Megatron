@@ -1,0 +1,12 @@
+{
+  "week": 1,
+  "bytes": 3640547,
+  "gzip_bytes": 855068,
+  "players": 943,
+  "weeks": [
+    1,
+    17
+  ],
+  "measured": "2026-10-05",
+  "rule": "SIZE_CAP_BYTES = ceil(bytes * 1.25 / 100000) * 100000"
+}

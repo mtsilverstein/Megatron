@@ -1,6 +1,7 @@
 """Stage validation and copy (`ffmodel.site.publish`, spec §3.5, plan Task 7)."""
 import hashlib
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -213,8 +214,11 @@ def test_oversize_is_an_error_not_a_truncation(tmp_path, monkeypatch):
     assert not out.exists() or not any(out.iterdir())
 
 
-def test_size_cap_until_task_15():
-    assert publish.SIZE_CAP_BYTES == 4_000_000
+def test_size_cap_matches_measurement():
+    fixture = Path(__file__).parent / "fixtures" / "neutral_size_measurement.json"
+    measured = json.loads(fixture.read_text(encoding="utf-8"))["bytes"]
+    assert publish.SIZE_CAP_BYTES == math.ceil(measured * 1.25 / 100_000) * 100_000
+    assert measured <= publish.SIZE_CAP_BYTES
 
 
 def test_week_18_empty_remaining_is_valid(tmp_path):
