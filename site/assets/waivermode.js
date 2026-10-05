@@ -6,7 +6,7 @@
     ? window[name] : typeof require === "function" ? require(path) : null;
   const Sleeper = dep("Sleeper", "./sleeper.js");
   const FC = dep("FC", "./app.js");
-  const NO_UNIQUE_ROSTER = "Could not uniquely match this account to a roster in this league.";
+  const LiveWorld = dep("LiveWorld", "./liveworld.js");
   // The supported-league table is FC.REGISTRY (spec §3); a board is for a
   // supported Sleeper league only when its slug's entry is a Sleeper entry
   // whose live league id equals the board's.
@@ -51,32 +51,34 @@
       throw new Error("Roster size or FLEX settings changed; the board needs a rebuild.");
   }
 
-  // Live world for the desk, read from the shared session bundle (spec §5).
-  // League, rosters and identity come from the bundle -- this never fetches
-  // them -- and the only network call is the week's transactions, unless the
-  // caller already fetched them atomically with the rosters through
-  // Session.refresh({ also }) and they ride on `bundle.extra` as
-  // { week, transactions } for THIS week. Two timestamps pass through
-  // untouched: `requestedAt` (pre-request, the engine's kickoff gate) and
-  // `fetchedAt` (post-fetch, the 60 s UI expiry); nothing here reads a clock.
+  // Live world for the desk: the shared resolver (LiveWorld.resolve -- league,
+  // rosters and the roster under analysis, owner or viewer, from the session
+  // bundle; it never fetches) plus the week's transactions and the waiver-type
+  // check. The league id is the LIVE bundle's. The only network call is the
+  // week's transactions, unless the caller already fetched them atomically
+  // with the rosters through Session.refresh({ also }) and they ride on
+  // `bundle.extra` as { week, transactions } for THIS week. Two timestamps
+  // pass through untouched: `requestedAt` (pre-request number, the engine's
+  // kickoff gate) and `fetchedAt` (post-fetch ISO string, the 60 s UI expiry);
+  // nothing here reads a clock.
+  //
+  // Transitional: a caller that still passes its registry `board` (the desk
+  // and start/sit, until they move to LiveWorld) keeps today's board contract
+  // (validateContract) on the live league; without a board there is none.
+  const WAIVER_TYPES = [0, 1, 2];  // rolling priority, reverse standings, FAAB
   async function loadWorld({ bundle, board, week, get = path => Sleeper.get(path) }) {
-    if (!bundle || typeof bundle !== "object") throw new Error("No league session is loaded.");
-    if (!Number.isInteger(week) || week < 1 || week > 18) throw new Error("Week must be an integer from 1 to 18.");
-    const leagueId = String(board?.league?.league_id || "");
-    const entry = bundle.registry;
-    if (!supportedEntry(board) || !entry || entry.platform !== "sleeper" || String(entry.leagueId) !== leagueId || entry.slug !== board.league.slug)
-      throw new Error("The projection board is not for a supported Sleeper league.");
-    if (bundle.myRosterStatus === "anonymous" || !bundle.identity) throw new Error("Enter your Sleeper username in the league panel.");
-    if (bundle.myRosterStatus !== "found" || !bundle.myRoster) throw new Error(NO_UNIQUE_ROSTER);
-    validateContract(board, bundle.league);
-    if (!Array.isArray(bundle.rosters)) throw new Error("Sleeper returned incomplete roster data.");
-    if (!Number.isFinite(bundle.rostersRequestedAt) || !Number.isFinite(bundle.rostersFetchedAt)) throw new Error("Roster snapshot timestamps are missing.");
+    const world = LiveWorld.resolve({ bundle, week });
+    if (board !== undefined) validateContract(board, world.league);
+    const waiverType = world.league.settings?.waiver_type;
+    if (!WAIVER_TYPES.includes(waiverType))  // strict, like LeagueData.leagueType: Sleeper sends numbers
+      throw new Error("Only rolling-priority, reverse-standings and FAAB waiver leagues are supported.");
+    const leagueId = String(world.league.league_id || "");
+    if (!leagueId) throw new Error("Sleeper returned incomplete league data.");
     const cached = bundle.extra;
     const transactions = cached && Number(cached.week) === week && Array.isArray(cached.transactions)
       ? cached.transactions : await get(`/league/${leagueId}/transactions/${week}`);
     if (!Array.isArray(transactions)) throw new Error("Sleeper returned incomplete transaction data.");
-    return { league: bundle.league, rosters: bundle.rosters, rosterId: bundle.myRoster.roster_id, transactions,
-      fetchedAt: new Date(bundle.rostersFetchedAt).toISOString(), requestedAt: bundle.rostersRequestedAt };
+    return { ...world, transactions };
   }
 
   // The `also` hook for Session.refresh on the waiver desk: the week's

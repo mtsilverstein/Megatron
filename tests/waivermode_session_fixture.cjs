@@ -128,7 +128,7 @@ const rosters = [
   { roster_id: 3, owner_id: "u2", players: ["b"], starters: ["b"], reserve: [], taxi: [], settings: { waiver_position: 1, waiver_budget_used: 0 } },
 ];
 const league = { league_id: L, name: "Gabagool Fools", season: String(draftBoard.season), status: "in_season", total_rosters: draftBoard.league.teams,
-  settings: { waiver_type: 2, waiver_budget: 100 }, scoring_settings: { ...draftBoard.league.sleeper_scoring },
+  settings: { type: 0, waiver_type: 2, waiver_budget: 100 }, scoring_settings: { ...draftBoard.league.sleeper_scoring },
   roster_positions: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX", "K", "DEF", "BN", "BN", "BN", "BN", "BN"] };
 const state = { season: String(draftBoard.season), season_type: "regular", week: 3 };
 const catalog = { a: { position: "RB", full_name: "A Back", team: "X" }, b: { position: "WR", full_name: "B Wide", team: "Y" } };
@@ -324,6 +324,18 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   const openSim = { ...baseRow, drop: null, dropCost: { status: "open_slot", rosDelta: 4, endWeek: 5, futureWeeks: 2, label: openLabel, simulation: { nSims: 200 } } };
   assert.equal(WaiverMode.rowText(openSim, result8).dropCostNote, openLabel);
   assert.equal(WaiverMode.rowText({ ...openSim, dropCost: { ...openSim.dropCost, label: "no drop required; roster flexibility is not priced", simulation: undefined } }, result8).dropCostNote, null);
+
+  // 8. Page wiring: every page that loads waivermode.js also loads the shared
+  //    resolver and its dependencies, once each, in dependency order
+  //    (formats -> lineup -> leaguelens -> leaguedata -> liveworld -> waivermode).
+  const ORDER = ["formats.js", "lineup.js", "leaguelens.js", "leaguedata.js", "liveworld.js", "waivermode.js"];
+  for (const page of fs.readdirSync(site).filter(f => f.endsWith(".html"))) {
+    const srcs = [...fs.readFileSync(path.join(site, page), "utf8").matchAll(/<script\b[^>]*src="assets\/([^"?]+)(?:\?[^"]*)?"/g)].map(x => x[1]);
+    if (!srcs.includes("waivermode.js")) continue;
+    for (const f of ORDER) assert.equal(srcs.filter(s => s === f).length, 1, `${page}: exactly one ${f}`);
+    const at = ORDER.map(f => srcs.indexOf(f));
+    assert.deepEqual([...at].sort((a, b) => a - b), at, `${page}: ${ORDER.join(" -> ")} in order`);
+  }
 
   Date.now = realNow;
   console.log("waivermode_session_fixture: real WaiverMode.init + real Session + real chip (gate, identify, identity change, failed/successful refresh, timestamps) OK");

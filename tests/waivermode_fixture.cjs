@@ -77,7 +77,7 @@ const openPriced = M.rowText({ ...rowBase, drop:null, lineupGain:8, rosterCost:"
 assert.equal(openPriced.gain, "+8.00 pts this week · ROS +4.00");
 assert.match(openPriced.exportLine, /DROP none; \+8\.00 \(week 2 projection\); ROS \+4\.00 \(wk 2–3\); modeled; heuristic bid \$4–\$10; uses an open roster spot/);
 const id = "1376245373244301312";
-const league = { league_id: id, season: "2026", status: "in_season", total_rosters: 12, settings: { waiver_type: 2 },
+const league = { league_id: id, season: "2026", status: "in_season", total_rosters: 12, settings: { type: 0, waiver_type: 2 },
   scoring_settings: { ...board.league.sleeper_scoring, fum: 0 },
   roster_positions: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX", "K", "DEF", "BN", "BN", "BN", "BN", "BN"] };
 assert.doesNotThrow(() => M.validateContract(board, league));
@@ -90,16 +90,18 @@ assert.throws(() => M.validateContract(board, { ...league, status: "drafting" })
 assert.throws(() => M.validateContract(board, { ...league, roster_positions: league.roster_positions.slice(1) }), /Roster settings changed/);
 assert.throws(() => M.validateContract({ ...board, league: { ...board.league, slug: "espnfam" } }, league), /supported Sleeper league/);
 const famId = String(famBoard.league.league_id);
-const famLeague = { ...league, league_id:famId, total_rosters:famBoard.league.teams, settings:{waiver_type:0},
+const famLeague = { ...league, league_id:famId, total_rosters:famBoard.league.teams, settings:{type:0,waiver_type:0},
   scoring_settings:{...famBoard.league.sleeper_scoring}, roster_positions:["QB","RB","RB","WR","WR","TE","FLEX","FLEX","K","DEF","BN","BN","BN","BN","BN"] };
 assert.doesNotThrow(() => M.validateContract(famBoard, famLeague));
 assert.throws(() => M.validateContract(famBoard, famLeague, {requireFaab:true}), /requires a FAAB/);
 assert.throws(() => M.validateContract(board, famLeague), /exactly match/);
-// loadWorld reads the shared session bundle (spec §5): league, rosters and
-// identity come from it, the only fetch is the week's transactions, and the
-// two roster timestamps pass through untouched.
+// loadWorld = LiveWorld.resolve on the shared session bundle (spec §5) + the
+// week's transactions + the waiver-type check: league, rosters and the roster
+// under analysis come from the bundle, the only fetch is the week's
+// transactions, and the two roster timestamps pass through untouched. A caller
+// that still passes its board (transitional) keeps today's board contract.
 const FC = require("../site/assets/app.js");
-const NO_UNIQUE = "Could not uniquely match this account to a roster in this league.";
+const NO_ANALYSIS = "Enter your Sleeper username, or choose a team to view.";
 function bundleOf({ board: b = board, league: lg = league, rosters, userId = "helper", status = "found", extra = null,
   requestedAt = 1700000000000, fetchedAt = 1700000000750, state = { season: "2026", season_type: "regular", week: 1 }, registry } = {}) {
   const mine = (rosters || []).filter(r => r.owner_id === userId || (r.co_owners || []).includes(userId));
@@ -109,6 +111,7 @@ function bundleOf({ board: b = board, league: lg = league, rosters, userId = "he
     league: lg, users: [], rosters, state,
     rostersRequestedAt: requestedAt, rostersFetchedAt: fetchedAt,
     myRoster: status === "found" ? mine[0] : null, myRosterStatus: status,
+    viewedRosterId: null, analysisRoster: status === "found" ? mine[0] : null, analysisRole: status === "found" ? "owner" : null,
     warnings: Object.freeze([]), extra, generation: 1,
   });
 }
@@ -157,15 +160,18 @@ function bundleOf({ board: b = board, league: lg = league, rosters, userId = "he
   await refuse({ bundle: null }, /No league session/);
   await refuse({ bundle: bundleOf({ rosters, status: "anonymous" }) }, /username/);
   const ambiguous = bundleOf({ rosters: [...rosters, { roster_id: 10, owner_id: "helper" }], status: "ambiguous" });
-  await assert.rejects(M.loadWorld({ bundle: ambiguous, board, week: 1, get }), e => e.message === NO_UNIQUE);
-  await assert.rejects(M.loadWorld({ bundle: bundleOf({ rosters, userId: "outsider", status: "none" }), board, week: 1, get }), e => e.message === NO_UNIQUE);
+  await assert.rejects(M.loadWorld({ bundle: ambiguous, board, week: 1, get }), e => e.message === NO_ANALYSIS);
+  await assert.rejects(M.loadWorld({ bundle: bundleOf({ rosters, userId: "outsider", status: "none" }), board, week: 1, get }), e => e.message === NO_ANALYSIS);
   assert.equal(calls.length, 0, "ambiguous/none: refused before fetching");
-  // Registry mismatch: a FAM bundle can never feed the Gabagool board, and a
-  // board whose slug maps to another league id is not supported.
-  await refuse({ bundle: bundleOf({ rosters, registry: FC.registryFor("fam") }) }, /supported Sleeper league/);
+  // Board mismatch (transitional board contract): a FAM league can never feed
+  // the Gabagool board, and a board whose slug maps to another league id is
+  // not supported.
+  await refuse({ bundle: bundleOf({ rosters, board: famBoard, league: famLeague }) }, /exactly match/);
   await refuse({ bundle: bundleOf({ rosters, board: famBoard, league: famLeague }), board: { ...board, league: { ...board.league, slug: "fam" } } }, /supported Sleeper league/);
   // Contract checks still run on the bundle's league.
-  await refuse({ bundle: bundleOf({ rosters, league: { ...league, status: "drafting" } }) }, /draft must be complete/);
+  await refuse({ bundle: bundleOf({ rosters, league: { ...league, status: "drafting" } }) }, /^Error: This league is drafting, not in season\.$/);
+  await refuse({ bundle: bundleOf({ rosters, league: { ...league, scoring_settings: { ...league.scoring_settings, pass_td: 4 } } }) }, /Scoring changed/);
+  await refuse({ bundle: bundleOf({ rosters, league: { ...league, settings: { type: 0, waiver_type: 1 } } }) }, /rolling-priority and FAAB/);
   await refuse({ bundle: bundleOf({ rosters, fetchedAt: null }) }, /timestamps/);
   await assert.rejects(M.loadWorld({ bundle: found, board, week: 1, get: async () => ({}) }), /incomplete transaction/);
   console.log("waivermode_fixture: scoring, roster, season, ownership and session-bundle loading guards OK");

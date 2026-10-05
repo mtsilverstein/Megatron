@@ -96,7 +96,7 @@ const rosters = [
   { roster_id: 3, owner_id: "u2", players: ["b"], starters: ["b"], reserve: [], taxi: [] },
 ];
 const league = { league_id: L, name: "Gabagool Fools", season: String(draftBoard.season), status: "in_season", total_rosters: draftBoard.league.teams,
-  settings: { waiver_type: 2 }, scoring_settings: { ...draftBoard.league.sleeper_scoring },
+  settings: { type: 0, waiver_type: 2 }, scoring_settings: { ...draftBoard.league.sleeper_scoring },
   roster_positions: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX", "K", "DEF", "BN", "BN", "BN", "BN", "BN"] };
 const state = { season: String(draftBoard.season), season_type: "regular", week: 3 };
 const catalog = { a: { position: "RB", full_name: "A Back", team: "X" }, b: { position: "WR", full_name: "B Wide", team: "Y" }, k: { position: "K", full_name: "Kicker", team: "X" } };
