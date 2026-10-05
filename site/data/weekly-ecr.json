@@ -6,7 +6,7 @@
   "week": 4,
   "snapshot_at": "2026-10-05",
   "snapshot_precision": "date",
-  "retrieved_at": "2026-10-05T12:26:57.842441+00:00",
+  "retrieved_at": "2026-10-05T23:17:36.087953+00:00",
   "source": "FantasyPros via DynastyProcess/nflverse free weekly mirror",
   "source_url": "https://github.com/dynastyprocess/data/blob/master/files/fp_latest_weekly.csv",
   "period_attribution": "inferred_from_schedule_opponents",
