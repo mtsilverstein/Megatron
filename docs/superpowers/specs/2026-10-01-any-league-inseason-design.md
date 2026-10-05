@@ -137,6 +137,14 @@ from the catalog; a team or position disagreement makes the player identity-only
 codes go through one normalization table (today's `LAR→LA`, `WSH→WAS`). The catalog cache is refetched when older
 than 24 hours (today it is reused with no age check, `sleeper.py:114-118`).
 
+*Correction 2026-10-05 (Ruling 16):* the Sleeper catalog carries a `gsis_id` for only a minority of active skill
+players (160 of 828 on NFL teams), so a GSIS-only crosswalk left ~80% of real players unpriceable. When the catalog
+has **no** entry for a player's GSIS id, `players.json` falls back to the existing unique name+position match
+(`sleeper._normalize_name`; unique on both the catalog and the projection side, else `ambiguous_name_match`; a
+matched catalog entry carrying a different GSIS → `gsis_disagrees`), and the team/position checks still apply. A
+duplicated GSIS stays identity-only with no name fallback. Each player records `match: "gsis" | "name" | null` and
+the header carries `crosswalk: {matched_gsis, matched_name, unmatched}` over projected players.
+
 **Roster identities (browser).** Roster accounting never depends on `players.json`. Every live roster, reserve and
 taxi occupant — K, DEF, IDP, teamless players, players with no or ambiguous GSIS id — is represented by Sleeper id,
 hydrated from the live Sleeper catalog the pages already fetch (generalizing today's K/DEF-only supplement,

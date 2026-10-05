@@ -6,10 +6,12 @@ every neutral file header carries its five fields plus `schema_version` and
 `kind`, so the browser can reject a mixed batch.
 
 `build_players` is the **scorable universe**: every player in the neutral
-weekly or remaining payload, crosswalked to Sleeper by a strict one-to-one
-GSIS rule. Unlike `sleeper.build_crosswalk` (a draft helper), there is no name
-fallback: any ambiguity or disagreement makes the player identity-only (never
-priced), with the reason recorded.
+weekly or remaining payload, crosswalked to Sleeper by a one-to-one GSIS rule,
+falling back to `sleeper.build_crosswalk`'s unique name+position match only
+when the catalog has no entry for that GSIS (Sleeper carries a `gsis_id` for a
+minority of active players; spec §3.4 correction 2026-10-05). A duplicated
+GSIS never falls back; any ambiguity or disagreement makes the player
+identity-only (never priced), with the reason recorded.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from pathlib import Path
 import pandas as pd
 
 from ffmodel.site.leaguelens import STATS
+from ffmodel.site.sleeper import _normalize_name
 
 NEUTRAL_LENSES = ("ppr", "half_ppr", "standard")
 # One normalization table for team codes (Sleeper -> nflverse).
@@ -168,15 +171,29 @@ def _ecr(ecr_rows) -> tuple[dict | None, dict]:
     return {"source": str(pages[0]), "date": dates[0].isoformat(), "scoring": "PPR"}, ranks
 
 
-def _catalog_index(sleeper_players: dict) -> dict:
+def _catalog_index(sleeper_players: dict) -> tuple[dict, dict]:
+    """(by stripped gsis_id, by (normalized name, position)) -> [(sleeper_id, meta)]."""
     by_gsis: dict = {}
+    by_name_pos: dict = {}
     for sid, meta in (sleeper_players or {}).items():
         if not isinstance(meta, dict):
             continue
         gsis = str(meta.get("gsis_id") or "").strip()
         if gsis:
             by_gsis.setdefault(gsis, []).append((str(sid), meta))
-    return by_gsis
+        full = meta.get("full_name") or " ".join(
+            p for p in (meta.get("first_name"), meta.get("last_name")) if p)
+        key = (_normalize_name(full), str(meta.get("position") or ""))
+        if key[0] and key[1]:
+            by_name_pos.setdefault(key, []).append((str(sid), meta))
+    return by_gsis, by_name_pos
+
+
+def _name_key(name, position):
+    if not name or not position:
+        return None
+    key = (_normalize_name(name), str(position))
+    return key if key[0] else None
 
 
 def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_players: dict,
@@ -190,14 +207,23 @@ def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_
 
     - weekly and remaining disagree on team or position -> `projection_identity_conflict`
     - in remaining only and never projected (no position) -> `no_projection`
-    - no catalog entry with that stripped `gsis_id` -> `no_catalog_match`
-    - more than one catalog entry with it -> `duplicate_gsis_in_catalog` (no name fallback)
+    - more than one catalog entry with that stripped `gsis_id` ->
+      `duplicate_gsis_in_catalog` (no name fallback)
+    - no catalog entry with it -> name fallback on
+      `(sleeper._normalize_name(name), position)` (catalog `full_name`, else
+      first + last): no candidate -> `no_catalog_match`; more than one catalog
+      candidate, or more than one projected player with that key ->
+      `ambiguous_name_match`; the one candidate carries a different
+      `gsis_id` -> `gsis_disagrees`
     - catalog team differs after `normalize_team` -> `team_disagrees`
     - catalog position differs -> `position_disagrees`
 
-    `sleeper_id` and the catalog `full_name` are filled whenever the GSIS
-    match is unique, identity-only or not (roster identity is still useful);
-    otherwise `sleeper_id` is null and `name` is the projection's.
+    `match` is `"gsis"`, `"name"` or null (no unique link). `sleeper_id` and
+    the catalog `full_name` are filled whenever there is a unique link,
+    identity-only or not (roster identity is still useful); otherwise
+    `sleeper_id` is null and `name` is the projection's. The header's
+    `crosswalk` block counts `matched_gsis` / `matched_name` / `unmatched`
+    over projected players (those with a position).
 
     `ecr_rows` is None or the normalized ECR DataFrame the draft board uses
     (`data.rankings.normalize_ecr_snapshot` / `generate._load_consensus`
@@ -222,15 +248,38 @@ def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_
             by[pid] = p
     ecr_source, ranks = _ecr(ecr_rows)
     byes = _bye_weeks(schedule, ctx.season)
-    catalog = _catalog_index(sleeper_players)
+    by_gsis, by_name_pos = _catalog_index(sleeper_players)
+    union = sorted(set(weekly_by) | set(remaining_by))
+    proj_key_counts: dict = {}
+    for pid in union:
+        src = weekly_by.get(pid) or remaining_by.get(pid)
+        key = _name_key(src.get("name"), src.get("position"))
+        if key is not None:
+            proj_key_counts[key] = proj_key_counts.get(key, 0) + 1
 
     players = []
-    for pid in sorted(set(weekly_by) | set(remaining_by)):
+    crosswalk = {"matched_gsis": 0, "matched_name": 0, "unmatched": 0}
+    for pid in union:
         w, r = weekly_by.get(pid), remaining_by.get(pid)
         src = w or r
         team, position, proj_name = src.get("team"), src.get("position"), src.get("name")
-        hits = catalog.get(pid, [])
-        sid, meta = hits[0] if len(hits) == 1 else (None, None)
+        sid, meta, match, link_reason = None, None, None, None
+        hits = by_gsis.get(pid, [])
+        if len(hits) == 1:
+            (sid, meta), match = hits[0], "gsis"
+        elif len(hits) > 1:
+            link_reason = "duplicate_gsis_in_catalog"
+        else:
+            key = _name_key(proj_name, position)
+            candidates = by_name_pos.get(key, []) if key is not None else []
+            if not candidates:
+                link_reason = "no_catalog_match"
+            elif len(candidates) > 1 or proj_key_counts[key] > 1:
+                link_reason = "ambiguous_name_match"
+            elif str(candidates[0][1].get("gsis_id") or "").strip():
+                link_reason = "gsis_disagrees"  # pid has no catalog hit, so any gsis differs
+            else:
+                (sid, meta), match = candidates[0], "name"
         reason = None
         if w is not None and r is not None and (
                 normalize_team(w.get("team")) != normalize_team(r.get("team"))
@@ -238,19 +287,19 @@ def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_
             reason = "projection_identity_conflict"
         elif position is None:
             reason = "no_projection"
-        elif not hits:
-            reason = "no_catalog_match"
-        elif len(hits) > 1:
-            reason = "duplicate_gsis_in_catalog"
+        elif link_reason is not None:
+            reason = link_reason
         elif normalize_team(meta.get("team")) != normalize_team(team):
             reason = "team_disagrees"
         elif meta.get("position") != position:
             reason = "position_disagrees"
+        if position is not None:
+            crosswalk[f"matched_{match}" if match else "unmatched"] += 1
         name = (meta.get("full_name") if meta is not None and meta.get("full_name")
                 else proj_name)
         players.append({"player_id": pid, "sleeper_id": sid, "name": name, "team": team,
                         "position": position, "bye": byes.get(normalize_team(team)),
                         "ecr": ranks.get(pid), "identity_only": reason is not None,
-                        "reason": reason})
+                        "reason": reason, "match": match})
     return {**ctx.header(), "schema_version": 1, "kind": "neutral_players",
-            "ecr_source": ecr_source, "players": players}
+            "ecr_source": ecr_source, "crosswalk": crosswalk, "players": players}
