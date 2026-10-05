@@ -45,11 +45,13 @@ const remaining = { schema_version: 1, horizon: "remaining_season", status: "exp
   players: Object.entries(FC.players).map(([id, p]) => ({ player_id: "g" + id, team: "A", position: p.position, weeks: WEEKS.map(w => pageRow(w, p.weeks[w])) })) };
 const league = { league_id: "L", season: "2026", status: "in_season", total_rosters: 2, roster_positions: ["QB", "RB", "FLEX", "BN", "BN", "BN", "BN"], scoring_settings: { rec: 1 } };
 const pageRosters = ROSTERS.map((r, i) => ({ roster_id: i + 1, players: r.slice() }));
+// The page prices players through the league view's board (sleeper_id -> player_id), never the catalog's GSIS.
+const board = { season: 2026, players: Object.entries(catalog).map(([id, c]) => ({ sleeper_id: id, player_id: c.gsis_id, position: c.position })) };
 const pageArgs = t => {
   const drops = {};
   if (t.drop_a.length) drops[t.a + 1] = t.drop_a;
   if (t.drop_b.length) drops[t.b + 1] = t.drop_b;
-  return { remaining, league, catalog, rosters: pageRosters, rosterIds: [t.a + 1, t.b + 1], give: t.give_a, receive: t.give_b, currentWeek: 4, assumeAvailable: true, now: NOW, snapshotAt: NOW, drops };
+  return { remaining, league, catalog, board, rosters: pageRosters, rosterIds: [t.a + 1, t.b + 1], give: t.give_a, receive: t.give_b, currentWeek: 4, assumeAvailable: true, now: NOW, snapshotAt: NOW, drops };
 };
 const trades = T.sampleTrades(ROSTERS, FC, T.mulberry32(11), 60).map((t, i) => Object.assign({ id: `2023:5:0:${i}`, season: 2023, origin: 5, k: 0 }, t));
 // What the pages compute for a trade (null when the page cannot analyze it, e.g. a side left without a QB).

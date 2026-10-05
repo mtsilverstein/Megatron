@@ -1,26 +1,164 @@
 const assert=require('node:assert/strict');
 const {analyze}=require('../site/assets/seasontrade.js');
+const LD=require('../site/assets/leaguedata.js');
+const LL=require('../site/assets/leaguelens.js');
 const now=Date.parse('2026-09-14T12:00:00Z');
+// Synthetic league (fictional rosters and ids). Identity comes from the league view's board
+// (sleeper_id -> player_id); the published remaining and board carry no league contract.
 const catalog=Object.fromEntries(['a','b','c','d'].map(id=>[id,{gsis_id:'g'+id,position:'RB',team:'A',full_name:id}]));
 const value={a:10,b:5,c:20,d:2};
 const league={league_id:'L',season:'2026',status:'in_season',total_rosters:2,roster_positions:['RB','BN'],scoring_settings:{rec:1}};
 const remaining={schema_version:1,horizon:'remaining_season',status:'experimental',evaluation:null,season:2026,start_week:1,end_week:3,
-  generated_at:new Date(now).toISOString(),league:{league_id:'L',sleeper_scoring:{rec:1}},players:Object.keys(catalog).map(id=>({player_id:'g'+id,team:'A',position:'RB',weeks:[2,3].map(week=>({week,status:'conditional_projection',points:{league:{p50:value[id]}}}))}))};
-const base={remaining,league,catalog,rosters:[{roster_id:1,players:['a','b']},{roster_id:2,players:['c','d']}],rosterIds:[1,2],give:['a'],receive:['c'],currentWeek:1,assumeAvailable:true,now,snapshotAt:now};
+  generated_at:new Date(now).toISOString(),players:Object.keys(catalog).map(id=>({player_id:'g'+id,team:'A',position:'RB',weeks:[2,3].map(week=>({week,status:'conditional_projection',points:{league:{p50:value[id]}}}))}))};
+const identityBoard={season:2026,players:Object.keys(catalog).map(id=>({sleeper_id:id,player_id:catalog[id].gsis_id,position:'RB'}))};
+const base={remaining,league,catalog,board:identityBoard,rosters:[{roster_id:1,players:['a','b']},{roster_id:2,players:['c','d']}],rosterIds:[1,2],give:['a'],receive:['c'],currentWeek:1,assumeAvailable:true,now,snapshotAt:now};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const original=clone(base);
+// --- policy groups (any-league phase 1, spec §7.1 trade, §5.3, §8) ----------------
+// FIXTURE_ALL=1 reports every failing group instead of stopping at the first.
+const groupFails=[];
+const group=(name,fn)=>{try{fn();}catch(e){e.message=`${name}: ${e.message}`;if(process.env.FIXTURE_ALL){groupFails.push(e.message.split('\n')[0]);return;}throw e;}};
+const withPos=(src,pos)=>{const x=clone(src);for(const [id,p] of Object.entries(pos)){x.catalog[id].position=p;x.remaining.players.find(q=>q.player_id==='g'+id).position=p;x.board.players.find(q=>q.sleeper_id===id).position=p;}return x;};
+const deltas=args=>analyze(args).sides.map(s=>s.delta);
+group('independent failures, each alone against a passing base (kept checks, spec §5.3)',()=>{
+  assert.deepEqual(deltas(base),[20,-20]);
+  for(const [name,change,re] of [
+    ['week 0',{currentWeek:0},{message:'Current NFL week required'}],
+    ['week 19',{currentWeek:19},{message:'Current NFL week required'}],
+    ['week 2.5',{currentWeek:2.5},{message:'Current NFL week required'}],
+    ['wrong season',{remaining:{...remaining,season:2025}},{message:'Projection season mismatch'}],
+    ['future-dated remaining',{remaining:{...remaining,generated_at:new Date(now+1000).toISOString()}},{message:'Remaining projections stale or future-dated'}],
+    ['remaining older than 72 h',{remaining:{...remaining,generated_at:new Date(now-72*3600000-1000).toISOString()}},{message:'Remaining projections stale or future-dated'}],
+    ['roster snapshot older than 60 s',{snapshotAt:now-60001},{message:'Roster snapshot stale or invalid; reload'}],
+    ['roster snapshot after now',{snapshotAt:now+1},{message:'Roster snapshot stale or invalid; reload'}],
+  ]) assert.throws(()=>analyze({...base,...change}),re,name);
+  assert.deepEqual(deltas({...base,remaining:{...remaining,generated_at:new Date(now-72*3600000).toISOString()}}),[20,-20],'exactly 72 h passes');
+  assert.deepEqual(deltas({...base,snapshotAt:now-60000}),[20,-20],'exactly 60 s passes');
+});
+group('no published league contract: a contract-free view passes; another league id or scoring is rescored, never refused (§8.7)',()=>{
+  assert.ok(!('league' in remaining)&&!('league' in identityBoard),'the fixture view carries no league contract');
+  assert.deepEqual(deltas({...base,league:{...league,scoring_settings:{rec:.5,pass_td:6}}}),[20,-20]);
+  assert.deepEqual(deltas({...base,league:{...league,league_id:'999'}}),[20,-20]);
+  assert.deepEqual(deltas({...base,remaining:{...remaining,league:{league_id:'OTHER',sleeper_scoring:{rec:0}}},board:{...identityBoard,league:{league_id:'OTHER'}}}),[20,-20],'a stale legacy contract is ignored');
+});
+group('WRRB_FLEX and REC_FLEX eligibility through the exact kernel',()=>{
+  const wrrb=withPos(base,{b:'TE',d:'TE'});wrrb.league.roster_positions=['WRRB_FLEX','BN'];
+  assert.deepEqual(deltas(wrrb),[20,-20],'RB for RB in WRRB_FLEX');
+  assert.throws(()=>analyze({...wrrb,receive:['d']}),/cannot fill required WRRB_FLEX slot/,'a TE never fills WRRB_FLEX');
+  const rec=withPos(base,{a:'WR',c:'TE'});rec.league.roster_positions=['REC_FLEX','BN'];
+  const out=analyze(rec);
+  assert.deepEqual(out.weeks[0].sides.map(s=>[s.before.total,s.after.total]),[[10,20],[20,10]],'RBs b and d never start in REC_FLEX');
+  assert.deepEqual(out.sides.map(s=>s.delta),[20,-20]);
+  assert.deepEqual(deltas({...rec,give:['b'],receive:['d']}),[0,0],'moving bench RBs changes no REC_FLEX lineup');
+});
+group('IDP: a rostered LB/DL/DB returns null (no lineup candidate), never "Unknown roster player position"; IDP slots count toward capacity',()=>{
+  const idp=clone(base);
+  idp.league.roster_positions=['RB','LB','DL','DB','IDP_FLEX','K','DEF','BN'];
+  Object.assign(idp.catalog,{lb1:{position:'LB',team:'A',full_name:'lb1'},dl1:{position:'DL',team:'A',full_name:'dl1'},db1:{position:'DB',team:'B',full_name:'db1'},k1:{position:'K',team:'A',full_name:'k1'},def1:{position:'DEF',team:'A'}});
+  idp.rosters=[{roster_id:1,players:['a','b','lb1','dl1','db1','k1']},{roster_id:2,players:['c','d','def1']}];
+  const out=analyze(idp);
+  assert.deepEqual(out.sides.map(s=>s.delta),[20,-20]);
+  assert.deepEqual(out.weeks[0].sides[0].before.lineup.map(p=>p.id),['a'],'only the modeled RB slot is solved');
+  const lbOnly={...base,catalog:{...catalog,lb1:{position:'LB',team:'A',full_name:'lb1'}},rosters:[{roster_id:1,players:['a','b','lb1']},base.rosters[1]],league:{...league,roster_positions:['RB','BN','BN']}};
+  assert.deepEqual(deltas(lbOnly),[20,-20],'a rostered LB in a league without IDP slots is also null');
+  assert.throws(()=>analyze({...lbOnly,league:{...lbOnly.league,roster_positions:['RB','BN']}}),/capacity/,'the LB still occupies a roster spot');
+  assert.throws(()=>analyze({...lbOnly,catalog:{...lbOnly.catalog,lb1:{position:'OL',team:'A',full_name:'lb1'}}}),/Unknown roster player position/,'an unknown position still refuses');
+});
+group('an unknown starting slot refuses: Unsupported roster slots',()=>{
+  for(const slot of ['OL','XFLEX','BN_FLEX']) assert.throws(()=>analyze({...base,league:{...league,roster_positions:['RB',slot,'BN']}}),{message:'Unsupported roster slots'},slot);
+  for(const slots of [['RB','K','DEF','BN','IR','TAXI'],['RB','DL','LB','DB','IDP_FLEX','BN']]) assert.deepEqual(deltas({...base,league:{...league,roster_positions:slots}}),[20,-20],slots.join());
+});
+group('trade policy: current week skipped; declared bye and user-excluded week are 0; an OUT tag only warns; a p50 of exactly 0 stays 0',()=>{
+  const wk1=clone(base);
+  for(const p of wk1.remaining.players) p.weeks.unshift({week:1,status:'unmodeled',points:null,reason:'current week'});
+  assert.deepEqual(analyze(wk1).weeks.map(w=>w.week),[2,3],'the current week is never read');
+  assert.deepEqual(analyze({...base,currentWeek:2}).weeks.map(w=>w.week),[3]);
+  const two=clone(base);two.league.roster_positions=['RB','RB','BN'];
+  two.remaining.players.find(p=>p.player_id==='ga').weeks[0]={week:2,status:'bye',points:null};
+  let out=analyze({...two,excludeWeeks:{b:[3]}});
+  const a2=out.weeks[0].sides[0].before.lineup.find(p=>p.id==='a'),b3=out.weeks[1].sides[0].before.lineup.find(p=>p.id==='b');
+  assert.deepEqual([a2.points,a2.status],[0,'bye']);
+  assert.deepEqual([b3.points,b3.status],[0,'assumed_unavailable']);
+  const tagged=analyze({...base,catalog:{...catalog,c:{...catalog.c,injury_status:'OUT'}}});
+  assert.deepEqual(tagged.availabilityFlags.map(f=>[f.id,f.status]),[['c','OUT']]);
+  assert.deepEqual(tagged.sides.map(s=>s.delta),[20,-20],'an OUT tag is a warning: the player is still scored');
+  const zero=clone(base);zero.league.roster_positions=['RB','RB','BN'];
+  for(const w of zero.remaining.players.find(p=>p.player_id==='ga').weeks) w.points.league.p50=0;
+  out=analyze(zero);
+  const a0=out.weeks[0].sides[0].before.lineup.find(p=>p.id==='a');
+  assert.deepEqual([a0.points,a0.status],[0,'conditional_projection']);
+  assert.equal(out.weeks[0].sides[0].before.total,5);
+});
+group('missing projection coverage refuses; a missing week row refuses',()=>{
+  const gone=clone(base);gone.remaining.players=gone.remaining.players.filter(p=>p.player_id!=='gd');
+  assert.throws(()=>analyze(gone),e=>e.name==='ProjectionCoverageError'&&e.coverageIssues.every(x=>x.id==='d'&&/Missing projection or current-team mismatch: d/.test(x.reason)));
+  const hole=clone(base);hole.remaining.players.find(p=>p.player_id==='gb').weeks.pop();
+  assert.throws(()=>analyze(hole),/Missing\/duplicate projection week/);
+});
+group('exact kernel tie rule (§8.1): equal scores start the smallest id, whatever the roster order',()=>{
+  const tie=clone(base);
+  for(const w of tie.remaining.players.find(p=>p.player_id==='gb').weeks) w.points.league.p50=10;
+  tie.rosters[0].players=['b','a'];tie.league.roster_positions=['RB','BN','BN'];
+  const out=analyze({...tie,give:[],receive:['d'],drops:{}});
+  assert.deepEqual(out.weeks[0].sides[0].before.lineup.map(p=>p.id),['a']);
+  assert.equal(out.weeks[0].sides[0].before.total,10,'totals are unchanged by the tie rule');
+});
+// --- adapter-to-trade through the REAL LeagueData.views (astra R2, Review Focus 1) -------------
+const STATS=LL.STATS;
+const vec=rec=>STATS.map(s=>s==='receptions'?rec:0);
+const HDR={season:2026,week:1,data_through:'2026-wk0',generated_at:new Date(now).toISOString(),batch_id:'b1'};
+const PEOPLE=[['a','ga',10],['b','gb',5],['c','gc',20],['d','gd',2],['x','gx',30]];
+const nbatch={formats:[],evaluation:null,
+  weekly:{...HDR,kind:'neutral_weekly',schema_version:1,players:[]},
+  remaining:{...HDR,kind:'neutral_remaining',schema_version:2,horizon:'remaining_season',status:'experimental',start_week:1,end_week:3,stat_order:STATS.slice(),
+    players:PEOPLE.map(([sid,pid,rec])=>({player_id:pid,team:'A',position:'RB',name:sid,weeks:[2,3].map(week=>({week,status:'conditional_projection',opponent:'Z',stats:[vec(rec*.5),vec(rec),vec(rec*1.5)]}))}))},
+  players:{...HDR,kind:'neutral_players',schema_version:1,players:PEOPLE.map(([sid,pid])=>({player_id:pid,sleeper_id:sid,name:sid,team:'A',position:'RB',bye:null,ecr:null,identity_only:sid==='x',reason:sid==='x'?'projection_identity_conflict':null}))}};
+const liveCat={...catalog,x:{gsis_id:'gx',position:'RB',team:'A',full_name:'x'}};
+const viewOf=cat=>LD.views(nbatch,league,{week:1,catalog:cat});
+const viaView=(cat,extra={})=>{const v=viewOf(cat);return analyze({...base,remaining:v.remaining,board:v.board,catalog:cat,...extra});};
+const refusedOnly=(id,name)=>e=>{
+  assert.equal(e.name,'ProjectionCoverageError');
+  assert.deepEqual([...new Set(e.coverageIssues.map(x=>x.id))],[id]);
+  assert.ok(e.coverageIssues.every(x=>x.reason===`Missing projection or current-team mismatch: ${name}`),JSON.stringify(e.coverageIssues));
+  return true;
+};
+group('through LeagueData.views: the view prices the same scenario',()=>{
+  const v=viewOf(liveCat);
+  assert.ok(!('league' in v.remaining)&&!('league' in v.board),'views carry no league contract');
+  assert.deepEqual(analyze({...base,remaining:v.remaining,board:v.board,catalog:liveCat}).sides.map(s=>s.delta),[20,-20]);
+});
+group('through LeagueData.views: an identity-only player whose live catalog carries the matching GSIS is still refused',()=>{
+  assert.equal(liveCat.x.gsis_id,nbatch.players.players.find(p=>p.sleeper_id==='x').player_id,'the catalog "repairs" x');
+  assert.ok(nbatch.remaining.players.some(p=>p.player_id==='gx'),'and the batch has a projection for that GSIS');
+  assert.ok(!viewOf(liveCat).board.players.some(p=>p.sleeper_id==='x'),'x is not on the scorable board');
+  const lg={...league,roster_positions:['RB','BN','BN']};
+  assert.throws(()=>viaView(liveCat,{league:lg,rosters:[{roster_id:1,players:['a','b','x']},base.rosters[1]]}),refusedOnly('x','x'));
+});
+group('through LeagueData.views: a published player whose GSIS a second live Sleeper id also claims is refused (gsis_ambiguous)',()=>{
+  const twin={...liveCat,other:{...catalog.a,full_name:'other'}};
+  assert.deepEqual(viewOf(twin).excluded.map(x=>[x.sleeper_id,x.reason]),[['a','gsis_ambiguous']]);
+  assert.throws(()=>viaView(twin),refusedOnly('a','a'));
+});
+group('Review Focus 1 through LeagueData.views: a player traded after the batch is refused, never scored for his old team',()=>{
+  const moved={...liveCat,a:{...catalog.a,team:'B'}};
+  const v=viewOf(moved);
+  assert.equal(v.board.players.find(p=>p.sleeper_id==='a').team,'A','the view keeps the projection team');
+  assert.throws(()=>viaView(moved),refusedOnly('a','a'));
+});
+if(groupFails.length){console.log(`FAILED (${groupFails.length}):\n  `+groupFails.join('\n  '));process.exit(1);}
+// --- legacy cases, kept ------------------------------------------------------------
 let out=analyze(base);
 assert.deepEqual(out.sides.map(s=>s.delta),[20,-20]);
 assert.equal(out.advice_eligible,false);
 assert.deepEqual(out.weeks.map(w=>w.week),[2,3]);
 assert.deepEqual(base,original);
 assert.deepEqual(analyze({...base,catalog:{...catalog,a:{...catalog.a,gsis_id:' ga '}}}).sides,out.sides);
-const identityBoard={season:2026,league:{league_id:'L'},players:Object.keys(catalog).map(id=>({sleeper_id:id,player_id:catalog[id].gsis_id,position:'RB'}))};
-assert.deepEqual(analyze({...base,board:identityBoard,catalog:Object.fromEntries(Object.entries(catalog).map(([id,c])=>[id,{...c,gsis_id:null}]))}).sides,out.sides);
+// The view's board is the identity: a catalog without GSIS ids prices the same players.
+assert.deepEqual(analyze({...base,catalog:Object.fromEntries(Object.entries(catalog).map(([id,c])=>[id,{...c,gsis_id:null}]))}).sides,out.sides);
 out=analyze({...base,excludeWeeks:{c:[2]}});
 assert.deepEqual(out.sides.map(s=>s.delta),[5,-2]); // unavailable c also changes partner's baseline
 for(const change of [{assumeAvailable:false},{snapshotAt:now-60001},{currentWeek:3},{give:['d']},{give:['a','a']},
-  {receive:['c','d']},{league:{...league,scoring_settings:{rec:.5}}},{remaining:{...remaining,season:2025}},
+  {receive:['c','d']},{remaining:{...remaining,season:2025}},
   {remaining:{...remaining,generated_at:'2026-01-01'}},{drops:{1:['c']}},{drops:{3:['b']}}]) assert.throws(()=>analyze({...base,...change}));
 out=analyze({...base,give:['a','b'],drops:{2:['d']}});
 assert.equal(out.weeks.length,2);
@@ -29,8 +167,7 @@ const bad=clone(base);bad.remaining.players[0].weeks[0].status='unmodeled';
 assert.throws(()=>analyze(bad),/unknown is not zero/);
 bad.remaining.players[0].weeks[0].status='bye';
 assert.doesNotThrow(()=>analyze(bad));
-assert.throws(()=>analyze({...base,catalog:{...catalog,a:{...catalog.a,team:'B'}}}),/team mismatch/);
-assert.throws(()=>analyze({...base,catalog:{...catalog,other:{...catalog.a}}}),/ambiguous GSIS/);
+assert.throws(()=>analyze({...base,catalog:{...catalog,a:{...catalog.a,team:'B'}}}),/Missing projection or current-team mismatch: a/);
 assert.throws(()=>analyze({...base,rosters:[{...base.rosters[0],reserve:['a']},base.rosters[1]]}),/non-reserve/);
 assert.throws(()=>analyze({...base,league:{...league,roster_positions:['QB','BN']}}),/cannot fill/);
 const flex=clone(base);
@@ -46,15 +183,15 @@ superflex.league.roster_positions=['RB','SUPER_FLEX'];
 for(const id of ['b','d']) {
   superflex.catalog[id].position='QB';
   superflex.remaining.players.find(p=>p.player_id==='g'+id).position='QB';
+  superflex.board.players.find(p=>p.sleeper_id===id).position='QB';
 }
 out=analyze(superflex);
 assert.equal(out.weeks[0].sides[0].before.total,15);
 assert.equal(out.weeks[0].sides[0].after.total,25);
 assert.equal(out.weeks[0].sides[0].before.lineup[1].position,'QB');
 assert.deepEqual(analyze({...base,currentWeek:2}).weeks.map(w=>w.week),[3]);
-assert.throws(()=>analyze({...base,board:{...identityBoard,season:2025}}),/board league\/season/);
-assert.throws(()=>analyze({...base,board:identityBoard,catalog:{...catalog,a:{...catalog.a,gsis_id:'different'}}}),/identity disagreement/);
-assert.throws(()=>analyze({...base,league:{...league,scoring_settings:{rec:1,pass_td:6}}}),/Scoring mismatch/);
+assert.throws(()=>analyze({...base,board:{...identityBoard,season:2025}}),/Identity board season mismatch/);
+assert.throws(()=>analyze({...base,catalog:{...catalog,a:{...catalog.a,gsis_id:'different'}}}),/identity disagreement/);
 const gaps=clone(base);
 for(const p of gaps.remaining.players.filter(p=>['ga','gd'].includes(p.player_id))) {
   for(const w of p.weeks) { w.status='unmodeled';w.points=null;w.reason='no_observed_history'; }
@@ -65,9 +202,10 @@ assert.throws(()=>analyze(gaps),error=>{
   assert.ok(error.coverageIssues.every(x=>x.reason.includes('no_observed_history')));
   return true;
 });
-// Explicit exclusions can cover an unmodeled week but never repair identity.
+// Explicit exclusions can cover an unmodeled week but never repair identity: a player the
+// view's board does not map stays refused even with every week excluded.
 assert.doesNotThrow(()=>analyze({...gaps,excludeWeeks:{a:[2,3],d:[2,3]}}));
-assert.throws(()=>analyze({...gaps,catalog:{...catalog,a:{...catalog.a,gsis_id:null}},excludeWeeks:{a:[2,3],d:[2,3]}}),/GSIS/);
+assert.throws(()=>analyze({...gaps,board:{...identityBoard,players:identityBoard.players.filter(p=>p.sleeper_id!=='a')},excludeWeeks:{a:[2,3],d:[2,3]}}),/Missing projection or current-team mismatch: a/);
 // --- consensus cases ---------------------------------------------------------
 // 2-for-1 with the explicit drop on the RECEIVING side: roster 2 takes a and b for c,
 // must drop d to fit, and d's contribution counts against the trade for roster 2.
@@ -77,6 +215,7 @@ assert.throws(()=>analyze({...gaps,catalog:{...catalog,a:{...catalog.a,gsis_id:n
   two.rosters = [{ roster_id: 1, players: ['a', 'b', 'e'] }, { roster_id: 2, players: ['c', 'd', 'f'] }];
   two.catalog = { ...catalog, e: { gsis_id: 'ge', position: 'RB', team: 'A', full_name: 'e' }, f: { gsis_id: 'gf', position: 'RB', team: 'A', full_name: 'f' } };
   const v2 = { ...value, e: 1, f: 3 };
+  two.board.players.push(...['e', 'f'].map(id => ({ sleeper_id: id, player_id: 'g' + id, position: 'RB' })));
   two.remaining.players = Object.keys(two.catalog).map(id => ({ player_id: 'g' + id, team: 'A', position: 'RB', weeks: [2, 3].map(week => ({ week, status: 'conditional_projection', points: { league: { p50: v2[id] } } })) }));
   two.give = ['a', 'b']; two.receive = ['c'];
   assert.throws(() => analyze(two), /capacity/, 'roster 2 would hold four with a three-man capacity');
@@ -91,6 +230,7 @@ assert.throws(()=>analyze({...gaps,catalog:{...catalog,a:{...catalog.a,gsis_id:n
   const te = clone(base);
   te.league.roster_positions = ['RB', 'TE', 'BN'];
   te.catalog = { ...catalog, t: { gsis_id: 'gt', position: 'TE', team: 'A', full_name: 't' } };
+  te.board.players.push({ sleeper_id: 't', player_id: 'gt', position: 'TE' });
   te.rosters = [{ roster_id: 1, players: ['a', 't'] }, { roster_id: 2, players: ['c', 'd'] }];
   te.remaining.players.push({ player_id: 'gt', team: 'A', position: 'TE', weeks: [2, 3].map(week => ({ week, status: 'conditional_projection', points: { league: { p50: 7 } } })) });
   te.give = ['t']; te.receive = ['d'];
@@ -167,8 +307,8 @@ assert.throws(()=>analyze({...gaps,catalog:{...catalog,a:{...catalog.a,gsis_id:n
   // coverage gaps block exactly as analyze does, before any simulation
   const gap=clone(args);gap.remaining.players.find(p=>p.player_id==='ga').weeks[0].status='unmodeled';
   assert.throws(()=>simulate(gap),e=>e.name==='ProjectionCoverageError');
-  // identity failures are analyze's, verbatim
-  assert.throws(()=>simulate({...args,catalog:{...args.catalog,other:{...args.catalog.a}}}),/ambiguous GSIS/);
+  // identity failures are analyze's, verbatim: a rostered player the board does not map is refused
+  assert.throws(()=>simulate({...args,board:{...args.board,players:args.board.players.filter(p=>p.sleeper_id!=='a')}}),e=>e.name==='ProjectionCoverageError'&&/Missing projection or current-team mismatch: a/.test(e.message));
   assert.throws(()=>simulate({...args,assumeAvailable:false}),/conditional-availability/);
   // a missing availability table is a loud RosterSimError, never a default
   assert.throws(()=>simulate({...args,availability:undefined}),e=>e.name==='RosterSimError'&&/availability/.test(e.message));

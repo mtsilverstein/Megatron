@@ -1,6 +1,26 @@
-/* In-season trade page controller. The pure helpers here are what the fixture
-   tests; init() wires them to the DOM, to the shared Session bundle (identity,
-   users, rosters, NFL state, catalog) and to SeasonTrade.analyze. */
+/* In-season trade page controller (any-league spec §7.1 trade, §7.2, §5.1,
+   §5.2, §6.1, §6.2, §3.2). Any Sleeper league, by id. The pure helpers here
+   are what the fixture tests; init() wires them to the DOM, to the shared
+   Session bundle and to SeasonTrade.analyze.
+
+   Statics, once per document (a failure retries on the next load): the
+   league-neutral batch (LeagueData.loadBatch). No draft board, no per-league
+   remaining file, no traded picks and no simulation inputs: future picks are
+   not on the in-season page (spec §7.2) and simulation is off for everyone
+   in phase 1 (spec §6.2).
+
+   The live world comes from the committed Session bundle: the league (read
+   from EACH committed bundle, never a closure copy), users, rosters, NFL
+   state and the roster under analysis (the owner's own, or the team a viewer
+   chose: analysisRoster / analysisRole), checked by LiveWorld.resolve. Every
+   NEW bundle recomputes the league views (remaining + identity board) under
+   the bundle's live scoring; bundles are compared by identity, never by
+   generation. A compare's own roster refresh is adopted as data only when
+   the league settings did not move; otherwise the page reloads and the
+   compare is superseded (spec §5.2).
+
+   Best ball or an unknown starting slot: rest-of-season values only, no
+   lineup comparison. */
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -13,21 +33,29 @@
   const dep = (name, path) => typeof window !== "undefined" && window[name]
     ? window[name] : typeof require === "function" ? require(path) : null;
   const Session = dep("Session", "./session.js");
+  // Lazy: resolved at call time so script order does not matter.
+  const LD = () => dep("LeagueData", "./leaguedata.js");
+  const LW = () => dep("LiveWorld", "./liveworld.js");
   const SKILL = new Set(["QB", "RB", "WR", "TE"]);
   const HEADLINE = "Conditional lineup scenario — not a trade verdict.";
   const SUBLINE_TAIL = "Keeper value and draft picks are not valued, so no overall grade is shown.";
   const FORBIDDEN = Object.freeze(["verdict", "win/win", "fair", "winner", "accept", "recommend", "grade"]);
   const ALLOWED_SENTENCES = Object.freeze([HEADLINE, SUBLINE_TAIL]);
-  const LAST_MEASURED_WEEK = 17;     // the backtest measured weeks origin..17 only (spec §8)
-  // Gate open (a passing trade_sim_eval.json): the grade panel replaces those
-  // words with the grade vocabulary. "accept", "fair", "winner" and "verdict"
-  // stay out of every panel string; "grade" is now allowed.
+  // The measured-method vocabulary (gradeText/marketText below). Dormant in
+  // phase 1: no grade is shown to anyone (spec §6.2), but the pure helpers
+  // stay pinned to the backtest by sim_parity_fixture.
   const GRADE_FORBIDDEN = Object.freeze(["verdict", "accept", "fair", "winner", "recommend", "win/win"]);
   const GRADE_LABELS = Object.freeze(["Clear gain", "Small gain", "Too close to call", "Small loss", "Clear loss"]);
   const GRADED_HEADLINE = "Lineup scenario from central (p50) projections, everyone assumed available.";
   const GRADED_SUBLINE_TAIL = "Keeper value and draft picks are not valued.";
-  const GRADE_SEED = 20260924;
-  const STARTER_SLOTS = new Set(["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX"]);
+  const COPY = Object.freeze({
+    simulationOff: "Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.",
+    bestBall: "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.",
+    noEvidence: "No measured evaluation for your league's scoring and this model.",
+    horizon: "through NFL week 17, regardless of your league's schedule",
+    aggregation: "sum of weekly medians through NFL week 17, not a season median",
+  });
+  const ROS_METRIC = "rest_of_season_points_mae";
 
   // "3-5, 8" -> [3,4,5,8]. Anything else is an error the user sees; an
   // unparseable exclusion must never silently mean "no exclusion".
@@ -47,6 +75,7 @@
   // The exact roster matcher lives in session.js now (spec §4.3); re-exported
   // under the old name so callers and the fixture keep one import.
   const identifyRoster = Session.identifyRoster;
+  // Every slot but IR/TAXI is a roster spot: K/DEF/IDP slots count too.
   const capacityOf = league => (league.roster_positions || []).filter(s => !["IR", "TAXI"].includes(String(s).toUpperCase())).length;
   function activeSkill(roster, catalog) {
     const locked = new Set([...(roster.reserve || []), ...(roster.taxi || [])].map(String));
@@ -65,22 +94,22 @@
       return { name: name(s.rosterId), before: fmt(before), after: fmt(after), delta: fmtDelta(s.delta) };
     });
     const subline = `Sum of weekly central (p50) lineup scenarios for weeks ${ctx.firstWeek}–${ctx.endWeek}; week ${ctx.currentWeek} is excluded because trades may process after games start. ${ctx.graded ? GRADED_SUBLINE_TAIL : SUBLINE_TAIL}`;
-    const notValued = (ctx.picks || []).length ? [`Not valued: picks — ${ctx.picks.map(p => p.label).join(", ")}`] : [];
     const assumptions = [];
     for (const [id, weeks] of Object.entries(ctx.excludeWeeks || {})) if (weeks.length) assumptions.push(`${pname(id)} assumed unavailable weeks ${weeks.join(", ")} (your assumption, not a return-date prediction)`);
     for (const [rid, ids] of Object.entries(ctx.drops || {})) for (const id of ids) assumptions.push(`${name(rid)} drops ${pname(id)}`);
-    return { headline: ctx.graded ? GRADED_HEADLINE : HEADLINE, subline, sides, notValued, assumptions };
+    return { headline: ctx.graded ? GRADED_HEADLINE : HEADLINE, subline, sides, assumptions };
   }
   // Plain-English bottom line, one sentence group per side, read straight off
   // the engine's per-week before/after starting lineups (result.weeks[].sides[]
   // .before/.after.lineup). A week "changes" when the set of starters differs;
   // the lineup size is fixed by the slots, so who enters and who leaves always
   // pair up. States deltas and lineup moves only -- no judging words.
+  // ctx.ownLabel names the analysed side for a viewer ("Your lineup" otherwise).
   const fmt1 = x => { const r = Math.round(x * 10) / 10; return r === 0 ? "0.0" : `${r < 0 ? "−" : "+"}${Math.abs(r).toFixed(1)}`; };
   const andList = xs => xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
   function lineupSummary(result, ctx) {
     const span = `weeks ${ctx.firstWeek}–${ctx.endWeek}`;
-    const label = i => (i === 0 ? "Your lineup" : (ctx.names && ctx.names[result.sides[i].rosterId]) || `roster ${result.sides[i].rosterId}`);
+    const label = i => (i === 0 ? (ctx.ownLabel || "Your lineup") : (ctx.names && ctx.names[result.sides[i].rosterId]) || `roster ${result.sides[i].rosterId}`);
     const perSide = result.sides.map((s, i) => {
       const changes = [];
       for (const w of result.weeks) {
@@ -115,7 +144,56 @@
     return { headline: "Comparison blocked", rows: [String(error && error.message || error)] };
   }
 
-  // --- grade (gated) ---------------------------------------------------------
+  // --- league context (spec §6.1, §4, §6.2, §7.2) --------------------------
+  // The lines above the columns: the format line (eligibility wins for best
+  // ball), the scoring banner and footnotes, the aggregation label beside the
+  // lineup totals, and the simulation note.
+  function contextLines({ format, view }) {
+    const out = [];
+    if (format && format.text) out.push(format.text);
+    if (view && view.disclosures) {
+      if (view.disclosures.banner) out.push(view.disclosures.banner);
+      for (const f of view.disclosures.footnotes || []) out.push(f);
+    }
+    out.push(`Lineup totals are the ${COPY.aggregation}, ${COPY.horizon}.`);
+    out.push(COPY.simulationOff);
+    return out;
+  }
+  // The rest-of-season evaluation: a measured number only when a record binds
+  // to the CURRENT output (LeagueData.evidenceFor: the league's effective
+  // scoring and this model's method), else the fallback (spec §3.2).
+  function evidenceLines(evaluation, view) {
+    const records = evaluation && Array.isArray(evaluation.records) ? evaluation.records : [];
+    for (const r of records) {
+      if (!r || r.metric !== ROS_METRIC) continue;
+      const rec = LD().evidenceFor(evaluation, r.id, view && view.lens, view && view.method);
+      if (!rec || !Array.isArray(rec.values)) continue;
+      const num = x => Number.isFinite(x) ? x.toFixed(2) : "n/a";
+      const lines = ["Rest-of-season accuracy, measured under this league's scoring and this model:"];
+      for (const h of rec.values.filter(v => v && v.position === "ALL"))
+        lines.push(`${h.horizon} week${h.horizon === 1 ? "" : "s"} ahead: model MAE ${num(h.model_mae)} vs baseline ${num(h.baseline_mae)} (${h.paired_player_forecasts ?? "n/a"} paired forecasts)`);
+      return lines;
+    }
+    return [`Rest-of-season accuracy: ${COPY.noEvidence}`];
+  }
+  // Best ball / an unknown slot: the analysed roster's rest-of-season values
+  // (the board view's ros_value), active skill players only. Unknown is not 0.
+  function rosValueLines(board, roster, catalog) {
+    const bySleeper = new Map(((board && board.players) || []).map(p => [String(p.sleeper_id), p]));
+    const locked = new Set([...(roster.reserve || []), ...(roster.taxi || [])].map(String));
+    const lines = [`Rest-of-season values: the ${COPY.aggregation}, ${COPY.horizon}.`];
+    for (const id of (roster.players || []).map(String)) {
+      const c = (catalog && catalog[id]) || {}, b = bySleeper.get(id);
+      if (locked.has(id) || !SKILL.has(c.position)) continue;
+      const value = b && Number.isFinite(b.ros_value) ? b.ros_value.toFixed(2) : "no rest-of-season projection";
+      lines.push(`${c.full_name || (b && b.name) || id} · ${c.position} · ${value}`);
+    }
+    return lines;
+  }
+
+  // --- measured-method helpers (dormant: simulation is off, spec §6.2) --------
+  // Pure; kept pinned to the backtest by sim_parity_fixture for the January
+  // format-test gate. No page path calls them in phase 1.
   // |Δ| < E is too close to call; E <= |Δ| < kE small; |Δ| >= kE clear. Δ = 0
   // is always "too close" (even at E = 0). Pure.
   function gradeLabel(delta, E, k = 2) {
@@ -124,31 +202,8 @@
     if (a === 0 || a < E) return "Too close to call";
     return `${a >= k * E ? "Clear" : "Small"} ${delta > 0 ? "gain" : "loss"}`;
   }
-  const starterSlots = positions => (Array.isArray(positions) ? positions : []).filter(s => STARTER_SLOTS.has(s));
-  const sameSlots = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.slice().sort().join(",") === b.slice().sort().join(",");
-  // The eval file's view for THIS league, or null (gate closed). `league` is
-  // {slug, roster_positions}: the board slug and the live league's slots.
-  // Open only for schema_version 2 + verdict "pass" on the primary league or on
-  // `secondary` (its own verdict and horizons), a non-empty string slug equal to
-  // the file's league, slots equal (as a multiset, order aside) to the live
-  // starter slots, and at least one horizon with a usable stratum.
   const usableHorizon = h => h && typeof h === "object" && Number.isFinite(h.weeks) && h.weeks > 0 && h.strata && typeof h.strata === "object"
     && Object.values(h.strata).some(s => s && Number.isFinite(s.E) && s.E >= 0);
-  function evalView(evalFile, league) {
-    if (!evalFile || typeof evalFile !== "object" || evalFile.schema_version !== 2 || !league) return null;
-    if (typeof league.slug !== "string" || !league.slug) return null;
-    const live = starterSlots(league.roster_positions);
-    const k = Number.isFinite(evalFile.k) && evalFile.k >= 1 ? evalFile.k : 2;
-    const candidates = [evalFile, evalFile.secondary && typeof evalFile.secondary === "object" ? evalFile.secondary : null];
-    for (const c of candidates) {
-      if (!c || typeof c.league !== "string" || !c.league || c.league !== league.slug || c.verdict !== "pass" || !sameSlots(c.slots, live)) continue;
-      const horizons = Array.isArray(c.horizons) ? c.horizons.filter(usableHorizon) : [];
-      if (!horizons.length) continue;
-      return { league: c.league, slots: c.slots, k, horizons };
-    }
-    return null;
-  }
-  const gateOpen = (evalFile, league) => evalView(evalFile, league) !== null;
   // The horizon whose remaining-week count is nearest to the live one; a tie
   // goes to the shorter horizon. Malformed or empty -> null.
   function pickHorizon(horizons, liveWeeks) {
@@ -264,20 +319,21 @@
     };
   }
 
-  // --- controller -----------------------------------------------------------
-  // Everything below touches the DOM and the live Sleeper API; the pure
-  // helpers above are what the fixture pins. Nothing here calls Trade.* except
-  // defaultPicks/applyTradedPicks (pick ownership only) and never TradeMode.*:
-  // the pre-draft engine's numbers are not defined in season (spec §6.6).
-  //
-  // Who you are, which roster is yours, the league's users/rosters and the
-  // NFL state all come from the committed Session bundle (spec §5); the
-  // ~5 MB player catalog is Session.catalog(), fetched once per document.
-  // This controller's only Sleeper calls of its own are traded_picks on load
-  // and, through Session.refresh, the roster re-read before a compare.
+  // --- statics: once per document, a failure retries on the next call ----------
+  let batchPromise = null;
+  const batch = () => batchPromise || (batchPromise = LD().loadBatch().catch(e => { batchPromise = null; throw e; }));
+  const _reset = () => { batchPromise = null; };   // test hook: a cold document
 
-  // Same rule as TradeMode.teamName, restated here rather than imported so
-  // this controller never reaches into the pre-draft module.
+  // --- controller -----------------------------------------------------------
+  // Everything below touches the DOM; the pure helpers above are what the
+  // fixture pins. Nothing here calls Trade.* or TradeMode.*: the pre-draft
+  // engine's numbers are not defined in season (spec §6.6). This controller
+  // makes no Sleeper call of its own: the league, users, rosters and NFL state
+  // come from the committed Session bundle, the ~5 MB player catalog from
+  // Session.catalog() (once per document), and a compare re-reads rosters
+  // (and, as every refresh does, the league settings) through Session.refresh.
+
+  // Same rule as TradeMode.teamName / Session.teamName.
   const teamNameOf = (user, rosterId) => (user && user.metadata && user.metadata.team_name) || (user && user.display_name) || `Roster ${rosterId}`;
   const activeIds = roster => {
     const locked = new Set([...(roster.reserve || []), ...(roster.taxi || [])].map(String));
@@ -285,15 +341,16 @@
   };
   const weekMismatch = (startWeek, week) => `remaining-season projections are for week ${startWeek}, the league is in week ${week}; wait for the next refresh`;
   const CHANGED = "Rosters changed since they were loaded — the columns were redrawn from the fresh snapshot; choose again.";
-  const NO_IDENTITY = "Enter your Sleeper username in the league panel above; the trade columns read your roster from there.";
   const statusWord = s => String(s || "").replace(/_/g, " ");
+  // What a compare's own refresh must not move for its result to stand: the
+  // league settings the views and the lineup slots were built from.
+  const settingsKey = league => JSON.stringify(league ? [league.league_id, league.season, league.status, league.total_rosters, league.roster_positions, league.scoring_settings, league.settings] : null);
+  const sameIdentity = (a, b) => (!a && !b) || (!!a && !!b && a.userId === b.userId);
   class PreflightError extends Error {}
 
-  function init({ board, league, slug, els }) {
-    const W = window;
+  function init({ els }) {
+    const W = typeof window !== "undefined" ? window : {};
     const SESSION = W.Session || Session;   // the page global (same object in the browser); node tests can script it
-    const get = path => W.Sleeper.get(path);
-    const lid = String(league.league_id);
     const el = (tag, text, cls) => {
       const node = document.createElement(tag);
       if (text !== undefined && text !== null) node.textContent = text;
@@ -301,7 +358,6 @@
       return node;
     };
     const setStatus = t => { els.status.textContent = t; };
-    const leagueName = (board.league && board.league.name) || league.name || slug;
     let loadSeq = 0, busy = false, loading = false;
     // Bumped by every input change, every load and every bundle change the
     // controller did not ask for: a compare whose refresh was in flight when
@@ -311,71 +367,90 @@
     // compare). Session.onChange fires for every state move; only a
     // DIFFERENT committed bundle re-runs the load.
     let currentBundle = null;
-    // Everything loaded for the current league snapshot. Reset wholesale on load.
-    const S = { rosters: [], users: new Map(), state: null, remaining: null, catalog: null, owned: null, picksUnknown: false, me: null, partner: null, loadedProvenance: "", evalFile: null, gate: null, availability: undefined, ros: undefined };
+    // Everything loaded for the current bundle. Reset wholesale on load. The
+    // league is the committed bundle's own object (spec §5.2).
+    const S = { bundle: null, league: null, rosters: [], users: new Map(), state: null, me: null, role: null, partner: null,
+      batch: null, view: null, remaining: null, board: null, catalog: null, format: null, note: null, loadedProvenance: "" };
     const first = () => Math.max(Number(S.state.week), S.remaining.start_week) + 1;
     const last = () => S.remaining.end_week;
     const rosterName = rid => {
       const r = S.rosters.find(x => String(x.roster_id) === String(rid));
       return teamNameOf(r && S.users.get(r.owner_id), rid);
     };
+    const viewer = () => S.role === "viewer";
+    const who = () => viewer() ? `Viewing ${rosterName(S.me.roster_id)}` : `you are ${rosterName(S.me.roster_id)}`;
     const playerName = id => (S.catalog && S.catalog[id] && S.catalog[id].full_name) || `Sleeper #${id}`;
-    // One object per column. `players` are the selected trade assets, `picks`
-    // the selected pick keys -> labels, `drops` the explicit drop choices,
-    // `weeks` the raw "assume unavailable" text per player id (parsed on
-    // input; `errors` holds the parse message for any field that does not).
-    const newSide = (ul, dropsEl) => ({ ul, dropsEl, roster: null, active: [], players: new Set(), picks: new Map(), drops: new Set(), weeks: new Map(), errors: new Map(), needed: 0 });
+    // One object per column. `players` are the selected trade assets, `drops`
+    // the explicit drop choices, `weeks` the raw "assume unavailable" text per
+    // player id (parsed on input; `errors` holds the parse message for any
+    // field that does not).
+    const newSide = (ul, dropsEl) => ({ ul, dropsEl, roster: null, active: [], players: new Set(), drops: new Set(), weeks: new Map(), errors: new Map(), needed: 0 });
     const sides = { mine: newSide(els.mine, els.mineDrops), theirs: newSide(els.theirs, els.theirsDrops) };
     const sideName = s => s.roster ? rosterName(s.roster.roster_id) : "";
 
-    setEyebrow(league.settings && Number.isInteger(league.settings.leg) ? league.settings.leg : null);
     function setEyebrow(week) {
-      els.eyebrow.textContent = `${leagueName} · ${league.season}${week ? ` week ${week}` : ""} · conditional lineup scenario`;
+      if (!S.league) { els.eyebrow.textContent = ""; return; }
+      const name = S.league.name || `League ${S.league.league_id}`;
+      els.eyebrow.textContent = `${name} · ${S.league.season}${week ? ` week ${week}` : ""} · conditional lineup scenario`;
     }
 
     // --- load ---------------------------------------------------------------
-    function preflight({ users, rosters, state, remaining, catalog }) {
+    // Kept checks (spec §5.3): in-season league, complete league data, the
+    // regular season of the league's own season and a current NFL week.
+    function preflightLeague({ league, users, rosters, state }) {
       const fail = msg => { throw new PreflightError(msg); };
       if (league.status !== "in_season") fail(`this league is ${league.status}, not in season`);
       if (!Array.isArray(users) || !Array.isArray(rosters)) fail("Sleeper returned incomplete league data");
       if (rosters.length !== league.total_rosters) fail(`Sleeper returned ${rosters.length} rosters for a ${league.total_rosters}-team league`);
-      if (!remaining) fail(`remaining-season projections are not published for ${slug} yet`);
-      if (String(remaining.league && remaining.league.league_id) !== lid) fail(`remaining-season projections are for league ${remaining.league && remaining.league.league_id}, not this league`);
-      if (remaining.season !== Number(league.season)) fail(`remaining-season projections are for ${remaining.season}; the league is in ${league.season}`);
       if (!state || String(state.season) !== String(league.season) || state.season_type !== "regular") fail(`Sleeper reports the ${state && state.season} ${state && state.season_type}; this tool needs the ${league.season} regular season`);
       const week = Number(state.week);
       if (!Number.isInteger(week)) fail("current NFL week unavailable");
+      return week;
+    }
+    // The projections the views produced: present (or the end state named),
+    // the league's season, aligned to the current week, with weeks left.
+    function preflightProjections({ league, remaining, remainingReason, week, catalog }) {
+      const fail = msg => { throw new PreflightError(msg); };
+      if (!remaining) fail(remainingReason || LD().COPY.noRemaining);
+      if (remaining.season !== Number(league.season)) fail(`remaining-season projections are for ${remaining.season}; the league is in ${league.season}`);
       if (remaining.start_week !== week) fail(weekMismatch(remaining.start_week, week));
       if (!Number.isInteger(remaining.end_week) || week + 1 > remaining.end_week) fail(`no remaining weeks to compare after week ${week}`);
       if (!catalog || typeof catalog !== "object") fail("player catalog unavailable");
     }
 
-    // Account-derived surfaces go dark together: columns, controls, result,
-    // provenance (spec §4.4 rule 2 -- hidden, not just labeled).
+    // Account- and league-derived surfaces go dark together: columns,
+    // controls, result, provenance, context (spec §4.4 rule 2 -- hidden, not
+    // just labeled).
     function hideAll() {
       hideResult();
       els.provenance.textContent = "";
       els.controls.hidden = true; els.cols.hidden = true; els.compare.disabled = true; els.warn.hidden = true;
+      if (els.context) { els.context.replaceChildren(); els.context.hidden = true; }
     }
 
-    // Why the columns are not showing: the session's error, no identity yet,
-    // still loading, or the exact matcher's refusal (the chip's own wording).
+    // Why the columns are not showing: the session's error, still loading, or
+    // the live resolver's own refusal in its order (league status, league
+    // type, no roster under analysis). Week 1 is a placeholder: the resolver
+    // only range-checks it; the real week is checked when the columns load.
     function gateMessage(bundle) {
       const err = SESSION.error();
       if (err) return err;
-      if (!SESSION.identity()) return NO_IDENTITY;
       if (!bundle) return "loading league…";
-      if (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous") return SESSION.chipText(bundle, "ready", Date.now());
-      if (bundle.league && bundle.league.status !== "in_season") return `this league is ${bundle.league.status}, not in season`;
-      return "loading league…";
+      let msg;
+      try { LW().resolve({ bundle, week: 1 }); return "loading league…"; } catch (e) { msg = e.message; }
+      if (msg === LW().NO_ANALYSIS && (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous"))
+        return `${SESSION.chipText(bundle, "ready", Date.now())} Choose a team to view in the league panel above.`;
+      return msg;
     }
 
-    // Copy the bundle's league data into the controller's snapshot. Users,
-    // rosters, state and my roster never come from anywhere else.
+    // Copy the bundle's live data into the controller's snapshot. League,
+    // users, rosters, state and the analysed roster never come from anywhere
+    // else.
     function adopt(bundle) {
       currentBundle = bundle;
+      S.bundle = bundle; S.league = bundle.league;
       S.rosters = bundle.rosters; S.users = new Map(bundle.users.map(u => [u.user_id, u]));
-      S.state = bundle.state; S.me = bundle.myRoster;
+      S.state = bundle.state; S.me = bundle.analysisRoster; S.role = bundle.analysisRole;
       setEyebrow(Number(bundle.state.week));
     }
 
@@ -387,10 +462,9 @@
       onPartnerChange();
     }
 
-    // The load body: everything downstream of a committed bundle with a
-    // uniquely matched roster. The bundle supplies users/rosters/state/me;
-    // this fetches only traded_picks, the remaining-season file and the
-    // session's once-per-document catalog.
+    // The load body: everything downstream of a committed in-season bundle
+    // with a roster under analysis. Fetches only the once-per-document batch
+    // and catalog; the views are recomputed for THIS bundle's league.
     async function load(bundle) {
       const seq = ++loadSeq;
       compareSeq++;
@@ -399,32 +473,34 @@
       currentBundle = bundle;
       try {
         hideAll();
-        setStatus("reading traded picks, projections and the player catalog…");
-        let picksUnknown = false;
-        const [tradedPicks, remaining, catalog, evalFile] = await Promise.all([
-          get(`/league/${lid}/traded_picks`).catch(() => { picksUnknown = true; return null; }),
-          W.FC.loadJSON(W.FC.leagueDataPath("remaining")).catch(() => null),
-          SESSION.catalog(),
-          // The gate file. Missing, unreadable or not a pass: the page is exactly
-          // the conditional lineup scenario (gate closed).
-          W.FC.loadJSON("data/trade_sim_eval.json").catch(() => null),
-        ]);
+        setStatus("reading projections, scoring and the player catalog…");
+        const [b, catalog] = await Promise.all([batch(), SESSION.catalog()]);
         if (stale()) return;
-        S.evalFile = evalFile;
-        S.gate = evalView(evalFile, { slug, roster_positions: league.roster_positions });
-        S.availability = undefined; S.ros = undefined;
-        const { users, rosters, state, myRoster: me } = bundle;
-        preflight({ users, rosters, state, remaining, catalog });
-        if (!me) throw new PreflightError(SESSION.chipText(bundle, "ready", Date.now()));
+        const { league, users, rosters, state } = bundle;
+        const week = preflightLeague({ league, users, rosters, state });
+        let view;
+        try {
+          LW().resolve({ bundle, week });
+          view = LD().views(b, league, { week, catalog });
+        } catch (e) { throw new PreflightError(e.message); }
+        preflightProjections({ league, remaining: view.remaining, remainingReason: view.remainingReason, week, catalog });
+        const format = await LD().formatLine(league, b.formats);
+        if (stale()) return;
         adopt(bundle);
-        S.remaining = remaining; S.catalog = catalog; S.picksUnknown = picksUnknown;
-        S.owned = pickOwnership(rosters, tradedPicks);
-        S.loadedProvenance = provenanceText(null);
-        redraw();
-        els.controls.hidden = false; els.cols.hidden = false;
-        els.provenance.textContent = S.loadedProvenance;
+        Object.assign(S, { batch: b, view, remaining: view.remaining, board: view.board, catalog, format });
+        const type = LD().leagueType(league), unknown = LD().slotSupport(league).unknown;
+        S.note = type.bestBall ? COPY.bestBall
+          : unknown.length ? `Unsupported lineup slot: ${unknown.join(", ")} — no trade lineup comparison for this league; the rest-of-season values below still apply.` : null;
+        renderContext();
         renderWarn();
-        setStatus(`${rosters.length} teams loaded — you are ${rosterName(me.roster_id)}`);
+        S.loadedProvenance = provenanceText(null);
+        els.provenance.textContent = S.loadedProvenance;
+        if (S.note) renderNote();
+        else {
+          redraw();
+          els.controls.hidden = false; els.cols.hidden = false;
+        }
+        setStatus(`${rosters.length} teams loaded — ${who()}`);
       } catch (e) {
         if (stale() || SESSION.isSuperseded(e)) return;
         setStatus(e instanceof PreflightError ? e.message : `load failed: ${e.message} — refresh from the league panel to retry`);
@@ -433,48 +509,51 @@
       }
     }
 
-    // Session.onChange driver. Gated on bundle()/myRosterStatus/error(),
-    // never on state() === "error" (a stale identity error can coexist with
-    // a valid bundle). A bundle this controller did not ask for redraws the
-    // columns and invalidates any compare in flight; the one exception is the
-    // bundle compare() itself requested through Session.refresh -- same
-    // account, same roster, arriving while `busy` -- which is adopted as data
-    // so the compare it belongs to can finish against it.
+    // Session.onChange driver. Gated on the committed bundle and its roster
+    // under analysis (owner or viewer), never on state() === "error" alone.
+    // A bundle this controller did not ask for redraws the columns and
+    // invalidates any compare in flight; the one exception is the bundle
+    // compare() itself requested through Session.refresh -- same identity,
+    // same analysed roster, same league settings, arriving while `busy` --
+    // which is adopted as data so the compare can finish against it.
     function sync() {
       const bundle = SESSION.bundle();
-      if (!bundle || bundle.myRosterStatus !== "found" || !bundle.myRoster || !bundle.league || bundle.league.status !== "in_season") {
+      if (!bundle || !bundle.analysisRoster || !bundle.league || bundle.league.status !== "in_season") {
         ++loadSeq; compareSeq++; currentBundle = null; loading = false;
         hideAll(); setStatus(gateMessage(bundle));
         return;
       }
       if (bundle === currentBundle) return;
-      const sameAccount = busy && currentBundle && S.me
-        && bundle.identity && currentBundle.identity && bundle.identity.userId === currentBundle.identity.userId
-        && String(bundle.myRoster.roster_id) === String(S.me.roster_id);
-      if (sameAccount) { adopt(bundle); return; }
+      const sameAnalysis = busy && currentBundle && S.me && S.league
+        && bundle.analysisRole === S.role && sameIdentity(bundle.identity, currentBundle.identity)
+        && String(bundle.analysisRoster.roster_id) === String(S.me.roster_id)
+        && settingsKey(bundle.league) === settingsKey(S.league);
+      if (sameAnalysis) { adopt(bundle); return; }
       load(bundle);
     }
 
-    // Loud half of the load: what the page could not read, said once.
+    function renderContext() {
+      if (!els.context) return;
+      els.context.replaceChildren();
+      for (const line of contextLines({ format: S.format, view: S.view })) els.context.append(el("p", line));
+      els.context.hidden = false;
+    }
+    // Loud half of the load: what the page cannot claim, said once.
     function renderWarn() {
       const notes = [];
-      if (S.picksUnknown) notes.push("couldn't read traded picks — pick ownership is unknown, so picks are listed as unknown ownership");
-      if (!S.remaining.evaluation) notes.push("no measured evaluation for this league's scoring");
+      const evidence = evidenceLines(S.batch.evaluation, S.view);
+      if (evidence.length === 1) notes.push(COPY.noEvidence);
       els.warn.textContent = notes.join(" · ");
       els.warn.hidden = !notes.length;
     }
-
-    // Future-season picks, ownership only. defaultPicks says "everyone holds
-    // their own"; applyTradedPicks moves the pick OBJECTS between rosters, so
-    // tagging each with its original roster before the move is what lets a
-    // row say "(via <team>)". traded_picks unavailable -> null, shown as unknown.
-    function pickOwnership(rosters, tradedPicks) {
-      if (S.picksUnknown) return null;
-      const season = Number(league.season);
-      const owned = W.Trade.defaultPicks(rosters.map(r => r.roster_id), [season + 1, season + 2], W.Keepers.DRAFT_ROUNDS);
-      for (const [rid, list] of owned) for (const p of list) p.original = rid;
-      W.Trade.applyTradedPicks(owned, tradedPicks || []);
-      return owned;
+    // Best ball / unknown slot: the note and the analysed roster's
+    // rest-of-season values; no lineup comparison.
+    function renderNote() {
+      const out = els.result;
+      out.replaceChildren();
+      out.append(el("p", S.note, "season-subline"));
+      for (const line of rosValueLines(S.board, S.me, S.catalog)) out.append(el("p", line));
+      out.hidden = false;
     }
 
     function fillPartners() {
@@ -489,7 +568,7 @@
 
     function resetSide(side, roster) {
       side.roster = roster; side.active = activeIds(roster);
-      side.players.clear(); side.picks.clear(); side.drops.clear(); side.weeks.clear(); side.errors.clear(); side.needed = 0;
+      side.players.clear(); side.drops.clear(); side.weeks.clear(); side.errors.clear(); side.needed = 0;
     }
 
     function onPartnerChange() {
@@ -508,11 +587,16 @@
     }
 
     // --- columns ------------------------------------------------------------
+    // A viewer is never "you": the headings name the viewed team.
+    function headingFor(side) {
+      if (side === sides.mine) return viewer() ? `${sideName(side)} gives` : `You give — ${sideName(side)}`;
+      return viewer() ? `${sideName(sides.mine)} gets — from ${sideName(side)}` : `You get — ${sideName(side)}`;
+    }
     function drawColumns() {
       for (const side of [sides.mine, sides.theirs]) {
         side.ul.replaceChildren();
         const heading = side.ul.parentElement && side.ul.parentElement.querySelector("h2");
-        if (heading) heading.textContent = `${side === sides.mine ? "You give" : "You get"} — ${sideName(side)}`;
+        if (heading) heading.textContent = headingFor(side);
         const skill = [], other = [], locked = [], missing = [];
         const lockedSet = new Set([...(side.roster.reserve || []), ...(side.roster.taxi || [])].map(String));
         for (const id of (side.roster.players || []).map(String)) {
@@ -525,7 +609,6 @@
         for (const id of other) side.ul.append(disabledRow(id, "no modeled points"));
         for (const id of missing) side.ul.append(disabledRow(id, "not in the player catalog — reload the page"));
         for (const id of locked) side.ul.append(disabledRow(id, "IR/taxi — not tradeable in this version"));
-        for (const li of pickRows(side)) side.ul.append(li);
       }
     }
 
@@ -595,39 +678,11 @@
       return li;
     }
 
-    function pickRows(side) {
-      if (!S.owned) {
-        const li = el("li", null, "season-row season-disabled");
-        const label = el("label"), box = el("input");
-        box.type = "checkbox"; box.disabled = true;
-        label.append(box, document.createTextNode(" picks: unknown ownership (traded_picks unavailable)"));
-        li.append(label);
-        return [li];
-      }
-      const mine = String(side.roster.roster_id);
-      const list = (S.owned.get(side.roster.roster_id) || []).slice().sort((a, b) => a.season - b.season || a.round - b.round);
-      return list.map(p => {
-        const key = `${p.season}-${p.round}-${p.original}`;
-        const text = `${p.season} R${p.round}${String(p.original) !== mine ? ` (via ${rosterName(p.original)})` : ""}`;
-        const li = el("li", null, "season-row season-pick");
-        const label = el("label"), box = el("input");
-        box.type = "checkbox"; box.checked = side.picks.has(key);
-        label.append(box, document.createTextNode(` ${text}`));
-        box.addEventListener("change", () => {
-          if (box.checked) side.picks.set(key, text); else side.picks.delete(key);
-          li.classList.toggle("picked", box.checked);
-          onInputChange();
-        });
-        li.append(label, el("span", "not valued in season", "trade-why"));
-        return li;
-      });
-    }
-
     // --- drops --------------------------------------------------------------
-    // Capacity counts every non-IR/TAXI slot, so K/DEF occupy spots and count
-    // in `active` even though only skill players can be traded here.
+    // Capacity counts every non-IR/TAXI slot, so K/DEF/IDP occupy spots and
+    // count in `active` even though only skill players can be traded here.
     function updateDrops() {
-      const capacity = capacityOf(league);
+      const capacity = capacityOf(S.league);
       for (const [which, other] of [["mine", "theirs"], ["theirs", "mine"]]) {
         const s = sides[which], o = sides[other];
         if (!s.roster) continue;
@@ -656,7 +711,7 @@
     function inputsValid() {
       // No acknowledgment step: the availability assumption is passed to the
       // engine as assumeAvailable and stated in the result's assumptions.
-      if (!S.me || !S.partner) return false;
+      if (!S.me || !S.partner || S.note) return false;
       if (sides.mine.players.size + sides.theirs.players.size === 0) return false;
       for (const s of [sides.mine, sides.theirs]) {
         if (s.errors.size) return false;
@@ -668,17 +723,7 @@
     const refreshCompare = () => { els.compare.disabled = !canCompare(); };
     // Any input change: the scenario on screen no longer describes the inputs.
     function onInputChange() { compareSeq++; hideResult(); refreshCompare(); }
-    // The page footer says "no trade grades" while the gate is closed. It is only
-    // reworded while a simulated grade is on screen, and restored with the result.
-    let footerOriginal = null;
-    function setFooter(graded) {
-      const f = typeof document !== "undefined" && document.querySelector ? document.querySelector("footer") : null;
-      if (!f || (!graded && footerOriginal === null)) return;   // never written unless a grade changed it
-      if (footerOriginal === null) footerOriginal = f.textContent;
-      f.textContent = graded ? "Pre-draft: values players and draft picks before the draft. In season: conditional lineup scenarios, plus a simulated grade with its measured error when one is published." : footerOriginal;
-    }
     function hideResult() {
-      setFooter(false);
       els.result.hidden = true;
       els.result.replaceChildren();
       els.provenance.textContent = S.loadedProvenance;
@@ -692,16 +737,15 @@
       setStatus("comparing lineups…");
       try {
         const seq = compareSeq;
-        // Rosters + NFL state re-read through the session so the chip's age
-        // moves with them. The NEW bundle's post-fetch time is the engine's
-        // snapshotAt (its <=60 s rule, seasontrade.js:21-25); sync() adopts
-        // the same bundle as it commits, so S.rosters/S.state match `b`.
+        // Rosters, NFL state AND the league settings are re-read through the
+        // session so the chip's age moves with them. The NEW bundle's
+        // post-fetch time is the engine's snapshotAt (its <=60 s rule); sync()
+        // adopts the same bundle as it commits when the settings did not
+        // move, so S.rosters/S.state/S.league match `b`. Moved settings reload
+        // the page instead and supersede this compare (spec §5.2).
         const b = await SESSION.refresh({ scope: "rosters" });
+        if (seq !== compareSeq || !inputsValid() || b !== currentBundle) { if (!loading) setStatus("inputs changed during the comparison — compare again"); return; }
         const rosters = b.rosters, state = b.state;
-        // Inputs stayed live during the await; anything that moved (a
-        // checkbox, a week field, partner, a reload, a bundle from elsewhere) invalidates
-        // this run outright.
-        if (seq !== compareSeq || !inputsValid()) { if (!loading) setStatus("inputs changed during the comparison — compare again"); return; }
         const snapshotAt = b.rostersFetchedAt;
         const week = Number(state && state.week);
         if (!Number.isInteger(week) || week !== S.remaining.start_week) { setStatus(weekMismatch(S.remaining.start_week, state && state.week)); return; }
@@ -720,17 +764,13 @@
           const ws = parseWeeks(text, first(), last());
           if (ws.length) excludeWeeks[id] = ws;
         }
-        const analyzeArgs = {
-          remaining: S.remaining, league, rosters, catalog: S.catalog, board,
+        const result = W.SeasonTrade.analyze({
+          remaining: S.remaining, board: S.board, league: b.league, rosters, catalog: S.catalog,
           rosterIds: [S.me.roster_id, S.partner.roster_id], give, receive, drops, excludeWeeks,
           currentWeek: week, assumeAvailable: true, now: Date.now(), snapshotAt,
-        };
-        const result = W.SeasonTrade.analyze(analyzeArgs);
-        const handles = render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters, gated: Boolean(S.gate) });
+        });
+        render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters });
         setStatus(`lineups compared for weeks ${result.weeks[0].week}–${result.weeks[result.weeks.length - 1].week}`);
-        // Gate open: the lineup scenario is already on screen; the grade fills
-        // its panel afterwards so the page never freezes on the simulation.
-        if (S.gate) await gradeStep({ analyzeArgs, result, give, receive, seq, handles, week, excludeWeeks, drops, rosters });
       } catch (e) {
         // A superseded refresh means the session moved on (new league load or
         // identity); sync() already owns the screen for that.
@@ -744,39 +784,32 @@
 
     // --- output (spec §4.5 order) -------------------------------------------
     function provenanceText(snapshotAt) {
-      const r = S.remaining, deadline = league.settings && league.settings.trade_deadline;
+      const r = S.remaining, deadline = S.league.settings && S.league.settings.trade_deadline;
       const catalogAt = SESSION.catalogFetchedAt();
+      const settings = typeof SESSION.settingsText === "function" ? SESSION.settingsText(S.bundle) : "";
       return `Remaining-season projections generated ${r.generated_at}, data through ${r.data_through}.`
         + (snapshotAt ? ` Roster snapshot ${new Date(snapshotAt).toISOString()}.` : "")
         + ` Player catalog fetched ${Number.isFinite(catalogAt) ? new Date(catalogAt).toISOString() : "unknown time"}.`
+        + (settings ? ` ${settings}.` : "")
         + (deadline ? ` Trade deadline: week ${deadline} (league setting).` : "");
     }
 
-    function render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters, gated }) {
+    function render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters }) {
       const names = {};
       for (const s of result.sides) names[s.rosterId] = rosterName(s.rosterId);
       const playerNamesAll = {};
       for (const r of rosters) for (const id of [...(r.players || []), ...(r.reserve || []), ...(r.taxi || [])]) playerNamesAll[String(id)] = playerName(String(id));
-      const picks = [];
-      for (const s of [sides.mine, sides.theirs]) for (const text of s.picks.values()) picks.push({ label: `${sideName(s)} gives ${text}` });
       const weeks = result.weeks;
       const t = scenarioText(result, {
-        names, playerNames: {}, playerNamesAll, picks, excludeWeeks, drops,
+        names, playerNames: {}, playerNamesAll, excludeWeeks, drops,
         currentWeek: week, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week,
       });
       const out = els.result;
       out.replaceChildren();
-      // Gate open: the grade panel sits above the lineup summary, starting as a
-      // one-line "computing" note that gradeStep fills. Gate closed: no panel.
-      let panel = null;
-      if (gated) {
-        panel = el("div", null, "season-grade");
-        panel.append(el("p", "computing grade…", "season-subline"));
-        out.append(panel);
-      }
       // 0. plain-English summary: the bottom line before anything else
       const summary = el("div", null, "season-summary");
-      for (const line of lineupSummary(result, { names, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week })) summary.append(el("p", line));
+      const ownLabel = viewer() ? names[result.sides[0].rosterId] : undefined;
+      for (const line of lineupSummary(result, { names, ownLabel, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week })) summary.append(el("p", line));
       out.append(summary);
       // Everything after the totals is collapsible detail; nothing is removed.
       const section = (title, open) => {
@@ -787,9 +820,8 @@
         return d;
       };
       // 1. headline + subline
-      const h = el("p", null, "season-headline"), headlineEl = el("strong", t.headline); h.append(headlineEl); out.append(h);
-      const sublineEl = el("p", t.subline, "season-subline");
-      out.append(sublineEl);
+      const h = el("p", null, "season-headline"); h.append(el("strong", t.headline)); out.append(h);
+      out.append(el("p", t.subline, "season-subline"));
       // 2. sides
       const sidesTable = el("table", null, "season-table");
       sidesTable.append(headRow(["side", "before", "after", "Δ"]));
@@ -818,101 +850,19 @@
       section("Week-by-week lineup totals", false).append(weekTable);
       // 4. assumptions -- open by default: with the acknowledgment checkbox
       //    gone, this is where "everyone plays every week" is stated.
-      const assumptions = [...t.assumptions, ...t.notValued];
-      section("Assumptions", true).append(list(assumptions.length ? assumptions : ["No unavailable weeks entered and no drops; every active player is assumed to play every remaining week."]));
+      section("Assumptions", true).append(list(t.assumptions.length ? t.assumptions : ["No unavailable weeks entered and no drops; every active player is assumed to play every remaining week."]));
       // 5. availability flags
       if ((result.availabilityFlags || []).length) {
         section("Reported availability tags", false).append(list(result.availabilityFlags.map(f => `${f.name}: ${f.status} — ${f.interpretation}`)));
       }
       // 6. engine warnings verbatim
       section("Engine notes", false).append(list(result.warnings || []));
-      // 7. evaluation
+      // 7. evaluation: only a record measured under this league's scoring and this model (spec §3.2)
       const ev = section("Measured evaluation", false);
-      for (const line of W.ROS.evaluationText(S.remaining.evaluation)) ev.append(el("p", line, "season-eval"));
+      for (const line of evidenceLines(S.batch.evaluation, S.view)) ev.append(el("p", line, "season-eval"));
       // 8. provenance
       els.provenance.textContent = provenanceText(snapshotAt);
       out.hidden = false;
-      // What a successful grade needs to re-word: once a simulated grade is on
-      // screen the closed-gate "no overall grade is shown" sentences are untrue.
-      const graded = () => {
-        const g = scenarioText(result, { names, playerNames: {}, playerNamesAll, picks, excludeWeeks, drops, currentWeek: week, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week, graded: true });
-        headlineEl.textContent = g.headline; sublineEl.textContent = g.subline;
-      };
-      return { panel, names, graded, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week };
-    }
-
-    // --- grade (gate open only) ---------------------------------------------
-    const gsisOf = id => {
-      const c = S.catalog[id] || {};
-      if (typeof c.gsis_id === "string" && c.gsis_id.trim()) return c.gsis_id.trim();
-      const b = ((board && board.players) || []).find(p => String(p.sleeper_id) === String(id));
-      return b ? b.player_id : null;
-    };
-    // Availability rates and the ROS reference, read once per league load. A
-    // missing availability file is a grade-unavailable reason; a bad ROS
-    // reference only withholds the market check.
-    async function gradeInputs() {
-      if (!S.availability) S.availability = await W.FC.loadJSON("data/availability.json").catch(() => null);
-      if (!S.ros) S.ros = await W.FC.loadJSON("data/ros-ecr.json").catch(() => null);
-    }
-    function rosRanksOrReason() {
-      if (!S.ros) return { reason: "ROS reference unavailable. ROS ranks withheld." };
-      try { return { ranks: W.WaiverIntel.prepareRos(S.ros, league.season, Date.now()) }; }
-      catch (e) { return { reason: `${e.message} ROS ranks withheld.` }; }
-    }
-    function fillPanel(panel, lines) {
-      panel.replaceChildren();
-      for (const l of lines) panel.append(l);
-    }
-    async function gradeStep({ analyzeArgs, result, give, receive, seq, handles }) {
-      const panel = handles.panel;
-      try {
-        // Tested population (spec §10.2): the error bands were measured only on trades where
-        // each side gives a player who starts in at least half the weeks of its own before-lineup.
-        // The measurement stopped at week 17 (spec §8).
-        if (result.weeks.some(w => w.week > LAST_MEASURED_WEEK)) throw new Error(`weeks after ${LAST_MEASURED_WEEK} are not measured`);
-        // Population and strata use the backtest's current-method lineup (byes out, replacement fill), not the
-        // displayed scenario's (review M2).
-        const inputs = W.SeasonTrade.stratumInputs(analyzeArgs);
-        if (!inputs.sides.every(s => s.give.some(x => x >= 0.5))) throw new Error("the grade is measured only for trades where each side gives a starter");
-        await gradeInputs();
-        if (!S.availability) throw new Error("availability data is not published");
-        // Yield so the lineup scenario paints before the simulation blocks the thread.
-        await new Promise(r => setTimeout(r, 0));
-        if (seq !== compareSeq) return;
-        const sim = W.SeasonTrade.simulate({ ...analyzeArgs, availability: S.availability, seed: GRADE_SEED });
-        const starts = startCounts(result, give, receive);   // displayed lineup, for the market check's roster reason only
-        const catalogPos = id => (S.catalog[id] || {}).position;
-        const trade = { positions: [...give, ...receive].map(catalogPos), sides: inputs.sides };
-        // The horizon whose remaining-week count is nearest to the weeks compared.
-        const horizon = pickHorizon(S.gate.horizons, result.weeks.length);
-        if (!horizon) throw new Error("no measured error for this horizon");
-        const names = stratumOf(trade, lopsidedMeasure(inputs.sides), horizon);
-        const E = errorFor(names, horizon);
-        if (E === null) throw new Error("no measured error for this kind of trade");
-        const g = gradeText(sim, { names: handles.names, firstWeek: handles.firstWeek, endWeek: handles.endWeek, E, k: S.gate.k });
-        const lines = [];
-        const head = el("p", null, "season-headline"); head.append(el("strong", g.heading)); lines.push(head);
-        for (const s of g.sides) {
-          const p = el("p", null, "season-grade-side"); p.append(el("strong", `${s.name}: ${s.label}`)); lines.push(p);
-          lines.push(el("p", s.detail, "season-subline"));
-        }
-        const { ranks, reason } = rosRanksOrReason();
-        if (ranks) {
-          const moved = (ids, list) => ids.map((id, i) => ({ gsis: gsisOf(id), name: playerName(id), started: list[i].started, of: starts.of }));
-          const text = marketText({ delta: sim.sides[0].mean, give: moved(give, starts.give), receive: moved(receive, starts.receive) }, ranks);
-          if (text) lines.push(el("p", text, "season-subline"));
-        } else lines.push(el("p", reason, "season-subline"));
-        lines.push(el("p", g.footnote, "season-subline"));
-        lines.push(list(g.limitations));
-        if (seq !== compareSeq) return;
-        fillPanel(panel, lines);
-        handles.graded();
-        setFooter(true);
-      } catch (e) {
-        if (seq !== compareSeq) return;
-        fillPanel(panel, [el("p", `grade unavailable: ${e && e.message || e}`, "season-subline")]);
-      }
     }
 
     function renderBlocked(error) {
@@ -932,10 +882,11 @@
     const list = items => { const ul = el("ul", null, "season-list"); for (const i of items) ul.append(el("li", i)); return ul; };
 
     // --- wiring -------------------------------------------------------------
-    // No username input and no load button here: identity and the league
-    // load belong to the chip in the league panel (FC.setBoard in the page
-    // shell starts Session.ready). The chip's refresh button re-reads rosters
-    // + state; sync() redraws from whatever bundle it commits.
+    // No username input and no load button here: identity, the team a viewer
+    // chooses and the league load belong to the chip in the league panel
+    // (trade.html's FC.setLeague starts Session.ready({leagueId})). The chip's
+    // refresh button re-reads the league, rosters and state; sync() redraws
+    // from whatever bundle it commits.
     els.partner.addEventListener("change", onPartnerChange);
     els.compare.addEventListener("click", compare);
     refreshCompare();
@@ -943,6 +894,7 @@
     sync();
   }
 
-  return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, coverageText, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init,
-    gradeLabel, gateOpen, evalView, pickHorizon, stratumOf, lopsidedMeasure, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
+  return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, coverageText,
+    contextLines, evidenceLines, rosValueLines, COPY, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init, batch, _reset,
+    gradeLabel, pickHorizon, stratumOf, lopsidedMeasure, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
 });

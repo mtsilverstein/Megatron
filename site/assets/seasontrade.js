@@ -2,7 +2,7 @@
 (function () {
   "use strict";
   const skill = new Set(["QB","RB","WR","TE"]);
-  const eligible = {QB:["QB"],RB:["RB"],WR:["WR"],TE:["TE"],FLEX:["RB","WR","TE"],SUPER_FLEX:["QB","RB","WR","TE"]};
+  const eligible = {QB:["QB"],RB:["RB"],WR:["WR"],TE:["TE"],FLEX:["RB","WR","TE"],SUPER_FLEX:["QB","RB","WR","TE"],WRRB_FLEX:["RB","WR"],REC_FLEX:["WR","TE"]};
   const team = t => ({LAR:"LA",JAC:"JAX",WSH:"WAS"}[t] || t);
   const require = (ok,msg) => { if (!ok) throw Error(msg); };
   // NB: this file's own `require` above is an assertion helper, not Node's
@@ -10,6 +10,10 @@
   // module.require, the loader function Node always attaches to `module`.
   const ROS = (typeof module !== "undefined" && module.exports) ? module.require("./ros.js") : window.ROS;
   const RosterSim = (typeof module !== "undefined" && module.exports) ? module.require("./rostersim.js") : window.RosterSim;
+  // The exact lineup kernel (spec §7.1) solves the displayed before/after
+  // lineups; ROS.bestLineup stays only in stratumInputs (the backtest's frozen
+  // method, sim_parity_fixture). K/DEF/IDP slots and positions are Lineup's.
+  const Lineup = (typeof module !== "undefined" && module.exports) ? module.require("./lineup.js") : window.Lineup;
   function ids(values,label) {
     require(Array.isArray(values),`${label} must be an array`);
     require(values.every(v => (typeof v==="string" && v.trim()) || (typeof v==="number" && Number.isFinite(v))),`${label} contains invalid identity`);
@@ -17,7 +21,7 @@
     require(new Set(out).size===out.length,`${label} contains duplicate identity`);
     return out;
   }
-  // Lineup solver moved to ros.js (shared with waivers.js/waivermode.js).
+  // Lineup.bestLineup's result, validated: an unfillable slot refuses (never a partial sum).
   const asLineup=r=>{require(Number.isFinite(r.total),`Roster cannot fill required ${r.unfillable} slot; no replacement score assumed`);return {total:r.total,lineup:r.starters.map(s=>({...s.player,slot:s.slot}))};};
   // Identity, coverage and roster resolution shared by analyze (central lineup
   // scenario) and simulate (seeded season simulation): both must resolve the
@@ -30,9 +34,11 @@
     require(remaining?.schema_version===1&&remaining.horizon==="remaining_season"&&remaining.status==="experimental"&&remaining.evaluation!==undefined,"Experimental remaining-season contract required");
     require(Number.isInteger(currentWeek)&&currentWeek>=1&&currentWeek<=18,"Current NFL week required");
     require(Number.isInteger(remaining.start_week)&&Number.isInteger(remaining.end_week)&&remaining.start_week>=1&&remaining.end_week<=18&&remaining.start_week<=remaining.end_week,"Invalid projection horizon");
-    require(String(remaining.league?.league_id)===String(league.league_id)&&league.league_id&&remaining.season===Number(league.season),"Projection league or season mismatch");
+    // No published league contract (spec §5.3): the views are scored by the
+    // live league's own settings, so only the season is compared.
+    require(remaining.season===Number(league.season),"Projection season mismatch");
     if(board) {
-      require(String(board.league?.league_id)===String(league.league_id)&&board.season===remaining.season&&Array.isArray(board.players),"Identity board league/season mismatch");
+      require(board.season===remaining.season&&Array.isArray(board.players),"Identity board season mismatch");
       require(Array.isArray(rosters)&&Array.isArray(rosterIds),"Roster identities required");
       const identityScope=new Set(rosters.filter(r=>rosterIds.map(String).includes(String(r.roster_id))).flatMap(r=>r.players||[]).map(String));
       catalog={...catalog};
@@ -49,14 +55,8 @@
     }
     const age=now-Date.parse(remaining.generated_at);
     require(Number.isFinite(age)&&age>=0&&age<=72*3600000,"Remaining projections stale or future-dated");
-    const expected=remaining.league?.sleeper_scoring,live=league.scoring_settings;
-    require(expected&&live&&Object.keys(expected).length&&Object.keys(live).length,"Scoring contract missing");
-    for (const k of new Set([...Object.keys(expected),...Object.keys(live)])) {
-      const a=Object.hasOwn(expected,k)?expected[k]:0,b=Object.hasOwn(live,k)?live[k]:0;
-      require(typeof a==="number"&&Number.isFinite(a)&&typeof b==="number"&&Number.isFinite(b)&&a===b,"Scoring mismatch");
-    }
     require(Array.isArray(league.roster_positions)&&league.roster_positions.length,"Roster slots missing");
-    require(league.roster_positions.every(s=>eligible[s]||["BN","IR","TAXI","K","DEF"].includes(s)),"Unsupported roster slots");
+    require(league.roster_positions.every(s=>eligible[s]||["BN","IR","TAXI"].includes(s)||Lineup.UNMODELED.includes(s)),"Unsupported roster slots");
     const slots=league.roster_positions.filter(s=>eligible[s]);
     require(slots.length,"No skill lineup slots");
     const capacity=league.roster_positions.filter(s=>s!=="IR"&&s!=="TAXI").length;
@@ -99,19 +99,20 @@
       projections.set(p.player_id,p);
     }
     const relevant=new Set(before.flat().concat(after.flat()));
-    const gsisOwners=new Map();
-    for (const [id,c] of Object.entries(catalog||{})) if(c.gsis_id) {
-      const key=String(c.gsis_id);gsisOwners.set(key,gsisOwners.has(key)?null:id);
-    }
+    // Identity (astra R2): a rostered player is priced only through the view's
+    // scorable mapping, the board's sleeper_id -> player_id. The live catalog
+    // never maps a player the view left out (identity-only, ambiguous or
+    // changed GSIS), so a catalog GSIS cannot make such a player priceable.
+    const boardGsis=new Map();
+    for(const p of (board&&Array.isArray(board.players)?board.players:[])) if(p.sleeper_id&&p.player_id) boardGsis.set(String(p.sleeper_id),String(p.player_id));
     for (const [id,ws] of Object.entries(excludeWeeks)) require(relevant.has(id)&&Array.isArray(ws)&&new Set(ws).size===ws.length&&ws.every(w=>Number.isInteger(w)&&w>=1&&w<=18),"Invalid excluded-week assumption");
     const first=Math.max(currentWeek,remaining.start_week)+1;
     require(first<=remaining.end_week,"No future weeks after current slate");
     const resolve=(id,week)=>{
       const c=catalog?.[id];require(c,"Catalog identity missing");
-      if (["K","DEF"].includes(c.position)) return null;
+      if (Lineup.UNMODELED_POSITIONS.includes(c.position)) return null;
       require(skill.has(c.position),"Unknown roster player position");
-      require(typeof c.gsis_id==="string"&&gsisOwners.get(c.gsis_id)===id,"Missing/ambiguous GSIS identity");
-      const p=projections.get(c.gsis_id);
+      const gsis=boardGsis.get(String(id)),p=gsis===undefined?undefined:projections.get(gsis);
       require(p&&team(p.team)&&team(p.team)===team(c.team),`Missing projection or current-team mismatch: ${c.full_name||id}`);
       require(!p.position||p.position===c.position,"Projection position mismatch");
       require(Array.isArray(p.weeks),"Player week coverage missing");
@@ -141,15 +142,15 @@
       error.coverageIssues=coverageIssues;
       throw error;
     }
-    return {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,projections,excludeWeeks,currentWeek,gsisOwners};
+    return {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,projections,excludeWeeks,currentWeek,boardGsis};
   }
   function analyze(args) {
     const {remaining,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,excludeWeeks,currentWeek}=resolveScenario(args);
     const weeks=[];
     for(let week=first;week<=remaining.end_week;week++) {
       const sides=selected.map((rid,i)=>{
-        const b=asLineup(ROS.bestLineup(before[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots,p=>p.points));
-        const a=asLineup(ROS.bestLineup(after[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots,p=>p.points));
+        const b=asLineup(Lineup.bestLineup(before[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots,p=>p.points));
+        const a=asLineup(Lineup.bestLineup(after[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots,p=>p.points));
         return {rosterId:rosterMap.get(rid).roster_id,before:b,after:a,delta:a.total-b.total};
       });
       weeks.push({week,sides});
@@ -246,14 +247,14 @@
   function simulate(args) {
     const {availability,freeAgents,seed=20260924,nSims=2000}=args;
     const ctx=resolveScenario(args);
-    const {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,first,projections,excludeWeeks}=ctx;
+    const {remaining,catalog,slots,selected,rosterMap,before,after,relevant,first,projections,excludeWeeks,boardGsis}=ctx;
     const weeks=[];for(let w=first;w<=remaining.end_week;w++)weeks.push(w);
     const rowFor=(p,week,forced)=>simRow(p.weeks.find(x=>x.week===week),forced);   // resolveScenario proved exactly one row per week
     const players={},simIds=new Set();
     for(const id of relevant) {
       const c=catalog[id];
       if(!skill.has(c.position))continue;          // K/DEF carry no modeled points
-      const p=projections.get(c.gsis_id),forced=new Set(excludeWeeks[id]||[]),rows={};
+      const p=projections.get(boardGsis.get(String(id))),forced=new Set(excludeWeeks[id]||[]),rows={};
       for(const w of weeks)rows[w]=rowFor(p,w,forced.has(w));
       players[id]={position:c.position,tag:c.injury_status||null,weeks:rows};
       simIds.add(id);

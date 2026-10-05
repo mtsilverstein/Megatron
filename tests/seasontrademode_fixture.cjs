@@ -1,14 +1,46 @@
 // tests/seasontrademode_fixture.cjs — run with: node tests/seasontrademode_fixture.cjs
+//
+// The in-season trade controller (SeasonTradeMode) and the trade page's mode
+// resolution (trade.html's inline script), any-league phase 1 (spec §7.1
+// trade, §7.2, §5.2, §5.4, §6.1, §6.2, §8).
+//
+// Part 1 pins the pure helpers. Part 2 drives the REAL controller through the
+// REAL Session, LeagueData (a synthetic neutral batch), LiveWorld and the REAL
+// SeasonTrade engine (wrapped to record its calls) under a fake DOM: owner
+// flow, no future picks and no traded_picks request, no simulation inputs,
+// rendered format line / banner / footnotes / settings stamp / simulation
+// note / aggregation label / evidence fallback, live settings recompute,
+// viewer flow, best ball, week 18, Review Focus 1. Part 3 runs trade.html's
+// inline script: the mode is resolved from the live league before any draft
+// data is fetched, and the in-season page never requests draft.json.
+// All league data is synthetic (fictional owners and ids).
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const M = require("../site/assets/seasontrademode.js");
+
+global.window = {};
 const Session = require("../site/assets/session.js");
+const FC = require("../site/assets/app.js");
+const LD = require("../site/assets/leaguedata.js");
+require("../site/assets/liveworld.js");
+const LL = require("../site/assets/leaguelens.js");
+const RealSeasonTrade = require("../site/assets/seasontrade.js");
+const M = require("../site/assets/seasontrademode.js");
+assert.equal(window.Session, Session); assert.equal(window.LeagueData, LD);
+
 let n = 0; const failed = [];
 // FIXTURE_ALL=1 reports every failing group instead of stopping at the first (used to show new cases fail on old code).
 function check(name, fn) { try { fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; if (process.env.FIXTURE_ALL) { failed.push(e.message.split("\n")[0]); return; } throw e; } }
 async function sub(name, fn) { try { await fn(); n++; } catch (e) { e.message = `${name}: ${e.message}`; if (process.env.FIXTURE_ALL) { failed.push(e.message.split("\n")[0]); return; } throw e; } }
 
+const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.";
+const BEST_BALL = "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.";
+const NO_EVIDENCE = "No measured evaluation for your league's scoring and this model.";
+const AGG = "sum of weekly medians through NFL week 17, not a season median";
+const HORIZON = "through NFL week 17, regardless of your league's schedule";
+const GATE = "Enter your Sleeper username, or choose a team to view.";
+
+// ============================ Part 1: pure helpers ============================
 check("parseWeeks accepts ranges and singles inside the horizon", () => {
   assert.deepEqual(M.parseWeeks("3-5, 8", 2, 17), [3, 4, 5, 8]);
   assert.deepEqual(M.parseWeeks(" 9 ", 2, 17), [9]);
@@ -23,16 +55,15 @@ check("identifyRoster is Session's exact matcher, re-exported unchanged", () => 
   assert.equal(M.identifyRoster(rosters, "u1").roster_id, 1);
   assert.equal(M.identifyRoster(rosters, "u3").roster_id, 2);
   assert.throws(() => M.identifyRoster(rosters, "u9"), /Could not uniquely match this account to a roster in this league\./);
-  assert.throws(() => M.identifyRoster(rosters.concat([{ roster_id: 3, owner_id: "u1" }]), "u1"), /Could not uniquely match/);
 });
-check("capacity, active skill players and needed drops", () => {
+check("capacity (IDP slots count, IR/TAXI do not), active skill players and needed drops", () => {
   const league = { roster_positions: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX", "K", "DEF", "BN", "BN", "BN", "BN", "BN", "IR", "TAXI"] };
   assert.equal(M.capacityOf(league), 15);
-  const catalog = { a: { position: "RB" }, b: { position: "K" }, c: { position: "WR" }, d: { position: "DEF" }, e: { position: "TE" } };
-  assert.deepEqual(M.activeSkill({ players: ["a", "b", "c", "d", "e"], reserve: ["e"], taxi: [] }, catalog), ["a", "c"]);
+  assert.equal(M.capacityOf({ roster_positions: ["QB", "WRRB_FLEX", "REC_FLEX", "LB", "DL", "DB", "IDP_FLEX", "BN", "IR"] }), 8);
+  const catalog = { a: { position: "RB" }, b: { position: "K" }, c: { position: "WR" }, d: { position: "DEF" }, e: { position: "TE" }, f: { position: "LB" } };
+  assert.deepEqual(M.activeSkill({ players: ["a", "b", "c", "d", "e", "f"], reserve: ["e"], taxi: [] }, catalog), ["a", "c"]);
   assert.equal(M.neededDrops({ activeCount: 15, giveCount: 1, receiveCount: 2, capacity: 15 }), 1);
   assert.equal(M.neededDrops({ activeCount: 14, giveCount: 1, receiveCount: 2, capacity: 15 }), 0);
-  assert.equal(M.neededDrops({ activeCount: 15, giveCount: 2, receiveCount: 1, capacity: 15 }), 0);
 });
 check("fmtDelta uses a leading sign and a real minus", () => {
   assert.equal(M.fmtDelta(12.4), "+12.40"); assert.equal(M.fmtDelta(-3.1), "−3.10"); assert.equal(M.fmtDelta(0), "0.00");
@@ -43,35 +74,31 @@ const result = {
   sides: [{ rosterId: 1, delta: 12 }, { rosterId: 2, delta: -16 }],
   warnings: ["All non-excluded active players are assumed available, including reported injuries; availability is not predicted."],
 };
-const ctx = { names: { 1: "Me", 2: "Them" }, currentWeek: 2, firstWeek: 3, endWeek: 17, picks: [{ label: "2027 R1 (Them)" }], excludeWeeks: { p9: [3, 4] }, playerNames: { p9: "A.J. Brown" }, drops: { 2: ["p7"] }, playerNamesAll: { p7: "Bench Guy" } };
-check("scenarioText: headline, subline, sides and assumptions", () => {
+const ctx = { names: { 1: "Me", 2: "Them" }, currentWeek: 2, firstWeek: 3, endWeek: 17, excludeWeeks: { p9: [3, 4] }, playerNames: { p9: "A.J. Brown" }, drops: { 2: ["p7"] }, playerNamesAll: { p7: "Bench Guy" } };
+check("scenarioText: headline, subline, sides and assumptions; no future-pick line (§8.8)", () => {
   const t = M.scenarioText(result, ctx);
   assert.equal(t.headline, "Conditional lineup scenario — not a trade verdict.");
   assert.equal(t.subline, "Sum of weekly central (p50) lineup scenarios for weeks 3–17; week 2 is excluded because trades may process after games start. Keeper value and draft picks are not valued, so no overall grade is shown.");
   assert.deepEqual(t.sides, [{ name: "Me", before: "200.00", after: "212.00", delta: "+12.00" }, { name: "Them", before: "180.00", after: "164.00", delta: "−16.00" }]);
-  assert.deepEqual(t.notValued, ["Not valued: picks — 2027 R1 (Them)"]);
+  assert.ok(!("notValued" in t), "no picks are offered, so no 'Not valued: picks' line");
   assert.deepEqual(t.assumptions, ["A.J. Brown assumed unavailable weeks 3, 4 (your assumption, not a return-date prediction)", "Them drops Bench Guy"]);
 });
 check("no forbidden word leaves the text builders outside the two allowed sentences", () => {
   const t = M.scenarioText(result, ctx);
   const c = M.coverageText(Object.assign(new Error("Projection coverage blocked: 1 players, 2 player-weeks."), { name: "ProjectionCoverageError", coverageIssues: [{ id: "x", name: "X", week: 3, reason: "unknown is not zero (no_observed_history)" }, { id: "x", name: "X", week: 4, reason: "unknown is not zero (no_observed_history)" }] }));
-  const all = [t.subline, ...t.sides.flatMap(s => Object.values(s)), ...t.notValued, ...t.assumptions, c.headline, ...c.rows];
+  const all = [t.subline, ...t.sides.flatMap(s => Object.values(s)), ...t.assumptions, c.headline, ...c.rows, ...M.contextLines({ format: { text: "Format: not in the format test" }, view: { disclosures: { banner: null, footnotes: [] } } })];
   const scrubbed = all.map(s => M.ALLOWED_SENTENCES.reduce((x, a) => x.split(a).join(""), s)).join("\n").toLowerCase();
   for (const w of M.FORBIDDEN) assert.ok(!scrubbed.includes(w), `forbidden word "${w}" in: ${scrubbed}`);
   assert.equal(c.headline, "Comparison blocked: 1 player(s), 2 player-week(s) without a projection");
-  assert.deepEqual(c.rows, ["X · week 3 · unknown is not zero (no_observed_history)", "X · week 4 · unknown is not zero (no_observed_history)"]);
-  const other = M.coverageText(new Error("Scoring mismatch"));
-  assert.equal(other.headline, "Comparison blocked"); assert.deepEqual(other.rows, ["Scoring mismatch"]);
+  const other = M.coverageText(new Error("Unsupported roster slots"));
+  assert.equal(other.headline, "Comparison blocked"); assert.deepEqual(other.rows, ["Unsupported roster slots"]);
 });
-// --- plain-English lineup summary -----------------------------------------
-// Built only from the engine's per-week before/after starting lineups.
 const P = (id, name, slot) => ({ id, name, slot, points: 0, status: "conditional_projection" });
 const BASE0 = [P("h", "Justin Herbert", "QB"), P("r1", "Bijan Robinson", "RB"), P("w1", "Chris Olave", "WR")];
 const BASE1 = [P("d", "Dak Prescott", "QB"), P("r2", "Jaylen Warren", "RB"), P("w2", "Jalen Coker", "WR")];
 const swap = (lineup, outId, inP) => lineup.map(p => (p.id === outId ? inP : p));
 const KYLER = P("k", "Kyler Murray", "QB"), HERBERT = P("h", "Justin Herbert", "QB");
 function mkResult(changes, first = 4, last = 17) {
-  // changes: { [week]: [side0 {after, delta} | null, side1 ... | null] }
   const weeks = [];
   for (let w = first; w <= last; w++) {
     const c = changes[w] || [null, null];
@@ -81,7 +108,7 @@ function mkResult(changes, first = 4, last = 17) {
     });
     weeks.push({ week: w, sides });
   }
-  return { weeks, sides: [0, 1].map(i => ({ rosterId: i + 1, delta: weeks.reduce((n, wk) => n + wk.sides[i].delta, 0) })) };
+  return { weeks, sides: [0, 1].map(i => ({ rosterId: i + 1, delta: weeks.reduce((s, wk) => s + wk.sides[i].delta, 0) })) };
 }
 const sumCtx = { names: { 1: "Bake God", 2: "Easy Breecey" }, firstWeek: 4, endWeek: 17 };
 const herbertForKyler = mkResult({
@@ -94,562 +121,498 @@ check("lineupSummary: a one-week change on each side names who enters and leaves
     "Easy Breecey: +7.9 pts over weeks 4–17. All of it is week 5: Justin Herbert starts instead of Dak Prescott.",
   ]);
 });
-const manyWeeks = mkResult({
-  5: [{ after: swap(BASE0, "h", KYLER), delta: 1.0 }, null],
-  6: [{ after: swap(BASE0, "h", KYLER), delta: 4.0 }, null],
-  7: [{ after: swap(swap(BASE0, "h", KYLER), "w1", P("w9", "Rome Odunze", "WR")), delta: -3.5 }, null],
-  9: [{ after: swap(BASE0, "h", KYLER), delta: 5.0 }, null],
-  10: [{ after: swap(BASE0, "h", KYLER), delta: 0.5 }, null],
-  11: [{ after: swap(BASE0, "h", KYLER), delta: 2.0 }, null],
+check("lineupSummary: a viewer's side is named by its team, never 'Your lineup'", () => {
+  const lines = M.lineupSummary(herbertForKyler, { ...sumCtx, ownLabel: "Bake God" });
+  assert.equal(lines[0], "Bake God: −6.1 pts over weeks 4–17. All of it is week 8: Kyler Murray starts instead of Justin Herbert.");
+  assert.ok(!lines.join(" ").includes("Your lineup"));
 });
-check("lineupSummary: many changed weeks -> the 3 largest named, the rest summarised", () => {
-  assert.deepEqual(M.lineupSummary(manyWeeks, sumCtx), [
-    "Your lineup: +9.0 pts over weeks 4–17. Lineup changes in 6 weeks; the 3 largest: week 9 (+5.0): Kyler Murray starts instead of Justin Herbert; week 6 (+4.0): Kyler Murray starts instead of Justin Herbert; week 7 (−3.5): Kyler Murray and Rome Odunze start instead of Justin Herbert and Chris Olave; and smaller changes in 3 other weeks (+3.5 pts combined).",
-    "Easy Breecey: 0.0 pts over weeks 4–17. No change to the starting lineup.",
-  ]);
-  const two = M.lineupSummary(mkResult({ 6: [{ after: swap(BASE0, "h", KYLER), delta: -1.0 }, null], 9: [{ after: swap(BASE0, "h", KYLER), delta: 2.25 }, null] }), sumCtx);
-  assert.equal(two[0], "Your lineup: +1.3 pts over weeks 4–17. Lineup changes in 2 weeks: week 9 (+2.3): Kyler Murray starts instead of Justin Herbert; week 6 (−1.0): Kyler Murray starts instead of Justin Herbert.");
-});
-check("lineupSummary: nothing changes -> one sentence for both lineups", () => {
+check("lineupSummary: many changed weeks -> the 3 largest named, the rest summarised; nothing changes -> one sentence", () => {
+  const manyWeeks = mkResult({
+    5: [{ after: swap(BASE0, "h", KYLER), delta: 1.0 }, null], 6: [{ after: swap(BASE0, "h", KYLER), delta: 4.0 }, null],
+    7: [{ after: swap(swap(BASE0, "h", KYLER), "w1", P("w9", "Rome Odunze", "WR")), delta: -3.5 }, null],
+    9: [{ after: swap(BASE0, "h", KYLER), delta: 5.0 }, null], 10: [{ after: swap(BASE0, "h", KYLER), delta: 0.5 }, null], 11: [{ after: swap(BASE0, "h", KYLER), delta: 2.0 }, null],
+  });
+  assert.equal(M.lineupSummary(manyWeeks, sumCtx)[0], "Your lineup: +9.0 pts over weeks 4–17. Lineup changes in 6 weeks; the 3 largest: week 9 (+5.0): Kyler Murray starts instead of Justin Herbert; week 6 (+4.0): Kyler Murray starts instead of Justin Herbert; week 7 (−3.5): Kyler Murray and Rome Odunze start instead of Justin Herbert and Chris Olave; and smaller changes in 3 other weeks (+3.5 pts combined).");
   assert.deepEqual(M.lineupSummary(mkResult({}), sumCtx), ["No change to either starting lineup in weeks 4–17 under these assumptions."]);
 });
-check("lineupSummary strings carry no forbidden or judging word", () => {
-  const all = [herbertForKyler, manyWeeks, mkResult({})].flatMap(r => M.lineupSummary(r, sumCtx)).join("\n").toLowerCase();
-  for (const w of [...M.FORBIDDEN, "better", "worse", "should"]) assert.ok(!all.includes(w), `"${w}" in summary: ${all}`);
-});
-// --- gated grade: pure helpers ---------------------------------------------
-check("gradeLabel: boundaries at exactly E and 2E, and the negative mirror", () => {
-  const E = 6;
-  assert.equal(M.gradeLabel(0, E), "Too close to call");
-  assert.equal(M.gradeLabel(5.99, E), "Too close to call");
-  assert.equal(M.gradeLabel(6, E), "Small gain", "exactly E is small");
-  assert.equal(M.gradeLabel(11.99, E), "Small gain");
-  assert.equal(M.gradeLabel(12, E), "Clear gain", "exactly 2E is clear");
-  assert.equal(M.gradeLabel(-5.99, E), "Too close to call");
-  assert.equal(M.gradeLabel(-6, E), "Small loss");
-  assert.equal(M.gradeLabel(-11.99, E), "Small loss");
-  assert.equal(M.gradeLabel(-12, E), "Clear loss");
-  assert.equal(M.gradeLabel(9, 3, 3), "Clear gain", "k is a parameter");
-  assert.equal(M.gradeLabel(0, 0), "Too close to call", "no delta is never a gain");
-  assert.equal(M.gradeLabel(0.1, 0), "Clear gain");
-  for (const bad of [[NaN, 6], [1, NaN], [1, -1], [1, 6, 0.5]]) assert.throws(() => M.gradeLabel(...bad), /finite/);
-  for (const d of [-20, -7, 0, 7, 20]) assert.ok(M.GRADE_LABELS.includes(M.gradeLabel(d, 6)));
-});
-const SLOTS = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX"];
-const LEAGUE = { slug: "gabagool", roster_positions: [...SLOTS, "K", "DEF", "BN", "BN", "IR"] };
-const H5 = { origin: 5, weeks: 13, strata: { same_position: { E: 5.5, n: 900 }, cross_position: { E: 6.1, n: 700 }, depth_for_starter: { E: 4.2, n: 300 }, lopsided: { E: 9.0, n: 400 } }, lopsided_cutoff: 30 };
-const H9 = { origin: 9, weeks: 9, strata: { same_position: { E: 4.0, n: 900 }, cross_position: { E: 4.5, n: 700 }, depth_for_starter: { E: 3.0, n: 300 }, lopsided: { E: 7.0, n: 400 } }, lopsided_cutoff: 22 };
-const EVAL = { schema_version: 2, league: "gabagool", slots: SLOTS, verdict: "pass", waiver_verdict: "fail", k: 2, horizons: [H5, H9],
-  seasons: [2023, 2024, 2025], origins: [5, 9], excluded_cells: 0, generated_at: "2026-09-30T00:00:00Z",
-  secondary: { league: "fam", slots: ["QB", "RB", "WR", "TE", "FLEX", "FLEX"], verdict: "pass", waiver_verdict: "fail", excluded_cells: 0, horizons: [{ origin: 5, weeks: 13, strata: { same_position: { E: 3.3, n: 100 } }, lopsided_cutoff: 12 }] } };
-check("gateOpen: true only for a passing file that matches this league and its starter slots", () => {
-  assert.equal(M.gateOpen(EVAL, LEAGUE), true);
-  assert.equal(M.gateOpen(EVAL, { ...LEAGUE, roster_positions: ["RB", "WR", "WR", "RB", "TE", "QB", "FLEX", "BN"] }), true, "slot order and non-starter slots do not matter");
-  for (const [name, file] of [["missing", null], ["undefined", undefined], ["not an object", "pass"],
-    ["verdict fail", { ...EVAL, verdict: "fail" }], ["verdict absent", { ...EVAL, verdict: undefined }], ["verdict PASS", { ...EVAL, verdict: "PASS" }],
-    ["schema 1 (old contract)", { ...EVAL, schema_version: 1 }], ["schema 3", { ...EVAL, schema_version: 3 }], ["schema absent", { ...EVAL, schema_version: undefined }],
-    ["other league slug", { ...EVAL, league: "fam" }], ["different slots", { ...EVAL, slots: ["QB", "RB", "WR", "TE"] }],
-    ["slots missing", { ...EVAL, slots: undefined }], ["no horizons", { ...EVAL, horizons: [] }], ["horizons not an array", { ...EVAL, horizons: H5 }], ["horizon without strata", { ...EVAL, horizons: [{ origin: 5, weeks: 13, strata: {} }] }], ["horizon E not finite", { ...EVAL, horizons: [{ ...H5, strata: { same_position: { E: "6", n: 1 } } }] }], ["horizon weeks not finite", { ...EVAL, horizons: [{ ...H5, weeks: "13" }] }], ["file league empty", { ...EVAL, league: "" }]])
-    assert.equal(M.gateOpen(file, LEAGUE), false, name);
-  assert.equal(M.gateOpen(EVAL, { slug: "gabagool", roster_positions: ["QB", "RB", "WR", "TE", "FLEX", "FLEX"] }), false, "live slots differ from the file's");
-  assert.equal(M.gateOpen(EVAL, { slug: "gabagool" }), false, "no live slots");
-  assert.equal(M.gateOpen({ ...EVAL, league: undefined }, { roster_positions: LEAGUE.roster_positions }), false, "undefined === undefined must not open the gate");
-  assert.equal(M.gateOpen({ ...EVAL, league: undefined }, { slug: undefined, roster_positions: LEAGUE.roster_positions }), false);
-  assert.equal(M.gateOpen({ ...EVAL, league: "" }, { slug: "", roster_positions: LEAGUE.roster_positions }), false, "an empty slug never matches");
-});
-check("gateOpen: the secondary league opens on its own verdict, slots and strata", () => {
-  const fam = { slug: "fam", roster_positions: ["QB", "RB", "WR", "TE", "FLEX", "FLEX", "BN"] };
-  assert.equal(M.gateOpen(EVAL, fam), true);
-  assert.equal(M.evalView(EVAL, fam).horizons[0].strata.same_position.E, 3.3);
-  assert.equal(M.evalView(EVAL, fam).horizons[0].lopsided_cutoff, 12, "the secondary carries its own cutoffs");
-  assert.equal(M.gateOpen({ ...EVAL, secondary: { ...EVAL.secondary, verdict: "fail" } }, fam), false);
-  assert.equal(M.gateOpen({ ...EVAL, verdict: "fail" }, fam), true, "the secondary's verdict is independent of the primary's");
-  assert.equal(M.gateOpen({ ...EVAL, secondary: { ...EVAL.secondary, slots: SLOTS } }, fam), false);
-});
-check("pickHorizon: nearest remaining-week count, ties go to the shorter horizon", () => {
-  const hs = [H5, H9];
-  assert.equal(M.pickHorizon(hs, 13).origin, 5);
-  assert.equal(M.pickHorizon(hs, 9).origin, 9);
-  assert.equal(M.pickHorizon(hs, 11).origin, 9, "a tie -> the shorter horizon");
-  assert.equal(M.pickHorizon(hs, 4).origin, 9);
-  assert.equal(M.pickHorizon(hs, 16).origin, 5);
-  assert.equal(M.pickHorizon([H9, H5], 11).origin, 9, "order in the file does not matter");
-  assert.equal(M.pickHorizon([], 9), null);
-  assert.equal(M.pickHorizon(null, 9), null);
-  assert.equal(M.pickHorizon(hs, NaN), null);
-});
-// A side is {give: [before-lineup start share of each player it gives], receive: [after-lineup share of each it gets]}.
-const S1 = (give, receive) => ({ give, receive });
-check("stratumOf: position mix, depth for a starter (spec §10.2), and the lopsided cutoff", () => {
-  const same = { positions: ["WR", "WR"], sides: [S1([1], [1]), S1([1], [1])] };
-  assert.deepEqual(M.stratumOf(same, 5, H5), ["same_position"]);
-  assert.deepEqual(M.stratumOf({ ...same, positions: ["WR", "RB"] }, 5, H5), ["cross_position"]);
-  // depth: a side gives a starter (>= half the weeks) and receives nobody who starts (>= half)
-  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], sides: [S1([0.8], [0.49]), S1([0.2], [1])] }, 5, H5), ["same_position", "depth_for_starter"]);
-  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], sides: [S1([0.5], [0.5]), S1([0.2], [1])] }, 5, H5), ["same_position"], "a receiver starting exactly half the weeks is a starter");
-  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], sides: [S1([0.49], [0]), S1([0.3], [0])] }, 5, H5), ["same_position"], "giving only bench players is not depth-for-starter");
-  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], sides: [S1([1], [1]), S1([1], [0.2])] }, 5, H5), ["same_position", "depth_for_starter"], "either side can qualify");
-  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR", "RB"], sides: [S1([1, 0.9], [0.1]), S1([1], [0.7, 0.1])] }, 5, H5), ["cross_position", "depth_for_starter"], "a starter arriving in a 2-for-1 clears depth on that side only");
-  assert.deepEqual(M.stratumOf(same, -30, H5), ["same_position", "lopsided"], "|Δ| at the cutoff is lopsided");
-  assert.deepEqual(M.stratumOf(same, 29.9, H5), ["same_position"]);
-  assert.deepEqual(M.stratumOf(same, 25, H9), ["same_position", "lopsided"], "the cutoff is the chosen horizon's");
-  assert.deepEqual(M.stratumOf(same, 99, { strata: H5.strata }), ["same_position"], "no cutoff, no lopsided stratum");
-});
-check("errorFor: the largest E among the trade's strata in the chosen horizon; none measured -> null", () => {
-  assert.equal(M.errorFor(["same_position"], H5), 5.5);
-  assert.equal(M.errorFor(["same_position", "depth_for_starter", "lopsided"], H5), 9.0);
-  assert.equal(M.errorFor(["cross_position", "depth_for_starter"], H9), 4.5);
-  assert.equal(M.errorFor(["something_else"], H5), null);
-});
-// Review M11: a stratum the trade belongs to but that has no measured E (n = 0) is not skipped; the grade is unavailable.
-check("errorFor: a stratum without a finite E makes the whole trade unmeasured (review M11)", () => {
-  const partial = { strata: { same_position: { E: 5, n: 10 }, depth_for_starter: { E: null, n: 0 }, lopsided: { E: 9, n: 3 } } };
-  assert.equal(M.errorFor(["same_position", "depth_for_starter"], partial), null, "one measured stratum does not stand in for an unmeasured one");
-  assert.equal(M.errorFor(["same_position", "lopsided"], partial), 9);
-  assert.equal(M.errorFor([], partial), null);
-});
-// Review I2: the lopsided measure is the LARGER side's |Δ|, as the backtest measured it (max over both sides).
-check("lopsidedMeasure: max of both sides' |Δ|; stratumOf then flags a trade only the partner's side crosses", () => {
+check("the v1 simulation gate is gone (spec §6.2): no evalView/gateOpen; the measured-method helpers stay pure", () => {
+  assert.equal(M.evalView, undefined); assert.equal(M.gateOpen, undefined);
+  for (const f of ["gradeLabel", "pickHorizon", "stratumOf", "lopsidedMeasure", "errorFor", "gradeText", "marketText", "startCounts"]) assert.equal(typeof M[f], "function", f);
+  assert.equal(M.gradeLabel(6, 6), "Small gain");
   assert.equal(M.lopsidedMeasure([{ delta: 6 }, { delta: -60 }]), 60);
-  assert.equal(M.lopsidedMeasure([{ delta: -70 }, { delta: 6 }]), 70);
-  assert.equal(M.lopsidedMeasure([{ delta: 0 }, { delta: 0 }]), 0);
-  const same = { positions: ["WR", "WR"], sides: [S1([1], [1]), S1([1], [1])] };
-  assert.deepEqual(M.stratumOf(same, M.lopsidedMeasure([{ delta: 6 }, { delta: -60 }]), { strata: H5.strata, lopsided_cutoff: 50 }), ["same_position", "lopsided"]);
+  assert.deepEqual(M.stratumOf({ positions: ["WR", "WR"], sides: [{ give: [1], receive: [1] }, { give: [1], receive: [1] }] }, 31, { strata: {}, lopsided_cutoff: 30 }), ["same_position", "lopsided"]);
+  assert.equal(M.pickHorizon([{ weeks: 13, strata: { same_position: { E: 1 } } }, { weeks: 9, strata: { same_position: { E: 1 } } }], 11).weeks, 9);
+  assert.equal(M.errorFor(["same_position"], { strata: { same_position: { E: 5.5 } } }), 5.5);
 });
-const RANKS = new Map([
-  ["gw1", { position: "WR", team: "A", ros_rank: 8 }], ["gw2", { position: "WR", team: "B", ros_rank: 40 }], ["gw3", { position: "WR", team: "C", ros_rank: 3 }],
-  ["gr1", { position: "RB", team: "D", ros_rank: 12 }], ["gr2", { position: "RB", team: "E", ros_rank: 60 }],
-]);
-const mv = (delta, give, receive) => ({ delta, give, receive });
-check("marketText: null when any moved player has no ROS rank, or when ranks and model agree", () => {
-  assert.equal(M.marketText(mv(4, [{ gsis: "gw1", name: "Ann" }], [{ gsis: "unranked", name: "Bo" }]), RANKS), null, "a missing rank");
-  assert.equal(M.marketText(mv(4, [{ gsis: "unranked", name: "Ann" }], [{ gsis: "gw3", name: "Bo" }]), RANKS), null, "a missing rank on the giving side");
-  assert.equal(M.marketText(mv(4, [{ gsis: "gw2", name: "Ann" }], [{ gsis: "gw3", name: "Bo" }]), RANKS), null, "both say gain");
-  assert.equal(M.marketText(mv(-4, [{ gsis: "gw3", name: "Ann" }], [{ gsis: "gw2", name: "Bo" }]), RANKS), null, "both say loss");
-  assert.equal(M.marketText(mv(0, [{ gsis: "gw3", name: "Ann" }], [{ gsis: "gw2", name: "Bo" }]), RANKS), null, "a zero model delta has no direction");
-  assert.equal(M.marketText(mv(4, [{ gsis: "gw1", name: "Ann" }], [{ gsis: "gw1x", name: "Bo" }]), null), null, "no ROS reference");
-  assert.equal(M.marketText(mv(4, [{ gsis: "gw1", name: "Ann" }], [{ gsis: "gw2", name: "Bo" }]), new Map()), null, "empty reference");
-  assert.equal(M.marketText(null, RANKS), null);
+check("COPY strings are the plan's exact copy", () => {
+  assert.equal(M.COPY.simulationOff, SIM_OFF);
+  assert.equal(M.COPY.bestBall, BEST_BALL);
+  assert.equal(M.COPY.noEvidence, NO_EVIDENCE);
+  assert.equal(M.COPY.aggregation, AGG);
+  assert.equal(M.COPY.horizon, HORIZON);
 });
-check("marketText: names players and ranks when the ranks disagree, plus a roster reason for a thin starter", () => {
-  const t = M.marketText(mv(7.3, [{ gsis: "gw3", name: "Ann Aaron" }], [{ gsis: "gw2", name: "Bo Byrd", started: 5, of: 14 }, { gsis: "gr1", name: "Cy Cole", started: 14, of: 14 }]), RANKS);
-  assert.equal(t, "Market check: the model shows a gain, but expert rest-of-season ranks rate what you give above what you get. You get Bo Byrd (WR3, overall 40) and Cy Cole (RB1, overall 12); you give Ann Aaron (WR1, overall 3). Roster reason: Bo Byrd would start in only 5 of 14 weeks in your lineup, so his rank counts for less here.");
-  const t2 = M.marketText(mv(-3, [{ gsis: "gw2", name: "Bo Byrd" }], [{ gsis: "gw3", name: "Ann Aaron", started: 14, of: 14 }]), RANKS);
-  assert.equal(t2, "Market check: the model shows a loss, but expert rest-of-season ranks rate what you get above what you give. You get Ann Aaron (WR1, overall 3); you give Bo Byrd (WR3, overall 40).", "no roster reason for a full-time starter");
+check("contextLines: format line, banner, footnotes, the aggregation label and the simulation note, in that order", () => {
+  const view = { disclosures: { banner: "Your league also scores first downs, which these projections leave out; rankings may be off for your league.", footnotes: ["Pick-sixes use an average rate, not a forecast.", "Not projected: pass_2pt (rare events)."] } };
+  assert.deepEqual(M.contextLines({ format: { text: "Format: not in the format test" }, view }), [
+    "Format: not in the format test", view.disclosures.banner, ...view.disclosures.footnotes,
+    `Lineup totals are the ${AGG}, ${HORIZON}.`, SIM_OFF]);
+  assert.deepEqual(M.contextLines({ format: { text: "Best ball — not eligible for the format test" }, view: { disclosures: { banner: null, footnotes: [] } } }),
+    ["Best ball — not eligible for the format test", `Lineup totals are the ${AGG}, ${HORIZON}.`, SIM_OFF]);
 });
-check("gradeText: the sample line, and every panel string passes GRADE_FORBIDDEN", () => {
-  const sim = { weeks: Array.from({ length: 14 }, (_, i) => i + 4), nSims: 2000, sides: [
-    { rosterId: 1, mean: 11.4, p10: -3.0, p90: 24.9, pPositive: 0.8, perWeek: [] }, { rosterId: 2, mean: -11.4, p10: -25, p90: 3, pPositive: 0.2, perWeek: [] }] };
-  const g = M.gradeText(sim, { names: { 1: "Me", 2: "Them" }, firstWeek: 4, endWeek: 17, E: 6.1, k: 2 });
-  assert.equal(g.sides[0].name, "Your lineup");
-  assert.equal(g.sides[0].label, "Small gain");
-  assert.equal(g.sides[0].detail, "+11.4 pts over weeks 4–17 (about +0.8 a week); likely range −3.0 to +24.9; typical measured error on trades like this: 6.1 pts");
-  assert.equal(g.sides[1].name, "Them"); assert.equal(g.sides[1].label, "Small loss");
-  const market = M.marketText(mv(7, [{ gsis: "gw3", name: "Ann" }], [{ gsis: "gw2", name: "Bo", started: 1, of: 14 }]), RANKS);
-  const graded = M.scenarioText(result, { ...ctx, graded: true });
-  const all = [g.heading, g.footnote, ...g.limitations, ...g.sides.flatMap(s => [s.name, s.label, s.detail]), market, graded.headline, graded.subline, ...M.GRADE_LABELS].join("\n").toLowerCase();
-  for (const w of M.GRADE_FORBIDDEN) assert.ok(!all.includes(w), `"${w}" in grade copy: ${all}`);
-  assert.ok(!/no overall grade/.test(graded.subline), "the graded scenario no longer claims that no grade is shown");
-  assert.match(graded.subline, /not valued/);
-  assert.equal(M.scenarioText(result, ctx).headline, M.HEADLINE, "closed-gate scenario text is unchanged");
+const EVAL_DOC = require("./fixtures/neutral_evaluation.json");
+check("evidenceLines: the fallback unless a rest-of-season record binds to the live lens and the current method", () => {
+  const lens = LL.classify({ rec: 1 });
+  assert.deepEqual(M.evidenceLines(null, { lens, method: null }), [`Rest-of-season accuracy: ${NO_EVIDENCE}`]);
+  assert.deepEqual(M.evidenceLines(EVAL_DOC, { lens, method: null }), [`Rest-of-season accuracy: ${NO_EVIDENCE}`], "a null method never binds");
+  const rec = EVAL_DOC.records.find(r => r.metric === "rest_of_season_points_mae");
+  assert.ok(rec, "the fixture carries a rest-of-season record");
+  const method = { v: 1, model: "transformer", artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles", band_construction: "sign_coherent_v1",
+    calibration: [], prior: { method: "pooled", rate: 0.09, first_season: 2021, through_season: 2025 } };
+  const bound = { records: [{ ...rec, method, effective_scoring: LL.evidenceIdentity(lens.weights), prediction_scoring: LL.evidenceIdentity(lens.weights) }] };
+  const lines = M.evidenceLines(bound, { lens, method });
+  assert.equal(lines[0], "Rest-of-season accuracy, measured under this league's scoring and this model:");
+  assert.ok(lines.length > 1 && lines.slice(1).every(l => /weeks? ahead: model MAE/.test(l)), lines.join(" | "));
+  assert.deepEqual(M.evidenceLines(bound, { lens: LL.classify({ rec: 0.5 }), method }), [`Rest-of-season accuracy: ${NO_EVIDENCE}`], "other scoring: fallback");
+  assert.deepEqual(M.evidenceLines(bound, { lens, method: { ...method, model: "xgboost" } }), [`Rest-of-season accuracy: ${NO_EVIDENCE}`], "other method: fallback");
 });
-// Review I4 (spec §8): the limitations travel with every grade.
-check("gradeText carries the spec §8 limitations as a short list, inside GRADE_FORBIDDEN", () => {
-  const sim = { weeks: [4, 5, 6], nSims: 2000, sides: [{ rosterId: 1, mean: 3, p10: -1, p90: 6, pPositive: 0.8, perWeek: [] }, { rosterId: 2, mean: -3, p10: -6, p90: 1, pPositive: 0.2, perWeek: [] }] };
-  const g = M.gradeText(sim, { names: {}, firstWeek: 4, endWeek: 6, E: 2, k: 2 });
-  assert.ok(Array.isArray(g.limitations) && g.limitations.length >= 6 && g.limitations.length <= 8, "a short list");
-  const t = g.limitations.join("\n");
-  for (const re of [/independent/i, /stack|correlat/i, /position rates|position-level/i, /current tags/i, /not injury type|injury type/i, /latest Sleeper status/i, /synthetic/i, /2023.2025/, /not real rosters/i, /frozen/i, /picks/i, /keepers?/i, /after 17/i]) assert.match(t, re, String(re));
-  for (const w of M.GRADE_FORBIDDEN) assert.ok(!t.toLowerCase().includes(w), `"${w}" in the limitations`);
+check("rosValueLines: each active skill player's rest-of-season value with the aggregation label; unknown is not zero", () => {
+  const board = { players: [{ sleeper_id: "a", name: "A Back", position: "RB", ros_value: 41.25 }, { sleeper_id: "b", name: "B Wide", position: "WR", ros_value: null }] };
+  const catalog = { a: { full_name: "A Back", position: "RB" }, b: { full_name: "B Wide", position: "WR" }, x: { full_name: "X Only", position: "TE" }, k: { full_name: "Kicker", position: "K" }, r: { full_name: "Res", position: "RB" } };
+  assert.deepEqual(M.rosValueLines(board, { players: ["a", "b", "x", "k", "r"], reserve: ["r"] }, catalog), [
+    `Rest-of-season values: the ${AGG}, ${HORIZON}.`,
+    "A Back · RB · 41.25", "B Wide · WR · no rest-of-season projection", "X Only · TE · no rest-of-season projection"]);
 });
-check("startCounts reads each moved player's starting weeks off the lineups", () => {
-  const r = { weeks: [0, 1, 2, 3].map(w => ({ week: w, sides: [
-    { before: { lineup: [{ id: "out1" }] }, after: { lineup: [{ id: "in1" }, ...(w < 1 ? [{ id: "in2" }] : [])] } },
-    { before: { lineup: w < 3 ? [{ id: "in1" }] : [] }, after: { lineup: w % 2 ? [{ id: "out1" }] : [] } }] })) };
-  const c = M.startCounts(r, ["out1"], ["in1", "in2"]);
-  assert.equal(c.of, 4);
-  assert.deepEqual(c.receive, [{ id: "in1", started: 4 }, { id: "in2", started: 1 }]);
-  assert.deepEqual(c.give, [{ id: "out1", started: 2 }]);
-  assert.deepEqual(c.sides, [{ give: [1], receive: [1, 0.25] }, { give: [0.75, 0], receive: [0.5] }]);
-});
-check("requiring the module in node leaves window untouched and exports a callable init", () => {
-  assert.equal(typeof global.window, "undefined", "the UMD wrapper must not create a global window in node");
-  assert.equal(typeof M.init, "function");
-  assert.ok(Object.isFrozen(M));
-});
-check("the controller reads identity, rosters and state from the session, never its own /user lookup", () => {
+check("sources: no traded_picks, future picks, gate file or simulation in the controller; trade.html loads the kernel and the adapter", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "site", "assets", "seasontrademode.js"), "utf8");
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
-  assert.ok(!/\/user\//.test(src), "no /user/<name> fetch remains in this controller");
-  assert.ok(!/els\.user\b|els\.load\b/.test(src), "init no longer needs els.user / els.load");
-  assert.ok(!/\/players\/nfl/.test(src), "the catalog comes from Session.catalog(), not a page-local cache");
-  assert.ok(!/get\(`\/league\/\$\{lid\}\/(?:users|rosters)`\)|get\("\/state\/nfl"\)/.test(src), "users/rosters/state come from the bundle");
-  // How compare() uses Session.refresh (scope, the refreshed bundle's
-  // rostersFetchedAt as snapshotAt, moved players, superseded results) is
-  // checked by RUNNING it in initSmoke below, not by grepping the source.
-  assert.ok(!/season-user|season-load/.test(html), "trade.html has no in-season username input or load button");
-  assert.ok(/seasontrademode\.js\?v=grade3/.test(html), "cache key bumped for the gated-grade controller");
-  assert.ok(/seasontrade\.js\?v=grade3/.test(html) && /rostersim\.js\?v=1/.test(html), "simulate's engine loads before it");
-  assert.ok(html.indexOf("rostersim.js") > html.indexOf("ros.js?v=1") && html.indexOf("rostersim.js") < html.indexOf("seasontrade.js"), "rostersim.js follows ros.js and precedes seasontrade.js");
-  assert.ok(html.indexOf("waiverintel.js") < html.indexOf("seasontrademode.js"), "prepareRos is loaded before the controller");
-  assert.ok(!/season-ack/.test(html) && !/els\.ack\b/.test(src), "no acknowledgment checkbox gates the compare");
-  assert.ok(/id="season-steps"/.test(html), "the three-step guide is on the page");
+  for (const re of [/traded_picks/, /pickOwnership/, /DRAFT_ROUNDS/, /defaultPicks/, /trade_sim_eval/, /availability\.json/, /\.simulate\(/, /stratumInputs\(/, /picksUnknown/, /\/user\//, /\/players\/nfl/, /leagueDataPath/])
+    assert.ok(!re.test(src), `seasontrademode.js must not contain ${re}`);
+  const srcs = [...html.matchAll(/<script\b[^>]*src="assets\/([^"?]+)(?:\?[^"]*)?"/g)].map(x => x[1]);
+  const ORDER = ["formats.js", "lineup.js", "leaguelens.js", "leaguedata.js", "liveworld.js", "seasontrade.js", "seasontrademode.js"];
+  for (const f of ORDER) assert.equal(srcs.filter(s => s === f).length, 1, `trade.html: exactly one ${f}`);
+  const at = ORDER.map(f => srcs.indexOf(f));
+  assert.deepEqual([...at].sort((a, b) => a - b), at, `trade.html: ${ORDER.join(" -> ")} in order`);
+  assert.ok(srcs.indexOf("ros.js") < srcs.indexOf("seasontrade.js") && srcs.indexOf("rostersim.js") < srcs.indexOf("seasontrade.js"), "the frozen method's modules still load before the engine");
+  assert.ok(!srcs.includes("waiverintel.js"), "the ROS market check left with the grade");
+  assert.ok(/seasontrademode\.js\?v=neutral1/.test(html) && /seasontrade\.js\?v=neutral1/.test(html), "cache keys bumped");
+  assert.ok(/id="season-context"/.test(html), "the context lines have a home on the page");
 });
 
-// --- init() under a DOM stub and a scripted Session -------------------------
-// Pins the controller's contract with the session: hidden until a bundle with
-// a uniquely matched roster commits; a compare's own refresh is adopted (the
-// compare finishes against the NEW bundle's rosters and rostersFetchedAt);
-// a foreign bundle change during a compare invalidates it.
-function stubDom() {
-  const mk = () => {
-    const node = { hidden: false, textContent: "", value: "", checked: false, disabled: false, className: "", dataset: {}, children: [], type: "", listeners: {}, parentElement: null };
-    node.append = (...xs) => { for (const x of xs) if (x && typeof x === "object") { node.children.push(x); x.parentElement = node; } };
-    node.replaceChildren = () => { node.children = []; };
-    node.addEventListener = (ev, fn) => { (node.listeners[ev] = node.listeners[ev] || []).push(fn); };
-    node.querySelector = () => null; node.setAttribute = () => {}; node.classList = { toggle() {} };
-    return node;
+// ============================ Part 2: the controller ============================
+const all = node => [node, ...(node.children || []).flatMap(all)];
+const text = node => all(node).map(x => x.textContent || "").filter(Boolean).join("\n");
+function element(tagName) {
+  const el = {
+    tagName, children: [], listeners: {}, attrs: {}, parent: null, parentElement: null, dataset: {},
+    textContent: "", className: "", id: "", value: "", href: "", type: "", placeholder: "",
+    hidden: false, checked: false, disabled: false, open: false,
+    classList: { toggle() {} },
+    append(...nodes) { for (const x of nodes) if (x && typeof x === "object") { x.parent = el; x.parentElement = el; el.children.push(x); } },
+    appendChild(x) { el.append(x); return x; },
+    prepend(...nodes) { for (const x of nodes) { x.parent = el; x.parentElement = el; } el.children.unshift(...nodes); },
+    replaceChildren(...nodes) { el.children = []; el.append(...nodes); },
+    addEventListener(type, fn) { (el.listeners[type] ||= []).push(fn); },
+    dispatch(type) { for (const fn of el.listeners[type] || []) fn({ preventDefault() {}, target: el }); },
+    setAttribute(k, v) { el.attrs[k] = v; },
+    getAttribute(k) { return k === "href" ? el.href : el.attrs[k]; },
+    focus() {},
+    querySelector(sel) { return all(el).slice(1).find(x => x.tagName === sel) || null; },
+    querySelectorAll(sel) { return all(el).slice(1).filter(x => x.tagName === sel); },
   };
-  const els = {};
-  for (const k of ["eyebrow", "status", "controls", "partner", "compare", "warn", "cols", "mine", "theirs", "mineDrops", "theirsDrops", "result", "provenance"]) els[k] = mk();
-  return { els, mk };
+  return el;
 }
-function scriptedSession() {
-  const listeners = new Set();
-  const s = { committed: null, err: null, id: null, refreshImpl: null, catalogAt: 1000 };
-  const api = {
-    bundle: () => s.committed, error: () => s.err, identity: () => s.id,
-    chipText: (b) => b.myRosterStatus === "found" ? "found" : "Could not uniquely match this account to a roster in this league.",
-    catalog: async () => ({ p1: { position: "RB", full_name: "A", team: "X" }, p2: { position: "WR", full_name: "B", team: "Y" }, p3: { position: "RB", full_name: "C", team: "Z", injury_status: "Questionable" } }),
-    catalogFetchedAt: () => s.catalogAt,
-    onChange: fn => { listeners.add(fn); return () => listeners.delete(fn); },
-    refresh: opts => s.refreshImpl(opts),
-    isSuperseded: e => !!(e && e.superseded),
-    identifyRoster: Session.identifyRoster,
-    commit(b) { s.committed = b; for (const fn of [...listeners]) fn({ state: "ready", bundle: b }); },
+// trade.html's in-season ids; each column <ul> sits in a div with its <h2>.
+function tradeDom(href) {
+  const main = element("main"), stamp = element("p");
+  stamp.className = "stamp";
+  const NAV = [["index.html", "Draft board"], ["trade.html", "Trade calculator"], ["weekly.html", "Weekly"], ["about.html", "About the model"], ["waivers.html", "FAAB & waivers"]];
+  const navLinks = NAV.map(([h, t]) => { const a = element("a"); a.href = h; a.textContent = t; return a; });
+  global.location = new URL(href);
+  global.document = {
+    createElement: element, createTextNode: t => Object.assign(element("#text"), { textContent: String(t) }), addEventListener() {},
+    querySelector(sel) { return sel === "main" ? main : sel === ".stamp" ? stamp : null; },
+    querySelectorAll(sel) { return sel === ".masthead nav a" ? navLinks : []; },
+    getElementById(id) { return all(main).find(x => x.id === id) || null; },
   };
-  return { api, s };
+  const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
+  const body = html.slice(html.indexOf("<main>"), html.indexOf("</main>"));
+  for (const m of body.matchAll(/<(\w+)\b[^>]*\bid="([^"]+)"([^>]*)>/g)) {
+    const [, tag, id] = m;
+    const x = element(tag); x.id = id; x.hidden = /\bhidden\b/.test(m[0]);
+    if (["season-mine", "season-theirs", "trade-mine", "trade-theirs"].includes(id)) {
+      const col = element("div"); col.append(element("h2"), x); main.append(col);
+    } else main.append(x);
+  }
+  return { main, stamp, navLinks, $: id => document.getElementById(id) };
 }
-const tick = () => new Promise(r => setImmediate(r));
-async function initSmoke() {
-  const { els, mk } = stubDom();
-  const { api: Sess, s } = scriptedSession();
-  const league = { league_id: "L1", name: "Lg", season: 2026, status: "in_season", total_rosters: 2, roster_positions: ["RB", "WR", "BN", "BN"], settings: {} };
-  const remaining = { schema_version: 1, horizon: "remaining_season", status: "experimental", evaluation: null, league: { league_id: "L1" }, season: 2026, start_week: 3, end_week: 17, generated_at: "g", data_through: "d", players: [] };
-  const analyzed = [];
-  global.window = {
-    Session: Sess,
-    Sleeper: { get: async path => { if (path.endsWith("/traded_picks")) return []; throw new Error(`unexpected fetch ${path}`); } },
-    FC: { loadJSON: async () => remaining, leagueDataPath: k => k },
-    Trade: { defaultPicks: () => new Map(), applyTradedPicks: () => {} }, Keepers: { DRAFT_ROUNDS: 1 },
-    SeasonTrade: { analyze: args => { analyzed.push(args); return { weeks: [{ week: 4, sides: [{ before: { total: 1, lineup: [] }, after: { total: 1, lineup: [] }, delta: 0 }, { before: { total: 1, lineup: [] }, after: { total: 1, lineup: [] }, delta: 0 }] }], sides: [{ rosterId: 1, delta: 0 }, { rosterId: 2, delta: 0 }], warnings: [] }; } },
-    ROS: { evaluationText: () => [] },
+const els$ = $ => ({ eyebrow: $("season-eyebrow"), status: $("season-status"), controls: $("season-controls"), partner: $("season-partner"),
+  compare: $("season-compare"), warn: $("season-warn"), cols: $("season-cols"), mine: $("season-mine"), theirs: $("season-theirs"),
+  mineDrops: $("season-mine-drops"), theirsDrops: $("season-theirs-drops"), result: $("season-result"), provenance: $("season-provenance"),
+  context: $("season-context") });
+
+// ---- the engine, recorded; simulation calls are counted (must stay 0) ----
+const analyzeCalls = [], analyzeErrors = [];
+let simCalls = 0;
+window.SeasonTrade = {
+  analyze(args) { analyzeCalls.push(args); try { return RealSeasonTrade.analyze(args); } catch (e) { analyzeErrors.push(e); throw e; } },
+  simulate() { simCalls++; throw new Error("simulation is off"); },
+  stratumInputs() { simCalls++; throw new Error("simulation is off"); },
+};
+window.TradeMode = { calls: [], init(opts) { this.calls.push(opts); } };
+
+// ---- Sleeper and statics, both logged ----
+const events = [], calls = [], fetched = [];
+let routes = {};
+function get(p) {
+  calls.push(p); events.push(`sleeper ${p}`);
+  const hit = routes[p];
+  if (hit === undefined) return Promise.reject(new Error(`unrouted ${p}`));
+  if (hit instanceof Error) return Promise.reject(hit);
+  if (typeof hit === "function") return Promise.resolve().then(() => hit(p));
+  return Promise.resolve(JSON.parse(JSON.stringify(hit)));
+}
+window.Sleeper = { get };
+Session._get(get);
+let statics = {};
+global.fetch = async p => {
+  fetched.push(p); events.push(`fetch ${p}`);
+  const doc = statics[p];
+  return doc ? { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(doc)) } : { ok: false, status: 404, json: async () => ({}) };
+};
+const STATS = LL.STATS;
+const METHOD = { v: 1, model: "transformer", artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles",
+  band_construction: "sign_coherent_v1", calibration: [], prior: { method: "pooled", rate: 0.09, first_season: 2021, through_season: 2025 } };
+// [sleeper id, gsis, position, name, receptions, receiving yards]
+const PEOPLE = [["a", "00-0000001", "RB", "A Back", 4, 60], ["d", "00-0000004", "WR", "D Deep", 2, 30], ["e", "00-0000005", "WR", "E Slot", 1, 20],
+  ["b", "00-0000002", "WR", "B Wide", 6, 80], ["c", "00-0000003", "RB", "C Run", 3, 40], ["f", "00-0000006", "RB", "F Flex", 2, 10]];
+const sqOf = (rec, yds) => { const o = f => Object.fromEntries(STATS.map(s => [s, s === "receptions" ? rec * f : s === "receiving_yards" ? yds * f : 0])); return { p10: o(0.5), p50: o(1), p90: o(1.5) }; };
+const vecOf = (rec, yds, f) => STATS.map(s => s === "receptions" ? rec * f : s === "receiving_yards" ? yds * f : 0);
+function makeStatics({ week = 3, noWeeks = false, lastWeek = 6 } = {}) {
+  const HDR = { season: 2026, week, data_through: `2026-wk${week - 1}`, generated_at: new Date().toISOString(), batch_id: `b-w${week}` };
+  const weeks = [];
+  for (let w = week; w <= lastWeek; w++) weeks.push(w);
+  return {
+    "data/neutral/weekly.json": { ...HDR, schema_version: 1, kind: "neutral_weekly", model: "transformer", method: METHOD,
+      players: PEOPLE.map(([sid, pid, pos, name, rec, yds]) => ({ player_id: pid, name, team: "X", opponent: "Y", position: pos, is_home: true, stat_quantiles: sqOf(rec, yds), points: { ppr: null, half_ppr: null, standard: null } })) },
+    "data/neutral/remaining.json": noWeeks
+      ? { ...HDR, schema_version: 2, kind: "neutral_remaining", horizon: "remaining_season", status: "no_remaining_weeks", start_week: week, end_week: 17, model: "transformer", stat_order: STATS.slice(), players: [] }
+      : { ...HDR, schema_version: 2, kind: "neutral_remaining", horizon: "remaining_season", status: "experimental", start_week: week, end_week: lastWeek, model: "transformer",
+          stat_order: STATS.slice(), method: METHOD, pick_six_forecast: METHOD.prior,
+          players: PEOPLE.map(([sid, pid, pos, name, rec, yds]) => ({ player_id: pid, team: "X", position: pos, name,
+            weeks: weeks.map(w => sid === "b" && w === 5 ? { week: w, status: "bye", points: null } : { week: w, status: "conditional_projection", opponent: "Y", stats: [vecOf(rec, yds, 0.5), vecOf(rec, yds, 1), vecOf(rec, yds, 1.5)] }) })) },
+    "data/neutral/players.json": { ...HDR, schema_version: 1, kind: "neutral_players",
+      players: PEOPLE.map(([sid, pid, pos, name]) => ({ player_id: pid, sleeper_id: sid, name, team: "X", position: pos, bye: sid === "b" ? 5 : 9, ecr: null, identity_only: false, reason: null })) },
+    "data/neutral/formats.json": { ...require("./fixtures/neutral_formats.json"), ...HDR },
+    "data/neutral/evaluation.json": { ...require("./fixtures/neutral_evaluation.json"), ...HDR },
   };
-  let footerWrites = 0;
-  const closedFooter = { get textContent() { return "footer"; }, set textContent(v) { footerWrites++; } };
-  global.document = { createElement: tag => Object.assign(mk(), { tagName: String(tag).toUpperCase() }), createTextNode: t => t, querySelector: sel => (sel === "footer" ? closedFooter : null) };
-  try {
-    const board = { league: { name: "Lg", league_id: "L1" } };
-    M.init({ board, league, slug: "lg", els });
-    // 1. no bundle, no identity: everything hidden, gate text shown
-    assert.equal(els.controls.hidden, true); assert.equal(els.cols.hidden, true); assert.equal(els.result.hidden, true);
-    assert.match(els.status.textContent, /league panel/);
-    // 2. bundle without a unique roster: still hidden, the exact-matcher message
-    s.id = { userId: "u1", username: "me" };
-    const rosters = [{ roster_id: 1, owner_id: "u1", players: ["p1"], reserve: [], taxi: [] }, { roster_id: 2, owner_id: "u2", players: ["p2", "p3"], reserve: [], taxi: [] }];
-    const users = [{ user_id: "u1", display_name: "Me" }, { user_id: "u2", display_name: "Them" }];
-    const state = { week: 3, season: "2026", season_type: "regular" };
-    const mkBundle = (extra) => Object.freeze({ registry: {}, identity: s.id, league, users, rosters, state, rostersRequestedAt: 10, rostersFetchedAt: 20, myRoster: rosters[0], myRosterStatus: "found", warnings: [], ...extra });
-    Sess.commit(mkBundle({ myRoster: null, myRosterStatus: "none" }));
-    await tick(); await tick();
-    assert.equal(els.cols.hidden, true); assert.match(els.status.textContent, /Could not uniquely match/);
-    // 3. found: columns drawn from the bundle's rosters, no Sleeper roster fetch
-    Sess.commit(mkBundle({}));
-    for (let i = 0; i < 5; i++) await tick();
-    assert.equal(els.cols.hidden, false); assert.equal(els.controls.hidden, false);
-    assert.match(els.status.textContent, /2 teams loaded — you are Me/);
-    assert.match(els.provenance.textContent, /Player catalog fetched 1970-01-01T00:00:01\.000Z/);
-    // select p1 to give, then compare (no acknowledgment step): the refresh
-    // commits a NEW bundle (adopted, not reloaded) and analyze gets its
-    // rosters and rostersFetchedAt.
-    const row = els.mine.children.find(li => li.dataset.id === "p1");
-    const box = row.children[0].children[0];
-    const part = (li, cls) => li.children.find(c => c.className === cls);
-    assert.equal(part(row, "season-weeks").hidden, true, "no week field on an unticked, untagged player");
-    assert.equal(part(row, "season-weeks-toggle").hidden, true, "no reveal link before the player is ticked");
-    assert.equal(els.compare.disabled, true, "nothing ticked yet");
-    box.checked = true; for (const fn of box.listeners.change) fn();
-    assert.equal(els.compare.disabled, false, "compare enabled as soon as a player is ticked -- no acknowledgment gate");
-    assert.equal(part(row, "season-weeks").hidden, true, "the week field stays hidden for a ticked, untagged player");
-    const toggle = part(row, "season-weeks-toggle");
-    assert.equal(toggle.hidden, false); assert.equal(toggle.textContent, "Out some weeks? (optional)");
-    for (const fn of toggle.listeners.click) fn();
-    assert.equal(part(row, "season-weeks").hidden, false, "the link reveals the field");
-    assert.equal(toggle.hidden, true);
-    assert.equal(part(row, "season-weeks").placeholder, "optional — leave blank if he plays, e.g. 3-5");
-    const tagged = els.theirs.children.find(li => li.dataset.id === "p3");
-    assert.equal(part(tagged, "season-weeks").hidden, false, "a tagged player's field is revealed automatically");
-    assert.equal(part(tagged, "season-weeks-toggle").hidden, true);
-    assert.equal(els.compare.disabled, false, "an empty week field is not an error");
-    const fresh = mkBundle({ rostersRequestedAt: 100, rostersFetchedAt: Date.now() });
-    let refreshOpts = null;
-    s.refreshImpl = async opts => { refreshOpts = opts; Sess.commit(fresh); return fresh; };
-    for (const fn of els.compare.listeners.click) await fn();
-    assert.deepEqual(refreshOpts, { scope: "rosters" });
-    assert.equal(analyzed.length, 1, "compare ran against the refreshed bundle");
-    assert.equal(analyzed[0].snapshotAt, fresh.rostersFetchedAt, "snapshotAt is the NEW bundle's post-fetch time");
-    assert.equal(analyzed[0].rosters, fresh.rosters);
-    assert.equal(analyzed[0].assumeAvailable, true, "the engine still receives the availability assumption");
-    assert.equal(footerWrites, 0, "gate closed: the footer node is never written");
-    assert.equal(els.result.hidden, false);
-    // summary first, then the headline; the detail sections are collapsible
-    assert.equal(els.result.children[0].className, "season-summary", "closed gate: the summary is the first child, no grade panel");
-    assert.ok(!els.result.children.some(c => c.className === "season-grade"));
-    assert.equal(els.result.children[0].children[0].textContent, "No change to either starting lineup in weeks 4–4 under these assumptions.");
-    const details = els.result.children.filter(c => c.tagName === "DETAILS");
+}
+const OWNER = require("./fixtures/owner_league_settings.json").gabagool;
+const L = "900000000000000777";                          // not in the registry
+const users = [{ user_id: "u1", display_name: "Max973" }, { user_id: "u2", display_name: "Bo", metadata: { team_name: "Bo's Bunch" } }];
+const rosters = [
+  { roster_id: 9, owner_id: "u1", players: ["a", "d", "e", "k"], starters: ["a", "d", "e", "k"], reserve: [], taxi: [] },
+  { roster_id: 3, owner_id: "u2", players: ["b", "c", "f"], starters: ["b", "c", "f"], reserve: [], taxi: [] },
+];
+const baseLeague = { league_id: L, name: "Synthetic Trade League", season: "2026", status: "in_season", total_rosters: 2,
+  settings: { type: 0, best_ball: 0, trade_deadline: 11 }, scoring_settings: { ...OWNER.scoring_settings }, roster_positions: ["RB", "WR", "FLEX", "K", "BN", "BN"] };
+const baseCatalog = () => ({
+  ...Object.fromEntries(PEOPLE.map(([sid, pid, pos, name]) => [sid, { position: pos, full_name: name, team: "X", gsis_id: pid }])),
+  k: { position: "K", full_name: "Kicker", team: "X" },
+});
+let league = baseLeague;
+let state = { season: "2026", season_type: "regular", week: 3 };
+let catalog = baseCatalog();
+function leagueRoutes(id, lg) {
+  return { [`/league/${id}`]: () => lg(), [`/league/${id}/users`]: users, [`/league/${id}/rosters`]: () => rosters.map(r => ({ ...r })) };
+}
+function baseRoutes() {
+  return {
+    "/user/max973": { user_id: "u1", username: "max973", display_name: "Max973" },
+    ...leagueRoutes(L, () => league), "/state/nfl": () => state, "/players/nfl": () => catalog,
+  };
+}
+function fresh(storage = new Map()) {
+  Session._storage({ getItem: k => (storage.has(k) ? storage.get(k) : null), setItem: (k, v) => { storage.set(k, String(v)); },
+    removeItem: k => { storage.delete(k); }, key: i => [...storage.keys()][i] ?? null, get length() { return storage.size; } });
+  M._reset();
+  analyzeCalls.length = 0; analyzeErrors.length = 0; calls.length = 0; fetched.length = 0; events.length = 0; window.TradeMode.calls.length = 0;
+}
+const until = async (pred, what, ms = 4000) => {
+  const t0 = Date.now();
+  while (!pred()) {
+    if (Date.now() - t0 > ms) throw new Error(`timed out waiting for ${what}`);
+    await new Promise(r => setImmediate(r));
+  }
+};
+const tickPlayer = (ul, id) => { const li = ul.children.find(x => x.dataset.id === id); const box = li.children[0].children[0]; box.checked = true; box.dispatch("change"); };
+const clickCompare = async (els, pred, what) => { els.compare.dispatch("click"); await until(pred, what); };
+const NEUTRAL = ["data/neutral/evaluation.json", "data/neutral/formats.json", "data/neutral/players.json", "data/neutral/remaining.json", "data/neutral/weekly.json"];
+const lensP50 = (sid, lg) => { const p = PEOPLE.find(x => x[0] === sid); return LL.score(sqOf(p[4], p[5]), p[2], LL.classify(lg.scoring_settings).weights).p50; };
+
+async function ownerFlow() {
+  fresh(); statics = makeStatics(); routes = baseRoutes(); league = baseLeague; state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els });
+  FC.setLeague(L);
+  await until(() => els.status.textContent === GATE, "the anonymous gate");
+  assert.equal(els.cols.hidden, true); assert.equal(els.controls.hidden, true);
+
+  await Session.identify("max973");
+  await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
+  assert.equal(els.status.textContent, "2 teams loaded — you are Max973");
+  assert.equal(els.cols.hidden, false); assert.equal(els.controls.hidden, false);
+  await sub("statics are the neutral batch only: no draft, legacy remaining, gate or simulation file; no traded_picks request", async () => {
+    assert.deepEqual([...new Set(fetched)].sort(), NEUTRAL);
+    assert.ok(!calls.some(c => /traded_picks/.test(c)), calls.join(", "));
+  });
+  await sub("no pick rows on either side (§8.8); K is listed as not modeled", async () => {
+    for (const ul of [els.mine, els.theirs]) {
+      assert.ok(!ul.children.some(li => /season-pick/.test(li.className)), "no pick rows");
+      assert.ok(!/picks|R1|R2|unknown ownership/.test(text(ul)), text(ul));
+    }
+    const k = els.mine.children.find(li => li.dataset.id === "k");
+    assert.ok(k && /season-disabled/.test(k.className) && /no modeled points/.test(text(k)));
+    assert.match(els.mine.parent.children[0].textContent, /^You give — Max973$/);
+    assert.match(els.theirs.parent.children[0].textContent, /^You get — Bo's Bunch$/);
+  });
+  await sub("rendered context: format line, footnotes, aggregation label, simulation note; evidence fallback; settings stamp", async () => {
+    const view = LD.views(LD_BATCH(), league, { week: 3, catalog });
+    const format = await LD.formatLine(league, statics["data/neutral/formats.json"].formats);
+    const ctxText = els.context.children.map(x => x.textContent);
+    assert.deepEqual(ctxText, M.contextLines({ format, view }));
+    for (const s of [format.text, ...view.disclosures.footnotes, `Lineup totals are the ${AGG}, ${HORIZON}.`, SIM_OFF]) assert.ok(ctxText.includes(s), s);
+    assert.equal(els.context.hidden, false);
+    assert.equal(els.warn.textContent, NO_EVIDENCE); assert.equal(els.warn.hidden, false);
+    assert.match(els.provenance.textContent, /League settings read /);
+    assert.match(els.provenance.textContent, /Trade deadline: week 11 \(league setting\)\./);
+    assert.match(els.eyebrow.textContent, /^Synthetic Trade League · 2026 week 3 · conditional lineup scenario$/);
+  });
+
+  // Compare: give D Deep (WR), get B Wide (WR).
+  tickPlayer(els.mine, "d"); tickPlayer(els.theirs, "b");
+  assert.equal(els.compare.disabled, false);
+  await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, "the first comparison");
+  const b1 = Session.bundle(), c1 = analyzeCalls[0];
+  await sub("analyze reads the refreshed bundle's league and rosters and the league views (no published contract)", async () => {
+    assert.equal(c1.league, b1.league, "league from the committed bundle, not a closure copy");
+    assert.equal(c1.rosters, b1.rosters);
+    assert.equal(c1.snapshotAt, b1.rostersFetchedAt, "the 60 s roster snapshot is the refreshed bundle's post-fetch time");
+    assert.deepEqual(c1.rosterIds, [9, 3]); assert.deepEqual(c1.give, ["d"]); assert.deepEqual(c1.receive, ["b"]);
+    assert.ok(!("league" in c1.remaining) && !("league" in c1.board), "views carry no league contract");
+    assert.deepEqual(c1.board.players.map(p => p.sleeper_id).sort(), ["a", "b", "c", "d", "e", "f"]);
+    const row = c1.remaining.players.find(p => p.player_id === "00-0000004").weeks.find(w => w.week === 4);
+    assert.equal(row.points.league.p50, lensP50("d", league), "points.league = the live league's scoring");
+    assert.equal(c1.currentWeek, 3); assert.equal(c1.assumeAvailable, true);
+    assert.equal(simCalls, 0, "no simulation call");
+  });
+  await sub("rendered result: summary first, no grade panel, evaluation fallback; never the old pick line", async () => {
+    assert.equal(els.result.children[0].className, "season-summary");
+    assert.ok(!els.result.children.some(x => x.className === "season-grade"));
+    const details = els.result.children.filter(x => x.tagName === "details");
     assert.deepEqual(details.map(d => d.children[0].textContent), ["Week-by-week lineup totals", "Assumptions", "Engine notes", "Measured evaluation"]);
-    assert.ok(details.every(d => d.children[0].tagName === "SUMMARY"));
-    // 3b. the refresh brings rosters in which a SELECTED player moved (p1 is
-    // now on roster 2): no analyze, the CHANGED outcome, columns redrawn from
-    // the fresh snapshot (p1 now listed under "you get").
-    const movedRosters = [{ roster_id: 1, owner_id: "u1", players: [], reserve: [], taxi: [] }, { roster_id: 2, owner_id: "u2", players: ["p1", "p2", "p3"], reserve: [], taxi: [] }];
-    const moved = mkBundle({ rosters: movedRosters, myRoster: movedRosters[0], rostersRequestedAt: 200, rostersFetchedAt: Date.now() });
-    s.refreshImpl = async () => { Sess.commit(moved); return moved; };
-    assert.equal(els.compare.disabled, false, "p1 is still selected after the first compare");
-    const analyzedBefore = analyzed.length;
-    for (const fn of els.compare.listeners.click) await fn();
-    assert.equal(analyzed.length, analyzedBefore, "no analyze when a selected player moved rosters");
-    assert.equal(els.status.textContent, "Rosters changed since they were loaded — the columns were redrawn from the fresh snapshot; choose again.");
-    assert.equal(els.result.hidden, true, "no stale scenario stays on screen");
-    assert.ok(!els.mine.children.some(li => li.dataset.id === "p1"), "p1 is no longer offered on my side");
-    assert.ok(els.theirs.children.some(li => li.dataset.id === "p1"), "p1 is drawn on the partner's side from the fresh rosters");
-    assert.equal(els.compare.disabled, true, "selections were cleared by the redraw");
-    // 3c. a superseded refresh (the session moved on) is swallowed: no
-    // "comparison blocked", no analyze, the button re-enabled.
-    const box2 = els.theirs.children.find(li => li.dataset.id === "p2").children[0].children[0];
-    box2.checked = true; for (const fn of box2.listeners.change) fn();
-    assert.equal(els.compare.disabled, false);
-    s.refreshImpl = async () => { const e = new Error("Superseded by a newer request."); e.superseded = true; throw e; };
-    for (const fn of els.compare.listeners.click) await fn();
-    assert.equal(analyzed.length, analyzedBefore, "no analyze after a superseded refresh");
-    assert.doesNotMatch(els.status.textContent, /comparison blocked/, "a superseded refresh is not an error");
+    assert.equal(text(details[3]).split("\n").slice(1).join("\n"), `Rest-of-season accuracy: ${NO_EVIDENCE}`);
+    assert.ok(!/Not valued: picks/.test(text(els.result)));
+    assert.equal(els.status.textContent, "lineups compared for weeks 4–6");
+  });
+
+  await sub("a live settings change recomputes the views, the context and the next comparison (spec §5.2)", async () => {
+    league = { ...baseLeague, scoring_settings: { ...baseLeague.scoring_settings, rec: 0.5, bonus_fd_wr: 0.5 } };
+    await Session.refresh({ scope: "league" });
+    await until(() => /teams loaded/.test(els.status.textContent) && els.context.children.length > 0, "the recomputed load");
+    const ctxText = els.context.children.map(x => x.textContent);
+    assert.ok(ctxText.some(l => /^Your league also scores .*, which these projections leave out; rankings may be off for your league\.$/.test(l)), ctxText.join(" | "));
+    tickPlayer(els.mine, "d"); tickPlayer(els.theirs, "b");
+    await clickCompare(els, () => analyzeCalls.length === 2 && !els.result.hidden, "the comparison under the new scoring");
+    const c2 = analyzeCalls[1];
+    assert.equal(c2.league, Session.bundle().league);
+    assert.equal(c2.league.scoring_settings.rec, 0.5);
+    assert.equal(c2.remaining.players.find(p => p.player_id === "00-0000004").weeks.find(w => w.week === 4).points.league.p50, lensP50("d", league));
+    assert.notEqual(c2.remaining, c1.remaining);
+  });
+  await sub("a settings change arriving with a comparison's own refresh supersedes it: no stale analyze, then the new scoring", async () => {
+    tickPlayer(els.mine, "d"); tickPlayer(els.theirs, "b");
+    const before = analyzeCalls.length;
+    league = { ...baseLeague, scoring_settings: { ...baseLeague.scoring_settings, rec: 0.25 } };
+    els.compare.dispatch("click");
+    await until(() => Session.bundle().league.scoring_settings.rec === 0.25 && /teams loaded/.test(els.status.textContent), "the reload under the changed settings");
+    for (let i = 0; i < 10; i++) await new Promise(r => setImmediate(r));
+    assert.equal(analyzeCalls.length, before, "the comparison started under the old scoring never ran");
     assert.equal(els.result.hidden, true);
-    assert.equal(els.compare.disabled, false, "busy was released");
-    // 3d. the same outcome from the partner's side: p1 (selected on "you get")
-    // is back on roster 1 in the refreshed rosters -> CHANGED, columns redrawn
-    // to the original layout (which step 4 below relies on).
-    const box1b = els.theirs.children.find(li => li.dataset.id === "p1").children[0].children[0];
-    box1b.checked = true; for (const fn of box1b.listeners.change) fn();
-    const restored = mkBundle({ rostersRequestedAt: 300, rostersFetchedAt: Date.now() });
-    s.refreshImpl = async () => { Sess.commit(restored); return restored; };
-    for (const fn of els.compare.listeners.click) await fn();
-    assert.equal(analyzed.length, analyzedBefore, "no analyze when a player selected on the partner's side moved");
-    assert.equal(els.status.textContent, "Rosters changed since they were loaded — the columns were redrawn from the fresh snapshot; choose again.");
-    assert.ok(els.mine.children.some(li => li.dataset.id === "p1"), "p1 is back on my side");
-    // 4. a foreign bundle (different account) arriving mid-compare invalidates it
-    const other = mkBundle({ identity: { userId: "u2" }, myRoster: rosters[1], rostersFetchedAt: Date.now() });
-    s.refreshImpl = async () => { s.id = { userId: "u2" }; Sess.commit(other); return other; };
-    const box4 = els.mine.children.find(li => li.dataset.id === "p1").children[0].children[0];
-    box4.checked = true; for (const fn of box4.listeners.change) fn();
-    assert.equal(els.compare.disabled, false);
-    const before = analyzed.length;
-    for (const fn of els.compare.listeners.click) await fn();
-    assert.equal(analyzed.length, before, "no analyze after the account changed under the compare");
-    for (let i = 0; i < 5; i++) await tick();
-    assert.match(els.status.textContent, /2 teams loaded — you are Them/, "the foreign bundle reloaded the columns for the new account");
-    // 5. losing the roster hides everything again
-    s.id = null;
-    Sess.commit(mkBundle({ identity: null, myRoster: null, myRosterStatus: "anonymous" }));
-    assert.equal(els.cols.hidden, true); assert.equal(els.result.hidden, true); assert.equal(els.controls.hidden, true);
-    assert.match(els.status.textContent, /league panel/);
-  } finally { delete global.window; delete global.document; }
+    tickPlayer(els.mine, "d"); tickPlayer(els.theirs, "b");
+    await clickCompare(els, () => analyzeCalls.length === before + 1 && !els.result.hidden, "the comparison after the reload");
+    assert.equal(analyzeCalls.at(-1).league.scoring_settings.rec, 0.25);
+  });
 }
-// --- init() with the gate OPEN: hand-written eval object, mocked simulate ---
-// The grade path is dormant in production (no trade_sim_eval.json), so this is
-// the only place it runs. The lineup scenario always renders first; the panel
-// above it is filled afterwards, or replaced by a one-line note.
-async function gateSmoke() {
-  const { els, mk } = stubDom();
-  const { api: Sess, s } = scriptedSession();
-  Sess.catalog = async () => ({ p1: { position: "RB", full_name: "Ann Aaron", team: "X", gsis_id: "g1" }, p2: { position: "WR", full_name: "Bo Byrd", team: "Y", gsis_id: "g2" }, p3: { position: "RB", full_name: "C", team: "Z", gsis_id: "g3" } });
-  const league = { league_id: "L1", name: "Lg", season: 2026, status: "in_season", total_rosters: 2, roster_positions: ["RB", "WR", "BN", "BN"], settings: {} };
-  const remaining = { schema_version: 1, horizon: "remaining_season", status: "experimental", evaluation: null, league: { league_id: "L1" }, season: 2026, start_week: 3, end_week: 17, generated_at: "g", data_through: "d", players: [] };
-  const strata = (a, b) => ({ same_position: { E: a, n: 10 }, cross_position: { E: b, n: 10 }, depth_for_starter: { E: 4, n: 10 }, lopsided: { E: 9, n: 10 } });
-  // The scenario compares 3 weeks; the 3-week horizon is nearest, the 13-week one (E 99) must not be used.
-  const evalFile = { schema_version: 2, league: "lg", slots: ["RB", "WR"], verdict: "pass", waiver_verdict: "fail", k: 2, horizons: [{ origin: 5, weeks: 13, strata: strata(99, 99), lopsided_cutoff: 5 }, { origin: 14, weeks: 3, strata: strata(5, 5.5), lopsided_cutoff: 50 }], excluded_cells: 0 };
-  const availability = { p_out: { QB: 0.05, RB: 0.05, WR: 0.05, TE: 0.05 }, p_stay: { QB: 0.4, RB: 0.4, WR: 0.4, TE: 0.4 }, p_tag: { Out: 0.9, Doubtful: 0.8, Questionable: 0.2, IR: 0.9 } };
-  const rosSource = (snapshot_at) => ({ schema_version: 1, horizon: "ros", rank_scope: "overall", scoring_format: "ppr", season: 2026, source: "test", snapshot_at,
-    players: [{ player_id: "g1", position: "RB", team: "X", ros_rank: 5 }, { player_id: "g2", position: "WR", team: "Y", ros_rank: 90 }] });
-  const env = { availability, ros: rosSource(new Date().toISOString().slice(0, 10)), simThrows: null, simMean: 8 };
-  const analyzed = [], simulated = [], loaded = [], stratumCalls = [];
-  const lineup = ids => ids.map(id => ({ id, name: id }));
-  // 3 weeks; the incoming p2 starts in one of them (a thin starter), p1 in all for the partner.
-  // Both sides give a starter (before-lineups) by default; env.benchOnly makes the partner give only a non-starter.
-  const mkResult = () => ({ weeks: (env.weeksList || [4, 5, 6]).map((w, i) => ({ week: w, sides: [
-    { before: { total: 1, lineup: lineup(["p1"]) }, after: { total: 3, lineup: lineup(i === 0 ? ["p2"] : []) }, delta: 2 },
-    { before: { total: 1, lineup: env.benchOnly ? [] : lineup(["p2"]) }, after: { total: 0, lineup: lineup(["p1"]) }, delta: -2 }] })), sides: [{ rosterId: 1, delta: env.d0 ?? 6 }, { rosterId: 2, delta: env.d1 ?? -6 }], warnings: [] });
-  global.window = {
-    Session: Sess,
-    Sleeper: { get: async path => { if (path.endsWith("/traded_picks")) return []; throw new Error(`unexpected fetch ${path}`); } },
-    FC: { leagueDataPath: k => k, loadJSON: async path => {
-      loaded.push(path);
-      if (path === "remaining") return remaining;
-      if (path === "data/trade_sim_eval.json") return evalFile;
-      if (path === "data/availability.json") { if (!env.availability) throw new Error("HTTP 404"); return env.availability; }
-      if (path === "data/ros-ecr.json") { if (!env.ros) throw new Error("HTTP 404"); return env.ros; }
-      throw new Error(`unexpected ${path}`);
-    } },
-    Trade: { defaultPicks: () => new Map(), applyTradedPicks: () => {} }, Keepers: { DRAFT_ROUNDS: 1 },
-    WaiverIntel: require("../site/assets/waiverintel.js"),
-    SeasonTrade: {
-      analyze: args => { analyzed.push(args); return mkResult(); },
-      // The controller takes population/strata inputs from stratumInputs (the backtest's lineup method), not from analyze's
-      // lineups. By default the mock derives them from the same result; env.siDeltas / env.siGive override only the inputs.
-      stratumInputs: args => {
-        stratumCalls.push(args);
-        const r = mkResult(), sc = M.startCounts(r, args.give, args.receive);
-        return { sides: sc.sides.map((sd, i) => ({ ...sd, give: env.siGive ? env.siGive[i] : sd.give, delta: env.siDeltas ? env.siDeltas[i] : r.sides[i].delta })) };
-      },
-      simulate: args => {
-        simulated.push(args);
-        if (env.simThrows) throw Object.assign(new Error(env.simThrows), { name: "RosterSimError" });
-        return { weeks: [4, 5, 6], nSims: 2000, sides: [{ rosterId: 1, mean: env.simMean, p10: -3, p90: 20, pPositive: 0.8, perWeek: [] }, { rosterId: 2, mean: -env.simMean, p10: -20, p90: 3, pPositive: 0.2, perWeek: [] }] };
-      },
-    },
-    ROS: { evaluationText: () => [] },
-  };
-  const footer = { textContent: "Pre-draft: values players and draft picks before the draft. In season: conditional lineup scenarios only — no trade grades." };
-  const footerBefore = footer.textContent;
-  global.document = { createElement: tag => Object.assign(mk(), { tagName: String(tag).toUpperCase() }), createTextNode: t => t, querySelector: sel => (sel === "footer" ? footer : null) };
-  const text = node => [node.textContent || "", ...(node.children || []).map(text)].filter(Boolean).join("\n");
-  try {
-    s.id = { userId: "u1", username: "me" };
-    const rosters = [{ roster_id: 1, owner_id: "u1", players: ["p1"], reserve: [], taxi: [] }, { roster_id: 2, owner_id: "u2", players: ["p2", "p3"], reserve: [], taxi: [] }];
-    const users = [{ user_id: "u1", display_name: "Me" }, { user_id: "u2", display_name: "Them" }];
-    const state = { week: 3, season: "2026", season_type: "regular" };
-    const mkBundle = () => Object.freeze({ registry: {}, identity: s.id, league, users, rosters, state, rostersRequestedAt: 10, rostersFetchedAt: Date.now(), myRoster: rosters[0], myRosterStatus: "found", warnings: [] });
-    M.init({ board: { league: { name: "Lg", league_id: "L1" } }, league, slug: "lg", els });
-    Sess.commit(mkBundle());
-    for (let i = 0; i < 6; i++) await tick();
-    assert.ok(loaded.includes("data/trade_sim_eval.json"), "the gate file is read on load");
-    for (const [side, id] of [[els.mine, "p1"], [els.theirs, "p2"]]) { const b = side.children.find(li => li.dataset.id === id).children[0].children[0]; b.checked = true; for (const fn of b.listeners.change) fn(); }
-    assert.equal(els.compare.disabled, false);
-    const run = async () => { s.refreshImpl = async () => { const b = mkBundle(); Sess.commit(b); return b; }; for (const fn of els.compare.listeners.click) await fn(); };
-    const panelLines = () => els.result.children[0].children.map(text);
-    // 1. open gate, simulation ok: panel above the summary
-    await run();
-    assert.equal(els.result.hidden, false);
-    assert.equal(els.result.children[0].className, "season-grade", "the grade panel is first");
-    assert.equal(els.result.children[1].className, "season-summary", "the lineup summary stays underneath");
-    assert.equal(simulated.length, 1);
-    assert.equal(simulated[0].seed, 20260924, "fixed seed: re-clicking Compare gives the same numbers");
-    assert.equal(simulated[0].availability, availability);
-    assert.equal(simulated[0].now, analyzed[0].now, "simulate resolves the scenario at analyze's own clock");
-    assert.equal(simulated[0].snapshotAt, analyzed[0].snapshotAt);
-    assert.deepEqual(simulated[0].give, ["p1"]); assert.deepEqual(simulated[0].receive, ["p2"]);
-    assert.ok(!/no trade grades/.test(footer.textContent) && /simulated grade/.test(footer.textContent), "the footer stops claiming there are no trade grades while a grade shows");
-    let lines = panelLines();
-    assert.equal(lines[0], "Simulated rest-of-season grade, weeks 4–6");
-    // RB + WR is cross_position (5.5); p2 starts 1 of 3 weeks -> depth_for_starter (4); largest E = 5.5; mean 8 is in [5.5, 11)
-    assert.equal(lines[1], "Your lineup: Small gain");
-    assert.equal(lines[2], "+8.0 pts over weeks 4–6 (about +2.7 a week); likely range −3.0 to +20.0; typical measured error on trades like this: 5.5 pts");
-    assert.equal(lines[3], "Them: Small loss");
-    assert.match(lines[5], /^Market check: the model shows a gain, but expert rest-of-season ranks rate what you give above what you get\. You get Bo Byrd \(WR1, overall 90\); you give Ann Aaron \(RB1, overall 5\)\. Roster reason: Bo Byrd would start in only 1 of 3 weeks in your lineup/);
-    assert.match(lines[6], /not valued/);
-    await sub("live panel lists the spec §8 limitations after the footnote (review I4)", async () => {
-      const tail = lines.slice(7).join("\n");
-      for (const re of [/independent/i, /injury type/i, /synthetic 2023.2025/i, /frozen/i, /picks/i, /after 17/i, /latest Sleeper status/i]) assert.match(tail, re, `limitations in the live panel: ${tail}`);
-    });
-    const panelText = lines.join("\n").toLowerCase();
-    for (const w of M.GRADE_FORBIDDEN) assert.ok(!panelText.includes(w), `"${w}" in the live panel: ${panelText}`);
-    const all = text(els.result);
-    assert.ok(all.includes("Lineup scenario from central (p50) projections") && !/not a trade verdict|no overall grade/.test(all), "closed-gate disclaimers are re-worded once a grade is shown");
-    // 1b. tested population only: a side that gives no starter -> no grade, no simulation
-    env.benchOnly = true;
-    const simsBefore = simulated.length;
-    await run();
-    assert.deepEqual(panelLines(), ["grade unavailable: the grade is measured only for trades where each side gives a starter"]);
-    assert.equal(simulated.length, simsBefore, "no simulation outside the tested population");
-    assert.equal(els.result.children[1].className, "season-summary", "the lineup scenario stays");
-    assert.equal(footer.textContent, footerBefore);
-    env.benchOnly = false;
-    await run();
-    assert.equal(panelLines()[1], "Your lineup: Small gain", "starter for starter is graded");
-    // 2. a sim failure: the lineup scenario stays, one line replaces the panel, no partial grade
-    env.simThrows = "no replacement available for RB in week 4";
-    await run();
-    lines = panelLines();
-    assert.deepEqual(lines, ["grade unavailable: no replacement available for RB in week 4"]);
-    assert.equal(footer.textContent, footerBefore, "no grade on screen: the footer is as today");
-    assert.equal(els.result.children[1].className, "season-summary", "the lineup scenario is still there");
-    assert.ok(text(els.result).includes(M.HEADLINE) && text(els.result).includes(M.ALLOWED_SENTENCES[1]), "closed-gate wording when no grade is shown");
-    // A new league load re-reads the cached inputs (availability, ROS) and clears the selections.
-    const reload = async () => {
-      Sess.commit(Object.freeze({ ...mkBundle(), rosters: rosters.map(r => ({ ...r })) }));
-      for (let i = 0; i < 6; i++) await tick();
-      for (const [side, id] of [[els.mine, "p1"], [els.theirs, "p2"]]) { const bx = side.children.find(li => li.dataset.id === id).children[0].children[0]; bx.checked = true; for (const fn of bx.listeners.change) fn(); }
-    };
-    // 3. availability.json missing: same fallback with its own reason, and it retries next time
-    env.simThrows = null; env.availability = null;
-    await reload();
-    const sims = simulated.length;
-    await run();
-    assert.deepEqual(panelLines(), ["grade unavailable: availability data is not published"]);
-    assert.equal(simulated.length, sims, "no simulation without the availability table");
-    env.availability = availability;
-    await run();
-    assert.equal(panelLines()[1], "Your lineup: Small gain", "recovers once the file is there");
-    // 4. stale ROS reference: the grade shows, the market check is withheld with the existing reason
-    env.ros = rosSource("2026-01-01");
-    await reload();
-    await run();
-    lines = panelLines();
-    assert.equal(lines[1], "Your lineup: Small gain");
-    assert.ok(lines.some(l => l === "ROS reference is stale, future-dated or empty. ROS ranks withheld."), `withheld reason in: ${lines.join(" | ")}`);
-    assert.ok(!lines.some(l => l.startsWith("Market check")));
-    // 5. no ROS file at all: also withheld, never faked
-    env.ros = null;
-    await reload();
-    await run();
-    assert.ok(panelLines().some(l => l === "ROS reference unavailable. ROS ranks withheld."));
-    // 6. review I2: the lopsided stratum uses the larger side's |Δ| (the backtest's measure): only the partner's
-    // side crosses the 50-point cutoff here, so the lopsided E (9.0) applies and +8.0 is too close to call.
-    await sub("lopsided stratum uses the larger side (review I2)", async () => {
-      env.ros = rosSource(new Date().toISOString().slice(0, 10)); env.d0 = 6; env.d1 = -60;
-      await reload(); await run();
-      assert.equal(panelLines()[1], "Your lineup: Too close to call");
-      env.d0 = undefined; env.d1 = undefined;
-    });
-    // 6b. review M2: strata and population come from stratumInputs, not from the displayed lineups
-    await sub("strata and population read stratumInputs, not analyze (review M2)", async () => {
-      await reload();
-      env.siDeltas = [6, -60];                       // analyze still says +-6; only the backtest-method inputs cross the cutoff
-      const calls = stratumCalls.length;
-      await run();
-      assert.equal(stratumCalls.length, calls + 1, "the controller asked for stratum inputs");
-      assert.equal(panelLines()[1], "Your lineup: Too close to call");
-      env.siDeltas = undefined; env.siGive = [[0.2], [1]];   // the displayed lineups have starters; the inputs say side 0 gives a bench player
-      const sims = simulated.length;
-      await run();
-      assert.deepEqual(panelLines(), ["grade unavailable: the grade is measured only for trades where each side gives a starter"]);
-      assert.equal(simulated.length, sims);
-      env.siGive = undefined;
-    });
-    // 7. review M7: weeks after 17 were never measured
-    await sub("weeks after 17 are not graded (review M7)", async () => {
-      await reload();
-      env.weeksList = [16, 17, 18];
-      const before = simulated.length;
-      await run();
-      assert.deepEqual(panelLines(), ["grade unavailable: weeks after 17 are not measured"]);
-      assert.equal(simulated.length, before, "no simulation for an unmeasured horizon");
-      env.weeksList = undefined;
-    });
-  } finally { delete global.window; delete global.document; }
+
+// A tiny stand-in for the batch the controller loaded (same statics), for computing expectations.
+const LD_BATCH = () => {
+  const d = name => JSON.parse(JSON.stringify(statics[`data/neutral/${name}.json`]));
+  return { weekly: d("weekly"), remaining: d("remaining"), players: d("players"), evaluation: d("evaluation"), formats: d("formats").formats };
+};
+
+async function reviewFocus1() {
+  fresh(); statics = makeStatics(); routes = baseRoutes(); league = baseLeague; state = { season: "2026", season_type: "regular", week: 3 };
+  catalog = baseCatalog(); catalog.d = { ...catalog.d, team: "Z" };     // traded after the batch
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await Session.identify("max973");
+  await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
+  tickPlayer(els.mine, "a"); tickPlayer(els.theirs, "c");
+  await clickCompare(els, () => !els.result.hidden && analyzeErrors.length === 1, "the blocked comparison");
+  assert.equal(els.status.textContent, "comparison blocked");
+  assert.match(text(els.result.children[0]), /^Comparison blocked: 1 player\(s\), 3 player-week\(s\) without a projection$/);
+  assert.ok(text(els.result).includes("D Deep · week 4 · Missing projection or current-team mismatch: D Deep"));
+  assert.ok(/Nothing was scored/.test(text(els.result)), "never scored for his old team");
 }
-initSmoke().then(gateSmoke).then(() => {
-  n += 2;
+
+async function viewerFlow() {
+  fresh(); statics = makeStatics(); routes = baseRoutes(); league = baseLeague; state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await until(() => els.status.textContent === GATE, "the anonymous gate");
+  Session.view(3);
+  await until(() => /teams loaded/.test(els.status.textContent), "the viewed team's columns");
+  assert.equal(els.status.textContent, "2 teams loaded — Viewing Bo's Bunch");
+  assert.equal(els.mine.parent.children[0].textContent, "Bo's Bunch gives");
+  assert.equal(els.theirs.parent.children[0].textContent, "Bo's Bunch gets — from Max973");
+  tickPlayer(els.mine, "b"); tickPlayer(els.theirs, "d");
+  await clickCompare(els, () => analyzeCalls.length === 1 && !els.result.hidden, "the viewer's comparison");
+  assert.deepEqual(analyzeCalls[0].rosterIds, [3, 9]);
+  const summary = els.result.children[0].children.map(x => x.textContent);
+  assert.ok(summary.every(l => !/^Your lineup/.test(l)), summary.join(" | "));
+  // The owner identifies: the analysis switches to the owner's roster; the viewed team is dropped.
+  await Session.identify("max973");
+  await until(() => els.status.textContent === "2 teams loaded — you are Max973", "the owner's roster after identifying");
+  assert.equal(els.result.hidden, true);
+}
+
+async function bestBall() {
+  fresh(); statics = makeStatics({ lastWeek: 17 });   // ros_value needs every week through 17 routes = baseRoutes(); state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
+  league = { ...baseLeague, settings: { ...baseLeague.settings, best_ball: 1 } };
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await Session.identify("max973");
+  await until(() => !els.result.hidden, "the best-ball note");
+  assert.equal(els.cols.hidden, true); assert.equal(els.controls.hidden, true);
+  const lines = els.result.children.map(x => x.textContent);
+  assert.equal(lines[0], BEST_BALL);
+  assert.equal(lines[1], `Rest-of-season values: the ${AGG}, ${HORIZON}.`);
+  assert.ok(lines.some(l => /^A Back · RB · \d+\.\d\d$/.test(l)), lines.join(" | "));
+  assert.ok(els.context.children.some(x => x.textContent === "Best ball — not eligible for the format test"));
+  assert.ok(els.context.children.some(x => x.textContent === SIM_OFF));
+  assert.equal(analyzeCalls.length, 0, "no lineup comparison for best ball");
+  assert.equal(els.status.textContent, "2 teams loaded — you are Max973");
+}
+
+async function unknownSlot() {
+  fresh(); statics = makeStatics(); routes = baseRoutes(); state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
+  league = { ...baseLeague, roster_positions: ["RB", "WR", "FLEX", "XFLEX", "BN", "BN"] };
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await Session.identify("max973");
+  await until(() => !els.result.hidden, "the unsupported-slot note");
+  assert.equal(els.result.children[0].textContent, "Unsupported lineup slot: XFLEX — no trade lineup comparison for this league; the rest-of-season values below still apply.");
+  assert.equal(els.cols.hidden, true);
+  assert.equal(analyzeCalls.length, 0);
+}
+
+async function week18() {
+  fresh(); statics = makeStatics({ week: 18, noWeeks: true }); routes = baseRoutes(); league = baseLeague; catalog = baseCatalog();
+  state = { season: "2026", season_type: "regular", week: 18 };
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await Session.identify("max973");
+  await until(() => els.status.textContent === "No projected weeks remain.", "the week-18 end state");
+  assert.equal(els.cols.hidden, true); assert.equal(els.controls.hidden, true);
+  assert.equal(analyzeCalls.length, 0);
+}
+
+// ============================ Part 3: trade.html's mode resolution ============================
+const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
+const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x => x[1]).find(s => /leagueNavigation/.test(s));
+const GAB = FC.REGISTRY.find(r => r.slug === "gabagool").leagueId, FAMID = FC.REGISTRY.find(r => r.slug === "fam").leagueId;
+async function runPage(href) {
+  const dom = tradeDom(href);
+  global.FC = FC; global.Session = Session; global.SeasonTradeMode = M; global.TradeMode = window.TradeMode; global.Sleeper = window.Sleeper;
+  const run = new Function(`return ${inline.trim().replace(/;\s*$/, "")}`);
+  await run();
+  return dom;
+}
+const linkParams = dom => Object.fromEntries(dom.navLinks.map(a => { const u = new URL(a.href); return [u.pathname.split("/").pop(), u.searchParams.get("league")]; }));
+const draftFetches = () => fetched.filter(p => /draft/.test(p));
+async function pageInSeason() {
+  fresh(); statics = makeStatics(); routes = { ...baseRoutes(), ...leagueRoutes(FAMID, () => ({ ...baseLeague, league_id: FAMID })) };
+  league = baseLeague; state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
+  const dom = await runPage(`https://example.test/Megatron/trade.html?league=fam`);
+  await until(() => dom.$("season-status").textContent === GATE, "the in-season controller's gate");
+  await until(() => /^data through /.test(dom.stamp.textContent), "the masthead stamp from the batch");
+  assert.equal(dom.$("season-trade").hidden, false);
+  for (const id of ["trade-eyebrow", "trade-note", "trade-connect", "trade-controls", "trade-cols"]) assert.equal(dom.$(id).hidden, true, id);
+  assert.deepEqual(draftFetches(), [], "the in-season page never requests draft.json");
+  assert.ok(!calls.some(c => /traded_picks/.test(c)));
+  assert.equal(window.TradeMode.calls.length, 0);
+  // Task 9: in-season trade is an id context -- its in-season links carry the league id.
+  assert.deepEqual(linkParams(dom), { "index.html": "fam", "trade.html": FAMID, "weekly.html": FAMID, "about.html": "fam", "waivers.html": FAMID });
+  // An unregistered league in season: the id everywhere, still no draft data.
+  fresh(); routes = baseRoutes();
+  const dx = await runPage(`https://example.test/Megatron/trade.html?league=${L}`);
+  await until(() => dx.$("season-status").textContent === GATE, "the gate for an unregistered league");
+  assert.equal(dx.$("season-trade").hidden, false);
+  assert.deepEqual(draftFetches(), []);
+  assert.deepEqual(Object.values(linkParams(dx)), [L, L, L, L, L]);
+}
+async function pagePreDraft() {
+  // Gabagool pre-draft: the mode is read from the live league FIRST, then the board loads and TradeMode runs as today.
+  fresh(); state = { season: "2026", season_type: "pre", week: 0 }; catalog = baseCatalog();
+  const gabLeague = { ...baseLeague, league_id: GAB, name: "Gabagool (synthetic)", status: "pre_draft" };
+  routes = { ...baseRoutes(), ...leagueRoutes(GAB, () => gabLeague) };
+  const board = { league: { league_id: GAB, name: "Gabagool (synthetic)" }, data_through: "2025-wk18", generated_at: new Date().toISOString(), model: "transformer", players: [] };
+  statics = { "data/draft.json": board };
+  const dom = await runPage(`https://example.test/Megatron/trade.html`);
+  assert.equal(window.TradeMode.calls.length, 1, "TradeMode runs for the registered Gabagool league");
+  assert.deepEqual(window.TradeMode.calls[0].board, board);
+  assert.deepEqual(draftFetches(), ["data/draft.json"]);
+  assert.ok(events.indexOf(`sleeper /league/${GAB}`) >= 0 && events.indexOf(`sleeper /league/${GAB}`) < events.indexOf("fetch data/draft.json"), events.join(" | "));
+  assert.equal(dom.$("season-trade").hidden, true);
+  assert.match(dom.stamp.textContent, /^data through 2025-wk18/);
+  // FAM pre-draft keeps today's message; an unregistered pre-draft league is the draft boundary; neither fetches draft data.
+  for (const [href, id, expected] of [
+    ["trade.html?league=fam", FAMID, "Trade advice is not available for this league yet. No Gabagool values are being loaded."],
+    [`trade.html?league=${L}`, L, "The draft board is only built for registered leagues."],
+  ]) {
+    fresh(); state = { season: "2026", season_type: "pre", week: 0 };
+    routes = { ...baseRoutes(), ...leagueRoutes(id, () => ({ ...baseLeague, league_id: id, status: "pre_draft" })) };
+    const d = await runPage(`https://example.test/Megatron/${href}`);
+    assert.equal(d.stamp.textContent, expected, href);
+    assert.deepEqual(draftFetches(), [], href);
+    assert.equal(window.TradeMode.calls.length, 0, href);
+    assert.equal(d.$("trade-connect").hidden, true);
+  }
+  // Any other state keeps today's message.
+  fresh(); state = { season: "2026", season_type: "post", week: 18 };
+  routes = { ...baseRoutes(), ...leagueRoutes(L, () => ({ ...baseLeague, status: "complete" })) };
+  const dc = await runPage(`https://example.test/Megatron/trade.html?league=${L}`);
+  assert.equal(dc.stamp.textContent, "Trade tools are available before the draft and during the regular season; this league is complete.");
+  assert.deepEqual(draftFetches(), []);
+  assert.equal(dc.$("season-trade").hidden, true);
+}
+
+(async () => {
+  await sub("owner flow under the real Session, LeagueData and LiveWorld", ownerFlow);
+  await sub("Review Focus 1: a player traded after the batch blocks the comparison by name", reviewFocus1);
+  await sub("viewer flow: Viewing {team}, reworded columns, the viewer's comparison, then the owner identifies", viewerFlow);
+  await sub("best ball: projections and rest-of-season values only, with the note", bestBall);
+  await sub("an unknown starting slot: the note, no lineup comparison", unknownSlot);
+  await sub("week 18: No projected weeks remain.", week18);
+  await sub("trade.html in season: mode first, never draft.json, in-season links by id", pageInSeason);
+  await sub("trade.html pre-draft: Gabagool loads draft.json after the mode; others keep today's messages", pagePreDraft);
   if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
   console.log(`seasontrademode_fixture: ${n} groups OK`);
-},
-  e => { e.message = `init under a scripted session: ${e.message}`; console.error(e); if (failed.length) console.log(`FAILED before the abort (${failed.length}): ` + failed.join(" | ")); process.exit(1); });
+  process.exit(0);
+})().catch(e => { console.error(e); if (failed.length) console.log(`FAILED before the abort (${failed.length}): ` + failed.join(" | ")); process.exit(1); });

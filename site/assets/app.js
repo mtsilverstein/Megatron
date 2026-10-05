@@ -489,7 +489,11 @@
     else document.body?.append(panel);
   }
 
-  function leagueNavigation() {
+  // `opts.inSeason`: the page has resolved itself to in-season mode (trade.html
+  // decides its mode from the live league, so it is not in IN_SEASON_HOME);
+  // its in-season links then carry the league id like weekly/waivers. Calling
+  // again only rewrites the masthead: the league panel mounts once.
+  function leagueNavigation(opts) {
     // Keep the choice in each tab's URL, including the trip back from another
     // page. A shared stored preference would let one league change the other.
     const p = leagueParam();
@@ -501,7 +505,7 @@
     // Between in-season pages the canonical parameter is the league id: on
     // an in-season page, or wherever the URL already names the league by id.
     // Draft and neutral destinations keep the registry slug when there is one.
-    const idContext = p.leagueId !== null && (p.isId || IN_SEASON_HOME.has(here));
+    const idContext = p.leagueId !== null && (p.isId || IN_SEASON_HOME.has(here) || !!(opts && opts.inSeason));
     const slug = p.slug;
     // The masthead is rewritten FIRST, even on a page about to refuse: a
     // bare href would resolve to the default league -- a substitution.

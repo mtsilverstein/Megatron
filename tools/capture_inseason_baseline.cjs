@@ -48,8 +48,10 @@ function run(legacyRaw, scenario) {
     week: w.week, protectedIds: w.protectedIds, budgetReserve: w.budgetReserve,
   });
   const t = scenario.trade;
+  // Trade prices players only through the board's sleeper_id -> player_id map (any-league
+  // Task 13, astra R2), stamped with the projection season as the league view's board is.
   const trade = SeasonTrade.analyze({
-    remaining: l.remaining, league: l.league, catalog: l.catalog, rosters: l.rosters, rosterIds: t.rosterIds,
+    remaining: l.remaining, league: l.league, catalog: l.catalog, board: { season: l.remaining.season, ...l.board }, rosters: l.rosters, rosterIds: t.rosterIds,
     give: t.give, receive: t.receive, drops: t.drops, excludeWeeks: t.excludeWeeks, assumeAvailable: t.assumeAvailable,
     currentWeek: t.currentWeek, now: t.now, snapshotAt: t.snapshotAt,
   });

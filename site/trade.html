@@ -61,6 +61,7 @@
     change hands. Every player is assumed to play every remaining week unless
     you enter weeks he is out (optional). Keeper value, draft picks and the
     current week are left out.</p>
+    <div class="draft-note" id="season-context" hidden></div>
     <div class="draft-row" id="season-connect">
       <span class="draft-status" id="season-status">— loading league…</span>
     </div>
@@ -86,10 +87,14 @@
 <script src="assets/trade.js"></script>
 <script src="assets/ros.js?v=1"></script>
 <script src="assets/rostersim.js?v=1"></script>
-<script src="assets/waiverintel.js?v=ros1"></script>
+<script src="assets/formats.js?v=1"></script>
+<script src="assets/lineup.js?v=1"></script>
+<script src="assets/leaguelens.js?v=1"></script>
+<script src="assets/leaguedata.js?v=1"></script>
+<script src="assets/liveworld.js?v=1"></script>
 <script src="assets/trademode.js?v=session1"></script>
-<script src="assets/seasontrade.js?v=grade3"></script>
-<script src="assets/seasontrademode.js?v=grade3"></script>
+<script src="assets/seasontrade.js?v=neutral1"></script>
+<script src="assets/seasontrademode.js?v=neutral1"></script>
 <script>
 (async () => {
   const slug = FC.leagueNavigation();
@@ -98,15 +103,30 @@
   const hide = ids => { for (const id of ids) { const n = $(id); if (n) n.hidden = true; } };
   const NOT_AVAILABLE = "Trade advice is not available for this league yet. No Gabagool values are being loaded.";
   if (slug === "espnfam") { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
-  const board = await FC.loadJSON(FC.leagueDataPath("draft"));
-  FC.setBoard(board);
-  const league = await Sleeper.get(`/league/${board.league.league_id}`);
+  // Mode first (any-league spec 5.4): the LIVE league's status decides
+  // pre-draft vs in-season before any draft data is fetched. The chip loads
+  // the league by id (FC.setLeague -> Session.ready({leagueId}), identity
+  // optional); the first committed bundle names the mode. A failed load
+  // shows its reason and keeps waiting for the chip's retry.
+  const { leagueId } = FC.inSeasonLeague();
+  const league = await new Promise(resolve => {
+    const off = Session.onChange(() => {
+      const b = Session.bundle();
+      if (b && b.league) { off(); resolve(b.league); return; }
+      const err = Session.error();
+      if (err) stamp(err);
+    });
+    FC.setLeague(leagueId);
+  });
   if (league.status === "pre_draft") {
     // The pre-draft grader prices keepers and a simulated draft; only Gabagool
-    // has that model. FAM pre-draft keeps today's message. Identity and the
-    // league load come from the chip (FC.setBoard above); TradeMode reads its
+    // has that model. FAM pre-draft keeps today's message; any other league
+    // has no board. Only now is the draft board read. FC.setBoard moves the
+    // chip to the board's registry path (as before); TradeMode reads its
     // roster from the session bundle and no username of its own.
-    if (slug !== "gabagool") { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
+    if (slug !== "gabagool") { hide(["trade-connect"]); stamp(slug === null ? FC.DRAFT_ONLY : NOT_AVAILABLE); return; }
+    const board = await FC.loadJSON(FC.leagueDataPath("draft"));
+    FC.setBoard(board);
     FC.stampHeader(board);
     TradeMode.init({
       board,
@@ -129,17 +149,17 @@
     return;
   }
   if (league.status === "in_season") {
-    // In season the pre-draft engine is never called (spec §6.6): its blocks
-    // are hidden and the conditional lineup scenario takes the page. Identity
-    // and the league load come from the chip (FC.setBoard above); the page
-    // reads no username of its own.
+    // In season the pre-draft engine is never called (spec §6.6) and no draft
+    // data is read: its blocks are hidden and the conditional lineup scenario
+    // takes the page, for any Sleeper league. In-season links carry the
+    // league id from here on (an id context, like weekly/waivers).
+    FC.leagueNavigation({ inSeason: true });
     hide(["trade-eyebrow", "trade-note", "trade-connect", "trade-controls",
           "trade-warn", "trade-cols", "trade-grade", "trade-suggestions"]);
     $("season-trade").hidden = false;
-    FC.loadJSON(FC.leagueDataPath("remaining")).then(r => FC.stampHeader(r))
-      .catch(() => { document.querySelector(".stamp").textContent = "remaining-season projections not published yet"; });
+    SeasonTradeMode.batch().then(b => FC.stampHeader(b.remaining || b.weekly))
+      .catch(() => { stamp("remaining-season projections not published yet"); });
     SeasonTradeMode.init({
-      board, league, slug,
       els: {
         eyebrow: $("season-eyebrow"),
         status: $("season-status"),
@@ -154,6 +174,7 @@
         theirsDrops: $("season-theirs-drops"),
         result: $("season-result"),
         provenance: $("season-provenance"),
+        context: $("season-context"),
       },
     });
     return;
