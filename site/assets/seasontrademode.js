@@ -176,16 +176,24 @@
     }
     return [`Rest-of-season accuracy: ${COPY.noEvidence}`];
   }
-  // Best ball / an unknown slot: the analysed roster's rest-of-season values
-  // (the board view's ros_value), active skill players only. Unknown is not 0.
-  function rosValueLines(board, roster, catalog) {
+  // Best ball / an unknown slot: the analysed roster's rest-of-season values,
+  // active skill players only. Unknown is not 0. Every number comes through
+  // `gate` = LeagueData.rosValues(view, {..., policy: ROS_POLICY.trade}): the
+  // same season/week/72 h/future-date and current-team checks the lineup
+  // analyzer (SeasonTrade.analyze) applies; a failed check withholds the
+  // number with its reason and keeps the player listed (astra I1).
+  function rosValueLines(board, roster, catalog, gate) {
+    if (!gate || typeof gate.of !== "function") throw new Error("rosValueLines needs the rest-of-season gate (LeagueData.rosValues)");
     const bySleeper = new Map(((board && board.players) || []).map(p => [String(p.sleeper_id), p]));
     const locked = new Set([...(roster.reserve || []), ...(roster.taxi || [])].map(String));
     const lines = [`Rest-of-season values. Horizon: ${COPY.horizon}. Totals: ${COPY.aggregation}.`];
+    if (gate.reason) lines.push(`Rest-of-season values withheld: ${gate.reason}.`);
     for (const id of (roster.players || []).map(String)) {
       const c = (catalog && catalog[id]) || {}, b = bySleeper.get(id);
       if (locked.has(id) || !SKILL.has(c.position)) continue;
-      const value = b && Number.isFinite(b.ros_value) ? b.ros_value.toFixed(2) : "no rest-of-season projection";
+      const g = gate.of(id);
+      const value = Number.isFinite(g.value) ? g.value.toFixed(2)
+        : g.reason ? (gate.reason ? "withheld" : `withheld — ${g.reason}`) : "no rest-of-season projection";
       lines.push(`${c.full_name || (b && b.name) || id} · ${c.position} · ${value}`);
     }
     return lines;
@@ -489,7 +497,7 @@
         const format = await LD().formatLine(league, b.formats);
         if (stale()) return;
         adopt(bundle);
-        Object.assign(S, { batch: b, view, remaining: view.remaining, board: view.board, catalog, format });
+        Object.assign(S, { batch: b, view, remaining: view.remaining, board: view.board, catalog, format, week });
         const type = LD().leagueType(league), unknown = LD().slotSupport(league).unknown;
         S.note = type.bestBall ? COPY.bestBall
           : unknown.length ? `Unsupported lineup slot: ${unknown.join(", ")} — no trade lineup comparison for this league; the rest-of-season values below still apply.` : null;
@@ -554,7 +562,8 @@
       const out = els.result;
       out.replaceChildren();
       out.append(el("p", S.note, "season-subline"));
-      for (const line of rosValueLines(S.board, S.me, S.catalog)) out.append(el("p", line));
+      const gate = LD().rosValues(S.view, { league: S.league, week: S.week, now: Date.now(), catalog: S.catalog, policy: LD().ROS_POLICY.trade });
+      for (const line of rosValueLines(S.board, S.me, S.catalog, gate)) out.append(el("p", line));
       out.hidden = false;
     }
 

@@ -178,9 +178,19 @@ check("evidenceLines: the fallback unless a rest-of-season record binds to the l
 check("rosValueLines: each active skill player's rest-of-season value with the aggregation label; unknown is not zero", () => {
   const board = { players: [{ sleeper_id: "a", name: "A Back", position: "RB", ros_value: 41.25 }, { sleeper_id: "b", name: "B Wide", position: "WR", ros_value: null }] };
   const catalog = { a: { full_name: "A Back", position: "RB" }, b: { full_name: "B Wide", position: "WR" }, x: { full_name: "X Only", position: "TE" }, k: { full_name: "Kicker", position: "K" }, r: { full_name: "Res", position: "RB" } };
-  assert.deepEqual(M.rosValueLines(board, { players: ["a", "b", "x", "k", "r"], reserve: ["r"] }, catalog), [
+  const pass = { reason: null, of: id => ({ value: board.players.find(p => p.sleeper_id === id)?.ros_value ?? null, reason: null }) };
+  assert.deepEqual(M.rosValueLines(board, { players: ["a", "b", "x", "k", "r"], reserve: ["r"] }, catalog, pass), [
     `Rest-of-season values. Horizon: ${HORIZON}. Totals: ${AGG}.`,
     "A Back · RB · 41.25", "B Wide · WR · no rest-of-season projection", "X Only · TE · no rest-of-season projection"]);
+  // I1: every number goes through the gate; a withheld one keeps the player listed with the reason.
+  const perPlayer = { reason: null, of: id => id === "a" ? { value: null, reason: "current team Z differs from the projection's X" } : { value: null, reason: null } };
+  assert.deepEqual(M.rosValueLines(board, { players: ["a", "b"] }, catalog, perPlayer).slice(1),
+    ["A Back · RB · withheld — current team Z differs from the projection's X", "B Wide · WR · no rest-of-season projection"]);
+  const STALE = "remaining-season projections are stale (over 72 hours old)";
+  const batchLevel = { reason: STALE, of: () => ({ value: null, reason: STALE }) };
+  assert.deepEqual(M.rosValueLines(board, { players: ["a", "b"] }, catalog, batchLevel).slice(1),
+    [`Rest-of-season values withheld: ${STALE}.`, "A Back · RB · withheld", "B Wide · WR · withheld"]);
+  assert.throws(() => M.rosValueLines(board, { players: ["a"] }, catalog), /needs the rest-of-season gate/, "no ungated path");
 });
 check("sources: no traded_picks, future picks, gate file or simulation in the controller; trade.html loads the kernel and the adapter", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "site", "assets", "seasontrademode.js"), "utf8");
@@ -530,6 +540,52 @@ async function unknownSlot() {
   assert.equal(analyzeCalls.length, 0);
 }
 
+// I1: best ball and an unknown starting slot show rest-of-season values with
+// no lineup analyzer -- each number still passes SeasonTrade's own checks
+// (72 h, no future date, current team) or is withheld, the roster kept.
+async function rosValidity() {
+  const H = 3600000;
+  const STALE = "remaining-season projections are stale (over 72 hours old)";
+  const FUTURE = "remaining-season projections are future-dated or undated";
+  const modes = [
+    ["best ball", { ...baseLeague, settings: { ...baseLeague.settings, best_ball: 1 } }, BEST_BALL],
+    ["unknown starting slot", { ...baseLeague, roster_positions: ["RB", "WR", "FLEX", "XFLEX", "BN", "BN"] },
+      "Unsupported lineup slot: XFLEX — no trade lineup comparison for this league; the rest-of-season values below still apply."],
+  ];
+  const kinds = [["fresh", 0, "X"], ["stale (>72 h)", -96 * H, "X"], ["future-dated", 10 * 60000, "X"], ["changed team", 0, "Z"]];
+  for (const [mode, lg, note] of modes) for (const [kind, shift, team] of kinds) {
+    fresh(); statics = makeStatics({ lastWeek: 17 });
+    const at = new Date(Date.now() + shift).toISOString();
+    for (const doc of Object.values(statics)) doc.generated_at = at;   // one refresh: every header agrees
+    routes = baseRoutes(); state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog(); catalog.a.team = team;
+    league = lg;
+    const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+    const els = els$($);
+    M.init({ els }); FC.setLeague(L);
+    await Session.identify("max973");
+    await until(() => !els.result.hidden, `${mode} / ${kind}`);
+    const lines = els.result.children.map(x => x.textContent), what = `${mode} / ${kind}: ${lines.join(" | ")}`;
+    assert.equal(lines[0], note, what);
+    assert.equal(analyzeCalls.length, 0, "no lineup analyzer on this path");
+    assert.equal(els.status.textContent, "2 teams loaded — you are Max973", "roster identity kept");
+    const player = name => lines.find(l => l.startsWith(name));
+    for (const name of ["A Back · RB", "D Deep · WR", "E Slot · WR"]) assert.ok(player(name), `${what}: ${name} listed`);
+    if (kind === "fresh") {
+      assert.ok(lines.slice(2).every(l => /· \d+\.\d\d$/.test(l)), what);
+      continue;
+    }
+    if (kind === "changed team") {
+      assert.equal(player("A Back"), "A Back · RB · withheld — current team Z differs from the projection's X", what);
+      assert.match(player("D Deep"), /· \d+\.\d\d$/, `${what}: an unmoved player keeps his value`);
+      continue;
+    }
+    const reason = kind.startsWith("stale") ? STALE : FUTURE;
+    assert.equal(lines[2], `Rest-of-season values withheld: ${reason}.`, what);
+    assert.deepEqual(lines.slice(3), ["A Back · RB · withheld", "D Deep · WR · withheld", "E Slot · WR · withheld"], what);
+    assert.ok(!lines.some(l => /\d+\.\d\d/.test(l)), `${what}: no number survives`);
+  }
+}
+
 async function week18() {
   fresh(); statics = makeStatics({ week: 18, noWeeks: true }); routes = baseRoutes(); league = baseLeague; catalog = baseCatalog();
   state = { season: "2026", season_type: "regular", week: 18 };
@@ -668,6 +724,7 @@ async function pageRollover() {
   await sub("viewer flow: Viewing {team}, reworded columns, the viewer's comparison, then the owner identifies", viewerFlow);
   await sub("best ball: projections and rest-of-season values only, with the note", bestBall);
   await sub("an unknown starting slot: the note, no lineup comparison", unknownSlot);
+  await sub("I1: best ball / unknown slot rest-of-season values pass the 72 h, future-date and current-team checks or are withheld", rosValidity);
   await sub("week 18: No projected weeks remain.", week18);
   await sub("trade.html in season: mode first, never draft.json, in-season links by id", pageInSeason);
   await sub("trade.html pre-draft: Gabagool loads draft.json after the mode; others keep today's messages", pagePreDraft);

@@ -275,6 +275,64 @@
       excluded, scorableBySleeper: bySleeper, identityOnly };
   }
 
+  // ---- standalone rest-of-season values (spec §5.3; astra I1) -------------------------
+  /* A board `ros_value` shown or used OUTSIDE a lineup analyzer (best ball,
+     an unknown starting slot, the waiver watchlist and why-value/tie-break)
+     passes the same checks that analyzer applies, or it is withheld with a
+     reason: the league's season, the analysed week, the caller's age limit
+     and future-date tolerance, and the player's current team (projection team
+     vs live catalog team, under the caller's own team normalization). The
+     view keeps changed-team players on purpose (the analyzers refuse them),
+     so this is where a standalone number refuses them too. Each preset is
+     its analyzer's policy, verbatim: seasontrade.js (age 0..72 h; LAR/JAC/WSH)
+     and waivers.js (age -1 h..72 h; LAR/WSH, case-folded). */
+  const HOUR = 3600000;
+  const ROS_POLICY = Object.freeze({
+    trade: Object.freeze({ maxAgeMs: 72 * HOUR, futureToleranceMs: 0,
+      team: t => ({ LAR: "LA", JAC: "JAX", WSH: "WAS" })[t] || t }),
+    waivers: Object.freeze({ maxAgeMs: 72 * HOUR, futureToleranceMs: HOUR,
+      team: x => { const t = String(x || "").toUpperCase(); return ({ LAR: "LA", WSH: "WAS" })[t] || t; } }),
+  });
+  const ROS_COPY = Object.freeze({
+    season: (got, league) => `remaining-season projections are for ${got}; the league is in ${league}`,
+    week: (start, week) => `remaining-season projections start at week ${start}, not week ${week}`,
+    future: "remaining-season projections are future-dated or undated",
+    stale: "remaining-season projections are stale (over 72 hours old)",
+    team: (proj, live) => `current team ${live || "unknown"} differs from the projection's ${proj || "unknown"}`,
+  });
+  /* -> {reason, of(sleeperId) -> {value, reason}}. `reason` (batch level) is
+     null when the payload passes; `of` returns value null with a reason when
+     withheld, and value null / reason null for a player simply without a
+     complete projection (unknown, never 0). opts: {league, week, now,
+     catalog, policy: ROS_POLICY.trade | ROS_POLICY.waivers}. */
+  function rosValues(view, opts) {
+    const { league, week, catalog, policy } = opts || {};
+    const now = opts && opts.now !== undefined ? opts.now : Date.now();
+    if (!policy || typeof policy.team !== "function") throw new Error("rosValues needs a caller policy");
+    const rem = view && view.remaining;
+    let reason = null;
+    if (!rem) reason = (view && view.remainingReason) || COPY.noRemaining;
+    else if (!finite(rem.season) || rem.season !== Number(league && league.season)) reason = ROS_COPY.season(rem.season, league && league.season);
+    else if (!Number.isInteger(week) || rem.start_week !== week) reason = ROS_COPY.week(rem.start_week, week);
+    else {
+      const age = now - Date.parse(rem.generated_at);
+      if (!Number.isFinite(age) || age < -policy.futureToleranceMs) reason = ROS_COPY.future;
+      else if (age > policy.maxAgeMs) reason = ROS_COPY.stale;
+    }
+    const board = new Map(((view && view.board && view.board.players) || []).map(p => [String(p.sleeper_id), p]));
+    const projTeam = new Map(rem && !reason ? rem.players.map(p => [String(p.player_id), p.team]) : []);
+    const of = sid => {
+      if (reason) return { value: null, reason };
+      const b = board.get(String(sid));
+      if (!b || !finite(b.ros_value)) return { value: null, reason: null };
+      const c = isObj(catalog) && has(catalog, String(sid)) && isObj(catalog[String(sid)]) ? catalog[String(sid)] : null;
+      const proj = projTeam.get(String(b.player_id)), live = c ? c.team : null;
+      if (!policy.team(proj) || policy.team(proj) !== policy.team(live)) return { value: null, reason: ROS_COPY.team(proj, live) };
+      return { value: b.ros_value, reason: null };
+    };
+    return { reason, of };
+  }
+
   // ---- roster identities -------------------------------------------------------------
   const nameOf = (c, sid) => c.full_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || sid;
   /* Every roster / reserve / taxi occupant by Sleeper id (K, DEF, IDP,
@@ -377,5 +435,5 @@
     return rec;
   }
 
-  return Object.freeze({ COPY, DOCS, LAST_WEEK, loadBatch, views, rosterIdentities, leagueType, slotSupport, formatLine, evidenceFor });
+  return Object.freeze({ COPY, DOCS, LAST_WEEK, ROS_POLICY, ROS_COPY, loadBatch, views, rosValues, rosterIdentities, leagueType, slotSupport, formatLine, evidenceFor });
 });

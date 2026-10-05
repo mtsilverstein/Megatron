@@ -789,6 +789,29 @@ check("through LeagueData.views + WaiverMode.hydrateBoard: traded owned player t
   assert.match(blocked.recommendationBlock, /^Owned players lack a current weekly projection: Nv3\./);
 });
 
+check("I1: a withheld ros_value (WaiverMode.gateRos) orders and explains exactly like an unknown one", () => {
+  const b2 = { players: board.players.concat([p(12,"RB",18,{ros_value:40}), p(13,"RB",18,{ros_value:90}), p(14,"RB",18)]) };
+  const weekly = freshWeekly(b2.players);
+  const gate = { reason: null, of: sid => sid === "13" ? { value: null, reason: "current team Z differs from the projection's A" } : { value: 1, reason: null } };
+  const gated = M.gateRos(b2, gate);
+  assert.equal(gated.players.find(x => x.sleeper_id === "13").ros_value, null);
+  assert.equal(gated.players.find(x => x.sleeper_id === "13").ros_withheld, "current team Z differs from the projection's A");
+  assert.equal(gated.players.find(x => x.sleeper_id === "12").ros_value, 40, "a passing value is untouched");
+  assert.equal(gated.players.length, b2.players.length, "identity kept");
+  const unknown = { players: b2.players.map(x => x.sleeper_id === "13" ? { ...x, ros_value: null } : x) };
+  const a = W.analyze({ ...base, board: gated, weekly }), u = W.analyze({ ...base, board: unknown, weekly });
+  const key = out => out.rows.map(r => `${r.add.id}>${r.drop ? r.drop.id : "-"}|${r.valueEstimate.points}|${r.valueEstimate.label}`);
+  assert.deepEqual(key(a), key(u), "withheld == unknown, row for row");
+  assert.equal(rowOf(a, "13", "8").valueEstimate.points, null);
+  assert.match(rowOf(a, "13", "8").valueEstimate.label, /^no rest-of-season value \(unknown, not zero/);
+  const top = a.rows.filter(r => r.drop.id === "8" && ["12","13"].includes(r.add.id)).map(r => r.add.id);
+  assert.deepEqual(top, ["12","13"], "the withheld 90 no longer wins the tie-break");
+  // A batch-level failure withholds every finite value.
+  const all = M.gateRos(b2, { reason: "remaining-season projections are stale (over 72 hours old)", of: () => ({ value: null, reason: "remaining-season projections are stale (over 72 hours old)" }) });
+  assert.ok(all.players.every(x => x.ros_value === null || x.ros_value === undefined));
+  assert.throws(() => M.gateRos(b2), /needs the rest-of-season gate/);
+});
+
 check("M2: an omitted budgetReserve defaults to 20% of the league budget (spec §7.2)", () => {
   for (const [budget, want] of [[0, 0], [10, 2], [100, 20]]) {
     const lg = { ...league, settings: { ...league.settings, waiver_budget: budget, waiver_bid_min: 0 } };

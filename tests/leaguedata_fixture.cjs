@@ -190,6 +190,66 @@ const sqFrom = (stats, order = STATS) => {
     assert.deepStrictEqual([...v.scorableBySleeper.entries()].sort(), [["9001", "00-0000001"], ["9002", "00-0000002"], ["9003", "00-0000003"]]);
     assert.deepStrictEqual(v.excluded, []);
   }
+  // ---- standalone rest-of-season values (astra I1) -------------------------------
+  {
+    const v = LD.views(viewBatch(), GAB, { week: 15, catalog: catalog() });
+    const GEN = Date.parse(HDR.generated_at), H = 3600000;
+    const A = v.board.players.find(p => p.sleeper_id === "9001").ros_value;
+    assert.ok(Number.isFinite(A));
+    assert.throws(() => LD.rosValues(v, { league: GAB, week: 15, catalog: catalog() }), /needs a caller policy/);
+    for (const [name, policy, tol] of [["trade", LD.ROS_POLICY.trade, 0], ["waivers", LD.ROS_POLICY.waivers, H]]) {
+      const at = (now, cat = catalog(), extra = {}) => LD.rosValues(v, { league: GAB, week: 15, now, catalog: cat, policy, ...extra });
+      let g = at(GEN + 60000);
+      assert.strictEqual(g.reason, null, name);
+      assert.deepStrictEqual(g.of("9001"), { value: A, reason: null }, name);
+      assert.ok(Number.isFinite(g.of("9003").value), `${name}: LAR (live) == LA (projection) under the analyzer's normalization`);
+      assert.deepStrictEqual(g.of("9002"), { value: null, reason: null }, `${name}: an incomplete projection is unknown, not withheld`);
+      assert.deepStrictEqual(g.of("777"), { value: null, reason: null }, `${name}: off the board`);
+      // age: 72 h is the limit, inclusive; one ms more is stale
+      assert.strictEqual(at(GEN + 72 * H).reason, null, `${name}: exactly 72 h`);
+      g = at(GEN + 72 * H + 1);
+      assert.strictEqual(g.reason, LD.ROS_COPY.stale, name);
+      assert.deepStrictEqual(g.of("9001"), { value: null, reason: LD.ROS_COPY.stale }, name);
+      // future-dated: the caller's own tolerance (trade 0, waivers 1 h)
+      assert.strictEqual(at(GEN - tol).reason, null, `${name}: at the tolerance`);
+      assert.strictEqual(at(GEN - tol - 1).reason, LD.ROS_COPY.future, `${name}: beyond the tolerance`);
+      const undated = { ...v, remaining: { ...v.remaining, generated_at: "not a date" } };
+      assert.strictEqual(LD.rosValues(undated, { league: GAB, week: 15, now: GEN, catalog: catalog(), policy }).reason, LD.ROS_COPY.future);
+      // season and week
+      assert.strictEqual(at(GEN, catalog(), { league: { ...GAB, season: "2027" } }).reason, "remaining-season projections are for 2026; the league is in 2027");
+      assert.strictEqual(at(GEN, catalog(), { week: 14 }).reason, "remaining-season projections start at week 15, not week 14");
+      // absent payload: the view's own reason
+      assert.strictEqual(LD.rosValues({ ...v, remaining: null, remainingReason: LD.COPY.noWeeks }, { league: GAB, week: 15, now: GEN, catalog: catalog(), policy }).reason, LD.COPY.noWeeks);
+      assert.strictEqual(LD.rosValues({ ...v, remaining: null, remainingReason: null }, { league: GAB, week: 15, now: GEN, catalog: catalog(), policy }).reason, LD.COPY.noRemaining);
+      // current team: changed, missing, absent from the catalog
+      const moved = catalog(); moved["9001"].team = "DEN";
+      g = at(GEN, moved);
+      assert.deepStrictEqual(g.of("9001"), { value: null, reason: "current team DEN differs from the projection's KC" }, name);
+      assert.ok(Number.isFinite(g.of("9003").value), `${name}: other players unaffected`);
+      const teamless = catalog(); teamless["9001"].team = null;
+      assert.deepStrictEqual(at(GEN, teamless).of("9001"), { value: null, reason: "current team unknown differs from the projection's KC" });
+      const gone = catalog(); delete gone["9001"];
+      assert.strictEqual(at(GEN, gone).of("9001").value, null);
+    }
+    // Each preset is its analyzer's normalization, not a union of the two.
+    const jax = { ...v, remaining: { ...v.remaining, players: v.remaining.players.map(p => p.player_id === "00-0000001" ? { ...p, team: "JAX" } : p) } };
+    const jac = catalog(); jac["9001"].team = "JAC";
+    const lower = catalog(); lower["9001"].team = "kc";
+    const run = (view, cat, policy) => LD.rosValues(view, { league: GAB, week: 15, now: GEN, catalog: cat, policy }).of("9001");
+    assert.strictEqual(run(jax, jac, LD.ROS_POLICY.trade).value, A, "trade (seasontrade.js): JAC == JAX");
+    assert.strictEqual(run(jax, jac, LD.ROS_POLICY.waivers).value, null, "waivers (waivers.js): JAC != JAX");
+    assert.strictEqual(run(v, lower, LD.ROS_POLICY.waivers).value, A, "waivers case-folds");
+    assert.strictEqual(run(v, lower, LD.ROS_POLICY.trade).value, null, "trade does not case-fold");
+    // Drift guard: the presets restate the analyzers' own rules; if an engine changes, this fails.
+    const fs = require("fs"), path = require("path");
+    const src = f => fs.readFileSync(path.join(__dirname, "..", "site", "assets", f), "utf8");
+    const st = src("seasontrade.js"), wv = src("waivers.js");
+    assert.ok(st.includes('const team = t => ({LAR:"LA",JAC:"JAX",WSH:"WAS"}[t] || t);'), "seasontrade.js team normalization");
+    assert.ok(st.includes("age>=0&&age<=72*3600000"), "seasontrade.js remaining-season age rule");
+    assert.ok(wv.includes('function team(x) { return ({ LAR: "LA", WSH: "WAS" })[String(x || "").toUpperCase()] || String(x || "").toUpperCase(); }'), "waivers.js team normalization");
+    assert.ok(wv.includes("age < -3600000 || age > 72 * 3600000) return none(\"remaining-season projections are stale"), "waivers.js remaining-season age rule");
+  }
+
   // ---- views: empty state vs missing remaining ----------------------------------
   {
     const b = viewBatch();

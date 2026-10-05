@@ -160,6 +160,8 @@ const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15
 assert.equal(M.watchlistText({ name:"N", position:"WR", ecr:41, ros_value:55.5, injury_status:"Questionable" }),
   "N · WR · preseason ECR 41 (PPR reference ranking) · rest-of-season 55.50 (sum of weekly medians through NFL week 17, not a season median) · Questionable");
 assert.equal(M.watchlistText({ name:"N", position:"WR", ecr:41, ros_value:null }), "N · WR · preseason ECR 41 (PPR reference ranking)");
+assert.equal(M.watchlistText({ name:"N", position:"WR", ecr:41, ros_value:null, ros_withheld:"remaining-season projections are stale (over 72 hours old)" }),
+  "N · WR · preseason ECR 41 (PPR reference ranking) · rest-of-season withheld (remaining-season projections are stale (over 72 hours old))", "I1: a withheld value names its reason");
 
 // ---- loadWorld: LiveWorld.resolve + the week's transactions + waiver type; no board ----------
 const id = "900000000000000123";

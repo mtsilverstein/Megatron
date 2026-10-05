@@ -205,8 +205,24 @@
     return [`Rest-of-season accuracy: ${COPY.noEvidence}`];
   }
 
+  // The board as the desk may use it: every finite `ros_value` passed through
+  // `gate` = LeagueData.rosValues(view, {..., policy: ROS_POLICY.waivers}) --
+  // the waiver engine's own season/week/72 h/future-date and current-team
+  // checks. A withheld value becomes null (so the engine's why-value and
+  // tie-break fall back exactly as for an unknown value) and carries its
+  // reason as `ros_withheld`; the player and his identity stay (astra I1).
+  function gateRos(board, gate) {
+    if (!gate || typeof gate.of !== "function") throw new Error("gateRos needs the rest-of-season gate (LeagueData.rosValues)");
+    return { ...board, players: board.players.map(p => {
+      if (!Number.isFinite(p.ros_value)) return p;
+      const g = gate.of(p.sleeper_id);
+      return g.reason ? { ...p, ros_value: null, ros_withheld: g.reason } : p;
+    }) };
+  }
+
   function watchlistText(p) {
-    const ros = Number.isFinite(p.ros_value) ? ` · rest-of-season ${p.ros_value.toFixed(2)} (${COPY.aggregation})` : "";
+    const ros = Number.isFinite(p.ros_value) ? ` · rest-of-season ${p.ros_value.toFixed(2)} (${COPY.aggregation})`
+      : p.ros_withheld ? ` · rest-of-season withheld (${p.ros_withheld})` : "";
     return `${p.name} · ${p.position} · preseason ECR ${p.ecr} (${COPY.ecr})${ros}${p.injury_status ? ` · ${p.injury_status}` : ""}`;
   }
 
@@ -359,10 +375,14 @@
             (intel.bids.length ? `Observed winning bids: ${intel.bids.slice(0,15).map(b => `${b.players.join(" + ") || "unknown player"} $${b.amount}`).join("; ")}. These are not minimum winning prices; losing bids are unknown.` : "No observed winning-bid sample to calibrate prices. Free-agent moves are not $0 waiver bids.");
     }
 
+    // The gated board for THIS moment (the 72 h limit moves with the clock).
+    const rosBoard = s => gateRos(s.board, LeagueData.rosValues(s.view, { league: s.world.league, week: s.week, now: Date.now(),
+      catalog: s.catalog, policy: LeagueData.ROS_POLICY.waivers }));
+
     function renderWatchlist() {
       const owned = new Set(snap.world.rosters.flatMap(r => [...(r.players || []), ...(r.reserve || []), ...(r.taxi || [])]));
       const pos = $("waiver-position").value;
-      const pool = snap.board.players.filter(p => p.sleeper_id && !owned.has(p.sleeper_id) && !p.identity_only
+      const pool = rosBoard(snap).players.filter(p => p.sleeper_id && !owned.has(p.sleeper_id) && !p.identity_only
         && Number.isFinite(p.ecr) && (pos === "ALL" || p.position === pos))
         .sort((a, b) => a.ecr - b.ecr).slice(0, 24);
       const list = $("waiver-watchlist"); list.replaceChildren();
@@ -399,7 +419,7 @@
         $("waiver-reserve").closest("label").hidden = !faab || isViewer;
         renderContext(s);
         const remainingReason = s.view.remainingReason === LeagueData.COPY.noWeeks ? "no projected weeks remain" : s.view.remainingReason;
-        result = s.note ? null : W.analyze({ board: s.board, ...s.world, weekly: s.view.weekly, kickoffs: s.kickoffs, snapshotAt: s.bundle.rostersRequestedAt,
+        result = s.note ? null : W.analyze({ board: rosBoard(s), ...s.world, weekly: s.view.weekly, kickoffs: s.kickoffs, snapshotAt: s.bundle.rostersRequestedAt,
           remaining: s.view.remaining, remainingReason, week: s.week, protectedIds: [...protectedIds], budgetReserve: reserve });
         intel = I.analyze({ board: s.board, ...s.world, catalog: s.catalog, signals: s.signals, roles: s.roles, ros: s.rosEcr, week: s.week });
         const mine = s.world.rosters.find(r => r.roster_id === s.world.rosterId);
@@ -566,7 +586,7 @@
       $("waiver-backup").focus();
     });
   }
-  const api = { init, loadWorld, transactionsAlso, loadSignals, hydrateBoard, requestedWeek, rowText, defaultReserve,
+  const api = { init, loadWorld, transactionsAlso, loadSignals, hydrateBoard, gateRos, requestedWeek, rowText, defaultReserve,
     contextLines, rosText, evidenceLines, watchlistText, COPY };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverMode = api;
