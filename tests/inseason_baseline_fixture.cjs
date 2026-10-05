@@ -4,6 +4,8 @@
 // SYNTHETIC ANALYZER PARITY: fictional league, not historical forecast reproduction.
 // Run with: node tests/inseason_baseline_fixture.cjs
 // Tasks 11-13 remove their analyzer's section here (never the captured JSON).
+// Task 11 removed start/sit: it now runs on the neutral views and the exact kernel
+// (tests/startsit_fixture.cjs); the run still exercises it through assertSuccess.
 "use strict";
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path");
 const { run, assertSuccess, SLUGS, DIR } = require("../tools/capture_inseason_baseline.cjs");
@@ -15,6 +17,6 @@ for (const slug of SLUGS) {
   assert.match(_header, /SYNTHETIC ANALYZER PARITY/);
   const actual = run(legacy, scenarios[slug]);
   assertSuccess(slug, actual, legacy, scenarios[slug]);
-  for (const section of ["startsit", "waivers", "trade"]) assert.deepStrictEqual(actual[section], expected[section], `${slug} ${section}`);
+  for (const section of ["waivers", "trade"]) assert.deepStrictEqual(actual[section], expected[section], `${slug} ${section}`);
 }
-console.log("inseason_baseline_fixture: start/sit, waivers and trade reproduce the committed baseline for gabagool and fam OK");
+console.log("inseason_baseline_fixture: waivers and trade reproduce the committed baseline for gabagool and fam OK");

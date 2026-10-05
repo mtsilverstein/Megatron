@@ -27,16 +27,18 @@
   <p class="eyebrow" id="week-eyebrow">weekly projections</p>
   <h1 id="weekly-title">This week's slate</h1>
   <section id="start-sit" aria-labelledby="ss-title">
-    <h2 id="ss-title">My start/sit plan · read-only</h2>
-    <p>Selected Sleeper league's skill positions only; K/DST stay unchanged. This maximizes projected medians—not proven expected points or matchup win probability. Verify final injury reports and platform locks in Sleeper. Kickoffs use a dated schedule snapshot; postponements require refreshed data.</p>
-    <p id="ss-status" role="status">Your roster loads from the Sleeper account in the league panel above; refresh it there for legal slots and close-call comparisons. The rankings below remain independent of this plan.</p>
-    <details><summary>Manually exclude unavailable players</summary><p>Use current injury information. Excluding someone is not a recommendation to drop them. Game-started slots cannot be changed. Refreshing clears exclusions; reload the page to refresh the cached injury catalog.</p><div id="ss-exclude"></div></details>
-    <p>Historical close calls: 56.3% correct on 2023–2025 same-position, played-player pairs within 3 projected points (both projected ≥5). Not a roster, cross-position FLEX or expert-comparison backtest; actual pick-six penalties and long-TD bonuses are missing. Tiny differences are weak leans. <a href="data/start_sit_evaluation.json">Method and measured results</a>.</p>
+    <h2 id="ss-title">Start/sit plan · read-only</h2>
+    <p>The selected Sleeper league's QB/RB/WR/TE/FLEX slots only; K, DST and IDP slots are not projected and keep their current starter. This maximizes projected medians in your league's scoring—not proven expected points or matchup win probability. Verify final injury reports and platform locks in Sleeper. Kickoffs use a dated schedule snapshot; postponements require refreshed data.</p>
+    <p id="ss-status" role="status">The plan loads from the league panel above: enter your Sleeper username, or choose a team to view. The projections below remain independent of this plan.</p>
+    <details id="ss-exclude-panel" hidden><summary>Manually exclude unavailable players</summary><p>Use current injury information. Excluding someone is not a recommendation to drop them. Game-started slots cannot be changed. Refreshing clears exclusions; reload the page to refresh the cached injury catalog.</p><div id="ss-exclude"></div></details>
+    <p id="ss-evidence">Close calls: No measured evaluation for your league's scoring and this model. Tiny differences are weak leans.</p>
+    <p><a href="about.html">Historical results and their scope</a> are on the about page; they are not claims about your league's scoring.</p>
     <div id="ss-output" class="table-wrap"></div>
   </section>
   <p id="expert-status" role="status">Expert reference unavailable until a matching weekly source is published. Model advice does not depend on this reference.</p>
   <div class="filters" id="pos-filters" role="group" aria-label="Filter by position"></div>
   <div class="filters" id="scoring-filters" role="group" aria-label="Scoring format"></div>
+  <p id="lens-status" role="status">Your league's scoring loads with the league; PPR, half-PPR and standard are shown until then.</p>
   <div class="table-wrap">
     <table id="slate">
       <thead><tr>
@@ -48,20 +50,20 @@
         <th>Floor → ceiling</th>
         <th data-key-lens="points.{lens}.p10" class="num">Floor</th>
         <th data-key-lens="points.{lens}.p90" class="num">Ceiling</th>
-        <th class="num">Expert positional ECR</th>
+        <th class="num">Expert positional ECR (PPR reference ranking)</th>
       </tr></thead>
       <tbody></tbody>
     </table>
   </div>
 </main>
 <footer>Floor and ceiling combine the model's stat-line quantiles sign-coherently
-and are calibrated per position so roughly 80% of actual player-weeks land
-inside the band (measured on 2023–2025 held-out seasons). These marginal bands
-are not matchup win probabilities; choosing by floor or ceiling is not a validated strategy.
+(sign-coherent component bands; not calibrated coverage for custom scoring).
+Band calibration: <span id="band-evidence">No measured evaluation for your league's scoring and this model.</span>
+These marginal bands are not matchup win probabilities; choosing by floor or ceiling is not a validated strategy.
 Overall, the historical weekly ranking was a statistical tie with expert
 consensus; at running back specifically it has measurably out-ranked
 consensus, and that edge replicated on a disjoint set of seasons — see the
-about page for the numbers.</footer>
+about page for the numbers and their scope.</footer>
 <script src="assets/bands.js"></script>
 <script src="assets/weekly-experts.js?v=2"></script>
 <script src="assets/session.js?v=4"></script>
@@ -74,37 +76,47 @@ about page for the numbers.</footer>
 <script src="assets/leaguedata.js?v=1"></script>
 <script src="assets/liveworld.js?v=1"></script>
 <script src="assets/waivermode.js?v=live1"></script>
-<script src="assets/startsit.js"></script>
-<script src="assets/startsitmode.js?v=session1"></script>
+<script src="assets/startsit.js?v=kernel1"></script>
+<script src="assets/startsitmode.js?v=neutral1"></script>
 <script>StartSitMode.init();</script>
 <script>
 (async () => {
-  const slug=FC.leagueNavigation();
-  if(slug==="espnfam") throw Error("ESPN weekly advice is not connected yet; use its draft board only.");
-  const payload = await FC.loadJSON(FC.leagueDataPath("weekly"));
-  if(payload.league?.slug!==slug)throw Error("Weekly data does not match the selected league.");
-  FC.setBoard(payload);
-  document.getElementById("weekly-title").textContent=`${payload.league.name} — this week's slate`;
+  // Any Sleeper league by id (spec 5.1): the league panel + chip, then the
+  // live league -- loaded at once, identity optional.
+  FC.leagueNavigation();
+  FC.setLeague(FC.inSeasonLeague().leagueId);
+  // The league-neutral batch, shared with the start/sit controller.
+  const batch = await StartSitMode.batch();
+  const payload = batch.weekly;
   FC.stampHeader(payload);
   document.getElementById("week-eyebrow").textContent =
     `Week ${payload.week} · ${payload.season} · ${payload.model}`;
-  // Default to the league's own scoring (see index.html for why).
-  let scoring = "league";
+  // Reference lenses from the batch; "Your league" (the live league's
+  // scoring of the published stat quantiles) joins when the views arrive.
+  const REF = ["ppr", "half_ppr", "standard"];
+  const LENSES = [["league", "YOUR LEAGUE", "your league"], ["ppr", "PPR", "ppr"],
+                  ["half_ppr", "HALF-PPR", "half-ppr"], ["standard", "STANDARD", "standard"]];
+  const rows = payload.players.map(p => ({
+    player_id: p.player_id, name: p.name, team: p.team, opponent: p.opponent, is_home: p.is_home, position: p.position,
+    points: Object.fromEntries(REF.map(l => [l, p.points && p.points[l] ? p.points[l] : null])),
+  }));
+  const firstRef = () => REF.find(l => rows.some(r => r.points[l])) || "ppr";
+  let hasLeague = false, picked = false;
+  let scoring = firstRef();
   let pos = "ALL";
-  let rows = payload.players.slice();
   let experts = new Map();
-
-  // "points", not "season_points" -- weekly nests its quantiles differently.
-  // boardDomain keeps the lens pinning this page already had (weekly.html:66
-  // picks `league` when present); do NOT hardcode a lens here.
-  const domain = Bands.boardDomain(payload.players, "points");
+  let domain = null;
+  // The ruler stays pinned to one lens (the league's when present), never the toggle.
+  const setDomain = () => { domain = Bands.sharedDomain(rows, r => r.points[hasLeague ? "league" : "ppr"]); };
+  setDomain();
 
   const POS_COLOR = { QB: "--qb", RB: "--rb", WR: "--wr", TE: "--te" };
 
   function bandCell(sp, position) {
-    const g = Bands.quantileGeometry(sp.p10, sp.p50, sp.p90, domain);
     const wrap = document.createElement("div");
     wrap.className = "band";
+    if (!sp) return wrap;
+    const g = Bands.quantileGeometry(sp.p10, sp.p50, sp.p90, domain);
     const pct = x => `${(x * 100).toFixed(3)}%`;
 
     if (g.ok) {
@@ -129,7 +141,8 @@ about page for the numbers.</footer>
     tbody.innerHTML = "";
     const filtered = data.filter(p => pos === "ALL" || p.position === pos);
     for (const p of filtered) {
-      const pts = p.points[scoring];
+      // "—" where a player is not projected under this lens (never 0).
+      const pts = p.points[scoring] || {};
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td class="num">${FC.fmt(pts.p50)}</td>
@@ -146,37 +159,76 @@ about page for the numbers.</footer>
         cell.textContent=expert?.position===p.position && expert[key]!==null ? FC.fmt(expert[key]) : "—";
         tr.append(cell);
       }
-      tr.children[5].appendChild(bandCell(pts, p.position));
+      tr.children[5].appendChild(bandCell(p.points[scoring], p.position));
       tbody.appendChild(tr);
     }
   }
 
-  FC.posFilter(document.getElementById("pos-filters"), p => { pos = p; render(rows); });
+  const table = document.getElementById("slate");
   const scWrap = document.getElementById("scoring-filters");
-  scoring = FC.scoringFilter(scWrap, Object.keys(payload.players[0].points), rn => {
-    scoring = rn;
+  // Every lens-dependent column follows the active lens, then the active
+  // sort is re-applied (the lenses genuinely disagree; see FC.scoringFilter).
+  function applyLens() {
+    document.querySelectorAll("#slate thead th[data-key-lens]").forEach(th => {
+      th.dataset.key = th.dataset.keyLens.replace("{lens}", scoring);
+    });
     document.getElementById("pts-header").textContent =
-      `Proj (p50, ${FC.LENS_LABEL[rn].toLowerCase()})`;
-    render(rows);
-  });
-  document.getElementById("pts-header").textContent =
-    `Proj (p50, ${FC.LENS_LABEL[scoring].toLowerCase()})`;
-  FC.makeSortable(document.getElementById("slate"), rows, render);
+      `Proj (p50, ${LENSES.find(l => l[0] === scoring)[2]})`;
+  }
+  const redraw = () => { if (table._resort) table._resort(); else render(rows); };
+  function lensButtons() {
+    scWrap.replaceChildren();
+    for (const [lens, label] of LENSES) {
+      if (lens === "league" ? !hasLeague : !rows.some(r => r.points[lens])) continue;
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.setAttribute("aria-pressed", lens === scoring ? "true" : "false");
+      b.addEventListener("click", () => {
+        picked = true; scoring = lens;
+        lensButtons(); applyLens(); redraw();
+      });
+      scWrap.appendChild(b);
+    }
+  }
+  FC.posFilter(document.getElementById("pos-filters"), p => { pos = p; render(rows); });
+  lensButtons(); applyLens();
+  FC.makeSortable(table, rows, render);
   render(rows);
+
+  // The live league's views (StartSitMode computes them per committed
+  // bundle, so a settings change on refresh rescores the table too).
+  const lensStatus = document.getElementById("lens-status");
+  StartSitMode.onView(v => {
+    if (v.league && v.league.name)
+      document.getElementById("weekly-title").textContent = `${v.league.name} — this week's slate`;
+    const scored = new Map(v.view ? v.view.weekly.players.map(p => [p.player_id, p.points.league]) : []);
+    hasLeague = !!v.view;
+    for (const r of rows) {
+      if (hasLeague) r.points.league = scored.get(r.player_id) || null;
+      else delete r.points.league;
+    }
+    if (hasLeague && !picked) scoring = "league";
+    if (!hasLeague && scoring === "league") scoring = firstRef();
+    lensStatus.textContent = hasLeague
+      ? `Your league: the league's live scoring applied to the projected stat lines; "—" where a player is not projected for it.${v.view.disclosures.banner ? " " + v.view.disclosures.banner : ""}${v.view.disclosures.footnotes.length ? " " + v.view.disclosures.footnotes.join(" ") : ""}`
+      : `Your league's scoring is unavailable (${v.error ? v.error.message : "no league loaded"}); PPR, half-PPR and standard are shown.`;
+    setDomain(); lensButtons(); applyLens(); redraw();
+  });
+
   FC.loadJSON("data/weekly-ecr.json").then(source=>{
     experts=WeeklyExperts.prepare(source,payload);
-    document.getElementById("expert-status").textContent=`Expert reference: ${source.source} · ${source.scoring_format} · snapshot ${source.snapshot_at}${source.snapshot_precision==="date"?" (date only; capture time unverified)":""}.${source.period_attribution==="inferred_from_schedule_opponents"?" Week inferred from matching scheduled opponents, not declared by source.":""} ECR is within position only, not a FLEX ranking. It does not replace or blend into model lineup points.`;
+    document.getElementById("expert-status").textContent=`Expert reference: ${source.source} · ${source.scoring_format} · snapshot ${source.snapshot_at}${source.snapshot_precision==="date"?" (date only; capture time unverified)":""}.${source.period_attribution==="inferred_from_schedule_opponents"?" Week inferred from matching scheduled opponents, not declared by source.":""} ECR is within position only, not a FLEX ranking; a PPR reference ranking on every league. It does not replace or blend into model lineup points.`;
     render(rows);
   }).catch(error=>{
     document.getElementById("expert-status").textContent=`Expert reference unavailable: ${error.message}. Model advice is unchanged.`;
   });
 })().catch(e => {
-  // A MISSING payload is the preseason state and is expected until week 1.
+  // A MISSING batch is the preseason state and is expected until week 1.
   // Anything else is a real failure, and it must not wear the preseason
   // message: in September that would report a broken page as "no data yet"
   // and the breakage would go unnoticed for a week.
   const stamp = document.querySelector(".stamp");
-  if (/HTTP 40[34]/.test(String(e && e.message))) {
+  if (/HTTP 40[34]|is missing; reload/.test(String(e && e.message))) {
     stamp.textContent = "weekly projections start with week 1 — see the draft board";
   } else {
     stamp.textContent = `Weekly advice unavailable: ${e.message}`;
