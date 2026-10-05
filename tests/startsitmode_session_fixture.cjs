@@ -171,6 +171,7 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   const excludeText = () => all($("ss-exclude")).map(n => n.textContent).join(" ");
   const views = [];
   StartSitMode.onView(v => views.push(v));
+  const real = () => views.filter(v => !v.cleared);   // M1: a new/absent bundle first emits a cleared view
 
   // 1. weekly.html's order: the controller subscribes first, then the page
   //    mounts the chip and loads the league by id -- anonymously.
@@ -356,10 +357,10 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   // 8. Live settings (spec 5.2): the refresh re-reads the league; changed
   //    scoring recomputes the views and the plan.
   league = { ...baseLeague, scoring_settings: { ...baseLeague.scoring_settings, rec: 0.5, bonus_fd_wr: 0.5 } };
-  const an8 = analyzeCalls.length, v8 = views.length;
+  const an8 = analyzeCalls.length, v8 = real().length;
   clock += 1000;
   $("session-refresh").dispatch("click");
-  await until(() => analyzeCalls.length === an8 + 1 && views.length === v8 + 1, "the recomputed plan", 5000);
+  await until(() => analyzeCalls.length === an8 + 1 && real().length === v8 + 1, "the recomputed plan", 5000);
   const c8 = analyzeCalls.at(-1);
   assert.equal(c8.league.scoring_settings.rec, 0.5);
   const pA8 = c8.weekly.players.find(p => p.player_id === "00-0000001");
@@ -398,7 +399,41 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.equal(analyzeCalls.length, an9);
   assert.equal($("ss-output").children.length, 0);
 
+  // 12. M1 — an in-document switch to another league: the previous league's
+  //     view is cleared SYNCHRONOUSLY (subscribers and late subscribers alike),
+  //     then the replacement's view arrives.
+  league = baseLeague;
+  const L2 = "900000000000000888", league2 = { ...baseLeague, league_id: L2, name: "Second Synthetic League" };
+  Object.assign(routes, { [`/league/${L2}`]: league2, [`/league/${L2}/users`]: users,
+    [`/league/${L2}/rosters`]: () => { clock += ROSTERS_STEP; return rosters; } });
+  const v12 = views.length;
+  const switching = Session.ready({ leagueId: L2 });
+  assert.equal(views.length, v12 + 1, "the invalidation emits at once");
+  assert.equal(views.at(-1).cleared, true); assert.equal(views.at(-1).league, null); assert.equal(views.at(-1).view, null);
+  { const late = []; const off = StartSitMode.onView(v => late.push(v)); off();
+    assert.equal(late.length, 1); assert.equal(late[0].cleared, true, "a late subscriber gets the cleared view, not the old league"); }
+  await switching;
+  await until(() => views.length > v12 + 1, "the replacement league's view", 5000);
+  assert.equal(views.at(-1).league, league2, "the replacement league's view");
+  assert.ok(views.at(-1).view && !views.at(-1).cleared);
+  assert.equal(views.slice(v12).filter(v => v.cleared).length, 1, "one cleared emission per invalidation");
+
+  // 13. M1 — a FAILED replacement load (a missing league): the session ends
+  //     with no bundle and the named error; the last published view is the
+  //     cleared one, never the previous league's.
+  const L3 = "900000000000000999";
+  routes[`/league/${L3}`] = null; routes[`/league/${L3}/users`] = []; routes[`/league/${L3}/rosters`] = [];
+  const v13 = views.length;
+  await assert.rejects(Session.ready({ leagueId: L3 }), /Sleeper has no league with id 900000000000000999\./);
+  assert.equal(Session.bundle(), null);
+  await new Promise(r => setImmediate(r));
+  assert.equal(views.length, v13 + 1, "exactly the cleared view");
+  assert.equal(views.at(-1).cleared, true);
+  { const late = []; StartSitMode.onView(v => late.push(v))();
+    assert.equal(late[0].cleared, true); assert.notEqual(late[0].league, league2); }
+  assert.match(statusText(), /Sleeper has no league with id 900000000000000999\./);
+
   Date.now = realNow;
-  console.log("startsitmode_session_fixture: real StartSitMode.init + Session + chip + LeagueData + LiveWorld (anonymous gate, owner flow, identity change, failed/successful refresh, timestamps, viewer -> owner, live settings recompute, best ball, unknown slot, unsupported type, evidence fallback) OK");
+  console.log("startsitmode_session_fixture: real StartSitMode.init + Session + chip + LeagueData + LiveWorld (anonymous gate, owner flow, identity change, failed/successful refresh, timestamps, viewer -> owner, live settings recompute, best ball, unknown slot, unsupported type, evidence fallback, cleared view on league switch / failed replacement) OK");
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

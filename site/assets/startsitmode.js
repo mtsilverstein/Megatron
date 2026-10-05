@@ -15,7 +15,9 @@
 
    Best ball, an unknown starting slot: projections only, no plan. The views
    are published to onView listeners (the projection table's league lens)
-   whether or not a roster is under analysis. */
+   whether or not a roster is under analysis; a new or absent committed
+   bundle first publishes a cleared view ({cleared: true, league: null,
+   view: null}) so a stale league never outlives its bundle. */
 (function () {
   "use strict";
   const BEST_BALL = "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.";
@@ -37,6 +39,11 @@
     if (lastView !== undefined) fn(lastView);
     return () => { viewListeners.delete(fn); };
   }
+  // Invalidation (spec §5.2): a cleared view the moment the committed bundle
+  // changes, so no listener keeps a previous league's (or previous settings')
+  // lens while the replacement loads -- or after it fails to.
+  const CLEARED = Object.freeze({ league: null, view: null, error: null, cleared: true });
+  function clearView() { if (lastView !== undefined && lastView !== CLEARED) emitView(CLEARED); }
   function emitView(v) {
     lastView = v;
     for (const fn of [...viewListeners]) {
@@ -163,6 +170,7 @@
       const bundle=S.bundle(), flow=snap&&snap.state;
       if(bundle!==currentBundle){
         currentBundle=bundle;refreshing=false;
+        clearView();
         if(!bundle){++sequence;clear();status(gateMessage(null));return;}
         load(bundle);return;
       }

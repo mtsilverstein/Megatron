@@ -101,7 +101,7 @@ about page for the numbers and their scope.</footer>
     points: Object.fromEntries(REF.map(l => [l, p.points && p.points[l] ? p.points[l] : null])),
   }));
   const firstRef = () => REF.find(l => rows.some(r => r.points[l])) || "ppr";
-  let hasLeague = false, picked = false;
+  let hasLeague = false, picked = null;   // picked: the lens the user chose, if any
   let scoring = firstRef();
   let pos = "ALL";
   let experts = new Map();
@@ -184,7 +184,7 @@ about page for the numbers and their scope.</footer>
       b.textContent = label;
       b.setAttribute("aria-pressed", lens === scoring ? "true" : "false");
       b.addEventListener("click", () => {
-        picked = true; scoring = lens;
+        picked = lens; scoring = lens;
         lensButtons(); applyLens(); redraw();
       });
       scWrap.appendChild(b);
@@ -198,19 +198,22 @@ about page for the numbers and their scope.</footer>
   // The live league's views (StartSitMode computes them per committed
   // bundle, so a settings change on refresh rescores the table too).
   const lensStatus = document.getElementById("lens-status");
+  // A cleared view (a new or absent league bundle, spec §5.2) drops the
+  // title and the "Your league" lens until a replacement view is valid.
+  const titleEl = document.getElementById("weekly-title"), defaultTitle = titleEl.textContent, defaultLensStatus = lensStatus.textContent;
   StartSitMode.onView(v => {
-    if (v.league && v.league.name)
-      document.getElementById("weekly-title").textContent = `${v.league.name} — this week's slate`;
+    titleEl.textContent = v.league && v.league.name ? `${v.league.name} — this week's slate` : defaultTitle;
     const scored = new Map(v.view ? v.view.weekly.players.map(p => [p.player_id, p.points.league]) : []);
     hasLeague = !!v.view;
     for (const r of rows) {
       if (hasLeague) r.points.league = scored.get(r.player_id) || null;
       else delete r.points.league;
     }
-    if (hasLeague && !picked) scoring = "league";
+    if (hasLeague && (picked === null || picked === "league")) scoring = "league";
     if (!hasLeague && scoring === "league") scoring = firstRef();
     lensStatus.textContent = hasLeague
       ? `Your league: the league's live scoring applied to the projected stat lines; "—" where a player is not projected for it.${v.view.disclosures.banner ? " " + v.view.disclosures.banner : ""}${v.view.disclosures.footnotes.length ? " " + v.view.disclosures.footnotes.join(" ") : ""}`
+      : v.cleared ? defaultLensStatus
       : `Your league's scoring is unavailable (${v.error ? v.error.message : "no league loaded"}); PPR, half-PPR and standard are shown.`;
     setDomain(); lensButtons(); applyLens(); redraw();
   });
