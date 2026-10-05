@@ -332,6 +332,32 @@ const sqFrom = (stats, order = STATS) => {
     assert.strictEqual(LD.evidenceFor(ev([{ ...synthetic, method: partialPrior }]), "synthetic_claim", lens, partialPrior), null, "partial prior");
     assert.strictEqual(LD.evidenceFor(ev([{ ...synthetic, method: { ...clone(METHOD), extra: 1 } }]), "synthetic_claim", lens, METHOD), null, "unknown method field");
     assert.strictEqual(LD.evidenceFor(ev([{ ...synthetic, method: { ...clone(METHOD), band_construction: "other" } }]), "synthetic_claim", lens, METHOD), null);
+    // M4: equal-but-unknown descriptors never match (both sides carry the same unknowns).
+    const unknowns = {
+      "v 999": m => { m.v = 999; },
+      "null artifacts": m => { m.artifacts = null; },
+      "empty artifacts": m => { m.artifacts = []; },
+      "null ensemble": m => { m.ensemble = null; },
+      "null band construction": m => { m.band_construction = null; },
+      "null model": m => { m.model = null; },
+      "numeric model": m => { m.model = 7; },
+      "null prior method": m => { m.prior.method = null; },
+      "null prior rate": m => { m.prior.rate = null; },
+      "prior rate above 1": m => { m.prior.rate = 1.5; },
+      "string first season": m => { m.prior.first_season = "2021"; },
+      "null through season": m => { m.prior.through_season = null; },
+      "extra prior field": m => { m.prior.extra = 1; },
+      "extra top-level field": m => { m.extra = 1; },
+      "calibration entry missing sha": m => { m.calibration = [{ path: "x" }]; },
+      "calibration not a list": m => { m.calibration = { path: "x", sha256: "y" }; },
+      "all unknown at once": m => { m.v = 999; m.artifacts = null; m.ensemble = null; m.band_construction = null; m.prior.rate = null; m.extra = "x"; },
+    };
+    for (const [name, mutate] of Object.entries(unknowns)) {
+      const m = clone(METHOD); mutate(m);
+      assert.strictEqual(LD.evidenceFor(ev([{ ...synthetic, method: clone(m) }]), "synthetic_claim", lens, clone(m)), null, `equal but unknown: ${name}`);
+    }
+    { const okDoc = ev([{ ...synthetic, method: clone(METHOD) }]);
+      assert.strictEqual(LD.evidenceFor(okDoc, "synthetic_claim", lens, clone(METHOD)), okDoc.records[0], "valid equal descriptor returns the record"); }
     const nullCal = { ...clone(METHOD), calibration: null };
     assert.ok(LD.evidenceFor(ev([{ ...synthetic, method: nullCal }]), "synthetic_claim", lens, clone(nullCal)), "null calibration is a present field");
     assert.strictEqual(LD.evidenceFor(ev([{ ...synthetic, prediction_scoring: null }]), "synthetic_claim", lens, METHOD), null);

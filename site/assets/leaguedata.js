@@ -344,18 +344,32 @@
     const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
     return ka.length === kb.length && ka.every((k, i) => k === kb[i] && deepEqual(a[k], b[k]));
   }
-  const methodComplete = m => isObj(m) && METHOD_FIELDS.every(k => has(m, k))
-    && isObj(m.prior) && PRIOR_FIELDS.every(k => has(m.prior, k));
+  const nonEmptyStr = v => typeof v === "string" && v !== "";
+  const exactKeys = (o, fields) => isObj(o) && Object.keys(o).length === fields.length && fields.every(k => has(o, k));
+  /* The supported method-descriptor schema (src/ffmodel/site/method.py,
+     METHOD_VERSION 1). Anything else -- another version, a null or mistyped
+     required field, an unknown field -- is an unknown method and never
+     matches, even when both sides carry the same unknowns (spec §3.2). */
+  function methodSupported(m) {
+    if (!exactKeys(m, METHOD_FIELDS) || m.v !== 1) return false;
+    if (!nonEmptyStr(m.model) || !nonEmptyStr(m.ensemble) || !nonEmptyStr(m.band_construction)) return false;
+    if (!Array.isArray(m.artifacts) || !m.artifacts.length || !m.artifacts.every(nonEmptyStr)) return false;
+    if (m.calibration !== null && !(Array.isArray(m.calibration)
+      && m.calibration.every(c => exactKeys(c, ["path", "sha256"]) && nonEmptyStr(c.path) && nonEmptyStr(c.sha256)))) return false;
+    const p = m.prior;
+    return exactKeys(p, PRIOR_FIELDS) && nonEmptyStr(p.method) && finite(p.rate) && p.rate >= 0 && p.rate <= 1
+      && Number.isInteger(p.first_season) && Number.isInteger(p.through_season);
+  }
 
   /* The record `id` as a claim about the CURRENT output, else null (spec
-     §3.2): a non-null, complete record method deep-equal to the current
+     §3.2): a supported (schema-valid) record method deep-equal to the current
      method, and realized == prediction scoring == the live lens identity. */
   function evidenceFor(evaluation, id, lens, method) {
     if (!isObj(evaluation) || !Array.isArray(evaluation.records)) return null;
     const hits = evaluation.records.filter(r => isObj(r) && r.id === id);
     if (hits.length !== 1) return null;
     const rec = hits[0];
-    if (!methodComplete(method) || !methodComplete(rec.method) || !deepEqual(rec.method, method)) return null;
+    if (!methodSupported(method) || !methodSupported(rec.method) || !deepEqual(rec.method, method)) return null;
     if (!lens || !isObj(lens.weights)) return null;
     let identity;
     try { identity = LL().evidenceIdentity(lens.weights); } catch (e) { return null; }
