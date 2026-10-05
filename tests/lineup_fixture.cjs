@@ -91,4 +91,30 @@ assert.throws(() => Lx.bestLineup(players, ["RB", "K"], () => 1), /modeled/);
   console.log("lineupScore 2000 calls: " + ms.toFixed(1) + " ms");
   assert.ok(ms < 300, "lineupScore too slow: " + ms);
 }
+// M3: both APIs report the exact sum of the chosen binary64 scores, rounded once
+// (expected values from Python math.fsum), independent of assignment order.
+for (const [name, scores, want] of [
+  ["cancellation", [1e16, 1, -1e16], 1],
+  ["cancellation reordered", [-1e16, 1e16, 1], 1],
+  ["2^53 + 1 + 1", [2 ** 53, 1, 1], 9007199254740994],
+  ["tie to even down", [2 ** 53, 1], 9007199254740992],
+  ["tie to even up", [2 ** 53 + 2, 1], 9007199254740996],
+  ["subnormals", [5e-324, 5e-324, 5e-324], 1.5e-323],
+  ["mixed exponents", [1e300, 1e-300, -1e300], 1e-300],
+  ["mixed exponents 2", [1e16, 0.5, 0.25, -3], 9999999999999998],
+  ["tenths", [0.1, 0.2, 0.3], 0.6],
+  ["negative tenths", [-0.1, -0.2, -0.3], -0.6],
+]) {
+  const ids = ["a", "b", "c", "d"];
+  for (const order of [ids.slice(0, scores.length), ids.slice(0, scores.length).reverse()]) {
+    const pl = scores.map((s, i) => ({ sleeper_id: order[i], position: "WR", s }));
+    const sl = scores.map(() => "WR");
+    const ls = Lx.lineupScore(pl, sl, p => p.s), bl = Lx.bestLineup(pl, sl, p => p.s).total;
+    const sv = Lx.solve({ slots: sl, candidates: pl.map(p => ({ id: p.sleeper_id, position: "WR", score: p.s })) }).total;
+    assert.strictEqual(ls, want, `${name}: lineupScore`);
+    assert.strictEqual(bl, want, `${name}: bestLineup`);
+    assert.strictEqual(sv, want, `${name}: solve`);
+  }
+}
+assert.strictEqual(Lx.lineupScore([{ sleeper_id: "a", position: "WR", s: 1.7976931348623157e308 }, { sleeper_id: "b", position: "WR", s: 1.7976931348623157e308 }], ["WR", "WR"], p => p.s), Infinity, "overflow rounds to Infinity");
 console.log("lineup_fixture: ok");

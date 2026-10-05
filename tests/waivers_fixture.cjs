@@ -789,5 +789,17 @@ check("through LeagueData.views + WaiverMode.hydrateBoard: traded owned player t
   assert.match(blocked.recommendationBlock, /^Owned players lack a current weekly projection: Nv3\./);
 });
 
+check("M2: an omitted budgetReserve defaults to 20% of the league budget (spec §7.2)", () => {
+  for (const [budget, want] of [[0, 0], [10, 2], [100, 20]]) {
+    const lg = { ...league, settings: { ...league.settings, waiver_budget: budget, waiver_bid_min: 0 } };
+    const rs = rosters.map(r => ({ ...r, settings: { waiver_budget_used: 0 } }));
+    const { budgetReserve, ...noReserve } = base;
+    const out = W.analyze({ ...noReserve, league: lg, rosters: rs });
+    assert.strictEqual(out.budget.reserve, want, `$${budget} budget`);
+    assert.strictEqual(out.budget.spendable, Math.max(0, budget - want), `$${budget} spendable`);
+    assert.strictEqual(W.analyze({ ...base, league: lg, rosters: rs, budgetReserve: 3 }).budget.reserve, 3, "explicit override wins");
+  }
+});
+
 if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
 console.log(`waivers_fixture: ${n} groups OK`);

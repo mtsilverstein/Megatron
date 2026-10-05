@@ -273,7 +273,7 @@
     const used = rolling ? null : finite(mine.settings && mine.settings.waiver_budget_used);
     if (!rolling && (used === null || used < 0)) fail("roster waiver_budget_used is missing or invalid");
     const remaining = rolling ? null : Math.max(0, budgetTotal - used);
-    const reserve = rolling ? null : finite(args.budgetReserve === undefined ? 20 : args.budgetReserve);
+    const reserve = rolling ? null : finite(args.budgetReserve === undefined ? Math.round(0.2 * budgetTotal) : args.budgetReserve);
     if (!rolling && (reserve === null || reserve < 0)) fail("budgetReserve must be non-negative");
     const minBid = rolling ? null : Math.max(0, finite(league.settings && league.settings.waiver_bid_min) || 0);
     const protectedIds = validateIds(args.protectedIds || [], "protectedIds");

@@ -25,6 +25,22 @@
     if (eb) m |= 1n << 52n;
     return [hi >>> 31 ? -m : m, eb ? eb - 1075 : -1074];
   }
+  // Exact value S * 2^e (S a BigInt, e >= -1074) rounded once, to nearest-even, to a Number.
+  function toNumber(S, e) {
+    if (S === 0n) return 0;
+    const neg = S < 0n, a = neg ? -S : S;
+    const L = a.toString(2).length;
+    const lsb = Math.max(L - 1 + e - 52, -1074);
+    let out;
+    if (lsb <= e) out = Number(a) * 2 ** e;                      // a < 2^53: exact
+    else {
+      const sh = BigInt(lsb - e), half = 1n << (sh - 1n);
+      let q = a >> sh; const rem = a & ((1n << sh) - 1n);
+      if (rem > half || (rem === half && (q & 1n))) q += 1n;
+      out = lsb > 1023 ? Infinity : Number(q) * 2 ** lsb;          // q <= 2^53: exact; overflow rounds to Infinity
+    }
+    return neg ? -out : out;
+  }
   // Rectangular Hungarian (n rows <= m cols), BigInt costs, null = forbidden. Minimises.
   function hungarian(cost, n, m) {
     const u = new Array(n + 1).fill(0n), v = new Array(m + 1).fill(0n), p = new Array(m + 1).fill(0), way = new Array(m + 1).fill(0);
@@ -95,13 +111,13 @@
       }
     }
     const final = hungarian(cost, open.length, pool.length);
-    let total = 0;
+    let exactSum = 0n;
     open.forEach((slotIndex, r) => {
       const c = pool[final.col[r]];
       Object.assign(assignment[slotIndex], { id: c.id, score: c.score });
-      total += c.score;
+      exactSum += ints[final.col[r]];
     });
-    return { ok: true, total, assignment };
+    return { ok: true, total: toNumber(exactSum, minE), assignment };
   }
   const pid = p => String(p.sleeper_id ?? p.id);
   function bestLineup(players, slots, scoreOf) {
@@ -117,7 +133,8 @@
     if (!r.ok) return { total: -Infinity, starters: [], unfillable: r.slot };
     return { total: r.total, starters: r.assignment.map(a => ({ player: byId.get(a.id), slot: a.slot, points: a.score })) };
   }
-  // Stage-1 only (no keep term, no id fixing): the optimal total cannot depend on tie-breaks.
+  // Stage-1 only (no keep term, no id fixing): the optimal total cannot depend on tie-breaks,
+  // and both APIs report it as the exact BigInt sum rounded once (identical in either assignment order).
   function lineupScore(players, slots, scoreOf) {
     for (const s of slots) if (!MODELED.includes(s)) throw new Error(`bestLineup accepts modeled slots only, got ${s}`);
     const pool = [], seen = new Set();
@@ -138,9 +155,7 @@
     const cost = slots.map(sl => pool.map((c, j) => ELIG[sl].includes(c.position) ? -ints[j] : null));
     const res = hungarian(cost, slots.length, pool.length);
     if (!res) return -Infinity;
-    let total = 0;
-    for (let r = 0; r < slots.length; r++) total += pool[res.col[r]].score;
-    return total;
+    return toNumber(-res.total, minE);                              // exact sum of the chosen scores, rounded once
   }
   return Object.freeze({ MODELED, UNMODELED, NON_STARTING, UNMODELED_POSITIONS, solve, bestLineup, lineupScore });
 });
