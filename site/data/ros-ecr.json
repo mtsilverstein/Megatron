@@ -6,7 +6,7 @@
   "season": 2026,
   "snapshot_at": "2026-10-02",
   "snapshot_precision": "date",
-  "retrieved_at": "2026-10-04T11:12:51.383001+00:00",
+  "retrieved_at": "2026-10-05T12:27:00.948500+00:00",
   "source": "FantasyPros via nflverse free rankings mirror",
   "source_url": "https://www.fantasypros.com/nfl/rankings/ros-ppr-overall.php",
   "players": [
@@ -837,17 +837,17 @@
       "ros_rank": 124.0
     },
     {
-      "player_id": "00-0034351",
-      "name": "Dallas Goedert",
-      "position": "TE",
-      "team": "PHI",
-      "ros_rank": 124.67
-    },
-    {
       "player_id": "00-0038563",
       "name": "Tre Tucker",
       "position": "WR",
       "team": "LV",
+      "ros_rank": 124.67
+    },
+    {
+      "player_id": "00-0034351",
+      "name": "Dallas Goedert",
+      "position": "TE",
+      "team": "PHI",
       "ros_rank": 124.67
     },
     {
@@ -865,17 +865,17 @@
       "ros_rank": 125.67
     },
     {
-      "player_id": "00-0034753",
-      "name": "Mark Andrews",
-      "position": "TE",
-      "team": "BAL",
-      "ros_rank": 128.17
-    },
-    {
       "player_id": "00-0040236",
       "name": "Kyle Monangai",
       "position": "RB",
       "team": "CHI",
+      "ros_rank": 128.17
+    },
+    {
+      "player_id": "00-0034753",
+      "name": "Mark Andrews",
+      "position": "TE",
+      "team": "BAL",
       "ros_rank": 128.17
     },
     {
@@ -1663,6 +1663,13 @@
       "ros_rank": 263.0
     },
     {
+      "player_id": "00-0040590",
+      "name": "Konata Mumpfield",
+      "position": "WR",
+      "team": "LA",
+      "ros_rank": 265.0
+    },
+    {
       "player_id": "00-0040162",
       "name": "Dylan Sampson",
       "position": "RB",
@@ -1674,13 +1681,6 @@
       "name": "Tank Dell",
       "position": "WR",
       "team": "HOU",
-      "ros_rank": 265.0
-    },
-    {
-      "player_id": "00-0040590",
-      "name": "Konata Mumpfield",
-      "position": "WR",
-      "team": "LA",
       "ros_rank": 265.0
     },
     {
@@ -1810,17 +1810,17 @@
       "ros_rank": 280.0
     },
     {
-      "player_id": "00-0038685",
-      "name": "Chris Brooks",
-      "position": "RB",
-      "team": "GB",
-      "ros_rank": 280.67
-    },
-    {
       "player_id": "00-0041125",
       "name": "Seth McGowan",
       "position": "RB",
       "team": "IND",
+      "ros_rank": 280.67
+    },
+    {
+      "player_id": "00-0038685",
+      "name": "Chris Brooks",
+      "position": "RB",
+      "team": "GB",
       "ros_rank": 280.67
     },
     {
@@ -2048,17 +2048,17 @@
       "ros_rank": 307.5
     },
     {
-      "player_id": "00-0039923",
-      "name": "J.J. McCarthy",
-      "position": "QB",
-      "team": "NYG",
-      "ros_rank": 308.0
-    },
-    {
       "player_id": "00-0041051",
       "name": "Zavion Thomas",
       "position": "WR",
       "team": "CHI",
+      "ros_rank": 308.0
+    },
+    {
+      "player_id": "00-0039923",
+      "name": "J.J. McCarthy",
+      "position": "QB",
+      "team": "NYG",
       "ros_rank": 308.0
     },
     {
@@ -2069,17 +2069,17 @@
       "ros_rank": 308.2
     },
     {
-      "player_id": "00-0037666",
-      "name": "Jalen Tolbert",
-      "position": "WR",
-      "team": "MIA",
-      "ros_rank": 309.0
-    },
-    {
       "player_id": "00-0036849",
       "name": "Tutu Atwell",
       "position": "WR",
       "team": "LA",
+      "ros_rank": 309.0
+    },
+    {
+      "player_id": "00-0037666",
+      "name": "Jalen Tolbert",
+      "position": "WR",
+      "team": "MIA",
       "ros_rank": 309.0
     },
     {
@@ -2146,17 +2146,17 @@
       "ros_rank": 315.5
     },
     {
-      "player_id": "00-0033923",
-      "name": "Kareem Hunt",
-      "position": "RB",
-      "team": "FA",
-      "ros_rank": 316.0
-    },
-    {
       "player_id": "00-0036945",
       "name": "Justin Fields",
       "position": "QB",
       "team": "KC",
+      "ros_rank": 316.0
+    },
+    {
+      "player_id": "00-0033923",
+      "name": "Kareem Hunt",
+      "position": "RB",
+      "team": "FA",
       "ros_rank": 316.0
     },
     {
@@ -2356,17 +2356,17 @@
       "ros_rank": 338.0
     },
     {
-      "player_id": "00-0040208",
-      "name": "Tahj Brooks",
-      "position": "RB",
-      "team": "CIN",
-      "ros_rank": 339.0
-    },
-    {
       "player_id": "00-0028986",
       "name": "Case Keenum",
       "position": "QB",
       "team": "CHI",
+      "ros_rank": 339.0
+    },
+    {
+      "player_id": "00-0040208",
+      "name": "Tahj Brooks",
+      "position": "RB",
+      "team": "CIN",
       "ros_rank": 339.0
     },
     {
