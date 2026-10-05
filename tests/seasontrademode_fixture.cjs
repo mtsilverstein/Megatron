@@ -612,6 +612,56 @@ async function pagePreDraft() {
   assert.equal(dc.$("season-trade").hidden, true);
 }
 
+// I2 (spec 5.4/10): the mode is resolved WITHOUT the in-season season
+// contract for a pre-draft league. Rollover: next season's (2027) league is
+// pre_draft while /state/nfl still reports 2026.
+async function pageRollover() {
+  const ROLL = { season: "2026", season_type: "off", week: 0 };
+  // Not awaited: on a regression the page waits forever for the chip's retry,
+  // and a bare await would let node drain silently with exit 0. `until` fails loudly.
+  const startPage = href => {
+    const d = tradeDom(href);
+    global.FC = FC; global.Session = Session; global.SeasonTradeMode = M; global.TradeMode = window.TradeMode; global.Sleeper = window.Sleeper;
+    new Function(`return ${inline.trim().replace(/;\s*$/, "")}`)();
+    return d;
+  };
+  // The registered Gabagool league reaches TradeMode exactly as before.
+  fresh(); state = ROLL; catalog = baseCatalog();
+  const gab27 = { ...baseLeague, league_id: GAB, name: "Gabagool (synthetic)", season: "2027", status: "pre_draft" };
+  routes = { ...baseRoutes(), ...leagueRoutes(GAB, () => gab27) };
+  const board = { league: { league_id: GAB, name: "Gabagool (synthetic)" }, data_through: "2026-wk18", generated_at: new Date().toISOString(), model: "transformer", players: [] };
+  statics = { "data/draft.json": board };
+  const dom = startPage(`https://example.test/Megatron/trade.html`);
+  await until(() => window.TradeMode.calls.length === 1 || Session.error(), "the pre-draft mode");
+  assert.equal(Session.error(), null);
+  assert.equal(window.TradeMode.calls.length, 1, "the 2027 pre-draft Gabagool league reaches TradeMode under 2026 NFL state");
+  assert.deepEqual(window.TradeMode.calls[0].board, board);
+  assert.deepEqual(draftFetches(), ["data/draft.json"]);
+  assert.equal(dom.$("season-trade").hidden, true);
+  assert.doesNotMatch(dom.stamp.textContent, /season; projections are for/);
+  // An unregistered pre-draft league keeps today's draft-boundary message.
+  fresh(); state = ROLL;
+  routes = { ...baseRoutes(), ...leagueRoutes(L, () => ({ ...baseLeague, season: "2027", status: "pre_draft" })) };
+  const du = startPage(`https://example.test/Megatron/trade.html?league=${L}`);
+  await until(() => du.stamp.textContent !== "", "the draft-boundary message");
+  assert.equal(du.stamp.textContent, "The draft board is only built for registered leagues.");
+  assert.deepEqual(draftFetches(), []); assert.equal(window.TradeMode.calls.length, 0);
+  // The same league IN SEASON with a mismatched season is still refused by
+  // name; the page never reaches either mode (it waits for the chip's retry).
+  for (const [season, current] of [["2027", "2026"], ["2025", "2026"]]) {
+    fresh(); state = { season: current, season_type: "regular", week: 3 };
+    routes = { ...baseRoutes(), ...leagueRoutes(GAB, () => ({ ...gab27, season, status: "in_season" })) };
+    const d = startPage(`https://example.test/Megatron/trade.html`);
+    const msg = `This league is from the ${season} season; projections are for ${current}.`;
+    await until(() => d.stamp.textContent === msg, `the ${season} in-season refusal`);
+    assert.equal(Session.bundle(), null);
+    assert.equal(d.$("season-trade").hidden, true, "no in-season trade surface");
+    assert.equal(window.TradeMode.calls.length, 0);
+    assert.deepEqual(draftFetches(), []);
+    assert.equal(analyzeCalls.length, 0);
+  }
+}
+
 (async () => {
   await sub("owner flow under the real Session, LeagueData and LiveWorld", ownerFlow);
   await sub("Review Focus 1: a player traded after the batch blocks the comparison by name", reviewFocus1);
@@ -621,6 +671,7 @@ async function pagePreDraft() {
   await sub("week 18: No projected weeks remain.", week18);
   await sub("trade.html in season: mode first, never draft.json, in-season links by id", pageInSeason);
   await sub("trade.html pre-draft: Gabagool loads draft.json after the mode; others keep today's messages", pagePreDraft);
+  await sub("I2 rollover: a next-season pre-draft league reaches TradeMode; in season, another season is still refused", pageRollover);
   if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
   console.log(`seasontrademode_fixture: ${n} groups OK`);
   process.exit(0);

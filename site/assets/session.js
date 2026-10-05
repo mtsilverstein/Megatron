@@ -28,7 +28,11 @@
    refuses a league Sleeper does not know (`Sleeper has no league with id
    {id}.`) and a league from another season than live /state/nfl (`This league
    is from the {season} season; projections are for {current}.`), on load and
-   on every refresh.
+   on every refresh. One opt-in exception (spec 5.4): ready({leagueId,
+   preDraftAnySeason: true}) -- trade.html resolving its mode -- exempts a
+   league whose live status is `pre_draft` from the season check (the
+   registered pre-draft route validates its own board/league afterwards);
+   every other status, and every page that does not opt in, keeps it.
 
    Live settings (spec 5.2): every ready() AND every refresh() re-reads
    /league/<id>, whatever the scope -- scoring, slots, status and season are
@@ -143,8 +147,10 @@
     } catch (_) { return null; }
   }
   // The in-season pages' entry for any Sleeper league id (no registry row).
-  function idEntry(leagueId) {
-    return Object.freeze({ slug: null, platform: "sleeper", leagueId, tools: ID_TOOLS });
+  function idEntry(leagueId, preDraftAnySeason) {
+    const entry = { slug: null, platform: "sleeper", leagueId, tools: ID_TOOLS };
+    if (preDraftAnySeason) entry.preDraftAnySeason = true;   // only trade.html's mode resolution
+    return Object.freeze(entry);
   }
   const isIdEntry = entry => !!entry && entry.slug === null && entry.platform === "sleeper";
   // Whose roster the in-season analysis reads (header). The owner match wins
@@ -344,6 +350,10 @@
   function checkIdLeague(entry, parts) {
     if (!isIdEntry(entry)) return;
     if (String(parts.league.league_id) !== String(entry.leagueId)) throw new Error(`Sleeper answered for league ${parts.league.league_id}, not ${entry.leagueId}.`);
+    // The in-season projection-season contract. A pre-draft league is exempt
+    // only on the opted-in mode-resolution path (header): it is the next
+    // season's league during the rollover, and no projection is priced for it.
+    if (entry.preDraftAnySeason && parts.league.status === "pre_draft") return;
     if (String(parts.league.season) !== String(parts.state.season)) throw new Error(WRONG_SEASON(parts.league.season, parts.state.season));
   }
 
@@ -402,7 +412,7 @@
 
   async function ready(opts) {
     ensureLoaded();
-    const { slug, board, leagueId } = opts || {};
+    const { slug, board, leagueId, preDraftAnySeason } = opts || {};
     const byId = leagueId !== undefined && leagueId !== null;
     const gen = ++leagueGen;
     refreshPromise = null;       // an in-flight refresh belongs to the old league
@@ -416,7 +426,7 @@
         // Any Sleeper league, no board, identity optional (header).
         const id = String(leagueId).trim();
         if (!/^\d+$/.test(id)) throw new Error(NO_LEAGUE(id));
-        const entry = idEntry(id);
+        const entry = idEntry(id, preDraftAnySeason === true);
         const get = resolveGet(opts);   // per-call only: never installed document-wide
         const parts = await fetchLeague(entry, get, "league", null);
         if (gen !== leagueGen) throw superseded();

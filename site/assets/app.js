@@ -105,7 +105,7 @@
   };
   const swallow = () => {};   // identify/ready failures surface via Session.error(); superseded ones never
   const chip = {
-    slug: null, board: null, leagueId: null, readyFor: null, els: null, unsub: null, ticker: null,
+    slug: null, board: null, leagueId: null, leagueOpts: null, readyFor: null, els: null, unsub: null, ticker: null,
     lastName: "", changing: false, notice: "", prefill: "", controlsSig: null,
   };
   function chipEntry() { return registryFor(chip.slug); }
@@ -121,9 +121,9 @@
     if (!S) return;
     if (chip.leagueId) {
       if (S.bundle() && chip.readyFor === chip.leagueId) return;
-      const leagueId = chip.leagueId;
+      const leagueId = chip.leagueId, extra = chip.leagueOpts || {};
       chip.readyFor = leagueId;
-      Promise.resolve().then(() => S.ready({ leagueId })).catch(swallow);
+      Promise.resolve().then(() => S.ready({ ...extra, leagueId })).catch(swallow);
       return;
     }
     if (!chip.slug || !chip.board || isEspn()) return;
@@ -136,13 +136,17 @@
   function setBoard(board) {
     chip.board = board || null;
     chip.leagueId = null;            // a board page is the registry path
+    chip.leagueOpts = null;
     chip.readyFor = null;
     maybeReady();
   }
   // In-season pages: load ANY Sleeper league by id (Session.ready({leagueId}))
-  // immediately, with or without an identity. null clears.
-  function setLeague(leagueId) {
+  // immediately, with or without an identity. null clears. opts:
+  // {preDraftAnySeason: true} is trade.html's mode resolution only (session.js
+  // header): a pre-draft league is not held to the in-season season contract.
+  function setLeague(leagueId, opts) {
     chip.leagueId = leagueId === null || leagueId === undefined || leagueId === "" ? null : String(leagueId);
+    chip.leagueOpts = opts && opts.preDraftAnySeason === true ? { preDraftAnySeason: true } : null;
     chip.board = null;
     chip.readyFor = null;
     maybeReady();

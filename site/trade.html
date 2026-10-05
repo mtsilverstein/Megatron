@@ -107,7 +107,11 @@
   // pre-draft vs in-season before any draft data is fetched. The chip loads
   // the league by id (FC.setLeague -> Session.ready({leagueId}), identity
   // optional); the first committed bundle names the mode. A failed load
-  // shows its reason and keeps waiting for the chip's retry.
+  // shows its reason and keeps waiting for the chip's retry. The in-season
+  // season contract is not imposed on a PRE-DRAFT league here (session.js
+  // header): during the rollover it is next season's league, and the
+  // registered pre-draft route validates its own board/league below. Every
+  // other status -- in_season included -- is still refused for another season.
   const { leagueId } = FC.inSeasonLeague();
   const league = await new Promise(resolve => {
     const off = Session.onChange(() => {
@@ -116,7 +120,7 @@
       const err = Session.error();
       if (err) stamp(err);
     });
-    FC.setLeague(leagueId);
+    FC.setLeague(leagueId, { preDraftAnySeason: true });
   });
   if (league.status === "pre_draft") {
     // The pre-draft grader prices keepers and a simulated draft; only Gabagool

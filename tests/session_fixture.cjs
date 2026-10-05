@@ -866,6 +866,40 @@ const sorted = a => a.slice().sort();
     await assert.rejects(Session.ready({ leagueId: X }), { message: `Sleeper answered for league 700000000000000777, not ${X}.` });
   });
 
+  await check("25b. I2: preDraftAnySeason exempts only a PRE-DRAFT league from the season contract (trade.html mode resolution)", async () => {
+    Session._storage(fakeStorage());
+    const r = routesX();
+    Session._get(fakeGet(r).get);
+    // Rollover: next season's league is pre_draft while /state/nfl is still the previous season.
+    r[`/league/${X}`] = { ...leagueX, season: "2027", status: "pre_draft" };
+    const pre = await Session.ready({ leagueId: X, preDraftAnySeason: true });
+    assert.equal(pre.league.status, "pre_draft");
+    assert.equal(pre.registry.preDraftAnySeason, true);
+    assert.ok(Object.isFrozen(pre.registry));
+    assert.equal(Session.error(), null);
+    // Without the opt-in (weekly, waivers) the in-season contract is unchanged.
+    await assert.rejects(Session.ready({ leagueId: X }), { message: "This league is from the 2027 season; projections are for 2026." });
+    // The opt-in never exempts an in-season (or any non-pre-draft) league of another season.
+    for (const status of ["in_season", "drafting", "complete"]) {
+      r[`/league/${X}`] = { ...leagueX, season: "2027", status };
+      await assert.rejects(Session.ready({ leagueId: X, preDraftAnySeason: true }), { message: "This league is from the 2027 season; projections are for 2026." }, status);
+    }
+    r[`/league/${X}`] = { ...leagueX, season: "2025", status: "in_season" };
+    await assert.rejects(Session.ready({ leagueId: X, preDraftAnySeason: true }), { message: "This league is from the 2025 season; projections are for 2026." });
+    // Refresh keeps the policy: still pre-draft passes; once in season, the contract applies.
+    r[`/league/${X}`] = { ...leagueX, season: "2027", status: "pre_draft" };
+    const b1 = await Session.ready({ leagueId: X, preDraftAnySeason: true });
+    const b2 = await Session.refresh();
+    assert.notEqual(b2, b1); assert.equal(b2.registry, b1.registry);
+    r[`/league/${X}`] = { ...leagueX, season: "2027", status: "in_season" };
+    await assert.rejects(Session.refresh(), { message: "This league is from the 2027 season; projections are for 2026." });
+    assert.equal(Session.bundle(), b2);
+    // The current season with the opt-in: an ordinary load, the default entry shape otherwise.
+    r[`/league/${X}`] = leagueX;
+    const plain = await Session.ready({ leagueId: X });
+    assert.ok(!("preDraftAnySeason" in plain.registry));
+  });
+
   await check("26. view(): a viewer is never an owner; identify as an owner drops the viewed team", async () => {
     Session._storage(fakeStorage());
     const r = routesX();
