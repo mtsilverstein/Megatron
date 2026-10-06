@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 5,
   "data_through": "2026-wk4",
-  "generated_at": "2026-10-06T16:00:49+00:00",
-  "batch_id": "2026-10-06T16:00:49+00:00|2026-wk4|w5",
+  "generated_at": "2026-10-06T16:11:28+00:00",
+  "batch_id": "2026-10-06T16:11:28+00:00|2026-wk4|w5",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,8 +13,8 @@
   },
   "crosswalk": {
     "matched_gsis": 170,
-    "matched_name": 512,
-    "unmatched": 15
+    "matched_name": 513,
+    "unmatched": 14
   },
   "players": [
     {
@@ -6043,15 +6043,15 @@
     },
     {
       "player_id": "00-0039305",
-      "sleeper_id": null,
+      "sleeper_id": "12045",
       "name": "Jack Westover",
       "team": "WAS",
-      "position": "RB",
+      "position": "TE",
       "bye": 7,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_catalog_match",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0039325",
@@ -6745,8 +6745,8 @@
       "position": "WR",
       "bye": 6,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
