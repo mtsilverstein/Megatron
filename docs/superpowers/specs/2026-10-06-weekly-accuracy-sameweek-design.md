@@ -351,7 +351,19 @@ served, not proof of it.
   - for `retrospective`, the supporting run ids and the inventory fetch record.
 - **Fields:** `players[].points.ppr.{p10,p50,p90}` by `player_id`.
 
-**Expected for 2026:** weeks 1–3 `retrospective` (the ledger starts 2026-09-24), and week 4 onward `exact_push`.
+**Expected for 2026: every week is `exact_push`.**
+
+- A fully paginated activity fetch on 2026-10-06 returned 239 main events back to the repository's first push on
+  2026-07-11. The raw response is saved locally at `.review/evidence-seed/activity-main-2026-10-06T190201Z.json` and
+  will seed the ledger as its first collection.
+- The weeks 1–4 publications have push events before their cutoffs:
+  - week 1: `b451562`, 2026-09-02T09:45:11Z;
+  - week 2: `fa9c095`, 09-16T20:15:31Z;
+  - week 3: `fbd66fd`, 09-23T20:33:45Z;
+  - week 4: `d43adc4`, 09-30T21:32:42Z.
+- The only force-pushes on main were on 2026-07-11 and 07-17, before the season.
+- `retrospective` remains specified as the fallback for any week whose ledger coverage is incomplete.
+- The run inventory seed is saved beside the activity response, at `weekly-update-runs-2026-10-06T190201Z.json`.
 
 **Page source and equivalence.** Since 2026-10-06 `weekly.html` renders from `site/data/neutral/weekly.json`. When
 the selected commit also contains `site/data/neutral/weekly.json` from the same batch:
@@ -855,7 +867,7 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 ## 9. Risks and limits (stated, not solved)
 
 - No tier verifies Vercel deployment.
-- `retrospective` weeks (2026 weeks 1–3) do not verify that the content was on main before the cutoff. Committer time
+- `retrospective` weeks (none expected in 2026) would not verify that the content was on main before the cutoff. Committer time
   is a lower bound on the push. These weeks are reported apart from `exact_push` weeks.
 - Runs deleted upstream before our first inventory fetch are undetectable.
 - `available_by` bounds when content existed on main; it is not a retrieval time.
