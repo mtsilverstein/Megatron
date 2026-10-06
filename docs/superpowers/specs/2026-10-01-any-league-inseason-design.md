@@ -398,6 +398,13 @@ differently: astra's counterexamples, review §B4). Caller policies (§7.1) are 
 12. **Browser, before merge:** Gabagool and FAM end to end on all three pages; one public superflex league and one
     best-ball league pasted by id.
 
+    *Amendment 2026-10-05 (owner waiver):* the owner waived the superflex and best-ball live-league browser checks
+    in item 12. Gabagool and FAM passed end to end on all three pages, both anonymously and as the owner. Superflex
+    and best-ball behaviour therefore rests only on synthetic coverage: the eligibility/format-line fixtures (item 6),
+    best-ball and unknown-slot rest-of-season withholding, and the waiver watchlist fixtures (astra re-check,
+    2026-10-05). No real superflex or best-ball league was loaded in a browser before merge. If one later misbehaves,
+    treat it as a missed acceptance check, not a new feature.
+
 ## 10. Rollout
 
 - Branch `feat/any-league-inseason`. **No merge to `main` until the `prospective-2026-o5` tag exists.**
