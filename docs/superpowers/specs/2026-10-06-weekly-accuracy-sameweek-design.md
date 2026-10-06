@@ -1,9 +1,10 @@
 # Weekly accuracy tracking and same-week expert benchmark — design
 
-**Status:** draft 3 (2026-10-06). The owner approved the design section by section in conversation. Astra returned
-REVISE on draft 1 (`.review/astra-weeklyacc-spec-response.md`) and on draft 2
-(`.review/astra-weeklyacc-spec-r2-response.md`). §10 maps every finding to its resolution. Draft 3 awaits an astra
-re-review and the owner's review.
+**Status:** draft 4 (2026-10-06). The owner approved the design section by section in conversation. Astra returned
+REVISE on drafts 1–3 (`.review/astra-weeklyacc-spec-response.md`, `-r2-response.md`, `-r3-response.md`). §10 maps
+every finding to its resolution. Round 3 accepted §5.2's selection and §6.5's directional rules, and it found the
+leave-one-season-out requirement conservative but reachable. Draft 4 awaits an astra re-review and the owner's
+review.
 
 ## 1. Why
 
@@ -57,7 +58,12 @@ untouched replication.
 - `src/ffmodel/eval/live_accuracy.py`: (A).
 - `src/ffmodel/eval/weekly_consensus_sameweek.py`: the (B) driver.
 - `.github/workflows/weekly-accuracy.yml`.
-- Tests, and the committed artifacts.
+- A behaviour-preserving refactor of `ffmodel.data.rankings.attach_gsis`: its row-level matching moves into a new
+  public `map_consensus_rows(snapshot, crosswalk) -> DataFrame`, which keeps every source row and the
+  `match_method` per row and does no dedupe. `attach_gsis` calls it and keeps its dedupe, guards and stats
+  unchanged. Existing tests, plus a new equality test on synthetic snapshots with ties and collisions, prove the
+  output is byte-identical.
+- Tests, the committed artifacts and `models/diagnostics/main_push_ledger.json`.
 - The §6.7 copy changes after (B), pushed only with the owner's OK.
 
 **Out of scope (unchanged):**
@@ -179,26 +185,31 @@ Validation runs per input table, per (season, week), **before** any join or feat
 
 **Rules:**
 
-- **Exact duplicates** (identical rows) collapse to one row and are counted as `exact_duplicates`. They are not
-  errors.
-- **Conflicting duplicates** (same key, different evaluated fields) invalidate every row in the group, counted as
+- **Exact duplicates** collapse to one row, counted as `exact_duplicates`; they are not errors. Exact means the
+  same key and identical evaluated fields **and** identical eligibility, join and grouping fields: team, position,
+  name and match fields.
+- **Conflicting duplicates** (same key, any difference in those fields) invalidate every row in the group, counted
+  as
   `conflicting_duplicates`. For actuals this happens before `build_features`, so a duplicate cannot contaminate lag
   features.
 - **Non-finite values** in the evaluated fields only invalidate that row. Lag features may legitimately be NaN.
 - **Quantile order:** `p10 ≤ p50 ≤ p90` must hold, otherwise the row is invalid.
 - **Schedule join:** a player whose team has zero or several week-N schedule rows is invalid for that week.
 - **Consensus identity collisions:**
-  - `attach_gsis` is unchanged and keeps the best-ranked row when two source rows map to one `player_id`, reporting
-    only a count (`gsis_collisions`).
-  - The wrapper detects which ids collided by calling `attach_gsis` twice: once as-is, once on a copy with `ecr`
-    negated.
-  - A `player_id` whose retained `fp_id` differs between the two calls is a collision. That player is removed from
-    the consensus pool (both rows invalid), counted as `identity_collisions`.
+  - The audit uses `map_consensus_rows` (§2), the complete row-to-player mapping before any dedupe, with
+    `attach_gsis`'s own matching precedence.
+  - A **collision group** is every source row (`fp_id`) mapped to one `player_id` by two or more distinct source
+    keys. Ties in `ecr` are irrelevant.
+  - Every member of every group is invalid: each affected unique source key counts once in the snapshot table's
+    numerator, and the `player_id` is removed from the consensus pool. The count is `identity_collisions`.
+  - **Reconciliation:** the number of rows removed by group members beyond the first must equal `attach_gsis`'s
+    `gsis_collisions` for the same snapshot, or the run fails.
 
 **Threshold:**
 
 - For each table, the excluded fraction is the number of unique keys invalidated for any reason divided by that
-  table's unique keys before validation. Exact duplicates don't count; a key is counted once even if it fails
+  table's unique keys before validation. An empty table has fraction 0 and is handled by the relevant skip rule
+  (no publication, no snapshot, no rows). Exact duplicates don't count; a key is counted once even if it fails
   several rules.
 - If any table's fraction exceeds 1% for a (season, week), the week is skipped with reason `validation_failed`.
   Exactly 1% passes.
@@ -246,32 +257,64 @@ The estimand is the projection in the main-line data pipeline's latest publicati
 labelled `evidence: "repo_proxy"`, because Vercel deployment success and time are not verified. The site deploys main
 on push, so this is a close proxy, not proof.
 
-- **Main-line binding, via GitHub Actions run records.** A commit `C` is a candidate only if all of these hold:
-  - `C` changes `site/data/weekly.json`. This is checked by `git diff --name-only C^1 C`, not by simplified path
-    history.
-  - `C`'s author and committer names are both `weekly-update-bot`.
-  - `C` is bound to a run `R` of workflow `weekly-update.yml` with `head_branch == "main"`, `conclusion ==
-    "success"`, and `R.head_sha == C^1`.
-  - `R.updated_at` (completion) is strictly before the cutoff.
+- **Candidates:** commits `C` reachable from a pinned `origin/main` sha (`git rev-list`) that satisfy all of:
+  - `C` changes `site/data/weekly.json`, checked by `git diff --name-only C^1 C` rather than simplified path history;
+  - `C`'s author and committer names are both `weekly-update-bot`;
+  - `C` has a publication-evidence tier below.
 
-  The run checks out its `head_sha` and pushes `C` as that sha's child during the run. So a binding run on main
-  evidences that `C` was pushed to main by the run's completion time. `R.updated_at` is recorded as `available_by`.
-  A bot commit made on a feature branch, or merged into main later, has no such binding and is never a candidate.
-  This holds even when an ancestor today. Example (verified 2026-10-06): `d43adc4`'s parent `0a745b1` is the
-  `head_sha` of run 36779476647 (main, schedule, success, completed 21:32:46Z, six seconds after `d43adc4`).
-- **Candidate enumeration:** all commits reachable from a pinned `origin/main` sha, recorded as `main_sha`. Use
-  `git rev-list main_sha`, then the binding test above. Run records come from
-  `gh api repos/{owner}/{repo}/actions/workflows/weekly-update.yml/runs?branch=main&status=success`, paginated, via
-  an injectable function. The job's `GITHUB_TOKEN` (with `actions: read`) authorises it in CI, and `gh` auth does
-  locally.
-- **Cutoff:** `R.updated_at` strictly before `K_N` 00:00 UTC. This is a common pre-week cutoff for every player. It
+  The pinned sha is recorded only in `run.json` (§4.6).
+
+- **Tier `exact_push` (preferred):** the push ledger (below) holds a push to `refs/heads/main` whose `after == C`
+  and whose `timestamp` is strictly before the cutoff. `available_by` = that timestamp. This is GitHub's own record
+  that main's head became exactly `C` at that time.
+  - Example: `d43adc4` was pushed to main at 2026-09-30T21:32:42Z, per the activity API, checked 2026-10-06.
+
+- **Tier `inventory_proxy` (only where the ledger has no coverage):** applies only when every condition holds:
+  - **Complete inventory.** The run list for workflow `weekly-update.yml` (all branches, all statuses, all attempts)
+    was retrieved in full: retrieved count = the API's `total_count`. If `total_count ≥ 1000`, the query is
+    partitioned by `created` date ranges until each partition is complete. If the inventory can't be completed,
+    the tier is unavailable.
+  - **No other-branch runs.** No run of that workflow on a non-`main` branch has `created_at` before the cutoff, so
+    no sibling bot commit can exist.
+  - **No re-runs.** No run with `run_attempt > 1` exists before the cutoff.
+  - **A binding run exists:** a `main` run with `head_sha == C^1`.
+  - `C`'s committer time is strictly before the cutoff. `available_by` = that committer time, labelled
+    `committer_time_proxy`.
+
+  On these conditions `weekly-update-bot`, the only writer of that name, could only have produced `C` in a main run.
+  Any reachable such commit was pushed, because a failed push leaves no commit in the repository. Verified
+  2026-10-06: 59 runs, `total_count` 59, all on `main`, all attempt 1.
+
+- **Neither tier:** the week is listed under `publication_evidence_unavailable`, distinct from `weeks_unpublished`
+  (no candidate payload for the week at all). Missing evidence is never reported as non-publication.
+
+- **The ledger: `models/diagnostics/main_push_ledger.json`.**
+  - **What goes in:** every run of the weekly accuracy job fetches `GET /repos/{owner}/{repo}/activity` filtered to
+    `ref=refs/heads/main`, `activity_type` push/force_push, paginated. It merges in records whose `after` commit is
+    a `weekly-update-bot` commit: `id`, `timestamp`, `before`, `after`, `activity_type`, `actor`.
+  - **Rules:** entries are deduplicated by `id` and never deleted or edited. A `force_push` record makes every week
+    whose selected commit it affects `publication_evidence_unavailable`. The ledger is sorted, so it is
+    deterministic.
+  - **Why it's committed:** the activity API's retention is limited. On 2026-10-06 it reached back only to
+    2026-09-24. So the ledger is the durable record.
+  - **Coverage:** recorded as the earliest ledger timestamp. Weeks whose cutoff falls before ledger coverage use
+    `inventory_proxy` or nothing. For 2026, weeks 1–3 are expected to be `inventory_proxy` and weeks 4 onward
+    `exact_push`.
+
+- **Cutoff:** `available_by` strictly before `K_N` 00:00 UTC. This is a common pre-week cutoff for every player. It
   is conservative by up to one day and symmetric with the date-level expert snapshots. It is not a per-player
   latest-before-game publication.
-- **Chosen estimand:** the bot pipeline's publications. Hand-made data pushes are excluded by design, and all
-  wording says "the projections our automated pipeline published".
-- **Selection:** take the newest candidate whose payload has `season == S` and `week == N`.
+- **Estimand:** the bot pipeline's publications. Hand-made data pushes are excluded by design, and all wording says
+  "the projections our automated pipeline published".
+- **Selection:** take the candidate with the latest `available_by` whose payload has `season == S` and
+  `week == N`.
+- **Recorded per week:** the evidence tier, plus the evidence itself: the ledger entry id, or the run id and the
+  inventory count.
 - **Fields:** `players[].points.ppr.{p10,p50,p90}` by `player_id`.
-- **No candidate:** the week is listed under `weeks_unpublished`.
+- **No candidate for the week:** listed under `weeks_unpublished`.
+- **Rebased publications:** a bot commit rebased onto a newer main head fails `head_sha == C^1` in the proxy tier.
+  The current `weekly-update.yml` pushes bare with no rebase, so this is a disclosed false-negative shape, never
+  loosened to generic ancestry. Under `exact_push` it is handled by the ledger.
 
 **Page source and equivalence.** Since 2026-10-06 `weekly.html` renders from `site/data/neutral/weekly.json`. When
 the selected commit also contains `site/data/neutral/weekly.json` from the same batch:
@@ -320,15 +363,19 @@ The pool is **played ∩ valid published projection ∩ valid expert row**. Rete
 **Primary: our archived snapshots.** These are `data_snapshots/weekly_ecr/<S>-wNN-*.json` with `season == S` and
 `week == N`; the week is inferred by `live_experts` from complete opponent agreement.
 
-- **Content-existence bound:** the archive's first-adding commit, found by scanning `git rev-list main_sha` for
-  commits whose `C^1..C` diff adds the path. That commit must pass the §4.1 main-line binding, using its run `R`.
-  `available_by = R.updated_at`.
+- **Content-existence bound:**
+  - Find the archive's first-adding commit `C` by scanning the pinned main history for commits whose `C^1..C` diff
+    adds the path.
+  - `C` must be a `weekly-update-bot` commit with a §4.1 evidence tier (`exact_push` or `inventory_proxy`), judged
+    exactly as for projections except that the `weekly.json`-change requirement is replaced by "adds this archive".
+    Archive-only refresh commits therefore qualify.
+  - `available_by` is that tier's time.
   - This bounds when the content existed in the main-line repository. It is **not** a capture time: retrieval may
     have been earlier. Archives strip `retrieved_at`, and their own note says date-only provenance.
   - The evaluated content is the blob at that commit (`git show C:path`). Its sha256 prefix must equal the
     filename's 16-hex digest under `live_experts`'s naming rule (sha256 of the encoded payload). A mismatch is a
     validation error.
-- **Qualifying set:** archives with `season == S`, `week == N`, a valid binding and `available_by` strictly before
+- **Qualifying set:** archives with `season == S`, `week == N`, a §4.1 evidence tier and `available_by` strictly before
   `K_N` 00:00 UTC.
 - **Selection:** the qualifying archive with the latest `available_by`, the policy "latest first-committed
   qualifying content". If two or more archives share the latest `available_by` (for example, added in one commit),
@@ -372,7 +419,7 @@ These are conditional diagnostics, not causal decompositions. Content and source
 - **Against the scratch measurement:**
   - Point metrics are expected to match: MAE 4.359, coverage 0.797, naive MAE 4.673, delta −0.313.
   - The primary ranking is **expected to differ**: the scratch tie-break picked archive `…220d00155877a0a7`
-    (325 players), while §4.3 selects `…5aec56b70c3784e6` (408 players, later capture).
+    (325 players), while §4.3 selects `…5aec56b70c3784e6` (408 players, later evidenced availability).
   - Every divergence gets row-level accounting.
 - Matching the scratch numbers never overrides a selection rule.
 
@@ -382,21 +429,22 @@ These are conditional diagnostics, not causal decompositions. Content and source
 
 - `protocol_version`;
 - `inputs`, every input identity and hash;
-- `evaluated_commit`;
 - `weeks_scored`, `weeks_skipped` with reasons, and per-week `publication` and `expert_snapshot` provenance;
 - `points`, `ranking.primary`, `ranking.secondary`, `overlap_diagnostic`;
 - `reference_context`;
 - `caveats`.
 
-`evaluated_commit` is replaced by:
+Version identity in the main artifact:
 
 - `evaluator_version`: `protocol_version` plus the sha256 of the three new module sources;
-- `main_sha`;
-- the selected publication shas.
+- the selected publication shas, with their evidence records.
 
-The report-writing HEAD is never recorded.
+Neither the pinned main sha nor the report-writing HEAD is recorded there. The pinned sha moves with every commit,
+including the report's own, so it lives in `run.json`. The main artifact is therefore invariant to report-only
+commits.
 
-Time-dependent fields live only in a separate `live_<S>_weekly.run.json`: `run_at`, `as_of_date`, and each week's
+Time-dependent fields live only in a separate `live_<S>_weekly.run.json`: `run_at`, `as_of_date`, the pinned main
+sha, and each week's
 `provisional` flag (§3.3, evaluated against `as_of_date`). That keeps them out of the main artifact. So identical
 data inputs give a byte-identical main artifact, and a provisional-to-final change alone never creates a commit.
 
@@ -420,13 +468,14 @@ fresh temporary cache unless `--data-dir` is given.
 - **Setup:** checkout with `fetch-depth: 0`; Python 3.12; `pip install -e .`.
 - **Steps:**
   1. Run the CLI.
-  2. Stage only `models/diagnostics/live_*_weekly.json` and `.md`. The `.run.json` is written but not committed.
+  2. Stage only `models/diagnostics/live_*_weekly.json`, `live_*_weekly.md` and `main_push_ledger.json`. The
+     `.run.json` is written but not committed.
   3. If there is no diff, exit 0.
   4. Otherwise commit `data: weekly accuracy refresh` and push, with up to 3 attempts of `git pull --rebase` and then
      push. Never force.
 - **Fail-safe:** any error, the equivalence assertion or the alarm stops the job before the commit. The job never
   writes `site/`.
-- **Permissions:** `contents: write`, `actions: read` (run records for the §4.1 binding). `GH_TOKEN: ${{ github.token }}` is set for `gh api`.
+- **Permissions:** `contents: write`, `actions: read` (run inventory for §4.1; the activity API for the ledger). `GH_TOKEN: ${{ github.token }}` is set for `gh api`.
 
 ## 5. (B) Same-week reanalysis — primitives
 
@@ -523,9 +572,9 @@ A **directional check** for sign `σ` (+ or −) on a set of cells passes only i
 
 | # | Requirement | Reason code if it fails |
 |---|---|---|
-| (a) | `ci_week` lies entirely on the `σ` side of 0 | `interval_includes_zero` |
+| (a) | `ci_week` lies entirely on the `σ` side of 0 | `interval_includes_zero` (it straddles 0) or `interval_opposite_side` |
 | (b) | at least 2 of the 3 seasons have `D_season` on the `σ` side | `season_inconsistent` |
-| (c) | every leave-one-season-out `D_{−s}` is on the `σ` side | `leave_one_season_out_reversal` |
+| (c) | every leave-one-season-out `D_{−s}` is strictly on the `σ` side | `leave_one_season_out_reversal` (opposite sign) or `leave_one_season_out_zero` |
 | (d) | the sensitivity exists (≥ 1 cell) and its `D` is on the `σ` side | `sensitivity_absent` or `sensitivity_disagrees` |
 
 Every failed requirement's code is recorded, not just the first. The check is sign-symmetric.
@@ -535,7 +584,8 @@ Every failed requirement's code is recorded, not just the first. The check is si
 1. Not sufficient → `insufficient`.
 2. The directional check for `−` passes → `behind`.
 3. The directional check for `+` passes → `ahead`.
-4. Otherwise → `not_established`, with the reason codes of the check whose sign matches `D`.
+4. Otherwise → `not_established`, with the reason codes of the check whose sign matches `D`. If `D == 0` exactly,
+   the reason is `zero_estimate`, and both checks' codes are reported.
 
 There is no `tie` outcome. Parity would need a pre-specified equivalence margin, and none is claimed. The
 Replication sample's overall result is reported with the same rule, computed descriptively.
@@ -585,9 +635,9 @@ The driver computes the verdicts and reason codes in code, with no hand step, an
 | Verdict | Wording (bounded to: players who played; within position; FantasyPros consensus; these seasons) |
 |---|---|
 | `rule_1 = not_established` | "Against same-week expert rankings our estimate is D (95% CI …). A directional claim is not established under the pre-specified checks because <reason codes in words>." |
-| `rule_1 = behind` / `ahead` | "Behind" / "ahead of" same-week expert consensus: D (95% CI …), consistent across seasons and leave-one-season-out, on 2023–25 only. |
+| `rule_1 = behind` / `ahead` | "Behind" / "ahead of" same-week expert consensus: D (95% CI …), in at least 2 of 3 seasons and in every leave-one-season-out estimate, on 2023–25 only (week-resampling conditional on these seasons; within-season serial dependence not modelled). |
 | `rule_1 = insufficient` | "Not established: too little same-week data." |
-| `rule_2 = established` | The RB edge is restated with the new numbers for both samples and the same bound. |
+| `rule_2 = established` | The RB edge is restated with the new numbers for both samples and the same bound, including the conditional-on-these-seasons and serial-dependence qualification. |
 | `rule_2 = not_established` / `insufficient` | The RB edge is retracted, with the reasons in words. |
 
 **Files:** `site/about.html` (the correction block and section), the `site/weekly.html` footer, and
@@ -640,7 +690,15 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
   - non-finite values in evaluated fields only;
   - inverted quantiles;
   - zero or duplicate schedule joins;
-  - identity collisions found by the two-call wrapper, with the collided player removed;
+  - identity collisions via `map_consensus_rows`:
+    - a tied pair (`ecr` 5, 5);
+    - a group of three (5, 7, 9), where all three keys count;
+    - two groups;
+    - a collision overlapping another invalidity reason, counted once;
+    - reconciliation with `gsis_collisions`, and a mismatch fails;
+    - astra's 250-key case: 3/250 = 1.2% → `validation_failed`;
+  - the `attach_gsis` refactor: identical output (frame and stats) before and after, on snapshots with ties,
+    collisions, id/name/name-only matches and unmatched rows;
   - exactly 1% → pass; just above 1% → `validation_failed`;
   - one key failing several rules is counted once.
 
@@ -650,6 +708,11 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 - Leave-one-season-out values.
 - **Every Rule 1 branch, with reason codes:**
   - `D = −0.04`, CI `[−0.10, +0.02]` → `not_established` / `interval_includes_zero`, never a tie;
+  - Rule 2 with RB CI wholly below 0 → `interval_opposite_side`;
+  - `D == 0` → `zero_estimate` with both checks' codes;
+  - a leave-one-season-out delta of exactly 0 → `leave_one_season_out_zero`;
+  - the reachability example: three seasons of cell deltas in `[+0.02, +0.06]` plus a positive sensitivity →
+    `ahead`, and the reflected case → `behind`;
   - CI excluding zero but one season win → `season_inconsistent`;
   - astra's construction (season deltas `+0.120, −0.010, +0.001`, CI above 0, 2 wins) → `not_established` /
     `leave_one_season_out_reversal`;
@@ -666,14 +729,26 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 
 ### 7.3 `live_accuracy.py`
 
-- **Main-line binding (synthetic run records and history):**
-  - bound bot commit, run completed before cutoff → candidate;
-  - bot commit on a feature branch merged into main **after** the cutoff (no main run binding) → rejected;
-  - bot commit whose run is on a non-main branch → rejected;
-  - failed run → rejected;
-  - run completed after the cutoff although committed before it → rejected;
-  - hand-made commit → rejected;
-  - a commit that doesn't change `site/data/weekly.json` in `C^1..C` → not a candidate.
+- **Evidence tiers (synthetic ledger, run inventory and history):**
+  - **`exact_push`:**
+    - a ledger push to main with `after == C` before the cutoff → candidate;
+    - a push after the cutoff → not before the cutoff;
+    - a force_push affecting `C` → `publication_evidence_unavailable`.
+  - **astra's sibling case:** main run `R` produces `P`; a feature-branch run from the same head produces `F`; `F` is
+    merged after the cutoff.
+    - Under `exact_push`, `F` has no ledger push before the cutoff → not a candidate.
+    - Under `inventory_proxy`, the non-main run makes the tier unavailable → `publication_evidence_unavailable`.
+  - **`inventory_proxy` conditions:**
+    - an incomplete inventory (retrieved count < `total_count`) → unavailable;
+    - a `total_count ≥ 1000` partition path;
+    - a re-run attempt before the cutoff → unavailable;
+    - a success-then-failed re-run → unavailable;
+    - no main run with `head_sha == C^1` → unavailable;
+    - a rebased bot commit → unavailable (disclosed false negative).
+  - **Commit filters:** a hand-made commit → rejected; a commit that doesn't change `weekly.json` in `C^1..C` → not
+    a projection candidate.
+  - **Week labels:** `publication_evidence_unavailable` is kept distinct from `weeks_unpublished`.
+  - **Ledger merge:** appends by `id`, never deletes, and orders deterministically.
 - **Cutoff:** strict `<` on `available_by`; the newest qualifying commit wins; a wrong-week payload is skipped;
   `weeks_unpublished`.
 - **Neutral/legacy equivalence:** passes within 0.01; a divergence fails, listing the players.
@@ -762,3 +837,16 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 | N8 historical overlap diagnostic | §4.4 (B)-specific definition |
 | M4 implicit time inputs | §4.6 `evaluator_version`, `main_sha`; provisional only in `run.json`; the summary has no time-dependent content |
 | M5 the 13-week count | §6.6 `old_protocol_staleness_audit` with definition and list; §6.7 copy uses it |
+
+### Draft 3 → draft 4 (astra round 3)
+
+| Finding | Resolution |
+|---|---|
+| R3-I1 parent ≠ output (sibling commit) | §4.1 two tiers. `exact_push` uses an activity-API push with `after == C`, persisted in a committed ledger. `inventory_proxy` needs a complete run inventory with no non-main runs and no re-runs before the cutoff. Neither → `publication_evidence_unavailable`. §7.3 sibling fixture |
+| R3-I2 mutable evidence set | §4.1: all statuses and attempts; a completeness check against `total_count`, with date partitioning at 1000 or more; re-runs make the proxy unavailable; evidence recorded per week; ledger append-only; rebase shape disclosed; §7.3 fixtures |
+| R3-I3 lossy collision audit | §2 `map_consensus_rows` refactor (byte-identical `attach_gsis`); §3.7 whole-group invalidation, ties included, reconciliation with `gsis_collisions`; §7.1 fixtures |
+| Minor: `main_sha` churn | §4.6: the pinned sha lives only in `run.json` |
+| Minor: reason codes | §6.5 `interval_opposite_side`, `zero_estimate`, `leave_one_season_out_zero` |
+| Minor: public qualification | §6.7 wording carries "at least 2 of 3 seasons and every leave-one-season-out estimate" and the conditional / serial-dependence bound |
+| Minor: duplicate definition | §3.7 exact duplicates also require identical eligibility, join and grouping fields; the empty-table fraction is defined |
+| Minor: provenance wording | §4.5 "later evidenced availability"; §4.3 archive-only commits qualify, using the "adds this archive" requirement |
