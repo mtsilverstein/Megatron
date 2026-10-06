@@ -107,6 +107,21 @@ box-score modeling closes a gap that is mostly about availability.
 
 ### Where it holds its own: weekly
 
+> **Correction (2026-10-06).** Every expert comparison in this subsection used
+> the wrong week's consensus. `weekly_rankings.weekly_snapshot` takes the latest
+> nflverse scrape in the seven days before week N's first kickoff, and nflverse
+> scrapes FantasyPros on Fridays — so that scrape is the *previous* Friday's,
+> i.e. week N−1's rankings, made before week N−1's games and injury news. A
+> bye-week check confirms it: in all 13 discriminating weeks of 2023–25 the
+> snapshot ranked week N−1's slate, never week N's. The experts were scored a
+> week stale, which biases every delta below in the model's favour, including
+> the RB replication. First same-week evidence (2026 weeks 3–4, from snapshots
+> this site captured before kickoff): model 0.498 vs consensus 0.515, delta
+> −0.017, 95% interval [−0.042, +0.006], 8 cells — too few to conclude. Until a
+> pre-registered re-measurement against same-week rankings exists, the tie and
+> the RB edge are **not established**. The original text is kept below as the
+> record.
+
 Over a one-week horizon, the injury report is already public and the
 availability edge largely evaporates. Measured against **weekly** expert
 consensus (conditional on players who played), the model is a **statistical
@@ -228,9 +243,10 @@ that was never checked.
 
 ## 6. What the model is genuinely good for
 
-- **A free, transparent weekly projector at parity with a paid expert panel**,
-  conditional on availability — and measurably *ahead* of it at running back,
-  an edge confirmed out-of-sample (§3).
+- **A free, transparent weekly projector** that beats its own baselines
+  (§3). Its standing against a paid expert panel is being re-measured: the
+  earlier "parity" and running-back edge were scored against week-old expert
+  rankings (see the §3 correction).
 - **Calibrated floor/ceiling bands.** Held-out weekly coverage sits inside a
   0.75–0.85 target for every position; ADP and ECR give a single number, this
   gives a distribution. That is a real product difference neither benchmark
