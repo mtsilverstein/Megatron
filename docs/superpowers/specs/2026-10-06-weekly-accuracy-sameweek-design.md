@@ -1,9 +1,9 @@
 # Weekly accuracy tracking and same-week expert benchmark — design
 
-**Status:** draft 4 (2026-10-06). The owner approved the design section by section in conversation. Astra returned
-REVISE on drafts 1–3 (`.review/astra-weeklyacc-spec-response.md`, `-r2-response.md`, `-r3-response.md`). §10 maps
+**Status:** draft 5 (2026-10-06). The owner approved the design section by section in conversation. Astra returned
+REVISE on drafts 1–4 (`.review/astra-weeklyacc-spec-response.md`, `-r2-response.md`, `-r3-response.md`). §10 maps
 every finding to its resolution. Round 3 accepted §5.2's selection and §6.5's directional rules, and it found the
-leave-one-season-out requirement conservative but reachable. Draft 4 awaits an astra re-review and the owner's
+leave-one-season-out requirement conservative but reachable. Draft 5 awaits an astra re-review and the owner's
 review.
 
 ## 1. Why
@@ -251,70 +251,107 @@ other.
 
 ## 4. (A) Live weekly accuracy — `live_accuracy.py`
 
-### 4.1 Projection: repository proxy for what was published
+### 4.1 Projection: what the pipeline published, with an explicit evidence tier
 
-The estimand is the projection in the main-line data pipeline's latest publication before the week's cutoff. It is
-labelled `evidence: "repo_proxy"`, because Vercel deployment success and time are not verified. The site deploys main
-on push, so this is a close proxy, not proof.
+The estimand is the bot pipeline's latest publication on main before the week's cutoff. Each week carries one of two
+evidence tiers:
 
-- **Candidates:** commits `C` reachable from a pinned `origin/main` sha (`git rev-list`) that satisfy all of:
-  - `C` changes `site/data/weekly.json`, checked by `git diff --name-only C^1 C` rather than simplified path history;
-  - `C`'s author and committer names are both `weekly-update-bot`;
-  - `C` has a publication-evidence tier below.
+- `exact_push`: GitHub's push record proves main reached that commit before the cutoff.
+- `retrospective`: timing is unverified, with a different stated estimand.
 
-  The pinned sha is recorded only in `run.json` (§4.6).
+Neither tier verifies Vercel deployment. The site deploys main on push, so main state is a close proxy for what was
+served, not proof of it.
 
-- **Tier `exact_push` (preferred):** the push ledger (below) holds a push to `refs/heads/main` whose `after == C`
-  and whose `timestamp` is strictly before the cutoff. `available_by` = that timestamp. This is GitHub's own record
-  that main's head became exactly `C` at that time.
-  - Example: `d43adc4` was pushed to main at 2026-09-30T21:32:42Z, per the activity API, checked 2026-10-06.
+- **Candidates.** A candidate is a commit `C` that satisfies all of:
+  - it comes from either source:
+    - the commits reachable from a pinned `origin/main` sha (`git rev-list`), or
+    - the `after` shas of the main push ledger, which must exist locally. A ledger sha that cannot be fetched makes
+      the week `publication_evidence_unavailable`;
+  - it changes `site/data/weekly.json`, judged by `git diff --name-only C^1 C` rather than simplified path history;
+  - its author and committer names are both `weekly-update-bot`.
 
-- **Tier `inventory_proxy` (only where the ledger has no coverage):** applies only when every condition holds:
-  - **Complete inventory.** The run list for workflow `weekly-update.yml` (all branches, all statuses, all attempts)
-    was retrieved in full: retrieved count = the API's `total_count`. If `total_count ≥ 1000`, the query is
-    partitioned by `created` date ranges until each partition is complete. If the inventory can't be completed,
-    the tier is unavailable.
-  - **No other-branch runs.** No run of that workflow on a non-`main` branch has `created_at` before the cutoff, so
-    no sibling bot commit can exist.
-  - **No re-runs.** No run with `run_attempt > 1` exists before the cutoff.
-  - **A binding run exists:** a `main` run with `head_sha == C^1`.
-  - `C`'s committer time is strictly before the cutoff. `available_by` = that committer time, labelled
-    `committer_time_proxy`.
+  The pinned sha is recorded only in `run.json` (§4.6). Each week then gets exactly one **evidence tier**:
+  `exact_push` if possible, otherwise `retrospective`, otherwise `publication_evidence_unavailable`. The tiers are
+  never pooled (§4.2–§4.6).
 
-  On these conditions `weekly-update-bot`, the only writer of that name, could only have produced `C` in a main run.
-  Any reachable such commit was pushed, because a failed push leaves no commit in the repository. Verified
-  2026-10-06: 59 runs, `total_count` 59, all on `main`, all attempt 1.
+- **The push ledger** (`models/diagnostics/main_push_ledger.json`) has two parts.
+  - **Events.** Every run of the weekly accuracy job reads
+    `GET /repos/{owner}/{repo}/activity?ref=refs/heads/main`, every activity type, cursor-paginated to the end. It
+    merges in **every** returned event: `id`, `ref`, `timestamp`, `before`, `after`, `activity_type`, `actor`.
+    There is no author filter, so force-pushes to non-bot commits are kept. Events are deduplicated by `id`, never
+    deleted or edited, and sorted.
+  - **Coverage.** Each collection appends one interval `[t_start, t_end]`:
+    - `t_end` is the collection time;
+    - `t_start` is the oldest event timestamp returned when pagination reached the API's end of history;
+    - if pagination was cut short, `t_start` is the oldest event actually seen.
 
-- **Neither tier:** the week is listed under `publication_evidence_unavailable`, distinct from `weeks_unpublished`
-  (no candidate payload for the week at all). Missing evidence is never reported as non-publication.
+    Covered time is the union of these intervals. A gap between them is uncovered.
 
-- **The ledger: `models/diagnostics/main_push_ledger.json`.**
-  - **What goes in:** every run of the weekly accuracy job fetches `GET /repos/{owner}/{repo}/activity` filtered to
-    `ref=refs/heads/main`, `activity_type` push/force_push, paginated. It merges in records whose `after` commit is
-    a `weekly-update-bot` commit: `id`, `timestamp`, `before`, `after`, `activity_type`, `actor`.
-  - **Rules:** entries are deduplicated by `id` and never deleted or edited. A `force_push` record makes every week
-    whose selected commit it affects `publication_evidence_unavailable`. The ledger is sorted, so it is
-    deterministic.
-  - **Why it's committed:** the activity API's retention is limited. On 2026-10-06 it reached back only to
-    2026-09-24. So the ledger is the durable record.
-  - **Coverage:** recorded as the earliest ledger timestamp. Weeks whose cutoff falls before ledger coverage use
-    `inventory_proxy` or nothing. For 2026, weeks 1–3 are expected to be `inventory_proxy` and weeks 4 onward
-    `exact_push`.
+- **Tier `exact_push` (proven).** The week's selected commit is the latest pre-cutoff publication, determined from
+  the ledger alone:
+  1. **Coverage:** the interval from the week's latest pre-cutoff publication push to the cutoff is fully covered.
+     So no newer pre-cutoff publication, and no force-push, can have been missed.
+  2. **Selection:** within that covered interval, take the latest push event on `refs/heads/main` that is strictly
+     before the cutoff and whose `after` is a candidate with a `season == S`, `week == N` payload. That `after` is
+     the selected commit `C`, and `available_by` is the event's timestamp.
+     - This is GitHub's server record that main's head became exactly `C`.
+     - Several events with the same `after` → the earliest is used.
+     - Events with equal timestamps → order by `id`.
+  3. **Force-pushes:** if any `force_push` on `refs/heads/main` falls in `[available_by, cutoff)`, main's content
+     at the cutoff is not established, and the week is `publication_evidence_unavailable`. A force-push before
+     `available_by` does not matter: the selected push came later. A force-push after the cutoff does not change
+     what was published before it.
+  4. **Gaps:** if the coverage condition fails, the week is not `exact_push`. An older evidenced push is never
+     promoted to "latest" across an uncovered gap.
 
-- **Cutoff:** `available_by` strictly before `K_N` 00:00 UTC. This is a common pre-week cutoff for every player. It
-  is conservative by up to one day and symmetric with the date-level expert snapshots. It is not a per-player
-  latest-before-game publication.
+  **Example:** `d43adc4` (week 4) was pushed to main at 2026-09-30T21:32:42Z, per the activity API, checked
+  2026-10-06.
+
+- **Tier `retrospective` (labelled, unverified timing).** This is used only when `exact_push` is impossible
+  because the cutoff is before the ledger's earliest coverage. Its estimand is different and is stated wherever it
+  appears: **"bot-pipeline content committed before the cutoff and found on main afterwards; whether it was on main
+  before the cutoff is not verified."** It applies when all of these hold:
+  - **Committer time:** `C`'s committer time is strictly before the cutoff. This is a lower bound on push time, not
+    an upper bound.
+  - **Selection:** `C` is the latest such candidate with a `season == S`, `week == N` payload. Equal committer
+    timestamps → order by sha, recorded as `tie_break: "arbitrary_sha"`.
+  - **Retained run inventory:** the `weekly-update.yml` run inventory, as retained in
+    `models/diagnostics/weekly_update_run_inventory.json`, contains no run on a non-`main` branch with
+    `created_at` before the cutoff.
+  - **No re-runs:** no run with `created_at` before the cutoff was ever observed with `run_attempt > 1`.
+  - **A supporting run:** at least one `main` run with `head_sha == C^1` exists. The full supporting set is
+    recorded, and no producer identity is claimed.
+
+  The inventory file is written as follows:
+  - Each weekly accuracy run fetches all runs of the workflow (all branches, statuses and attempts) and checks that
+    the retrieved count equals `total_count`, partitioning by `created` date if it is 1000 or more.
+  - It merges, never deletes: per run it keeps `id`, `head_branch`, `head_sha`, `created_at`, `conclusion`, and the
+    maximum `run_attempt` ever observed.
+  - Each fetch also appends a record of when it ran, whether it was complete, and its `total_count`.
+
+  So a run deleted upstream stays in our evidence. A re-run observed later withdraws the retrospective tier for
+  affected weeks. That is conservative and disclosed. The prior decision stays visible in git history and in the
+  artifact's `evidence_revisions` list.
+
+  **Stated assumption:** runs deleted before our first inventory fetch (2026-10-06, 59 runs, all on `main`, all
+  attempt 1) cannot be detected.
+
+  A bot commit rebased onto a newer head fails `head_sha == C^1`. That is a disclosed false negative; the check is
+  never loosened to ancestry.
+
+- **Neither tier** → the week is `publication_evidence_unavailable`, distinct from `weeks_unpublished`, which means
+  no candidate payload for the week exists at all. Missing evidence is never reported as non-publication.
+
+- **Cutoff:** `K_N` 00:00 UTC, a common pre-week cutoff for every player. It is symmetric with the date-level expert
+  snapshots, and it is not a per-player latest-before-game publication.
 - **Estimand:** the bot pipeline's publications. Hand-made data pushes are excluded by design, and all wording says
   "the projections our automated pipeline published".
-- **Selection:** take the candidate with the latest `available_by` whose payload has `season == S` and
-  `week == N`.
-- **Recorded per week:** the evidence tier, plus the evidence itself: the ledger entry id, or the run id and the
-  inventory count.
+- **Recorded per week:** the tier, plus the evidence itself:
+  - for `exact_push`, the ledger event id and the covering intervals;
+  - for `retrospective`, the supporting run ids and the inventory fetch record.
 - **Fields:** `players[].points.ppr.{p10,p50,p90}` by `player_id`.
-- **No candidate for the week:** listed under `weeks_unpublished`.
-- **Rebased publications:** a bot commit rebased onto a newer main head fails `head_sha == C^1` in the proxy tier.
-  The current `weekly-update.yml` pushes bare with no rebase, so this is a disclosed false-negative shape, never
-  loosened to generic ancestry. Under `exact_push` it is handled by the ledger.
+
+**Expected for 2026:** weeks 1–3 `retrospective` (the ledger starts 2026-09-24), and week 4 onward `exact_push`.
 
 **Page source and equivalence.** Since 2026-10-06 `weekly.html` renders from `site/data/neutral/weekly.json`. When
 the selected commit also contains `site/data/neutral/weekly.json` from the same batch:
@@ -334,6 +371,15 @@ Git access goes through one injectable function, so tests feed a synthetic histo
 
 The population is the played population ∩ valid projection rows. Unprojected players are counted, not imputed:
 count, share and mean actual, by week and by position.
+
+**Tier separation:** every pooled figure in §4.2–§4.4 is computed three ways, each labelled:
+
+- `exact_push` weeks only, the headline;
+- `retrospective` weeks only;
+- all weeks, marked `mixed_evidence`.
+
+Per-week rows carry their tier. The summary's headline line uses `exact_push` and states how many weeks the other
+groups hold.
 
 Metrics are reported per week, per position, and pooled:
 
@@ -366,16 +412,19 @@ The pool is **played ∩ valid published projection ∩ valid expert row**. Rete
 - **Content-existence bound:**
   - Find the archive's first-adding commit `C` by scanning the pinned main history for commits whose `C^1..C` diff
     adds the path.
-  - `C` must be a `weekly-update-bot` commit with a §4.1 evidence tier (`exact_push` or `inventory_proxy`), judged
-    exactly as for projections except that the `weekly.json`-change requirement is replaced by "adds this archive".
-    Archive-only refresh commits therefore qualify.
-  - `available_by` is that tier's time.
+  - `C` must be a `weekly-update-bot` commit that gets a §4.1 evidence tier. Two substitutions apply:
+    - "adds this archive" replaces the `weekly.json`-change requirement, so archive-only refresh commits qualify;
+    - the latest qualifying archive (below) replaces the latest week-N payload.
+  - **`exact_push`:** a ledger push event to main whose `after` has `C` as an ancestor-or-self, timestamped before
+    the cutoff. The ledger must cover the interval from that event to the cutoff. `available_by` is the event time.
+  - **`retrospective`:** `C`'s committer time is before the cutoff, with the §4.1 inventory conditions.
+    `available_by` is the committer time, labelled `committer_time_lower_bound`.
   - This bounds when the content existed in the main-line repository. It is **not** a capture time: retrieval may
     have been earlier. Archives strip `retrieved_at`, and their own note says date-only provenance.
   - The evaluated content is the blob at that commit (`git show C:path`). Its sha256 prefix must equal the
     filename's 16-hex digest under `live_experts`'s naming rule (sha256 of the encoded payload). A mismatch is a
     validation error.
-- **Qualifying set:** archives with `season == S`, `week == N`, a §4.1 evidence tier and `available_by` strictly before
+- **Qualifying set:** archives with `season == S`, `week == N`, an evidence tier and `available_by` strictly before
   `K_N` 00:00 UTC.
 - **Selection:** the qualifying archive with the latest `available_by`, the policy "latest first-committed
   qualifying content". If two or more archives share the latest `available_by` (for example, added in one commit),
@@ -436,7 +485,8 @@ These are conditional diagnostics, not causal decompositions. Content and source
 
 Version identity in the main artifact:
 
-- `evaluator_version`: `protocol_version` plus the sha256 of the three new module sources;
+- `evaluator_version`: `protocol_version` plus the sha256 of the three new module sources and of
+  `src/ffmodel/data/rankings.py`, which holds `map_consensus_rows`;
 - the selected publication shas, with their evidence records.
 
 Neither the pinned main sha nor the report-writing HEAD is recorded there. The pinned sha moves with every commit,
@@ -509,8 +559,8 @@ For week N of season S:
   - Every candidate, including the ones not selected, is recorded.
 - **Population:** played rows of week N whose player game date is **strictly after** the selected scrape date. This
   gives date-level safety for every retained player's outcome.
-- **Matching:** consensus rows map to `player_id` through the §3.7 collision-audited wrapper around the unchanged
-  `attach_gsis`. The pool is the date-eligible played rows ∩ model predictions ∩ matched consensus. The model
+- **Matching:** consensus rows map to `player_id` through the §3.7 collision audit and `attach_gsis`. After the §2
+  behaviour-preserving refactor, its matching is unchanged. The pool is the date-eligible played rows ∩ model predictions ∩ matched consensus. The model
   predicts every feature row, so predictions are always defined.
 - **Retention reporting:** by season, week, position and game day; excluded early-game players; match rate.
 
@@ -572,7 +622,7 @@ A **directional check** for sign `σ` (+ or −) on a set of cells passes only i
 
 | # | Requirement | Reason code if it fails |
 |---|---|---|
-| (a) | `ci_week` lies entirely on the `σ` side of 0 | `interval_includes_zero` (it straddles 0) or `interval_opposite_side` |
+| (a) | `ci_week` lies strictly on the `σ` side of 0 | `interval_includes_zero` when `lo ≤ 0 ≤ hi` (touching intervals like `[0, b]` and `[0, 0]` included), else `interval_opposite_side` |
 | (b) | at least 2 of the 3 seasons have `D_season` on the `σ` side | `season_inconsistent` |
 | (c) | every leave-one-season-out `D_{−s}` is strictly on the `σ` side | `leave_one_season_out_reversal` (opposite sign) or `leave_one_season_out_zero` |
 | (d) | the sensitivity exists (≥ 1 cell) and its `D` is on the `σ` side | `sensitivity_absent` or `sensitivity_disagrees` |
@@ -685,7 +735,8 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 - **Regression record:** on the same synthetic data, `weekly_rankings.weekly_snapshot` selects the week-(N−1)
   scrape. `old_protocol_staleness_audit` lists it as contradicted.
 - **Validation (§3.7):**
-  - exact duplicates collapse;
+  - exact duplicates collapse before collision counting. Reconciliation with `gsis_collisions` uses the same
+    duplicate-normalised frame, and invalidity masks are kept until collision groups and unions are counted;
   - conflicting duplicates invalidate the whole group, before features are built;
   - non-finite values in evaluated fields only;
   - inverted quantiles;
@@ -729,26 +780,36 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 
 ### 7.3 `live_accuracy.py`
 
-- **Evidence tiers (synthetic ledger, run inventory and history):**
+- **Evidence tiers (synthetic ledger, inventory and history):**
   - **`exact_push`:**
-    - a ledger push to main with `after == C` before the cutoff → candidate;
-    - a push after the cutoff → not before the cutoff;
-    - a force_push affecting `C` → `publication_evidence_unavailable`.
-  - **astra's sibling case:** main run `R` produces `P`; a feature-branch run from the same head produces `F`; `F` is
-    merged after the cutoff.
-    - Under `exact_push`, `F` has no ledger push before the cutoff → not a candidate.
-    - Under `inventory_proxy`, the non-main run makes the tier unavailable → `publication_evidence_unavailable`.
-  - **`inventory_proxy` conditions:**
-    - an incomplete inventory (retrieved count < `total_count`) → unavailable;
-    - a `total_count ≥ 1000` partition path;
-    - a re-run attempt before the cutoff → unavailable;
-    - a success-then-failed re-run → unavailable;
-    - no main run with `head_sha == C^1` → unavailable;
-    - a rebased bot commit → unavailable (disclosed false negative).
+    - a covered push to main with `after == C` before the cutoff → selected;
+    - a push after the cutoff → not selected;
+    - several events for one sha → the earliest; equal timestamps → ordered by `id`;
+    - a newer publication push inside a coverage gap → not `exact_push`, and the older push is not promoted;
+    - a `force_push` (to a non-bot target) in `[available_by, cutoff)` → `publication_evidence_unavailable`;
+    - a force_push before `available_by`, or after the cutoff → no effect;
+    - removal and later restoration of `C` by force-pushes inside the window → unavailable;
+    - a ledger `after` sha that isn't available locally → unavailable.
+  - **The commit-before / push-after case (astra R4-I1):** `C` is committed at 23:59:59 before the cutoff and
+    pushed at 00:00:02 after it, and an older week-N publication was pushed earlier.
+    - `exact_push` selects the older publication.
+    - Under `retrospective`, `C` is selected but labelled with the unverified-timing estimand.
+  - **Sibling case (R3-I1):** a feature-branch run's commit `F` is merged after the cutoff. There's no ledger push
+    for `F` before the cutoff, and the inventory has a non-main run → `F` is never selected.
+  - **`retrospective` conditions:**
+    - an incomplete fetch fails the job and writes nothing;
+    - the partition path when `total_count ≥ 1000`;
+    - a run observed with `run_attempt > 1` (including a re-run that started after the cutoff) → withdrawn, and
+      recorded in `evidence_revisions`;
+    - a run deleted upstream but kept in the retained inventory → still counted;
+    - no `main` run with `head_sha == C^1` → unavailable;
+    - a rebased bot commit → unavailable (disclosed);
+    - equal committer timestamps → `arbitrary_sha`.
   - **Commit filters:** a hand-made commit → rejected; a commit that doesn't change `weekly.json` in `C^1..C` → not
     a projection candidate.
   - **Week labels:** `publication_evidence_unavailable` is kept distinct from `weeks_unpublished`.
-  - **Ledger merge:** appends by `id`, never deletes, and orders deterministically.
+  - **Ledger and inventory merges:** append-only by id, the coverage-interval union, deterministic order.
+  - **Tier separation:** three pooled figures; the headline uses `exact_push`.
 - **Cutoff:** strict `<` on `available_by`; the newest qualifying commit wins; a wrong-week payload is skipped;
   `weeks_unpublished`.
 - **Neutral/legacy equivalence:** passes within 0.01; a divergence fails, listing the players.
@@ -793,7 +854,10 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 
 ## 9. Risks and limits (stated, not solved)
 
-- `repo_proxy` is a main-line pipeline record bound to Actions runs, not a verified Vercel deployment record.
+- No tier verifies Vercel deployment.
+- `retrospective` weeks (2026 weeks 1–3) do not verify that the content was on main before the cutoff. Committer time
+  is a lower bound on the push. These weeks are reported apart from `exact_push` weeks.
+- Runs deleted upstream before our first inventory fetch are undetectable.
 - `available_by` bounds when content existed on main; it is not a retrieval time.
 - `bye_consistent` is compatibility with week N, not proof of identity, and `unverified` weeks rest on the window
   assumption.
@@ -850,3 +914,15 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 | Minor: public qualification | §6.7 wording carries "at least 2 of 3 seasons and every leave-one-season-out estimate" and the conditional / serial-dependence bound |
 | Minor: duplicate definition | §3.7 exact duplicates also require identical eligibility, join and grouping fields; the empty-table fraction is defined |
 | Minor: provenance wording | §4.5 "later evidenced availability"; §4.3 archive-only commits qualify, using the "adds this archive" requirement |
+
+### Draft 4 → draft 5 (astra round 4)
+
+| Finding | Resolution |
+|---|---|
+| R4-I1 committer time is a lower bound | §4.1: the old proxy is replaced by the `retrospective` tier. Its estimand is "committed before the cutoff, found on main later; pre-cutoff availability unverified", and committer time is labelled a lower bound. `exact_push` needs a ledger push before the cutoff. The tiers are never pooled (§4.2). §7.3 commit-before / push-after fixture |
+| R4-I2 mutable negative evidence | §4.1: the retained, merge-only `weekly_update_run_inventory.json` with fetch records, the maximum `run_attempt` observed, the supporting run set (no producer claim), `evidence_revisions`, and the stated no-pre-fetch-deletion assumption. §7.3 fixtures |
+| R4-I3 ledger filtering and coverage | §4.1: the ledger keeps every main ref event (no author filter) plus coverage intervals. `exact_push` needs coverage from the push to the cutoff. Force-push policy over `[available_by, cutoff)`; candidates include ledger `after` shas; no promotion across gaps. §7.3 fixtures |
+| M1 reconciliation stage | §7.1: the duplicate-normalised frame is used for both paths, and masks are kept until counted |
+| M2 touching-zero intervals | §6.5: `lo ≤ 0 ≤ hi` |
+| M3 timestamp ties | §4.1: the earliest event per sha, events ordered by `id`; `arbitrary_sha` for the retrospective tier |
+| M4 provenance alignment | §5.2 wording; `evaluator_version` includes `rankings.py`; §9 tier wording |
