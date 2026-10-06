@@ -1,12 +1,15 @@
 // tests/formats_fixture.cjs — run with: node tests/formats_fixture.cjs
-// Local-only (spawns the project venv's python), like the other node fixtures.
+// Spawns Python (the project venv locally; $PYTHON in CI).
 const assert = require("assert");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const F = require("../site/assets/formats.js");
 
 const ROOT = path.join(__dirname, "..");
-const PY = path.join(ROOT, ".venv", "Scripts", "python.exe");
+// CI sets PYTHON (ubuntu, project pip-installed); locally fall back to the venv for this OS.
+const PY = process.env.PYTHON
+  || (process.platform === "win32" ? path.join(ROOT, ".venv", "Scripts", "python.exe")
+                                   : path.join(ROOT, ".venv", "bin", "python"));
 const FIX = require("./fixtures/owner_league_settings.json");
 const LABELS = ["f12-1qb-ppr-6", "f10-1qb-ppr-6", "f12-1qb-ppr-4", "f12-sf-ppr-4", "f12-1qb-half-4"];
 const clone = o => JSON.parse(JSON.stringify(o));

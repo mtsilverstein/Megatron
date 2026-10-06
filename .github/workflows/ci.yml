@@ -29,7 +29,13 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: "24" }
+      # formats_fixture.cjs cross-checks formats.js against the Python format
+      # contract, so this job needs the package importable too.
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: pip install -e .
       - name: Run every tests/*_fixture.cjs
+        env: { PYTHON: python }
         run: |
           shopt -s nullglob
           fixtures=(tests/*_fixture.cjs)
@@ -38,7 +44,14 @@ jobs:
             echo "If a fixture was deliberately removed, lower this floor." >&2
             exit 1
           fi
+          # Run them all, then fail: stopping at the first failure hid every
+          # later fixture from CI for days (2026-10-01..06).
+          failed=()
           for f in "${fixtures[@]}"; do
             echo "--- $f"
-            node "$f"
+            node "$f" || failed+=("$f")
           done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "Failed fixtures (${#failed[@]}): ${failed[*]}" >&2
+            exit 1
+          fi
