@@ -1,8 +1,9 @@
 # Weekly accuracy tracking and same-week expert benchmark — design
 
-**Status:** draft 2 (2026-10-06). The owner approved the design section by section in conversation. Draft 1 got
-REVISE from astra (`.review/astra-weeklyacc-spec-response.md`), and every finding is addressed here; §10 maps each
-finding to the section that answers it. Draft 2 awaits an astra re-review and the owner's review.
+**Status:** draft 3 (2026-10-06). The owner approved the design section by section in conversation. Astra returned
+REVISE on draft 1 (`.review/astra-weeklyacc-spec-response.md`) and on draft 2
+(`.review/astra-weeklyacc-spec-r2-response.md`). §10 maps every finding to its resolution. Draft 3 awaits an astra
+re-review and the owner's review.
 
 ## 1. Why
 
@@ -27,9 +28,12 @@ nflverse `load_ff_rankings("all")` scrape in `[kickoff − 7d, kickoff)`. nflver
 Fridays in 2021–26 and Thursdays in 2020, with a few exceptions (§3.6). So that window usually holds the previous
 week's ranking. The evidence:
 
-- My check: 13 of 13 discriminating 2023–25 weeks showed the stale pattern.
-- Astra's independent check, under a stricter definition of "discriminating": 17 of 17 stale, 0 current. The
-  stricter definition requires both adjacent weeks to have non-empty, different bye sets.
+- Two exploratory checks agree, under different definitions of "discriminating":
+  - Mine: 13 of 13 stale (ad hoc thresholds, inclusion list not retained).
+  - Astra's: 17 of 17 stale and 0 current. Here a week counts when both adjacent weeks have non-empty, different bye
+    sets.
+- The reproducible count, with definition, input hash and exact list, is the (B) driver's
+  `old_protocol_staleness_audit` (§6.6). Public copy will cite that.
 - Concretely, the stale pattern means teams on bye in week N are present in the scrape and teams on bye in week
   N−1 are absent.
 
@@ -96,9 +100,10 @@ A week is **`team_presence_complete`** when every REG (week, team) pair in the s
 This is the `prospective.freeze.check_fresh` rule for one week, and it is named for what it actually proves. It is a
 minimum freshness check, not proof that the data is final.
 
-**Provisional data:** scores for a week whose `Z_N` is less than 8 days before the run date are labelled
-`provisional`. The live artifact is recomputed from scratch on every run, so later stat corrections replace
-provisional values. Each run records the actual-data input hashes (§4.6), which makes revisions traceable.
+**Provisional data:** a week whose `Z_N` is less than 8 days before the run's `as_of_date` is `provisional`. This
+flag lives only in `run.json` (§4.6). The live artifact is recomputed from scratch on every run, so later stat
+corrections replace earlier values. Each run records the actual-data input hashes, which makes every revision
+traceable.
 
 ### 3.4 Team-code normalisation for rankings
 
@@ -110,8 +115,8 @@ One explicit mapping, applied to `normalize_weekly_rankings` team values before 
 ```
 
 Codes that are blank or `FA` are ignored for team presence. Any other code not among the season's schedule teams
-after mapping is counted under `unknown_team_codes` and reported. It never contributes presence. If unknown codes
-exceed 2% of a snapshot's rows, the snapshot's identity is `unverified` (§3.5).
+after mapping is counted under `unknown_team_codes` and reported. It never contributes presence. The 2% unknown-code
+rule enters the gate only at step 4 of §3.5.
 
 ### 3.5 Week-identity gate (tri-state)
 
@@ -122,22 +127,30 @@ For a scrape assigned to week N, evaluate each position page separately:
 - `A` = the teams on bye in week N;
 - `B` = the teams on bye in week N−1 (for week 1, `B = ∅`).
 
-With `a = |A ∩ R_P| / |A|` (when `A ≠ ∅`) and `b = |B ∩ R_P| / |B|` (when `B ≠ ∅`), each page is:
+With `a = |A ∩ R_P| / |A|` (when `A ≠ ∅`) and `b = |B ∩ R_P| / |B|` (when `B ≠ ∅`), evaluate in this order:
 
-- **contradicted** if `a > 0.5` or `b < 0.5`;
-- **identified** if it is not contradicted, at least one of `a`, `b` is defined, and every defined value is strictly
-  on the current side (`a < 0.5`, `b > 0.5`);
-- **unverified** otherwise: no byes on either side, or an exact half.
+1. **Absent pages.** A page with no rows is `absent` and takes no further part. If every page is absent, the week
+   state is `unverified` and the week has no ranking rows anyway.
+2. **Per present page:**
+   - `contradicted` if `a > 0.5` or `b < 0.5`;
+   - `bye_consistent` if it is not contradicted, at least one of `a`, `b` is defined, and every defined value is
+     strictly on the current side (`a < 0.5`, `b > 0.5`);
+   - `unverified` otherwise: no byes on either side, or an exact half.
+3. **Week state over the present pages:**
+   - `contradicted` if any present page is contradicted;
+   - `bye_consistent` if all present pages are bye_consistent;
+   - `unverified` otherwise.
+4. **Provenance downgrade:** if unknown codes exceed 2% of the snapshot's QB/RB/WR/TE rows, or any of the four
+   pages is absent, a `bye_consistent` week becomes `unverified`. The downgrade never erases `contradicted`.
 
-Per week:
-
-- **contradicted** if any page is contradicted;
-- **identified** if all four pages are identified;
-- **unverified** otherwise, including a missing page.
+**What `bye_consistent` means:** the bye pattern is compatible with week N, under the window and source assumptions.
+It does not independently prove week identity. With `A = ∅`, for example, another week's page listing the
+returning teams would also pass. The sensitivity in §6.4 is named "bye-consistent only", never "verified".
 
 A week-N ranking omits week-N byes and lists week-(N−1) byes; a stale one shows the reverse. Presence is judged per
-team and per page, so a fresh page cannot mask a stale one, and one unranked depth player cannot flip a count. These
-thresholds are fixed now, before any accuracy delta is seen.
+team and per page, so a fresh page cannot mask a stale one. A team's only row can still flip its presence: the
+majority threshold tolerates errors in a minority of bye teams, and with a single bye team it is deliberately
+strict. These thresholds are fixed now, before any accuracy delta is seen.
 
 Contradicted weeks are always skipped. How unverified weeks are treated is set per analysis in §6.4.
 
@@ -155,15 +168,43 @@ of scope. They are reported as `excluded_legacy_schema`, distinct from "no sourc
 
 ### 3.7 Validation (fail loudly, never shrink silently)
 
-Each case below is an error with a count. A row that fails is excluded and listed, never imputed:
+Validation runs per input table, per (season, week), **before** any join or feature construction:
 
-- duplicate `(season, week, player_id)` in actuals, projections or a consensus snapshot (the duplicates are dropped);
-- non-finite values;
-- quantiles not ordered `p10 ≤ p50 ≤ p90`;
-- a missing or duplicate schedule join.
+| Table | Key | Evaluated fields |
+|---|---|---|
+| actuals (`pull_weekly` rows) | `(season, week, player_id)` | `PREDICTED_STATS` |
+| published projections (§4.1) | `player_id` | `points.ppr.{p10,p50,p90}` |
+| consensus snapshot rows | source id `fp_id` | `ecr` |
+| schedule | `(season, week, team)` | `gameday` |
 
-If more than 1% of a week's rows are excluded for these reasons, that week is skipped with reason
-`validation_failed`.
+**Rules:**
+
+- **Exact duplicates** (identical rows) collapse to one row and are counted as `exact_duplicates`. They are not
+  errors.
+- **Conflicting duplicates** (same key, different evaluated fields) invalidate every row in the group, counted as
+  `conflicting_duplicates`. For actuals this happens before `build_features`, so a duplicate cannot contaminate lag
+  features.
+- **Non-finite values** in the evaluated fields only invalidate that row. Lag features may legitimately be NaN.
+- **Quantile order:** `p10 ≤ p50 ≤ p90` must hold, otherwise the row is invalid.
+- **Schedule join:** a player whose team has zero or several week-N schedule rows is invalid for that week.
+- **Consensus identity collisions:**
+  - `attach_gsis` is unchanged and keeps the best-ranked row when two source rows map to one `player_id`, reporting
+    only a count (`gsis_collisions`).
+  - The wrapper detects which ids collided by calling `attach_gsis` twice: once as-is, once on a copy with `ecr`
+    negated.
+  - A `player_id` whose retained `fp_id` differs between the two calls is a collision. That player is removed from
+    the consensus pool (both rows invalid), counted as `identity_collisions`.
+
+**Threshold:**
+
+- For each table, the excluded fraction is the number of unique keys invalidated for any reason divided by that
+  table's unique keys before validation. Exact duplicates don't count; a key is counted once even if it fails
+  several rules.
+- If any table's fraction exceeds 1% for a (season, week), the week is skipped with reason `validation_failed`.
+  Exactly 1% passes.
+- Counts are reported per reason, per table and per position.
+
+The 1% figure is a data-quality tolerance, not a bound on metric error.
 
 ### 3.8 Ranking metrics (reused) and dependence
 
@@ -205,14 +246,29 @@ The estimand is the projection in the main-line data pipeline's latest publicati
 labelled `evidence: "repo_proxy"`, because Vercel deployment success and time are not verified. The site deploys main
 on push, so this is a close proxy, not proof.
 
-- **Candidates:** commits that touch `site/data/weekly.json` and whose author and committer are both
-  `weekly-update-bot`. That workflow pushes straight to `main`, so its commits were on main at their committer time.
-  Hand-made and feature-branch commits are never candidates. Enumerate with
-  `git log --all --author=weekly-update-bot --format="%H %an %cn %cI" -- site/data/weekly.json`, then keep only
-  commits that are ancestors of `origin/main` (`git merge-base --is-ancestor`).
-- **Cutoff:** committer time strictly before `K_N` 00:00 UTC. This is a common pre-week cutoff for every player. It
+- **Main-line binding, via GitHub Actions run records.** A commit `C` is a candidate only if all of these hold:
+  - `C` changes `site/data/weekly.json`. This is checked by `git diff --name-only C^1 C`, not by simplified path
+    history.
+  - `C`'s author and committer names are both `weekly-update-bot`.
+  - `C` is bound to a run `R` of workflow `weekly-update.yml` with `head_branch == "main"`, `conclusion ==
+    "success"`, and `R.head_sha == C^1`.
+  - `R.updated_at` (completion) is strictly before the cutoff.
+
+  The run checks out its `head_sha` and pushes `C` as that sha's child during the run. So a binding run on main
+  evidences that `C` was pushed to main by the run's completion time. `R.updated_at` is recorded as `available_by`.
+  A bot commit made on a feature branch, or merged into main later, has no such binding and is never a candidate.
+  This holds even when an ancestor today. Example (verified 2026-10-06): `d43adc4`'s parent `0a745b1` is the
+  `head_sha` of run 36779476647 (main, schedule, success, completed 21:32:46Z, six seconds after `d43adc4`).
+- **Candidate enumeration:** all commits reachable from a pinned `origin/main` sha, recorded as `main_sha`. Use
+  `git rev-list main_sha`, then the binding test above. Run records come from
+  `gh api repos/{owner}/{repo}/actions/workflows/weekly-update.yml/runs?branch=main&status=success`, paginated, via
+  an injectable function. The job's `GITHUB_TOKEN` (with `actions: read`) authorises it in CI, and `gh` auth does
+  locally.
+- **Cutoff:** `R.updated_at` strictly before `K_N` 00:00 UTC. This is a common pre-week cutoff for every player. It
   is conservative by up to one day and symmetric with the date-level expert snapshots. It is not a per-player
   latest-before-game publication.
+- **Chosen estimand:** the bot pipeline's publications. Hand-made data pushes are excluded by design, and all
+  wording says "the projections our automated pipeline published".
 - **Selection:** take the newest candidate whose payload has `season == S` and `week == N`.
 - **Fields:** `players[].points.ppr.{p10,p50,p90}` by `player_id`.
 - **No candidate:** the week is listed under `weeks_unpublished`.
@@ -264,24 +320,40 @@ The pool is **played ∩ valid published projection ∩ valid expert row**. Rete
 **Primary: our archived snapshots.** These are `data_snapshots/weekly_ecr/<S>-wNN-*.json` with `season == S` and
 `week == N`; the week is inferred by `live_experts` from complete opponent agreement.
 
-- **Capture evidence:** the archive's first-adding commit (`git log --diff-filter=A`), which must be a
-  `weekly-update-bot` commit on `origin/main`. The archives strip `retrieved_at`, and their own note says date-only
-  provenance. So capture time = the first-adding commit's committer time, labelled `capture: "first_commit"`.
-- **Selection:** the latest-captured archive with capture time strictly before `K_N` 00:00 UTC. Ties cannot occur,
-  because commit times are distinct.
-- **Provenance:** every other qualifying archive is listed with its capture time and coverage.
-- **Sensitivity:** recompute with each other same-week archive whose `snapshot_at` date equals the selected one's,
-  and report the range.
-- **No archive:** the week is skipped and listed. For 2026, weeks 1–2 are expected to be skipped.
+- **Content-existence bound:** the archive's first-adding commit, found by scanning `git rev-list main_sha` for
+  commits whose `C^1..C` diff adds the path. That commit must pass the §4.1 main-line binding, using its run `R`.
+  `available_by = R.updated_at`.
+  - This bounds when the content existed in the main-line repository. It is **not** a capture time: retrieval may
+    have been earlier. Archives strip `retrieved_at`, and their own note says date-only provenance.
+  - The evaluated content is the blob at that commit (`git show C:path`). Its sha256 prefix must equal the
+    filename's 16-hex digest under `live_experts`'s naming rule (sha256 of the encoded payload). A mismatch is a
+    validation error.
+- **Qualifying set:** archives with `season == S`, `week == N`, a valid binding and `available_by` strictly before
+  `K_N` 00:00 UTC.
+- **Selection:** the qualifying archive with the latest `available_by`, the policy "latest first-committed
+  qualifying content". If two or more archives share the latest `available_by` (for example, added in one commit),
+  take the lexicographically first filename, and mark the choice `tie_break: "arbitrary_lexicographic"` in
+  provenance.
+- **Provenance:** every other member of the qualifying set is listed with its `available_by` and coverage.
+- **Sensitivity:** recompute with each other member of the qualifying set, and only those, then report the range.
+- **No qualifying archive:** the week is skipped and listed. For 2026, weeks 1–2 are expected to be skipped.
 
 **Secondary: nflverse same-week.** The §5.2 rule applied to season S. It is reported separately, labelled by
 source. Both sources are FantasyPros mirrors, not independent expert panels.
 
-### 4.4 Old-versus-new overlap diagnostic
+### 4.4 Snapshot-change diagnostics
 
-For weeks with both an archived same-week snapshot and an old-protocol scrape, score both rankings on the identical
-retained player IDs. This separates the timing effect from the population change, and it is a conditional diagnostic
-only.
+These are conditional diagnostics, not causal decompositions. Content and source can change along with timing.
+
+- **Live (A):** for each week that has both a selected archive and an old-protocol nflverse scrape
+  (`weekly_snapshot`), intersect the two matched rankings with the week's three-way live pool. Score both expert
+  lists and the identical published projections on exactly those IDs.
+- **Historical (B):** for each (season, week) with both an old-protocol scrape and a selected same-week scrape:
+  1. Intersect the two matched rankings with the date-eligible played rows and the model predictions (§5.2).
+  2. Score both expert lists and the identical model predictions on exactly those IDs.
+  3. Apply the same per-cell rule to both arms: at least 5 players and finite Spearman in both arms, otherwise the
+     cell is dropped from both.
+  4. Record the overlap losses by reason.
 
 ### 4.5 Operational runs versus the frozen reproduction
 
@@ -316,14 +388,24 @@ only.
 - `reference_context`;
 - `caveats`.
 
-`run_at` lives only in a separate `live_<S>_weekly.run.json`, so identical inputs give a byte-identical main
-artifact.
+`evaluated_commit` is replaced by:
+
+- `evaluator_version`: `protocol_version` plus the sha256 of the three new module sources;
+- `main_sha`;
+- the selected publication shas.
+
+The report-writing HEAD is never recorded.
+
+Time-dependent fields live only in a separate `live_<S>_weekly.run.json`: `run_at`, `as_of_date`, and each week's
+`provisional` flag (§3.3, evaluated against `as_of_date`). That keeps them out of the main artifact. So identical
+data inputs give a byte-identical main artifact, and a provisional-to-final change alone never creates a commit.
 
 `models/diagnostics/live_<S>_weekly.md` is the human summary:
 
 - the cumulative line;
-- a per-week table: week, n, MAE, naive MAE, coverage, below/above, ours vs consensus Spearman or "—", and a
-  provisional flag;
+- a per-week table: week, last game date `Z_N`, n, MAE, naive MAE, coverage, below/above, and ours vs consensus
+  Spearman or "—". There is no provisional flag; that lives in `run.json`, so the summary has no time-dependent
+  content;
 - the caveats.
 
 **CLI:** `python -m ffmodel.eval.live_accuracy --out models/diagnostics/live_2026_weekly.json`. Data is pulled into a
@@ -344,7 +426,7 @@ fresh temporary cache unless `--data-dir` is given.
      push. Never force.
 - **Fail-safe:** any error, the equivalence assertion or the alarm stops the job before the commit. The job never
   writes `site/`.
-- **Permissions:** `contents: write`.
+- **Permissions:** `contents: write`, `actions: read` (run records for the §4.1 binding). `GH_TOKEN: ${{ github.token }}` is set for `gh api`.
 
 ## 5. (B) Same-week reanalysis — primitives
 
@@ -361,133 +443,162 @@ Splits come from `walk_forward_splits`. The model side is unchanged from the ori
 
 For week N of season S:
 
+- **Overlap guard:** if `Z_{N−1} ≥ K_N`, a week-(N−1) game was delayed into week N's dates. Week N is skipped with
+  reason `overlapping_weeks`; no attribution is attempted. No such REG week exists in 2020–25 according to astra's
+  check of the local schedule cache, so this is robustness only.
 - **Window:** `L_N ≤ scrape_date < Z_N`.
   - `L_N` = `Z_{N−1}` + 1 day, the day after week N−1's last game. For week 1, `L_1 = K_1 − 7 days`.
-  - The window is finite and lies inside the season, so it never reaches a later season.
-  - It also admits a pre-first-game scrape in a week whose first game is a Saturday or Sunday.
-- **Candidates:** every scrape date in the window whose week-N identity (§3.5) is not contradicted, and whose
-  eligible pool (below) is non-empty after matching.
-- **Selection:** the **latest** such candidate. If the latest scrape is contradicted or has an empty pool, fall back
-  to the next-latest; every candidate is recorded.
-- **Population:** played rows of week N whose player game date is **strictly after** the scrape date. This applies
-  date-level safety to every retained player's outcome.
-- **Matching:** consensus rows map to `player_id` via `attach_gsis(snapshot, crosswalk)`, unchanged. The pool is
-  played-eligible ∩ projection ∩ consensus. Projections are always defined in (B), because the model predicts every
-  feature row.
+  - The window is finite and inside the season, so it never reaches a later season.
+  - It admits a pre-first-game scrape in a week whose first game is a Saturday or Sunday.
+- **Selection uses metadata only, never outcomes.**
+  - Candidates are the scrape dates in the window that pass two checks using only source and schedule metadata:
+    - their §3.5 week state is not `contradicted`;
+    - at least one week-N game has `gameday` strictly after the scrape date.
+  - Take the latest candidate.
+  - Actual appearance and stat lines are never consulted for selection, and there is no fallback. If the selected
+    scrape yields an empty pool or no scorable cell, the week is skipped with reason `no_scorable_cell`.
+  - Every candidate, including the ones not selected, is recorded.
+- **Population:** played rows of week N whose player game date is **strictly after** the selected scrape date. This
+  gives date-level safety for every retained player's outcome.
+- **Matching:** consensus rows map to `player_id` through the §3.7 collision-audited wrapper around the unchanged
+  `attach_gsis`. The pool is the date-eligible played rows ∩ model predictions ∩ matched consensus. The model
+  predicts every feature row, so predictions are always defined.
 - **Retention reporting:** by season, week, position and game day; excluded early-game players; match rate.
 
 **The estimand, stated in the artifact:** within-position ranking of players who recorded a stat line, were matched,
-and had not yet played at the scrape date. The model's information cutoff is the end of week N−1. The experts' is
-the scrape date, which can include Thursday's game and practice reports. The cutoffs are asymmetric, and the net
-selection effect of excluding early games is **undetermined**. The old and new numbers are different estimands, and
-§4.4's overlap diagnostic is reported for the overlap.
+and had not yet played at the selected scrape date.
 
-Postponed or rescheduled games use their actual schedule `gameday`. A week whose games span another week's window is
-handled by the per-player game-date filter; nothing else is special-cased.
+- The model's information cutoff is the end of week N−1.
+- The experts' cutoff is the scrape date, which can include that week's earlier games and practice reports.
+- The cutoffs are asymmetric. The net selection effect of excluding early games is **undetermined**, and no
+  direction of bias is claimed.
+- Old and new numbers are different estimands. The (B) snapshot-change diagnostic (§4.4) is reported on their
+  overlap.
+
+Postponed or rescheduled games use their actual schedule `gameday`.
 
 ## 6. (B) Pre-registered analysis and decision rules
 
 Everything in this section is fixed before any (B) number is computed.
 
-### 6.1 Units
+### 6.1 Units and weeks
 
 A **cell** is a (season, week, position) with at least 5 pool players and a finite Spearman for both entrants.
 
-A season's **scorable weeks** are its REG weeks minus week 1. Week 1 has no prior-week byes, and the original
-benchmark's model inputs start at week 2. The denominator is computed from the schedule.
+**Week 1 is included** under the same policy as every other week.
+
+- Week 1 has no prior-week byes, so its gate state is at best `unverified`, and it enters only the primary analysis
+  (§6.4).
+- A season's **target weeks** are all of its REG weeks, from the schedule. They form the sufficiency denominator.
+- The original benchmark's lack of week-1 cells came from the old window having no scrape, not from model inputs:
+  `build_sequences(min_history=0)` predicts every week-1 feature row.
 
 ### 6.2 Sufficiency (per sample)
 
-A sample is **sufficient for Rule 1** if, **in every season**, at least half of the scorable weeks have at least one
-cell.
-
-A sample is **sufficient for Rule 2** if, **in every season**, at least half of the scorable weeks have an RB cell.
-
-Sufficiency is checked first. An insufficient sample yields `insufficient` and takes precedence over every other
-outcome.
+- A sample is **sufficient for Rule 1** if, **in every season**, at least half of the target weeks have at least one
+  cell in the primary analysis.
+- A sample is **sufficient for Rule 2** if, **in every season**, at least half of the target weeks have an RB cell in
+  the primary analysis.
+- Sufficiency is checked first. `insufficient` takes precedence over every other outcome.
 
 ### 6.3 Statistics
 
-All statistics are computed in full precision, as in §3.8. Inputs:
+All statistics use full precision (§3.8):
 
-- `D` and `ci_week` (primary);
-- `wins` = the number of seasons with `D_season > 0`;
-- the leave-one-season-out deltas.
+- `D` and `ci_week`, the primary interval;
+- `D_season` for each season, and `wins` (the number of seasons whose `D_season` has the sign in question);
+- the leave-one-season-out deltas `D_{−s}`;
+- the **bye-consistent-only sensitivity**: `D` computed on `bye_consistent` weeks only, with its cell and season
+  counts.
 
 ### 6.4 Treatment of unverified weeks
 
-- **Primary analysis:** identified and unverified weeks; contradicted weeks are always skipped. Unverified weeks are
-  labelled `inferred_by_window`.
-- **Sensitivity:** identified weeks only. It is reported beside every verdict. If the primary verdict and the
-  sensitivity's sign disagree, the verdict is downgraded (Rules 1 and 2).
+- **Primary analysis:** `bye_consistent` and `unverified` weeks. `contradicted` weeks are always skipped.
+  `unverified` weeks are labelled `inferred_by_window`.
+- **Sensitivity:** `bye_consistent` weeks only. It is reported beside every verdict, with its coverage.
 
 ### 6.5 Rules
+
+A **directional check** for sign `σ` (+ or −) on a set of cells passes only if all of the following hold:
+
+| # | Requirement | Reason code if it fails |
+|---|---|---|
+| (a) | `ci_week` lies entirely on the `σ` side of 0 | `interval_includes_zero` |
+| (b) | at least 2 of the 3 seasons have `D_season` on the `σ` side | `season_inconsistent` |
+| (c) | every leave-one-season-out `D_{−s}` is on the `σ` side | `leave_one_season_out_reversal` |
+| (d) | the sensitivity exists (≥ 1 cell) and its `D` is on the `σ` side | `sensitivity_absent` or `sensitivity_disagrees` |
+
+Every failed requirement's code is recorded, not just the first. The check is sign-symmetric.
 
 **Rule 1, overall (Discovery sample)**, in order:
 
 1. Not sufficient → `insufficient`.
-2. `ci_week` lies entirely below 0, at least 2 of 3 seasons have `D_season < 0`, and the identified-only
-   sensitivity has `D < 0` → `behind`.
-3. `ci_week` lies entirely above 0, at least 2 of 3 seasons have `D_season > 0`, and the sensitivity has `D > 0` →
-   `ahead`.
-4. Otherwise → `inconclusive`.
+2. The directional check for `−` passes → `behind`.
+3. The directional check for `+` passes → `ahead`.
+4. Otherwise → `not_established`, with the reason codes of the check whose sign matches `D`.
 
-There is no `tie` outcome. Parity would need a pre-specified equivalence margin, and none is claimed.
-
-The Replication sample's overall result is reported as numbers, with the same rule computed descriptively.
+There is no `tie` outcome. Parity would need a pre-specified equivalence margin, and none is claimed. The
+Replication sample's overall result is reported with the same rule, computed descriptively.
 
 **Rule 2, running-back edge (new rule, stricter than the original):**
 
-- `established` iff, in **both** samples, all of these hold for RB:
-  - the sample is sufficient for Rule 2;
-  - RB `ci_week` lies entirely above 0;
-  - RB `wins ≥ 2` of 3 (the original pre-registered criterion, from `rb_oos_weekly.json.pre_registered_rule`);
-  - the identified-only RB `D > 0`.
 - `insufficient` if either sample is insufficient for Rule 2.
-- Otherwise `not_established`.
+- `established` iff the directional check for `+` on RB cells passes in **both** samples. Requirement (b) carries
+  the original pre-registered season criterion from `rb_oos_weekly.json.pre_registered_rule`.
+- Otherwise `not_established`, with the reason codes per sample.
+- A failure is not evidence of an RB disadvantage, and no such claim is made.
 
-**Rule 3:** QB, WR and TE are reported as numbers only. No claim is made about them.
+**Rule 3:** QB, WR and TE are reported as numbers only.
 
 **Multiplicity:** Rules 1 and 2 are two separate pre-specified claims, each at 95%. No family-wise correction is
 applied. The artifact states this, and neither rule is added or waived after results are seen.
 
 **Rule 4:** the result is reported as computed. If a defect is found after the run, it is fixed, the analysis is
-re-run, and both results are published with the reason. No parameter in §3, §5 or §6 changes in response to a result.
+re-run, and both results are published with the reason. No parameter in §3, §5 or §6 changes in response to a
+result.
+
+**Scope of any directional claim:** a passing verdict is bounded to week-resampling on these three observed seasons.
+That bound appears in the public wording (§6.7), not only in the JSON.
 
 ### 6.6 Output
 
-The driver computes the verdicts in code, with no hand step, and writes `models/diagnostics/weekly_consensus_sameweek.json`
-containing:
+The driver computes the verdicts and reason codes in code, with no hand step, and writes
+`models/diagnostics/weekly_consensus_sameweek.json`:
 
-- `protocol_version`, and `protocol` (this section, quoted);
-- `inputs`, with hashes;
+- `protocol_version`, and `protocol` (§§3, 5, 6 quoted);
+- `inputs`, with hashes: the rankings cache, the schedules, the weekly actuals, the crosswalk and the model folds;
 - for both samples:
   - overall, per_position, per_season;
   - leave-one-season-out results;
-  - the identified-only sensitivity;
-  - per-week provenance: candidates, the selected scrape, gate states per page, pool sizes and exclusions;
-  - skips;
-- `coverage`, from §3.6;
-- the overlap diagnostic (§4.4) on the overlapping weeks;
+  - the sensitivity, with coverage;
+  - per-week provenance: candidates, selected scrape, per-page gate states, pool sizes, exclusions and skips;
+- `coverage` (§3.6), and the validation counts (§3.7);
+- the (B) snapshot-change diagnostic (§4.4);
 - the old-protocol numbers, read from the two old artifacts and labelled `different_estimand`;
-- `verdicts: {rule_1, rule_2}`.
+- `old_protocol_staleness_audit`: for every 2020–25 week, the old protocol's scrape with its §3.5 state, taking `A`
+  and `B` per the old week. Also the counts and the exact list of discriminating weeks (both `A` and `B` non-empty
+  and different). This replaces the hand counts in §1 with a reproducible record;
+- `verdicts: {rule_1: {value, reasons}, rule_2: {value, reasons_by_sample}}`.
 
 ### 6.7 Copy follow-through (owner approves before push)
 
-| Verdict | Wording |
+| Verdict | Wording (bounded to: players who played; within position; FantasyPros consensus; these seasons) |
 |---|---|
-| `rule_1 = inconclusive` | "Against same-week expert rankings, the difference is not statistically resolved (delta D, 95% CI …)" |
-| `rule_1 = behind` / `ahead` | "behind" / "ahead of" same-week expert consensus, with D and CI |
-| `rule_1 = insufficient` | "not established — too little same-week data" |
-| `rule_2 = established` | the RB edge is restated with the new numbers |
-| `rule_2 = not_established` or `insufficient` | the RB edge is retracted |
+| `rule_1 = not_established` | "Against same-week expert rankings our estimate is D (95% CI …). A directional claim is not established under the pre-specified checks because <reason codes in words>." |
+| `rule_1 = behind` / `ahead` | "Behind" / "ahead of" same-week expert consensus: D (95% CI …), consistent across seasons and leave-one-season-out, on 2023–25 only. |
+| `rule_1 = insufficient` | "Not established: too little same-week data." |
+| `rule_2 = established` | The RB edge is restated with the new numbers for both samples and the same bound. |
+| `rule_2 = not_established` / `insufficient` | The RB edge is retracted, with the reasons in words. |
 
 **Files:** `site/about.html` (the correction block and section), the `site/weekly.html` footer, and
-`docs/methodology.md` §3 and §6. The original text stays visible as the record. The wording is bounded to the
-estimand (players who played; within-position; FantasyPros consensus).
+`docs/methodology.md` §3 and §6. The original text stays visible as the record.
 
-c38e175's correction text also gets this fix: the stale list "was made before that week's Sunday games and
-injuries". The Friday scrape follows that week's Thursday game, so it is not before *all* of that week's games.
+**Also fixed in the same edit:**
+
+- c38e175's text that the stale list "was made before that week's games". It becomes "before that week's Sunday
+  games", because the Friday scrape follows that week's Thursday game.
+- `methodology.md`'s "13 discriminating weeks". It becomes the `old_protocol_staleness_audit` count and its
+  definition.
 
 ## 7. Testing
 
@@ -495,57 +606,97 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 
 ### 7.1 `sameweek.py`
 
-- **Window:** `L_N` / `Z_N` bounds; week 1; the final REG week stays bounded (no next-season scrape is selected);
-  a Saturday-first week admits the preceding Friday.
-- **Selection:** latest candidate; fallback when the latest is contradicted; fallback when the latest has an empty
-  pool; every candidate is recorded.
+- **Window:** the `L_N` and `Z_N` bounds; week 1 (`L_1 = K_1 − 7`). The final REG week stays bounded: no
+  next-season or postseason scrape is selected. A Saturday-first week admits the preceding Friday. An overlapping
+  week is skipped with `overlapping_weeks`.
+- **Selection (metadata only):**
+  - the latest non-contradicted scrape with a later week-N game is selected;
+  - a contradicted latest scrape is passed over in favour of the next one, using metadata only;
+  - a selected scrape with an empty pool is skipped with `no_scorable_cell`, with no fallback;
+  - a selected scrape with a non-empty but all-degenerate pool is also skipped with `no_scorable_cell`;
+  - every candidate is recorded.
 - **Population filter:** a Thursday game is excluded. A Saturday game is excluded with a Saturday scrape and kept
   with a Friday scrape. Postponed-game dates are honoured.
-- **Gate:**
+- **Gate truth table:**
   - stale on both counts → contradicted;
   - stale on `a` only with `B = ∅` → contradicted;
-  - current on both counts → identified;
+  - current on both counts → bye_consistent;
   - exact half → unverified;
   - no byes → unverified;
   - a mixed page set (RB stale, WR fresh) → contradicted;
   - a single mis-teamed row with one bye team → contradicted (documented strictness);
-  - alias codes map correctly;
-  - an unknown code is counted and contributes no presence;
-  - more than 2% unknown → unverified.
+  - a stale page plus more than 2% unknown codes → still contradicted (the downgrade never erases a contradiction);
+  - bye_consistent pages plus more than 2% unknown codes → unverified;
+  - an absent page with `B ≠ ∅`, other pages bye_consistent → unverified (the absent page is not read as `b = 0`);
+  - every page absent → unverified;
+  - another week's page sharing the bye signature (`A = ∅`) → bye_consistent, documenting that this is not proof of
+    identity;
+  - alias codes map; an unknown code is counted and contributes no presence.
 - **Regression record:** on the same synthetic data, `weekly_rankings.weekly_snapshot` selects the week-(N−1)
-  scrape.
-- **Validation:** duplicates, non-finite values, inverted quantiles and bad schedule joins are each counted and
-  excluded; above the 1% threshold the week is skipped.
+  scrape. `old_protocol_staleness_audit` lists it as contradicted.
+- **Validation (§3.7):**
+  - exact duplicates collapse;
+  - conflicting duplicates invalidate the whole group, before features are built;
+  - non-finite values in evaluated fields only;
+  - inverted quantiles;
+  - zero or duplicate schedule joins;
+  - identity collisions found by the two-call wrapper, with the collided player removed;
+  - exactly 1% → pass; just above 1% → `validation_failed`;
+  - one key failing several rules is counted once.
 
 ### 7.2 Statistics and rules
 
 - `ci_week` resamples whole weeks: all positions of a week move together.
-- Leave-one-season-out output.
-- Every Rule 1 branch, including: CI excluding zero but `wins = 1` → inconclusive; sensitivity sign disagreement →
-  inconclusive; `D = −0.04`, CI `[−0.10, +0.02]` → inconclusive, never a tie.
-- Rule 2 with each conjunct failing in turn, and each sample insufficient in turn.
-- Sufficiency counted per season and per position. An RB-poor sample is sufficient for Rule 1 but not Rule 2.
-- Full-precision boundary: a lower bound of `+0.00003` counts as above 0, the same verdict in code paths that round
-  only for display.
-- Alarm path: a negative correlation → `alarm_negative_correlation`, no verdict.
-- n ≤ slots cells are flagged.
+- Leave-one-season-out values.
+- **Every Rule 1 branch, with reason codes:**
+  - `D = −0.04`, CI `[−0.10, +0.02]` → `not_established` / `interval_includes_zero`, never a tie;
+  - CI excluding zero but one season win → `season_inconsistent`;
+  - astra's construction (season deltas `+0.120, −0.010, +0.001`, CI above 0, 2 wins) → `not_established` /
+    `leave_one_season_out_reversal`;
+  - an empty sensitivity → `sensitivity_absent`;
+  - an opposite-sign sensitivity → `sensitivity_disagrees`;
+  - `behind` and `ahead` symmetric cases.
+- **Rule 2:** each requirement failing in turn, in each sample; each sample insufficient in turn.
+- **Sufficiency:** counted per season and per position. An RB-poor sample is sufficient for Rule 1 but not Rule 2.
+  Week 1 is in the denominator, and a week-1 cell is scored when a valid same-week scrape exists.
+- **Full-precision boundary:** a lower bound of `+0.00003` counts as above 0.
+- **Alarm path:** a negative correlation → `alarm_negative_correlation`, no verdict.
+- **Flags:** `n ≤ slots` cells are flagged.
+- **Snapshot-change diagnostic:** both arms are scored on identical IDs, with the same degeneracy handling.
 
 ### 7.3 `live_accuracy.py`
 
-- **Candidate filter:** a branch-only commit with an early timestamp is rejected; a hand-made commit is rejected; a
-  bot commit not on `origin/main` is rejected.
-- **Cutoff:** strict `<`. A commit on `K_N` day is excluded; the newest qualifying commit wins; a wrong-week payload
-  is skipped; `weeks_unpublished`.
-- **Neutral/legacy equivalence:** passes within 0.01; a divergence fails with the players listed.
-- **Expert archive selection:** by first-add capture time; a late-added archive with an old `snapshot_at` is
-  rejected after cutoff; two same-date archives → the later capture is selected and the other is reported in the
-  sensitivity.
-- **Points:** hand-computed metrics; naive fallback; a missing-position fallback raises; no future actuals affect
-  the naive values (lags strictly shifted).
+- **Main-line binding (synthetic run records and history):**
+  - bound bot commit, run completed before cutoff → candidate;
+  - bot commit on a feature branch merged into main **after** the cutoff (no main run binding) → rejected;
+  - bot commit whose run is on a non-main branch → rejected;
+  - failed run → rejected;
+  - run completed after the cutoff although committed before it → rejected;
+  - hand-made commit → rejected;
+  - a commit that doesn't change `site/data/weekly.json` in `C^1..C` → not a candidate.
+- **Cutoff:** strict `<` on `available_by`; the newest qualifying commit wins; a wrong-week payload is skipped;
+  `weeks_unpublished`.
+- **Neutral/legacy equivalence:** passes within 0.01; a divergence fails, listing the players.
+- **Expert archives:**
+  - selection by the latest `available_by`;
+  - a late-added archive with an old `snapshot_at` → excluded;
+  - two archives in one commit → lexicographic choice, flagged `arbitrary_lexicographic`;
+  - the sensitivity uses only the qualifying set;
+  - a content-hash/filename mismatch → validation error;
+  - the content is read from the binding commit, not the working tree.
+- **Points:**
+  - hand-computed metrics;
+  - the naive fallback; a missing-position fallback raises;
+  - lags strictly shifted, so no future actual reaches a naive value;
+  - player-cluster and (week, team)-cluster intervals.
 - **Ranking pool:** the three-way intersection; a week with no RB coverage; empty and all-degenerate cells.
-- **Overlap diagnostic:** both rankings are scored on identical IDs.
-- **Determinism:** two runs on identical inputs give a byte-identical main artifact. The `run.json` differs.
-- **Presence/provisional:** a week missing a team's rows is skipped; provisional labelling.
+- **Live snapshot-change diagnostic:** both arms are scored on identical IDs.
+- **Determinism:**
+  - identical inputs → a byte-identical main artifact and summary;
+  - `run.json` alone differs;
+  - a report-only commit in between → no change;
+  - crossing the provisional age → `run.json` changes only.
+- **Presence:** a week missing a team's rows is skipped (`team_presence_complete`).
 - **Markdown:** the summary renders.
 
 ### 7.4 Acceptance
@@ -567,27 +718,47 @@ All fixtures are synthetic. Each test is hand-computed where it asserts numbers.
 
 ## 9. Risks and limits (stated, not solved)
 
-- `repo_proxy` is not a verified Vercel deployment record.
-- Three seasons per sample is a thin basis for any interval.
+- `repo_proxy` is a main-line pipeline record bound to Actions runs, not a verified Vercel deployment record.
+- `available_by` bounds when content existed on main; it is not a retrieval time.
+- `bye_consistent` is compatibility with week N, not proof of identity, and `unverified` weeks rest on the window
+  assumption.
+- Three seasons per sample, and serial dependence within a season is not modelled.
 - Both expert sources mirror FantasyPros.
-- The historical data vintage is today's nflverse cache. Its hashes are recorded, but it is not the vintage
-  available in-season.
+- The historical data vintage is today's nflverse cache. It is hashed, but it is not the vintage available
+  in-season.
 - (B) reanalyses data that has already been looked at, so it is a correction, not an untouched replication.
 
-## 10. Review trace (astra, draft 1 → draft 2)
+## 10. Review trace
+
+### Draft 1 → draft 2 (astra round 1)
 
 | Finding | Resolution |
 |---|---|
-| C1 publication evidence | §4.1: bot-only commits on `origin/main`, labelled `repo_proxy`; neutral/legacy equivalence assertion; common-cutoff estimand stated |
-| C2 tie fallacy | §6.5: no `tie` outcome; `inconclusive`; §6.7 wording |
-| I1 gate | §3.4 explicit mapping and unknown codes; §3.5 tri-state, per page; §6.4 primary vs identified-only |
-| I2 window | §5.2: finite `[L_N, Z_N)` window; fallback selection; Saturday/Sunday-first weeks |
-| I3 dependence | §3.8: `ci_week` primary; season deltas, wins and leave-one-season-out in the rules |
-| I4 sufficiency and RB rule | §6.1–6.2: per-season, per-position sufficiency; Rule 2 includes the original 2/3 criterion and is labelled new; full precision; multiplicity statement |
-| I5 estimand | §5.2 estimand statement; §4.3 three-way pool; §4.4 overlap diagnostic; hit-rate flags |
-| I6 expert archive provenance | §4.3: first-add commit time; same-date sensitivity |
-| I7 completeness and context | §3.3 `team_presence_complete` and provisional; §3.7 validation; §4.2 references from the artifact (4.32), tails reported |
-| I8 reproduction | §4.5: frozen record with input identities; expected divergence named |
-| M1 cadence and schema | §1 "predominantly"; §3.6 coverage and the legacy-schema exclusion; §6.7 copy fix |
-| M2 determinism | §4.6: `run.json` split; input hashes; `current_nfl_season` |
-| M3 negative-correlation alarm | §3.9: alarm with audit and status; never auto-corrected |
+| C1 publication evidence | §4.1 (draft 3 strengthens it, see N2) |
+| C2 tie fallacy | §6.5: no tie outcome; §6.7 wording |
+| I1 gate | §3.4–3.5 (draft 3 orders it, see N1) |
+| I2 window | §5.2 (draft 3 removes the outcome-based fallback, see N4) |
+| I3 dependence | §3.8 `ci_week` (draft 3 puts leave-one-season-out into the rules, see N6) |
+| I4 sufficiency and RB rule | §6.1–6.2, §6.5 |
+| I5 estimand | §5.2, §4.3, §4.4 (draft 3 defines the historical diagnostic, see N8) |
+| I6 archive provenance | §4.3 (draft 3: content-existence bound, binding and ties, see N3) |
+| I7 completeness and context | §3.3, §3.7 (draft 3 makes it precise, see N7), §4.2 |
+| I8 reproduction | §4.5 |
+| M1 cadence and schema | §1, §3.6, §6.7 |
+| M2 determinism | §4.6 (draft 3, see M4) |
+| M3 alarm | §3.9 |
+
+### Draft 2 → draft 3 (astra round 2)
+
+| Finding | Resolution |
+|---|---|
+| N1 gate precedence and positive state | §3.5 ordered steps 1–4; the downgrade never erases a contradiction; `bye_consistent` naming and meaning; §7.1 fixtures |
+| N2 main-line proof | §4.1 Actions-run binding (`head_branch == main`, `head_sha == C^1`, success, `available_by = updated_at`); `main_sha` pinned; `C^1..C` diff; §7.3 merged-after-cutoff fixture |
+| N3 archive capture | §4.3 `available_by` as a content-existence bound; blob from the binding commit; hash validation; deterministic flagged tie-break; sensitivity restricted to the qualifying set |
+| N4 outcome-based fallback | §5.2 selection by metadata only; no fallback; `no_scorable_cell`; overlap guard |
+| N5 week 1 | §6.1: included under the same policy; rationale corrected |
+| N6 robustness and wording | §6.5 directional check (a)–(d) with leave-one-season-out and reason codes; an absent sensitivity blocks the claim; §6.7 wording carries the reasons and the scope bound |
+| N7 validation precision | §3.7 per-table denominators, group invalidation, pre-feature checks, two-call collision audit, an exact-1% boundary |
+| N8 historical overlap diagnostic | §4.4 (B)-specific definition |
+| M4 implicit time inputs | §4.6 `evaluator_version`, `main_sha`; provisional only in `run.json`; the summary has no time-dependent content |
+| M5 the 13-week count | §6.6 `old_protocol_staleness_audit` with definition and list; §6.7 copy uses it |
