@@ -1,6 +1,6 @@
 # Weekly accuracy tracking and same-week expert benchmark — design
 
-**Status:** draft 7 (2026-10-07; four wording clarifications from plan revision b880f9e: schedule game identity, alarm fixture selection, manifest hash and path, Holm p-value). The owner approved the design section by section in conversation, and on
+**Status:** draft 7.1 (2026-10-07; astra S7-I1–I5 fixes, and four wording clarifications from plan revision b880f9e: schedule game identity, alarm fixture selection, manifest hash and path, Holm p-value). The owner approved the design section by section in conversation, and on
 2026-10-07 approved three additions: a Sleeper comparator kept private until checked, a private data repository for
 third-party snapshots, and a slimmer scope ("smallest trustworthy report").
 
@@ -205,12 +205,21 @@ per (season, week) before any join.
 
 **Stage 1 — raw tables (actuals and schedule), before `build_features`:**
 
+- **Order:** conflicting keys are identified **first**, over the raw multiset of rows.
 - **Exact duplicates** (same key, evaluated fields and eligibility fields) collapse to one row and are counted
-  (`exact_duplicates`). Collapsing happens *before* features are built, so a duplicate cannot distort lag features
-  (astra P3: a duplicated week-2 row changed a week-3 `lag4_carries` from 15.0 to 16.67).
+  (`exact_duplicates`), **only within keys that are not conflicting**. Collapsing happens *before* features are
+  built, so a harmless duplicate cannot distort lag features (astra P3: a duplicated week-2 row changed a week-3
+  `lag4_carries` from 15.0 to 16.67). A conflicting key keeps its entire original multiset, including any rows
+  that repeat each other (astra S7-I2: rows 20, 20, 25 stay three rows, giving 18.75, not 18.33).
 - **Schedule:** the schedule is exploded to `(season, week, team)` sides and validated as its own table. Exact
-  duplicate games collapse without error. Conflicting duplicates (same side, different `gameday` or `game_id`)
-  invalidate that side. A side's game is identified by `gameday` and `opponent` (plus `game_id` when present).
+  duplicate games collapse without error and are counted per week; the count is carried into the artifact.
+  Conflicting duplicates (same side, different `gameday`, `opponent` or `game_id`) invalidate that side. A side's
+  game is identified by `gameday` and `opponent` (plus `game_id` when present).
+- **Schedule dependencies:** `K_N` and `Z_N` are defined only when week N's schedule slice passes the threshold. A
+  computation that uses another week's dates needs that week's slice to pass too: the §5.2 window and overlap guard
+  for week N need weeks N−1 and N. If a needed slice fails, the computation is skipped with `validation_failed`
+  (detail `schedule_dependency_failed`), never computed from the surviving games, and the week-1 fallback
+  `L_1 = K_1 − 7 days` is never used for N > 1 (astra S7-I3).
 - **Conflicting actuals duplicates** (same key, any field different) are **not** dropped: the group stays in the
   `build_features` input exactly as it came from `pull_weekly`, so the model inputs match the original measurements.
   Their keys are recorded in an **invalid-key mask** carried forward to stage 2.
@@ -299,9 +308,12 @@ earliest any Eastern-date `K_N` game starts is 04:00 UTC, so the cutoff precedes
 - its author and committer are both `weekly-update-bot`;
 - it carries a `season == S`, `week == N` payload.
 
-Candidates are **enumerated** from two sources: every commit reachable from the pinned main sha, and every ledger
-event `after` of any activity type together with its first-parent ancestry back to the season lower bound (below).
-A ledger target that cannot be fetched locally is recorded as `unfetchable`.
+Candidates are **enumerated** from two sources: every commit reachable from the pinned main sha, and every commit
+reachable from any ledger event `after` of any activity type (full ancestry). A ledger target that cannot be fetched
+locally is recorded as `unfetchable`. The walk is **never pruned by commit or author timestamps**: those are
+creation times, not publication times, they can be set arbitrarily, and they need not decrease along ancestry
+(astra S7-I1: a commit dated in May and pushed in September is a valid candidate). The only permitted stopping
+point is a commit already visited.
 
 **The push ledger** (`models/diagnostics/main_push_ledger.json`) is collected by every run of the weekly accuracy job:
 
@@ -355,9 +367,14 @@ for the completeness checks.
   `scoring.PPR`.
   - This was verified on batch `2026-10-06T16:11:28Z`: across 1,974 values the maximum difference was 0.005, the
     legacy file's 2-dp rounding.
+- **Neutral validation comes before scoring** (astra S7-I4). A neutral payload is validated on its **full stat
+  vectors** — player identity and duplicates (a key whose records differ in any component is conflicting, even if
+  they score to the same points), every `PREDICTED_STATS` component finite in all three quantiles, including
+  components with zero weight in the scoring format, and `p10 ≤ p50 ≤ p90` per component — and only valid rows are
+  then scored. Validity is never inferred from the scored points.
 - **Equivalence**, when both files exist in the selected commit and come from the same batch (equal `generated_at`,
   season and week):
-  1. both files are validated first (§3.7);
+  1. both files are validated first (§3.7; the neutral one on its full stat vectors);
   2. the sets of valid player IDs must be equal;
   3. for every player and each of p10, p50 and p90, both values must be finite and `|neutral − legacy| ≤ 0.01`.
 
@@ -604,6 +621,13 @@ For week N with a selected publication (§4.1):
   `python -m ffmodel.eval.sleeper_compare --snapshots <private checkout> --live-artifact <public artifact> --out <private checkout>/reports/`
   and pushes `reports/sleeper_<S>.json` and `.md` to the private repository only.
 - It reads the public artifact's selected publications rather than repeating §4.1.
+- **Its stats are a separate data vintage** (astra S7-I5). The private job pulls its own actuals, schedule and
+  crosswalk, so it repeats `team_presence_complete` (§3.3) and §3.7 validation on those inputs. A week the public
+  artifact scored but whose private inputs fail is skipped with `private_inputs_incomplete` or `validation_failed`;
+  the public run's decision is never borrowed. The private report records these skips.
+- **Private provenance:** content hashes of the actuals, schedule and crosswalk actually read, the public artifact's
+  bytes, the manifest, and every selected capture's sha256; its own `evaluator_version` (§4.6, with protocol
+  `sleeper-compare-v1`) and `run_at`.
 
 ## 5. (B) Same-week reanalysis
 
@@ -737,7 +761,8 @@ applied, and the artifact says so.
 
 The verdicts and reason codes are computed in code, with no hand step. The artifact contains:
 
-- `protocol_version`, `evaluator_version` (§4.6), and `protocol` (§§3, 5, 6 quoted);
+- `protocol_version` (`sameweek-v1`), `evaluator_version` (§4.6, built with this artifact's own protocol version, not
+  the live one), and `protocol` (§§3, 5, 6 quoted);
 - `inputs` with content hashes: rankings cache, schedules, weekly actuals, crosswalk, and every model fold artifact
   (path and hash, not only the fold name);
 - for each sample:
@@ -1012,6 +1037,18 @@ All fixtures are synthetic, and numeric assertions are hand-computed.
 | Minor: alarm procedure | §3.9 concrete audit procedure and `--alarm-audited` |
 | Minor: workflow rebase-then-push | §4.7 (the plan is corrected to match) |
 | Minor: naive 4.6757 vs 4.673 | §4.5 row-level explanation at acceptance |
+
+**Astra review of draft 7 and plan b880f9e (2026-10-07, `.review/astra-weeklyacc-spec7-plan-response.md`):**
+
+| Finding | Resolution |
+|---|---|
+| S7-I1 ancestry pruned by committer time | §4.1 full ancestry from every ledger target; no timestamp pruning |
+| S7-I2 mixed exact/conflicting actuals | §3.7 stage 1: conflicting keys first; collapse only non-conflicting groups |
+| S7-I3 failed prior-week schedule | §3.7 schedule dependencies; no `L_1` fallback for N > 1 |
+| S7-I4 neutral validated after scoring | §4.1 full-stat-vector validation before scoring |
+| S7-I5 private run borrows completeness | §4.8.5 separate vintage: own completeness, validation and provenance |
+| Minor: evaluator label | §6.6 own protocol version |
+| Minor: schedule duplicate count lost | §3.7 per-week count carried into the artifact |
 
 **Owner decisions of 2026-10-07:** §4.8 Sleeper comparator, private; private repository for third-party data; the
 "smallest trustworthy report" principle and the cuts above.
