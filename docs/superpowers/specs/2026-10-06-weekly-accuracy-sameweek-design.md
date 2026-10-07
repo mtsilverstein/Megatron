@@ -1,6 +1,6 @@
 # Weekly accuracy tracking and same-week expert benchmark — design
 
-**Status:** draft 7 (2026-10-07). The owner approved the design section by section in conversation, and on
+**Status:** draft 7 (2026-10-07; four wording clarifications from plan revision b880f9e: schedule game identity, alarm fixture selection, manifest hash and path, Holm p-value). The owner approved the design section by section in conversation, and on
 2026-10-07 approved three additions: a Sleeper comparator kept private until checked, a private data repository for
 third-party snapshots, and a slimmer scope ("smallest trustworthy report").
 
@@ -197,7 +197,7 @@ per (season, week) before any join.
 | Table | Key | Evaluated fields | Eligibility / join fields |
 |---|---|---|---|
 | actuals (`pull_weekly` rows) | `(season, week, player_id)` | `PREDICTED_STATS` | team, position |
-| schedule (exploded to one row per team side) | `(season, week, team)` | `gameday`, `game_id` | — |
+| schedule (exploded to one row per team side) | `(season, week, team)` | `gameday`, `opponent` (and `game_id` when the schedule carries one; `pull_schedules` does not) | — |
 | published projections (§4.1) | `player_id` | `p10, p50, p90` (and, for neutral payloads, every stat quantile) | team, position |
 | nflverse consensus rows | `fp_id` | `ecr` | pos, team, mergename |
 | archive consensus rows (§4.3) | `player_id` | `ecr` | position, team |
@@ -210,7 +210,7 @@ per (season, week) before any join.
   (astra P3: a duplicated week-2 row changed a week-3 `lag4_carries` from 15.0 to 16.67).
 - **Schedule:** the schedule is exploded to `(season, week, team)` sides and validated as its own table. Exact
   duplicate games collapse without error. Conflicting duplicates (same side, different `gameday` or `game_id`)
-  invalidate that side.
+  invalidate that side. A side's game is identified by `gameday` and `opponent` (plus `game_id` when present).
 - **Conflicting actuals duplicates** (same key, any field different) are **not** dropped: the group stays in the
   `build_features` input exactly as it came from `pull_weekly`, so the model inputs match the original measurements.
   Their keys are recorded in an **invalid-key mask** carried forward to stage 2.
@@ -271,8 +271,8 @@ In (B), `assert_model_sane` is an alarm:
 
 1. A negative mean model Spearman writes `status: "alarm_negative_correlation"` and no verdict, and the run exits 0.
 2. **Audit procedure**, run by the operator and recorded in the artifact's `alarm_audit` block:
-   1. run the sign and identity fixtures (`pytest tests/test_sameweek.py -k "sign or identity"`) and record the
-      result;
+   1. run the sign and identity fixtures (the driver's `AUDIT_FIXTURES` pytest selection over the gate, validation
+      and selection test files) and record the command and result;
    2. for three cells chosen by fixed rule (the first cell in (season, week, position) order of each season),
       recompute both Spearman values by hand from the raw inputs and record them beside the driver's values;
    3. record the conclusion: `defect_found` (fix, re-run, and publish both results with the reason, Rule 4) or
@@ -542,7 +542,8 @@ Public artifacts never contain Sleeper values, row-level or aggregate.
 Each capture is one gzipped raw response at `sleeper/<S>/w<NN>/<retrieved_at>.json.gz` plus one manifest line in
 `sleeper/manifest.jsonl`:
 
-- `retrieved_at` (UTC, the request time), `request_url`, `http_status`, `sha256` of the raw bytes, `season`, `week`;
+- `retrieved_at` (UTC, the request time), `request_url`, `http_status`, `sha256` of the raw **uncompressed**
+  response bytes, `season`, `week`, and `path` relative to the private checkout root;
 - `source_updated_at_min`/`max` over records that carry `updated_at`, and the count that do;
 - `published_commit` (main's HEAD sha when the capture ran) and `published_batch_id` (the neutral batch id at that
   sha);
@@ -592,7 +593,9 @@ For week N with a selected publication (§4.1):
   `week|team`-clustered intervals; within-position Spearman per position-week cell; per-position MAE.
 - The blend is a shadow point comparator. It has no band and is not a product claim.
 - **No weekly decisions.** The comparison is read once, after the last REG week: the primary claims are
-  `ours − Sleeper` and `blend − Sleeper` in the primary view, with Holm adjustment across the two. Everything else is
+  `ours − Sleeper` and `blend − Sleeper` in the primary view, with Holm adjustment across the two at family level
+  0.05. Each claim's p-value is the two-sided percentile-bootstrap p of its paired MAE delta, and the **larger** of
+  the player-clustered and `week|team`-clustered p-values is used (the more conservative). Everything else is
   diagnostic. "Inconclusive" is an allowed outcome. Weeks 1–4 of 2026 are never pooled with this series.
 
 #### 4.8.5 Running it
