@@ -219,7 +219,14 @@ per (season, week) before any join.
   computation that uses another week's dates needs that week's slice to pass too: the §5.2 window and overlap guard
   for week N need weeks N−1 and N. If a needed slice fails, the computation is skipped with `validation_failed`
   (detail `schedule_dependency_failed`), never computed from the surviving games, and the week-1 fallback
-  `L_1 = K_1 − 7 days` is never used for N > 1 (astra S7-I3).
+  `L_1 = K_1 − 7 days` is never used for N > 1 (astra S7-I3). The same detail is used whether the failing slice is
+  week N's own or week N−1's. Which weeks are *due* may be listed from the raw schedule's first game date; that
+  listing is never used as a cutoff.
+- **Conflicting schedule sides stay in the `build_features` input as pulled**, like conflicting actuals: the
+  original measurements were built from the same raw schedule, so (B)'s model inputs stay identical to them. The
+  affected week fails the schedule threshold, so it is never scored, but its duplicated join can still feed later
+  lag features. That is accepted and disclosed: the real 2012–25 schedules contain no conflicting sides (no
+  dependency skips on the full (B) path, 2026-10-07), and any future occurrence appears in the validation counts.
 - **Conflicting actuals duplicates** (same key, any field different) are **not** dropped: the group stays in the
   `build_features` input exactly as it came from `pull_weekly`, so the model inputs match the original measurements.
   Their keys are recorded in an **invalid-key mask** carried forward to stage 2.
@@ -371,7 +378,9 @@ for the completeness checks.
   vectors** — player identity and duplicates (a key whose records differ in any component is conflicting, even if
   they score to the same points), every `PREDICTED_STATS` component finite in all three quantiles, including
   components with zero weight in the scoring format, and `p10 ≤ p50 ≤ p90` per component — and only valid rows are
-  then scored. Validity is never inferred from the scored points.
+  then scored. Validity is never inferred from the scored points. Conflict between same-key records is judged on the
+  whole `stat_quantiles` object (every component the payload carries); finiteness and ordering are checked on
+  `PREDICTED_STATS`.
 - **Equivalence**, when both files exist in the selected commit and come from the same batch (equal `generated_at`,
   season and week):
   1. both files are validated first (§3.7; the neutral one on its full stat vectors);
