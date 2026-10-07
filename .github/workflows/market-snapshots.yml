@@ -1,0 +1,68 @@
+name: market snapshots
+# Saves raw third-party snapshots (Sleeper projections, nflverse game lines) for the week the site
+# just published, into the PRIVATE repo mtsilverstein/megatron-private-data. Never writes this
+# public repo. A failure here never affects the site (separate workflow).
+on:
+  workflow_run:
+    workflows: ["weekly site update"]
+    types: [completed]
+  workflow_dispatch:
+concurrency:
+  group: market-snapshots
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+    steps:
+      - name: Require the private-data token
+        id: gate
+        run: |
+          if [ -z "$PRIVATE_DATA_TOKEN" ]; then
+            echo "::notice::PRIVATE_DATA_TOKEN is not set; skipping market snapshots"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.skip != 'true'
+        with: { ref: main }
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          repository: mtsilverstein/megatron-private-data
+          token: ${{ secrets.PRIVATE_DATA_TOKEN }}
+          path: private-data
+      - uses: actions/setup-python@v6
+        if: steps.gate.outputs.skip != 'true'
+        with: { python-version: "3.12" }
+      - if: steps.gate.outputs.skip != 'true'
+        run: pip install -e .
+      - name: Capture snapshots (each source independent)
+        id: capture
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          rc=0
+          python -m ffmodel.collect.market_snapshots --dest private-data || rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+      - name: Commit to the private repo only
+        if: steps.gate.outputs.skip != 'true'
+        working-directory: private-data
+        run: |
+          git config user.name "market-snapshot-bot"
+          git config user.email "market-snapshot-bot@users.noreply.github.com"
+          git add sleeper lines 2>/dev/null || true
+          if git diff --cached --quiet; then echo "nothing captured"; exit 0; fi
+          git commit -m "snapshot: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for i in 1 2 3; do
+            git pull --rebase && git push && exit 0
+            sleep 5
+          done
+          exit 1
+      - name: Surface capture failures
+        if: steps.gate.outputs.skip != 'true' && steps.capture.outputs.rc != '0'
+        run: |
+          echo "::warning::one or more snapshot sources failed (see the capture step)"
+          exit 1
