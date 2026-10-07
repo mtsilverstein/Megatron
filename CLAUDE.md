@@ -24,7 +24,7 @@ Everything must run on free tiers; do not introduce paid infrastructure.
 - Every model artifact in `models/` is committed together with the YAML config and eval metrics that produced it; training runs are seeded and config-driven from `configs/`.
 - Baselines (naive last-4-average, XGBoost) run through the same eval harness as the transformer, and results are reported honestly whichever model wins.
 - The weekly Actions run must fail safe: on a failed or incomplete data pull, abort without touching published JSON. The site always shows a "data as of <date>" stamp.
-- Scope guards (v1): QB/RB/WR/TE only — no K/DST/IDP, no DFS optimization, no injury/news signals.
+- Scope guards (v1): QB/RB/WR/TE only — no K/DST/IDP, no DFS optimization, no injury/news signals. Published betting-market lines are allowed as market context (amendment 2026-10-07, design spec §11); raw third-party data lives in a private repo, never this public one.
 
 ## Stack and layout
 
