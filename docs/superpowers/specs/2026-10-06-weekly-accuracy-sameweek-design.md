@@ -1,21 +1,23 @@
 # Weekly accuracy tracking and same-week expert benchmark — design
 
-**Status:** draft 6 (2026-10-06), a clean rewrite. The owner approved the design section by section in conversation.
+**Status:** draft 7 (2026-10-07). The owner approved the design section by section in conversation, and on
+2026-10-07 approved three additions: a Sleeper comparator kept private until checked, a private data repository for
+third-party snapshots, and a slimmer scope ("smallest trustworthy report").
 
 Review history:
 
-- Astra reviewed drafts 1–4 and returned REVISE each time. Its responses are in `.review/`:
-  `astra-weeklyacc-spec-response.md`, `-r2-response.md`, `-r3-response.md`, `-r4-response.md`.
-- Astra's draft-5 review did not run; the Codex usage limit resets 2026-10-09 15:33.
-- An adversarial Opus review of draft 5 (`.review/opus-weeklyacc-spec-review.md`) returned REVISE.
-
-Draft 6 fixes every finding and takes that review's cuts X1–X5. §10 is the trace. Astra re-reviews draft 6 and the
-plan on 2026-10-09.
+- Astra reviewed drafts 1–4 and returned REVISE each time (`.review/astra-weeklyacc-spec-response.md`, `-r2-`,
+  `-r3-`, `-r4-response.md`).
+- An adversarial Opus review of draft 5 (`.review/opus-weeklyacc-spec-review.md`) returned REVISE; draft 6 was a clean
+  rewrite.
+- Astra reviewed draft 6 and the plan on 2026-10-07 (`.review/astra-weeklyacc-spec6-plan-response.md`): REVISE, with
+  one spec finding (S6-I1) and seven plan findings (P1–P7). Draft 7 resolves them; §10 is the trace.
+- Astra's roadmap consult of the same day (`.review/astra-roadmap-consult-response.md`) shaped §4.8 and the cuts.
 
 ## 1. Why
 
 **Live point accuracy has never been tracked.** The projections published before 2026 kickoffs score as follows on
-weeks 1–4:
+weeks 1–4 (scratch measurement, reproduced independently by astra: MAE 4.3592, coverage 0.7966):
 
 | Measure | Value |
 |---|---|
@@ -39,11 +41,21 @@ ranking.
   consensus.
 - Commit c38e175 already marks both claims "not established". That withdrawal stands whatever (B) finds.
 
+**Sleeper is the comparison users actually have.** A retrospective look at weeks 1–4 (`.review/sleeper-vs-ours-2026-wk1-4.json`)
+found Sleeper's projections (Rotowire) with lower observed error than ours, and a fixed 50/50 blend lower than
+either. Every Sleeper record for those weeks was rewritten the Tuesday after the week, so their pre-kickoff values are
+unverified. Those weeks are **exploratory only**. A trustworthy comparison needs our own snapshots, taken at our
+publication time (§4.8).
+
 **This project:**
 
-- **(A)** an automated weekly scorecard of the projections the bot pipeline published;
+- **(A)** an automated weekly scorecard of the projections the bot pipeline published, plus a private Sleeper
+  comparator (§4.8);
 - **(B)** a pre-registered reanalysis of both historical samples against same-week rankings. It reanalyses data that
   has already been examined, so it is not a new, untouched replication.
+
+**Design principle (owner, 2026-10-07):** the smallest trustworthy report. Diagnostics, sensitivities and
+presentation are cut before any provenance, validation or fail-safe check is cut.
 
 ## 2. Scope
 
@@ -51,14 +63,16 @@ ranking.
 
 - `src/ffmodel/eval/sameweek.py`: shared primitives.
 - `src/ffmodel/eval/live_accuracy.py`: (A).
+- `src/ffmodel/eval/sleeper_compare.py`: the §4.8 comparator.
 - `src/ffmodel/eval/weekly_consensus_sameweek.py`: the (B) driver.
 - `.github/workflows/weekly-accuracy.yml`.
 - Tests.
-- Committed artifacts:
+- Committed artifacts (public repo):
   - `models/diagnostics/live_<S>_weekly.json` and `.md`;
   - `models/diagnostics/main_push_ledger.json`;
   - `models/diagnostics/live_2026_w1-4_reproduction.json`;
   - after (B): `models/diagnostics/weekly_consensus_sameweek.json`.
+- Private-repo artifacts (never in the public repo): the §4.8 report.
 - After (B), the §6.7 copy changes, pushed only with the owner's OK.
 
 **Unchanged:**
@@ -66,30 +80,36 @@ ranking.
 - the model;
 - published site data and `weekly-update.yml`;
 - the frozen prospective paths (`models/prospective/**`, `prospective-*.yml`);
-- `weekly_rankings.py`, `weekly_consensus.py`, `data/rankings.py` and their artifacts.
+- `weekly_rankings.py`, `weekly_consensus.py`, `data/rankings.py`, `data/pull.py` and their artifacts.
 
 New code may import them but does not edit them. The site scorecard UI is phase 2 (after about 8 live weeks) and
 will read the (A) artifact.
 
-**Repo rules:** the repo is public, so test fixtures are synthetic.
+**Separate, consumed here:** the market-snapshot collector (`market-snapshots.yml`) that writes Sleeper and
+game-line snapshots to the private repository. It is a separate bounded change; this spec fixes only the manifest
+contract it must satisfy (§4.8.1).
+
+**Repo rules:** the repo is public, so test fixtures are synthetic. No third-party projection or odds data, raw or
+row-level, is committed to it (design spec §11 amendment, 2026-10-07).
 
 ## 3. Shared definitions (`sameweek.py`)
 
 ### 3.1 Schedule dates
 
-For REG week N of season S, from `pull_schedules` (team codes normalised by `normalize_schedule_teams`, so the Rams
-are `LA`):
+For REG week N of season S, from the **validated** schedule (§3.7; team codes normalised by
+`normalize_schedule_teams`, so the Rams are `LA`):
 
 - `K_N` = the earliest `gameday` of week N, the first-kickoff date. This equals `weekly_consensus.weekly_kickoffs`.
 - `Z_N` = the latest `gameday` of week N.
 
-A player's **game date** is the `gameday` of the unique week-N schedule row containing the player's `team`. Zero or
-several matches is a validation error for that row (§3.7).
+A player's **game date** is the `gameday` of the unique validated `(season, week, team)` schedule row for the
+player's `team`. Zero matches is a validation error for that actuals row (§3.7).
 
 ### 3.2 Played population
 
-The rows of `build_features(pull_weekly(seasons), pull_schedules(seasons))` for (S, N). Each row is a player who
-recorded a REG stat line. Actual points = `fantasy_points(row[PREDICTED_STATS], PPR)`.
+The rows of `build_features(actuals_raw, schedule_raw)` for (S, N), where both inputs have first passed the raw-table
+step of §3.7 (exact duplicates collapsed). Each row is a player who recorded a REG stat line. Actual points =
+`fantasy_points(row[PREDICTED_STATS], PPR)`.
 
 - **Pull span:** (A) pulls S−3 through S, which fixes the lag history and the naive fallback means. (B) uses
   `weekly_consensus.main`'s span.
@@ -120,7 +140,8 @@ Ranking team codes are mapped **to schedule codes** before any comparison:
   and contributes no presence.
 - Two tests guard the mapping:
   - **Unit:** every value of the mapping is a schedule code produced by `normalize_schedule_teams`.
-  - **Acceptance:** on the real rankings cache, `unknown_team_codes == 0` for every 2020–25 scrape.
+  - **Acceptance:** on the real rankings cache, `unknown_team_codes == 0` for every 2020–25 scrape (confirmed by
+    astra on 94 scrapes, 2026-10-07).
 
 ### 3.5 Week-identity gate (tri-state)
 
@@ -160,53 +181,63 @@ What this means:
 
 ### 3.6 Coverage reporting
 
-Every artifact reports, per season:
-
-- raw versus accepted ranking rows;
-- scrape dates and their weekdays;
-- page coverage.
+Every artifact reports, per season: raw versus accepted ranking rows, and scrape dates with their weekdays.
 
 Legacy-schema rows (`page_type == "weekly-offense"`, through 2020-10-12) are dropped by `normalize_weekly_rankings`.
 That exclusion is **intentional**, because the original benchmark excluded them. They are reported as
 `excluded_legacy_schema`.
 
+(Cut in draft 7: per-page coverage tables.)
+
 ### 3.7 Validation
 
-Validation runs per input table, per (season, week), **before** any join.
+Validation is a **two-stage** process. Stage 1 runs on raw tables before anything is built from them; stage 2 runs
+per (season, week) before any join.
 
 | Table | Key | Evaluated fields | Eligibility / join fields |
 |---|---|---|---|
 | actuals (`pull_weekly` rows) | `(season, week, player_id)` | `PREDICTED_STATS` | team, position |
-| published projections (§4.1) | `player_id` | `p10, p50, p90` | team, position |
+| schedule (exploded to one row per team side) | `(season, week, team)` | `gameday`, `game_id` | — |
+| published projections (§4.1) | `player_id` | `p10, p50, p90` (and, for neutral payloads, every stat quantile) | team, position |
 | nflverse consensus rows | `fp_id` | `ecr` | pos, team, mergename |
 | archive consensus rows (§4.3) | `player_id` | `ecr` | position, team |
-| schedule | `(season, week, team)` | `gameday` | — |
+| Sleeper projections (§4.8) | `sleeper_id` | mapped stat components | position |
 
-**Rules:**
+**Stage 1 — raw tables (actuals and schedule), before `build_features`:**
 
-- **Exact duplicates** have the same key, evaluated fields and eligibility fields. They collapse to one row and are
-  counted (`exact_duplicates`); they are not errors.
-- **Conflicting duplicates** share a key and differ in any of those fields. Every row of the group is invalid
-  (`conflicting_duplicates`). One example is FantasyPros listing a dual-eligible player on two pages with different
-  ECR: Demetric Felton, `fp_id` 20105, ECR 113.2 and 163.6 on 2022-12-30.
-- **Non-finite values** in evaluated fields only make the row invalid. Lag features may legitimately be NaN.
+- **Exact duplicates** (same key, evaluated fields and eligibility fields) collapse to one row and are counted
+  (`exact_duplicates`). Collapsing happens *before* features are built, so a duplicate cannot distort lag features
+  (astra P3: a duplicated week-2 row changed a week-3 `lag4_carries` from 15.0 to 16.67).
+- **Schedule:** the schedule is exploded to `(season, week, team)` sides and validated as its own table. Exact
+  duplicate games collapse without error. Conflicting duplicates (same side, different `gameday` or `game_id`)
+  invalidate that side.
+- **Conflicting actuals duplicates** (same key, any field different) are **not** dropped: the group stays in the
+  `build_features` input exactly as it came from `pull_weekly`, so the model inputs match the original measurements.
+  Their keys are recorded in an **invalid-key mask** carried forward to stage 2.
+- Non-finite evaluated fields in actuals are recorded in the same mask; the row also stays in the feature input. Lag
+  features may legitimately be NaN.
+
+**Stage 2 — per (season, week), before joins:**
+
+- Exact duplicates collapse; conflicting duplicates invalidate the whole group. One real example is FantasyPros
+  listing a dual-eligible player on two pages with different ECR: Demetric Felton, `fp_id` 20105, ECR 113.2 and 163.6
+  on 2022-12-30.
+- **Non-finite values** in evaluated fields make the row invalid.
 - **Projection quantiles** must satisfy `p10 ≤ p50 ≤ p90`; otherwise the row is invalid.
-- **Schedule joins:** zero or several week-N schedule rows for a player's team makes the row invalid.
-- **Masking, not dropping:**
-  - Invalid actuals are masked out of scoring for that (season, week) only.
-  - They stay in the frame given to `build_features`, so lag features and the model inputs are unchanged from the
-    original measurements.
-  - A conflicting actuals group stays in the frame as it came from `pull_weekly`.
+- **Schedule joins:** an actuals row whose team has no valid schedule side for the week is invalid.
+- **Masking:** invalid actuals (from either stage) are masked out of scoring for that (season, week) only.
 - **Identity collisions:** after removing invalid consensus rows, call `attach_gsis` unchanged. If it reports
-  `gsis_collisions > 0`, the week's consensus is invalid and the week is skipped (`identity_collision`).
-  - Measured on 94 real 2020–25 scrapes: once the same-key cross-page duplicates were removed, there were no
-    multi-key collisions.
+  `gsis_collisions > 0`, the week's consensus is invalid and the week is skipped (`identity_collision`). Measured on
+  94 real 2020–25 scrapes: once the same-key cross-page duplicates were removed, there were no multi-key collisions.
 
 **Threshold:**
 
 - For each table, the excluded fraction = unique keys invalidated for any reason ÷ unique keys before validation.
   Each key is counted once; exact duplicates are not counted; an empty table has fraction 0.
-- If any table exceeds 1% for a (season, week), the week is skipped (`validation_failed`). Exactly 1% passes.
+- If any table **used by a computation** exceeds 1% for a (season, week), that computation is skipped with
+  `validation_failed`. Exactly 1% passes. The rule applies identically on every path: the primary and secondary
+  rankings, the staleness audit's ranking reads, and §4.8. A failed table is never replaced by an older source, and
+  a computation never runs on the surviving subset of a failed table.
 - Counts are reported per reason, per table and per position.
 
 The 1% figure is a data-quality tolerance, not a bound on metric error.
@@ -226,8 +257,8 @@ and counted.
 - `ci_week`: `mean_head_gate.paired_bootstrap` (seed 20260728, 10,000 resamples) with clusters given as the scalar
   key `season*100 + week`, so all positions of a slate move together.
 
-`weekly_consensus.pooled_stats` rounds to 4 dp. It is used only to report `ci_cell`, the original protocol's
-independent-cell interval, which is labelled diagnostic. Rounding happens only for display.
+Rounding happens only for display. (Cut in draft 7: the diagnostic independent-cell interval `ci_cell`, and with it
+every use of `weekly_consensus.pooled_stats`.)
 
 **Limitation, stated in the artifact:** three seasons give three clusters, and within-season serial dependence is not
 modelled.
@@ -238,9 +269,16 @@ modelled.
 
 In (B), `assert_model_sane` is an alarm:
 
-1. A negative mean model Spearman writes `status: "alarm_negative_correlation"` and no verdict.
-2. The sign/identity self-check fixtures are run, and the owner is told.
-3. If the audit finds no defect, the result is published as computed with a limited-sample warning.
+1. A negative mean model Spearman writes `status: "alarm_negative_correlation"` and no verdict, and the run exits 0.
+2. **Audit procedure**, run by the operator and recorded in the artifact's `alarm_audit` block:
+   1. run the sign and identity fixtures (`pytest tests/test_sameweek.py -k "sign or identity"`) and record the
+      result;
+   2. for three cells chosen by fixed rule (the first cell in (season, week, position) order of each season),
+      recompute both Spearman values by hand from the raw inputs and record them beside the driver's values;
+   3. record the conclusion: `defect_found` (fix, re-run, and publish both results with the reason, Rule 4) or
+      `no_defect`.
+3. If the audit records `no_defect`, the driver is re-run with `--alarm-audited <path>`, which publishes the result
+   as computed with a limited-sample warning.
 4. Population and sign are never changed to clear the alarm.
 
 (A) reports a negative weekly correlation as a number, with no alarm and no stop.
@@ -255,40 +293,58 @@ verified, but the site deploys main on push.
 **Cutoff:** `K_N` 00:00 UTC. It is common to all players and symmetric with the date-level expert snapshots. The
 earliest any Eastern-date `K_N` game starts is 04:00 UTC, so the cutoff precedes every week-N game.
 
-**Candidates:** a commit `C` is a candidate if all three hold:
+**Candidates.** A commit `C` is a candidate if all three hold:
 
 - `C` changes `site/data/weekly.json` **or** `site/data/neutral/weekly.json`, judged by `git diff --name-only C^1 C`;
 - its author and committer are both `weekly-update-bot`;
 - it carries a `season == S`, `week == N` payload.
 
+Candidates are **enumerated** from two sources: every commit reachable from the pinned main sha, and every ledger
+event `after` of any activity type together with its first-parent ancestry back to the season lower bound (below).
+A ledger target that cannot be fetched locally is recorded as `unfetchable`.
+
 **The push ledger** (`models/diagnostics/main_push_ledger.json`) is collected by every run of the weekly accuracy job:
 
-- **Source:** `GET /repos/{owner}/{repo}/activity?ref=refs/heads/main`, with cursor pagination to the end.
+- **Source:** `GET /repos/{owner}/{repo}/activity?ref=refs/heads/main&per_page=100`, fetched with
+  `gh api --paginate --slurp`. The output is one outer JSON array of pages; the events are the concatenation of the
+  pages (astra P1: plain `--paginate` emits one JSON document per page). A fetch that fails, or whose pages are not
+  all arrays, is an infrastructure error (§4.6).
 - **Events:** every returned event is merged, with no author filter. Each stores `id`, `ref`, `timestamp`, `before`,
   `after`, `activity_type` and `actor.login`.
 - **Integrity:** events are deduplicated by `id`, never deleted or edited, and sorted.
 - **Coverage intervals:** each collection appends `[t_start, t_end]`. `t_end` is the collection time. `t_start` is
-  the oldest event returned when pagination reached the end of history, otherwise the oldest event seen. Covered
-  time is the union of these intervals.
+  the oldest event seen. If pagination reached the end of history **and** the oldest event is the
+  `branch_creation` of `refs/heads/main`, `t_start` is recorded as `"-inf"`: nothing can have happened on main before
+  the branch existed. Covered time is the union of the intervals.
 - **Seed:** the first collection is the saved raw response
-  `.review/evidence-seed/activity-main-2026-10-06T190201Z.json`: 239 events back to the repository's first event,
-  `branch_creation` at 2026-07-11. It contains no `force_push` events.
+  `.review/evidence-seed/activity-main-2026-10-06T190201Z.json`: 239 events (235 `push`, 3 `pr_merge`,
+  1 `branch_creation`) back to the `branch_creation` of main at 2026-07-11T22:02:06Z. It reached the end of history,
+  so its interval is `["-inf", 2026-10-06T19:02:01Z]`. It contains no `force_push` events.
 
-**Selection, for each week N:**
+**Season lower bound:** `T_S` = S-06-01T00:00:00Z. No season-S week-N publication can precede it.
+
+**Selection, for each week N.** Only a `push` event can establish a publication; the other event types matter only
+for the completeness checks.
 
 1. **Publication event.** Find the latest `activity_type == "push"` event on `refs/heads/main` that is strictly
-   before the cutoff and whose `after` is a candidate.
-   - If several events share an `after`, the earliest is used.
-   - Ties on timestamp are ordered by `id`.
-   - The selected commit is that `after`, and `available_by` is the event's timestamp.
-2. **Coverage.** The interval from that event to the cutoff must be fully covered. Otherwise the week is
-   `publication_evidence_unavailable`. An older push is never promoted across an uncovered gap.
+   before the cutoff and whose `after` is a candidate. Several events sharing an `after` are first reduced to the
+   earliest; timestamp ties are ordered by `id`. The selected commit is that `after`, and `available_by` is the
+   event's timestamp.
+2. **Coverage.** `[available_by, cutoff)` must be fully covered. Otherwise `publication_evidence_unavailable`. An
+   older push is never promoted across an uncovered gap.
 3. **Force-pushes.** Any `force_push` on `refs/heads/main` in `[available_by, cutoff)` makes the week
    `publication_evidence_unavailable`.
-4. **Missing commit.** If a ledger `after` sha inside the week's `[available_by, cutoff)` window can't be fetched
-   locally, the week is `publication_evidence_unavailable`.
-5. **No candidate.** If no candidate payload for the week exists in reachable history or the ledger, the week is
-   `weeks_unpublished`. Missing evidence is never reported as non-publication.
+4. **Unfetchable targets.** Any event of **any** activity type on `refs/heads/main` in `[available_by, cutoff)`
+   whose `after` is `unfetchable` makes the week `publication_evidence_unavailable`.
+5. **No qualifying push.** If step 1 finds nothing:
+   - if any candidate exists (from either source) → `publication_evidence_unavailable`: a payload existed but its
+     publication cannot be proven;
+   - else, if `[T_S, cutoff)` is fully covered and no event in it has an `unfetchable` target →
+     `weeks_unpublished`;
+   - else → `publication_evidence_unavailable`.
+
+   `weeks_unpublished` is therefore claimed only with complete evidence of absence (astra S6-I1). Missing evidence is
+   never reported as non-publication.
 
 **Scored values:**
 
@@ -299,9 +355,14 @@ earliest any Eastern-date `K_N` game starts is 04:00 UTC, so the cutoff precedes
   `scoring.PPR`.
   - This was verified on batch `2026-10-06T16:11:28Z`: across 1,974 values the maximum difference was 0.005, the
     legacy file's 2-dp rounding.
-- If both files exist and come from the same batch (equal `generated_at`, season and week), assert
-  `|neutral − legacy| ≤ 0.01` for every player and quantile. A violation skips the week with reason
-  `equivalence_failed` and lists the players.
+- **Equivalence**, when both files exist in the selected commit and come from the same batch (equal `generated_at`,
+  season and week):
+  1. both files are validated first (§3.7);
+  2. the sets of valid player IDs must be equal;
+  3. for every player and each of p10, p50 and p90, both values must be finite and `|neutral − legacy| ≤ 0.01`.
+
+  Any failure skips the week with reason `equivalence_failed`, listing the missing, invalid and divergent players.
+  An incomplete comparison is never labelled checked (astra P5).
 
 **Expected for 2026:** weeks 1–4 select the following, all before their cutoffs:
 
@@ -318,6 +379,10 @@ Git and API access each go through one injectable function, so tests can feed a 
 
 **Population:** the played population ∩ valid projection rows. Unprojected players are counted, never imputed. Their
 count, share and mean actual are reported by week and position.
+
+**Empty pool.** If a complete week's population is empty, the week is recorded as `no_scorable_points` with its
+unprojected counts, and it contributes nothing to pooled metrics. Undefined metrics are written as `null`, never NaN
+(astra P6).
 
 **Reported per week, per position, and pooled:**
 
@@ -357,35 +422,46 @@ the historical population and fallback history differ.
   - `available_by` is that event's timestamp.
   - The interval from that event to the cutoff must be covered. Otherwise the archive doesn't qualify.
   - This is a content-existence bound: retrieval may have been earlier. Archives strip `retrieved_at`.
-- **Content:** the blob at `C` (`git show C:path`). Its sha256 prefix must equal the filename's 16-hex digest under
-  `live_experts`'s naming rule. A mismatch skips the week's primary ranking with reason `archive_hash_mismatch`.
-- **Selection:** among qualifying archives, the latest `available_by` wins.
-  - Ties go to the lexicographically first filename, flagged `arbitrary_lexicographic`.
-  - The other qualifying archives are listed. A sensitivity recomputes the ranking with each, and the range is
-    reported.
+- **Content and identity** (both checked before an archive can qualify; astra P4):
+  - the blob at `C` (`git show C:path`) has a sha256 prefix equal to the filename's 16-hex digest under
+    `live_experts`'s naming rule, otherwise `archive_hash_mismatch`;
+  - the blob's own `season` and `week` equal the filename's, otherwise `archive_identity_mismatch`;
+  - the blob passes §3.7, otherwise `validation_failed`.
+
+  An archive failing any check does not qualify. If the archive that *would* have been selected fails, the week's
+  primary ranking is skipped with that reason; an older archive is never promoted in its place.
+- **Selection:** among qualifying archives, the latest `available_by` wins. Ties go to the lexicographically first
+  filename, flagged `arbitrary_lexicographic`. The other qualifying archives are listed by filename and blob hash.
+  (Cut in draft 7: the alternative-archive sensitivity.)
 - **Expected for 2026:** weeks 1–3 have no qualifying archive.
   - Week 3's only archive was added by `c502c55`, pushed 2026-09-24T03:58:50Z, after the 00:00Z cutoff.
   - The cutoff is not moved to rescue it.
-  - Week 4 selects `2026-w04-2026-09-30-5aec56b70c3784e6.json` (408 players, pushed 21:32:42Z). Its alternative,
-    `…220d00155877a0a7` (325 players), is reported in the sensitivity.
+  - Week 4 selects `2026-w04-2026-09-30-5aec56b70c3784e6.json` (408 players, pushed 21:32:42Z); `…220d00155877a0a7`
+    (325 players) is listed as the other qualifying archive.
 
 **Secondary: nflverse same-week.** The §5.2 rule is applied to season S and reported separately, labelled by source.
 Both sources are FantasyPros mirrors, not independent panels.
 
+**Per-week values are retained:** each scored week records, per source and position, n, our Spearman, consensus
+Spearman and their delta. The Markdown summary renders them (§4.6).
+
 ### 4.4 (Removed in draft 6)
 
-The live snapshot-change diagnostic is cut. It had one week of data. The historical diagnostic is §5.3.
+The live snapshot-change diagnostic is cut.
 
 ### 4.5 Frozen reproduction (one-time acceptance)
 
 - **Command:** `--weeks 1-4 --frozen-record models/diagnostics/live_2026_w1-4_reproduction.json`.
-- **Contents:** every input identity: publication shas and their ledger events, archive filenames and hashes,
-  schedule/actuals/crosswalk content hashes, the `evaluator_version`, and joined ID counts.
-- **Commit:** it is committed with the first live artifact (§8 step 4), not with the code merge.
+- **Contents:** every input identity (§4.6 `inputs`), the publication shas and their ledger events, archive filenames
+  and blob hashes, and joined ID counts.
+- **Commit:** it is committed with the first live artifact (§8 step 5), not with the code merge.
 
 **Expected relationship to the scratch measurement:**
 
-- Point metrics should match: MAE 4.359, coverage 0.797, naive MAE 4.673, delta −0.313.
+- Point metrics should match: MAE 4.359, coverage 0.797, delta −0.313.
+- Naive MAE: astra's 2026-10-07 in-memory run gave 4.6757 against the scratch 4.673, on inputs not pinned to the
+  scratch vintage. The difference is explained at row level during acceptance; the baseline rule is never adjusted
+  to match.
 - The primary ranking is expected to **differ**:
   - week 3 drops out, because its archive was pushed after the cutoff (§4.3);
   - week 4 uses the `…5aec…` archive, not the scratch tie-break's `…220d…`.
@@ -396,9 +472,15 @@ The live snapshot-change diagnostic is cut. It had one week of data. The histori
 **`models/diagnostics/live_<S>_weekly.json`**, where `S = current_nfl_season()`:
 
 - `protocol_version`;
-- `evaluator_version`: `protocol_version` plus the git tree id of `src/ffmodel` at the pinned sha
-  (`git rev-parse <sha>:src/ffmodel`);
-- `inputs` with hashes;
+- `evaluator_version`: `protocol_version` plus the git tree id of `src/ffmodel` **in the checkout that is executing**
+  (`git rev-parse HEAD:src/ffmodel`), plus a `dirty` flag if `git status --porcelain src/ffmodel` is non-empty;
+- `inputs`, each with a content hash:
+  - the actuals for every season pulled (S−3..S), because the naive fallback means depend on prior seasons;
+  - the schedule;
+  - the player-ID crosswalk;
+  - `bakeoff.json` (blob hash);
+  - every archive blob read;
+  - the ledger as read;
 - `weeks_scored`, and `weeks_skipped` with reasons;
 - per week: the `publication` evidence (commit, ledger event id, `available_by`) and the `expert_snapshot` evidence;
 - `points`, `ranking.primary`, `ranking.secondary`;
@@ -406,13 +488,15 @@ The live snapshot-change diagnostic is cut. It had one week of data. The histori
 - `caveats`;
 - a `run` block: `run_at`, `as_of_date`, the pinned main sha, and `provisional_weeks`.
 
-With zero complete weeks, it writes an artifact with `weeks_scored: []` and exits 0.
+The file is serialised with `allow_nan=False`. With zero complete weeks, it writes an artifact with
+`weeks_scored: []` and exits 0.
 
 **`live_<S>_weekly.md`:**
 
 - a cumulative headline line;
 - a "Provisional: weeks …" line;
-- a per-week table: week, `Z_N`, n, MAE, naive MAE, coverage, below/above, and ours vs consensus Spearman (or "—");
+- a per-week table: week, `Z_N`, n, MAE, naive MAE, coverage, below/above, and ours vs consensus Spearman per
+  source, or "—" only where that week has no scored ranking;
 - the caveats.
 
 **CLI:** `python -m ffmodel.eval.live_accuracy`. It writes `models/diagnostics/live_<S>_weekly.{json,md}` and updates
@@ -420,8 +504,9 @@ the ledger. Data goes into a fresh temporary cache unless `--data-dir` is given.
 
 **Error policy:**
 
-- **Data-content defects** skip the affected week with a reason: `equivalence_failed`, `archive_hash_mismatch`,
-  `validation_failed`, `identity_collision`, `publication_evidence_unavailable`.
+- **Data-content defects** skip the affected week (or computation) with a reason: `equivalence_failed`,
+  `archive_hash_mismatch`, `archive_identity_mismatch`, `validation_failed`, `identity_collision`,
+  `publication_evidence_unavailable`, `no_scorable_points`.
 - **Infrastructure errors** fail the job: API or pagination failure, data-pull failure, schema error. Nothing is
   committed when the job fails.
 
@@ -434,15 +519,88 @@ the ledger. Data goes into a fresh temporary cache unless `--data-dir` is given.
 - **Setup:** checkout with `fetch-depth: 0`; Python 3.12; `pip install -e .`.
 - **Git identity:** `user.name` is `weekly-accuracy-bot`. That name is distinct from `weekly-update-bot`, so its
   commits can never become §4.1 candidates.
-- **Steps:**
+- **Public steps:**
   1. Run the CLI.
   2. Stage only `models/diagnostics/live_*_weekly.json`, `live_*_weekly.md` and `main_push_ledger.json`.
-  3. If nothing changed, exit 0.
-  4. Commit `data: weekly accuracy refresh` and push, with up to 3 attempts of `git pull --rebase` then push. Never
+  3. If nothing changed, skip to the private step.
+  4. Commit `data: weekly accuracy refresh`. Then, up to 3 attempts: `git pull --rebase`, then `git push`. Never
      force.
-- **Fail-safe:** an infrastructure error stops the job before the commit. The job never writes `site/`.
-- **Permissions:** `contents: write`, which covers the activity API read. `GH_TOKEN: ${{ github.token }}` is set for
-  `gh api`.
+- **Private step (§4.8), fail-soft:** runs after the public steps, in a separate job that cannot write the public
+  repo. Its failure marks the workflow with a warning annotation and never blocks or reverts the public artifact.
+- **Fail-safe:** an infrastructure error stops the public job before the commit. The workflow never writes `site/`.
+- **Permissions:** the public job has `contents: write`, which covers the activity API read, and
+  `GH_TOKEN: ${{ github.token }}` for `gh api`. The private job has `contents: read` on the public repo and uses
+  `PRIVATE_DATA_TOKEN` (fine-grained, the private repo only) for the private repository.
+
+### 4.8 Sleeper comparator (private) — `sleeper_compare.py`
+
+**Status:** private until the owner decides otherwise (2026-10-07). Its report lives only in the private repository.
+Public artifacts never contain Sleeper values, row-level or aggregate.
+
+#### 4.8.1 Input contract (what the collector must write)
+
+Each capture is one gzipped raw response at `sleeper/<S>/w<NN>/<retrieved_at>.json.gz` plus one manifest line in
+`sleeper/manifest.jsonl`:
+
+- `retrieved_at` (UTC, the request time), `request_url`, `http_status`, `sha256` of the raw bytes, `season`, `week`;
+- `source_updated_at_min`/`max` over records that carry `updated_at`, and the count that do;
+- `published_commit` (main's HEAD sha when the capture ran) and `published_batch_id` (the neutral batch id at that
+  sha);
+- `capture_kind`: `scheduled` or `manual`.
+
+Files are never overwritten or deleted. The week-5 capture taken by hand on 2026-10-07T17:58:17Z
+(`data_snapshots/sleeper_projections/2026_w5_fetched_20261007T175817Z.json`, sha256 `5a8b22f2…0742`) is imported
+with `capture_kind: manual`, its retrieval time taken from the filename, and the provenance fields it cannot have
+recorded set to `null`. Retrospective API pulls of past weeks are **never** imported.
+
+#### 4.8.2 Which snapshot
+
+For week N with a selected publication (§4.1):
+
+- **Paired (primary):** the capture with the smallest `|retrieved_at − available_by|`, provided `retrieved_at` is
+  before the cutoff and within 24 h of `available_by`. Ties go to the earlier capture. This approximates an equal
+  information deadline.
+- **Latest (secondary):** the latest capture before the cutoff. It is labelled `sleeper_timing_advantage` with the
+  gap in hours: it answers which available product was better, not which method was better.
+- No qualifying capture → the week is skipped for §4.8 with `no_sleeper_snapshot`.
+
+#### 4.8.3 Validation and scoring
+
+- **Rows:** records with `category == "proj"`, `season == S`, `week == N`, position in {QB, RB, WR, TE}.
+- **Identity:** `sleeper_id` → `gsis_id` through the nflverse crosswalk. A Sleeper id mapping to several gsis ids, or
+  several Sleeper ids mapping to one gsis id, invalidates every row involved (`crosswalk_collision`). (The current
+  crosswalk has 5 duplicated ids on each side.) Unmapped ids are counted.
+- **Scoring:** common-component PPR. Sleeper's stat keys map to `PREDICTED_STATS`:
+  `pass_yd→passing_yards`, `pass_td→passing_tds`, `pass_int→passing_interceptions`, `rush_att→carries`,
+  `rush_yd→rushing_yards`, `rush_td→rushing_tds`, `rec_tgt→targets`, `rec→receptions`, `rec_yd→receiving_yards`,
+  `rec_td→receiving_tds`, `fum_lost→fumbles_lost`. Points = `fantasy_points(components, PPR)`, the same function and
+  components as our actuals, so two-point conversions and special-teams scores are excluded on both sides.
+  - Sleeper omits keys whose value is zero, so an **absent** mapped key is 0.
+  - A **present** key whose value is null or non-finite makes the row invalid.
+  - A row is a valid projection only if `pts_ppr` is present and finite.
+  - The distribution of `|pts_ppr − rescored|` is reported as a reconciliation check, not used for scoring.
+- The §3.7 1% threshold applies to the Sleeper table.
+
+#### 4.8.4 Metrics and decision
+
+- **Population:** played ∩ our valid projection ∩ valid Sleeper projection. Missingness on each side is reported by
+  week and position, including how many played players each source failed to project.
+- **Primary view:** the fantasy-relevant union, `our p50 ≥ 8 OR Sleeper ≥ 8` (PPR). The threshold is fixed now and
+  never searched. **Diagnostic view:** the whole population.
+- **Per view, per week and cumulative:** MAE of ours, Sleeper and a fixed 50/50 blend of the two point projections;
+  paired deltas `ours − Sleeper`, `blend − Sleeper` and `blend − ours`, each with player-clustered and
+  `week|team`-clustered intervals; within-position Spearman per position-week cell; per-position MAE.
+- The blend is a shadow point comparator. It has no band and is not a product claim.
+- **No weekly decisions.** The comparison is read once, after the last REG week: the primary claims are
+  `ours − Sleeper` and `blend − Sleeper` in the primary view, with Holm adjustment across the two. Everything else is
+  diagnostic. "Inconclusive" is an allowed outcome. Weeks 1–4 of 2026 are never pooled with this series.
+
+#### 4.8.5 Running it
+
+- The private job checks out the private repository with `PRIVATE_DATA_TOKEN`, runs
+  `python -m ffmodel.eval.sleeper_compare --snapshots <private checkout> --live-artifact <public artifact> --out <private checkout>/reports/`
+  and pushes `reports/sleeper_<S>.json` and `.md` to the private repository only.
+- It reads the public artifact's selected publications rather than repeating §4.1.
 
 ## 5. (B) Same-week reanalysis
 
@@ -454,7 +612,7 @@ the ledger. Data goes into a fresh temporary cache unless `--data-dir` is given.
 | Replication | 2020–2022 | the same ensemble; folds through2019–2021 (`rb_oos_weekly.json.artifacts_evaluated`) | `rb_oos_weekly.json` |
 
 Splits come from `walk_forward_splits`. The model side is unchanged from the original measurements (§3.7 masks
-rather than drops).
+rather than drops). Every model artifact used is recorded by path and content hash (§6.6).
 
 ### 5.2 Same-week scrape and population
 
@@ -470,12 +628,12 @@ For week N of season S:
   - **No outcome checks:** actual appearances are never consulted, and there is no fallback.
   - **Unusable choice:** if the chosen scrape yields no scorable cell, or fails §3.7, the week is skipped
     (`no_scorable_cell` or `validation_failed`).
-  - **Record:** every candidate is recorded.
+  - **Record:** every candidate is recorded with its date, gate state and page states.
 - **Population:** played rows of week N whose game date is **strictly after** the scrape date.
 - **Pool:** date-eligible played rows ∩ model predictions ∩ matched consensus (§3.7). The model predicts every
   feature row.
-- **Retention:** reported by season, week, position and game day, including excluded early-game players and the
-  match rate.
+- **Retention:** reported by season, week and position, including the count of excluded early-game players and the
+  match rate. (Cut in draft 7: per-game-day retention.)
 
 **Estimand, stated in the artifact:** within-position ranking of players who recorded a stat line, were matched, and
 had not yet played at the scrape date.
@@ -487,16 +645,10 @@ had not yet played at the scrape date.
 
 Postponed games use their actual `gameday`.
 
-### 5.3 Snapshot-change diagnostic (historical)
+### 5.3 (Cut in draft 7)
 
-This is a conditional diagnostic, not a causal decomposition. For each (season, week) that has both an old-protocol
-scrape (`weekly_snapshot`) and a selected same-week scrape:
-
-1. Intersect the two matched rankings with the date-eligible played rows and the model predictions.
-2. Score both expert lists and the identical model predictions on exactly those IDs.
-3. Apply the same cell rule to both arms: at least 5 players and finite Spearman in both, otherwise the cell is
-   dropped from both.
-4. Record the overlap losses.
+The historical snapshot-change diagnostic is cut. The old-protocol numbers are still reported beside the new ones,
+labelled `different_estimand` (§6.6).
 
 ## 6. (B) Pre-registered analysis and decision rules
 
@@ -528,7 +680,8 @@ All in full precision (§3.8):
 
 ### 6.4 Unverified weeks
 
-- **Primary analysis:** `bye_consistent` plus `unverified` weeks. Unverified weeks are labelled `inferred_by_window`.
+- **Primary analysis:** `bye_consistent` plus `unverified` weeks. Unverified weeks are labelled `inferred_by_window`
+  in the per-week provenance.
 - **Sensitivity:** `bye_consistent` weeks only, reported beside every verdict with its coverage.
 - `contradicted` weeks are always skipped.
 
@@ -582,20 +735,24 @@ applied, and the artifact says so.
 The verdicts and reason codes are computed in code, with no hand step. The artifact contains:
 
 - `protocol_version`, `evaluator_version` (§4.6), and `protocol` (§§3, 5, 6 quoted);
-- `inputs` with hashes: rankings cache, schedules, weekly actuals, crosswalk, model folds;
+- `inputs` with content hashes: rankings cache, schedules, weekly actuals, crosswalk, and every model fold artifact
+  (path and hash, not only the fold name);
 - for each sample:
   - overall, per_position and per_season results;
   - the leave-one-season-out results;
   - the sensitivity, with coverage;
-  - per-week provenance: candidates, selected scrape, per-page gate states, pool sizes, exclusions and skips;
-- `coverage` (§3.6) and the validation counts (§3.7);
-- the §5.3 diagnostic;
+  - per-week provenance: candidates, selected scrape, per-page gate states, pool sizes, exclusions and skips. A week
+    with no selected scrape keeps its candidates and skip reason;
+- `coverage` (§3.6) and the validation counts per reason, table and position (§3.7);
 - the old-protocol numbers read from the two old artifacts, labelled `different_estimand`;
 - `old_protocol_staleness_audit`:
   - for every 2020–25 week, the old protocol's scrape and its §3.5 state;
   - the counts;
   - the exact list of discriminating weeks (`A` and `B` both non-empty and different);
+- `status` (`ok` or `alarm_negative_correlation`) and, when present, `alarm_audit` (§3.9);
 - `verdicts: {rule_1: {value, reasons}, rule_2: {value, reasons_by_sample}}`.
+
+Serialised with `allow_nan=False`.
 
 ### 6.7 Copy follow-through (owner approves before push)
 
@@ -615,7 +772,8 @@ Every wording below is bounded to: players who played; within position; FantasyP
 - the `site/weekly.html` footer;
 - `docs/methodology.md` §3 and §6.
 
-The original text stays visible as the record. Two corrections ride along:
+The original text stays visible as the record, clearly marked as superseded so it cannot be read as a current claim.
+Two corrections ride along:
 
 - c38e175's phrase "made before that week's games" becomes "before that week's Sunday games".
 - `methodology.md`'s "13 discriminating weeks" becomes the `old_protocol_staleness_audit` count and its definition.
@@ -661,15 +819,23 @@ All fixtures are synthetic, and numeric assertions are hand-computed.
   staleness audit lists it as `contradicted`.
 - **Validation:**
   - exact duplicates collapse;
+  - **stage 1:** an exact duplicate actuals row is collapsed *before* `build_features`, so the next week's
+    `lag4_carries` equals the de-duplicated value (astra P3: history 10, 20, 20, 30 → 15.0, not 16.67);
+  - **stage 1:** an exact duplicate schedule game collapses without error and the affected players keep a valid
+    game date;
+  - a conflicting schedule side invalidates that side, and its players' rows are masked;
+  - a conflicting actuals group stays in the `build_features` input and is masked from scoring;
   - a dual-page same-key duplicate with different ECR → the whole group is invalid;
   - non-finite values in evaluated fields only;
   - inverted quantiles;
-  - zero or duplicate schedule joins;
   - `gsis_collisions > 0` → `identity_collision`;
   - exactly 1% passes, and just above it gives `validation_failed`;
   - a key that fails several rules is counted once;
-  - an invalid actual is masked from scoring while staying in the `build_features` input.
+  - a table above 1% on a secondary path (nflverse secondary, §4.8) skips that computation and never runs on the
+    surviving subset.
 - **Cluster keys:** `season*100 + week` and `f"{week}|{team}"` are 1-D scalars that `paired_bootstrap` accepts.
+- **Driver path:** the full stage-1 → `build_features` → stage-2 path runs on a synthetic raw table (not only on a
+  pre-built frame).
 
 ### 7.2 Statistics and rules
 
@@ -688,22 +854,30 @@ All fixtures are synthetic, and numeric assertions are hand-computed.
   each sample insufficient.
 - **Sufficiency:** counted per season and position. An RB-poor sample is sufficient for Rule 1 but not Rule 2. Week 1
   is in the denominator and is scored when a valid scrape exists.
-- **Full precision:** a lower bound of `+0.00003` passes (a), exercised through the real verdict path.
-- **Alarm ((B) only):** `alarm_negative_correlation` with no verdict.
-- **Diagnostics:** the `n ≤ slots` flag; the §5.3 diagnostic scores both arms on identical IDs.
+- **Full precision:** a lower bound of `+0.00003` passes (a), exercised from cell rows through `delta_stats` and the
+  rule functions, not by constructing the statistics directly.
+- **Alarm ((B) only):** `alarm_negative_correlation` with no verdict; `--alarm-audited` with a `no_defect` record
+  publishes with the warning.
+- **Diagnostics:** the `n ≤ slots` flag.
 
 ### 7.3 `live_accuracy.py`
 
+- **Activity fetch:** a mocked three-page `--slurp` response (built from synthetic events) parses to the
+  concatenated events; a non-array page and a failed fetch are infrastructure errors.
 - **Publication evidence:**
   - a covered `push` with `after == C` before the cutoff is selected;
   - a push after the cutoff is not selected;
   - several events for one sha: the earliest is used; ties are broken by `id`;
   - a newer publication push inside a coverage gap makes the week unavailable, and the older push is not promoted;
   - a `force_push` in `[available_by, cutoff)` makes the week unavailable;
-  - a ledger sha in the window that can't be fetched makes the week unavailable;
+  - a `pr_merge` in `[available_by, cutoff)` whose target is unfetchable makes the week unavailable (astra P2);
+  - a week-N bot payload present only at a retained `force_push` target, unreachable from main, is a candidate, so
+    the week is `publication_evidence_unavailable`, not unpublished (astra P2);
+  - no candidate and `[T_S, cutoff)` fully covered → `weeks_unpublished`;
+  - no candidate and a coverage gap in `[T_S, cutoff)` → `publication_evidence_unavailable` (astra S6-I1);
+  - a complete collection ending at `branch_creation` covers back to `-inf`;
   - astra's commit-before / push-after case: an older publication is selected;
-  - astra's sibling case: `F` is never selected;
-  - `publication_evidence_unavailable` is distinct from `weeks_unpublished`.
+  - astra's sibling case: `F` is never selected.
 - **Candidates:**
   - a hand-made commit is rejected;
   - a commit by `weekly-accuracy-bot` is rejected;
@@ -712,39 +886,62 @@ All fixtures are synthetic, and numeric assertions are hand-computed.
 - **Scored values:**
   - legacy `points.ppr` is used when present;
   - neutral re-scoring is used otherwise;
-  - when both exist, equivalence passes within 0.01, and a divergence gives `equivalence_failed` for that week only.
+  - when both exist, equivalence passes within 0.01;
+  - a divergence, a player missing from the neutral file, an empty neutral player list, and a NaN neutral quantile
+    each give `equivalence_failed` for that week only (astra P5).
 - **Archives:**
   - the evidence event is found via `push`/`pr_merge` with ancestor-or-self;
   - an archive pushed after the cutoff is excluded (the week-3 shape);
   - a tie gives `arbitrary_lexicographic`;
-  - the sensitivity uses only qualifying archives;
-  - a hash mismatch gives `archive_hash_mismatch` for that week only;
+  - a hash mismatch gives `archive_hash_mismatch`;
+  - a correctly hashed file named for week 4 whose payload says week 9 gives `archive_identity_mismatch`
+    (astra P4);
+  - an archive above the 1% threshold gives `validation_failed`, and an older archive is not promoted;
   - content is read from `C`, not from the working tree.
 - **Points:**
   - hand-computed metrics;
   - the naive fallback, and a missing-position fallback raises;
   - lags strictly shifted, so no future actual reaches a naive value;
-  - both cluster intervals.
+  - both cluster intervals;
+  - a complete week with zero projection matches → `no_scorable_points`, nulls, no warning under `-W error`
+    (astra P6);
+  - `json.dumps(..., allow_nan=False)` succeeds on every artifact the tests produce.
 - **Ranking pool:**
   - the three-way intersection;
   - a week with no RB coverage;
-  - empty and all-degenerate cells.
+  - empty and all-degenerate cells;
+  - per-week Spearman values are retained and rendered in the Markdown table.
 - **Ledger:**
   - merges by `id` and never deletes;
   - forms the union of coverage intervals;
   - stores `actor.login` only;
-  - loads the seed as its first collection.
+  - loads the seed as its first collection, with interval `["-inf", 2026-10-06T19:02:01Z]`.
 - **Output:**
   - identical inputs and an identical `run` block give byte-identical output;
   - zero complete weeks → `weeks_scored: []`, exit 0;
   - the output path is derived from `current_nfl_season()`;
+  - `evaluator_version` uses the executing checkout's tree and flags a dirty tree;
+  - `inputs` hashes cover all pulled seasons, `bakeoff.json` and archive blobs;
   - the summary renders with its provisional line.
 - **Presence:** a week missing a team's rows is skipped.
 
-### 7.4 Acceptance
+### 7.4 `sleeper_compare.py`
+
+- **Snapshot choice:** paired = nearest to `available_by` within 24 h and before the cutoff, ties to the earlier;
+  latest = last before the cutoff, with the timing gap; none → `no_sleeper_snapshot`.
+- **Scoring:** absent key → 0; present null → invalid; missing `pts_ppr` → invalid; a hand-computed re-score per
+  position.
+- **Identity:** a one-to-many and a many-to-one crosswalk collision each invalidate every row involved.
+- **Metrics:** the relevant-union filter uses projections only (never actuals); the blend is exactly 0.5/0.5; the
+  three paired deltas; missingness per side.
+- **Privacy:** the module's tests assert that it writes only under the `--out` directory given, and the workflow test
+  asserts the private job has no write permission on the public repo.
+
+### 7.5 Acceptance
 
 - `pytest -W error` and every `tests/*_fixture.cjs` pass, locally and in CI.
-- Data checks on the real caches:
+- Data checks on the real caches, run **offline**: the acceptance tool takes explicit existing cache file paths and
+  runs with `FFMODEL_CACHE_FROZEN=1`, so a missing file is an error, never a download (astra P7):
   - `unknown_team_codes == 0` for every 2020–25 scrape;
   - the §4.1 weeks 1–4 selections match the table.
 - The frozen reproduction record (§4.5) is produced. Every divergence from the scratch measurement is accounted for
@@ -752,14 +949,17 @@ All fixtures are synthetic, and numeric assertions are hand-computed.
 
 ## 8. Rollout
 
-1. **Review:** astra reviews draft 6 and the plan on 2026-10-09, after 15:33.
+1. **Review:** astra re-reviews draft 7 and the revised plan.
 2. **Build:** subagent-driven. Sonnet implements and does task reviews, Opus reviews the numerics and leak-surface
    tasks, and Opus does the final review.
 3. **Merge:** code, workflow, tests and the ledger seed. No site data, no frozen paths. The owner OKs the push.
-4. **First live run:** dispatch `weekly-accuracy.yml` by hand. Check its artifact, then commit the frozen
+4. **Collector prerequisite:** `market-snapshots.yml` is live, the private repository and `PRIVATE_DATA_TOKEN` exist,
+   and the week-5 manual capture is imported (§4.8.1). Until then the private job is skipped with a notice.
+5. **First live run:** dispatch `weekly-accuracy.yml` by hand. Check its artifact, then commit the frozen
    reproduction record with the row-level divergence notes.
-5. **Reanalysis:** run (B) locally once, commit its artifact, and report the verdicts and full numbers to the owner.
-6. **Copy:** apply §6.7, with the owner's OK before the push.
+6. **Reanalysis:** run (B) locally once, commit its artifact, and report the verdicts and full numbers to the owner.
+7. **Copy:** apply §6.7, with the owner's OK before the push.
+8. **Season end:** read §4.8.4 once, and report it privately to the owner.
 
 ## 9. Risks and limits (stated, not solved)
 
@@ -772,11 +972,15 @@ All fixtures are synthetic, and numeric assertions are hand-computed.
 - The historical data vintage is today's nflverse cache. It is hashed, but it is not the vintage that existed
   in-season.
 - (B) is a correction of data already examined, not an untouched replication.
+- **Sleeper:** the paired snapshot approximates an equal deadline only to within the capture schedule; Sleeper's
+  source update times cover a minority of records (376 of 3,045 in the week-5 capture); the API is unofficial and
+  may change; the re-score uses common components only. Four time-clustered weeks per month means the season-end
+  read may well be inconclusive.
 
 ## 10. Review trace
 
-**Astra rounds 1–4:** each finding and its resolution are traced in this file's git history (drafts 2–5, commits
-82725c4, 9dc7a55, 135a123, 4f78fe9). The accepted core:
+**Astra rounds 1–4 and the Opus review of draft 5** are traced in this file's git history (drafts 2–6, commits
+82725c4, 9dc7a55, 135a123, 4f78fe9, 5e651df). The accepted core:
 
 - the tri-state gate;
 - metadata-only selection;
@@ -785,30 +989,26 @@ All fixtures are synthetic, and numeric assertions are hand-computed.
 - per-season and per-position sufficiency;
 - exact push evidence.
 
-**Opus adversarial review of draft 5:**
+**Astra review of draft 6 and the plan (2026-10-07):**
 
-| Finding | Resolution |
+| Finding | Resolution in draft 7 |
 |---|---|
-| C1 Rams mapped the wrong way | §3.4 maps ranking codes to schedule codes (`LAR` → `LA`); unit and acceptance tests |
-| C2 reconciliation fails on dual-page duplicates | Cut X2. §3.7 makes same-key conflicting duplicates invalid, and `gsis_collisions > 0` skips the week. The Felton example is cited |
-| I1 week 3 archive pushed after cutoff | §4.3 and §4.5 expectations corrected; the cutoff is not moved |
-| I2 tied to the legacy file | §4.1: candidates may change either file; scored-value rule; same-batch definition |
-| I3 permanent outages | §4.6 error policy: data defects skip the week, infrastructure errors fail the job; the alarm is (B) only |
-| I4 retrospective tier contradictions | Cut X1: tier and inventory removed |
-| I5 `run.json` discarded | Cut X3: a `run` block inside the committed artifact; a provisional line in the summary |
-| M1 force-push claim | §4.1 seed: no `force_push` events |
-| M2 wording | §1 "player-weeks" |
-| M3 cluster keys | §3.8, §4.2 scalar keys; §7.1 test |
-| M4 rounding | §3.8 new unrounded verdict code; `pooled_stats` only for `ci_cell` |
-| M5 page | §3.5 defined by `pos` |
-| M6 archive key | §3.7 table row |
-| M7 activity types | §4.1 `push` for publications; §4.3 `push` / `pr_merge` for archives |
-| M8 unfetchable sha | §4.1 step 4 window |
-| M9 strictness | §6.5 strict throughout; zero codes |
-| M10 workflow | §4.7 git identity, derived path, zero weeks, delays, permissions |
-| M11 ledger size | `actor.login` |
-| M12 masking | §3.7 masking |
-| M13 `evaluator_version` | §4.6 tree id |
-| M14 frozen record timing | §4.5, §8 step 4 |
-| M15 header | Status block |
-| X4, X5 | Force-push fixtures reduced to one rule; live diagnostic removed (§4.4) |
+| S6-I1 absence across missing history | §4.1: season lower bound `T_S`; step 5 claims `weeks_unpublished` only with `[T_S, cutoff)` fully covered and every target fetchable; `-inf` coverage from `branch_creation`; §7.3 fixtures |
+| P1 paginated activity output | §4.1 `--paginate --slurp` and page flattening; §7.3 multi-page fixture |
+| P2 checks inspect only `push` targets | §4.1: candidates enumerated from reachable history and every ledger target; step 4 covers every activity type; §7.3 `pr_merge` and `force_push`-target fixtures |
+| P3 validation after transformation | §3.7 two-stage validation: raw actuals and schedule de-duplicated before `build_features`; schedule validated as its own table; §7.1 lag and driver-path fixtures |
+| P4 archive identity and secondary thresholds | §4.3 identity and validation checks before qualification, no promotion; §3.7 threshold on every path; alternative-archive sensitivity and `_old_cells` diagnostic cut |
+| P5 equivalence can pass incomplete | §4.1 equivalence steps 1–3; §7.3 fixtures |
+| P6 empty point pool writes NaN | §4.2 `no_scorable_points`, nulls; §4.6 `allow_nan=False`; §7.3 fixtures |
+| P7 acceptance tool downloads | §7.5 explicit cache paths, `FFMODEL_CACHE_FROZEN=1` |
+| Minor: `ci_cell` missing | Cut (§3.8) |
+| Minor: precision fixture bypasses verdict path | §7.2 full path |
+| Minor: provenance | §4.6 inputs and executing-tree `evaluator_version`; §6.6 model artifact hashes |
+| Minor: retention and coverage detail | §3.6, §5.2 trimmed to what is reported; per-game-day and per-page detail cut |
+| Minor: per-week ranking values, Markdown "—" | §4.3, §4.6 |
+| Minor: alarm procedure | §3.9 concrete audit procedure and `--alarm-audited` |
+| Minor: workflow rebase-then-push | §4.7 (the plan is corrected to match) |
+| Minor: naive 4.6757 vs 4.673 | §4.5 row-level explanation at acceptance |
+
+**Owner decisions of 2026-10-07:** §4.8 Sleeper comparator, private; private repository for third-party data; the
+"smallest trustworthy report" principle and the cuts above.
