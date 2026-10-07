@@ -2631,11 +2631,13 @@ def test_equivalence_failures(neutral, field):
     assert vp is None and reason == "equivalence_failed" and d[field]
 
 
-def test_equivalence_fails_on_nan_neutral_quantile():
+def test_nan_neutral_quantile_fails_the_neutral_table_before_equivalence():
     bad = _neutral()
     bad["players"][0]["stat_quantiles"]["p50"]["receptions"] = float("nan")
     vp, reason, d = la.published_values(_legacy(), bad, la.ppr_weights(), 2026, 4)
-    assert reason == "equivalence_failed" and d["invalid_neutral"] == ["p1"]
+    assert reason is None and vp.fails() and d == {"source": "neutral", "equivalence_checked": False,
+                                                   "failed_table": "neutral"}
+    assert vp.invalid == {"nonfinite": {("p1",)}}
 
 
 def test_zero_weight_nan_component_invalidates_neutral_row_before_scoring():
@@ -2643,9 +2645,38 @@ def test_zero_weight_nan_component_invalidates_neutral_row_before_scoring():
     bad = _neutral()
     bad["players"][0]["stat_quantiles"]["p50"]["carries"] = float("nan")
     vp, reason, d = la.published_values(_legacy(), bad, la.ppr_weights(), 2026, 4)
-    assert vp is None and reason == "equivalence_failed" and d["invalid_neutral"] == ["p1"]
+    assert reason is None and vp.fails() and d["failed_table"] == "neutral"
     only, reason, _ = la.published_values(None, bad, la.ppr_weights(), 2026, 4)         # legacy retired
     assert reason is None and only.invalid == {"nonfinite": {("p1",)}} and only.valid.empty and only.fails()
+
+
+def _many(n, extra=()):
+    ids = [f"p{i:03d}" for i in range(n)]
+    leg = {"season": 2026, "week": 4, "generated_at": "g1",
+           "players": [{"player_id": i, "position": "WR", "team": "AAA",
+                        "points": {"ppr": {"p10": 2.0, "p50": 5.0, "p90": 8.0}}} for i in ids]}
+    neu = _neutral(players=tuple(ids) + tuple(extra))
+    return leg, neu
+
+
+def test_neutral_only_invalid_player_over_threshold_skips_the_week():
+    # astra S71-I1: 20 matching players plus one neutral-only player whose zero-weight p50.carries is NaN.
+    # The surviving IDs equal the legacy IDs, but 1/21 of the neutral table is invalid (> 1%): never equivalence.
+    leg, neu = _many(20, extra=("extra_bad",))
+    neu["players"][-1]["stat_quantiles"] = json.loads(json.dumps(neu["players"][-1]["stat_quantiles"]))
+    neu["players"][-1]["stat_quantiles"]["p50"]["carries"] = float("nan")
+    vp, reason, d = la.published_values(leg, neu, la.ppr_weights(), 2026, 4)
+    assert reason is None and vp.fails() and d["failed_table"] == "neutral"
+    assert vp.n_keys == 21 and vp.invalid_keys() == {("extra_bad",)}
+
+
+def test_neutral_only_invalid_player_at_exactly_one_percent_passes():
+    # boundary: 99 matching players plus one invalid neutral-only player = exactly 1% -> passes, equivalence runs
+    leg, neu = _many(99, extra=("extra_bad",))
+    neu["players"][-1]["stat_quantiles"] = json.loads(json.dumps(neu["players"][-1]["stat_quantiles"]))
+    neu["players"][-1]["stat_quantiles"]["p50"]["carries"] = float("nan")
+    vp, reason, d = la.published_values(leg, neu, la.ppr_weights(), 2026, 4)
+    assert reason is None and not vp.fails() and d["equivalence_checked"] is True and len(vp.valid) == 99
 
 
 def test_same_player_neutral_vectors_that_score_identically_are_conflicting():
@@ -2662,7 +2693,7 @@ def test_same_player_neutral_vectors_that_score_identically_are_conflicting():
     pts = [la.leaguelens.reference_score(p["stat_quantiles"], "WR", w) for p in neu["players"]]
     assert pts[0] == pytest.approx(pts[1])                                             # same points either way
     vp, reason, d = la.published_values(_legacy(), neu, w, 2026, 4)
-    assert vp is None and reason == "equivalence_failed" and d["invalid_neutral"] == ["p1"]
+    assert reason is None and vp.fails() and d["failed_table"] == "neutral"            # 100% invalid: never equivalence
     only, reason, _ = la.published_values(None, neu, w, 2026, 4)
     assert only.invalid == {"conflicting_duplicates": {("p1",)}} and only.excluded_fraction() == 1.0
     assert la.validate_neutral(stats).n_keys == 1 and only.fails()
@@ -2781,6 +2812,27 @@ def test_naive_uses_strictly_prior_games_and_prior_season_fallback():
 def test_missing_team_rows_make_week_incomplete():
     art = la.evaluate(_ctx(_publication_git(_ours(["AAAWR0"])), raw=_raw_world(missing_team_week=(2026, 1, "BBB"))))
     assert art["weeks_skipped"] == [{"week": 1, "reason": "incomplete_week"}]
+
+
+def test_neutral_only_invalid_player_skips_week_through_evaluate():
+    # astra S71-I1 through the evaluator: a same-batch legacy + neutral commit. The neutral file carries the 19
+    # legacy players plus one neutral-only player whose zero-weight p50.carries is NaN: 1/20 = 5% > 1%, so the
+    # week is validation_failed with the neutral table's counts -- never scored on the surviving legacy table.
+    ids = [f"{t}{p}{i}" for t in TEAMS for p in POS for i in range(5)][:19]
+    g = _publication_git(_ours(ids))
+    neu = _neutral(players=tuple(ids) + ("extra_bad",))
+    neu["week"] = 1
+    bad = json.loads(json.dumps(neu["players"][-1]["stat_quantiles"]))
+    bad["p50"]["carries"] = float("nan")
+    neu["players"][-1]["stat_quantiles"] = bad
+    g.c["pub"]["files"][NEU] = json.dumps(neu).encode()
+    g.c["pub"]["changed"].add(NEU)
+    art = la.evaluate(_ctx(g))
+    assert art["weeks_scored"] == [] and art["weeks_skipped"] == [{"week": 1, "reason": "validation_failed"}]
+    assert art["weeks"]["1"]["values"]["failed_table"] == "neutral"
+    proj = art["weeks"]["1"]["validation"]["projections"]
+    assert proj["failed"] is True and proj["n_keys"] == 20
+    json.dumps(art, allow_nan=False)
 
 
 IDS = [f"{t}{p}{i}" for t in TEAMS for p in POS for i in range(5)]
@@ -3032,7 +3084,9 @@ def published_values(legacy, neutral, weights: dict, season: int, week: int):
     """(projections, reason, detail). `projections` is the validated projection table (sw.TableValidation): its
     `valid` rows (VALUE_COLUMNS) are scored and its counts drive the 1% rule. Legacy points.ppr when the commit
     carries a week-N legacy file, else the neutral stat quantiles, validated on full vectors and then re-scored in
-    PPR. A same-batch pair must pass `equivalence` or the week is skipped."""
+    PPR. A same-batch pair must pass `equivalence` or the week is skipped. Before equivalence, BOTH validated tables
+    must pass the 1% rule (spec §3.7, astra S71-I1): a failed table is returned as `projections` with no reason, so
+    the caller's `.fails()` check skips the week as `validation_failed` and reports that table's counts."""
     leg = legacy if _carries(legacy, season, week) else None
     neu = neutral if _carries(neutral, season, week) else None
     if leg is None and neu is None:
@@ -3042,7 +3096,11 @@ def published_values(legacy, neutral, weights: dict, season: int, week: int):
     lv = sw.validate_projections(_legacy_frame(leg))
     if neu is None or neu.get("generated_at") != leg.get("generated_at"):
         return lv, None, {"source": "legacy", "equivalence_checked": False}
-    eq = equivalence(lv, _neutral_projections(neu, weights))
+    nv = _neutral_projections(neu, weights)
+    for name, table in (("legacy", lv), ("neutral", nv)):
+        if table.fails():
+            return table, None, {"source": name, "equivalence_checked": False, "failed_table": name}
+    eq = equivalence(lv, nv)
     if not eq["ok"]:
         return None, "equivalence_failed", {"source": "legacy", "equivalence_checked": True, **eq}
     return lv, None, {"source": "legacy", "equivalence_checked": True, "max_abs_diff": eq["max_abs_diff"]}
