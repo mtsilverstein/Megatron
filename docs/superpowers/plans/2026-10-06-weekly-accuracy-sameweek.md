@@ -3,32 +3,42 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build two things.
+**Goal:** Build three things.
 
 - (A) An automated weekly scorecard of the projections the bot pipeline published before each kickoff.
+- (A, private) A Sleeper comparator whose report lives only in the private data repository.
 - (B) A pre-registered re-measurement of the weekly model-vs-expert benchmark against same-week rankings, with
   verdicts computed in code.
 
 **Architecture:**
 
 - `src/ffmodel/eval/sameweek.py` holds the shared pure primitives:
-  - team mapping
-  - schedule dates
-  - the bye-week identity gate
-  - validation
-  - same-week scrape selection
-  - per-week cells
-  - statistics and decision rules
-- `src/ffmodel/eval/live_accuracy.py` is (A). It reads publications and archives from git and proves them with a
-  committed push ledger built from GitHub's activity API, then scores them against nflverse actuals. A Tuesday
-  workflow runs it.
+  - team mapping, schedule dates and the bye-week identity gate;
+  - two-stage validation (`prepare` runs stage 1 on the raw tables, then `build_features`; `week_inputs` runs
+    stage 2 per week and carries the stage-1 invalid-key mask to scoring);
+  - same-week scrape selection, per-week cells, ranking coverage;
+  - statistics and decision rules.
+- `src/ffmodel/eval/live_accuracy.py` is (A). It enumerates candidate publications from reachable history and every
+  ledger target, proves them with a committed push ledger built from GitHub's activity API, and scores them against
+  nflverse actuals. A Tuesday workflow runs it.
+- `src/ffmodel/eval/sleeper_compare.py` is the §4.8 comparator. A fail-soft job in the same workflow runs it against
+  the private repository `mtsilverstein/megatron-private-data`.
 - `src/ffmodel/eval/weekly_consensus_sameweek.py` is (B). It runs once, by hand.
 
 **Tech stack:** Python 3.12 (CI) / 3.14 (local), pandas, numpy, scipy (via existing modules), pytest, git CLI,
 `gh` CLI, GitHub Actions.
 
-**Spec:** `docs/superpowers/specs/2026-10-06-weekly-accuracy-sameweek-design.md`, draft 6 (commit 5e651df). Read it
-first: it is the source of truth, and this plan implements it.
+**Spec:** `docs/superpowers/specs/2026-10-06-weekly-accuracy-sameweek-design.md`, draft 7 (commit fef60df). Read it
+first: it is the source of truth, and this plan implements it. Its §10 traces every change since draft 6; this
+plan's revision resolves astra's plan findings P1–P7 and the Minors in
+`.review/astra-weeklyacc-spec6-plan-response.md`.
+
+**Verified when this plan was written (2026-10-07):** every task's code and tests in this plan were run together
+(`pytest -W error`, 110 tests passing) against the real modules on this branch; the Task 10 acceptance tool passed
+offline on the local caches (team codes 0 unknown; the four §4.1 publications and the §4.3 archive outcomes); the
+live `evaluate` path ran end to end on the frozen local caches for 2026 weeks 1–3 (the local weekly cache ends at
+week 3) and serialised with `allow_nan=False`. The (B) driver path was exercised on the 2012–25 caches with a
+stand-in naive predictor only, to prove the code path; no (B) result was computed or recorded.
 
 ## Global Constraints
 
@@ -36,25 +46,33 @@ first: it is the source of truth, and this plan implements it.
 - Branch `feat/weekly-accuracy`, in the main checkout. Never commit to `main`; never push.
 - Run pytest as `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider`. Use `.venv/Scripts/python.exe`
   for all Python.
-- Repo is PUBLIC. All test fixtures are synthetic: no real league or manager data, no other managers' names.
+- Repo is PUBLIC. All test fixtures are synthetic: no real league or manager data, no other managers' names, and
+  no third-party projection or odds values.
+- Stage files by explicit path only. Never `git add -A`, `git add .` or `git add -f`. In particular, never stage
+  anything under `data_snapshots/sleeper_projections/` (an untracked real Sleeper capture lives there; it belongs
+  to the private repository).
 
 **What must not change:**
-- Do NOT edit `src/ffmodel/eval/weekly_rankings.py`, `src/ffmodel/eval/weekly_consensus.py` or
-  `src/ffmodel/data/rankings.py`. Import them unchanged.
+- Do NOT edit `src/ffmodel/eval/weekly_rankings.py`, `src/ffmodel/eval/weekly_consensus.py`,
+  `src/ffmodel/data/rankings.py` or `src/ffmodel/data/pull.py`. Import them unchanged.
 - Do NOT touch `site/`, `models/prospective/**`, `.github/workflows/prospective-*.yml` or
   `.github/workflows/weekly-update.yml`.
-- Tests make no network calls. Git and the GitHub API are injected; tests pass fakes.
+- Tests make no network calls. Git, `gh` and data loading are injected; tests pass fakes.
 
 **Fixed values (copy exactly):**
-- Bootstrap: seed `20260728`, `10000` resamples, via `ffmodel.eval.mean_head_gate.paired_bootstrap`.
+- Bootstrap: seed `20260728`, `10000` resamples, via `ffmodel.eval.mean_head_gate.paired_bootstrap` (the Sleeper
+  comparator re-implements the same resample only to obtain replicate means for p-values).
 - Cluster keys are 1-D scalars: `season*100 + week` for ranking cells, `f"{week}|{team}"` and `player_id` for point
   deltas.
 - `min_cell=5`; `REPLACEMENT_RANK` comes from `ffmodel.site.draft`.
-- Unknown team-code downgrade threshold: `0.02`. Validation threshold: `0.01` (exactly 1% passes).
-- Cutoff for week N is `K_N` 00:00 UTC, where `K_N` = the earliest `gameday` of REG week N.
+- Unknown team-code downgrade threshold: `0.02`. Validation threshold: `0.01` on every path (exactly 1% passes).
+- Cutoff for week N is `K_N` 00:00 UTC, where `K_N` = the earliest `gameday` of REG week N in the validated games.
+- Season lower bound `T_S` = `S-06-01T00:00:00Z`. Coverage interval start `"-inf"` only when a complete collection's
+  oldest event is the `branch_creation` of `refs/heads/main`.
 - Bot identities: publications by `weekly-update-bot`; the accuracy job commits as `weekly-accuracy-bot`.
 - PPR weights for neutral re-scoring: `ffmodel.site.leaguelens.effective_weights` of `sleeper_scoring` in
   `configs/formats/f12-1qb-ppr-4.yaml`. Equivalence tolerance: `0.01`.
+- Sleeper: relevant-union threshold `8.0` PPR, paired window 24 h, 2026 comparisons start at week 5.
 - Team mapping (ranking code → schedule code):
   `{"LAR":"LA","STL":"LA","JAC":"JAX","SD":"LAC","OAK":"LV","LVR":"LV","WSH":"WAS","ARZ":"ARI","BLT":"BAL","CLV":"CLE","HST":"HOU","KCC":"KC","GBP":"GB","NOS":"NO","NEP":"NE","SFO":"SF","TBB":"TB"}`.
   Ignored codes: blank, `FA`.
@@ -62,31 +80,84 @@ first: it is the source of truth, and this plan implements it.
 **Exact strings:**
 - Gate states: `contradicted`, `bye_consistent`, `unverified`, `absent`.
 - Skip reasons: `overlapping_weeks`, `no_candidate_scrape`, `no_scorable_cell`, `validation_failed`,
-  `identity_collision`, `equivalence_failed`, `archive_hash_mismatch`, `publication_evidence_unavailable`,
-  `weeks_unpublished`, `no_archive`, `incomplete_week`.
-- Verdict values: `insufficient`, `behind`, `ahead`, `not_established`, `established`.
+  `identity_collision`, `equivalence_failed`, `archive_hash_mismatch`, `archive_identity_mismatch`,
+  `publication_evidence_unavailable`, `weeks_unpublished`, `no_archive`, `incomplete_week`, `no_scorable_points`,
+  `no_old_protocol_scrape`, `no_sleeper_snapshot`, `snapshot_integrity_failed`, `exploratory_weeks_excluded`.
+- Validation reasons: `conflicting_duplicates`, `nonfinite`, `schedule_join`, `quantile_order`, `missing_gameday`,
+  `crosswalk_collision`.
+- Labels: `inferred_by_window`, `arbitrary_lexicographic`, `sleeper_timing_advantage`, `different_estimand`.
+- Status values: `ok`, `alarm_negative_correlation`; audit conclusions `no_defect`, `defect_found`.
+- Verdict values: `insufficient`, `behind`, `ahead`, `not_established`, `established`; Sleeper season-end outcomes
+  `ours_lower_error`, `sleeper_lower_error`, `blend_lower_error`, `inconclusive`.
 - Reason codes: `interval_includes_zero`, `interval_opposite_side`, `season_inconsistent`,
   `leave_one_season_out_reversal`, `leave_one_season_out_zero`, `sensitivity_absent`, `sensitivity_disagrees`,
   `sensitivity_zero`, `zero_estimate`.
 
-**Precision:** verdict inputs are full precision. Round only when writing display fields.
+**Precision and serialisation:** verdict inputs are full precision; round only when writing display fields. Every
+artifact is written with `json.dumps(..., allow_nan=False)`; undefined metrics are `null`, never NaN.
+
+**Model assignment (CLAUDE.md).** Every task below carries its complete code, tested together when the plan was
+written, so every implementer is **sonnet** (transcription: apply, run, commit). Task reviewers are **sonnet** except
+where a task line says **opus** (numerics and leak surfaces). No task here is prose-specified; if an implementer
+finds a test that does not pass as written, stop and report rather than redesign — that is an opus-level call for the
+controller. Tasks 7, 8, 9 and 10 touch disjoint files and may be dispatched in parallel once Task 6 is committed;
+Tasks 1–6 are sequential (shared files).
 
 ## Review Focus
 
-These inputs are the most likely to break the code, and the spec implies them without any task's happy-path tests
-covering them. Each item has a pinned test in its owning task.
+These inputs are the most likely to break the code. Each has a pinned test in its owning task; the first eight are
+astra's findings on the previous plan.
 
-1. **Real-cache team codes** (`LAR`, `JAC`, `FA`). Expect `unknown_team_codes == 0` on every 2020–25 scrape, with
-   no Rams row unknown. Pinned in Task 1 (unit) and Task 9 (real cache).
-2. **Dual-page same-key duplicates in a real scrape** (one `fp_id` on two pages with different ECR). Expect the
-   whole group invalid. The week runs unless it exceeds 1%, and there is no crash or reconciliation failure. Pinned
-   in Task 2.
-3. **A week whose selected archive was pushed after the cutoff** (the 2026 week-3 shape). Expect the primary ranking
-   skipped as `no_archive` while the point metrics are still scored. Pinned in Task 5.
-4. **A Tuesday run before Monday-night stats land.** Expect that week to be `incomplete_week`, never scored with
-   partial stats, and earlier weeks unaffected. Pinned in Task 6.
-5. **A commit with only the neutral file (legacy retired).** Expect it to remain a publication candidate, scored by
-   re-scoring stat quantiles. Pinned in Task 5 (candidate) and Task 6 (values).
+1. **Paginated activity output (P1).** `gh api --paginate --slurp` returns one outer array of pages; a three-page
+   response must flatten, a non-array page or a failed fetch must raise. Task 5.
+2. **Ledger targets outside main (P2).** An unfetchable `pr_merge` target inside `[available_by, cutoff)` makes the
+   week unavailable; a week-N bot payload present only at a `force_push` target is a candidate, so the week is
+   `publication_evidence_unavailable`, never `weeks_unpublished`. Task 5.
+3. **Absence across missing history (S6-I1).** `weeks_unpublished` only when `[T_S, cutoff)` is fully covered and
+   every target in it is fetchable; a complete collection ending at `branch_creation` covers back to `-inf`. Task 5.
+4. **Raw duplicates before features (P3).** History `10, 20, 20, 30` with an exact duplicate week-2 row gives
+   week-3 `lag4_carries == 15.0`, not `16.67`; a duplicated schedule game neither doubles feature rows nor fails the
+   join; a conflicting actuals group stays in the features and is masked from scoring. Task 2, and through the full
+   drivers in Tasks 6 and 9.
+5. **Archive identity and no promotion (P4).** A correctly hashed file named for week 4 whose payload says week 9 is
+   `archive_identity_mismatch`; an archive above 1% invalid is `validation_failed`; neither lets an older archive be
+   promoted. The 1% rule also governs the nflverse secondary and the staleness audit's reads. Tasks 3 and 5.
+6. **Incomplete equivalence (P5).** An empty neutral list, a missing player or a NaN neutral quantile is
+   `equivalence_failed`, never "checked". Task 6.
+7. **Empty point pool (P6).** A complete week with zero projection matches is `no_scorable_points` with nulls, no
+   warning under `-W error`. Task 6.
+8. **Offline acceptance (P7).** Explicit existing cache files, `FFMODEL_CACHE_FROZEN=1`, no sockets. Task 10.
+9. **Sleeper identity types.** The crosswalk stores `sleeper_id` as float (`13269.0`), Sleeper sends strings; the
+   record `season` is the string `"2026"`; position is under `player.position`; Sleeper omits zero-valued stat keys.
+   Task 7.
+10. **A Tuesday run before Monday-night stats land.** That week is `incomplete_week`, never scored with partial
+    stats. Task 6.
+11. **Subprocess cost on Windows.** Git access is batched (`cat-file --batch-check`, `rev-list --ancestry-path
+    --stdin`), so the real-repo acceptance completes in about 10 s; a per-pair `merge-base` loop took minutes.
+    Task 5.
+
+### Trace of astra's 2026-10-07 review
+
+| Finding | Where it is fixed |
+|---|---|
+| S6-I1 absence across missing history | Task 5: `season_lower_bound`, `collection_start` (`-inf`), `select_publication` step 5; tests `test_absence_needs_complete_coverage_from_season_lower_bound`, `test_collection_ending_at_branch_creation_covers_back_to_minus_infinity` |
+| P1 paginated activity output | Task 5: `fetch_activity` (`--paginate --slurp`, flattened, fail on non-array page); Task 8 workflow; test `test_fetch_activity_flattens_slurped_pages_and_fails_safe` |
+| P2 checks inspect only `push` targets | Task 5: `candidate_index` (reachable history + every ledger target, first-parent back to `T_S`), steps 3–4 over every activity type; tests for the `pr_merge` and `force_push`-target counterexamples |
+| P3 validation after transformation | Task 2: `validate_schedule`, `prepare` (collapse before `build_features`, conflicting groups kept and masked), `week_actuals`/`week_inputs`; used by Task 6 `evaluate` and Task 9 `run_sample`; tests incl. `lag4_carries` 15.0 vs 16.67 |
+| P4 archive identity and secondary thresholds | Task 5: `_check_archive` (hash, payload season/week, 1% validation) before qualification, no promotion; Task 3: 1% rule on the nflverse secondary and the audit reads; Task 7: on the Sleeper table |
+| P5 equivalence can pass incomplete | Task 6: `equivalence` (validated, equal player sets, all three quantiles finite and within 0.01) |
+| P6 empty point pool writes NaN | Task 6: `no_scorable_points`, `point_metrics` nulls, `serialise(allow_nan=False)` |
+| P7 acceptance tool downloads | Task 10: explicit existing files, `FFMODEL_CACHE_FROZEN=1`, socket-blocked test |
+| Minor: `ci_cell` | Cut (spec §3.8); no `pooled_stats` use anywhere |
+| Minor: precision fixture bypasses the verdict path | Task 4: `test_full_precision_lower_bound_passes_through_the_verdict_path` |
+| Minor: provenance | Task 6: `input_hashes` (every pulled season, bakeoff sha256), archive blob hashes, ledger hash, `evaluator_version` from the executing checkout with `dirty`; Task 9: model fold artifact hashes and `evaluator_version` |
+| Minor: retention/coverage detail | Task 3: candidates keep page states, `inferred_by_window`, early-game exclusions by position, `ranking_coverage`; per-game-day and per-page tables cut |
+| Minor: per-week ranking values, Markdown "—" | Task 3 `cell_summary`; Task 6 week records and `render_markdown` |
+| Minor: alarm procedure | Task 9: `audit_cells`, `check_alarm_audit`, `--alarm-audited` |
+| Minor: rebase-then-push | Task 8: `git pull --rebase origin main && git push origin HEAD:main`, three attempts |
+
+**Cut in draft 7 and absent from this plan:** `ci_cell` / `pooled_stats`, the alternative-archive sensitivity, the
+`_old_cells` snapshot-change diagnostic (old §5.3), per-game-day retention and per-page coverage tables.
 
 ---
 
@@ -94,18 +165,21 @@ covering them. Each item has a pinned test in its owning task.
 
 | File | Responsibility |
 |---|---|
-| `src/ffmodel/eval/sameweek.py` (create) | Pure primitives: team mapping, dates, gate, validation, consensus matching, same-week selection, per-week cells, stats, rules |
-| `src/ffmodel/eval/live_accuracy.py` (create) | (A): ledger, git adapter, publication/archive evidence, published values, point and ranking metrics, artifact, markdown, CLI |
-| `src/ffmodel/eval/weekly_consensus_sameweek.py` (create) | (B): sample runner, old-protocol diagnostic, staleness audit, coverage, verdicts, CLI |
-| `.github/workflows/weekly-accuracy.yml` (create) | Tuesday/Wednesday job |
+| `src/ffmodel/eval/sameweek.py` (create) | Pure primitives: team mapping, dates, gate, two-stage validation, consensus matching, same-week selection, cells, coverage, stats, rules |
+| `src/ffmodel/eval/live_accuracy.py` (create) | (A): activity fetch, ledger, git adapter, candidate enumeration, publication/archive evidence, published values, point and ranking metrics, artifact, markdown, CLI |
+| `src/ffmodel/eval/sleeper_compare.py` (create) | §4.8 private comparator: snapshot choice, Sleeper validation and re-score, metrics, season-end read, CLI |
+| `src/ffmodel/eval/weekly_consensus_sameweek.py` (create) | (B): sample runner, staleness audit, verdicts, alarm audit, provenance, CLI |
+| `.github/workflows/weekly-accuracy.yml` (create) | Tuesday/Wednesday public job and the fail-soft private job |
 | `models/diagnostics/main_push_ledger.json` (create) | Ledger seeded from the 2026-10-06 activity capture |
 | `tools/build_push_ledger_seed.py` (create) | One-shot converter from the raw seed to the ledger |
-| `tools/weekly_accuracy_acceptance.py` (create) | Real-cache acceptance checks |
-| `tests/test_sameweek_gate.py`, `tests/test_sameweek_validation.py`, `tests/test_sameweek_selection.py`, `tests/test_sameweek_rules.py`, `tests/test_live_accuracy_evidence.py`, `tests/test_live_accuracy_metrics.py`, `tests/test_weekly_accuracy_workflow.py`, `tests/test_weekly_consensus_sameweek.py` (create) | Tests |
+| `tools/weekly_accuracy_acceptance.py` (create) | Offline real-cache acceptance checks |
+| `tests/test_sameweek_gate.py`, `tests/test_sameweek_validation.py`, `tests/test_sameweek_selection.py`, `tests/test_sameweek_rules.py`, `tests/test_live_accuracy_evidence.py`, `tests/test_live_accuracy_metrics.py`, `tests/test_sleeper_compare.py`, `tests/test_weekly_accuracy_workflow.py`, `tests/test_weekly_consensus_sameweek.py`, `tests/test_weekly_accuracy_acceptance.py` (create) | Tests |
 
 ---
 
 ### Task 1: sameweek — team mapping, schedule dates, bye-week gate
+
+**Model:** implementer sonnet (transcription); reviewer sonnet.
 
 **Files:**
 - Create: `src/ffmodel/eval/sameweek.py`
@@ -113,13 +187,12 @@ covering them. Each item has a pinned test in its owning task.
 
 **Interfaces:**
 - Produces:
-  - `POSITIONS: tuple[str, ...]`, `TEAM_TO_SCHEDULE: dict[str, str]`, `UNKNOWN_CODE_LIMIT = 0.02`
+  - `POSITIONS: tuple[str, ...]`, `TEAM_TO_SCHEDULE: dict[str, str]`, `IGNORED_TEAM_CODES`, `UNKNOWN_CODE_LIMIT = 0.02`
   - `map_team(code) -> str | None`
   - `week_dates(schedules, season) -> dict[int, tuple[pd.Timestamp, pd.Timestamp]]` (week → (K, Z), normalised
-    dates)
-  - `season_teams(schedules, season) -> set[str]`
+    dates; callers pass the validated games from Task 2)
+  - `season_teams(schedules, season) -> set[str]`, `week_teams(schedules, season, week) -> set[str]`
   - `bye_teams(schedules, season, week) -> set[str]` (empty for week < 1)
-  - `team_game_dates(schedules, season, week) -> dict[str, list[pd.Timestamp]]`
   - `page_state(R, A, B) -> str`
   - `GateResult` (dataclass: `state`, `pages`, `unknown_team_codes`, `rows`)
   - `gate(snapshot, schedules, season, week) -> GateResult`
@@ -127,15 +200,12 @@ covering them. Each item has a pinned test in its owning task.
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# tests/test_sameweek_gate.py
 """Offline tests for the same-week primitives: team mapping, dates, bye gate (spec §3.1, §3.4, §3.5)."""
 import pandas as pd
 import pytest
 
 from ffmodel.data.pull import normalize_schedule_teams
 from ffmodel.eval import sameweek as sw
-
-TEAMS = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
 
 
 def _sched(rows):
@@ -163,16 +233,24 @@ def _snap(teams_by_pos):
 
 
 def test_team_mapping_targets_are_schedule_codes():
-    real = normalize_schedule_teams(pd.DataFrame({"home_team": ["STL", "SD", "OAK", "LA", "JAX"],
-                                                  "away_team": ["LA", "LAC", "LV", "WAS", "ARI"]}))
-    schedule_codes = set(real["home_team"]) | set(real["away_team"]) | {
-        "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC",
-        "LAC", "LA", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS", "ARI"}
+    legacy = pd.DataFrame({"home_team": ["STL", "SD", "OAK"], "away_team": ["LA", "LAC", "LV"]})
+    normalized = normalize_schedule_teams(legacy)
+    assert set(normalized["home_team"]) == {"LA", "LAC", "LV"}          # the schedule side of the mapping
+    schedule_codes = {
+        "ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC",
+        "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"}
     assert set(sw.TEAM_TO_SCHEDULE.values()) <= schedule_codes
-    assert sw.map_team("LAR") == "LA"
-    assert sw.map_team("JAC") == "JAX"
+    assert sw.map_team("LAR") == "LA" and sw.map_team("JAC") == "JAX"
     assert sw.map_team("FA") is None and sw.map_team("") is None and sw.map_team(None) is None
     assert sw.map_team("buf") == "BUF"
+
+
+def test_unknown_code_counted_and_contributes_no_presence():
+    s = _season()
+    snap = _snap({p: ["AAA", "BBB", "EEE", "FFF"] for p in sw.POSITIONS})
+    junk = snap.head(1).assign(team="ZZZ", fp_id="junk")
+    g = sw.gate(pd.concat([snap, junk], ignore_index=True), s, 2024, 3)
+    assert g.unknown_team_codes == 1
 
 
 def test_week_dates_and_byes():
@@ -181,7 +259,7 @@ def test_week_dates_and_byes():
     assert d[1] == (pd.Timestamp("2024-09-05"), pd.Timestamp("2024-09-09"))
     assert sw.bye_teams(s, 2024, 2) == {"EEE", "FFF"}
     assert sw.bye_teams(s, 2024, 0) == set()
-    assert sw.team_game_dates(s, 2024, 2)["CCC"] == [pd.Timestamp("2024-09-15")]
+    assert sw.week_teams(s, 2024, 2) == {"AAA", "BBB", "CCC", "DDD"}
 
 
 @pytest.mark.parametrize("R,A,B,expected", [
@@ -201,15 +279,15 @@ def test_one_of_four_previous_bye_teams_missing_still_consistent():
     assert sw.page_state({"EEE", "FFF", "GGG"}, set(), {"EEE", "FFF", "GGG", "HHH"}) == "bye_consistent"
 
 
-def test_gate_week_states():
+def test_week_identity_gate_states():
     s = _season()
     fresh = {p: ["AAA", "BBB", "EEE", "FFF"] for p in sw.POSITIONS}            # week 3: CCC/DDD bye, EEE/FFF back
     assert sw.gate(_snap(fresh), s, 2024, 3).state == "bye_consistent"
-    mixed = dict(fresh, RB=["AAA", "BBB", "CCC", "DDD"])                       # RB page stale
+    mixed = dict(fresh, RB=["AAA", "BBB", "CCC", "DDD"])                       # RB page stale, WR page fresh
     g = sw.gate(_snap(mixed), s, 2024, 3)
-    assert g.state == "contradicted" and g.pages["RB"] == "contradicted"
+    assert g.state == "contradicted" and g.pages["RB"] == "contradicted" and g.pages["WR"] == "bye_consistent"
     absent = {p: t for p, t in fresh.items() if p != "TE"}
-    assert sw.gate(_snap(absent), s, 2024, 3).state == "unverified"           # absent page downgrades
+    assert sw.gate(_snap(absent), s, 2024, 3).state == "unverified"           # absent page with B != empty
     assert sw.gate(_snap({}), s, 2024, 3).state == "unverified"               # all absent
 
 
@@ -226,7 +304,7 @@ def test_gate_unknown_codes_downgrade_but_never_erase_contradiction():
 
 
 def test_gate_documents_non_proof_when_no_current_byes():
-    # week 4 has no byes (A empty); a week-3-era page listing the week-3 returners (EEE/FFF) still passes
+    # week 4 has no byes (A empty); a page listing the week-3 returners (EEE/FFF) still passes
     s = _season()
     other_week = _snap({p: ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"] for p in sw.POSITIONS})
     assert sw.gate(other_week, s, 2024, 4).state == "bye_consistent"
@@ -240,11 +318,11 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'ffmodel.eval.sameweek
 - [ ] **Step 3: Implement**
 
 ```python
-# src/ffmodel/eval/sameweek.py
 """Same-week expert-benchmark primitives (spec docs/superpowers/specs/2026-10-06-weekly-accuracy-sameweek-design.md).
 
-Pure functions shared by the live weekly scorecard (live_accuracy) and the historical re-measurement
-(weekly_consensus_sameweek). Nothing here touches the network or git.
+Pure functions shared by the live weekly scorecard (live_accuracy), the private Sleeper comparator
+(sleeper_compare) and the historical re-measurement (weekly_consensus_sameweek). Nothing here touches the
+network or git.
 """
 from __future__ import annotations
 
@@ -278,6 +356,7 @@ def _season_games(schedules: pd.DataFrame, season: int) -> pd.DataFrame:
 
 
 def week_dates(schedules: pd.DataFrame, season: int) -> dict[int, tuple[pd.Timestamp, pd.Timestamp]]:
+    """week -> (K_N, Z_N): earliest and latest gameday (spec §3.1). Pass the VALIDATED games (§3.7)."""
     g = _season_games(schedules, season)
     if g.empty:
         raise ValueError(f"no REG games for season {season}")
@@ -290,24 +369,19 @@ def season_teams(schedules: pd.DataFrame, season: int) -> set[str]:
     return set(g["home_team"]) | set(g["away_team"])
 
 
+def week_teams(schedules: pd.DataFrame, season: int, week: int) -> set[str]:
+    g = _season_games(schedules, season)
+    wk = g[g["week"] == week]
+    return set(wk["home_team"]) | set(wk["away_team"])
+
+
 def bye_teams(schedules: pd.DataFrame, season: int, week: int) -> set[str]:
     if week < 1:
         return set()
-    g = _season_games(schedules, season)
-    wk = g[g["week"] == week]
-    if wk.empty:
+    playing = week_teams(schedules, season, week)
+    if not playing:
         return set()
-    return season_teams(schedules, season) - (set(wk["home_team"]) | set(wk["away_team"]))
-
-
-def team_game_dates(schedules: pd.DataFrame, season: int, week: int) -> dict[str, list[pd.Timestamp]]:
-    g = _season_games(schedules, season)
-    wk = g[g["week"] == week]
-    out: dict[str, list[pd.Timestamp]] = {}
-    for _, r in wk.iterrows():
-        for t in (r["home_team"], r["away_team"]):
-            out.setdefault(t, []).append(r["_day"])
-    return out
+    return season_teams(schedules, season) - playing
 
 
 def page_state(R: set, A: set, B: set) -> str:
@@ -373,35 +447,57 @@ git commit -m "feat(sameweek): team mapping to schedule codes, schedule dates, t
 
 ---
 
-### Task 2: sameweek — validation and consensus matching
+### Task 2: sameweek — two-stage validation and consensus matching
+
+**Model:** implementer sonnet (transcription); reviewer **opus** (leak surface: what reaches `build_features`).
 
 **Files:**
-- Modify: `src/ffmodel/eval/sameweek.py` (append)
+- Modify: `src/ffmodel/eval/sameweek.py` (replace the import block, append)
 - Test: `tests/test_sameweek_validation.py`
 
 **Interfaces:**
-- Consumes: `team_game_dates` (Task 1).
+- Consumes: Task 1; `ffmodel.data.features.build_features`; `ffmodel.data.rankings.attach_gsis` (unchanged).
 - Produces:
-  - `VALIDATION_LIMIT = 0.01`
+  - `VALIDATION_LIMIT = 0.01`, `ACTUALS_KEY`, `ACTUALS_ELIGIBILITY`, `SIDE_KEY`, `GAME_SIGNATURE`
   - `TableValidation` (dataclass)
-    - fields: `valid: pd.DataFrame`, `invalid: dict[str, set]`, `n_keys: int`, `exact_duplicates: int`
+    - fields: `valid: pd.DataFrame`, `invalid: dict[str, set[tuple]]`, `n_keys: int`, `exact_duplicates: int`,
+      `key_position: dict`
     - methods: `invalid_keys() -> set`, `excluded_fraction() -> float`, `fails() -> bool`, `report() -> dict`
-  - `validate_table(df, key, evaluated, eligibility, extra_invalid=None) -> TableValidation`
-    - `extra_invalid` is a `dict[str, pd.Series[bool]]` aligned to `df.index`
-  - `validate_actuals(rows, schedules, season, week) -> TableValidation`
-    - `valid` keeps the original index of the surviving rows
+      (counts per reason, per reason and position, `excluded_fraction`, `failed`)
+  - `validate_table(df, key, evaluated, eligibility, extra_invalid=None, position_col=None, preinvalid=None) -> TableValidation`
+  - `explode_sides(games) -> pd.DataFrame` (one row per `(season, week, team)`; `opponent` identifies the game,
+    plus `game_id` when the schedule carries one)
+  - `ScheduleCheck` (dataclass: `games`, `sides`, `valid_games`, `duplicate_games`; methods
+    `game_date(season, week) -> dict[str, pd.Timestamp]`, `week_validation(season, week) -> TableValidation`)
+  - `validate_schedule(schedules) -> ScheduleCheck`
+  - `Prepared` (dataclass: `features`, `schedule: ScheduleCheck`, `actuals: TableValidation` (stage-1 mask in
+    `.invalid`), `exact_by_week`)
+  - `prepare(weekly_raw, schedules_raw, build=build_features) -> Prepared` — stage 1, then `build_features`
+  - `week_actuals(prep, season, week) -> TableValidation` — stage 2; `valid` keeps the features index
+  - `week_inputs(prep, season, week) -> dict` with keys `actuals`, `schedule`, `failed`, `report`
   - `validate_projections(df) -> TableValidation` (columns `player_id, team, position, p10, p50, p90`)
-  - `ConsensusMatch` (dataclass: `matched: pd.DataFrame | None`, `stats: dict`, `reason: str | None`)
-  - `match_consensus(snapshot_valid, crosswalk) -> ConsensusMatch`
+  - `validate_consensus(snap) -> TableValidation` (nflverse rows; key `fp_id`)
+  - `ConsensusMatch` (dataclass: `matched`, `stats`, `reason`), `match_consensus(snapshot_valid, crosswalk)`
+
+Design notes (spec §3.7, astra P3):
+- Exact duplicate actuals rows and exact duplicate games are collapsed **before** `build_features`. A conflicting
+  actuals group and a non-finite row stay in the `build_features` input exactly as pulled, so model inputs match the
+  original measurements, and their keys go into the mask that stage 2 applies to scoring.
+- A conflicting schedule side is kept in `games` (the feature input and the bye sets) on the same principle, but it
+  is invalid: its teams have no `game_date`, their actuals rows fail `schedule_join`, the week's schedule table fails
+  the 1% rule, and `valid_games` (the source of `K_N`/`Z_N`) excludes the game.
+- `pull_schedules` carries no `game_id`, so a side's game is identified by `gameday` and `opponent` (plus
+  `game_id` when present).
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# tests/test_sameweek_validation.py
-"""Spec §3.7 validation, masking and identity-collision handling. Synthetic data only."""
+"""Spec §3.7 two-stage validation, masking and identity-collision handling. Synthetic data only."""
 import numpy as np
 import pandas as pd
+import pytest
 
+from ffmodel.data.features import build_features
 from ffmodel.eval import sameweek as sw
 from ffmodel.scoring import PREDICTED_STATS
 
@@ -410,65 +506,125 @@ def _cons(rows):
     return pd.DataFrame(rows, columns=["fp_id", "player", "pos", "team", "ecr", "sd", "mergename", "scrape_date"])
 
 
+def _weekly(rows):
+    """Canonical weekly rows as pull_weekly returns them; unspecified stats are zero."""
+    base = {"player_id": "p1", "player_display_name": "P One", "position": "RB", "team": "AAA",
+            "opponent_team": "BBB", "season": 2023, "week": 1, "target_share": np.nan, "snap_pct": np.nan,
+            "fantasy_points_ppr": 0.0, "two_point_conversions": 0, "special_teams_tds": 0, "attempts": 0.0,
+            "receiving_air_yards": 0.0, "passing_air_yards": 0.0, **{s: 0.0 for s in PREDICTED_STATS}}
+    return pd.DataFrame([{**base, **r} for r in rows])
+
+
+def _games(weeks=4, season=2023):
+    days = pd.date_range(f"{season}-09-10", periods=weeks, freq="7D")
+    return pd.DataFrame({"season": season, "week": range(1, weeks + 1), "gameday": days.strftime("%Y-%m-%d"),
+                         "home_team": "AAA", "away_team": "BBB"})
+
+
 def test_exact_duplicates_collapse_and_conflicts_invalidate_group():
     d = pd.Timestamp("2022-12-30")
     snap = _cons([
         ("1", "A", "RB", "AAA", 1.0, 1.0, "a", d), ("1", "A", "RB", "AAA", 1.0, 1.0, "a", d),       # exact dup
-        ("2", "Felton", "RB", "BBB", 113.2, 1.0, "felton", d), ("2", "Felton", "RB", "BBB", 163.6, 1.0, "felton", d),
+        ("2", "Felton", "RB", "BBB", 113.2, 1.0, "felton", d), ("2", "Felton", "WR", "BBB", 163.6, 1.0, "felton", d),
         ("3", "C", "WR", "CCC", 5.0, 1.0, "c", d),
     ])
-    v = sw.validate_table(snap, key=["fp_id"], evaluated=["ecr"], eligibility=["pos", "team", "mergename"])
+    v = sw.validate_consensus(snap)
     assert v.exact_duplicates == 1
     assert v.invalid["conflicting_duplicates"] == {("2",)}
     assert sorted(v.valid["fp_id"]) == ["1", "3"]
-    assert v.n_keys == 3 and abs(v.excluded_fraction() - 1 / 3) < 1e-12
+    assert v.n_keys == 3 and v.excluded_fraction() == pytest.approx(1 / 3)
+    assert v.report()["invalid_by_reason_position"] == {"conflicting_duplicates": {"RB": 1}}
 
 
 def test_threshold_exactly_one_percent_passes_just_above_fails():
     d = pd.Timestamp("2024-09-20")
     rows = [(str(i), f"p{i}", "WR", "AAA", float(i), 1.0, f"p{i}", d) for i in range(100)]
     rows[0] = ("0", "p0", "WR", "AAA", float("nan"), 1.0, "p0", d)                      # 1 of 100 invalid
-    v = sw.validate_table(_cons(rows), ["fp_id"], ["ecr"], ["pos", "team", "mergename"])
+    v = sw.validate_consensus(_cons(rows))
     assert v.excluded_fraction() == 0.01 and not v.fails()
     rows[1] = ("1", "p1", "WR", "AAA", float("inf"), 1.0, "p1", d)
-    v2 = sw.validate_table(_cons(rows), ["fp_id"], ["ecr"], ["pos", "team", "mergename"])
-    assert v2.fails()
+    assert sw.validate_consensus(_cons(rows)).fails()
+    assert sw.validate_consensus(_cons([])).excluded_fraction() == 0.0                # empty table: fraction 0
 
 
 def test_key_failing_several_rules_counted_once():
     d = pd.Timestamp("2024-09-20")
     snap = _cons([("1", "A", "RB", "AAA", np.nan, 1.0, "a", d), ("1", "A", "RB", "AAA", 2.0, 1.0, "a", d),
                   ("2", "B", "RB", "AAA", 3.0, 1.0, "b", d)])
-    v = sw.validate_table(snap, ["fp_id"], ["ecr"], ["pos", "team", "mergename"])
-    assert v.invalid_keys() == {("1",)} and abs(v.excluded_fraction() - 0.5) < 1e-12
+    v = sw.validate_consensus(snap)
+    assert v.invalid_keys() == {("1",)} and v.excluded_fraction() == pytest.approx(0.5)
+
+
+def test_nonfinite_only_in_evaluated_fields():
+    d = pd.Timestamp("2024-09-20")
+    snap = _cons([("1", "A", "RB", "AAA", 1.0, np.nan, "a", d)])                       # sd is not evaluated
+    assert sw.validate_consensus(snap).invalid == {}
 
 
 def test_projection_quantile_order():
     df = pd.DataFrame({"player_id": ["a", "b"], "team": ["AAA", "AAA"], "position": ["WR", "WR"],
                        "p10": [1.0, 5.0], "p50": [2.0, 4.0], "p90": [3.0, 6.0]})
-    v = sw.validate_projections(df)
-    assert v.invalid["quantile_order"] == {("b",)}
+    assert sw.validate_projections(df).invalid["quantile_order"] == {("b",)}
 
 
-def _actual_rows(team="AAA", pid="x"):
-    row = {"player_id": pid, "position": "WR", "team": team, "season": 2024, "week": 2}
-    row.update({s: 1.0 for s in PREDICTED_STATS})
-    return row
+def test_stage1_exact_duplicate_collapses_before_features():
+    # astra P3: carries 10, 20, 20(duplicate of week 2), 30 -> week-3 lag4_carries must be 15.0, not 16.67
+    rows = [{"week": 1, "carries": 10.0}, {"week": 2, "carries": 20.0}, {"week": 2, "carries": 20.0},
+            {"week": 3, "carries": 30.0}]
+    weekly = _weekly(rows)
+    assert build_features(weekly, _games())[lambda f: f["week"] == 3]["lag4_carries"].iloc[0] == pytest.approx(50 / 3)
+    prep = sw.prepare(weekly, _games())
+    wk3 = prep.features[prep.features["week"] == 3]
+    assert len(wk3) == 1 and wk3["lag4_carries"].iloc[0] == pytest.approx(15.0)
+    v2 = sw.week_actuals(prep, 2023, 2)
+    assert v2.exact_duplicates == 1 and v2.invalid == {} and len(v2.valid) == 1
 
 
-def test_actuals_schedule_join_and_mask_keeps_index():
-    sched = pd.DataFrame([(2024, 2, "2024-09-12", "AAA", "BBB")],
-                         columns=["season", "week", "gameday", "home_team", "away_team"])
-    rows = pd.DataFrame([_actual_rows("AAA", "x"), _actual_rows("ZZZ", "y")], index=[10, 11])
-    v = sw.validate_actuals(rows, sched, 2024, 2)
-    assert v.invalid["schedule_join"] == {(2024, 2, "y")}
-    assert list(v.valid.index) == [10]
+def test_stage1_conflicting_actuals_stay_in_features_and_are_masked():
+    rows = [{"week": 1, "carries": 10.0}, {"week": 2, "carries": 20.0}, {"week": 2, "carries": 25.0},
+            {"week": 3, "carries": 30.0}]
+    prep = sw.prepare(_weekly(rows), _games())
+    assert len(prep.features[prep.features["week"] == 2]) == 2                         # both rows kept as inputs
+    wk3 = prep.features[prep.features["week"] == 3]
+    assert wk3["lag4_carries"].iloc[0] == pytest.approx(55 / 3)                       # model inputs unchanged
+    assert prep.actuals.invalid["conflicting_duplicates"] == {(2023, 2, "p1")}
+    v2 = sw.week_actuals(prep, 2023, 2)
+    assert v2.invalid_keys() == {(2023, 2, "p1")} and v2.valid.empty and v2.fails()
+    assert not sw.week_actuals(prep, 2023, 3).invalid                                  # mask is per week only
+
+
+def test_stage1_nonfinite_actual_masked_but_kept():
+    rows = [{"week": 1, "carries": 10.0}, {"week": 2, "carries": np.nan}, {"week": 3, "carries": 30.0}]
+    prep = sw.prepare(_weekly(rows), _games())
+    assert len(prep.features) == 3
+    assert sw.week_actuals(prep, 2023, 2).invalid == {"nonfinite": {(2023, 2, "p1")}}
+
+
+def test_exact_duplicate_schedule_game_collapses_without_error():
+    games = pd.concat([_games(), _games().iloc[[1]]], ignore_index=True)              # week 2 listed twice
+    rows = [{"week": w, "carries": 5.0} for w in (1, 2, 3)]
+    prep = sw.prepare(_weekly(rows), games)
+    assert prep.schedule.duplicate_games == 1 and len(prep.features) == 3             # no row doubled
+    assert prep.schedule.game_date(2023, 2)["AAA"] == pd.Timestamp("2023-09-17")
+    wi = sw.week_inputs(prep, 2023, 2)
+    assert not wi["failed"] and wi["actuals"].invalid == {}
+
+
+def test_conflicting_schedule_side_invalidates_side_and_masks_players():
+    games = pd.concat([_games(), _games().iloc[[1]].assign(gameday="2023-09-18")], ignore_index=True)
+    rows = [{"week": w, "carries": 5.0} for w in (1, 2, 3)]
+    prep = sw.prepare(_weekly(rows), games)
+    assert "AAA" not in prep.schedule.game_date(2023, 2)
+    wi = sw.week_inputs(prep, 2023, 2)
+    assert wi["schedule"].invalid["conflicting_duplicates"] == {(2023, 2, "AAA"), (2023, 2, "BBB")}
+    assert wi["actuals"].invalid["schedule_join"] == {(2023, 2, "p1")} and wi["failed"]
+    assert 2 not in sw.week_dates(prep.schedule.valid_games, 2023)
 
 
 def test_match_consensus_flags_identity_collision():
     d = pd.Timestamp("2024-09-20")
     snap = _cons([("10", "Same Guy", "RB", "AAA", 5.0, 1.0, "same guy", d),
-                  ("11", "Same Guy", "RB", "AAA", 5.0, 1.0, "same guy", d)])          # two keys, tied ECR, one player
+                  ("11", "Same Guy", "RB", "AAA", 5.0, 1.0, "same guy", d)])          # two keys, one player
     cw = pd.DataFrame({"gsis_id": ["00-1", "00-1"], "fantasypros_id": ["10", "11"],
                        "merge_name": ["same guy", "same guy"], "position": ["RB", "RB"]})
     m = sw.match_consensus(snap, cw)
@@ -487,26 +643,43 @@ def test_match_consensus_ok():
 - [ ] **Step 2: Run the tests and confirm they fail**
 
 Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_sameweek_validation.py -q`
-Expected: FAIL with `AttributeError: module 'ffmodel.eval.sameweek' has no attribute 'validate_table'`.
+Expected: FAIL with `AttributeError: module 'ffmodel.eval.sameweek' has no attribute 'validate_consensus'`.
 
-- [ ] **Step 3: Implement (append to `sameweek.py`)**
+- [ ] **Step 3: Implement**
+
+Replace the import block at the top of `sameweek.py` (everything from `from __future__ import annotations` to
+`import pandas as pd`) with:
 
 ```python
-# --- §3.7 validation -------------------------------------------------------------------------------------------
-import numpy as np  # noqa: E402  (keep imports grouped at top of file when editing: move this line up)
+from __future__ import annotations
 
-from ffmodel.data.rankings import attach_gsis  # noqa: E402
-from ffmodel.scoring import PREDICTED_STATS  # noqa: E402
+from dataclasses import dataclass, field
 
+import numpy as np
+import pandas as pd
+
+from ffmodel.data.features import build_features
+from ffmodel.data.rankings import attach_gsis
+from ffmodel.scoring import PREDICTED_STATS
+```
+
+Then append:
+
+```python
 VALIDATION_LIMIT = 0.01
+ACTUALS_KEY = ["season", "week", "player_id"]
+ACTUALS_ELIGIBILITY = ["team", "position"]
+SIDE_KEY = ["season", "week", "team"]
+GAME_SIGNATURE = ["season", "week", "gameday", "home_team", "away_team", "game_id"]
 
 
 @dataclass
 class TableValidation:
     valid: pd.DataFrame
-    invalid: dict = field(default_factory=dict)
+    invalid: dict = field(default_factory=dict)          # reason -> set of key tuples
     n_keys: int = 0
     exact_duplicates: int = 0
+    key_position: dict = field(default_factory=dict)     # key tuple -> position, for per-position counts
 
     def invalid_keys(self) -> set:
         out: set = set()
@@ -521,9 +694,18 @@ class TableValidation:
         return self.excluded_fraction() > VALIDATION_LIMIT
 
     def report(self) -> dict:
-        return {"n_keys": self.n_keys, "exact_duplicates": self.exact_duplicates,
+        by_pos: dict[str, dict[str, int]] = {}
+        for reason, keys in sorted(self.invalid.items()):
+            for k in keys:
+                pos = self.key_position.get(k)
+                if pos is not None:
+                    by_pos.setdefault(reason, {})
+                    by_pos[reason][str(pos)] = by_pos[reason].get(str(pos), 0) + 1
+        return {"n_keys": int(self.n_keys), "exact_duplicates": int(self.exact_duplicates),
                 "invalid_by_reason": {r: len(k) for r, k in sorted(self.invalid.items())},
-                "excluded_fraction": round(self.excluded_fraction(), 6)}
+                "invalid_by_reason_position": {r: dict(sorted(p.items())) for r, p in sorted(by_pos.items())},
+                "invalid_keys": len(self.invalid_keys()),
+                "excluded_fraction": round(self.excluded_fraction(), 6), "failed": self.fails()}
 
 
 def _keys(df: pd.DataFrame, key: list[str]) -> pd.Series:
@@ -536,9 +718,14 @@ def _nonfinite(df: pd.DataFrame, cols: list[str]) -> pd.Series:
 
 
 def validate_table(df: pd.DataFrame, key: list[str], evaluated: list[str], eligibility: list[str],
-                   extra_invalid: dict | None = None) -> TableValidation:
+                   extra_invalid: dict | None = None, position_col: str | None = None,
+                   preinvalid: dict | None = None) -> TableValidation:
+    """Spec §3.7 for one table. Exact duplicates (same key, evaluated and eligibility fields) collapse and are
+    counted; any other same-key group is invalid as a whole; non-finite evaluated fields invalidate the key.
+    `extra_invalid`: reason -> boolean Series aligned to df.index. `preinvalid`: reason -> key tuples invalidated
+    upstream (the stage-1 mask); only keys present in df are carried."""
     if len(df) == 0:
-        return TableValidation(valid=df.copy(), invalid={}, n_keys=0, exact_duplicates=0)
+        return TableValidation(valid=df.copy())
     keys = _keys(df, key)
     n_keys = int(keys.nunique())
     sig = key + evaluated + eligibility
@@ -550,23 +737,122 @@ def validate_table(df: pd.DataFrame, key: list[str], evaluated: list[str], eligi
     conflict = set(counts[counts > 1].index)
     if conflict:
         invalid["conflicting_duplicates"] = conflict
-    bad = _nonfinite(collapsed, evaluated)
-    if bad.any():
-        invalid["nonfinite"] = set(ckeys[bad])
+    if evaluated:
+        bad = _nonfinite(collapsed, evaluated)
+        if bad.any():
+            invalid["nonfinite"] = set(ckeys[bad])
     for reason, mask in (extra_invalid or {}).items():
         m = mask.reindex(collapsed.index, fill_value=False).astype(bool)
         if m.any():
             invalid.setdefault(reason, set()).update(set(ckeys[m]))
+    present = set(ckeys)
+    for reason, ks in (preinvalid or {}).items():
+        carried = set(ks) & present
+        if carried:
+            invalid.setdefault(reason, set()).update(carried)
     bad_keys = set().union(*invalid.values()) if invalid else set()
     valid = collapsed[~ckeys.isin(bad_keys)]
-    return TableValidation(valid=valid, invalid=invalid, n_keys=n_keys, exact_duplicates=exact_dups)
+    key_position: dict = {}
+    if position_col is not None:
+        for k, p in zip(ckeys, collapsed[position_col]):
+            if isinstance(p, str):
+                key_position.setdefault(k, p)          # a group's first row names its position
+    return TableValidation(valid=valid, invalid=invalid, n_keys=n_keys, exact_duplicates=exact_dups,
+                           key_position=key_position)
 
 
-def validate_actuals(rows: pd.DataFrame, schedules: pd.DataFrame, season: int, week: int) -> TableValidation:
-    games = team_game_dates(schedules, season, week)
-    bad_join = rows["team"].map(lambda t: len(games.get(t, [])) != 1)
-    return validate_table(rows, ["season", "week", "player_id"], list(PREDICTED_STATS), ["team", "position"],
-                          extra_invalid={"schedule_join": bad_join})
+def explode_sides(games: pd.DataFrame) -> pd.DataFrame:
+    """One row per (season, week, team) side; `opponent` stands in for game_id when the schedule has none."""
+    extra = ["game_id"] if "game_id" in games.columns else []
+    base = games[["season", "week", "gameday", "home_team", "away_team", *extra]]
+    home = base.rename(columns={"home_team": "team", "away_team": "opponent"})
+    away = base.rename(columns={"away_team": "team", "home_team": "opponent"})
+    sides = pd.concat([home, away], ignore_index=True)
+    sides["gameday"] = pd.to_datetime(sides["gameday"]).dt.normalize()
+    return sides[["season", "week", "team", "gameday", "opponent", *extra]]
+
+
+def _validate_sides(sides: pd.DataFrame) -> TableValidation:
+    # gameday is a date, so "non-finite" means missing; opponent/game_id identify the game.
+    elig = ["gameday"] + [c for c in ("opponent", "game_id") if c in sides.columns]
+    return validate_table(sides, SIDE_KEY, [], elig, extra_invalid={"missing_gameday": sides["gameday"].isna()})
+
+
+@dataclass
+class ScheduleCheck:
+    """Stage-1 schedule (spec §3.7). `games`: the raw schedule with exact duplicate games collapsed -- the
+    build_features input and the source of bye/presence sets. `sides`: the exploded (season, week, team) table,
+    validated. `valid_games`: games whose two sides are both valid -- the source of K_N/Z_N."""
+    games: pd.DataFrame
+    sides: TableValidation
+    valid_games: pd.DataFrame
+    duplicate_games: int = 0
+
+    def game_date(self, season: int, week: int) -> dict[str, pd.Timestamp]:
+        v = self.sides.valid
+        wk = v[(v["season"] == season) & (v["week"] == week)]
+        return {t: d for t, d in zip(wk["team"], wk["gameday"])}
+
+    def week_validation(self, season: int, week: int) -> TableValidation:
+        s = explode_sides(self.games)
+        s = s[(s["season"] == season) & (s["week"] == week)]
+        return _validate_sides(s)
+
+
+def validate_schedule(schedules: pd.DataFrame) -> ScheduleCheck:
+    sig = [c for c in GAME_SIGNATURE if c in schedules.columns]
+    games = schedules[~schedules.duplicated(subset=sig, keep="first")]
+    sides = _validate_sides(explode_sides(games))
+    bad = sides.invalid_keys()
+    home_bad = pd.Series(list(zip(games["season"], games["week"], games["home_team"])), index=games.index).isin(bad)
+    away_bad = pd.Series(list(zip(games["season"], games["week"], games["away_team"])), index=games.index).isin(bad)
+    return ScheduleCheck(games=games, sides=sides, valid_games=games[~(home_bad | away_bad)],
+                         duplicate_games=int(len(schedules) - len(games)))
+
+
+@dataclass
+class Prepared:
+    """Stage 1 done, features built. `actuals.invalid` is the invalid-key mask carried to stage 2."""
+    features: pd.DataFrame
+    schedule: ScheduleCheck
+    actuals: TableValidation
+    exact_by_week: dict = field(default_factory=dict)
+
+
+def prepare(weekly_raw: pd.DataFrame, schedules_raw: pd.DataFrame, build=build_features) -> Prepared:
+    """Spec §3.7 stage 1, then build_features. Exact duplicate actuals rows and exact duplicate games collapse
+    BEFORE features are built (a duplicated row would otherwise enter every lag/rolling feature). Conflicting
+    actuals groups and non-finite rows stay in the feature input unchanged and are masked from scoring."""
+    sc = validate_schedule(schedules_raw)
+    sig = ACTUALS_KEY + list(PREDICTED_STATS) + ACTUALS_ELIGIBILITY
+    dup = weekly_raw.duplicated(subset=sig, keep="first")
+    exact_by_week = {(int(s), int(w)): int(n) for (s, w), n in
+                     weekly_raw[dup].groupby(["season", "week"]).size().items()}
+    stage1 = validate_table(weekly_raw, ACTUALS_KEY, list(PREDICTED_STATS), ACTUALS_ELIGIBILITY,
+                            position_col="position")
+    features = build(weekly_raw[~dup], sc.games)
+    return Prepared(features=features, schedule=sc, actuals=stage1, exact_by_week=exact_by_week)
+
+
+def week_actuals(prep: Prepared, season: int, week: int) -> TableValidation:
+    """Stage 2 for one (season, week): the stage-1 mask plus the schedule join. `valid` keeps the features index."""
+    f = prep.features
+    rows = f[(f["season"] == season) & (f["week"] == week)]
+    dates = prep.schedule.game_date(season, week)
+    pre = {r: {k for k in ks if int(k[0]) == season and int(k[1]) == week} for r, ks in prep.actuals.invalid.items()}
+    v = validate_table(rows, ACTUALS_KEY, list(PREDICTED_STATS), ACTUALS_ELIGIBILITY,
+                       extra_invalid={"schedule_join": ~rows["team"].isin(list(dates))},
+                       position_col="position", preinvalid=pre)
+    v.exact_duplicates += prep.exact_by_week.get((int(season), int(week)), 0)
+    return v
+
+
+def week_inputs(prep: Prepared, season: int, week: int) -> dict:
+    """Both stage-2 tables a weekly computation uses; `failed` applies the 1% rule to each (spec §3.7)."""
+    actuals = week_actuals(prep, season, week)
+    schedule = prep.schedule.week_validation(season, week)
+    return {"actuals": actuals, "schedule": schedule, "failed": actuals.fails() or schedule.fails(),
+            "report": {"actuals": actuals.report(), "schedule": schedule.report()}}
 
 
 def validate_projections(df: pd.DataFrame) -> TableValidation:
@@ -574,7 +860,13 @@ def validate_projections(df: pd.DataFrame) -> TableValidation:
     disordered = ~((q["p10"] <= q["p50"]) & (q["p50"] <= q["p90"]))
     finite = np.isfinite(q.to_numpy(dtype=float)).all(axis=1)
     return validate_table(df, ["player_id"], ["p10", "p50", "p90"], ["team", "position"],
-                          extra_invalid={"quantile_order": disordered & pd.Series(finite, index=df.index)})
+                          extra_invalid={"quantile_order": disordered & pd.Series(finite, index=df.index)},
+                          position_col="position")
+
+
+def validate_consensus(snap: pd.DataFrame) -> TableValidation:
+    """nflverse consensus rows (spec §3.7 table 4)."""
+    return validate_table(snap, ["fp_id"], ["ecr"], ["pos", "team", "mergename"], position_col="pos")
 
 
 @dataclass
@@ -596,9 +888,6 @@ def match_consensus(snapshot_valid: pd.DataFrame, crosswalk: pd.DataFrame) -> Co
     return ConsensusMatch(matched=matched, stats=stats, reason=None)
 ```
 
-Move the three appended `import` lines to the top-of-file import block, so the module has a single import section.
-Then remove the `# noqa` comments.
-
 - [ ] **Step 4: Run the tests and confirm they pass**
 
 Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_sameweek_validation.py tests/test_sameweek_gate.py -q`
@@ -608,15 +897,17 @@ Expected: all pass.
 
 ```bash
 git add src/ffmodel/eval/sameweek.py tests/test_sameweek_validation.py
-git commit -m "feat(sameweek): per-table validation with group invalidation, 1% threshold, masking, collision skip (spec §3.7)"
+git commit -m "feat(sameweek): two-stage validation (raw collapse before features, carried mask), 1% threshold, collision skip (spec §3.7)"
 ```
 
 ---
 
-### Task 3: sameweek — same-week selection, population, per-week cells, staleness audit
+### Task 3: sameweek — same-week selection, population, cells, staleness audit, coverage
+
+**Model:** implementer sonnet (transcription); reviewer sonnet.
 
 **Files:**
-- Modify: `src/ffmodel/eval/sameweek.py` (append)
+- Modify: `src/ffmodel/eval/sameweek.py` (replace the import block, append)
 - Test: `tests/test_sameweek_selection.py`
 
 **Interfaces:**
@@ -624,24 +915,26 @@ git commit -m "feat(sameweek): per-table validation with group invalidation, 1% 
 - Produces:
   - `overlapping(dates, week) -> bool`
   - `sameweek_window(dates, week) -> tuple[pd.Timestamp, pd.Timestamp]`, the half-open `[L, U)`
-  - `select_sameweek_scrape(rankings, schedules, season, week, dates) -> dict`
-    - keys: `scrape_date` (Timestamp | None), `candidates` (list of dicts with `date`, `state`, `has_later_game`),
-      `gate` (GateResult | None)
+  - `select_sameweek_scrape(rankings, sc: ScheduleCheck, season, week, dates) -> dict`
+    - keys: `scrape_date` (Timestamp | None), `gate` (GateResult | None), `candidates` (list of dicts with `date`,
+      `state`, `has_later_game`, `pages`, `unknown_team_codes`)
   - `build_cells(pool, season, week, gate_state) -> tuple[list[dict], int]`
-    - `pool` columns: `player_id, position, our_pts, ecr, actual`
-    - returns the finite cells and the count of dropped degenerate cells
-  - `sameweek_week(played, schedules, rankings, crosswalk, season, week, dates) -> dict`
-    - `played` columns: `player_id, position, team, our_pts, actual`, where only validated rows are passed in
-    - keys: `status` (`"scored"` | `"skipped"`), `reason`, `selection`, `cells`, `degenerate`, `validation`,
-      `match`, `retention`
-  - `staleness_audit_week(rankings, schedules, season, week, dates) -> dict`
-    - keys: `week`, `kickoff`, `scrape_date` | None, `state` | None, `discriminating` (bool)
+    - `pool` columns: `player_id, position, our_pts, ecr, actual`; returns finite cells and the degenerate count
+  - `cell_summary(cells) -> list[dict]` (`position, n, sp_ours, sp_con, delta` — the per-week values artifacts keep)
+  - `sameweek_week(played, sc, rankings, crosswalk, season, week, dates) -> dict`
+    - `played` columns: `player_id, position, team, our_pts, actual` (validated rows only)
+    - keys: `status` (`"scored"` | `"skipped"`), `reason`, `selection` (with `label` = `inferred_by_window` for an
+      unverified week, and every candidate's page states), `cells`, `degenerate`, `validation`, `match`, `retention`
+  - `staleness_audit_week(rankings, sc, season, week, dates) -> dict`
+    - keys: `week`, `kickoff`, `scrape_date`, `state`, `reason` (`no_old_protocol_scrape` | `validation_failed` |
+      None), `discriminating`
+  - `ranking_coverage(raw, rankings, seasons) -> dict` (spec §3.6: raw vs accepted rows, `excluded_legacy_schema`,
+    scrape dates with weekdays, per season)
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# tests/test_sameweek_selection.py
-"""Spec §5.2 same-week selection (metadata only), population filter, cells, and the old-protocol regression record."""
+"""Spec §5.2 same-week selection (metadata only), population filter, cells, audit and coverage."""
 import numpy as np
 import pandas as pd
 
@@ -651,12 +944,16 @@ from ffmodel.eval.weekly_rankings import weekly_snapshot
 POS = sw.POSITIONS
 
 
-def _sched():
+def _sched(extra=()):
     # 2024. wk1 Thu 09-05 .. Mon 09-09; wk2 Thu 09-12 .. Sun 09-15 (EEE/FFF bye); wk3 Sat 09-21 .. Sun 09-22 (CCC/DDD bye)
     rows = [(2024, 1, "2024-09-05", "AAA", "BBB"), (2024, 1, "2024-09-08", "CCC", "DDD"), (2024, 1, "2024-09-09", "EEE", "FFF"),
             (2024, 2, "2024-09-12", "AAA", "BBB"), (2024, 2, "2024-09-15", "CCC", "DDD"),
-            (2024, 3, "2024-09-21", "AAA", "BBB"), (2024, 3, "2024-09-22", "EEE", "FFF")]
+            (2024, 3, "2024-09-21", "AAA", "BBB"), (2024, 3, "2024-09-22", "EEE", "FFF"), *extra]
     return pd.DataFrame(rows, columns=["season", "week", "gameday", "home_team", "away_team"])
+
+
+def _sc(extra=()):
+    return sw.validate_schedule(_sched(extra))
 
 
 def _rank_rows(date, teams, n_per_team=3):
@@ -685,9 +982,16 @@ def _crosswalk(rankings):
                          "merge_name": first["fp_id"].str.lower(), "position": first["pos"]})
 
 
+def _played(teams, seed=0):
+    rng = np.random.default_rng(seed)
+    rows = [{"player_id": f"g-{t}{pos}{i}", "position": pos, "team": t, "our_pts": float(rng.normal()),
+             "actual": float(rng.normal())} for t in teams for pos in POS for i in range(3)]
+    return pd.DataFrame(rows)
+
+
 def test_window_and_overlap():
     d = sw.week_dates(_sched(), 2024)
-    assert sw.sameweek_window(d, 1) == (pd.Timestamp("2024-08-29"), pd.Timestamp("2024-09-09"))
+    assert sw.sameweek_window(d, 1) == (pd.Timestamp("2024-08-29"), pd.Timestamp("2024-09-09"))   # L_1 = K_1 - 7
     assert sw.sameweek_window(d, 2) == (pd.Timestamp("2024-09-10"), pd.Timestamp("2024-09-15"))
     assert sw.sameweek_window(d, 3) == (pd.Timestamp("2024-09-16"), pd.Timestamp("2024-09-22"))  # Sat-first week admits Fri
     assert not sw.overlapping(d, 2)
@@ -696,52 +1000,80 @@ def test_window_and_overlap():
     assert sw.overlapping(late, 2)
 
 
+def test_final_week_window_is_bounded():
+    s, r = _sc(), _rankings()
+    d = sw.week_dates(s.valid_games, 2024)
+    after = pd.DataFrame(_rank_rows("2024-09-27", ["AAA", "BBB", "EEE", "FFF"]))      # a later (next-season-like) scrape
+    sel = sw.select_sameweek_scrape(pd.concat([r, after], ignore_index=True), s, 2024, 3, d)
+    assert pd.Timestamp("2024-09-27") not in {c["date"] for c in sel["candidates"]}
+
+
 def test_selection_is_latest_noncontradicted_and_old_protocol_is_stale():
-    s, r = _sched(), _rankings()
-    d = sw.week_dates(s, 2024)
+    s, r = _sc(), _rankings()
+    d = sw.week_dates(s.valid_games, 2024)
     sel = sw.select_sameweek_scrape(r, s, 2024, 3, d)
     assert sel["scrape_date"] == pd.Timestamp("2024-09-20") and sel["gate"].state == "bye_consistent"
-    # the old protocol picks the previous week's list and the gate calls it contradicted
-    old = weekly_snapshot(r, pd.Timestamp(d[3][0]))
-    assert old["scrape_date"].iloc[0] == pd.Timestamp("2024-09-20")  # Fri before Sat-first wk3 is still inside 7d
-    old2 = weekly_snapshot(r, pd.Timestamp(d[2][0]))
+    old2 = weekly_snapshot(r, pd.Timestamp(d[2][0]))          # regression record: old protocol picks week 1's list
     assert old2["scrape_date"].iloc[0] == pd.Timestamp("2024-09-06")
-    assert sw.gate(old2, s, 2024, 2).state == "contradicted"
     audit = sw.staleness_audit_week(r, s, 2024, 2, d)
-    assert audit["state"] == "contradicted" and audit["discriminating"] is False  # week-1 byes empty -> not discriminating
+    assert audit["state"] == "contradicted" and audit["discriminating"] is False  # week-1 byes empty
 
 
 def test_contradicted_latest_is_passed_over_by_metadata():
-    s, r = _sched(), _rankings()
-    d = sw.week_dates(s, 2024)
+    s, r = _sc(), _rankings()
+    d = sw.week_dates(s.valid_games, 2024)
     stale_late = pd.DataFrame(_rank_rows("2024-09-14", ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]))  # lists wk2 byes
     sel = sw.select_sameweek_scrape(pd.concat([r, stale_late], ignore_index=True), s, 2024, 2, d)
     states = {c["date"]: c["state"] for c in sel["candidates"]}
     assert states[pd.Timestamp("2024-09-14")] == "contradicted"
     assert sel["scrape_date"] == pd.Timestamp("2024-09-13")
+    assert all("pages" in c and "unknown_team_codes" in c for c in sel["candidates"])   # every candidate recorded
 
 
 def test_population_filter_and_no_fallback():
-    s, r = _sched(), _rankings()
-    d = sw.week_dates(s, 2024)
+    s, r = _sc(), _rankings()
+    d = sw.week_dates(s.valid_games, 2024)
     cw = _crosswalk(r)
-    rng = np.random.default_rng(0)
-    played = []
-    for t in ["AAA", "BBB", "CCC", "DDD"]:
-        for pos in POS:
-            for i in range(3):
-                played.append({"player_id": f"g-{t}{pos}{i}", "position": pos, "team": t,
-                               "our_pts": float(rng.normal()), "actual": float(rng.normal())})
-    played = pd.DataFrame(played)
+    played = _played(["AAA", "BBB", "CCC", "DDD"])
     res = sw.sameweek_week(played, s, r, cw, 2024, 2, d)
     # scrape 09-13 (Fri): AAA/BBB played Thu 09-12 -> excluded; CCC/DDD Sun 09-15 kept
     assert res["status"] == "scored" and res["retention"]["excluded_early_game"] == 24
-    assert res["retention"]["pool"] == 24
-    # only Thursday players have stat lines -> empty pool -> skipped, no fallback to an earlier scrape
+    assert res["retention"]["pool"] == 24 and res["selection"]["label"] is None
     thu_only = played[played["team"].isin(["AAA", "BBB"])]
     res2 = sw.sameweek_week(thu_only, s, r, cw, 2024, 2, d)
     assert res2["status"] == "skipped" and res2["reason"] == "no_scorable_cell"
-    assert res2["selection"]["scrape_date"] == "2024-09-13"
+    assert res2["selection"]["scrape_date"] == "2024-09-13"                    # no fallback to an earlier scrape
+
+
+def test_saturday_game_excluded_with_saturday_scrape_kept_with_friday():
+    s, r = _sc(), _rankings()
+    d = sw.week_dates(s.valid_games, 2024)
+    cw = _crosswalk(r)
+    played = _played(["AAA", "BBB", "EEE", "FFF"])
+    fri = sw.sameweek_week(played, s, r, cw, 2024, 3, d)                       # Friday 09-20 scrape
+    assert fri["retention"]["excluded_early_game"] == 0
+    sat = pd.DataFrame(_rank_rows("2024-09-21", ["AAA", "BBB", "EEE", "FFF"]))
+    res = sw.sameweek_week(played, s, pd.concat([r, sat], ignore_index=True), _crosswalk(pd.concat([r, sat])),
+                           2024, 3, d)
+    assert res["selection"]["scrape_date"] == "2024-09-21" and res["retention"]["excluded_early_game"] == 24
+
+
+def test_postponed_game_date_is_honoured():
+    moved = _sched()
+    moved.loc[moved["gameday"] == "2024-09-12", "gameday"] = "2024-09-16"     # AAA-BBB postponed to Monday
+    s = sw.validate_schedule(moved)
+    d = sw.week_dates(s.valid_games, 2024)
+    r = _rankings()
+    res = sw.sameweek_week(_played(["AAA", "BBB", "CCC", "DDD"]), s, r, _crosswalk(r), 2024, 2, d)
+    assert res["retention"]["excluded_early_game"] == 0
+
+
+def test_sign_of_both_spearmans_is_higher_is_better():
+    # our_pts is higher-is-better and ecr lower-is-better: perfect forecasts on both sides score +1, never -1
+    pool = pd.DataFrame({"player_id": [f"p{i}" for i in range(6)], "position": ["WR"] * 6,
+                         "our_pts": [6, 5, 4, 3, 2, 1], "ecr": [1, 2, 3, 4, 5, 6], "actual": [60, 50, 40, 30, 20, 10]})
+    cells, _ = sw.build_cells(pool, 2024, 2, "unverified")
+    assert cells[0]["sp_ours"] == 1.0 and cells[0]["sp_con"] == 1.0
 
 
 def test_build_cells_flags_and_degenerate():
@@ -749,26 +1081,70 @@ def test_build_cells_flags_and_degenerate():
                          "our_pts": [1, 2, 3, 4, 5, 6], "ecr": [1, 2, 3, 4, 5, 6], "actual": [6, 5, 4, 3, 2, 1]})
     cells, degenerate = sw.build_cells(pool, 2024, 2, "bye_consistent")
     assert len(cells) == 1 and cells[0]["n_le_slots"] is True and cells[0]["gate_state"] == "bye_consistent"
-    flat = pool.assign(actual=1.0)
-    cells2, degenerate2 = sw.build_cells(flat, 2024, 2, "unverified")
+    assert sw.cell_summary(cells)[0]["delta"] == cells[0]["sp_ours"] - cells[0]["sp_con"]
+    cells2, degenerate2 = sw.build_cells(pool.assign(actual=1.0), 2024, 2, "unverified")
     assert cells2 == [] and degenerate2 == 1
+    assert sw.build_cells(pool.head(0), 2024, 2, "unverified") == ([], 0)
+
+
+def test_secondary_path_above_threshold_skips_never_runs_on_subset():
+    s, r = _sc(), _rankings()
+    d = sw.week_dates(s.valid_games, 2024)
+    bad = r.copy()
+    hit = bad.index[bad["scrape_date"] == pd.Timestamp("2024-09-13")][:2]
+    bad.loc[hit, "ecr"] = np.nan                                              # 2 of 48 keys invalid > 1%
+    res = sw.sameweek_week(_played(["AAA", "BBB", "CCC", "DDD"]), s, bad, _crosswalk(r), 2024, 2, d)
+    assert res["status"] == "skipped" and res["reason"] == "validation_failed" and res["cells"] == []
+
+
+def test_audit_read_obeys_threshold():
+    s, r = _sc(), _rankings()
+    d = sw.week_dates(s.valid_games, 2024)
+    bad = r.copy()
+    hit = bad.index[bad["scrape_date"] == pd.Timestamp("2024-09-06")][:2]
+    bad.loc[hit, "ecr"] = np.nan
+    audit = sw.staleness_audit_week(bad, s, 2024, 2, d)
+    assert audit["state"] is None and audit["reason"] == "validation_failed"
+
+
+def test_ranking_coverage_counts_legacy_and_weekdays():
+    raw = pd.DataFrame({"ecr_type": ["wp"] * 3, "pos": ["RB"] * 3, "page_type": ["weekly-offense", "weekly-rb", "weekly-rb"],
+                        "scrape_date": ["2020-09-10", "2020-10-16", "2020-10-16"]})
+    acc = pd.DataFrame({"scrape_date": pd.to_datetime(["2020-10-16", "2020-10-16"])})
+    cov = sw.ranking_coverage(raw, acc, [2020])["2020"]
+    assert cov["raw_rows"] == 3 and cov["accepted_rows"] == 2 and cov["excluded_legacy_schema"] == 1
+    assert cov["scrape_dates"] == [{"date": "2020-10-16", "weekday": "Friday"}]
 ```
 
 - [ ] **Step 2: Run the tests and confirm they fail**
 
 Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_sameweek_selection.py -q`
-Expected: FAIL with `AttributeError: ... 'sameweek_window'`.
+Expected: FAIL with `AttributeError: module 'ffmodel.eval.sameweek' has no attribute 'sameweek_window'`.
 
-- [ ] **Step 3: Implement (append; move the new imports into the top import block)**
+- [ ] **Step 3: Implement**
+
+Replace the import block at the top of `sameweek.py` with:
 
 ```python
-import warnings
+from __future__ import annotations
 
+import warnings
+from dataclasses import dataclass, field
+
+import numpy as np
+import pandas as pd
 from scipy.stats import ConstantInputWarning
 
+from ffmodel.data.features import build_features
+from ffmodel.data.rankings import attach_gsis
 from ffmodel.eval.weekly_rankings import score_week, weekly_snapshot
+from ffmodel.scoring import PREDICTED_STATS
 from ffmodel.site.draft import REPLACEMENT_RANK
+```
 
+Then append:
+
+```python
 ONE_DAY = pd.Timedelta(days=1)
 
 
@@ -782,18 +1158,18 @@ def sameweek_window(dates: dict, week: int) -> tuple[pd.Timestamp, pd.Timestamp]
     return L, Z
 
 
-def select_sameweek_scrape(rankings: pd.DataFrame, schedules: pd.DataFrame, season: int, week: int,
+def select_sameweek_scrape(rankings: pd.DataFrame, sc: ScheduleCheck, season: int, week: int,
                            dates: dict) -> dict:
     """Latest scrape in [L_N, Z_N) that the gate does not contradict and that precedes a week-N game.
     Metadata only: actual appearances are never consulted, and there is no fallback after selection."""
     L, U = sameweek_window(dates, week)
     day = rankings["scrape_date"].dt.normalize()
     in_window = rankings[(day >= L) & (day < U)]
-    game_days = sorted({d for ds in team_game_dates(schedules, season, week).values() for d in ds})
+    game_days = sorted(set(sc.game_date(season, week).values()))
     candidates, chosen = [], None
     for date in sorted(in_window["scrape_date"].dt.normalize().unique()):
         date = pd.Timestamp(date)
-        g = gate(in_window[in_window["scrape_date"].dt.normalize() == date], schedules, season, week)
+        g = gate(in_window[in_window["scrape_date"].dt.normalize() == date], sc.games, season, week)
         later = any(gd > date for gd in game_days)
         candidates.append({"date": date, "state": g.state, "has_later_game": later,
                            "pages": g.pages, "unknown_team_codes": g.unknown_team_codes})
@@ -815,42 +1191,52 @@ def build_cells(pool: pd.DataFrame, season: int, week: int, gate_state: str) -> 
         if not (np.isfinite(r["sp_ours"]) and np.isfinite(r["sp_con"])):
             degenerate += 1
             continue
-        r = dict(r, gate_state=gate_state, n_le_slots=bool(r["n"] <= REPLACEMENT_RANK[r["position"]]))
-        cells.append(r)
+        cells.append(dict(r, gate_state=gate_state, n_le_slots=bool(r["n"] <= REPLACEMENT_RANK[r["position"]])))
     return cells, degenerate
+
+
+def cell_summary(cells: list[dict]) -> list[dict]:
+    """Per-week values retained in artifacts (spec §4.3): n, both Spearmans and their delta per position."""
+    return [{"position": c["position"], "n": int(c["n"]), "sp_ours": float(c["sp_ours"]),
+             "sp_con": float(c["sp_con"]), "delta": float(c["sp_ours"] - c["sp_con"])} for c in cells]
 
 
 def _skip(reason: str, **extra) -> dict:
     return {"status": "skipped", "reason": reason, "cells": [], "degenerate": 0, **extra}
 
 
-def sameweek_week(played: pd.DataFrame, schedules: pd.DataFrame, rankings: pd.DataFrame,
-                  crosswalk: pd.DataFrame, season: int, week: int, dates: dict) -> dict:
+def sameweek_week(played: pd.DataFrame, sc: ScheduleCheck, rankings: pd.DataFrame, crosswalk: pd.DataFrame,
+                  season: int, week: int, dates: dict) -> dict:
+    """`played`: validated played rows (player_id, position, team, our_pts, actual)."""
     if overlapping(dates, week):
         return _skip("overlapping_weeks")
-    sel = select_sameweek_scrape(rankings, schedules, season, week, dates)
+    sel = select_sameweek_scrape(rankings, sc, season, week, dates)
+    state = sel["gate"].state if sel["gate"] else None
     selection = {"scrape_date": str(sel["scrape_date"].date()) if sel["scrape_date"] is not None else None,
-                 "state": sel["gate"].state if sel["gate"] else None,
-                 "pages": sel["gate"].pages if sel["gate"] else None,
+                 "state": state, "pages": sel["gate"].pages if sel["gate"] else None,
+                 "label": "inferred_by_window" if state == "unverified" else None,
                  "candidates": [{"date": str(c["date"].date()), "state": c["state"],
-                                 "has_later_game": c["has_later_game"]} for c in sel["candidates"]]}
+                                 "has_later_game": c["has_later_game"], "pages": c["pages"],
+                                 "unknown_team_codes": c["unknown_team_codes"]} for c in sel["candidates"]]}
     if sel["scrape_date"] is None:
         return _skip("no_candidate_scrape", selection=selection)
     date = sel["scrape_date"]
     snap = rankings[(rankings["scrape_date"].dt.normalize() == date) & rankings["pos"].isin(POSITIONS)]
-    v = validate_table(snap, ["fp_id"], ["ecr"], ["pos", "team", "mergename"])
+    v = validate_consensus(snap)
     if v.fails():
         return _skip("validation_failed", selection=selection, validation=v.report())
     m = match_consensus(v.valid, crosswalk)
     if m.reason:
         return _skip(m.reason, selection=selection, validation=v.report(), match=m.stats)
-    games = team_game_dates(schedules, season, week)
-    gday = played["team"].map(lambda t: games[t][0] if len(games.get(t, [])) == 1 else pd.NaT)
+    gdates = sc.game_date(season, week)
+    gday = played["team"].map(gdates)
     eligible = played[gday > date]
+    early = played[~(gday > date)]
     con = m.matched[["player_id", "ecr"]].drop_duplicates(subset="player_id", keep="first")
     pool = eligible.merge(con, on="player_id", how="inner")
-    cells, degenerate = build_cells(pool, season, week, sel["gate"].state)
-    retention = {"played": int(len(played)), "excluded_early_game": int(len(played) - len(eligible)),
+    cells, degenerate = build_cells(pool, season, week, state)
+    retention = {"played": int(len(played)), "excluded_early_game": int(len(early)),
+                 "excluded_early_by_position": early["position"].value_counts().sort_index().astype(int).to_dict(),
                  "pool": int(len(pool)), "match_rate": m.stats.get("match_rate"),
                  "pool_by_position": pool["position"].value_counts().sort_index().astype(int).to_dict()}
     if not cells:
@@ -860,21 +1246,42 @@ def sameweek_week(played: pd.DataFrame, schedules: pd.DataFrame, rankings: pd.Da
             "validation": v.report(), "match": m.stats, "retention": retention}
 
 
-def staleness_audit_week(rankings: pd.DataFrame, schedules: pd.DataFrame, season: int, week: int,
-                         dates: dict) -> dict:
+def staleness_audit_week(rankings: pd.DataFrame, sc: ScheduleCheck, season: int, week: int, dates: dict) -> dict:
+    """The old protocol's scrape for week N and its §3.5 state. Its table read obeys the 1% rule (spec §3.7)."""
     K = dates[week][0]
     snap = weekly_snapshot(rankings, pd.Timestamp(K))
-    A = bye_teams(schedules, season, week)
-    B = bye_teams(schedules, season, week - 1) if week > 1 else set()
-    out = {"week": int(week), "kickoff": str(K.date()), "scrape_date": None, "state": None,
+    A = bye_teams(sc.games, season, week)
+    B = bye_teams(sc.games, season, week - 1) if week > 1 else set()
+    out = {"week": int(week), "kickoff": str(K.date()), "scrape_date": None, "state": None, "reason": None,
            "discriminating": bool(A and B and A != B)}
-    if snap is not None:
-        out["scrape_date"] = str(snap["scrape_date"].iloc[0].date())
-        out["state"] = gate(snap, schedules, season, week).state
+    if snap is None:
+        out["reason"] = "no_old_protocol_scrape"
+        return out
+    out["scrape_date"] = str(snap["scrape_date"].iloc[0].date())
+    if validate_consensus(snap[snap["pos"].isin(POSITIONS)]).fails():
+        out["reason"] = "validation_failed"
+        return out
+    out["state"] = gate(snap, sc.games, season, week).state
+    return out
+
+
+def ranking_coverage(raw: pd.DataFrame, rankings: pd.DataFrame, seasons: list[int]) -> dict:
+    """Spec §3.6: per season, raw vs accepted rows, legacy-schema exclusions, scrape dates with weekdays."""
+    def season_of(d: pd.Series) -> pd.Series:
+        return d.dt.year.where(d.dt.month >= 3, d.dt.year - 1)
+
+    raw_wp = raw[(raw["ecr_type"] == "wp") & raw["pos"].isin(POSITIONS)]
+    raw_dates = pd.to_datetime(raw_wp["scrape_date"])
+    out = {}
+    for s in seasons:
+        in_raw = season_of(raw_dates) == s
+        acc = rankings[season_of(rankings["scrape_date"]) == s]
+        days = sorted(pd.Timestamp(d) for d in acc["scrape_date"].dt.normalize().unique())
+        out[str(s)] = {"raw_rows": int(in_raw.sum()), "accepted_rows": int(len(acc)),
+                       "excluded_legacy_schema": int((in_raw & (raw_wp["page_type"] == "weekly-offense")).sum()),
+                       "scrape_dates": [{"date": str(d.date()), "weekday": d.day_name()} for d in days]}
     return out
 ```
-
-Also add `import numpy as np` to the top block if Task 2 has not already done so.
 
 - [ ] **Step 4: Run the tests and confirm they pass**
 
@@ -885,42 +1292,44 @@ Expected: all pass.
 
 ```bash
 git add src/ffmodel/eval/sameweek.py tests/test_sameweek_selection.py
-git commit -m "feat(sameweek): metadata-only same-week scrape selection, date-filtered population, cells, staleness audit (spec §5.2)"
+git commit -m "feat(sameweek): metadata-only same-week selection, date-filtered population, cells, audit, coverage (spec §3.6/§5.2)"
 ```
 
 ---
 
 ### Task 4: sameweek — statistics, sufficiency, directional check, Rules 1 and 2
 
+**Model:** implementer sonnet (transcription); reviewer **opus** (numerics: full precision, week clustering).
+
 **Files:**
-- Modify: `src/ffmodel/eval/sameweek.py` (append)
+- Modify: `src/ffmodel/eval/sameweek.py` (replace the import block, append)
 - Test: `tests/test_sameweek_rules.py`
 
 **Interfaces:**
 - Consumes: `paired_bootstrap` from `ffmodel.eval.mean_head_gate`.
 - Produces:
   - `BOOT_SEED = 20260728`, `N_BOOT = 10000`
-  - `delta_stats(cells: pd.DataFrame) -> dict`
-    - keys: `D`, `ci_week` (`[lo, hi]`), `D_season` (`{season: float}`), `loso` (`{season: float}`), `n_cells`,
-      `n_clusters`
-  - `sensitivity_stats(cells: pd.DataFrame) -> dict`
-    - computed on the `gate_state == "bye_consistent"` subset
-    - keys: `D` | None, `n_cells`, `seasons`
+  - `delta_stats(cells) -> dict` with keys `D`, `ci_week` (`[lo, hi]`), `D_season` (`{season: float}`), `loso`
+    (`{season: float}`), `n_cells`, `n_clusters`
+  - `sensitivity_stats(cells) -> dict` on the `gate_state == "bye_consistent"` subset: `D` | None, `n_cells`, `seasons`
   - `directional_check(stats, sens, sign: int) -> tuple[bool, list[str]]`
   - `sufficient(cells, target_weeks: dict[int, list[int]], position: str | None = None) -> bool`
-  - `rule_1(cells, target_weeks) -> dict`, with keys `value` and `reasons`
-  - `rule_2(disc_cells, disc_weeks, rep_cells, rep_weeks) -> dict`, with keys `value` and `reasons_by_sample`
+  - `rule_1(cells, target_weeks) -> dict` (`value`, `reasons`, plus `stats` and `sensitivity` when sufficient)
+  - `rule_2(disc_cells, disc_weeks, rep_cells, rep_weeks) -> dict` (`value`, `reasons_by_sample`; every
+    insufficient sample is named)
 
-`cells` frames have the columns `season, week, position, sp_ours, sp_con, gate_state` (and others).
+`cells` frames have the columns `season, week, position, sp_ours, sp_con, gate_state` (and others). The diagnostic
+`ci_cell` and every use of `weekly_consensus.pooled_stats` are cut in draft 7 (spec §3.8) and do not appear.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# tests/test_sameweek_rules.py
-"""Spec §6 directional checks and decision rules. Pure arithmetic on synthetic cells."""
+"""Spec §6 statistics, directional checks and decision rules, driven from cell rows. Synthetic cells only."""
 import pandas as pd
 
 from ffmodel.eval import sameweek as sw
+
+SEASONS = [2023, 2024, 2025]
 
 
 def _cells(season_deltas, weeks=17, positions=("QB", "RB", "WR", "TE"), state="bye_consistent"):
@@ -938,18 +1347,31 @@ def _weeks(seasons, n=17):
     return {s: list(range(1, n + 1)) for s in seasons}
 
 
-def test_ahead_and_behind_are_symmetric():
+def test_ci_week_moves_whole_weeks():
+    # two positions per week with opposite deltas: a week-clustered resample keeps each week's mean at 0
+    c = _cells({2023: lambda w, p: 0.1 if p == "QB" else -0.1}, positions=("QB", "RB"))
+    st = sw.delta_stats(c)
+    assert st["n_clusters"] == 17 and abs(st["ci_week"][0]) < 1e-12 and abs(st["ci_week"][1]) < 1e-12
+
+
+def test_leave_one_season_out_values():
+    st = sw.delta_stats(_cells({2023: 0.03, 2024: 0.06, 2025: 0.09}))
+    assert abs(st["loso"][2023] - 0.075) < 1e-12 and abs(st["loso"][2025] - 0.045) < 1e-12
+
+
+def test_reachability_example_ahead_and_its_reflection_behind():
     up = _cells({2023: lambda w, p: 0.02 + 0.04 * (w % 2), 2024: 0.03, 2025: 0.05})
-    assert sw.rule_1(up, _weeks([2023, 2024, 2025]))["value"] == "ahead"
+    assert sw.rule_1(up, _weeks(SEASONS))["value"] == "ahead"
     down = up.assign(sp_ours=1.0 - up["sp_ours"])
-    assert sw.rule_1(down, _weeks([2023, 2024, 2025]))["value"] == "behind"
+    assert sw.rule_1(down, _weeks(SEASONS))["value"] == "behind"
 
 
 def test_interval_including_zero_is_not_a_tie():
     noisy = _cells({2023: lambda w, p: 0.08 if w % 2 else -0.12, 2024: lambda w, p: 0.05 if w % 2 else -0.09,
                     2025: lambda w, p: 0.04 if w % 2 else -0.10})
-    r = sw.rule_1(noisy, _weeks([2023, 2024, 2025]))
+    r = sw.rule_1(noisy, _weeks(SEASONS))
     assert r["value"] == "not_established" and "interval_includes_zero" in r["reasons"]
+    assert r["stats"]["ci_week"][0] < 0 < r["stats"]["ci_week"][1]
 
 
 def test_dominant_season_blocked_by_leave_one_season_out():
@@ -965,55 +1387,101 @@ def test_season_inconsistent_and_sensitivity_codes():
     absent = _cells({2023: 0.03, 2024: 0.04, 2025: 0.05}, state="unverified")
     ok2, codes2 = sw.directional_check(sw.delta_stats(absent), sw.sensitivity_stats(absent), +1)
     assert not ok2 and codes2 == ["sensitivity_absent"]
+    mixed = pd.concat([_cells({2023: 0.03, 2024: 0.04, 2025: 0.05}, state="unverified"),
+                       _cells({2023: -0.02}, weeks=2, state="bye_consistent").assign(week=lambda f: f["week"] + 20)])
+    assert "sensitivity_disagrees" in sw.directional_check(sw.delta_stats(mixed), sw.sensitivity_stats(mixed), +1)[1]
+    zero = pd.concat([_cells({2023: 0.03, 2024: 0.04, 2025: 0.05}, state="unverified"),
+                      _cells({2023: 0.0}, weeks=2, state="bye_consistent").assign(week=lambda f: f["week"] + 20)])
+    assert "sensitivity_zero" in sw.directional_check(sw.delta_stats(zero), sw.sensitivity_stats(zero), +1)[1]
 
 
 def test_touching_zero_and_opposite_side_codes():
-    ok, codes = sw.directional_check({"ci_week": [0.0, 0.1], "D_season": {1: 1, 2: 1, 3: 1},
-                                      "loso": {1: 1, 2: 1, 3: 1}, "D": 0.05}, {"D": 0.05, "n_cells": 3}, +1)
-    assert codes == ["interval_includes_zero"]
-    ok, codes = sw.directional_check({"ci_week": [-0.2, -0.1], "D_season": {1: -1, 2: -1, 3: -1},
-                                      "loso": {1: -1, 2: -1, 3: -1}, "D": -0.15}, {"D": -0.1, "n_cells": 3}, +1)
+    touching = _cells({2023: lambda w, p: 0.0 if w == 1 else 0.05, 2024: 0.05, 2025: 0.05}, weeks=1)
+    st = sw.delta_stats(touching)                       # one zero week among three single-week seasons
+    assert st["ci_week"][0] == 0.0
+    ok, codes = sw.directional_check(st, sw.sensitivity_stats(touching), +1)
+    assert codes[0] == "interval_includes_zero"
+    below = _cells({2023: -0.05, 2024: -0.04, 2025: -0.06})
+    ok, codes = sw.directional_check(sw.delta_stats(below), sw.sensitivity_stats(below), +1)
     assert "interval_opposite_side" in codes
 
 
-def test_full_precision_boundary():
-    ok, codes = sw.directional_check({"ci_week": [0.00003, 0.1], "D_season": {1: 1, 2: 1, 3: 1},
-                                      "loso": {1: 1, 2: 1, 3: 1}, "D": 0.05}, {"D": 0.05, "n_cells": 3}, +1)
-    assert ok and codes == []
+def test_full_precision_lower_bound_passes_through_the_verdict_path():
+    # every cell delta is +0.00003: rounded to 4 dp it would be 0.0000 and fail (a); in full precision it passes
+    c = _cells({2023: 0.00003, 2024: 0.00003, 2025: 0.00003})
+    r = sw.rule_1(c, _weeks(SEASONS))
+    assert 0 < r["stats"]["ci_week"][0] < 0.0001
+    assert r["value"] == "ahead" and r["reasons"] == []
 
 
 def test_zero_estimate_and_loso_zero():
     flat = _cells({2023: 0.0, 2024: 0.0, 2025: 0.0})
-    r = sw.rule_1(flat, _weeks([2023, 2024, 2025]))
-    assert r["value"] == "not_established" and "zero_estimate" in r["reasons"]
+    r = sw.rule_1(flat, _weeks(SEASONS))
+    assert r["value"] == "not_established" and r["reasons"][0] == "zero_estimate"
+    assert "leave_one_season_out_zero" in r["reasons"]
 
 
 def test_sufficiency_per_season_and_rb():
     c = _cells({2023: 0.03, 2024: 0.04, 2025: 0.05}, weeks=8, positions=("QB", "WR", "TE"))
-    assert sw.sufficient(c, _weeks([2023, 2024, 2025], 16))            # 8/16 weeks with a cell
-    assert not sw.sufficient(c, _weeks([2023, 2024, 2025], 16), "RB")   # no RB cells
-    assert sw.rule_1(c, _weeks([2023, 2024, 2025], 18))["value"] == "insufficient"
+    assert sw.sufficient(c, _weeks(SEASONS, 16))                      # 8/16 weeks with a cell
+    assert not sw.sufficient(c, _weeks(SEASONS, 16), "RB")            # RB-poor: Rule 1 yes, Rule 2 no
+    assert sw.rule_1(c, _weeks(SEASONS, 18))["value"] == "insufficient"
+    with_week1 = _cells({2023: 0.03}, weeks=1)
+    assert sw.sufficient(with_week1, {2023: [1, 2]})                  # week 1 in the denominator and scored
 
 
 def test_rule_2_needs_both_samples():
     good = _cells({2023: 0.03, 2024: 0.04, 2025: 0.05})
     rep_good = _cells({2020: 0.03, 2021: 0.04, 2022: 0.05})
     rep_bad = _cells({2020: 0.03, 2021: -0.04, 2022: -0.05})
-    assert sw.rule_2(good, _weeks([2023, 2024, 2025]), rep_good, _weeks([2020, 2021, 2022]))["value"] == "established"
-    r = sw.rule_2(good, _weeks([2023, 2024, 2025]), rep_bad, _weeks([2020, 2021, 2022]))
-    assert r["value"] == "not_established" and r["reasons_by_sample"]["replication"]
+    disc_w, rep_w = _weeks(SEASONS), _weeks([2020, 2021, 2022])
+    assert sw.rule_2(good, disc_w, rep_good, rep_w)["value"] == "established"
+    r = sw.rule_2(good, disc_w, rep_bad, rep_w)
+    assert r["value"] == "not_established" and "season_inconsistent" in r["reasons_by_sample"]["replication"]
+    r2 = sw.rule_2(rep_bad.assign(season=rep_bad["season"] + 3), disc_w, rep_good, rep_w)
+    assert r2["value"] == "not_established" and r2["reasons_by_sample"]["replication"] == []
+
+
+def test_rule_2_rb_below_zero_and_insufficient_samples():
+    below = _cells({2023: -0.03, 2024: -0.04, 2025: -0.05})
+    rep = _cells({2020: 0.03, 2021: 0.04, 2022: 0.05})
+    r = sw.rule_2(below, _weeks(SEASONS), rep, _weeks([2020, 2021, 2022]))
+    assert "interval_opposite_side" in r["reasons_by_sample"]["discovery"]
+    no_rb = _cells({2020: 0.03, 2021: 0.04, 2022: 0.05}, positions=("QB",))
+    r2 = sw.rule_2(below, _weeks(SEASONS), no_rb, _weeks([2020, 2021, 2022]))
+    assert r2 == {"value": "insufficient", "reasons_by_sample": {"replication": ["insufficient"]}}
 ```
 
 - [ ] **Step 2: Run the tests and confirm they fail**
 
 Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_sameweek_rules.py -q`
-Expected: FAIL with `AttributeError: ... 'rule_1'`.
+Expected: FAIL with `AttributeError: module 'ffmodel.eval.sameweek' has no attribute 'delta_stats'`.
 
-- [ ] **Step 3: Implement (append; move the import to the top)**
+- [ ] **Step 3: Implement**
+
+Replace the import block at the top of `sameweek.py` with the final one:
 
 ```python
-from ffmodel.eval.mean_head_gate import paired_bootstrap
+from __future__ import annotations
 
+import warnings
+from dataclasses import dataclass, field
+
+import numpy as np
+import pandas as pd
+from scipy.stats import ConstantInputWarning
+
+from ffmodel.data.features import build_features
+from ffmodel.data.rankings import attach_gsis
+from ffmodel.eval.mean_head_gate import paired_bootstrap
+from ffmodel.eval.weekly_rankings import score_week, weekly_snapshot
+from ffmodel.scoring import PREDICTED_STATS
+from ffmodel.site.draft import REPLACEMENT_RANK
+```
+
+Then append:
+
+```python
 BOOT_SEED = 20260728
 N_BOOT = 10000
 
@@ -1063,9 +1531,9 @@ def directional_check(stats: dict, sens: dict, sign: int) -> tuple[bool, list[st
 
 
 def sufficient(cells: pd.DataFrame, target_weeks: dict, position: str | None = None) -> bool:
-    sub = cells if position is None else cells[cells["position"] == position]
+    sub = cells if position is None or cells.empty else cells[cells["position"] == position]
     for season, weeks in target_weeks.items():
-        have = set(sub.loc[sub["season"] == season, "week"].astype(int))
+        have = set(sub.loc[sub["season"] == season, "week"].astype(int)) if len(sub) else set()
         if len(have & set(weeks)) * 2 < len(weeks):
             return False
     return True
@@ -1089,11 +1557,12 @@ def rule_1(cells: pd.DataFrame, target_weeks: dict) -> dict:
 
 
 def rule_2(disc_cells: pd.DataFrame, disc_weeks: dict, rep_cells: pd.DataFrame, rep_weeks: dict) -> dict:
-    out = {"reasons_by_sample": {}}
     samples = {"discovery": (disc_cells, disc_weeks), "replication": (rep_cells, rep_weeks)}
-    for name, (cells, weeks) in samples.items():
-        if cells.empty or not sufficient(cells, weeks, "RB"):
-            return {"value": "insufficient", "reasons_by_sample": {name: ["insufficient"]}}
+    short = {name: ["insufficient"] for name, (cells, weeks) in samples.items()
+             if cells.empty or not sufficient(cells, weeks, "RB")}
+    if short:
+        return {"value": "insufficient", "reasons_by_sample": short}
+    out: dict = {"reasons_by_sample": {}}
     passed = True
     for name, (cells, _) in samples.items():
         rb = cells[cells["position"] == "RB"]
@@ -1106,9 +1575,9 @@ def rule_2(disc_cells: pd.DataFrame, disc_weeks: dict, rep_cells: pd.DataFrame, 
 
 - [ ] **Step 4: Run the tests and confirm they pass**
 
-Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_sameweek_rules.py -q`
-Expected: all pass. If `test_interval_including_zero_is_not_a_tie` yields an interval excluding zero, widen the
-fixture's alternation, never the rule. The test asserts the rule's behaviour on an interval that contains zero.
+Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_sameweek_rules.py tests/test_sameweek_selection.py tests/test_sameweek_validation.py tests/test_sameweek_gate.py -q`
+Expected: all pass. If `test_interval_including_zero_is_not_a_tie` yields an interval excluding zero, report it; do
+not change the rule or widen the fixture without the controller.
 
 - [ ] **Step 5: Commit**
 
@@ -1119,80 +1588,108 @@ git commit -m "feat(sameweek): week-clustered stats, leave-one-season-out, sensi
 
 ---
 
-### Task 5: live_accuracy — push ledger, git adapter, publication and archive evidence
+### Task 5: live_accuracy — activity fetch, ledger, git adapter, candidates, publication and archive evidence
+
+**Model:** implementer sonnet (transcription); reviewer **opus** (evidence logic: P1, P2, P4, S6-I1).
 
 **Files:**
 - Create: `src/ffmodel/eval/live_accuracy.py`
 - Test: `tests/test_live_accuracy_evidence.py`
 
 **Interfaces:**
+- Consumes: `sameweek.validate_table` (archive validation).
 - Produces:
   - Constants: `BOT = "weekly-update-bot"`, `WEEKLY_FILES = ("site/data/weekly.json", "site/data/neutral/weekly.json")`,
-    `ARCHIVE_DIR = "data_snapshots/weekly_ecr"`
-  - `Git` class (real subprocess implementation). Methods:
-    - `exists(sha) -> bool`
+    `ARCHIVE_DIR = "data_snapshots/weekly_ecr"`, `ARCHIVE_COLUMNS`, `MAIN_REF`, `NEG_INF = "-inf"`, `ZERO_SHA`
+  - `Git` (real subprocess implementation; the only git access). Methods:
+    - `exists(sha) -> bool`, `existing(shas) -> set[str]` (one `cat-file --batch-check` call)
     - `ident(sha) -> tuple[str, str]` (author name, committer name)
-    - `changed(sha) -> set[str]`
+    - `changed(sha) -> set[str]` (`git diff --name-only C^1 C`)
     - `show(sha, path) -> bytes | None`
-    - `is_ancestor(a, b) -> bool`
-    - `rev_parse(ref) -> str`
-    - `first_adding_commit(main_sha, path) -> str | None`
-    - `ls_dir(sha, dirpath) -> list[str]`
-    - `weekly_commits(main_sha) -> list[str]`
-  - Ledger functions:
-    - `load_ledger(path) -> dict`, with keys `events` and `coverage`
-    - `normalize_event(raw) -> dict`
-    - `merge_collection(ledger, raw_events, t_end: str) -> dict`
-    - `covered(ledger, t0: str, t1: str) -> bool`
-    - `save_ledger(ledger, path)`
-  - `read_payloads(git, sha) -> tuple[dict | None, dict | None]` (legacy, neutral)
+    - `reachable(tip) -> set[str]`, `descendants_among(c, shas) -> set[str]` (ancestor-or-self, one
+      `rev-list --ancestry-path --stdin` call)
+    - `rev_parse(ref) -> str`, `first_adding_commit(main_sha, path) -> str | None`, `ls_dir(sha, dirpath) -> list[str]`
+    - `weekly_commits(tip, first_parent=False) -> list[tuple[sha, committer_iso, author, committer]]`, newest first
+    - `tree_id(path="src/ffmodel") -> str` (`git rev-parse HEAD:<path>` in the executing checkout), `dirty(path) -> bool`
+  - `fetch_activity(repo, run=subprocess.run) -> list[dict]` (`gh api --paginate --slurp`, pages flattened)
+  - Ledger: `normalize_event(raw)`, `collection_start(raw_events) -> str | None`, `load_ledger(path)`,
+    `merge_collection(ledger, raw_events, t_end, t_start=None)`, `save_ledger(ledger, path)`, `ledger_sha256(ledger)`,
+    `covered(ledger, t0, t1) -> bool` (half-open `[t0, t1)` inside the union; `"-inf"` accepted)
+  - `season_lower_bound(season) -> pd.Timestamp`
+  - `read_payloads(git, sha) -> tuple[dict | None, dict | None]` (legacy, neutral; malformed JSON reads as None)
   - `is_candidate(git, sha, season, week) -> bool`
-  - `select_publication(ledger, git, season, week, cutoff: pd.Timestamp, main_sha) -> dict`
+  - `CandidateIndex` (dataclass: `by_week: dict[int, set[str]]`, `unfetchable: set`)
+  - `candidate_index(ledger, git, season, main_sha) -> CandidateIndex`
+  - `select_publication(ledger, git, season, week, cutoff, main_sha, index=None) -> dict`
     - keys: `status` (`"selected"` | `"publication_evidence_unavailable"` | `"weeks_unpublished"`), `commit`,
       `event_id`, `available_by`, `detail`
   - `select_archive(ledger, git, season, week, cutoff, main_sha) -> dict`
-    - keys: `status` (`"selected"` | `"no_archive"` | `"archive_hash_mismatch"`), `path`, `commit`,
-      `available_by`, `tie_break`, `alternatives` (list), `content` (dict | None)
+    - keys: `status` (`"selected"` | `"no_archive"` | `"archive_hash_mismatch"` | `"archive_identity_mismatch"` |
+      `"validation_failed"`), `path`, `name`, `commit`, `available_by`, `event_id`, `blob_sha256`, `tie_break`,
+      `alternatives` (each: `name`, `blob_sha256`, `available_by`, `status`), `validation`, `consensus`
+      (valid rows, only when selected; never serialised)
+
+How the selection maps to spec §4.1 (astra P2, S6-I1): `candidate_index` enumerates candidates from reachable
+history **and** from every ledger target of any type (first-parent ancestry back to `T_S` for targets not reachable
+from main) and records unfetchable targets. `select_publication` step 1 uses only `push` events; steps 2–4 check
+coverage, `force_push` and unfetchable targets of **any** type in `[available_by, cutoff)`; step 5 returns
+`weeks_unpublished` only when no candidate exists, `[T_S, cutoff)` is covered and no event in it has an unfetchable
+target. `select_archive` orders evidenced archives by `available_by` (then filename), checks the would-be selection's
+hash, payload `season`/`week` and 1% validation, and skips with that reason rather than promoting another.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# tests/test_live_accuracy_evidence.py
 """Spec §4.1/§4.3 publication and archive evidence against a synthetic git history and push ledger."""
 import hashlib
 import json
 
 import pandas as pd
+import pytest
 
 from ffmodel.eval import live_accuracy as la
 
 
 class FakeGit:
-    """commits: sha -> {parent, author, committer, files: {path: bytes}, changed: set}"""
+    """commits: sha -> {parents, author, committer, changed, files: {path: bytes}, time}"""
 
-    def __init__(self, commits, order):
-        self.c, self.order = commits, order          # order: oldest -> newest along main
+    def __init__(self, commits):
+        self.c = commits
 
-    def exists(self, sha): return sha in self.c
+    def exists(self, sha): return bool(sha) and sha in self.c
     def ident(self, sha): return self.c[sha]["author"], self.c[sha]["committer"]
     def changed(self, sha): return set(self.c[sha]["changed"])
     def show(self, sha, path): return self.c[sha]["files"].get(path)
-    def rev_parse(self, ref): return self.order[-1]
+    def rev_parse(self, ref): return ref
+    def tree_id(self, path="src/ffmodel"): return "tree0"
+    def dirty(self, path="src/ffmodel"): return False
 
-    def is_ancestor(self, a, b):
-        return a in self.order and b in self.order and self.order.index(a) <= self.order.index(b)
+    def _walk(self, sha, first_parent=False):
+        out, stack = [], [sha]
+        while stack:
+            s = stack.pop()
+            if s in out or s not in self.c:
+                continue
+            out.append(s)
+            ps = self.c[s].get("parents", [])
+            stack.extend(reversed(ps[:1] if first_parent else ps))
+        return out
+
+    def is_ancestor(self, a, b): return a in self._walk(b)
+    def existing(self, shas): return {s for s in shas if self.exists(s)}
+    def reachable(self, tip): return set(self._walk(tip))
+    def descendants_among(self, c, shas): return {s for s in shas if self.exists(s) and self.is_ancestor(c, s)}
 
     def first_adding_commit(self, main_sha, path):
-        for sha in self.order:
-            if path in self.c[sha]["changed"] and path in self.c[sha]["files"]:
-                return sha
-        return None
+        adds = [s for s in self._walk(main_sha) if path in self.c[s]["changed"] and path in self.c[s]["files"]]
+        return min(adds, key=lambda s: self.c[s]["time"]) if adds else None
 
     def ls_dir(self, sha, dirpath):
         return sorted(p.split("/")[-1] for p in self.c[sha]["files"] if p.startswith(dirpath + "/"))
 
-    def weekly_commits(self, main_sha):
-        return [s for s in reversed(self.order) if self.c[s]["changed"] & set(la.WEEKLY_FILES)]
+    def weekly_commits(self, tip, first_parent=False):
+        return [(s, self.c[s]["time"], self.c[s]["author"], self.c[s]["committer"])
+                for s in self._walk(tip, first_parent) if self.c[s]["changed"] & set(la.WEEKLY_FILES)]
 
 
 def _legacy(week, gen="2026-09-30T21:29:16+00:00"):
@@ -1207,122 +1704,247 @@ def _neutral(week, gen="2026-09-30T21:29:16+00:00"):
                        "players": [{"player_id": "p1", "position": "WR", "team": "AAA", "stat_quantiles": sq}]}).encode()
 
 
+def _c(parents, author="me", changed=(), files=None, time="2026-09-30T00:00:00Z"):
+    return {"parents": list(parents), "author": author, "committer": author, "changed": set(changed),
+            "files": files or {}, "time": time}
+
+
+LEG, NEU = la.WEEKLY_FILES
+
+
 def _history():
-    files_old = {"site/data/weekly.json": _legacy(4)}
-    commits = {
-        "h0": {"author": "me", "committer": "me", "changed": {"README.md"}, "files": {}},
-        "b1": {"author": la.BOT, "committer": la.BOT, "changed": {"site/data/weekly.json"}, "files": files_old},
-        "b2": {"author": la.BOT, "committer": la.BOT, "changed": {"site/data/neutral/weekly.json"},
-               "files": {"site/data/neutral/weekly.json": _neutral(4)}},
-        "m1": {"author": "me", "committer": "me", "changed": {"site/data/weekly.json"}, "files": {"site/data/weekly.json": _legacy(4)}},
-    }
-    return FakeGit(commits, ["h0", "b1", "b2", "m1"])
+    return FakeGit({
+        "h0": _c([], changed={"README.md"}, time="2026-07-12T00:00:00Z"),
+        "b1": _c(["h0"], la.BOT, {LEG}, {LEG: _legacy(4)}, "2026-09-30T09:59:00Z"),
+        "b2": _c(["b1"], la.BOT, {NEU}, {LEG: _legacy(4), NEU: _neutral(4)}, "2026-09-30T20:59:00Z"),
+        "m1": _c(["b2"], "me", {LEG}, {LEG: _legacy(4), NEU: _neutral(4)}, "2026-09-30T21:30:00Z"),
+        "a1": _c(["m1"], "weekly-accuracy-bot", {LEG}, {LEG: _legacy(4)}, "2026-09-30T21:40:00Z"),
+    })
 
 
 def _ev(i, after, ts, kind="push", before="x"):
     return {"id": i, "ref": "refs/heads/main", "timestamp": ts, "before": before, "after": after,
-            "activity_type": kind, "actor": {"login": "github-actions[bot]"}}
+            "activity_type": kind, "actor": {"login": "github-actions[bot]", "id": 1}}
 
 
 CUT = pd.Timestamp("2026-10-01T00:00:00Z")
 
 
-def _ledger(events, cov=("2026-07-01T00:00:00Z", "2026-10-06T00:00:00Z")):
+def _ledger(events, cov=("-inf", "2026-10-06T00:00:00Z")):
     return la.merge_collection({"events": [], "coverage": []}, events, t_end=cov[1], t_start=cov[0])
 
 
+class _Run:
+    def __init__(self, stdout, code=0):
+        self.stdout, self.returncode, self.stderr = stdout, code, "boom"
+
+    def __call__(self, cmd, **kw):
+        assert cmd[:4] == ["gh", "api", "--paginate", "--slurp"]
+        return self
+
+
+def test_fetch_activity_flattens_slurped_pages_and_fails_safe():
+    pages = [[_ev(i, f"s{i}", "2026-09-01T00:00:00Z") for i in range(p * 3, p * 3 + 3)] for p in range(3)]
+    events = la.fetch_activity("o/r", run=_Run(json.dumps(pages)))
+    assert [e["id"] for e in events] == list(range(9))
+    with pytest.raises(RuntimeError):
+        la.fetch_activity("o/r", run=_Run(json.dumps([pages[0], {"message": "x"}])))     # a non-array page
+    with pytest.raises(RuntimeError):
+        la.fetch_activity("o/r", run=_Run("", code=1))                                    # failed fetch
+    with pytest.raises(RuntimeError):
+        la.fetch_activity("o/r", run=_Run("\n".join(json.dumps(p) for p in pages)))      # un-slurped output
+
+
 def test_selects_latest_covered_push_and_neutral_only_commit_is_candidate():
-    g = _history()
     led = _ledger([_ev(1, "b1", "2026-09-30T10:00:00Z"), _ev(2, "b2", "2026-09-30T21:00:00Z")])
-    r = la.select_publication(led, g, 2026, 4, CUT, "m1")
+    r = la.select_publication(led, _history(), 2026, 4, CUT, "m1")
     assert r["status"] == "selected" and r["commit"] == "b2" and r["available_by"] == "2026-09-30T21:00:00Z"
 
 
-def test_push_after_cutoff_not_selected_and_hand_commit_never_candidate():
-    g = _history()
+def test_push_after_cutoff_not_selected_and_non_bot_commits_never_candidates():
     led = _ledger([_ev(1, "b1", "2026-09-30T10:00:00Z"), _ev(2, "b2", "2026-10-01T00:00:02Z"),
-                   _ev(3, "m1", "2026-09-30T22:00:00Z")])
-    r = la.select_publication(led, g, 2026, 4, CUT, "m1")
-    assert r["commit"] == "b1"
+                   _ev(3, "m1", "2026-09-30T22:00:00Z"), _ev(4, "a1", "2026-09-30T23:00:00Z")])
+    r = la.select_publication(led, _history(), 2026, 4, CUT, "a1")
+    assert r["commit"] == "b1"                      # m1 (hand-made) and a1 (weekly-accuracy-bot) are rejected
+    assert not la.is_candidate(_history(), "a1", 2026, 4) and not la.is_candidate(_history(), "m1", 2026, 4)
+
+
+def test_commit_changing_neither_weekly_file_is_not_a_candidate():
+    g = _history()
+    g.c["x1"] = _c(["b2"], la.BOT, {"README.md"}, {LEG: _legacy(4)})
+    assert not la.is_candidate(g, "x1", 2026, 4) and la.is_candidate(g, "b2", 2026, 4)
 
 
 def test_earliest_event_per_sha_and_id_tiebreak():
+    led = _ledger([_ev(5, "b1", "2026-09-30T12:00:00Z"), _ev(4, "b1", "2026-09-30T12:00:00Z"),
+                   _ev(3, "b1", "2026-09-30T13:00:00Z")])
+    r = la.select_publication(led, _history(), 2026, 4, CUT, "m1")
+    assert r["event_id"] == 4 and r["available_by"] == "2026-09-30T12:00:00Z"
+
+
+def test_gap_after_publication_makes_unavailable_and_older_push_not_promoted():
+    led = la.merge_collection({"events": [], "coverage": []},
+                              [_ev(1, "b1", "2026-09-30T10:00:00Z"), _ev(2, "b2", "2026-09-30T21:00:00Z")],
+                              t_start="-inf", t_end="2026-09-30T22:00:00Z")
+    r = la.select_publication(led, _history(), 2026, 4, CUT, "m1")
+    assert r["status"] == "publication_evidence_unavailable" and r["commit"] is None
+
+
+def test_force_push_in_window_makes_unavailable():
+    led = _ledger([_ev(1, "b1", "2026-09-30T10:00:00Z"), _ev(2, "m1", "2026-09-30T15:00:00Z", kind="force_push")])
+    assert la.select_publication(led, _history(), 2026, 4, CUT, "m1")["status"] == "publication_evidence_unavailable"
+
+
+def test_unfetchable_pr_merge_target_in_window_makes_unavailable():
+    # astra P2: the step-4 check covers every activity type, not only push
+    led = _ledger([_ev(1, "b1", "2026-09-30T10:00:00Z"), _ev(2, "ghost", "2026-09-30T20:00:00Z", kind="pr_merge")])
+    r = la.select_publication(led, _history(), 2026, 4, CUT, "m1")
+    assert r["status"] == "publication_evidence_unavailable" and r["event_id"] == 2
+
+
+def test_payload_only_at_force_push_target_is_candidate_not_unpublished():
+    # astra P2: a week-9 bot payload exists only at a retained force_push target, unreachable from main
     g = _history()
-    led = _ledger([_ev(5, "b1", "2026-09-30T12:00:00Z"), _ev(4, "b1", "2026-09-30T11:00:00Z")])
-    r = la.select_publication(led, g, 2026, 4, CUT, "m1")
-    assert r["event_id"] == 4
+    g.c["fx"] = _c(["m1"], la.BOT, {LEG}, {LEG: _legacy(9)}, "2026-10-29T10:00:00Z")
+    led = _ledger([_ev(1, "fx", "2026-10-29T10:05:00Z", kind="force_push"),
+                   _ev(2, "m1", "2026-10-29T10:10:00Z", kind="force_push")],
+                  cov=("-inf", "2026-11-06T00:00:00Z"))
+    r = la.select_publication(led, g, 2026, 9, pd.Timestamp("2026-10-29T00:00:00Z") + pd.Timedelta(days=1), "m1")
+    assert r["status"] == "publication_evidence_unavailable"
 
 
-def test_gap_and_force_push_make_unavailable():
+def test_absence_needs_complete_coverage_from_season_lower_bound():
     g = _history()
-    gap = la.merge_collection({"events": [], "coverage": []}, [_ev(1, "b1", "2026-09-30T10:00:00Z")],
-                              t_start="2026-07-01T00:00:00Z", t_end="2026-09-30T12:00:00Z")
-    assert la.select_publication(gap, g, 2026, 4, CUT, "m1")["status"] == "publication_evidence_unavailable"
-    fp = _ledger([_ev(1, "b1", "2026-09-30T10:00:00Z"), _ev(2, "zz", "2026-09-30T15:00:00Z", kind="force_push")])
-    assert la.select_publication(fp, g, 2026, 4, CUT, "m1")["status"] == "publication_evidence_unavailable"
+    full = _ledger([])
+    assert la.select_publication(full, g, 2026, 9, CUT, "m1")["status"] == "weeks_unpublished"
+    gappy = {"events": [], "coverage": [["-inf", "2026-09-15T00:00:00Z"], ["2026-09-20T00:00:00Z", "2026-10-06T00:00:00Z"]]}
+    assert la.select_publication(gappy, g, 2026, 9, CUT, "m1")["status"] == "publication_evidence_unavailable"
+    late_start = {"events": [], "coverage": [["2026-07-01T00:00:00Z", "2026-10-06T00:00:00Z"]]}
+    assert la.select_publication(late_start, g, 2026, 9, CUT, "m1")["status"] == "publication_evidence_unavailable"
 
 
-def test_unfetchable_newer_sha_makes_unavailable_and_no_payload_is_unpublished():
-    g = _history()
-    led = _ledger([_ev(1, "b1", "2026-09-30T10:00:00Z"), _ev(2, "ghost", "2026-09-30T20:00:00Z")])
-    assert la.select_publication(led, g, 2026, 4, CUT, "m1")["status"] == "publication_evidence_unavailable"
-    assert la.select_publication(_ledger([]), g, 2026, 9, CUT, "m1")["status"] == "weeks_unpublished"
+def test_collection_ending_at_branch_creation_covers_back_to_minus_infinity():
+    raw = [_ev(1, "h0", "2026-07-11T22:02:06Z", kind="branch_creation", before=la.ZERO_SHA),
+           _ev(2, "b1", "2026-09-30T10:00:00Z")]
+    led = la.merge_collection({"events": [], "coverage": []}, raw, t_end="2026-10-06T19:02:01Z")
+    assert led["coverage"] == [["-inf", "2026-10-06T19:02:01Z"]]
+    assert la.covered(led, "2026-06-01T00:00:00Z", "2026-10-01T00:00:00Z")
+    partial = la.merge_collection({"events": [], "coverage": []}, raw[1:], t_end="2026-10-06T19:02:01Z")
+    assert partial["coverage"] == [["2026-09-30T10:00:00Z", "2026-10-06T19:02:01Z"]]
 
 
 def test_commit_before_push_after_cutoff_selects_older():
-    g = _history()
     led = _ledger([_ev(1, "b1", "2026-09-30T10:00:00Z"), _ev(2, "b2", "2026-10-01T00:00:02Z")])
-    assert la.select_publication(led, g, 2026, 4, CUT, "m1")["commit"] == "b1"
+    assert la.select_publication(led, _history(), 2026, 4, CUT, "m1")["commit"] == "b1"
+
+
+def test_sibling_merged_after_cutoff_is_never_selected():
+    # astra r3: P and F share a parent; F joins main through a merge pushed after the cutoff
+    g = FakeGit({
+        "r0": _c([], changed={"README.md"}, time="2026-09-29T00:00:00Z"),
+        "P": _c(["r0"], la.BOT, {LEG}, {LEG: _legacy(4)}, "2026-09-30T19:00:00Z"),
+        "F": _c(["r0"], la.BOT, {LEG}, {LEG: _legacy(4, gen="later")}, "2026-09-30T19:30:00Z"),
+        "M": _c(["P", "F"], "me", {LEG}, {LEG: _legacy(4, gen="later")}, "2026-10-02T09:00:00Z"),
+    })
+    led = _ledger([_ev(1, "P", "2026-09-30T20:00:00Z"), _ev(2, "M", "2026-10-02T10:00:00Z", kind="pr_merge")])
+    r = la.select_publication(led, g, 2026, 4, CUT, "M")
+    assert r["status"] == "selected" and r["commit"] == "P"
+    assert "F" in la.candidate_index(led, g, 2026, "M").by_week[4]
 
 
 def test_merge_collection_dedupes_and_keeps_login_only():
-    led = _ledger([_ev(1, "b1", "2026-09-30T10:00:00Z")])
+    led = _ledger([_ev(1, "b1", "2026-09-30T10:00:00Z")], cov=("2026-07-01T00:00:00Z", "2026-10-06T00:00:00Z"))
     led = la.merge_collection(led, [_ev(1, "b1", "2026-09-30T10:00:00Z"), _ev(2, "b2", "2026-09-30T11:00:00Z")],
                               t_start="2026-09-01T00:00:00Z", t_end="2026-10-07T00:00:00Z")
     assert [e["id"] for e in led["events"]] == [1, 2] and led["events"][0]["actor"] == "github-actions[bot]"
-    assert la.covered(led, "2026-07-02T00:00:00Z", "2026-10-06T23:00:00Z")
+    assert len(led["coverage"]) == 2 and la.covered(led, "2026-07-02T00:00:00Z", "2026-10-06T23:00:00Z")
 
 
-def _archive(week, date, players):
-    payload = {"season": 2026, "week": week, "snapshot_at": date, "players": players}
+def _archive(week, date, players, season=2026, payload_week=None):
+    payload = {"season": season, "week": week if payload_week is None else payload_week, "snapshot_at": date,
+               "players": players}
     enc = json.dumps(payload, sort_keys=True, indent=2, allow_nan=False)
-    name = f"2026-w{week:02d}-{date}-{hashlib.sha256(enc.encode()).hexdigest()[:16]}.json"
+    name = f"{season}-w{week:02d}-{date}-{hashlib.sha256(enc.encode()).hexdigest()[:16]}.json"
     return f"{la.ARCHIVE_DIR}/{name}", enc.encode()
 
 
-def test_archive_selection_cutoff_tie_and_hash():
-    p_early, b_early = _archive(4, "2026-09-30", [{"player_id": "p1", "ecr": 1.0, "position": "WR", "team": "AAA"}])
-    p_late, b_late = _archive(4, "2026-09-30", [{"player_id": "p1", "ecr": 2.0, "position": "WR", "team": "AAA"}])
-    p_after, b_after = _archive(4, "2026-09-29", [{"player_id": "p1", "ecr": 3.0, "position": "WR", "team": "AAA"}])
+def _players(ecr, n=1):
+    return [{"player_id": f"p{i}", "ecr": ecr + i, "position": "WR", "team": "AAA"} for i in range(n)]
+
+
+def _archive_world(early, late, after):
+    (p_e, b_e), (p_l, b_l), (p_a, b_a) = early, late, after
     commits = {
-        "a1": {"author": la.BOT, "committer": la.BOT, "changed": {p_early}, "files": {p_early: b_early}},
-        "a2": {"author": la.BOT, "committer": la.BOT, "changed": {p_late}, "files": {p_early: b_early, p_late: b_late}},
-        "a3": {"author": la.BOT, "committer": la.BOT, "changed": {p_after},
-               "files": {p_early: b_early, p_late: b_late, p_after: b_after}},
+        "a1": _c([], la.BOT, {p_e}, {p_e: b_e}, "2026-09-30T10:59:00Z"),
+        "a2": _c(["a1"], la.BOT, {p_l}, {p_e: b_e, p_l: b_l}, "2026-09-30T20:59:00Z"),
+        "a3": _c(["a2"], la.BOT, {p_a}, {p_e: b_e, p_l: b_l, p_a: b_a}, "2026-10-01T03:58:00Z"),
     }
-    g = FakeGit(commits, ["a1", "a2", "a3"])
-    led = _ledger([_ev(1, "a1", "2026-09-30T11:00:00Z"), _ev(2, "a2", "2026-09-30T21:00:00Z"),
+    led = _ledger([_ev(1, "a1", "2026-09-30T11:00:00Z"), _ev(2, "a2", "2026-09-30T21:00:00Z", kind="pr_merge"),
                    _ev(3, "a3", "2026-10-01T03:58:50Z")])
+    return FakeGit(commits), led
+
+
+def test_archive_selection_evidence_cutoff_and_alternatives():
+    early, late = _archive(4, "2026-09-30", _players(1.0)), _archive(4, "2026-09-30", _players(2.0))
+    after = _archive(4, "2026-09-29", _players(3.0))
+    g, led = _archive_world(early, late, after)
     r = la.select_archive(led, g, 2026, 4, CUT, "a3")
-    assert r["status"] == "selected" and r["path"] == p_late and len(r["alternatives"]) == 1
-    # week whose only archive was pushed after the cutoff -> no_archive
-    only_late = _ledger([_ev(3, "a3", "2026-10-01T03:58:50Z")])
-    g2 = FakeGit({"a3": commits["a3"]}, ["a3"])
-    assert la.select_archive(only_late, g2, 2026, 4, CUT, "a3")["status"] == "no_archive"
-    # tampered blob -> hash mismatch
-    commits["a2"]["files"][p_late] = b_late + b" "
-    assert la.select_archive(led, g, 2026, 4, CUT, "a3")["status"] == "archive_hash_mismatch"
+    assert r["status"] == "selected" and r["path"] == late[0] and r["available_by"] == "2026-09-30T21:00:00Z"
+    assert [a["name"] for a in r["alternatives"]] == [early[0].split("/")[-1]]
+    assert r["alternatives"][0]["blob_sha256"] == hashlib.sha256(early[1]).hexdigest()
+    assert list(r["consensus"]["player_id"]) == ["p0"]
+    only_late = _ledger([_ev(3, "a3", "2026-10-01T03:58:50Z")])                    # the week-3 shape
+    assert la.select_archive(only_late, g, 2026, 4, CUT, "a3")["status"] == "no_archive"
+
+
+def test_archive_tie_is_flagged():
+    early, late = _archive(4, "2026-09-30", _players(1.0)), _archive(4, "2026-09-30", _players(2.0))
+    g, _ = _archive_world(early, late, _archive(4, "2026-09-29", _players(3.0)))
+    led = _ledger([_ev(2, "a2", "2026-09-30T21:00:00Z")])                          # both first appear via a2
+    r = la.select_archive(led, g, 2026, 4, CUT, "a2")
+    assert r["tie_break"] == "arbitrary_lexicographic" and r["name"] == min(early[0], late[0]).split("/")[-1]
+
+
+def test_archive_hash_mismatch_is_not_promoted_past():
+    early, late = _archive(4, "2026-09-30", _players(1.0)), _archive(4, "2026-09-30", _players(2.0))
+    g, led = _archive_world(early, late, _archive(4, "2026-09-29", _players(3.0)))
+    g.c["a2"]["files"][late[0]] = late[1] + b" "
+    r = la.select_archive(led, g, 2026, 4, CUT, "a3")
+    assert r["status"] == "archive_hash_mismatch" and r["consensus"] is None
+
+
+def test_archive_identity_mismatch():
+    # astra P4: correctly hashed, named for week 4, payload says week 9
+    wrong = _archive(4, "2026-09-30", _players(1.0), payload_week=9)
+    g, led = _archive_world(_archive(4, "2026-09-30", _players(5.0)), wrong, _archive(4, "2026-09-29", _players(3.0)))
+    assert la.select_archive(led, g, 2026, 4, CUT, "a3")["status"] == "archive_identity_mismatch"
+
+
+def test_archive_above_threshold_is_validation_failed_and_not_promoted():
+    bad = _players(1.0, n=50)
+    bad[0]["ecr"] = None                                                             # 1 of 50 keys = 2% > 1%
+    g, led = _archive_world(_archive(4, "2026-09-30", _players(5.0)), _archive(4, "2026-09-30", bad),
+                            _archive(4, "2026-09-29", _players(3.0)))
+    r = la.select_archive(led, g, 2026, 4, CUT, "a3")
+    assert r["status"] == "validation_failed" and r["consensus"] is None
+    assert r["alternatives"][0]["status"] == "qualifies"                             # listed, never promoted
+
+
+def test_archive_content_read_from_first_adding_commit_not_later_tree():
+    early, late = _archive(4, "2026-09-30", _players(1.0)), _archive(4, "2026-09-30", _players(2.0))
+    g, led = _archive_world(early, late, _archive(4, "2026-09-29", _players(3.0)))
+    g.c["a3"]["files"][late[0]] = b"tampered later"                                  # later tree differs
+    assert la.select_archive(led, g, 2026, 4, CUT, "a3")["status"] == "selected"
 ```
 
 - [ ] **Step 2: Run the tests and confirm they fail**
 
 Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_live_accuracy_evidence.py -q`
-Expected: FAIL with `ModuleNotFoundError ... live_accuracy`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'ffmodel.eval.live_accuracy'`.
 
 - [ ] **Step 3: Implement**
 
 ```python
-# src/ffmodel/eval/live_accuracy.py
 """Live weekly accuracy scorecard (spec docs/superpowers/specs/2026-10-06-weekly-accuracy-sameweek-design.md §4).
 
 Scores the projections the bot pipeline published before each week's cutoff, proven by GitHub push records
@@ -1333,17 +1955,26 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
 
+from ffmodel.eval import sameweek as sw
+
 BOT = "weekly-update-bot"
 WEEKLY_FILES = ("site/data/weekly.json", "site/data/neutral/weekly.json")
 ARCHIVE_DIR = "data_snapshots/weekly_ecr"
+ARCHIVE_COLUMNS = ["player_id", "position", "team", "ecr"]
 MAIN_REF = "refs/heads/main"
+NEG_INF = "-inf"
+ZERO_SHA = "0" * 40
+NEG_INF_TS = pd.Timestamp.min.tz_localize("UTC")
 
 
 class Git:
+    """The only git access (spec §4.1). Tests pass a fake with the same methods."""
+
     def __init__(self, cwd: Path | str = "."):
         self.cwd = str(cwd)
 
@@ -1351,7 +1982,7 @@ class Git:
         return subprocess.run(["git", *args], cwd=self.cwd, capture_output=True, check=check)
 
     def exists(self, sha: str) -> bool:
-        return self._run("cat-file", "-e", f"{sha}^{{commit}}", check=False).returncode == 0
+        return bool(sha) and self._run("cat-file", "-e", f"{sha}^{{commit}}", check=False).returncode == 0
 
     def ident(self, sha: str) -> tuple[str, str]:
         out = self._run("log", "-1", "--format=%an%x00%cn", sha).stdout.decode().strip()
@@ -1368,8 +1999,28 @@ class Git:
         r = self._run("show", f"{sha}:{path}", check=False)
         return r.stdout if r.returncode == 0 else None
 
-    def is_ancestor(self, a: str, b: str) -> bool:
-        return self._run("merge-base", "--is-ancestor", a, b, check=False).returncode == 0
+    def existing(self, shas) -> set[str]:
+        """The subset of `shas` that are commits in the local object store (one batched call)."""
+        shas = sorted({s for s in shas if s})
+        if not shas:
+            return set()
+        r = subprocess.run(["git", "cat-file", "--batch-check=%(objectname) %(objecttype)"], cwd=self.cwd,
+                           input="\n".join(shas) + "\n", capture_output=True, text=True, check=True)
+        found = {line.split()[0] for line in r.stdout.splitlines() if line.endswith(" commit")}
+        return {s for s in shas if s in found}
+
+    def reachable(self, tip: str) -> set[str]:
+        return set(self._run("rev-list", tip).stdout.decode().split())
+
+    def descendants_among(self, c: str, shas) -> set[str]:
+        """The members of `shas` that have `c` as ancestor-or-self (one batched call)."""
+        shas = sorted({s for s in shas if s})
+        if not shas:
+            return set()
+        r = subprocess.run(["git", "rev-list", "--ancestry-path", "--stdin"], cwd=self.cwd,
+                           input="\n".join([f"^{c}", *shas]) + "\n", capture_output=True, text=True, check=True)
+        found = set(r.stdout.split())
+        return {s for s in shas if s in found or s == c}
 
     def rev_parse(self, ref: str) -> str:
         return self._run("rev-parse", ref).stdout.decode().strip()
@@ -1383,17 +2034,65 @@ class Git:
         out = self._run("ls-tree", "--name-only", f"{sha}:{dirpath}", check=False)
         return sorted(out.stdout.decode().split()) if out.returncode == 0 else []
 
-    def weekly_commits(self, main_sha: str) -> list[str]:
-        out = self._run("log", main_sha, "--full-history", "--format=%H", "--", *WEEKLY_FILES).stdout
-        return out.decode().split()
+    def weekly_commits(self, tip: str, first_parent: bool = False) -> list[tuple[str, str, str, str]]:
+        """(sha, committer ISO time, author name, committer name), newest first, of commits touching a weekly
+        file."""
+        fp = ["--first-parent"] if first_parent else []
+        out = self._run("log", tip, *fp, "--full-history", "--format=%H%x09%cI%x09%an%x09%cn", "--",
+                        *WEEKLY_FILES).stdout
+        return [tuple(line.split("\t")) for line in out.decode().splitlines() if line]
+
+    def tree_id(self, path: str = "src/ffmodel") -> str:
+        """Tree id of `path` in the EXECUTING checkout (spec §4.6 evaluator_version)."""
+        return self._run("rev-parse", f"HEAD:{path}").stdout.decode().strip()
+
+    def dirty(self, path: str = "src/ffmodel") -> bool:
+        return bool(self._run("status", "--porcelain", "--", path).stdout.strip())
 
 
-# --- ledger -----------------------------------------------------------------------------------------------------
+# --- activity API and ledger --------------------------------------------------------------------------------------
+def fetch_activity(repo: str, run=subprocess.run) -> list[dict]:
+    """All main-ref activity events. `--paginate --slurp` emits ONE outer JSON array whose items are the pages
+    (spec §4.1, astra P1); the events are the pages concatenated. Any failure is an infrastructure error."""
+    cmd = ["gh", "api", "--paginate", "--slurp", f"repos/{repo}/activity?ref={MAIN_REF}&per_page=100"]
+    r = run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"activity fetch failed (exit {r.returncode}): {(r.stderr or '')[-500:]}")
+    try:
+        pages = json.loads(r.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"activity response is not one JSON document: {exc}") from exc
+    if not isinstance(pages, list) or not all(isinstance(p, list) for p in pages):
+        raise RuntimeError("activity response is not an array of array pages")
+    events = [e for page in pages for e in page]
+    if not all(isinstance(e, dict) and "id" in e and "timestamp" in e for e in events):
+        raise RuntimeError("activity event without id/timestamp")
+    return events
+
+
 def normalize_event(raw: dict) -> dict:
     actor = raw.get("actor")
     return {"id": raw["id"], "ref": raw.get("ref"), "timestamp": raw["timestamp"], "before": raw.get("before"),
             "after": raw.get("after"), "activity_type": raw.get("activity_type"),
             "actor": actor.get("login") if isinstance(actor, dict) else actor}
+
+
+def _ts(x) -> pd.Timestamp:
+    if isinstance(x, str) and x == NEG_INF:
+        return NEG_INF_TS
+    t = pd.Timestamp(x)
+    return t.tz_localize("UTC") if t.tzinfo is None else t.tz_convert("UTC")
+
+
+def collection_start(raw_events: list[dict]) -> str | None:
+    """t_start of a complete collection: "-inf" when the oldest event is main's branch_creation (nothing can
+    precede the branch), else the oldest event's timestamp (spec §4.1 coverage intervals)."""
+    if not raw_events:
+        return None
+    oldest = min((normalize_event(r) for r in raw_events), key=lambda e: (_ts(e["timestamp"]), e["id"]))
+    if oldest["activity_type"] == "branch_creation" and oldest["ref"] == MAIN_REF:
+        return NEG_INF
+    return oldest["timestamp"]
 
 
 def load_ledger(path: Path) -> dict:
@@ -1404,14 +2103,14 @@ def load_ledger(path: Path) -> dict:
 
 
 def merge_collection(ledger: dict, raw_events: list[dict], t_end: str, t_start: str | None = None) -> dict:
-    """Append-only merge by id; record [t_start, t_end] coverage (t_start defaults to the oldest event seen)."""
+    """Append-only merge by id (events are never deleted or edited); record [t_start, t_end] coverage."""
     by_id = {e["id"]: e for e in ledger["events"]}
     for raw in raw_events:
         e = normalize_event(raw)
         by_id.setdefault(e["id"], e)
-    events = sorted(by_id.values(), key=lambda e: (e["timestamp"], e["id"]))
-    start = t_start or (min(normalize_event(r)["timestamp"] for r in raw_events) if raw_events else t_end)
-    coverage = sorted(ledger["coverage"] + [[start, t_end]])
+    events = sorted(by_id.values(), key=lambda e: (_ts(e["timestamp"]), e["id"]))
+    start = t_start if t_start is not None else (collection_start(raw_events) or t_end)
+    coverage = sorted(ledger["coverage"] + [[start, t_end]], key=lambda iv: (_ts(iv[0]), _ts(iv[1])))
     return {"events": events, "coverage": coverage}
 
 
@@ -1419,12 +2118,12 @@ def save_ledger(ledger: dict, path: Path) -> None:
     Path(path).write_text(json.dumps(ledger, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _ts(x) -> pd.Timestamp:
-    t = pd.Timestamp(x)
-    return t.tz_localize("UTC") if t.tzinfo is None else t.tz_convert("UTC")
+def ledger_sha256(ledger: dict) -> str:
+    return hashlib.sha256(json.dumps(ledger, sort_keys=True).encode()).hexdigest()
 
 
 def covered(ledger: dict, t0, t1) -> bool:
+    """[t0, t1) lies inside the union of the coverage intervals."""
     a, b = _ts(t0), _ts(t1)
     merged: list[list[pd.Timestamp]] = []
     for s, e in sorted((_ts(s), _ts(e)) for s, e in ledger["coverage"]):
@@ -1435,76 +2134,150 @@ def covered(ledger: dict, t0, t1) -> bool:
     return any(s <= a and b <= e for s, e in merged)
 
 
-# --- publications ------------------------------------------------------------------------------------------------
+def _main_events(ledger: dict) -> list[dict]:
+    return [e for e in ledger["events"] if e.get("ref") == MAIN_REF]
+
+
+def season_lower_bound(season: int) -> pd.Timestamp:
+    """T_S (spec §4.1): no season-S week-N publication can precede it."""
+    return pd.Timestamp(f"{season}-06-01T00:00:00Z")
+
+
+# --- publications -------------------------------------------------------------------------------------------------
 def read_payloads(git, sha: str) -> tuple[dict | None, dict | None]:
     out = []
     for path in WEEKLY_FILES:
         raw = git.show(sha, path)
-        out.append(json.loads(raw) if raw else None)
+        try:
+            out.append(json.loads(raw) if raw else None)
+        except json.JSONDecodeError:
+            out.append(None)
     return out[0], out[1]
 
 
-def _payload_week(git, sha: str):
-    legacy, neutral = read_payloads(git, sha)
-    p = legacy or neutral
-    return (p.get("season"), p.get("week")) if p else (None, None)
+def _identities(git, sha: str) -> set[tuple]:
+    return {(p.get("season"), p.get("week")) for p in read_payloads(git, sha) if isinstance(p, dict)}
+
+
+def _bot_weekly_commit(git, sha: str) -> bool:
+    return git.ident(sha) == (BOT, BOT) and bool(git.changed(sha) & set(WEEKLY_FILES))
 
 
 def is_candidate(git, sha: str, season: int, week: int) -> bool:
-    if not git.exists(sha):
-        return False
-    a, c = git.ident(sha)
-    if a != BOT or c != BOT or not (git.changed(sha) & set(WEEKLY_FILES)):
-        return False
-    return _payload_week(git, sha) == (season, week)
+    return git.exists(sha) and _bot_weekly_commit(git, sha) and (season, week) in _identities(git, sha)
 
 
-def _main_events(ledger: dict, kinds: set[str], before: pd.Timestamp) -> list[dict]:
-    return [e for e in ledger["events"] if e.get("ref") == MAIN_REF and e.get("activity_type") in kinds
-            and _ts(e["timestamp"]) < before]
+@dataclass
+class CandidateIndex:
+    by_week: dict           # week -> set of candidate shas
+    unfetchable: set        # ledger targets that cannot be fetched locally
 
 
-def select_publication(ledger: dict, git, season: int, week: int, cutoff: pd.Timestamp, main_sha: str) -> dict:
+def candidate_index(ledger: dict, git, season: int, main_sha: str) -> CandidateIndex:
+    """Spec §4.1 candidate enumeration: every commit reachable from the pinned main sha, plus every ledger target
+    (any activity type) with its first-parent ancestry back to T_S. Targets already reachable from main add
+    nothing new; a target that cannot be fetched is recorded as unfetchable."""
+    t_s = season_lower_bound(season)
+    afters = {e.get("after") for e in _main_events(ledger)}
+    present = git.existing(a for a in afters if a and a != ZERO_SHA)
+    unfetchable = {a for a in afters if a not in present}
+    rows = list(git.weekly_commits(main_sha))
+    reach = git.reachable(main_sha)
+    for after in sorted(present - reach):
+        for row in git.weekly_commits(after, first_parent=True):
+            if _ts(row[1]) < t_s:
+                break
+            rows.append(row)
+    by_week: dict[int, set] = {}
+    seen: set = set()
+    for sha, _, author, committer in rows:
+        if sha in seen:
+            continue
+        seen.add(sha)
+        if (author, committer) != (BOT, BOT) or not (git.changed(sha) & set(WEEKLY_FILES)):
+            continue
+        for s, w in _identities(git, sha):
+            if s == season and isinstance(w, int):
+                by_week.setdefault(w, set()).add(sha)
+    return CandidateIndex(by_week=by_week, unfetchable=unfetchable)
+
+
+def _unavailable(detail: str, event_id=None) -> dict:
+    return {"status": "publication_evidence_unavailable", "commit": None, "event_id": event_id,
+            "available_by": None, "detail": detail}
+
+
+def select_publication(ledger: dict, git, season: int, week: int, cutoff, main_sha: str,
+                       index: CandidateIndex | None = None) -> dict:
+    """Spec §4.1 selection steps 1-5. Only a `push` establishes publication; other types feed the checks."""
     cutoff = _ts(cutoff)
-    pushes = sorted(_main_events(ledger, {"push"}, cutoff), key=lambda e: (_ts(e["timestamp"]), e["id"]),
-                    reverse=True)
-    chosen = None
-    for e in pushes:
-        if not git.exists(e["after"]):
-            return {"status": "publication_evidence_unavailable", "commit": None, "event_id": e["id"],
-                    "available_by": None, "detail": "unfetchable ledger sha newer than any selectable publication"}
-        if is_candidate(git, e["after"], season, week):
-            chosen = e
-            break
-    if chosen is None:
-        exists = any(is_candidate(git, s, season, week) for s in git.weekly_commits(main_sha))
-        status = "publication_evidence_unavailable" if exists else "weeks_unpublished"
-        return {"status": status, "commit": None, "event_id": None, "available_by": None,
-                "detail": "candidate payload without pre-cutoff push evidence" if exists else "no candidate payload"}
-    first = min((e for e in pushes if e["after"] == chosen["after"]), key=lambda e: (_ts(e["timestamp"]), e["id"]))
-    available_by = first["timestamp"]
-    if not covered(ledger, available_by, cutoff):
-        return {"status": "publication_evidence_unavailable", "commit": None, "event_id": first["id"],
-                "available_by": None, "detail": "ledger coverage gap between publication and cutoff"}
-    forced = [e for e in _main_events(ledger, {"force_push"}, cutoff) if _ts(e["timestamp"]) >= _ts(available_by)]
-    if forced:
-        return {"status": "publication_evidence_unavailable", "commit": None, "event_id": forced[0]["id"],
-                "available_by": None, "detail": "force_push between publication and cutoff"}
-    return {"status": "selected", "commit": chosen["after"], "event_id": first["id"], "available_by": available_by,
-            "detail": None}
+    idx = index or candidate_index(ledger, git, season, main_sha)
+    cands = idx.by_week.get(week, set())
+    main = _main_events(ledger)
+    pushes = sorted((e for e in main if e.get("activity_type") == "push" and e.get("after") in cands
+                     and _ts(e["timestamp"]) < cutoff), key=lambda e: (_ts(e["timestamp"]), e["id"]))
+    earliest: dict[str, dict] = {}
+    for e in pushes:                                     # step 1: reduce each sha to its earliest push
+        earliest.setdefault(e["after"], e)
+    if earliest:
+        ev = max(earliest.values(), key=lambda e: (_ts(e["timestamp"]), e["id"]))
+        avail = _ts(ev["timestamp"])
+        window = [e for e in main if avail <= _ts(e["timestamp"]) < cutoff]
+        if not covered(ledger, avail, cutoff):                                       # step 2
+            return _unavailable("ledger coverage gap between publication and cutoff", ev["id"])
+        forced = [e for e in window if e.get("activity_type") == "force_push"]
+        if forced:                                                                   # step 3
+            return _unavailable("force_push between publication and cutoff", forced[0]["id"])
+        lost = [e for e in window if e.get("after") in idx.unfetchable]
+        if lost:                                                                     # step 4
+            return _unavailable("unfetchable ledger target between publication and cutoff", lost[0]["id"])
+        return {"status": "selected", "commit": ev["after"], "event_id": ev["id"],
+                "available_by": ev["timestamp"], "detail": None}
+    if cands:                                                                        # step 5
+        return _unavailable("candidate payload without a pre-cutoff push naming it")
+    t_s = season_lower_bound(season)
+    span_lost = [e for e in main if t_s <= _ts(e["timestamp"]) < cutoff and e.get("after") in idx.unfetchable]
+    if covered(ledger, t_s, cutoff) and not span_lost:
+        return {"status": "weeks_unpublished", "commit": None, "event_id": None, "available_by": None,
+                "detail": "no candidate; [T_S, cutoff) fully covered and every target fetchable"}
+    return _unavailable("absence not provable: coverage gap or unfetchable target in [T_S, cutoff)")
 
 
-# --- archives ----------------------------------------------------------------------------------------------------
-def _archive_ok(name: str, blob: bytes) -> bool:
+# --- archives -----------------------------------------------------------------------------------------------------
+def _archive_digest_ok(name: str, blob: bytes) -> bool:
     digest = name.rsplit("-", 1)[-1].removesuffix(".json")
     return hashlib.sha256(blob).hexdigest()[:16] == digest
 
 
-def select_archive(ledger: dict, git, season: int, week: int, cutoff: pd.Timestamp, main_sha: str) -> dict:
+def _check_archive(git, q: dict, season: int, week: int) -> dict:
+    """Content and identity checks (spec §4.3, astra P4), all before an archive can qualify."""
+    blob = git.show(q["commit"], q["path"])
+    out = {"blob_sha256": hashlib.sha256(blob).hexdigest() if blob is not None else None,
+           "status": None, "consensus": None, "validation": None}
+    if blob is None or not _archive_digest_ok(q["name"], blob):
+        return {**out, "status": "archive_hash_mismatch"}
+    try:
+        content = json.loads(blob)
+    except json.JSONDecodeError:
+        return {**out, "status": "archive_identity_mismatch"}
+    if not isinstance(content, dict) or content.get("season") != season or content.get("week") != week:
+        return {**out, "status": "archive_identity_mismatch"}
+    players = pd.DataFrame(content.get("players") or [], columns=ARCHIVE_COLUMNS)
+    v = sw.validate_table(players, ["player_id"], ["ecr"], ["position", "team"], position_col="position")
+    if v.fails():
+        return {**out, "status": "validation_failed", "validation": v.report()}
+    return {**out, "status": "qualifies", "consensus": v.valid, "validation": v.report()}
+
+
+def select_archive(ledger: dict, git, season: int, week: int, cutoff, main_sha: str) -> dict:
+    """Spec §4.3. Evidence orders the archives; the archive that would be selected must pass every content and
+    identity check, otherwise the week's primary ranking is skipped with that reason (never promoted past)."""
     cutoff = _ts(cutoff)
     prefix = f"{season}-w{week:02d}-"
-    events = sorted(_main_events(ledger, {"push", "pr_merge"}, cutoff), key=lambda e: (_ts(e["timestamp"]), e["id"]))
-    qualifying = []
+    events = sorted((e for e in _main_events(ledger) if e.get("activity_type") in {"push", "pr_merge"}
+                     and _ts(e["timestamp"]) < cutoff), key=lambda e: (_ts(e["timestamp"]), e["id"]))
+    present = git.existing(e.get("after") for e in events)
+    evidenced = []
     for name in git.ls_dir(main_sha, ARCHIVE_DIR):
         if not name.startswith(prefix):
             continue
@@ -1512,23 +2285,27 @@ def select_archive(ledger: dict, git, season: int, week: int, cutoff: pd.Timesta
         c = git.first_adding_commit(main_sha, path)
         if c is None or git.ident(c) != (BOT, BOT):
             continue
-        ev = next((e for e in events if git.exists(e["after"]) and git.is_ancestor(c, e["after"])), None)
+        desc = git.descendants_among(c, present)
+        ev = next((e for e in events if e.get("after") in desc), None)
         if ev is None or not covered(ledger, ev["timestamp"], cutoff):
             continue
-        qualifying.append({"path": path, "name": name, "commit": c, "available_by": ev["timestamp"], "event_id": ev["id"]})
-    if not qualifying:
-        return {"status": "no_archive", "path": None, "commit": None, "available_by": None, "tie_break": None,
-                "alternatives": [], "content": None}
-    latest = max(_ts(q["available_by"]) for q in qualifying)
-    top = sorted((q for q in qualifying if _ts(q["available_by"]) == latest), key=lambda q: q["name"])
-    pick = top[0]
-    blob = git.show(pick["commit"], pick["path"])
-    base = {"path": pick["path"], "commit": pick["commit"], "available_by": pick["available_by"],
-            "tie_break": "arbitrary_lexicographic" if len(top) > 1 else None,
-            "alternatives": [q for q in qualifying if q is not pick]}
-    if blob is None or not _archive_ok(pick["name"], blob):
-        return {**base, "status": "archive_hash_mismatch", "content": None}
-    return {**base, "status": "selected", "content": json.loads(blob)}
+        evidenced.append({"path": path, "name": name, "commit": c, "available_by": ev["timestamp"],
+                          "event_id": ev["id"]})
+    empty = {"path": None, "name": None, "commit": None, "available_by": None, "event_id": None,
+             "blob_sha256": None, "tie_break": None, "alternatives": [], "validation": None, "consensus": None}
+    if not evidenced:
+        return {**empty, "status": "no_archive"}
+    evidenced.sort(key=lambda q: (-_ts(q["available_by"]).value, q["name"]))
+    checked = [{**q, **_check_archive(git, q, season, week)} for q in evidenced]
+    pick, rest = checked[0], checked[1:]
+    tie = sum(1 for q in checked if q["available_by"] == pick["available_by"]) > 1
+    alternatives = [{"name": q["name"], "blob_sha256": q["blob_sha256"], "available_by": q["available_by"],
+                     "status": q["status"]} for q in rest]
+    status = "selected" if pick["status"] == "qualifies" else pick["status"]
+    return {"status": status, "path": pick["path"], "name": pick["name"], "commit": pick["commit"],
+            "available_by": pick["available_by"], "event_id": pick["event_id"], "blob_sha256": pick["blob_sha256"],
+            "tie_break": "arbitrary_lexicographic" if tie else None, "alternatives": alternatives,
+            "validation": pick["validation"], "consensus": pick["consensus"] if status == "selected" else None}
 ```
 
 - [ ] **Step 4: Run the tests and confirm they pass**
@@ -1540,92 +2317,126 @@ Expected: all pass.
 
 ```bash
 git add src/ffmodel/eval/live_accuracy.py tests/test_live_accuracy_evidence.py
-git commit -m "feat(live_accuracy): append-only push ledger, git adapter, exact-push publication and archive evidence (spec §4.1/§4.3)"
+git commit -m "feat(live_accuracy): slurped activity fetch, append-only ledger with -inf coverage, candidate enumeration, publication and archive evidence (spec §4.1/§4.3)"
 ```
 
 ---
 
-### Task 6: live_accuracy — published values, metrics, rankings, artifact, CLI
+### Task 6: live_accuracy — published values, equivalence, metrics, evaluate, artifact, CLI
+
+**Model:** implementer sonnet (transcription); reviewer **opus** (numerics and the P3/P5/P6 paths).
 
 **Files:**
-- Modify: `src/ffmodel/eval/live_accuracy.py` (append)
+- Modify: `src/ffmodel/eval/live_accuracy.py` (replace the import block, append)
 - Test: `tests/test_live_accuracy_metrics.py`
 
 **Interfaces:**
 - Consumes:
   - Task 5;
-  - `sameweek.validate_projections`, `validate_actuals`, `validate_table`, `build_cells`, `sameweek_week`,
-    `delta_stats`, `week_dates`, `POSITIONS`;
+  - `sameweek.prepare` output (`Prepared`), `week_inputs`, `week_dates`, `week_teams`, `validate_projections`,
+    `build_cells`, `cell_summary`, `sameweek_week`, `delta_stats`, `ranking_coverage`, `N_BOOT`, `BOOT_SEED`;
   - `ffmodel.site.leaguelens.effective_weights`, `reference_score`;
-  - `ffmodel.baseline.naive.NaiveLast4`;
-  - `ffmodel.eval.metrics.pinball_loss`;
-  - `ffmodel.scoring.PPR`, `PREDICTED_STATS`, `fantasy_points`;
-  - `ffmodel.eval.mean_head_gate.paired_bootstrap`;
-  - `ffmodel.prospective.freeze.check_fresh`.
+  - `ffmodel.baseline.naive.NaiveLast4`; `ffmodel.eval.metrics.pinball_loss`;
+  - `ffmodel.scoring.PPR`, `PREDICTED_STATS`, `fantasy_points`; `ffmodel.eval.mean_head_gate.paired_bootstrap`;
+  - in `main` only: `ffmodel.data.pull` (`_cached`, `pull_weekly`, `pull_schedules`, `current_nfl_season`,
+    `LIVE_MAX_AGE_HOURS`), `ffmodel.data.rankings.pull_player_ids`, `weekly_rankings.normalize_weekly_rankings`.
 - Produces:
+  - `PROTOCOL_VERSION = "live-accuracy-v1"`, `EQUIV_TOL`, `LEDGER_PATH`, `BAKEOFF_PATH`, `PROVISIONAL_DAYS = 8`
   - `ppr_weights() -> dict`
-  - `published_values(legacy, neutral, weights) -> tuple[pd.DataFrame | None, str | None, dict]`
-    - frame columns: `player_id, position, team, p10, p50, p90`
-    - second value: a reason (`"equivalence_failed"`) or None
-    - third value: a detail dict
+  - `equivalence(leg_frame, neu_frame) -> dict` (`ok` plus the invalid, missing and divergent player lists)
+  - `published_values(legacy, neutral, weights, season, week) -> tuple[pd.DataFrame | None, str | None, dict]`
   - `naive_points(features, rows, season) -> pd.Series`
-  - `point_metrics(df) -> dict`
-    - `df` columns: `actual, p10, p50, p90, naive, player_id, week, team`
+  - `point_metrics(df) -> dict` (None for undefined values)
   - `paired_intervals(df) -> dict`
-  - `week_complete(schedules, played_all, season, week) -> bool`
-  - `evaluate(context) -> dict`
-    - the full artifact, without its `run` block
-    - `context` is a `LiveContext` dataclass
-  - `render_markdown(artifact) -> str`
+  - `week_complete(prep, season, week) -> bool`
+  - `unprojected_summary(unproj, played) -> dict`
+  - `frame_sha256(df)`, `file_sha256(path)`, `input_hashes(weekly_raw, schedules_raw, crosswalk, rankings_raw, bakeoff_path=BAKEOFF_PATH) -> dict`
+  - `evaluator_version(git) -> dict` (`protocol_version`, `src_ffmodel_tree`, `dirty`, `id`)
+  - `LiveContext` (dataclass: `season, weeks, as_of, prepared, rankings, rankings_raw, crosswalk, ledger, git,
+    main_sha, bakeoff, inputs`)
+  - `evaluate(ctx) -> dict` (the artifact without its `run` block; each week record carries `cutoff`,
+    `last_game`, `publication`, `values`, `validation`, `unprojected`, `points`, `expert_snapshot`, `primary` and
+    `secondary`, the last two with retained per-position `cells`)
+  - `render_markdown(artifact) -> str`, `serialise(artifact) -> str` (`allow_nan=False`)
+  - `output_path(season=None) -> Path` (`models/diagnostics/live_<S>_weekly.json`, S from `current_nfl_season()`)
   - `main(argv=None) -> int`
+
+The workflow (Task 8) and the Sleeper comparator (Task 7) read the artifact keys `season`, `weeks_scored`,
+`weeks[<N>].cutoff` and `weeks[<N>].publication.{commit, available_by}`; keep those names.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# tests/test_live_accuracy_metrics.py
-"""Spec §4.2-4.6: published values, point metrics, completeness, artifact and markdown. Synthetic only."""
+"""Spec §4.1-4.6: published values, equivalence, point metrics, the full evaluate path, artifact and markdown."""
+import hashlib
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from ffmodel.eval import live_accuracy as la
+from ffmodel.eval import sameweek as sw
+from ffmodel.scoring import PREDICTED_STATS
+from tests.test_live_accuracy_evidence import FakeGit, _c, _ev, _ledger
+
+LEG, NEU = la.WEEKLY_FILES
 
 
-def _legacy(gen="g1"):
-    return {"season": 2026, "week": 4, "generated_at": gen,
-            "players": [{"player_id": "p1", "position": "WR", "team": "AAA",
-                         "points": {"ppr": {"p10": 2.0, "p50": 5.0, "p90": 9.0}}}]}
+def _legacy(gen="g1", players=None, week=4):
+    players = players if players is not None else [("p1", "WR", "AAA", 2.0, 5.0, 8.0)]
+    return {"season": 2026, "week": week, "generated_at": gen,
+            "players": [{"player_id": i, "position": pos, "team": t, "points": {"ppr": {"p10": a, "p50": b, "p90": c}}}
+                        for i, pos, t, a, b, c in players]}
 
 
-def _neutral(gen="g1", rec=(1.0, 2.5, 4.0)):
+def _neutral(gen="g1", rec=(1.0, 2.5, 4.0), players=("p1",)):
     from ffmodel.site.leaguelens import STATS
     sq = {q: {**{s: 0.0 for s in STATS}, "receptions": r, "receiving_yards": 10 * r}
           for q, r in zip(("p10", "p50", "p90"), rec)}
     return {"season": 2026, "week": 4, "generated_at": gen,
-            "players": [{"player_id": "p1", "position": "WR", "team": "AAA", "stat_quantiles": sq}]}
+            "players": [{"player_id": p, "position": "WR", "team": "AAA", "stat_quantiles": sq} for p in players]}
 
 
-def test_values_prefer_legacy_and_check_equivalence():
+def test_values_prefer_legacy_and_rescore_neutral():
     w = la.ppr_weights()
-    # neutral PPR for rec r: r*1 + 10r*0.1 = 2r -> (2, 5, 8); legacy p90 9.0 differs by 1.0 -> equivalence_failed
-    df, reason, detail = la.published_values(_legacy(), _neutral(), w)
-    assert reason == "equivalence_failed" and detail["players"] == ["p1"]
-    df, reason, _ = la.published_values(_legacy(), _neutral(gen="other"), w)       # different batch: no check
-    assert reason is None and df.loc[0, "p50"] == 5.0
-    df, reason, _ = la.published_values(None, _neutral(), w)                         # legacy retired
+    df, reason, d = la.published_values(_legacy(), _neutral(gen="other"), w, 2026, 4)   # different batch: no check
+    assert reason is None and df.loc[0, "p50"] == 5.0 and d["equivalence_checked"] is False
+    df, reason, _ = la.published_values(None, _neutral(), w, 2026, 4)                     # legacy retired
     assert reason is None and list(df[["p10", "p50", "p90"]].iloc[0]) == pytest.approx([2.0, 5.0, 8.0])
+    df, reason, d = la.published_values(_legacy(), _neutral(), w, 2026, 4)               # same batch, within 0.01
+    assert reason is None and d["equivalence_checked"] is True
 
 
-def test_point_metrics_hand_computed():
+@pytest.mark.parametrize("neutral,field", [
+    (_neutral(rec=(1.0, 2.5, 4.6)), "divergent"),                   # p90 off by 1.2
+    (_neutral(players=()), "missing_in_neutral"),                   # empty neutral player list
+    (_neutral(players=("p2",)), "missing_in_neutral"),              # player missing from the neutral file
+])
+def test_equivalence_failures(neutral, field):
+    df, reason, d = la.published_values(_legacy(), neutral, la.ppr_weights(), 2026, 4)
+    assert df is None and reason == "equivalence_failed" and d[field]
+
+
+def test_equivalence_fails_on_nan_neutral_quantile():
+    bad = _neutral()
+    bad["players"][0]["stat_quantiles"]["p50"]["receptions"] = float("nan")
+    df, reason, d = la.published_values(_legacy(), bad, la.ppr_weights(), 2026, 4)
+    assert reason == "equivalence_failed" and d["invalid_neutral"] == ["p1"]
+
+
+def test_point_metrics_hand_computed_and_empty_is_null():
     df = pd.DataFrame({"actual": [10.0, 2.0, 7.0, 4.0], "p10": [1.0, 3.0, 2.0, 1.0], "p50": [6.0, 5.0, 7.0, 4.0],
-                       "p90": [9.0, 9.0, 12.0, 8.0], "naive": [8.0, 4.0, 6.0, 4.0],
-                       "player_id": ["a", "b", "c", "d"], "week": [1, 1, 2, 2], "team": ["X", "X", "Y", "Y"]})
+                       "p90": [9.0, 9.0, 12.0, 8.0], "naive": [8.0, 4.0, 6.0, 4.0]})
     m = la.point_metrics(df)
     assert m["n"] == 4 and m["mae"] == pytest.approx((4 + 3 + 0 + 0) / 4)
     assert m["naive_mae"] == pytest.approx((2 + 2 + 1 + 0) / 4)
     assert m["coverage_p10_p90"] == pytest.approx(2 / 4)            # 10>9 above, 2<3 below
     assert m["below_p10"] == pytest.approx(0.25) and m["above_p90"] == pytest.approx(0.25)
     assert m["share_above_p50"] == pytest.approx(0.25)
+    assert m["pinball_p50"] == pytest.approx(0.5 * (4 + 3) / 4)
+    empty = la.point_metrics(df.head(0))
+    assert empty["n"] == 0 and empty["mae"] is None and empty["pinball_p90"] is None
 
 
 def test_paired_intervals_accept_scalar_string_clusters():
@@ -1634,45 +2445,196 @@ def test_paired_intervals_accept_scalar_string_clusters():
                        "week": [1, 1, 2, 2, 3, 3], "team": ["X", "Y", "X", "Y", "X", "Y"]})
     r = la.paired_intervals(df)
     assert len(r["ci95_player"]) == 2 and len(r["ci95_week_team"]) == 2
-    assert r["delta_mae_model_minus_naive"] == pytest.approx(np.mean(np.abs(df.actual - df.p50) - np.abs(df.actual - df.naive)))
+    assert r["delta_mae_model_minus_naive"] == pytest.approx(
+        np.mean(np.abs(df.actual - df.p50) - np.abs(df.actual - df.naive)))
 
 
-def test_week_complete_requires_every_team():
-    sched = pd.DataFrame([(2026, 5, "2026-10-08", "AAA", "BBB"), (2026, 5, "2026-10-12", "CCC", "DDD")],
-                         columns=["season", "week", "gameday", "home_team", "away_team"])
-    played = pd.DataFrame({"season": [2026] * 3, "week": [5] * 3, "team": ["AAA", "BBB", "CCC"]})
-    assert not la.week_complete(sched, played, 2026, 5)          # Monday-night DDD missing -> incomplete_week
-    played.loc[3] = [2026, 5, "DDD"]
-    assert la.week_complete(sched, played, 2026, 5)
+# --- the full driver path: raw tables -> stage 1 -> build_features -> stage 2 -> scoring --------------------------
+TEAMS = ("AAA", "BBB")
+POS = ("RB", "WR")
 
 
-def test_render_markdown_has_provisional_and_rows():
+def _raw_world(missing_team_week=None):
+    sched, rows = [], []
+    for season, start in ((2025, "2025-09-04"), (2026, "2026-09-10")):
+        for w in (1, 2):
+            day = (pd.Timestamp(start) + pd.Timedelta(days=7 * (w - 1))).strftime("%Y-%m-%d")
+            sched.append((season, w, day, "AAA", "BBB"))
+            for t in TEAMS:
+                if (season, w, t) == missing_team_week:
+                    continue
+                for pos in POS:
+                    for i in range(5):
+                        r = {"player_id": f"{t}{pos}{i}", "player_display_name": "x", "position": pos, "team": t,
+                             "opponent_team": "BBB" if t == "AAA" else "AAA", "season": season, "week": w,
+                             "target_share": np.nan, "snap_pct": np.nan, "two_point_conversions": 0,
+                             "special_teams_tds": 0, **{s: 0.0 for s in PREDICTED_STATS}}
+                        r["receptions"] = float(i + w)
+                        r["receiving_yards"] = float(10 * (i + 1))
+                        rows.append(r)
+    return (pd.DataFrame(rows),
+            pd.DataFrame(sched, columns=["season", "week", "gameday", "home_team", "away_team"]))
+
+
+def _publication_git(players, dirty=False):
+    payload = _legacy(gen="g1", players=players, week=1)
+    g = FakeGit({"h0": _c([], changed={"README.md"}, time="2026-07-12T00:00:00Z"),
+                 "pub": _c(["h0"], la.BOT, {LEG}, {LEG: json.dumps(payload).encode()}, "2026-09-09T09:00:00Z")})
+    g.dirty = lambda path="src/ffmodel": dirty
+    return g
+
+
+BAKEOFF = {"results": [{"position": "OVERALL", "model": m, "test_season": s, "n": 100, "mae": 4.0 + k,
+                        "coverage_p10_p90": 0.8} for k, m in enumerate(("transformer", "naive_last4"))
+                       for s in (2023, 2024, 2025)]}
+
+
+def _ctx(git, raw=None, weeks=(1,), as_of="2026-09-20"):
+    weekly, sched = raw or _raw_world()
+    return la.LiveContext(season=2026, weeks=list(weeks), as_of=pd.Timestamp(as_of),
+                          prepared=sw.prepare(weekly, sched), rankings=None, rankings_raw=None, crosswalk=None,
+                          ledger=_ledger([_ev(1, "pub", "2026-09-09T10:00:00Z")]), git=git, main_sha="pub",
+                          bakeoff=BAKEOFF, inputs=la.input_hashes(weekly, sched, None, None, bakeoff_path=la.BAKEOFF_PATH))
+
+
+def _ours(ids, p50=5.0):
+    return [(i, i[3:5], i[:3], p50 - 3, p50, p50 + 3) for i in ids]
+
+
+def test_complete_week_with_zero_projection_matches_is_no_scorable_points():
+    art = la.evaluate(_ctx(_publication_git(_ours(["ZZZWR9"]))))
+    assert art["weeks_scored"] == [] and art["points"] == {}
+    assert art["weeks_skipped"] == [{"week": 1, "reason": "no_scorable_points"}]
+    assert art["weeks"]["1"]["unprojected"]["count"] == 20 and art["weeks"]["1"]["unprojected"]["share"] == 1.0
+    json.dumps(art, allow_nan=False)
+
+
+def test_scored_week_through_full_path_and_provenance():
+    ids = [f"{t}{p}{i}" for t in TEAMS for p in POS for i in range(5)]
+    art = la.evaluate(_ctx(_publication_git(_ours(ids[:-1]), dirty=True)))
+    assert art["weeks_scored"] == [1] and art["points"]["overall"]["n"] == 19
+    assert art["weeks"]["1"]["unprojected"]["count"] == 1
+    assert art["weeks"]["1"]["publication"]["commit"] == "pub" and art["weeks"]["1"]["cutoff"] == "2026-09-10T00:00:00Z"
+    assert set(art["inputs"]["actuals_by_season"]) == {"2025", "2026"}
+    assert art["inputs"]["bakeoff"]["sha256"] == hashlib.sha256(la.BAKEOFF_PATH.read_bytes()).hexdigest()
+    assert art["evaluator_version"]["id"] == "live-accuracy-v1+tree0+dirty"
+    assert art["reference_context"]["transformer_mae_2023_25"] == pytest.approx(4.0)
+    assert art["ranking"]["primary"] == {"cells": 0} and art["weeks"]["1"]["primary"]["reason"] == "no_archive"
+    json.dumps(art, allow_nan=False)
+
+
+def test_naive_uses_strictly_prior_games_and_prior_season_fallback():
+    weekly, sched = _raw_world()
+    prep = sw.prepare(weekly, sched)
+    wk1 = sw.week_actuals(prep, 2026, 1).valid
+    nv = la.naive_points(prep.features, wk1, 2026)
+    row = wk1["player_id"] == "AAAWR0"
+    # lag4 of AAAWR0 before 2026 week 1 = its 2025 weeks 1-2: receptions 1, 2 -> 1.5; yards 10, 10 -> 10
+    assert float(nv[row].iloc[0]) == pytest.approx(1.5 + 0.1 * 10)
+    with pytest.raises(ValueError, match="no position mean"):
+        la.naive_points(prep.features[prep.features["position"] == "RB"], wk1, 2026)
+
+
+def test_missing_team_rows_make_week_incomplete():
+    art = la.evaluate(_ctx(_publication_git(_ours(["AAAWR0"])), raw=_raw_world(missing_team_week=(2026, 1, "BBB"))))
+    assert art["weeks_skipped"] == [{"week": 1, "reason": "incomplete_week"}]
+
+
+IDS = [f"{t}{p}{i}" for t in TEAMS for p in POS for i in range(5)]
+
+
+def _archive_git(archived_ids):
+    g = _publication_git(_ours(IDS))
+    pts = {i: float(k) for k, i in enumerate(IDS)}
+    g.c["pub"]["files"][LEG] = json.dumps(_legacy(gen="g1", week=1, players=[
+        (i, i[3:5], i[:3], pts[i] - 3, pts[i], pts[i] + 3) for i in IDS])).encode()
+    players = [{"player_id": i, "ecr": float(k + 1), "position": i[3:5], "team": i[:3]}
+               for k, i in enumerate(archived_ids)]
+    enc = json.dumps({"season": 2026, "week": 1, "snapshot_at": "2026-09-08", "players": players},
+                     sort_keys=True, indent=2, allow_nan=False)
+    name = f"2026-w01-2026-09-08-{hashlib.sha256(enc.encode()).hexdigest()[:16]}.json"
+    g.c["pub"]["files"][f"{la.ARCHIVE_DIR}/{name}"] = enc.encode()
+    g.c["pub"]["changed"].add(f"{la.ARCHIVE_DIR}/{name}")
+    return g, name, enc
+
+
+def test_ranking_pool_is_three_way_intersection_and_week_without_rb_coverage():
+    wr_only = [i for i in IDS if i[3:5] == "WR"] + ["ZZZWR7"]           # archive lists no RB, plus a non-player
+    g, _, _ = _archive_git(wr_only)
+    g.c["pub"]["files"][LEG] = json.dumps(_legacy(gen="g1", week=1, players=[
+        (i, i[3:5], i[:3], k - 3.0, float(k), k + 3.0) for k, i in enumerate(IDS[:-1])])).encode()
+    art = la.evaluate(_ctx(g))
+    prim = art["weeks"]["1"]["primary"]
+    assert prim["pool"] == 9 and prim["pool_by_position"] == {"WR": 9}   # played ∩ projected ∩ archived
+    assert [c["position"] for c in prim["cells"]] == ["WR"]
+
+
+def test_archive_ranking_values_retained_and_rendered():
+    g, name, enc = _archive_git(IDS)
+    art = la.evaluate(_ctx(g))
+    cells = art["weeks"]["1"]["primary"]["cells"]
+    assert {c["position"] for c in cells} == {"RB", "WR"} and all(set(c) == {"position", "n", "sp_ours", "sp_con",
+                                                                             "delta"} for c in cells)
+    assert art["inputs"]["archive_blobs"] == {name: hashlib.sha256(enc.encode()).hexdigest()}
+    art["run"] = {"provisional_weeks": [1]}
+    md = la.render_markdown(art)
+    row = next(line for line in md.splitlines() if line.startswith("| 1 |"))
+    assert row.count("—") == 1 and " / " in row                    # archive column filled, nflverse column "—"
+
+
+def test_render_markdown_has_provisional_line_and_skips():
     art = {"season": 2026, "weeks_scored": [1], "weeks_skipped": [{"week": 2, "reason": "incomplete_week"}],
            "points": {"overall": {"n": 3, "mae": 4.1, "naive_mae": 4.5, "coverage_p10_p90": 0.8,
                                   "below_p10": 0.1, "above_p90": 0.1},
                       "by_week": {"1": {"n": 3, "mae": 4.1, "naive_mae": 4.5, "coverage_p10_p90": 0.8,
                                         "below_p10": 0.1, "above_p90": 0.1, "last_game": "2026-09-14"}}},
-           "ranking": {"primary": {"by_week": {}}}, "caveats": ["c1"],
-           "run": {"provisional_weeks": [1]}}
+           "weeks": {"1": {}}, "caveats": ["c1"], "run": {"provisional_weeks": [1]}}
     md = la.render_markdown(art)
     assert "Provisional: weeks 1" in md and "| 1 |" in md and "incomplete_week" in md
+
+
+def test_output_path_follows_current_season():
+    from ffmodel.data.pull import current_nfl_season
+
+    assert la.output_path() == la.Path(f"models/diagnostics/live_{current_nfl_season()}_weekly.json")
+    assert la.output_path(2027).name == "live_2027_weekly.json"
+
+
+def test_serialisation_is_deterministic_and_rejects_nan():
+    art = la.evaluate(_ctx(_publication_git(_ours(["ZZZWR9"]))))
+    art["run"] = {"run_at": "2026-09-20T00:00:00Z", "as_of_date": "2026-09-20", "main_sha": "pub",
+                  "provisional_weeks": []}
+    again = la.evaluate(_ctx(_publication_git(_ours(["ZZZWR9"]))))
+    again["run"] = dict(art["run"])
+    assert la.serialise(art) == la.serialise(again)
+    with pytest.raises(ValueError):
+        la.serialise({"x": float("nan")})
 ```
 
 - [ ] **Step 2: Run the tests and confirm they fail**
 
 Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_live_accuracy_metrics.py -q`
-Expected: FAIL with `AttributeError: ... 'ppr_weights'`.
+Expected: FAIL with `AttributeError: module 'ffmodel.eval.live_accuracy' has no attribute 'ppr_weights'`.
 
-- [ ] **Step 3: Implement (append to `live_accuracy.py`; consolidate imports at the top)**
+- [ ] **Step 3: Implement**
+
+Replace the import block at the top of `live_accuracy.py` with:
 
 ```python
+from __future__ import annotations
+
 import argparse
 import datetime as dt
+import hashlib
+import json
 import os
+import subprocess
 import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import yaml
 
 from ffmodel.baseline.naive import NaiveLast4
@@ -1681,11 +2643,19 @@ from ffmodel.eval.mean_head_gate import paired_bootstrap
 from ffmodel.eval.metrics import pinball_loss
 from ffmodel.scoring import PPR, PREDICTED_STATS, fantasy_points
 from ffmodel.site import leaguelens
+```
 
+Then append:
+
+```python
 PROTOCOL_VERSION = "live-accuracy-v1"
 EQUIV_TOL = 0.01
+QUANTILES = ("p10", "p50", "p90")
+VALUE_COLUMNS = ["player_id", "position", "team", "p10", "p50", "p90"]
 FORMAT_YAML = Path("configs/formats/f12-1qb-ppr-4.yaml")
 LEDGER_PATH = Path("models/diagnostics/main_push_ledger.json")
+BAKEOFF_PATH = Path("models/backtests/bakeoff.json")
+PROVISIONAL_DAYS = 8
 
 
 def ppr_weights() -> dict:
@@ -1693,60 +2663,93 @@ def ppr_weights() -> dict:
 
 
 def _legacy_frame(legacy: dict) -> pd.DataFrame:
-    rows = [{"player_id": p["player_id"], "position": p.get("position"), "team": p.get("team"),
-             **{q: p["points"]["ppr"].get(q) for q in ("p10", "p50", "p90")}} for p in legacy["players"]]
-    return pd.DataFrame(rows, columns=["player_id", "position", "team", "p10", "p50", "p90"])
+    rows = []
+    for p in legacy.get("players") or []:
+        ppr = (p.get("points") or {}).get("ppr") or {}
+        rows.append({"player_id": p.get("player_id"), "position": p.get("position"), "team": p.get("team"),
+                     **{q: ppr.get(q) for q in QUANTILES}})
+    return pd.DataFrame(rows, columns=VALUE_COLUMNS).astype({q: float for q in QUANTILES})
 
 
 def _neutral_frame(neutral: dict, weights: dict) -> pd.DataFrame:
     rows = []
-    for p in neutral["players"]:
+    for p in neutral.get("players") or []:
         try:
-            s = leaguelens.reference_score(p["stat_quantiles"], p["position"], weights)
+            s = leaguelens.reference_score(p.get("stat_quantiles"), p.get("position"), weights)
         except ValueError:
-            s = {"p10": np.nan, "p50": np.nan, "p90": np.nan}   # surfaces as nonfinite in validation
-        rows.append({"player_id": p["player_id"], "position": p.get("position"), "team": p.get("team"), **s})
-    return pd.DataFrame(rows, columns=["player_id", "position", "team", "p10", "p50", "p90"])
+            s = {q: None for q in QUANTILES}            # surfaces as non-finite in validation
+        rows.append({"player_id": p.get("player_id"), "position": p.get("position"), "team": p.get("team"), **s})
+    return pd.DataFrame(rows, columns=VALUE_COLUMNS).astype({q: float for q in QUANTILES})
 
 
-def published_values(legacy, neutral, weights):
-    if legacy is None and neutral is None:
-        return None, "weeks_unpublished", {}
-    if legacy is None:
-        return _neutral_frame(neutral, weights), None, {"source": "neutral"}
-    leg = _legacy_frame(legacy)
-    same = (neutral is not None and neutral.get("generated_at") == legacy.get("generated_at")
-            and neutral.get("season") == legacy.get("season") and neutral.get("week") == legacy.get("week"))
-    if same:
-        neu = _neutral_frame(neutral, weights).set_index("player_id")
-        both = leg.set_index("player_id").join(neu, rsuffix="_n", how="inner")
-        diff = pd.concat([(both[q] - both[f"{q}_n"]).abs() for q in ("p10", "p50", "p90")], axis=1).max(axis=1)
-        bad = sorted(diff[diff > EQUIV_TOL].index)
-        if bad:
-            return None, "equivalence_failed", {"players": bad, "max_diff": float(diff.max())}
-    return leg, None, {"source": "legacy", "equivalence_checked": bool(same)}
+def _carries(payload, season: int, week: int) -> bool:
+    return isinstance(payload, dict) and payload.get("season") == season and payload.get("week") == week
+
+
+def equivalence(leg: pd.DataFrame, neu: pd.DataFrame) -> dict:
+    """Spec §4.1 equivalence: both validated, equal valid player sets, every quantile finite and within 0.01."""
+    lv, nv = sw.validate_projections(leg), sw.validate_projections(neu)
+    lids, nids = set(lv.valid["player_id"]), set(nv.valid["player_id"])
+    detail = {"invalid_legacy": sorted(k[0] for k in lv.invalid_keys()),
+              "invalid_neutral": sorted(k[0] for k in nv.invalid_keys()),
+              "missing_in_neutral": sorted(lids - nids), "missing_in_legacy": sorted(nids - lids),
+              "divergent": [], "max_abs_diff": None}
+    if lids != nids or not lids:
+        return {"ok": False, **detail}
+    both = lv.valid.set_index("player_id")[list(QUANTILES)].join(
+        nv.valid.set_index("player_id")[list(QUANTILES)], rsuffix="_n", how="inner")
+    diffs = np.column_stack([(both[q] - both[f"{q}_n"]).abs().to_numpy(float) for q in QUANTILES])
+    bad = ~np.isfinite(diffs) | (diffs > EQUIV_TOL)
+    detail["divergent"] = sorted(both.index[bad.any(axis=1)])
+    detail["max_abs_diff"] = float(np.max(diffs)) if np.isfinite(diffs).all() else None
+    return {"ok": not bad.any(), **detail}
+
+
+def published_values(legacy, neutral, weights: dict, season: int, week: int):
+    """(frame, reason, detail). Legacy points.ppr when the commit carries a week-N legacy file, else the neutral
+    stat quantiles re-scored in PPR. A same-batch pair must pass `equivalence` or the week is skipped."""
+    leg = legacy if _carries(legacy, season, week) else None
+    neu = neutral if _carries(neutral, season, week) else None
+    if leg is None and neu is None:
+        raise ValueError(f"selected commit carries no season {season} week {week} payload")
+    if leg is None:
+        return _neutral_frame(neu, weights), None, {"source": "neutral", "equivalence_checked": False}
+    frame = _legacy_frame(leg)
+    if neu is None or neu.get("generated_at") != leg.get("generated_at"):
+        return frame, None, {"source": "legacy", "equivalence_checked": False}
+    eq = equivalence(frame, _neutral_frame(neu, weights))
+    if not eq["ok"]:
+        return None, "equivalence_failed", {"source": "legacy", "equivalence_checked": True, **eq}
+    return frame, None, {"source": "legacy", "equivalence_checked": True, "max_abs_diff": eq["max_abs_diff"]}
 
 
 def naive_points(features: pd.DataFrame, rows: pd.DataFrame, season: int) -> pd.Series:
+    """NaiveLast4 scored in PPR; NaN lags fall back to the position mean over feature rows with season < S."""
     model = NaiveLast4()
     model.fit(features[features["season"] < season])
-    missing = set(rows["position"]) - set(model._pos_means.index)
+    missing = set(rows["position"]) - set(model._pos_means.dropna().index)
     if missing:
         raise ValueError(f"naive fallback has no position mean for {sorted(missing)}")
     return fantasy_points(model.predict(rows), PPR)
 
 
+def _mean(x) -> float | None:
+    return float(np.mean(x)) if len(x) else None
+
+
 def point_metrics(df: pd.DataFrame) -> dict:
+    """Undefined metrics are None, never NaN, so artifacts serialise with allow_nan=False (astra P6)."""
     y, p50 = df["actual"].to_numpy(float), df["p50"].to_numpy(float)
     lo, hi, nv = df["p10"].to_numpy(float), df["p90"].to_numpy(float), df["naive"].to_numpy(float)
     resid = y - p50
-    return {"n": int(len(df)), "mae": float(np.abs(resid).mean()), "naive_mae": float(np.abs(y - nv).mean()),
-            "mean_resid": float(resid.mean()), "median_resid": float(np.median(resid)),
-            "share_above_p50": float((y > p50).mean()),
-            "coverage_p10_p90": float(((y >= lo) & (y <= hi)).mean()),
-            "below_p10": float((y < lo).mean()), "above_p90": float((y > hi).mean()),
-            "pinball_p10": float(pinball_loss(y, lo, 0.1)), "pinball_p50": float(pinball_loss(y, p50, 0.5)),
-            "pinball_p90": float(pinball_loss(y, hi, 0.9))}
+    n = len(df)
+    return {"n": int(n), "mae": _mean(np.abs(resid)), "naive_mae": _mean(np.abs(y - nv)),
+            "mean_resid": _mean(resid), "median_resid": float(np.median(resid)) if n else None,
+            "share_above_p50": _mean(y > p50), "coverage_p10_p90": _mean((y >= lo) & (y <= hi)),
+            "below_p10": _mean(y < lo), "above_p90": _mean(y > hi),
+            "pinball_p10": float(pinball_loss(y, lo, 0.1)) if n else None,
+            "pinball_p50": float(pinball_loss(y, p50, 0.5)) if n else None,
+            "pinball_p90": float(pinball_loss(y, hi, 0.9)) if n else None}
 
 
 def paired_intervals(df: pd.DataFrame) -> dict:
@@ -1758,29 +2761,64 @@ def paired_intervals(df: pd.DataFrame) -> dict:
             "ci95_week_team": by_game["ci95"], "note": "conditional on the observed weeks"}
 
 
-def week_complete(schedules: pd.DataFrame, played_all: pd.DataFrame, season: int, week: int) -> bool:
-    teams = set()
-    for ds_team in sw.team_game_dates(schedules, season, week).keys():
-        teams.add(ds_team)
-    have = set(played_all.loc[(played_all["season"] == season) & (played_all["week"] == week), "team"])
+def week_complete(prep: sw.Prepared, season: int, week: int) -> bool:
+    """team_presence_complete (spec §3.3): every scheduled team of the week has at least one played row."""
+    teams = sw.week_teams(prep.schedule.games, season, week)
+    f = prep.features
+    have = set(f.loc[(f["season"] == season) & (f["week"] == week), "team"])
     return bool(teams) and teams <= have
-```
 
-Then add the orchestration:
 
-```python
+def unprojected_summary(unproj: pd.DataFrame, played: pd.DataFrame) -> dict:
+    def block(g: pd.DataFrame, n: int) -> dict:
+        return {"count": int(len(g)), "share": (len(g) / n) if n else None, "mean_actual": _mean(g["actual"])}
+
+    return {**block(unproj, len(played)),
+            "by_position": {p: block(unproj[unproj["position"] == p], int((played["position"] == p).sum()))
+                            for p in sorted(set(played["position"]))}}
+
+
+def frame_sha256(df) -> str | None:
+    if df is None:
+        return None
+    return hashlib.sha256(pd.util.hash_pandas_object(df, index=False).values.tobytes()).hexdigest()
+
+
+def file_sha256(path: Path) -> str | None:
+    p = Path(path)
+    return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
+
+
+def input_hashes(weekly_raw: pd.DataFrame, schedules_raw: pd.DataFrame, crosswalk, rankings_raw,
+                 bakeoff_path: Path = BAKEOFF_PATH) -> dict:
+    """Spec §4.6 inputs: actuals for EVERY pulled season (the naive fallback means read prior seasons)."""
+    return {"actuals_by_season": {str(int(s)): frame_sha256(g) for s, g in weekly_raw.groupby("season")},
+            "schedules": frame_sha256(schedules_raw), "crosswalk": frame_sha256(crosswalk),
+            "rankings_raw": frame_sha256(rankings_raw),
+            "bakeoff": {"path": str(bakeoff_path), "sha256": file_sha256(bakeoff_path)}}
+
+
+def evaluator_version(git) -> dict:
+    """Spec §4.6: protocol + the tree id of src/ffmodel in the EXECUTING checkout + a dirty flag."""
+    tree, dirty = git.tree_id("src/ffmodel"), bool(git.dirty("src/ffmodel"))
+    return {"protocol_version": PROTOCOL_VERSION, "src_ffmodel_tree": tree, "dirty": dirty,
+            "id": f"{PROTOCOL_VERSION}+{tree}" + ("+dirty" if dirty else "")}
+
+
 @dataclass
 class LiveContext:
     season: int
-    weeks: list[int] | None          # None = every complete REG week
-    features: pd.DataFrame           # build_features over S-3..S
-    schedules: pd.DataFrame
-    rankings: pd.DataFrame | None    # normalize_weekly_rankings(load_ff_rankings("all")) for the secondary
+    weeks: list[int] | None          # None = every REG week whose K_N is before as_of
+    as_of: pd.Timestamp              # run date (UTC, normalised, tz-naive)
+    prepared: sw.Prepared            # sw.prepare over seasons S-3..S
+    rankings: pd.DataFrame | None    # normalize_weekly_rankings(raw) for the secondary
+    rankings_raw: pd.DataFrame | None
     crosswalk: pd.DataFrame | None
     ledger: dict
     git: object
     main_sha: str
     bakeoff: dict
+    inputs: dict                     # input_hashes(...)
 
 
 def _ranking_block(cells: list[dict]) -> dict:
@@ -1788,171 +2826,177 @@ def _ranking_block(cells: list[dict]) -> dict:
         return {"cells": 0}
     df = pd.DataFrame(cells)
     st = sw.delta_stats(df)
-    per_pos = {p: float((g["sp_ours"] - g["sp_con"]).mean()) for p, g in df.groupby("position")}
     return {"cells": int(len(df)), "sp_ours": float(df["sp_ours"].mean()), "sp_con": float(df["sp_con"].mean()),
-            "D": st["D"], "ci_week": st["ci_week"], "per_position_D": per_pos}
+            "D": st["D"], "ci_week": st["ci_week"],
+            "per_position_D": {p: float((g["sp_ours"] - g["sp_con"]).mean()) for p, g in df.groupby("position")}}
 
 
 def _reference(bakeoff: dict) -> dict:
     rows = [r for r in bakeoff["results"] if r["position"] == "OVERALL"]
+
     def nw(model, key):
         rs = [r for r in rows if r["model"] == model and r.get(key) is not None]
         return sum(r[key] * r["n"] for r in rs) / sum(r["n"] for r in rs)
+
     cov = {str(r["test_season"]): r["coverage_p10_p90"] for r in rows if r["model"] == "transformer"}
     return {"label": "context: different population and fallback history",
             "transformer_mae_2023_25": nw("transformer", "mae"), "naive_mae_2023_25": nw("naive_last4", "mae"),
-            "coverage_by_season": cov, "source": "models/backtests/bakeoff.json"}
+            "coverage_by_season": cov}
+
+
+def _primary(ctx: LiveContext, joined: pd.DataFrame, N: int, cutoff, rec: dict, blobs: dict) -> list[dict]:
+    arc = select_archive(ctx.ledger, ctx.git, ctx.season, N, cutoff, ctx.main_sha)
+    rec["expert_snapshot"] = {k: v for k, v in arc.items() if k != "consensus"}
+    for item in [arc, *arc["alternatives"]]:
+        if item.get("name") and item.get("blob_sha256"):
+            blobs[item["name"]] = item["blob_sha256"]
+    if arc["status"] != "selected":
+        rec["primary"] = {"status": "skipped", "reason": arc["status"], "cells": []}
+        return []
+    pool = joined.rename(columns={"p50": "our_pts"}).merge(arc["consensus"][["player_id", "ecr"]], on="player_id")
+    cells, deg = sw.build_cells(pool, ctx.season, N, "archive")
+    rec["primary"] = {"status": "scored" if cells else "skipped", "reason": None if cells else "no_scorable_cell",
+                      "cells": sw.cell_summary(cells), "degenerate": deg, "pool": int(len(pool)),
+                      "pool_by_position": pool["position"].value_counts().sort_index().astype(int).to_dict()}
+    return cells
 
 
 def evaluate(ctx: LiveContext) -> dict:
-    S, git = ctx.season, ctx.git
-    dates = sw.week_dates(ctx.schedules, S)
-    feats_s = ctx.features[ctx.features["season"] == S]
-    weeks = ctx.weeks or sorted(dates)
+    S, git, prep = ctx.season, ctx.git, ctx.prepared
+    dates = sw.week_dates(prep.schedule.valid_games, S)
+    weeks = ctx.weeks or [w for w in sorted(dates) if dates[w][0] < ctx.as_of]
     weights = ppr_weights()
-    scored_frames, skipped, per_week = [], [], {}
+    index = candidate_index(ctx.ledger, git, S, ctx.main_sha)
+    scored_frames, skipped, per_week, blobs = [], [], {}, {}
     primary_cells, secondary_cells = [], []
     for N in weeks:
         if N not in dates:
+            skipped.append({"week": N, "reason": "validation_failed", "detail": "no valid schedule side"})
             continue
         K, Z = dates[N]
-        if not week_complete(ctx.schedules, feats_s, S, N):
+        cutoff = pd.Timestamp(K).tz_localize("UTC")
+        rec = {"cutoff": cutoff.strftime("%Y-%m-%dT%H:%M:%SZ"), "last_game": str(Z.date())}
+        per_week[str(N)] = rec
+        if not week_complete(prep, S, N):
             skipped.append({"week": N, "reason": "incomplete_week"})
             continue
-        cutoff = pd.Timestamp(K).tz_localize("UTC")
-        pub = select_publication(ctx.ledger, git, S, N, cutoff, ctx.main_sha)
-        rec = {"publication": pub, "last_game": str(Z.date())}
+        pub = select_publication(ctx.ledger, git, S, N, cutoff, ctx.main_sha, index=index)
+        rec["publication"] = pub
         if pub["status"] != "selected":
             skipped.append({"week": N, "reason": pub["status"], "detail": pub["detail"]})
-            per_week[str(N)] = rec
             continue
         legacy, neutral = read_payloads(git, pub["commit"])
-        vals, reason, detail = published_values(legacy, neutral, weights)
+        vals, reason, detail = published_values(legacy, neutral, weights, S, N)
         rec["values"] = detail
         if reason:
-            skipped.append({"week": N, "reason": reason, "detail": detail})
-            per_week[str(N)] = rec
+            skipped.append({"week": N, "reason": reason})
             continue
         vp = sw.validate_projections(vals)
-        rows = feats_s[feats_s["week"] == N]
-        va = sw.validate_actuals(rows, ctx.schedules, S, N)
-        rec["validation"] = {"projections": vp.report(), "actuals": va.report()}
-        if vp.fails() or va.fails():
+        wi = sw.week_inputs(prep, S, N)
+        rec["validation"] = {"projections": vp.report(), **wi["report"]}
+        if vp.fails() or wi["failed"]:
             skipped.append({"week": N, "reason": "validation_failed"})
-            per_week[str(N)] = rec
             continue
-        act = va.valid.copy()
+        act = wi["actuals"].valid.copy()
         act["actual"] = fantasy_points(act[PREDICTED_STATS], PPR).to_numpy()
-        act["naive"] = naive_points(ctx.features, act, S).to_numpy()
+        act["naive"] = naive_points(prep.features, act, S).to_numpy()
         joined = act[["player_id", "position", "team", "week", "actual", "naive"]].merge(
             vp.valid[["player_id", "p10", "p50", "p90"]], on="player_id", how="left")
         unproj = joined[joined["p50"].isna()]
-        joined = joined.dropna(subset=["p50"])
-        rec["unprojected"] = {"count": int(len(unproj)),
-                              "mean_actual": float(unproj["actual"].mean()) if len(unproj) else None,
-                              "by_position": unproj["position"].value_counts().sort_index().astype(int).to_dict()}
+        joined = joined.dropna(subset=["p50"]).reset_index(drop=True)
+        rec["unprojected"] = unprojected_summary(unproj, act)
+        if joined.empty:
+            rec["status"] = "no_scorable_points"
+            skipped.append({"week": N, "reason": "no_scorable_points"})
+            continue
+        rec["status"] = "scored"
         rec["points"] = point_metrics(joined)
         scored_frames.append(joined)
-        # primary ranking: our archives
-        arc = select_archive(ctx.ledger, git, S, N, cutoff, ctx.main_sha)
-        rec["expert_snapshot"] = {k: v for k, v in arc.items() if k != "content"}
-        if arc["status"] == "selected":
-            con = pd.DataFrame(arc["content"]["players"])
-            vc = sw.validate_table(con, ["player_id"], ["ecr"], ["position", "team"])
-            if vc.fails():
-                rec["primary"] = {"status": "skipped", "reason": "validation_failed"}
-            else:
-                ours = joined.rename(columns={"p50": "our_pts"})
-                pool = ours.merge(vc.valid[["player_id", "ecr"]], on="player_id")
-                cells, deg = sw.build_cells(pool, S, N, "archive")
-                primary_cells += cells
-                sens = []
-                for alt in arc["alternatives"]:          # §4.3 sensitivity: each other qualifying archive
-                    blob = git.show(alt["commit"], alt["path"])
-                    if blob is None or not _archive_ok(alt["name"], blob):
-                        sens.append({"path": alt["path"], "status": "archive_hash_mismatch"})
-                        continue
-                    alt_con = sw.validate_table(pd.DataFrame(json.loads(blob)["players"]), ["player_id"], ["ecr"],
-                                                ["position", "team"]).valid
-                    alt_cells, _ = sw.build_cells(ours.merge(alt_con[["player_id", "ecr"]], on="player_id"), S, N, "archive")
-                    sens.append({"path": alt["path"], "sp_con": float(np.mean([c["sp_con"] for c in alt_cells]))
-                                 if alt_cells else None, "cells": len(alt_cells)})
-                rec["primary"] = {"status": "scored" if cells else "skipped",
-                                  "reason": None if cells else "no_scorable_cell", "cells": len(cells),
-                                  "degenerate": deg, "pool": int(len(pool)), "sensitivity": sens}
-        else:
-            rec["primary"] = {"status": "skipped", "reason": arc["status"]}
-        # secondary ranking: nflverse same-week rule
+        primary_cells += _primary(ctx, joined, N, cutoff, rec, blobs)
         if ctx.rankings is not None and ctx.crosswalk is not None:
             played = joined.rename(columns={"p50": "our_pts"})[["player_id", "position", "team", "our_pts", "actual"]]
-            res = sw.sameweek_week(played, ctx.schedules, ctx.rankings, ctx.crosswalk, S, N, dates)
+            res = sw.sameweek_week(played, prep.schedule, ctx.rankings, ctx.crosswalk, S, N, dates)
             secondary_cells += res["cells"]
-            rec["secondary"] = {k: v for k, v in res.items() if k != "cells"}
-        per_week[str(N)] = rec
+            rec["secondary"] = {**{k: v for k, v in res.items() if k != "cells"},
+                                "cells": sw.cell_summary(res["cells"])}
     allrows = pd.concat(scored_frames, ignore_index=True) if scored_frames else None
     points = {}
-    if allrows is not None and len(allrows):
+    if allrows is not None:
         points = {"overall": {**point_metrics(allrows), **paired_intervals(allrows)},
                   "by_position": {p: point_metrics(g) for p, g in allrows.groupby("position")},
                   "by_week": {str(w): {**point_metrics(g), "last_game": per_week[str(w)]["last_game"]}
                               for w, g in allrows.groupby("week")}}
-    def _h(df):
-        return None if df is None else hashlib.sha256(pd.util.hash_pandas_object(df, index=False).values.tobytes()).hexdigest()
-    inputs = {"features_season_rows": _h(feats_s), "schedules": _h(ctx.schedules), "rankings": _h(ctx.rankings),
-              "crosswalk": _h(ctx.crosswalk), "ledger_events": len(ctx.ledger["events"]),
-              "ledger_hash": hashlib.sha256(json.dumps(ctx.ledger, sort_keys=True).encode()).hexdigest()}
-    coverage = {}
-    if ctx.rankings is not None:
-        rs = ctx.rankings[ctx.rankings["scrape_date"] >= pd.Timestamp(f"{S}-03-01")]
-        coverage = {"scrape_dates": sorted(str(d.date()) for d in rs["scrape_date"].unique()),
-                    "weekdays": rs["scrape_date"].dt.day_name().value_counts().to_dict(),
-                    "rows": int(len(rs))}
-    return {"protocol_version": PROTOCOL_VERSION, "season": S, "inputs": inputs, "ranking_coverage": coverage,
-            "evaluator_version": f"{PROTOCOL_VERSION}+{git.rev_parse(f'{ctx.main_sha}:src/ffmodel')}",
+    inputs = {**ctx.inputs, "archive_blobs": dict(sorted(blobs.items())),
+              "ledger": {"sha256": ledger_sha256(ctx.ledger), "events": len(ctx.ledger["events"]),
+                         "coverage": ctx.ledger["coverage"]}}
+    coverage = (sw.ranking_coverage(ctx.rankings_raw, ctx.rankings, [S])
+                if ctx.rankings is not None and ctx.rankings_raw is not None else {})
+    return {"protocol_version": PROTOCOL_VERSION, "evaluator_version": evaluator_version(git), "season": S,
+            "inputs": inputs, "ranking_coverage": coverage,
             "weeks_scored": sorted(int(w) for w in (allrows["week"].unique() if allrows is not None else [])),
             "weeks_skipped": skipped, "weeks": per_week, "points": points,
             "ranking": {"primary": _ranking_block(primary_cells), "secondary": _ranking_block(secondary_cells)},
-            "reference_context": _reference(ctx.bakeoff),
+            "reference_context": {**_reference(ctx.bakeoff), "source": ctx.inputs.get("bakeoff")},
             "caveats": ["Projections = the bot pipeline's latest publication on main before K_N 00:00 UTC, proven "
                         "by GitHub push records; Vercel deployment is not verified.",
-                        "Players who played only; DNPs are outside the estimand.",
-                        "Expert rankings are FantasyPros mirrors; small samples are descriptive, not tests."]}
+                        "Players who recorded a stat line only; DNPs are outside the estimand.",
+                        "Both expert sources are FantasyPros mirrors; small samples are descriptive, not tests.",
+                        "Reference values are context: the historical population and fallback history differ."]}
+
+
+def _week_rank_cell(rec: dict, source: str) -> str:
+    cells = (rec.get(source) or {}).get("cells") or []
+    if not cells:
+        return "—"
+    return f"{np.mean([c['sp_ours'] for c in cells]):.3f} / {np.mean([c['sp_con'] for c in cells]):.3f}"
+
+
+def _pct(x) -> str:
+    return "—" if x is None else f"{x:.1%}"
+
+
+def _num(x) -> str:
+    return "—" if x is None else f"{x:.2f}"
 
 
 def render_markdown(art: dict) -> str:
     o = art.get("points", {}).get("overall")
     lines = [f"# Live weekly accuracy — {art['season']}", ""]
     if o:
-        lines.append(f"Through weeks {art['weeks_scored']}: MAE {o['mae']:.2f} vs naive {o['naive_mae']:.2f}; "
-                     f"p10–p90 coverage {o['coverage_p10_p90']:.1%} (below {o['below_p10']:.1%}, above {o['above_p90']:.1%}).")
+        lines.append(f"Through weeks {', '.join(map(str, art['weeks_scored']))}: MAE {_num(o['mae'])} vs naive "
+                     f"{_num(o['naive_mae'])}; p10–p90 coverage {_pct(o['coverage_p10_p90'])} (below "
+                     f"{_pct(o['below_p10'])}, above {_pct(o['above_p90'])}).")
     else:
         lines.append("No complete weeks scored yet.")
     prov = art.get("run", {}).get("provisional_weeks", [])
     lines += ["", f"Provisional: weeks {', '.join(map(str, prov)) if prov else 'none'}", "",
-              "| week | last game | n | MAE | naive MAE | coverage | below | above | ours vs consensus |",
-              "|---|---|---|---|---|---|---|---|---|"]
-    prim = art.get("ranking", {}).get("primary", {})
+              "| week | last game | n | MAE | naive MAE | coverage | below | above | ours / consensus (archive) "
+              "| ours / consensus (nflverse) |", "|---|---|---|---|---|---|---|---|---|---|"]
+    weeks = art.get("weeks", {})
     for w, m in sorted(art.get("points", {}).get("by_week", {}).items(), key=lambda kv: int(kv[0])):
-        lines.append(f"| {w} | {m.get('last_game', '')} | {m['n']} | {m['mae']:.2f} | {m['naive_mae']:.2f} | "
-                     f"{m['coverage_p10_p90']:.1%} | {m['below_p10']:.1%} | {m['above_p90']:.1%} | — |")
-    if prim.get("cells"):
-        lines += ["", f"Expert comparison (our archived same-week snapshots, {prim['cells']} cells): "
-                      f"ours {prim['sp_ours']:.3f} vs consensus {prim['sp_con']:.3f}."]
+        rec = weeks.get(w, {})
+        lines.append(f"| {w} | {m.get('last_game', '')} | {m['n']} | {_num(m['mae'])} | {_num(m['naive_mae'])} | "
+                     f"{_pct(m['coverage_p10_p90'])} | {_pct(m['below_p10'])} | {_pct(m['above_p90'])} | "
+                     f"{_week_rank_cell(rec, 'primary')} | {_week_rank_cell(rec, 'secondary')} |")
     for s in art.get("weeks_skipped", []):
         lines.append(f"- week {s['week']} skipped: {s['reason']}")
     lines += ["", *[f"- {c}" for c in art.get("caveats", [])], ""]
     return "\n".join(lines)
 
 
-def fetch_activity(repo: str) -> list[dict]:
-    out = subprocess.run(["gh", "api", "--paginate", f"repos/{repo}/activity?ref={MAIN_REF}&per_page=100"],
-                         capture_output=True, check=True, text=True).stdout
-    return json.loads(out)
+def serialise(art: dict) -> str:
+    return json.dumps(art, indent=1, sort_keys=True, allow_nan=False) + "\n"
+
+
+def output_path(season: int | None = None) -> Path:
+    """models/diagnostics/live_<S>_weekly.json with S = current_nfl_season() unless given (spec §4.6)."""
+    from ffmodel.data.pull import current_nfl_season
+
+    return Path(f"models/diagnostics/live_{season or current_nfl_season()}_weekly.json")
 
 
 def main(argv=None) -> int:
-    from ffmodel.data.features import build_features
-    from ffmodel.data.pull import _cached, current_nfl_season, pull_schedules, pull_weekly, LIVE_MAX_AGE_HOURS
+    from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, _cached, current_nfl_season, pull_schedules, pull_weekly
     from ffmodel.data.rankings import pull_player_ids
     from ffmodel.eval.weekly_rankings import normalize_weekly_rankings
 
@@ -1971,31 +3015,37 @@ def main(argv=None) -> int:
         a, b = (int(x) for x in args.weeks.split("-"))
         weeks = list(range(a, b + 1))
     data_dir = args.data_dir or Path(tempfile.mkdtemp(prefix="live-acc-"))
+    now = dt.datetime.now(dt.timezone.utc)
     ledger = load_ledger(LEDGER_PATH)
-    now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     if not args.no_fetch:
-        ledger = merge_collection(ledger, fetch_activity(args.repo), t_end=now)
+        ledger = merge_collection(ledger, fetch_activity(args.repo), t_end=now.strftime("%Y-%m-%dT%H:%M:%SZ"))
     git = Git(".")
     main_sha = git.rev_parse(args.main_ref)
     spans = list(range(S - 3, S + 1))
     weekly, schedules = pull_weekly(spans, cache_dir=data_dir), pull_schedules(spans, cache_dir=data_dir)
-    import nflreadpy
-    raw = _cached(data_dir, "ff_rankings_all_raw", lambda: nflreadpy.load_ff_rankings("all").to_pandas(),
-                  LIVE_MAX_AGE_HOURS)
-    ctx = LiveContext(season=S, weeks=weeks, features=build_features(weekly, schedules), schedules=schedules,
-                      rankings=normalize_weekly_rankings(raw), crosswalk=pull_player_ids(data_dir), ledger=ledger,
-                      git=git, main_sha=main_sha,
-                      bakeoff=json.loads(Path("models/backtests/bakeoff.json").read_text(encoding="utf-8")))
+
+    def load_rankings() -> pd.DataFrame:
+        import nflreadpy
+
+        return nflreadpy.load_ff_rankings("all").to_pandas()
+
+    raw = _cached(data_dir, "ff_rankings_all_raw", load_rankings, LIVE_MAX_AGE_HOURS)
+    crosswalk = pull_player_ids(data_dir)
+    as_of = pd.Timestamp(now.date())
+    ctx = LiveContext(season=S, weeks=weeks, as_of=as_of, prepared=sw.prepare(weekly, schedules),
+                      rankings=normalize_weekly_rankings(raw), rankings_raw=raw, crosswalk=crosswalk, ledger=ledger,
+                      git=git, main_sha=main_sha, bakeoff=json.loads(BAKEOFF_PATH.read_text(encoding="utf-8")),
+                      inputs=input_hashes(weekly, schedules, crosswalk, raw))
     art = evaluate(ctx)
-    today = dt.date.today()
-    dates = sw.week_dates(schedules, S)
-    art["run"] = {"run_at": now, "as_of_date": str(today), "main_sha": main_sha,
-                  "provisional_weeks": [w for w in art["weeks_scored"] if (pd.Timestamp(today) - dates[w][1]).days < 8]}
-    text = json.dumps(art, indent=1, sort_keys=True, default=str) + "\n"
+    dates = sw.week_dates(ctx.prepared.schedule.valid_games, S)
+    art["run"] = {"run_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "as_of_date": str(as_of.date()), "main_sha": main_sha,
+                  "provisional_weeks": [w for w in art["weeks_scored"]
+                                        if (as_of - dates[w][1]).days < PROVISIONAL_DAYS]}
+    text = serialise(art)
     if args.frozen_record:
         args.frozen_record.write_text(text, encoding="utf-8")
         return 0
-    out = Path(f"models/diagnostics/live_{S}_weekly.json")
+    out = output_path(S)
     out.write_text(text, encoding="utf-8")
     out.with_suffix(".md").write_text(render_markdown(art), encoding="utf-8")
     if not args.no_fetch:
@@ -2008,10 +3058,9 @@ if __name__ == "__main__":
 ```
 
 Notes for the implementer:
-
-- `week_complete` intentionally reads `team` from the features frame for the season. Validation runs per week
-  later.
-- The CLI's network and git calls are not unit-tested; Task 9's acceptance run covers them.
+- `evaluate` never calls `point_metrics` on an empty intersection: an empty pool is recorded as
+  `no_scorable_points` with its unprojected counts and contributes nothing to pooled metrics.
+- The CLI's network and git calls are not unit-tested; Task 10's acceptance run and the first live run cover them.
 
 - [ ] **Step 4: Run the tests and confirm they pass**
 
@@ -2022,12 +3071,678 @@ Expected: all pass.
 
 ```bash
 git add src/ffmodel/eval/live_accuracy.py tests/test_live_accuracy_metrics.py
-git commit -m "feat(live_accuracy): published values with equivalence, point metrics, naive baseline, rankings, artifact, markdown, CLI (spec §4.2-4.6)"
+git commit -m "feat(live_accuracy): validated published values with full equivalence, point metrics, no_scorable_points, retained rankings, provenance, CLI (spec §4.1-4.6)"
 ```
 
 ---
 
-### Task 7: Ledger seed and workflow
+### Task 7: sleeper_compare — the private Sleeper comparator
+
+**Model:** implementer sonnet (transcription); reviewer **opus** (numerics, identity, privacy).
+
+**Files:**
+- Create: `src/ffmodel/eval/sleeper_compare.py`
+- Test: `tests/test_sleeper_compare.py`
+
+**Interfaces:**
+- Consumes:
+  - the snapshot store contract of spec §4.8.1, written by the separate collector (`ffmodel.collect.market_snapshots`,
+    another branch): files `sleeper/<S>/w<NN>/<YYYY-MM-DDTHH-MM-SSZ>.json.gz` (gzipped raw response) and
+    `sleeper/manifest.jsonl` lines with keys `retrieved_at, sha256, season, week, path, request_url, http_status,
+    records, source_updated_at_min, source_updated_at_max, source_updated_at_count, published_commit,
+    published_batch_id, capture_kind` (`http_status` and `published_*` may be null when `capture_kind` is
+    `"manual"`). `path` is relative to the private checkout root; `sha256` is of the decompressed response bytes.
+  - the public artifact from Task 6 (`season`, `weeks_scored`, `weeks[<N>].cutoff`,
+    `weeks[<N>].publication.{commit, available_by}`); it reads these instead of repeating §4.1;
+  - `live_accuracy.read_payloads`, `published_values`, `ppr_weights`, `Git`, `_ts`; `sameweek.prepare`,
+    `week_inputs`, `validate_projections`, `validate_table`; `weekly_rankings.goodness_spearman`.
+- Produces:
+  - `SLEEPER_TO_STAT`, `RELEVANT_POINTS = 8.0`, `PAIR_WINDOW`, `FIRST_COMPARABLE_WEEK = {2026: 5}`, `CLAIMS`
+  - `load_manifest(root) -> list[dict]`
+  - `choose_snapshots(manifest, season, week, available_by, cutoff) -> dict` (`paired`, `latest`, `latest_gap_hours`)
+  - `read_capture(root, cap) -> list[dict]` (raises `SnapshotIntegrityError` on a missing file or sha mismatch)
+  - `crosswalk_map(crosswalk) -> tuple[dict, set]`
+  - `sleeper_frame(records, season, week) -> pd.DataFrame`
+  - `validate_sleeper(frame, crosswalk) -> dict` (`validation`, `rows` with `sleeper_pts`, `unmapped`, reconciliation)
+  - `compare_rows(played, ours, sleeper) -> pd.DataFrame`, `relevant(rows)`, `missingness(played, ours_ids, sleeper_ids)`
+  - `view_metrics(rows) -> dict`, `season_end(rows) -> dict`
+  - `run(snapshots, artifact, prepared, crosswalk, git, season_end_read=False) -> dict`
+  - `render_markdown(report)`, `write_report(report, out_dir) -> list[Path]`, `main(argv=None, load_inputs=..., git=None) -> int`
+
+Decisions this module encodes (spec §4.8). The second bullet (how the season-end p-values are formed) is not
+fixed by the spec; it is flagged for a spec decision, to be made before that read:
+- Weekly runs compute per-week and cumulative numbers only. The Holm decision is computed only with
+  `--season-end` (the one read after the last REG week, spec §8 step 8).
+- A claim's p-value is the two-sided percentile-bootstrap p of the mean paired delta, taken as the **larger** of the
+  player-clustered and `week|team`-clustered values; Holm then runs across the two primary claims at 0.05.
+- Only weeks in the public artifact's `weeks_scored` are compared. Scheduled captures need `http_status == 200`;
+  manual captures are eligible. A selected capture that fails its integrity check skips that variant with
+  `snapshot_integrity_failed`; another capture is never promoted.
+
+- [ ] **Step 1: Write the failing tests**
+
+```python
+"""Spec §4.8 private Sleeper comparator on synthetic snapshots (no real Sleeper data in this public repo)."""
+import gzip
+import hashlib
+import json
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from ffmodel.eval import live_accuracy as la
+from ffmodel.eval import sameweek as sw
+from ffmodel.eval import sleeper_compare as sc
+from tests.test_live_accuracy_evidence import FakeGit, _c
+from tests.test_live_accuracy_metrics import POS, TEAMS, _legacy, _raw_world
+
+AVAIL, CUT = "2026-09-09T10:00:00Z", "2026-09-10T00:00:00Z"
+
+
+def _cap(t, kind="scheduled", status=200, season=2026, week=1):
+    return {"retrieved_at": t, "season": season, "week": week, "capture_kind": kind, "http_status": status,
+            "path": f"sleeper/{season}/w{week:02d}/{t.replace(':', '-')}.json.gz", "sha256": "x"}
+
+
+def test_snapshot_choice_paired_latest_and_none():
+    m = [_cap("2026-09-09T08:00:00Z"), _cap("2026-09-09T12:00:00Z"), _cap("2026-09-09T22:00:00Z"),
+         _cap("2026-09-10T00:00:01Z"), _cap("2026-09-09T10:30:00Z", status=500)]
+    ch = sc.choose_snapshots(m, 2026, 1, AVAIL, CUT)
+    assert ch["paired"]["retrieved_at"] == "2026-09-09T08:00:00Z"          # 2 h each side: ties to the earlier
+    assert ch["latest"]["retrieved_at"] == "2026-09-09T22:00:00Z" and ch["latest_gap_hours"] == pytest.approx(12.0)
+    far = sc.choose_snapshots([_cap("2026-09-07T09:00:00Z")], 2026, 1, AVAIL, CUT)
+    assert far["paired"] is None and far["latest"] is not None                # outside 24 h: latest only
+    none = sc.choose_snapshots([_cap("2026-09-10T01:00:00Z")], 2026, 1, AVAIL, CUT)
+    assert none == {"paired": None, "latest": None, "latest_gap_hours": None}
+    manual = sc.choose_snapshots([_cap("2026-09-09T11:00:00Z", kind="manual", status=None)], 2026, 1, AVAIL, CUT)
+    assert manual["paired"] is not None
+
+
+def _rec(pid, pos="WR", stats=None, season="2026", week=1, category="proj"):
+    return {"player_id": pid, "category": category, "season": season, "week": week,
+            "player": {"position": pos}, "stats": stats if stats is not None else {"rec": 3.0, "rec_yd": 40.0,
+                                                                                   "pts_ppr": 7.0}}
+
+
+def test_scoring_absent_key_zero_present_null_invalid_missing_pts_invalid():
+    recs = [_rec("1"), _rec("2", stats={"rec": None, "pts_ppr": 1.0}), _rec("3", stats={"rec": 2.0}),
+            _rec("4", pos="K"), _rec("5", season="2025"), _rec("6", category="stat")]
+    frame = sc.sleeper_frame(recs, 2026, 1)
+    assert list(frame["sleeper_id"]) == ["1", "2", "3"]
+    assert frame.loc[0, "rushing_yards"] == 0.0                               # absent mapped key = 0
+    cw = pd.DataFrame({"sleeper_id": [1.0, 2.0, 3.0], "gsis_id": ["g1", "g2", "g3"]})
+    vs = sc.validate_sleeper(frame, cw)
+    assert vs["validation"].invalid_keys() == {("2",), ("3",)}                 # present null; missing pts_ppr
+    assert vs["rows"]["sleeper_pts"].tolist() == pytest.approx([3.0 + 4.0])  # hand re-score: 3 rec + 40 yd PPR
+
+
+@pytest.mark.parametrize("pos,stats,expected", [
+    ("QB", {"pass_yd": 250.0, "pass_td": 2.0, "pass_int": 1.0, "rush_yd": 20.0, "pts_ppr": 1.0}, 10 + 8 - 2 + 2),
+    ("RB", {"rush_att": 15.0, "rush_yd": 70.0, "rush_td": 1.0, "rec": 2.0, "rec_yd": 15.0, "fum_lost": 1.0,
+            "pts_ppr": 1.0}, 7 + 6 + 2 + 1.5 - 2),
+    ("TE", {"rec_tgt": 6.0, "rec": 4.0, "rec_yd": 45.0, "rec_td": 1.0, "rec_2pt": 1.0, "pts_ppr": 1.0}, 4 + 4.5 + 6),
+])
+def test_hand_computed_rescore_per_position(pos, stats, expected):
+    vs = sc.validate_sleeper(sc.sleeper_frame([_rec("1", pos=pos, stats=stats)], 2026, 1),
+                             pd.DataFrame({"sleeper_id": ["1"], "gsis_id": ["g1"]}))
+    assert vs["rows"]["sleeper_pts"].iloc[0] == pytest.approx(expected)       # rec_2pt is not a common component
+
+
+def test_crosswalk_collisions_invalidate_every_row_involved():
+    frame = sc.sleeper_frame([_rec(str(i)) for i in range(1, 6)], 2026, 1)
+    cw = pd.DataFrame({"sleeper_id": [1.0, 1.0, 2.0, 3.0, 4.0], "gsis_id": ["g1", "gX", "g2", "g2", "g4"]})
+    vs = sc.validate_sleeper(frame, cw)
+    assert vs["validation"].invalid["crosswalk_collision"] == {("1",), ("2",), ("3",)}   # one-to-many, many-to-one
+    assert vs["unmapped"] == 1 and vs["rows"]["player_id"].tolist() == ["g4"]
+
+
+def _rows(n=12):
+    rng = np.random.default_rng(3)
+    df = pd.DataFrame({"player_id": [f"p{i}" for i in range(n)], "position": ["WR"] * n, "team": ["AAA"] * n,
+                       "week": [5] * n, "actual": rng.uniform(0, 20, n), "ours": rng.uniform(0, 20, n),
+                       "sleeper": rng.uniform(0, 20, n)})
+    return df.assign(blend=0.5 * df["ours"] + 0.5 * df["sleeper"])
+
+
+def test_relevant_union_uses_projections_only_and_blend_is_half_half():
+    played = pd.DataFrame({"player_id": ["a", "b", "c"], "position": "WR", "team": "AAA", "week": 5,
+                           "actual": [30.0, 0.0, 0.0]})
+    ours = pd.DataFrame({"player_id": ["a", "b", "c"], "p50": [2.0, 9.0, 3.0]})
+    slp = pd.DataFrame({"player_id": ["a", "b", "c"], "sleeper_pts": [3.0, 1.0, 8.0]})
+    rows = sc.compare_rows(played, ours, slp)
+    assert rows["blend"].tolist() == [2.5, 5.0, 5.5]
+    assert sc.relevant(rows)["player_id"].tolist() == ["b", "c"]               # a scored 30 but projected < 8
+
+
+def test_view_metrics_three_paired_deltas():
+    rows = _rows()
+    m = sc.view_metrics(rows)
+    assert set(m["deltas"]) == {"ours_minus_sleeper", "blend_minus_sleeper", "blend_minus_ours"}
+    expected = np.mean(np.abs(rows.actual - rows.ours) - np.abs(rows.actual - rows.sleeper))
+    assert m["deltas"]["ours_minus_sleeper"]["mean"] == pytest.approx(expected)
+    assert len(m["deltas"]["ours_minus_sleeper"]["ci95_player"]) == 2 and m["spearman_cells"]
+    assert sc.view_metrics(rows.head(0))["n"] == 0
+
+
+def test_missingness_per_side():
+    played = pd.DataFrame({"player_id": ["a", "b", "c"], "position": ["WR", "WR", "RB"]})
+    assert sc.missingness(played, {"a"}, {"a", "c"}) == {
+        "RB": {"played": 1, "ours_missing": 1, "sleeper_missing": 0, "both_missing": 0},
+        "WR": {"played": 2, "ours_missing": 1, "sleeper_missing": 1, "both_missing": 1}}
+
+
+def test_season_end_holm():
+    rows = _rows(40).assign(sleeper=lambda d: d["actual"] + 5.0)              # Sleeper always 5 off
+    rows = rows.assign(ours=rows["actual"] + 0.1, blend=0.5 * (rows["actual"] + 0.1) + 0.5 * rows["sleeper"])
+    r = sc.season_end(rows)
+    assert [c["outcome"] for c in r["claims"]] == ["ours_lower_error", "blend_lower_error"]
+    tie = _rows(40)
+    tie = tie.assign(sleeper=tie["ours"], blend=tie["ours"])
+    assert all(c["outcome"] == "inconclusive" for c in sc.season_end(tie)["claims"])
+
+
+# --- end to end: run() + write_report, privacy ---------------------------------------------------------------------
+def _store(root: Path, week, retrieved_at, records):
+    raw = json.dumps(records).encode()
+    rel = f"sleeper/2026/w{week:02d}/{retrieved_at.replace(':', '-')}.json.gz"
+    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+    (root / rel).write_bytes(gzip.compress(raw))
+    line = {"retrieved_at": retrieved_at, "sha256": hashlib.sha256(raw).hexdigest(), "season": 2026, "week": week,
+            "path": rel, "request_url": "https://example.invalid/x", "http_status": 200, "records": len(records),
+            "source_updated_at_min": None, "source_updated_at_max": None, "source_updated_at_count": 0,
+            "published_commit": "pub", "published_batch_id": "b1", "capture_kind": "scheduled"}
+    with (root / "sleeper" / "manifest.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(line) + "\n")
+
+
+def _world(tmp_path, first_week=1):
+    ids = [f"{t}{p}{i}" for t in TEAMS for p in POS for i in range(5)]
+    payload = _legacy(gen="g1", week=1, players=[(i, i[3:5], i[:3], 6.0, 9.0 + k % 3, 14.0) for k, i in enumerate(ids)])
+    git = FakeGit({"pub": _c([], la.BOT, {la.WEEKLY_FILES[0]}, {la.WEEKLY_FILES[0]: json.dumps(payload).encode()})})
+    artifact = {"season": 2026, "protocol_version": "live-accuracy-v1", "weeks_scored": [1],
+                "weeks": {"1": {"cutoff": CUT, "publication": {"commit": "pub", "available_by": AVAIL}}}}
+    store = tmp_path / "private"
+    recs = [_rec(str(k), pos=i[3:5], stats={"rec": 4.0, "rec_yd": 50.0 + k, "pts_ppr": 9.0}) for k, i in enumerate(ids)]
+    _store(store, 1, "2026-09-09T11:00:00Z", recs)
+    cw = pd.DataFrame({"sleeper_id": [float(k) for k in range(len(ids))], "gsis_id": ids})
+    weekly, sched = _raw_world()
+    old = dict(sc.FIRST_COMPARABLE_WEEK)
+    sc.FIRST_COMPARABLE_WEEK[2026] = first_week
+    return store, artifact, sw.prepare(weekly, sched), cw, git, old
+
+
+def test_run_end_to_end_and_writes_only_under_out(tmp_path):
+    store, artifact, prep, cw, git, old = _world(tmp_path)
+    try:
+        before = {p for p in tmp_path.rglob("*")}
+        report = sc.run(store, artifact, prep, cw, git, season_end_read=True)
+        written = sc.write_report(report, tmp_path / "out" / "reports")
+    finally:
+        sc.FIRST_COMPARABLE_WEEK.clear()
+        sc.FIRST_COMPARABLE_WEEK.update(old)
+    new = {p for p in tmp_path.rglob("*")} - before
+    assert all(str(p).startswith(str(tmp_path / "out")) for p in new)
+    assert sorted(p.name for p in written) == ["sleeper_2026.json", "sleeper_2026.md"]
+    wk = report["by_week"]["1"]
+    assert wk["paired"]["status"] == "scored" and wk["paired"]["diagnostic"]["n"] == 20
+    assert report["season_end"]["status"] == "read"
+    json.dumps(report, allow_nan=False)
+
+
+def test_sleeper_table_above_threshold_skips_never_runs_on_subset(tmp_path):
+    store, artifact, prep, cw, git, old = _world(tmp_path)
+    try:
+        cap = sc.load_manifest(store)[0]
+        recs = sc.read_capture(store, cap)
+        recs[0]["stats"]["rec"] = None                                        # 1 of 20 keys = 5% > 1%
+        raw = json.dumps(recs).encode()
+        (store / cap["path"]).write_bytes(gzip.compress(raw))
+        line = {**cap, "sha256": hashlib.sha256(raw).hexdigest()}
+        (store / "sleeper" / "manifest.jsonl").write_text(json.dumps(line) + "\n", encoding="utf-8")
+        report = sc.run(store, artifact, prep, cw, git)
+    finally:
+        sc.FIRST_COMPARABLE_WEEK.clear()
+        sc.FIRST_COMPARABLE_WEEK.update(old)
+    paired = report["by_week"]["1"]["paired"]
+    assert paired["status"] == "skipped" and paired["reason"] == "validation_failed" and "primary" not in paired
+    assert report["cumulative"]["paired"] == {"status": "no_data"}
+
+
+def test_exploratory_weeks_never_pooled_and_tampered_snapshot_skipped(tmp_path):
+    store, artifact, prep, cw, git, old = _world(tmp_path, first_week=5)
+    try:
+        report = sc.run(store, artifact, prep, cw, git)
+        assert report["by_week"]["1"] == {"status": "skipped", "reason": "exploratory_weeks_excluded"}
+        sc.FIRST_COMPARABLE_WEEK[2026] = 1
+        gz = next(store.rglob("*.json.gz"))
+        gz.write_bytes(gzip.compress(b"[]"))
+        report2 = sc.run(store, artifact, prep, cw, git)
+        assert report2["by_week"]["1"]["paired"]["reason"] == "snapshot_integrity_failed"
+    finally:
+        sc.FIRST_COMPARABLE_WEEK.clear()
+        sc.FIRST_COMPARABLE_WEEK.update(old)
+```
+
+- [ ] **Step 2: Run the tests and confirm they fail**
+
+Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_sleeper_compare.py -q`
+Expected: FAIL with `ModuleNotFoundError: No module named 'ffmodel.eval.sleeper_compare'`.
+
+- [ ] **Step 3: Implement**
+
+```python
+"""Private Sleeper comparator (spec docs/superpowers/specs/2026-10-06-weekly-accuracy-sameweek-design.md §4.8).
+
+Reads the private snapshot store (sleeper/manifest.jsonl + sleeper/<S>/w<NN>/<retrieved_at>.json.gz) and the
+public live artifact's selected publications; writes reports/sleeper_<S>.{json,md} ONLY under --out. Nothing
+here may be written to the public repository: the report carries Sleeper-derived values.
+
+Weekly runs compute per-week and cumulative numbers only. The pre-registered decision (Holm across the two
+primary claims) is computed only with --season-end, read once after the last REG week (spec §4.8.4, §8 step 8).
+"""
+from __future__ import annotations
+
+import argparse
+import gzip
+import hashlib
+import json
+import tempfile
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from scipy.stats import ConstantInputWarning
+
+from ffmodel.eval import live_accuracy as la
+from ffmodel.eval import sameweek as sw
+from ffmodel.eval.weekly_rankings import goodness_spearman
+from ffmodel.scoring import PPR, PREDICTED_STATS, fantasy_points
+
+PROTOCOL_VERSION = "sleeper-compare-v1"
+SLEEPER_TO_STAT = {"pass_yd": "passing_yards", "pass_td": "passing_tds", "pass_int": "passing_interceptions",
+                   "rush_att": "carries", "rush_yd": "rushing_yards", "rush_td": "rushing_tds",
+                   "rec_tgt": "targets", "rec": "receptions", "rec_yd": "receiving_yards",
+                   "rec_td": "receiving_tds", "fum_lost": "fumbles_lost"}
+RELEVANT_POINTS = 8.0              # fixed now, never searched (spec §4.8.4)
+PAIR_WINDOW = pd.Timedelta(hours=24)
+FIRST_COMPARABLE_WEEK = {2026: 5}  # 2026 weeks 1-4 are exploratory only, never pooled (spec §1, §4.8.4)
+MIN_CELL = 5
+CLAIMS = (("ours", "sleeper"), ("blend", "sleeper"))
+DIAGNOSTIC_PAIRS = CLAIMS + (("blend", "ours"),)
+ALPHA = 0.05
+
+
+class SnapshotIntegrityError(Exception):
+    pass
+
+
+# --- snapshots ----------------------------------------------------------------------------------------------------
+def load_manifest(root: Path) -> list[dict]:
+    path = Path(root) / "sleeper" / "manifest.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _eligible(cap: dict) -> bool:
+    return cap.get("capture_kind") == "manual" or cap.get("http_status") == 200
+
+
+def choose_snapshots(manifest: list[dict], season: int, week: int, available_by, cutoff) -> dict:
+    """Spec §4.8.2. Paired: nearest to available_by, before the cutoff, within 24 h, ties to the earlier.
+    Latest: the last capture before the cutoff, labelled with its timing gap."""
+    a, cut = la._ts(available_by), la._ts(cutoff)
+    caps = [c for c in manifest if int(c["season"]) == season and int(c["week"]) == week and _eligible(c)
+            and la._ts(c["retrieved_at"]) < cut]
+    paired_pool = [c for c in caps if abs(la._ts(c["retrieved_at"]) - a) <= PAIR_WINDOW]
+    paired = min(paired_pool, key=lambda c: (abs(la._ts(c["retrieved_at"]) - a), la._ts(c["retrieved_at"])),
+                 default=None)
+    latest = max(caps, key=lambda c: la._ts(c["retrieved_at"]), default=None)
+    gap = None if latest is None else (la._ts(latest["retrieved_at"]) - a).total_seconds() / 3600
+    return {"paired": paired, "latest": latest, "latest_gap_hours": gap}
+
+
+def read_capture(root: Path, cap: dict) -> list[dict]:
+    path = Path(root) / cap["path"]
+    if not path.exists():
+        raise SnapshotIntegrityError(f"missing capture {cap['path']}")
+    raw = gzip.decompress(path.read_bytes())
+    if hashlib.sha256(raw).hexdigest() != cap["sha256"]:
+        raise SnapshotIntegrityError(f"sha256 mismatch for {cap['path']}")
+    data = json.loads(raw)
+    if not isinstance(data, list):
+        raise SnapshotIntegrityError(f"capture {cap['path']} is not a JSON array")
+    return data
+
+
+# --- validation and scoring ---------------------------------------------------------------------------------------
+def _sleeper_key(v) -> str | None:
+    if v is None or (isinstance(v, float) and not np.isfinite(v)):
+        return None
+    if isinstance(v, (float, np.floating)) and float(v).is_integer():
+        return str(int(v))
+    return str(v).strip() or None
+
+
+def crosswalk_map(crosswalk: pd.DataFrame) -> tuple[dict, set]:
+    """sleeper_id -> gsis_id, and the Sleeper ids in a one-to-many or many-to-one collision (spec §4.8.3)."""
+    x = crosswalk[["sleeper_id", "gsis_id"]].dropna()
+    x = x.assign(sleeper_id=x["sleeper_id"].map(_sleeper_key)).dropna().drop_duplicates()
+    per_s = x.groupby("sleeper_id")["gsis_id"].nunique()
+    per_g = x.groupby("gsis_id")["sleeper_id"].nunique()
+    collided = set(per_s[per_s > 1].index) | set(x.loc[x["gsis_id"].isin(per_g[per_g > 1].index), "sleeper_id"])
+    ok = x[~x["sleeper_id"].isin(collided)]
+    return dict(zip(ok["sleeper_id"], ok["gsis_id"])), collided
+
+
+def sleeper_frame(records: list[dict], season: int, week: int) -> pd.DataFrame:
+    """Rows of category proj, season S, week N, QB/RB/WR/TE. Absent mapped keys are 0 (Sleeper omits zeros); a
+    present null/non-finite value becomes NaN so validation invalidates the row; pts_ppr must be present."""
+    rows = []
+    for r in records:
+        pos = (r.get("player") or {}).get("position")
+        if r.get("category") != "proj" or str(r.get("season")) != str(season) or r.get("week") != week \
+                or pos not in sw.POSITIONS:
+            continue
+        stats = r.get("stats") or {}
+        row = {"sleeper_id": _sleeper_key(r.get("player_id")), "position": pos}
+        for key, col in SLEEPER_TO_STAT.items():
+            v = stats[key] if key in stats else 0.0
+            row[col] = float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else np.nan
+        pts = stats.get("pts_ppr")
+        row["pts_ppr"] = float(pts) if isinstance(pts, (int, float)) and not isinstance(pts, bool) else np.nan
+        rows.append(row)
+    return pd.DataFrame(rows, columns=["sleeper_id", "position", *SLEEPER_TO_STAT.values(), "pts_ppr"])
+
+
+def validate_sleeper(frame: pd.DataFrame, crosswalk: pd.DataFrame) -> dict:
+    """§3.7 for the Sleeper table, plus identity. Returns the validation, the valid mapped rows with
+    sleeper_pts (common-component PPR) and the reconciliation of pts_ppr against the re-score."""
+    mapping, collided = crosswalk_map(crosswalk)
+    v = sw.validate_table(frame, ["sleeper_id"], [*SLEEPER_TO_STAT.values(), "pts_ppr"], ["position"],
+                          extra_invalid={"crosswalk_collision": frame["sleeper_id"].isin(collided)},
+                          position_col="position")
+    ok = v.valid.copy()
+    ok["player_id"] = ok["sleeper_id"].map(mapping)
+    unmapped = int(ok["player_id"].isna().sum())
+    ok = ok.dropna(subset=["player_id"])
+    ok["sleeper_pts"] = fantasy_points(ok[list(SLEEPER_TO_STAT.values())], PPR).to_numpy()
+    gap = (ok["pts_ppr"] - ok["sleeper_pts"]).abs().to_numpy(float)
+    recon = ({"n": int(len(gap)), "median": float(np.median(gap)), "p90": float(np.percentile(gap, 90)),
+              "max": float(gap.max())} if len(gap) else {"n": 0})
+    return {"validation": v, "rows": ok[["player_id", "position", "sleeper_pts"]], "unmapped": unmapped,
+            "reconciliation_abs_pts_ppr_minus_rescore": recon}
+
+
+# --- metrics ------------------------------------------------------------------------------------------------------
+def _boot_means(deltas: np.ndarray, clusters: np.ndarray, n_boot: int = sw.N_BOOT, seed: int = sw.BOOT_SEED):
+    """The resample of mean_head_gate.paired_bootstrap, returning the replicate means (for p-values)."""
+    uniq = np.unique(clusters)
+    by_cluster = [deltas[clusters == c] for c in uniq]
+    rng = np.random.default_rng(seed)
+    means = np.empty(n_boot, dtype=float)
+    for b in range(n_boot):
+        pick = rng.integers(0, len(by_cluster), len(by_cluster))
+        means[b] = np.concatenate([by_cluster[i] for i in pick]).mean()
+    return means
+
+
+def _abs_err(rows: pd.DataFrame, col: str) -> np.ndarray:
+    return np.abs(rows["actual"].to_numpy(float) - rows[col].to_numpy(float))
+
+
+def _clusters(rows: pd.DataFrame) -> dict:
+    return {"player": rows["player_id"].astype(str).to_numpy(),
+            "week_team": (rows["week"].astype(str) + "|" + rows["team"].astype(str)).to_numpy()}
+
+
+def view_metrics(rows: pd.DataFrame) -> dict:
+    """One view (primary or diagnostic). rows: player_id, position, team, week, actual, ours, sleeper, blend."""
+    n = len(rows)
+    if n == 0:
+        return {"n": 0, "mae": {s: None for s in ("ours", "sleeper", "blend")}, "deltas": {}, "by_position": {},
+                "spearman_cells": [], "degenerate_cells": 0}
+    cl = _clusters(rows)
+    deltas = {}
+    for a, b in DIAGNOSTIC_PAIRS:
+        d = _abs_err(rows, a) - _abs_err(rows, b)
+        deltas[f"{a}_minus_{b}"] = {"mean": float(d.mean()), **{
+            f"ci95_{k}": [float(x) for x in np.percentile(_boot_means(d, c), [2.5, 97.5])] for k, c in cl.items()}}
+    cells, degenerate = [], 0
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ConstantInputWarning)
+        for (w, pos), g in rows.groupby(["week", "position"]):
+            if len(g) < MIN_CELL:
+                continue
+            so = goodness_spearman(g["ours"].to_numpy(), g["actual"].to_numpy())
+            ss = goodness_spearman(g["sleeper"].to_numpy(), g["actual"].to_numpy())
+            if not (np.isfinite(so) and np.isfinite(ss)):
+                degenerate += 1
+                continue
+            cells.append({"week": int(w), "position": pos, "n": int(len(g)), "sp_ours": so, "sp_sleeper": ss})
+    return {"n": int(n), "mae": {s: float(_abs_err(rows, s).mean()) for s in ("ours", "sleeper", "blend")},
+            "deltas": deltas,
+            "by_position": {p: {"n": int(len(g)), **{s: float(_abs_err(g, s).mean()) for s in ("ours", "sleeper",
+                                                                                                   "blend")}}
+                            for p, g in rows.groupby("position")},
+            "spearman_cells": cells, "degenerate_cells": degenerate}
+
+
+def relevant(rows: pd.DataFrame) -> pd.DataFrame:
+    """Primary view: the fantasy-relevant union, from PROJECTIONS only (never actuals)."""
+    return rows[(rows["ours"] >= RELEVANT_POINTS) | (rows["sleeper"] >= RELEVANT_POINTS)]
+
+
+def missingness(played: pd.DataFrame, ours_ids: set, sleeper_ids: set) -> dict:
+    out = {}
+    for pos, g in played.groupby("position"):
+        o, s = ~g["player_id"].isin(ours_ids), ~g["player_id"].isin(sleeper_ids)
+        out[pos] = {"played": int(len(g)), "ours_missing": int(o.sum()), "sleeper_missing": int(s.sum()),
+                    "both_missing": int((o & s).sum())}
+    return out
+
+
+def compare_rows(played: pd.DataFrame, ours: pd.DataFrame, sleeper: pd.DataFrame) -> pd.DataFrame:
+    """played (player_id, position, team, week, actual) ∩ our valid p50 ∩ valid Sleeper; adds the 50/50 blend."""
+    rows = played.merge(ours[["player_id", "p50"]].rename(columns={"p50": "ours"}), on="player_id")
+    rows = rows.merge(sleeper[["player_id", "sleeper_pts"]].rename(columns={"sleeper_pts": "sleeper"}),
+                      on="player_id")
+    return rows.assign(blend=0.5 * rows["ours"] + 0.5 * rows["sleeper"])
+
+
+def season_end(rows: pd.DataFrame) -> dict:
+    """Spec §4.8.4: the two primary claims in the primary view, Holm-adjusted. Each claim's two-sided bootstrap
+    p-value is the larger of its player- and week|team-clustered p-values (the conservative reading)."""
+    if rows.empty:
+        return {"status": "no_data"}
+    cl = _clusters(rows)
+    claims = []
+    for a, b in CLAIMS:
+        d = _abs_err(rows, a) - _abs_err(rows, b)
+        ps = {}
+        for k, c in cl.items():
+            m = _boot_means(d, c)
+            ps[k] = float(min(1.0, 2 * min((m <= 0).mean(), (m >= 0).mean())))
+        claims.append({"claim": f"{a}_minus_{b}", "mean": float(d.mean()), "p_by_clustering": ps,
+                       "p": max(ps.values())})
+    order = sorted(range(len(claims)), key=lambda i: claims[i]["p"])
+    still = True
+    for rank, i in enumerate(order):
+        threshold = ALPHA / (len(claims) - rank)
+        reject = still and claims[i]["p"] <= threshold
+        still = reject
+        c = claims[i]
+        c["holm_threshold"] = threshold
+        c["rejected"] = bool(reject)
+        a, b = c["claim"].split("_minus_")
+        c["outcome"] = (f"{a}_lower_error" if c["mean"] < 0 else f"{b}_lower_error") if reject else "inconclusive"
+    return {"status": "read", "claims": claims, "n": int(len(rows)),
+            "note": "read once after the last REG week; everything else in this report is diagnostic"}
+
+
+# --- orchestration ------------------------------------------------------------------------------------------------
+def _week_variant(root, cap, season, week, crosswalk, played, ours) -> tuple[dict, pd.DataFrame | None]:
+    if cap is None:
+        return {"status": "skipped", "reason": "no_sleeper_snapshot"}, None
+    snap = {k: cap.get(k) for k in ("retrieved_at", "path", "sha256", "capture_kind", "published_commit",
+                                    "published_batch_id", "source_updated_at_min", "source_updated_at_max",
+                                    "source_updated_at_count")}
+    try:
+        records = read_capture(root, cap)
+    except SnapshotIntegrityError as exc:
+        return {"status": "skipped", "reason": "snapshot_integrity_failed", "detail": str(exc), "snapshot": snap}, None
+    vs = validate_sleeper(sleeper_frame(records, season, week), crosswalk)
+    rec = {"snapshot": snap, "validation": vs["validation"].report(), "unmapped": vs["unmapped"],
+           "reconciliation": vs["reconciliation_abs_pts_ppr_minus_rescore"],
+           "missingness": missingness(played, set(ours["player_id"]), set(vs["rows"]["player_id"]))}
+    if vs["validation"].fails():
+        return {**rec, "status": "skipped", "reason": "validation_failed"}, None
+    rows = compare_rows(played, ours, vs["rows"])
+    return {**rec, "status": "scored", "primary": view_metrics(relevant(rows)),
+            "diagnostic": view_metrics(rows)}, rows
+
+
+def run(snapshots: Path, artifact: dict, prepared: sw.Prepared, crosswalk: pd.DataFrame, git,
+        season_end_read: bool = False) -> dict:
+    S = int(artifact["season"])
+    manifest = load_manifest(snapshots)
+    weights = la.ppr_weights()
+    by_week, pooled = {}, {"paired": [], "latest": []}
+    for N in sorted(int(w) for w in artifact["weeks_scored"]):
+        if N < FIRST_COMPARABLE_WEEK.get(S, 1):
+            by_week[str(N)] = {"status": "skipped", "reason": "exploratory_weeks_excluded"}
+            continue
+        wrec = artifact["weeks"][str(N)]
+        pub = wrec["publication"]
+        legacy, neutral = la.read_payloads(git, pub["commit"])
+        vals, reason, _ = la.published_values(legacy, neutral, weights, S, N)
+        if reason:
+            by_week[str(N)] = {"status": "skipped", "reason": reason}
+            continue
+        ours = sw.validate_projections(vals).valid
+        wi = sw.week_inputs(prepared, S, N)
+        if wi["failed"]:
+            by_week[str(N)] = {"status": "skipped", "reason": "validation_failed"}
+            continue
+        act = wi["actuals"].valid
+        played = act[["player_id", "position", "team", "week"]].assign(
+            actual=fantasy_points(act[PREDICTED_STATS], PPR).to_numpy())
+        choice = choose_snapshots(manifest, S, N, pub["available_by"], wrec["cutoff"])
+        out = {"publication": {"commit": pub["commit"], "available_by": pub["available_by"]},
+               "cutoff": wrec["cutoff"], "latest_gap_hours": choice["latest_gap_hours"],
+               "latest_label": "sleeper_timing_advantage"}
+        for variant in ("paired", "latest"):
+            res, rows = _week_variant(snapshots, choice[variant], S, N, crosswalk, played, ours)
+            out[variant] = res
+            if rows is not None:
+                pooled[variant].append(rows)
+        by_week[str(N)] = out
+    cumulative = {}
+    for variant, frames in pooled.items():
+        rows = pd.concat(frames, ignore_index=True) if frames else None
+        cumulative[variant] = ({"primary": view_metrics(relevant(rows)), "diagnostic": view_metrics(rows)}
+                               if rows is not None else {"status": "no_data"})
+    report = {"protocol_version": PROTOCOL_VERSION, "season": S, "private": True,
+              "live_artifact": {"protocol_version": artifact.get("protocol_version"),
+                                "run": artifact.get("run"), "evaluator_version": artifact.get("evaluator_version")},
+              "by_week": by_week, "cumulative": cumulative,
+              "caveats": ["Private: Sleeper-derived values never enter the public repository.",
+                          "Paired snapshot approximates an equal information deadline only to within the capture "
+                          "schedule; 'latest' answers which available product was better, not which method.",
+                          "Common-component PPR re-score on both sides; two-point conversions and special-teams "
+                          "scores are excluded.", "Weekly numbers are diagnostic; there are no weekly decisions."]}
+    if season_end_read:
+        frames = pooled["paired"]
+        report["season_end"] = season_end(relevant(pd.concat(frames, ignore_index=True)) if frames
+                                          else pd.DataFrame())
+    return report
+
+
+def render_markdown(report: dict) -> str:
+    def f(x):
+        return "—" if x is None else f"{x:.2f}"
+
+    lines = [f"# Sleeper comparison (private) — {report['season']}", "",
+             "| week | variant | gap h | n (relevant) | MAE ours | MAE Sleeper | MAE blend |", "|---|---|---|---|---|---|---|"]
+    for w, rec in sorted(report["by_week"].items(), key=lambda kv: int(kv[0])):
+        for variant in ("paired", "latest"):
+            v = rec.get(variant)
+            if not v:
+                continue
+            if v.get("status") != "scored":
+                lines.append(f"| {w} | {variant} | — | — | {v.get('reason')} | | |")
+                continue
+            m = v["primary"]
+            gap = rec["latest_gap_hours"] if variant == "latest" else None
+            lines.append(f"| {w} | {variant} | {f(gap)} | {m['n']} | {f(m['mae']['ours'])} | "
+                         f"{f(m['mae']['sleeper'])} | {f(m['mae']['blend'])} |")
+    if "season_end" in report and report["season_end"].get("status") == "read":
+        lines += ["", "## Season-end read (Holm across two claims)"]
+        for c in report["season_end"]["claims"]:
+            lines.append(f"- {c['claim']}: mean {c['mean']:.3f}, p {c['p']:.4f}, outcome {c['outcome']}")
+    lines += ["", *[f"- {c}" for c in report["caveats"]], ""]
+    return "\n".join(lines)
+
+
+def write_report(report: dict, out_dir: Path) -> list[Path]:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    js = out_dir / f"sleeper_{report['season']}.json"
+    md = out_dir / f"sleeper_{report['season']}.md"
+    js.write_text(json.dumps(report, indent=1, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    md.write_text(render_markdown(report), encoding="utf-8")
+    return [js, md]
+
+
+def _load_inputs(season: int, data_dir: Path):
+    from ffmodel.data.pull import pull_schedules, pull_weekly
+    from ffmodel.data.rankings import pull_player_ids
+
+    weekly, schedules = pull_weekly([season], cache_dir=data_dir), pull_schedules([season], cache_dir=data_dir)
+    return sw.prepare(weekly, schedules), pull_player_ids(data_dir)
+
+
+def main(argv=None, load_inputs=_load_inputs, git=None) -> int:
+    ap = argparse.ArgumentParser(description="Private Sleeper comparator (spec §4.8).")
+    ap.add_argument("--snapshots", type=Path, required=True, help="private repository checkout")
+    ap.add_argument("--live-artifact", type=Path, required=True)
+    ap.add_argument("--out", type=Path, required=True, help="directory; the only place this writes")
+    ap.add_argument("--data-dir", type=Path, default=None, help="nflverse cache (default: a fresh temp dir)")
+    ap.add_argument("--season-end", action="store_true", help="the one pre-registered read after the last REG week")
+    args = ap.parse_args(argv)
+    artifact = json.loads(args.live_artifact.read_text(encoding="utf-8"))
+    data_dir = args.data_dir or Path(tempfile.mkdtemp(prefix="sleeper-cmp-"))
+    prepared, crosswalk = load_inputs(int(artifact["season"]), data_dir)
+    report = run(args.snapshots, artifact, prepared, crosswalk, git or la.Git("."), season_end_read=args.season_end)
+    for p in write_report(report, args.out):
+        print(p)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+- [ ] **Step 4: Run the tests and confirm they pass**
+
+Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_sleeper_compare.py -q`
+Expected: all pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/ffmodel/eval/sleeper_compare.py tests/test_sleeper_compare.py
+git commit -m "feat(sleeper_compare): private Sleeper comparator — paired/latest snapshots, common-component PPR, relevant union, season-end Holm read (spec §4.8)"
+```
+
+---
+
+### Task 8: Ledger seed and workflow (public job and private fail-soft job)
+
+**Model:** implementer sonnet (transcription); reviewer sonnet.
 
 **Files:**
 - Create: `tools/build_push_ledger_seed.py`
@@ -2036,13 +3751,16 @@ git commit -m "feat(live_accuracy): published values with equivalence, point met
 - Test: `tests/test_weekly_accuracy_workflow.py`
 
 **Interfaces:**
-- Consumes: `live_accuracy.merge_collection`, `save_ledger`.
+- Consumes: `live_accuracy.merge_collection`, `save_ledger`, `LEDGER_PATH`; the CLIs `ffmodel.eval.live_accuracy`
+  and `ffmodel.eval.sleeper_compare`.
+- Requires outside the repo (spec §8 step 4; not part of this task): the private repository
+  `mtsilverstein/megatron-private-data` and the repository secret `PRIVATE_DATA_TOKEN` (fine-grained, that repository
+  only). Until both exist the private job prints a notice and skips.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/test_weekly_accuracy_workflow.py
-"""Static checks on the weekly-accuracy workflow and the committed ledger seed (spec §4.1, §4.7)."""
+"""Static checks on the weekly-accuracy workflow and the committed ledger seed (spec §4.1, §4.7, §4.8.5)."""
 import json
 from pathlib import Path
 
@@ -2052,28 +3770,63 @@ WF = Path(".github/workflows/weekly-accuracy.yml")
 LEDGER = Path("models/diagnostics/main_push_ledger.json")
 
 
-def test_workflow_contract():
-    wf = yaml.safe_load(WF.read_text(encoding="utf-8"))
+def _wf():
+    return yaml.safe_load(WF.read_text(encoding="utf-8"))
+
+
+def _run_text(job):
+    return "\n".join(s.get("run", "") for s in job["steps"])
+
+
+def test_public_job_contract():
+    wf = _wf()
     on = wf.get("on", wf.get(True))
-    crons = sorted(s["cron"] for s in on["schedule"])
-    assert crons == ["47 13 * 9-12,1 3", "47 16 * 9-12,1 2"] and "workflow_dispatch" in on
+    assert sorted(s["cron"] for s in on["schedule"]) == ["47 13 * 9-12,1 3", "47 16 * 9-12,1 2"]
+    assert "workflow_dispatch" in on
     assert wf["concurrency"] == {"group": "weekly-site-refresh", "cancel-in-progress": False}
     job = wf["jobs"]["accuracy"]
-    assert job["permissions"] == {"contents": "write"}
+    assert job["permissions"] == {"contents": "write"} and job["env"]["GH_TOKEN"] == "${{ github.token }}"
+    assert job["steps"][0]["with"]["fetch-depth"] == 0
+    run = _run_text(job)
+    assert 'git config user.name "weekly-accuracy-bot"' in run and "python -m ffmodel.eval.live_accuracy" in run
+    assert ("git add models/diagnostics/live_*_weekly.json models/diagnostics/live_*_weekly.md "
+            "models/diagnostics/main_push_ledger.json") in run
+    assert "git pull --rebase origin main && git push origin HEAD:main" in run          # rebase, then push
+    assert "--force" not in run and " -f " not in run
+
+
+def test_workflow_never_writes_site():
     text = WF.read_text(encoding="utf-8")
-    assert "fetch-depth: 0" in text and 'git config user.name "weekly-accuracy-bot"' in text
-    assert "python -m ffmodel.eval.live_accuracy" in text
-    assert "git add models/diagnostics/live_*_weekly.json models/diagnostics/live_*_weekly.md models/diagnostics/main_push_ledger.json" in text
-    assert "site/" not in text.replace("site/data", "")  # never writes site/
+    assert "site/" not in text
+
+
+def test_private_job_is_fail_soft_and_cannot_write_public_repo():
+    job = _wf()["jobs"]["sleeper"]
+    assert job["needs"] == "accuracy" and job["continue-on-error"] is True
+    assert job["permissions"] == {"contents": "read"}
+    assert job["env"]["PRIVATE_DATA_TOKEN"] == "${{ secrets.PRIVATE_DATA_TOKEN }}"
+    skip = job["steps"][0]
+    assert skip["if"] == "env.PRIVATE_DATA_TOKEN == ''" and "::notice::" in skip["run"]
+    assert all(s.get("if") in ("env.PRIVATE_DATA_TOKEN != ''", "failure()") for s in job["steps"][1:])
+    public, private = job["steps"][1], job["steps"][2]
+    assert public["with"]["persist-credentials"] is False
+    assert private["with"]["repository"] == "mtsilverstein/megatron-private-data"
+    assert private["with"]["token"] == "${{ secrets.PRIVATE_DATA_TOKEN }}" and private["with"]["path"] == "private"
+    push = next(s for s in job["steps"] if s.get("working-directory") == "private")
+    assert "git add reports/sleeper_*.json reports/sleeper_*.md" in push["run"]
+    assert "--out private/reports" in _run_text(job)
+    assert "::warning::" in job["steps"][-1]["run"] and job["steps"][-1]["if"] == "failure()"
 
 
 def test_ledger_seed_shape():
     led = json.loads(LEDGER.read_text(encoding="utf-8"))
-    assert led["coverage"] and len(led["events"]) >= 239
+    assert led["coverage"] == [["-inf", "2026-10-06T19:02:01Z"]] and len(led["events"]) == 239
     ids = [e["id"] for e in led["events"]]
     assert len(ids) == len(set(ids))
     assert all(isinstance(e["actor"], (str, type(None))) for e in led["events"])
-    assert not any(e["activity_type"] == "force_push" for e in led["events"])
+    kinds = [e["activity_type"] for e in led["events"]]
+    assert kinds.count("push") == 235 and kinds.count("pr_merge") == 3 and kinds.count("branch_creation") == 1
+    assert "force_push" not in kinds
 ```
 
 - [ ] **Step 2: Run the test and confirm it fails**
@@ -2084,11 +3837,11 @@ Expected: FAIL with `FileNotFoundError`.
 - [ ] **Step 3: Implement the seed tool and generate the ledger**
 
 ```python
-# tools/build_push_ledger_seed.py
 """Build models/diagnostics/main_push_ledger.json from the 2026-10-06 raw activity capture (spec §4.1 seed).
 
 Usage: .venv/Scripts/python.exe tools/build_push_ledger_seed.py .review/evidence-seed/activity-main-2026-10-06T190201Z.json
-The capture paginated to the end of history, so its coverage starts at its oldest event; it ends at capture time.
+The capture paginated to the end of history and its oldest event is main's branch_creation, so its coverage
+interval is ["-inf", capture time].
 """
 import json
 import sys
@@ -2111,12 +3864,11 @@ if __name__ == "__main__":
 ```
 
 Run: `.venv/Scripts/python.exe tools/build_push_ledger_seed.py .review/evidence-seed/activity-main-2026-10-06T190201Z.json`
-Expected: `239 events; coverage [['2026-07-11T22:02:06Z', '2026-10-06T19:02:01Z']]`.
+Expected: `239 events; coverage [['-inf', '2026-10-06T19:02:01Z']]`.
 
 - [ ] **Step 4: Write the workflow**
 
 ```yaml
-# .github/workflows/weekly-accuracy.yml
 name: weekly accuracy
 # Live weekly accuracy scorecard (spec docs/superpowers/specs/2026-10-06-weekly-accuracy-sameweek-design.md §4.7).
 # Tuesday after Monday-night stats, Wednesday as a second run. Never writes the website directory.
@@ -2142,7 +3894,7 @@ jobs:
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: pip install -e .
-      - name: Score published projections (infrastructure errors fail before any commit)
+      - name: Score published projections (infrastructure errors fail here, before any commit)
         run: python -m ffmodel.eval.live_accuracy --main-ref origin/main
       - name: Commit accuracy artifacts
         run: |
@@ -2152,10 +3904,62 @@ jobs:
           git diff --cached --quiet && echo "no changes" && exit 0
           git commit -m "data: weekly accuracy refresh"
           for i in 1 2 3; do
-            git push && exit 0
-            git pull --rebase
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
           done
           exit 1
+
+  # Private Sleeper comparator (spec §4.8). Fail-soft: it runs after the public job, cannot write the public
+  # repository (contents: read), and its failure only annotates the run.
+  sleeper:
+    needs: accuracy
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    env:
+      PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+    steps:
+      - name: Skip without the private-data secret
+        if: env.PRIVATE_DATA_TOKEN == ''
+        run: echo "::notice::PRIVATE_DATA_TOKEN is not set; Sleeper comparison skipped"
+      - uses: actions/checkout@v7
+        if: env.PRIVATE_DATA_TOKEN != ''
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        if: env.PRIVATE_DATA_TOKEN != ''
+        with:
+          repository: mtsilverstein/megatron-private-data
+          token: ${{ secrets.PRIVATE_DATA_TOKEN }}
+          path: private
+      - uses: actions/setup-python@v6
+        if: env.PRIVATE_DATA_TOKEN != ''
+        with: { python-version: "3.12" }
+      - if: env.PRIVATE_DATA_TOKEN != ''
+        run: pip install -e .
+      - name: Compare against Sleeper snapshots
+        if: env.PRIVATE_DATA_TOKEN != ''
+        run: |
+          S=$(python -c "from ffmodel.data.pull import current_nfl_season; print(current_nfl_season())")
+          python -m ffmodel.eval.sleeper_compare --snapshots private --live-artifact "models/diagnostics/live_${S}_weekly.json" --out private/reports
+      - name: Push the private report
+        if: env.PRIVATE_DATA_TOKEN != ''
+        working-directory: private
+        run: |
+          git config user.name "weekly-accuracy-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add reports/sleeper_*.json reports/sleeper_*.md
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "data: sleeper comparison refresh"
+          for i in 1 2 3; do
+            git pull --rebase && git push && exit 0
+          done
+          exit 1
+      - name: Annotate a failed comparison
+        if: failure()
+        run: echo "::warning::Sleeper comparison failed; the public accuracy artifact is unaffected"
 ```
 
 - [ ] **Step 5: Run the test and confirm it passes**
@@ -2167,12 +3971,14 @@ Expected: PASS.
 
 ```bash
 git add tools/build_push_ledger_seed.py models/diagnostics/main_push_ledger.json .github/workflows/weekly-accuracy.yml tests/test_weekly_accuracy_workflow.py
-git commit -m "feat: weekly-accuracy workflow and push ledger seeded from the 2026-10-06 activity capture (spec §4.1/§4.7)"
+git commit -m "feat: weekly-accuracy workflow (rebase-then-push, private fail-soft Sleeper job) and push ledger seed (spec §4.1/§4.7/§4.8.5)"
 ```
 
 ---
 
-### Task 8: (B) driver — `weekly_consensus_sameweek.py`
+### Task 9: (B) driver — `weekly_consensus_sameweek.py`
+
+**Model:** implementer sonnet (transcription); reviewer **opus** (leak surface: the driver path into the model).
 
 **Files:**
 - Create: `src/ffmodel/eval/weekly_consensus_sameweek.py`
@@ -2180,25 +3986,43 @@ git commit -m "feat: weekly-accuracy workflow and push ledger seeded from the 20
 
 **Interfaces:**
 - Consumes:
-  - `sameweek.*` (Tasks 1–4);
+  - `sameweek.*` (Tasks 1–4), including `prepare` and `week_inputs`;
   - `ffmodel.eval.splits.walk_forward_splits`;
-  - `ffmodel.eval.weekly_rankings.weekly_snapshot`;
-  - `ffmodel.eval.weekly_consensus.transformer_predictor`, `V1_ROOTS`;
-  - `ffmodel.scoring`.
+  - `live_accuracy.evaluator_version`, `Git`, `frame_sha256`, `file_sha256`;
+  - in `main` only: `ffmodel.eval.weekly_consensus.transformer_predictor`, `V1_ROOTS`, `ffmodel.data.pull`,
+    `ffmodel.data.rankings.pull_player_ids`, `weekly_rankings.normalize_weekly_rankings`.
 - Produces:
-  - `run_sample(features, schedules, rankings, crosswalk, seasons, predict_season) -> dict`
-    - keys: `cells` (DataFrame), `weeks` (provenance list), `target_weeks`, `audit` (list), `diagnostic` (list),
-      `alarm` (bool)
-  - `build_report(disc, rep, provenance) -> dict`
-  - `main(argv=None) -> int`
+  - `PROTOCOL_VERSION = "sameweek-v1"`, `DISCOVERY`, `REPLICATION`, `FOLD_FILES`, `AUDIT_FIXTURES`
+  - `run_sample(prep, rankings, crosswalk, seasons, predict_season) -> dict`
+    - keys: `cells` (DataFrame), `weeks` (provenance list), `target_weeks`, `audit`, `alarm` (bool)
+    - `predict_season(season, train, test) -> pd.Series` indexed like `test`
+  - `audit_cells(sample) -> list[dict]`, `check_alarm_audit(record, expected_cells) -> None`
+  - `aggregate_validation(weeks) -> dict`
+  - `build_report(disc, rep, provenance, alarm_audit=None) -> dict`
+  - `model_artifact_hashes(roots, seasons) -> dict`
+  - `main(argv=None) -> int` (flags `--data-dir`, `--first-season`, `--out`, `--alarm-audited`)
+
+The §3.9 alarm procedure, as code: a negative mean model Spearman writes `status: "alarm_negative_correlation"`,
+`verdicts: null` and `alarm_audit_cells` (the first cell in (season, week, position) order of each season of each
+alarmed sample, positions ordered QB, RB, WR, TE, with the driver's values). The operator then (1) runs
+`AUDIT_FIXTURES` and records the result, (2) recomputes both Spearman values of those cells by hand from the raw
+inputs, (3) writes a JSON record
+`{"fixtures": {"command": ..., "result": "passed"}, "hand_checks": [{season, week, position, sp_ours_driver,
+sp_con_driver, sp_ours_hand, sp_con_hand}, ...], "conclusion": "no_defect" | "defect_found"}`. On `no_defect` the
+driver is re-run with `--alarm-audited <record>` and publishes as computed with the limited-sample warning; on
+`defect_found` the driver refuses, and Rule 4 applies (fix, re-run, publish both). Population and sign are never
+changed to clear the alarm. The `_old_cells` snapshot-change diagnostic (old §5.3) is cut in draft 7 and does not
+appear.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# tests/test_weekly_consensus_sameweek.py
-"""(B) driver orchestration on synthetic data with a fake model (spec §5, §6.6)."""
+"""(B) driver orchestration on synthetic raw tables with a fake model (spec §3.9, §5, §6.6)."""
+import json
+
 import numpy as np
 import pandas as pd
+import pytest
 
 from ffmodel.eval import sameweek as sw
 from ffmodel.eval import weekly_consensus_sameweek as drv
@@ -2207,198 +4031,293 @@ from ffmodel.scoring import PPR, PREDICTED_STATS, fantasy_points
 TEAMS = ["AAA", "BBB", "CCC", "DDD"]
 
 
-def _world(season=2024, weeks=4):
-    sched, ranks, feats = [], [], []
+def _world(season=2024, weeks=4, duplicate=None):
+    """Raw weekly rows (as pull_weekly returns) + schedule; Thursday AAA-BBB, Sunday CCC-DDD; Friday scrapes."""
+    sched, ranks, weekly = [], [], []
     rng = np.random.default_rng(1)
     for w in range(1, weeks + 1):
-        thu = pd.Timestamp("2024-09-05") + pd.Timedelta(days=7 * (w - 1))
+        thu = pd.Timestamp(f"{season}-09-05") + pd.Timedelta(days=7 * (w - 1))
         sched += [(season, w, str(thu.date()), "AAA", "BBB"), (season, w, str((thu + pd.Timedelta(days=3)).date()), "CCC", "DDD")]
-        fri = thu + pd.Timedelta(days=1)
         for t in TEAMS:
             for pos in sw.POSITIONS:
                 for i in range(4):
                     pid = f"{t}{pos}{i}"
                     ranks.append({"fp_id": pid, "player": pid, "pos": pos, "team": t, "ecr": float(i + 1), "sd": 1.0,
-                                  "mergename": pid.lower(), "scrape_date": fri})
-                    row = {"player_id": f"g-{pid}", "position": pos, "team": t, "season": season, "week": w}
+                                  "mergename": pid.lower(), "scrape_date": thu + pd.Timedelta(days=1)})
+                    row = {"player_id": f"g-{pid}", "player_display_name": pid, "position": pos, "team": t,
+                           "opponent_team": {"AAA": "BBB", "BBB": "AAA", "CCC": "DDD", "DDD": "CCC"}[t],
+                           "season": season, "week": w, "target_share": np.nan, "snap_pct": np.nan,
+                           "two_point_conversions": 0, "special_teams_tds": 0}
                     row.update({s: float(rng.poisson(3)) for s in PREDICTED_STATS})
-                    feats.append(row)
+                    weekly.append(row)
+    weekly = pd.DataFrame(weekly)
+    if duplicate is not None:
+        weekly = pd.concat([weekly, weekly.iloc[[duplicate]]], ignore_index=True)
     sched = pd.DataFrame(sched, columns=["season", "week", "gameday", "home_team", "away_team"])
     ranks = pd.DataFrame(ranks)
-    ids = ranks["fp_id"].unique()
-    cw = pd.DataFrame({"gsis_id": [f"g-{i}" for i in ids], "fantasypros_id": ids, "merge_name": [i.lower() for i in ids],
-                       "position": [r for r in ranks.drop_duplicates("fp_id")["pos"]]})
-    return sched, ranks, cw, pd.DataFrame(feats)
+    first = ranks.drop_duplicates("fp_id")
+    cw = pd.DataFrame({"gsis_id": "g-" + first["fp_id"], "fantasypros_id": first["fp_id"],
+                       "merge_name": first["fp_id"].str.lower(), "position": first["pos"]})
+    return sw.prepare(weekly, sched), ranks, cw
+
+
+def _good(season, train, test):
+    return fantasy_points(test[PREDICTED_STATS], PPR)          # positively correlated, indexed like test
+
+
+def _anti(season, train, test):
+    return -fantasy_points(test[PREDICTED_STATS], PPR)
 
 
 def test_run_sample_scores_sunday_players_only_and_records_audit():
-    sched, ranks, cw, feats = _world()
-    predict = lambda season, train, test: fantasy_points(test[PREDICTED_STATS], PPR)  # positively correlated
-    res = drv.run_sample(feats, sched, ranks, cw, [2024], predict)
+    prep, ranks, cw = _world()
+    res = drv.run_sample(prep, ranks, cw, [2024], _good)
     scored = [w for w in res["weeks"] if w["status"] == "scored"]
-    assert scored and all(w["retention"]["excluded_early_game"] == 32 for w in scored)   # AAA/BBB Thursday
+    assert scored and all(w["retention"]["excluded_early_game"] == 32 for w in scored)   # AAA/BBB on Thursday
     assert set(res["cells"]["gate_state"]) <= {"bye_consistent", "unverified"}
     assert len(res["audit"]) == 4 and res["target_weeks"] == {2024: [1, 2, 3, 4]}
+    assert all("pages" in c for w in scored for c in w["selection"]["candidates"])
+    assert all(w["selection"]["label"] == "inferred_by_window" for w in scored)        # no byes: unverified
+    assert all(set(c) == {"position", "n", "sp_ours", "sp_con", "delta"} for w in scored for c in w["cells"])
 
 
-def test_alarm_on_negative_model_correlation_blocks_verdicts():
-    sched, ranks, cw, feats = _world()
-    anti = lambda season, train, test: -fantasy_points(test[PREDICTED_STATS], PPR)
-    disc = drv.run_sample(feats, sched, ranks, cw, [2024], anti)
+def test_driver_path_collapses_raw_duplicate_before_model_inputs():
+    prep, ranks, cw = _world(duplicate=0)                       # an exact duplicate raw row for week 1
+    assert prep.exact_by_week == {(2024, 1): 1}
+    assert len(prep.features) == 4 * 4 * 4 * 4
+    wk1 = [w for w in drv.run_sample(prep, ranks, cw, [2024], _good)["weeks"] if w["week"] == 1][0]
+    assert wk1["input_validation"]["actuals"]["exact_duplicates"] == 1
+
+
+def test_alarm_blocks_verdicts_until_a_no_defect_audit():
+    prep, ranks, cw = _world()
+    disc = drv.run_sample(prep, ranks, cw, [2024], _anti)
     report = drv.build_report(disc, disc, {"inputs": {}})
-    assert disc["alarm"] is True and report["verdicts"] == {"status": "alarm_negative_correlation"}
+    assert disc["alarm"] is True and report["status"] == "alarm_negative_correlation" and report["verdicts"] is None
+    cells = report["alarm_audit_cells"]["discovery"]
+    assert len(cells) == 1 and cells[0]["season"] == 2024
+    record = {"fixtures": {"command": drv.AUDIT_FIXTURES, "result": "passed"}, "conclusion": "no_defect",
+              "hand_checks": [{**c, "sp_ours_hand": c["sp_ours_driver"], "sp_con_hand": c["sp_con_driver"]}
+                              for c in cells]}
+    audited = drv.build_report(disc, disc, {"inputs": {}}, alarm_audit=record)
+    assert audited["status"] == "alarm_negative_correlation" and audited["verdicts"]["rule_1"]["value"]
+    assert "limited sample" in audited["warning"] and audited["alarm_audit"] == record
+    with pytest.raises(ValueError):
+        drv.build_report(disc, disc, {"inputs": {}}, alarm_audit={**record, "conclusion": "defect_found"})
+    with pytest.raises(ValueError):
+        drv.build_report(disc, disc, {"inputs": {}}, alarm_audit={**record, "hand_checks": []})
 
 
-def test_build_report_verdicts_present():
-    sched, ranks, cw, feats = _world()
-    predict = lambda season, train, test: fantasy_points(test[PREDICTED_STATS], PPR)  # positively correlated
-    disc = drv.run_sample(feats, sched, ranks, cw, [2024], predict)
-    rep = drv.run_sample(feats, sched, ranks, cw, [2024], predict)
-    report = drv.build_report(disc, rep, {"inputs": {}})
+def test_build_report_verdicts_and_audit_block():
+    prep, ranks, cw = _world()
+    disc = drv.run_sample(prep, ranks, cw, [2024], _good)
+    report = drv.build_report(disc, disc, {"inputs": {}, "evaluator_version": {"id": "x"}})
+    assert report["status"] == "ok"
     assert report["verdicts"]["rule_1"]["value"] in {"insufficient", "behind", "ahead", "not_established"}
     assert report["verdicts"]["rule_2"]["value"] in {"insufficient", "established", "not_established"}
-    assert "old_protocol_staleness_audit" in report and "protocol" in report
+    audit = report["old_protocol_staleness_audit"]
+    assert len(audit["weeks"]) == 8 and audit["definition"] and "protocol" in report
+    assert report["discovery"]["validation"]["actuals"]["failed_weeks"] == 0
+    json.dumps(report, allow_nan=False)
+
+
+def test_model_artifact_hashes_name_every_fold_file(tmp_path):
+    root = tmp_path / "v1"
+    (root / "through2022").mkdir(parents=True)
+    (root / "through2022" / "model.pt").write_bytes(b"w")
+    h = drv.model_artifact_hashes([root], [2023])
+    assert len(h) == len(drv.FOLD_FILES) and h[(root / "through2022" / "model.pt").as_posix()]
+    assert h[(root / "through2022" / "config.yaml").as_posix()] is None        # a missing file shows as None
 ```
 
 - [ ] **Step 2: Run the tests and confirm they fail**
 
 Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_weekly_consensus_sameweek.py -q`
-Expected: FAIL with `ModuleNotFoundError`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'ffmodel.eval.weekly_consensus_sameweek'`.
 
 - [ ] **Step 3: Implement**
 
 ```python
-# src/ffmodel/eval/weekly_consensus_sameweek.py
 """Pre-registered same-week re-measurement of the weekly expert benchmark (spec §5-§6).
 
 Run once by hand: .venv/Scripts/python.exe -m ffmodel.eval.weekly_consensus_sameweek
 Verdicts are computed here from the numbers; nothing in §3/§5/§6 may change in response to a result (Rule 4).
+A negative mean model Spearman is an alarm (§3.9): the artifact carries no verdict until the operator's audit
+record is supplied with --alarm-audited.
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
+from ffmodel.eval import live_accuracy as la
 from ffmodel.eval import sameweek as sw
 from ffmodel.eval.splits import walk_forward_splits
-from ffmodel.eval.weekly_rankings import weekly_snapshot
 from ffmodel.scoring import PPR, PREDICTED_STATS, fantasy_points
 
 PROTOCOL_VERSION = "sameweek-v1"
 DISCOVERY = [2023, 2024, 2025]
 REPLICATION = [2020, 2021, 2022]
 SPEC = "docs/superpowers/specs/2026-10-06-weekly-accuracy-sameweek-design.md"
+FOLD_FILES = ("model.pt", "config.yaml", "scaler.json", "calibration.json", "metrics.json")
+AUDIT_FIXTURES = ('pytest tests/test_sameweek_gate.py tests/test_sameweek_validation.py '
+                  'tests/test_sameweek_selection.py -k "sign or identity"')
 
 
-def _old_cells(played, schedules, rankings, crosswalk, season, week, dates, new_res):
-    """§5.3: old-protocol and same-week lists scored on identical IDs."""
-    if new_res["status"] != "scored":
-        return None
-    old = weekly_snapshot(rankings, pd.Timestamp(dates[week][0]))
-    if old is None:
-        return None
-    vo = sw.validate_table(old[old["pos"].isin(sw.POSITIONS)], ["fp_id"], ["ecr"], ["pos", "team", "mergename"])
-    mo = sw.match_consensus(vo.valid, crosswalk)
-    date = pd.Timestamp(new_res["selection"]["scrape_date"])
-    new = rankings[(rankings["scrape_date"].dt.normalize() == date) & rankings["pos"].isin(sw.POSITIONS)]
-    vn = sw.validate_table(new, ["fp_id"], ["ecr"], ["pos", "team", "mergename"])
-    mn = sw.match_consensus(vn.valid, crosswalk)
-    if mo.reason or mn.reason:
-        return {"week": week, "status": "skipped", "reason": mo.reason or mn.reason}
-    games = sw.team_game_dates(schedules, season, week)
-    gday = played["team"].map(lambda t: games[t][0] if len(games.get(t, [])) == 1 else pd.NaT)
-    elig = played[gday > date]
-    common = elig.merge(mo.matched[["player_id", "ecr"]].rename(columns={"ecr": "ecr_old"}), on="player_id")
-    common = common.merge(mn.matched[["player_id", "ecr"]], on="player_id")
-    new_cells, _ = sw.build_cells(common, season, week, "diag")
-    old_cells, _ = sw.build_cells(common.drop(columns="ecr").rename(columns={"ecr_old": "ecr"}), season, week, "diag")
-    keys = {c["position"] for c in new_cells} & {c["position"] for c in old_cells}
-    pick = lambda cs: {c["position"]: c for c in cs if c["position"] in keys}
-    return {"week": week, "status": "scored", "common_ids": int(len(common)), "lost_to_overlap": int(len(elig) - len(common)),
-            "cells": [{"position": p, "sp_ours": pick(new_cells)[p]["sp_ours"], "sp_con_new": pick(new_cells)[p]["sp_con"],
-                       "sp_con_old": pick(old_cells)[p]["sp_con"]} for p in sorted(keys)]}
-
-
-def run_sample(features, schedules, rankings, crosswalk, seasons, predict_season) -> dict:
-    cells, weeks_prov, audit, diag = [], [], [], []
-    target_weeks, alarm = {}, False
-    for season, train_idx, test_idx in walk_forward_splits(features, seasons):
-        train, test = features.loc[train_idx], features.loc[test_idx]
+def run_sample(prep: sw.Prepared, rankings: pd.DataFrame, crosswalk: pd.DataFrame, seasons: list[int],
+               predict_season) -> dict:
+    """One sample through stage 2, same-week selection and cells. `prep` is sw.prepare over the raw tables, so
+    the model sees the de-duplicated, unmasked feature input and scoring sees only validated rows."""
+    cells, weeks_prov, audit, target_weeks = [], [], [], {}
+    for season, train_idx, test_idx in walk_forward_splits(prep.features, seasons):
+        train, test = prep.features.loc[train_idx], prep.features.loc[test_idx]
         our = predict_season(season, train, test)
-        dates = sw.week_dates(schedules, season)
-        target_weeks[int(season)] = sorted(dates)
-        for week in sorted(dates):
-            audit.append({"season": int(season), **sw.staleness_audit_week(rankings, schedules, season, week, dates)})
-            rows = test[test["week"] == week]
-            va = sw.validate_actuals(rows, schedules, season, week)
-            if va.fails():
-                weeks_prov.append({"season": int(season), "week": week, "status": "skipped", "reason": "validation_failed",
-                                   "validation": va.report()})
+        dates = sw.week_dates(prep.schedule.valid_games, season)
+        weeks = sorted(int(w) for w in prep.schedule.games.loc[prep.schedule.games["season"] == season, "week"].unique())
+        target_weeks[int(season)] = weeks
+        for week in weeks:
+            if week not in dates:
+                weeks_prov.append({"season": int(season), "week": week, "status": "skipped",
+                                   "reason": "validation_failed", "detail": "no valid schedule side"})
                 continue
-            ok = va.valid
+            audit.append({"season": int(season), **sw.staleness_audit_week(rankings, prep.schedule, season, week,
+                                                                           dates)})
+            wi = sw.week_inputs(prep, season, week)
+            if wi["failed"]:
+                weeks_prov.append({"season": int(season), "week": week, "status": "skipped",
+                                   "reason": "validation_failed", "validation": wi["report"]})
+                continue
+            ok = wi["actuals"].valid
             played = pd.DataFrame({"player_id": ok["player_id"].to_numpy(), "position": ok["position"].to_numpy(),
-                                   "team": ok["team"].to_numpy(), "our_pts": np.asarray(our.loc[ok.index], dtype=float),
+                                   "team": ok["team"].to_numpy(), "our_pts": our.loc[ok.index].to_numpy(dtype=float),
                                    "actual": fantasy_points(ok[PREDICTED_STATS], PPR).to_numpy()})
-            res = sw.sameweek_week(played, schedules, rankings, crosswalk, season, week, dates)
+            res = sw.sameweek_week(played, prep.schedule, rankings, crosswalk, season, week, dates)
             cells += res["cells"]
             weeks_prov.append({"season": int(season), "week": week, **{k: v for k, v in res.items() if k != "cells"},
-                               "actuals_validation": va.report()})
-            d = _old_cells(played, schedules, rankings, crosswalk, season, week, dates, res)
-            if d:
-                diag.append({"season": int(season), **d})
+                               "cells": sw.cell_summary(res["cells"]), "input_validation": wi["report"]})
     frame = pd.DataFrame(cells)
-    if len(frame) and frame["sp_ours"].mean() < 0:
-        alarm = True
-    return {"cells": frame, "weeks": weeks_prov, "target_weeks": target_weeks, "audit": audit, "diagnostic": diag,
-            "alarm": alarm}
+    return {"cells": frame, "weeks": weeks_prov, "target_weeks": target_weeks, "audit": audit,
+            "alarm": bool(len(frame) and frame["sp_ours"].mean() < 0)}
+
+
+def audit_cells(sample: dict) -> list[dict]:
+    """§3.9 fixed rule: the first cell in (season, week, position) order of each season, with the driver's
+    values, for the operator to recompute by hand."""
+    c = sample["cells"]
+    if c.empty:
+        return []
+    order = {p: i for i, p in enumerate(sw.POSITIONS)}
+    c = c.assign(_p=c["position"].map(order)).sort_values(["season", "week", "_p"])
+    first = c.groupby("season", sort=True).head(1)
+    return [{"season": int(r.season), "week": int(r.week), "position": r.position, "sp_ours_driver": float(r.sp_ours),
+             "sp_con_driver": float(r.sp_con)} for r in first.itertuples()]
+
+
+def check_alarm_audit(record: dict, expected_cells: list[dict]) -> None:
+    """Accept only a complete no_defect audit of exactly the fixed-rule cells (spec §3.9 step 2-3)."""
+    if record.get("conclusion") != "no_defect":
+        raise ValueError("alarm audit conclusion is not no_defect: fix the defect, re-run, publish both (Rule 4)")
+    if (record.get("fixtures") or {}).get("result") != "passed":
+        raise ValueError("alarm audit must record the sign/identity fixture run as passed")
+    want = {(c["season"], c["week"], c["position"]) for c in expected_cells}
+    got = {(h.get("season"), h.get("week"), h.get("position")) for h in record.get("hand_checks", [])}
+    if want != got:
+        raise ValueError(f"alarm audit hand checks {sorted(got)} differ from the fixed-rule cells {sorted(want)}")
+    for h in record["hand_checks"]:
+        if not all(isinstance(h.get(k), (int, float)) for k in ("sp_ours_hand", "sp_con_hand")):
+            raise ValueError("every hand check records both hand-computed Spearman values")
+
+
+def aggregate_validation(weeks: list[dict]) -> dict:
+    """Validation counts per reason, table and position over a sample's weeks (spec §3.7, §6.6)."""
+    out: dict = {}
+
+    def add(table: str, rep: dict | None):
+        if not rep:
+            return
+        t = out.setdefault(table, {"invalid_by_reason": {}, "invalid_by_reason_position": {},
+                                   "exact_duplicates": 0, "failed_weeks": 0})
+        t["exact_duplicates"] += rep.get("exact_duplicates", 0)
+        t["failed_weeks"] += int(bool(rep.get("failed")))
+        for r, n in rep.get("invalid_by_reason", {}).items():
+            t["invalid_by_reason"][r] = t["invalid_by_reason"].get(r, 0) + n
+        for r, byp in rep.get("invalid_by_reason_position", {}).items():
+            for p, n in byp.items():
+                t["invalid_by_reason_position"].setdefault(r, {})
+                t["invalid_by_reason_position"][r][p] = t["invalid_by_reason_position"][r].get(p, 0) + n
+
+    for w in weeks:
+        rep = w.get("input_validation") or w.get("validation") or {}
+        add("actuals", rep.get("actuals"))
+        add("schedule", rep.get("schedule"))
+        if "n_keys" in (w.get("validation") or {}):
+            add("consensus", w["validation"])
+    return out
 
 
 def _sample_block(s: dict) -> dict:
     c = s["cells"]
+    base = {"weeks": s["weeks"], "validation": aggregate_validation(s["weeks"])}
     if c.empty:
-        return {"cells": 0, "weeks": s["weeks"]}
-    out = {"cells": int(len(c)), "overall": sw.delta_stats(c), "sensitivity": sw.sensitivity_stats(c),
-           "per_position": {p: {"stats": sw.delta_stats(g), "sensitivity": sw.sensitivity_stats(g)}
-                            for p, g in c.groupby("position")},
-           "sp_ours": float(c["sp_ours"].mean()), "sp_con": float(c["sp_con"].mean()),
-           "hit_rate_ours": float(c["hit_ours"].sum() / c["slots"].sum()),
-           "hit_rate_con": float(c["hit_con"].sum() / c["slots"].sum()),
-           "n_le_slots_cells": int(c["n_le_slots"].sum()), "weeks": s["weeks"], "diagnostic": s["diagnostic"]}
+        return {"cells": 0, **base}
+    return {"cells": int(len(c)), "overall": sw.delta_stats(c), "sensitivity": sw.sensitivity_stats(c),
+            "per_season": {int(k): sw.delta_stats(g) for k, g in c.groupby("season")},
+            "per_position": {p: {"stats": sw.delta_stats(g), "sensitivity": sw.sensitivity_stats(g)}
+                             for p, g in c.groupby("position")},
+            "sp_ours": float(c["sp_ours"].mean()), "sp_con": float(c["sp_con"].mean()),
+            "hit_rate_ours": float(c["hit_ours"].sum() / c["slots"].sum()),
+            "hit_rate_con": float(c["hit_con"].sum() / c["slots"].sum()),
+            "n_le_slots_cells": int(c["n_le_slots"].sum()), **base}
+
+
+def build_report(disc: dict, rep: dict, provenance: dict, alarm_audit: dict | None = None) -> dict:
+    audit = disc["audit"] + rep["audit"]
+    discriminating = [a for a in audit if a["discriminating"] and a["state"]]
+    alarmed = [n for n, s in (("discovery", disc), ("replication", rep)) if s["alarm"]]
+    out = {"protocol_version": PROTOCOL_VERSION, "protocol": f"{SPEC} §3, §5, §6 (draft 7)",
+           "multiplicity": "Rules 1 and 2 are separate pre-specified claims at 95%; no family-wise correction.",
+           "estimand": "within-position ranking of players who recorded a stat line, were matched, and had not yet "
+                       "played at the scrape date; cutoffs asymmetric; selection effect undetermined",
+           "limitations": "three seasons = three clusters; within-season serial dependence not modelled",
+           **provenance, "discovery": _sample_block(disc), "replication": _sample_block(rep),
+           "old_protocol_staleness_audit": {
+               "weeks": audit,
+               "counts": {k: sum(1 for a in discriminating if a["state"] == k)
+                          for k in ("contradicted", "bye_consistent", "unverified")},
+               "discriminating_weeks": [[a["season"], a["week"]] for a in discriminating],
+               "definition": "A and B both non-empty and different"},
+           "status": "alarm_negative_correlation" if alarmed else "ok"}
+    if alarmed:
+        out["alarm_audit_cells"] = {n: audit_cells(s) for n, s in (("discovery", disc), ("replication", rep))
+                                    if n in alarmed}
+        if alarm_audit is None:
+            out["verdicts"] = None
+            return out
+        check_alarm_audit(alarm_audit, [c for n in alarmed for c in out["alarm_audit_cells"][n]])
+        out["alarm_audit"] = alarm_audit
+        out["warning"] = ("limited sample: the model's mean Spearman is negative; the audit found no defect and the "
+                          "result is published as computed")
+    out["verdicts"] = {"rule_1": sw.rule_1(disc["cells"], disc["target_weeks"]),
+                       "rule_1_replication_descriptive": sw.rule_1(rep["cells"], rep["target_weeks"]),
+                       "rule_2": sw.rule_2(disc["cells"], disc["target_weeks"], rep["cells"], rep["target_weeks"])}
     return out
 
 
-def build_report(disc: dict, rep: dict, provenance: dict) -> dict:
-    audit = disc["audit"] + rep["audit"]
-    disc_list = [a for a in audit if a["discriminating"] and a["state"]]
-    audit_counts = {k: sum(1 for a in disc_list if a["state"] == k) for k in ("contradicted", "bye_consistent", "unverified")}
-    if disc["alarm"] or rep["alarm"]:
-        verdicts = {"status": "alarm_negative_correlation"}
-    else:
-        verdicts = {"rule_1": sw.rule_1(disc["cells"], disc["target_weeks"]),
-                    "rule_1_replication_descriptive": sw.rule_1(rep["cells"], rep["target_weeks"]),
-                    "rule_2": sw.rule_2(disc["cells"], disc["target_weeks"], rep["cells"], rep["target_weeks"])}
-    return {"protocol_version": PROTOCOL_VERSION, "protocol": f"{SPEC} §3, §5, §6 (draft 6)",
-            "multiplicity": "Rules 1 and 2 are separate pre-specified claims at 95%; no family-wise correction.",
-            "estimand": "within-position ranking of players who recorded a stat line, were matched, and had not yet "
-                        "played at the scrape date; cutoffs asymmetric; selection effect undetermined",
-            "limitations": "three seasons = three clusters; within-season serial dependence not modelled",
-            **provenance, "discovery": _sample_block(disc), "replication": _sample_block(rep),
-            "old_protocol_staleness_audit": {"weeks": audit, "discriminating_counts": audit_counts,
-                                             "discriminating_weeks": [(a["season"], a["week"]) for a in disc_list]},
-            "verdicts": verdicts}
-
-
-def _sha256(path: Path) -> str | None:
-    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+def model_artifact_hashes(roots: list[Path], seasons: list[int]) -> dict:
+    """Every fold artifact used, by path and sha256 (spec §6.6)."""
+    out = {}
+    for root in roots:
+        for s in sorted(set(seasons)):
+            for f in FOLD_FILES:
+                p = Path(root) / f"through{s - 1}" / f
+                out[p.as_posix()] = la.file_sha256(p)
+    return out
 
 
 def main(argv=None) -> int:
-    from ffmodel.data.features import build_features
     from ffmodel.data.pull import LIVE_MAX_AGE_HOURS, _cached, pull_schedules, pull_weekly
     from ffmodel.data.rankings import pull_player_ids
     from ffmodel.eval.weekly_consensus import V1_ROOTS, transformer_predictor
@@ -2408,38 +4327,37 @@ def main(argv=None) -> int:
     ap.add_argument("--data-dir", type=Path, default=Path("data/raw"))
     ap.add_argument("--first-season", type=int, default=2012)
     ap.add_argument("--out", type=Path, default=Path("models/diagnostics/weekly_consensus_sameweek.json"))
+    ap.add_argument("--alarm-audited", type=Path, default=None, help="§3.9 audit record (JSON) with no_defect")
     args = ap.parse_args(argv)
     spans = list(range(args.first_season, max(DISCOVERY) + 1))
     weekly, schedules = pull_weekly(spans, cache_dir=args.data_dir), pull_schedules(spans, cache_dir=args.data_dir)
-    features = build_features(weekly, schedules)
-    import nflreadpy
-    raw = _cached(args.data_dir, "ff_rankings_all_raw", lambda: nflreadpy.load_ff_rankings("all").to_pandas(),
-                  LIVE_MAX_AGE_HOURS)
+    prep = sw.prepare(weekly, schedules)
+
+    def load_raw_rankings() -> pd.DataFrame:
+        import nflreadpy
+
+        return nflreadpy.load_ff_rankings("all").to_pandas()
+
+    raw = _cached(args.data_dir, "ff_rankings_all_raw", load_raw_rankings, LIVE_MAX_AGE_HOURS)
     rankings, crosswalk = normalize_weekly_rankings(raw), pull_player_ids(args.data_dir)
-    predict = transformer_predictor([Path(r) for r in V1_ROOTS], features)
-    disc = run_sample(features, schedules, rankings, crosswalk, DISCOVERY, predict)
-    rep = run_sample(features, schedules, rankings, crosswalk, REPLICATION, predict)
-    raw_wp = raw[(raw["ecr_type"] == "wp") & raw["pos"].isin(sw.POSITIONS)]
-    coverage = {str(y): {"raw_rows": int((pd.to_datetime(raw_wp["scrape_date"]).dt.year == y).sum()),
-                         "accepted_rows": int((rankings["scrape_date"].dt.year == y).sum()),
-                         "excluded_legacy_schema": int(((pd.to_datetime(raw_wp["scrape_date"]).dt.year == y)
-                                                        & (raw_wp["page_type"] == "weekly-offense")).sum()),
-                         "scrape_weekdays": rankings.loc[rankings["scrape_date"].dt.year == y, "scrape_date"]
-                         .dt.day_name().value_counts().to_dict()} for y in range(2020, 2026)}
+    roots = [Path(r) for r in V1_ROOTS]
+    predict = transformer_predictor(roots, prep.features)
+    disc = run_sample(prep, rankings, crosswalk, DISCOVERY, predict)
+    rep = run_sample(prep, rankings, crosswalk, REPLICATION, predict)
     old = {"weekly_consensus.json": json.loads(Path("models/diagnostics/weekly_consensus.json").read_text())["overall"],
            "rb_oos_weekly.json": json.loads(Path("models/diagnostics/rb_oos_weekly.json").read_text())["result"],
            "label": "different_estimand"}
-    frame_hash = lambda df: hashlib.sha256(pd.util.hash_pandas_object(df, index=False).values.tobytes()).hexdigest()
-    prov = {"inputs": {"ff_rankings_all_raw": _sha256(args.data_dir / "ff_rankings_all_raw.parquet"),
-                       "schedules": frame_hash(schedules), "weekly_actuals": frame_hash(weekly),
-                       "crosswalk": frame_hash(crosswalk), "roots": [str(r) for r in V1_ROOTS],
-                       "folds": sorted({f"through{s - 1}" for s in DISCOVERY + REPLICATION}),
+    prov = {"evaluator_version": la.evaluator_version(la.Git(".")),
+            "inputs": {"ff_rankings_all_raw": la.frame_sha256(raw), "schedules": la.frame_sha256(schedules),
+                       "weekly_actuals": la.frame_sha256(weekly), "crosswalk": la.frame_sha256(crosswalk),
+                       "model_artifacts": model_artifact_hashes(roots, DISCOVERY + REPLICATION),
                        "first_season": args.first_season},
-            "coverage": coverage, "old_protocol_numbers": old}
-    report = build_report(disc, rep, prov)
-    args.out.write_text(json.dumps(report, indent=1, sort_keys=True, default=lambda o: o.tolist()
-                                   if hasattr(o, "tolist") else str(o)) + "\n", encoding="utf-8")
-    print(json.dumps(report["verdicts"], indent=1, default=str))
+            "coverage": sw.ranking_coverage(raw, rankings, REPLICATION + DISCOVERY),
+            "old_protocol_numbers": old}
+    audit = json.loads(args.alarm_audited.read_text(encoding="utf-8")) if args.alarm_audited else None
+    report = build_report(disc, rep, prov, alarm_audit=audit)
+    args.out.write_text(json.dumps(report, indent=1, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    print(json.dumps({"status": report["status"], "verdicts": report["verdicts"]}, indent=1, default=str))
     return 0
 
 
@@ -2449,86 +4367,215 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: Run the tests and confirm they pass**
 
-Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_weekly_consensus_sameweek.py -q`
-Expected: all pass. If `_world`'s week-1 scrape falls outside `[K_1−7, Z_1)`, fix the fixture's dates, not the rule.
+Run:
+- `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_weekly_consensus_sameweek.py -q`
+- `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_sameweek_gate.py tests/test_sameweek_validation.py tests/test_sameweek_selection.py -k "sign or identity" -q`
+
+Expected: all pass; the second command (the `AUDIT_FIXTURES` selection) runs exactly 3 tests.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/ffmodel/eval/weekly_consensus_sameweek.py tests/test_weekly_consensus_sameweek.py
-git commit -m "feat: same-week re-measurement driver with staleness audit, snapshot-change diagnostic and coded verdicts (spec §5-§6)"
+git commit -m "feat: same-week re-measurement driver — prepared inputs, staleness audit, alarm audit procedure, model artifact hashes, coded verdicts (spec §3.9/§5-§6)"
 ```
 
 ---
 
-### Task 9: Acceptance tool (real caches, run by the controller)
+### Task 10: Offline acceptance tool (real caches, run by the controller)
+
+**Model:** implementer sonnet (transcription); reviewer sonnet. Running it and accounting for any FAIL is the
+controller's job (opus).
 
 **Files:**
 - Create: `tools/weekly_accuracy_acceptance.py`
+- Test: `tests/test_weekly_accuracy_acceptance.py`
 
-The controller runs this tool by hand before the merge. The tool is network-free: it uses the local caches
-`data/raw/ff_rankings_all_raw.parquet` and the schedules cache, plus local git and the committed ledger.
+**Interfaces:**
+- Consumes: `live_accuracy` (Tasks 5–6), `sameweek` (Tasks 1–3), `ffmodel.data.pull.normalize_schedule_teams`,
+  `weekly_rankings.normalize_weekly_rankings`.
+- Produces: `team_code_failures(rankings_path, schedules_path)`, `selection_lines(schedules_path, ledger_path, git,
+  main_ref)`, `main(argv=None, git=None) -> int`.
 
-- [ ] **Step 1: Write the tool**
+The tool never calls a `pull_*` function: it reads the explicit parquet paths it is given (a missing file is an
+error) and sets `FFMODEL_CACHE_FROZEN=1` for its run (astra P7).
+
+- [ ] **Step 1: Write the failing test**
 
 ```python
-# tools/weekly_accuracy_acceptance.py
-"""Spec §7.4 real-data acceptance checks. Prints PASS/FAIL lines; exit code 1 on any FAIL.
+"""The acceptance tool runs offline: explicit existing files only, frozen cache, no sockets (spec §7.5, astra P7)."""
+import importlib.util
+import socket
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+_spec = importlib.util.spec_from_file_location(
+    "weekly_accuracy_acceptance", Path(__file__).resolve().parents[1] / "tools" / "weekly_accuracy_acceptance.py")
+acc = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(acc)
+
+
+@pytest.fixture
+def no_network(monkeypatch):
+    def refuse(*a, **k):
+        raise AssertionError("acceptance tool attempted a network connection")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setenv("FFMODEL_CACHE_FROZEN", "0")        # restored after the test; main() sets "1"
+
+
+def _files(tmp_path, team="LAR"):
+    raw = pd.DataFrame({"ecr_type": "wp", "page_type": "weekly-rb", "pos": "RB", "id": [1, 2], "player": ["a", "b"],
+                        "team": [team, "JAC"], "ecr": [1.0, 2.0], "sd": 1.0, "mergename": ["a", "b"],
+                        "scrape_date": ["2024-09-13", "2024-09-13"]})
+    sched = pd.DataFrame({"season": [2024], "week": [2], "gameday": ["2024-09-15"], "home_team": ["LA"],
+                          "away_team": ["JAX"]})
+    rp, sp = tmp_path / "rank.parquet", tmp_path / "sched.parquet"
+    raw.to_parquet(rp)
+    sched.to_parquet(sp)
+    return rp, sp
+
+
+def test_team_codes_offline(tmp_path, no_network):
+    rp, sp = _files(tmp_path)
+    assert acc.team_code_failures(rp, sp) == []
+    rp2, sp2 = _files(tmp_path, team="ZZZ")
+    assert acc.team_code_failures(rp2, sp2) == [("2024-09-13", 1)]
+
+
+def test_missing_cache_is_an_error_never_a_download(tmp_path, no_network):
+    import os
+
+    rp, _ = _files(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        acc.main(["--rankings", str(rp), "--schedules", str(tmp_path / "absent.parquet")])
+    assert os.environ["FFMODEL_CACHE_FROZEN"] == "1"
+```
+
+- [ ] **Step 2: Run the test and confirm it fails**
+
+Run: `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_weekly_accuracy_acceptance.py -q`
+Expected: FAIL with `FileNotFoundError` (the tool does not exist yet).
+
+- [ ] **Step 3: Write the tool**
+
+```python
+"""Spec §7.5 offline acceptance checks on the real local caches. Prints PASS/FAIL lines; exit code 1 on any FAIL.
 
 1. unknown_team_codes == 0 for every 2020-25 nflverse weekly scrape (team mapping, spec §3.4).
-2. §4.1 2026 weeks 1-4 select b451562 / fa9c095 / fbd66fd / d43adc4 with the documented push times.
+2. §4.1: 2026 weeks 1-4 select b451562 / fa9c095 / fbd66fd / d43adc4 with the documented push times.
+3. §4.3: weeks 1-3 have no qualifying archive; week 4 selects ...5aec56b70c3784e6 with ...220d00155877a0a7 listed.
+
+Offline by construction (astra P7): every input is an explicit, existing file path, read directly, and the run sets
+FFMODEL_CACHE_FROZEN=1 so any cache access that slipped in raises instead of downloading.
+
+Usage:
+  .venv/Scripts/python.exe tools/weekly_accuracy_acceptance.py \
+      --rankings data/raw/ff_rankings_all_raw.parquet --schedules data/raw/schedules_v3_2012_2026.parquet
 """
+from __future__ import annotations
+
+import argparse
+import os
 import sys
 from pathlib import Path
 
 import pandas as pd
 
-from ffmodel.data.pull import pull_schedules
+from ffmodel.data.pull import normalize_schedule_teams
 from ffmodel.eval import live_accuracy as la
 from ffmodel.eval import sameweek as sw
 from ffmodel.eval.weekly_rankings import normalize_weekly_rankings
 
-EXPECTED = {1: ("b451562", "2026-09-02T09:45:11Z"), 2: ("fa9c095", "2026-09-16T20:15:31Z"),
-            3: ("fbd66fd", "2026-09-23T20:33:45Z"), 4: ("d43adc4", "2026-09-30T21:32:42Z")}
+EXPECTED_PUBLICATIONS = {1: ("b451562", "2026-09-02T09:45:11Z"), 2: ("fa9c095", "2026-09-16T20:15:31Z"),
+                         3: ("fbd66fd", "2026-09-23T20:33:45Z"), 4: ("d43adc4", "2026-09-30T21:32:42Z")}
+EXPECTED_ARCHIVE_W4 = ("2026-w04-2026-09-30-5aec56b70c3784e6.json", "2026-w04-2026-09-30-220d00155877a0a7.json")
 
 
-def main() -> int:
-    fails = 0
-    raw = pd.read_parquet("data/raw/ff_rankings_all_raw.parquet")
-    r = normalize_weekly_rankings(raw)
-    sched = pull_schedules(list(range(2020, 2027)), cache_dir=Path("data/raw"))
+def _existing(path) -> Path:
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(f"acceptance reads only existing cache files; missing: {p}")
+    return p
+
+
+def load_schedules(path) -> pd.DataFrame:
+    return normalize_schedule_teams(pd.read_parquet(_existing(path)))
+
+
+def team_code_failures(rankings_path, schedules_path) -> list[tuple[str, int]]:
+    r = normalize_weekly_rankings(pd.read_parquet(_existing(rankings_path)))
+    sched = load_schedules(schedules_path)
+    d = r["scrape_date"]
+    r = r.assign(_season=d.dt.year.where(d.dt.month >= 3, d.dt.year - 1))
     bad = []
-    for date, snap in r[r["scrape_date"].dt.year.between(2020, 2025)].groupby("scrape_date"):
-        season = date.year if date.month >= 3 else date.year - 1
-        teams = sw.season_teams(sched, season)
+    for date, snap in r[r["_season"].between(2020, 2025)].groupby("scrape_date"):
+        teams = sw.season_teams(sched, int(snap["_season"].iloc[0]))
         mapped = snap.loc[snap["pos"].isin(sw.POSITIONS), "team"].map(sw.map_team)
         n = int((mapped.notna() & ~mapped.isin(teams)).sum())
         if n:
             bad.append((str(date.date()), n))
+    return bad
+
+
+def selection_lines(schedules_path, ledger_path, git, main_ref: str) -> list[tuple[bool, str]]:
+    sc = sw.validate_schedule(load_schedules(schedules_path))
+    dates = sw.week_dates(sc.valid_games, 2026)
+    ledger = la.load_ledger(_existing(ledger_path))
+    main_sha = git.rev_parse(main_ref)
+    index = la.candidate_index(ledger, git, 2026, main_sha)
+    out = []
+    for week, (sha, ts) in EXPECTED_PUBLICATIONS.items():
+        cutoff = pd.Timestamp(dates[week][0]).tz_localize("UTC")
+        res = la.select_publication(ledger, git, 2026, week, cutoff, main_sha, index=index)
+        ok = res["status"] == "selected" and res["commit"].startswith(sha) and res["available_by"] == ts
+        out.append((ok, f"publication week {week}: {res['status']} {str(res['commit'])[:7]} {res['available_by']}"))
+        arc = la.select_archive(ledger, git, 2026, week, cutoff, main_sha)
+        if week < 4:
+            ok = arc["status"] == "no_archive"
+        else:
+            ok = (arc["status"] == "selected" and arc["name"] == EXPECTED_ARCHIVE_W4[0]
+                  and [a["name"] for a in arc["alternatives"]] == [EXPECTED_ARCHIVE_W4[1]])
+        out.append((ok, f"archive week {week}: {arc['status']} {arc['name']} "
+                        f"alternatives={[a['name'] for a in arc['alternatives']]}"))
+    return out
+
+
+def main(argv=None, git=None) -> int:
+    os.environ["FFMODEL_CACHE_FROZEN"] = "1"
+    ap = argparse.ArgumentParser(description="Offline acceptance checks (spec §7.5).")
+    ap.add_argument("--rankings", required=True, help="existing ff_rankings_all_raw parquet")
+    ap.add_argument("--schedules", required=True, help="existing schedules_v3 parquet covering 2019-2026")
+    ap.add_argument("--ledger", default=str(la.LEDGER_PATH))
+    ap.add_argument("--main-ref", default="origin/main")
+    args = ap.parse_args(argv)
+    fails = 0
+    bad = team_code_failures(args.rankings, args.schedules)
     print(("PASS" if not bad else "FAIL") + f" unknown_team_codes 2020-25: {bad[:10]}")
     fails += bool(bad)
-    git, ledger = la.Git("."), la.load_ledger(la.LEDGER_PATH)
-    main_sha = git.rev_parse("origin/main")
-    dates = sw.week_dates(sched, 2026)
-    for week, (sha, ts) in EXPECTED.items():
-        res = la.select_publication(ledger, git, 2026, week, pd.Timestamp(dates[week][0]).tz_localize("UTC"), main_sha)
-        ok = res["status"] == "selected" and res["commit"].startswith(sha) and res["available_by"] == ts
-        print(("PASS" if ok else "FAIL") + f" week {week}: {res['status']} {str(res['commit'])[:7]} {res['available_by']}")
+    for ok, line in selection_lines(args.schedules, args.ledger, git or la.Git("."), args.main_ref):
+        print(("PASS " if ok else "FAIL ") + line)
         fails += not ok
     return 1 if fails else 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())
 ```
 
-- [ ] **Step 2: Run it**
+- [ ] **Step 4: Run the test, then the tool on the real caches**
 
-Run: `.venv/Scripts/python.exe tools/weekly_accuracy_acceptance.py`
-Expected: every line starts with `PASS` and the exit code is 0. A `FAIL` on the team codes means the mapping or the
-cache is wrong. Report it and do not adjust the threshold.
+Run:
+- `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider tests/test_weekly_accuracy_acceptance.py -q`
+- `.venv/Scripts/python.exe tools/weekly_accuracy_acceptance.py --rankings data/raw/ff_rankings_all_raw.parquet --schedules data/raw/schedules_v3_2012_2026.parquet`
 
-- [ ] **Step 3: Run the full suites**
+Expected: the test passes; the tool prints nine `PASS` lines (team codes; publication and archive for weeks 1–4)
+and exits 0. A `FAIL` on the team codes means the mapping or the cache is wrong; report it and do not adjust the
+threshold.
+
+- [ ] **Step 5: Run the full suites**
 
 Run:
 - `.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider -q`
@@ -2536,25 +4583,35 @@ Run:
 
 Expected: everything passes, and the fixture loop prints no `FAIL` line.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add tools/weekly_accuracy_acceptance.py
-git commit -m "chore: real-cache acceptance checks for team mapping and 2026 publication selection (spec §7.4)"
+git add tools/weekly_accuracy_acceptance.py tests/test_weekly_accuracy_acceptance.py
+git commit -m "chore: offline real-cache acceptance checks — frozen cache, explicit paths (spec §7.5)"
 ```
 
 ---
 
 ## After the build (controller, owner-gated; not implementer tasks)
 
-1. **Review:** astra reviews spec draft 6 together with this plan (2026-10-09, after 15:33). Fold in its findings.
-2. **Merge and first run:**
-   - The owner OKs the merge and the push.
-   - Dispatch `weekly-accuracy.yml` by hand.
-   - Locally, run `--weeks 1-4 --frozen-record models/diagnostics/live_2026_w1-4_reproduction.json --no-fetch`.
-   - Account for every divergence from the scratch numbers, as expected by spec §4.5.
-   - Commit the record.
-3. **Re-measurement and copy:**
-   - Run `python -m ffmodel.eval.weekly_consensus_sameweek` once and commit its artifact.
-   - Report the verdicts.
-   - Apply the §6.7 copy; the owner OKs the push.
+Follows spec §8.
+
+1. **Review:** astra re-reviews spec draft 7 together with this plan. Fold in its findings.
+2. **Build:** subagent-driven, per the model assignments above; Opus does the final whole-branch review.
+3. **Merge:** code, workflow, tests and the ledger seed. No site data, no frozen paths. The owner OKs the push.
+4. **Collector prerequisite:** `market-snapshots.yml` is live, the private repository and `PRIVATE_DATA_TOKEN`
+   exist, and the week-5 manual capture is imported with `capture_kind: "manual"`. Until then the private job is
+   skipped with a notice. Confirm with the collector's author that its manifest `sha256` is computed over the
+   decompressed response bytes and `path` is relative to the repository root, as Task 7 reads them.
+5. **First live run:**
+   - Dispatch `weekly-accuracy.yml` by hand and check its artifact.
+   - Locally, run `.venv/Scripts/python.exe -m ffmodel.eval.live_accuracy --weeks 1-4 --no-fetch --frozen-record models/diagnostics/live_2026_w1-4_reproduction.json`.
+   - Account for every divergence from the scratch numbers at row level (spec §4.5), including astra's naive MAE
+     4.6757 against the scratch 4.673. Never adjust a rule to match.
+   - Commit the record with the divergence notes.
+6. **Re-measurement:** run `.venv/Scripts/python.exe -m ffmodel.eval.weekly_consensus_sameweek` once and commit its
+   artifact. On `alarm_negative_correlation`, follow the Task 9 audit procedure. Report the verdicts and full
+   numbers to the owner.
+7. **Copy:** apply §6.7; the owner OKs the push.
+8. **Season end:** after the last REG week, run the comparator once with `--season-end` against the private
+   checkout and report the result privately to the owner.
