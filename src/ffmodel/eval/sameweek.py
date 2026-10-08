@@ -6,14 +6,18 @@ network or git.
 """
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
+from scipy.stats import ConstantInputWarning
 
 from ffmodel.data.features import build_features
 from ffmodel.data.rankings import attach_gsis
+from ffmodel.eval.weekly_rankings import score_week, weekly_snapshot
 from ffmodel.scoring import PREDICTED_STATS
+from ffmodel.site.draft import REPLACEMENT_RANK
 
 POSITIONS = ("QB", "RB", "WR", "TE")
 # Ranking (FantasyPros/nflverse) team code -> schedule code (normalize_schedule_teams uses LA for the Rams).
@@ -380,3 +384,159 @@ def match_consensus(snapshot_valid: pd.DataFrame, crosswalk: pd.DataFrame) -> Co
     if stats.get("gsis_collisions", 0) > 0:
         return ConsensusMatch(matched=None, stats=stats, reason="identity_collision")
     return ConsensusMatch(matched=matched, stats=stats, reason=None)
+
+
+ONE_DAY = pd.Timedelta(days=1)
+
+
+def window_dates_ok(dates: dict, week: int) -> bool:
+    """The §5.2 window and overlap guard for week N need the dates of weeks N-1 and N (week 1 needs only its own).
+    `dates` comes from ScheduleCheck.dates, so a missing week is one whose schedule slice failed (spec §3.7)."""
+    return week in dates and (week == 1 or (week - 1) in dates)
+
+
+def _require_window_dates(dates: dict, week: int) -> None:
+    if not window_dates_ok(dates, week):
+        raise ValueError(f"schedule_dependency_failed: week {week} needs the validated dates of weeks "
+                         f"{[w for w in (week - 1, week) if w >= 1]}")
+
+
+def overlapping(dates: dict, week: int) -> bool:
+    _require_window_dates(dates, week)
+    return week > 1 and dates[week - 1][1] >= dates[week][0]
+
+
+def sameweek_window(dates: dict, week: int) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """[L_N, Z_N). L_1 = K_1 - 7 days for week 1 only; never a fallback for N > 1 (astra S7-I3)."""
+    _require_window_dates(dates, week)
+    K, Z = dates[week]
+    L = K - pd.Timedelta(days=7) if week == 1 else dates[week - 1][1] + ONE_DAY
+    return L, Z
+
+
+def select_sameweek_scrape(rankings: pd.DataFrame, sc: ScheduleCheck, season: int, week: int,
+                           dates: dict) -> dict:
+    """Latest scrape in [L_N, Z_N) that the gate does not contradict and that precedes a week-N game.
+    Metadata only: actual appearances are never consulted, and there is no fallback after selection."""
+    L, U = sameweek_window(dates, week)
+    day = rankings["scrape_date"].dt.normalize()
+    in_window = rankings[(day >= L) & (day < U)]
+    game_days = sorted(set(sc.game_date(season, week).values()))
+    candidates, chosen = [], None
+    for date in sorted(in_window["scrape_date"].dt.normalize().unique()):
+        date = pd.Timestamp(date)
+        g = gate(in_window[in_window["scrape_date"].dt.normalize() == date], sc.games, season, week)
+        later = any(gd > date for gd in game_days)
+        candidates.append({"date": date, "state": g.state, "has_later_game": later,
+                           "pages": g.pages, "unknown_team_codes": g.unknown_team_codes})
+        if g.state != "contradicted" and later:
+            chosen = (date, g)
+    return {"scrape_date": chosen[0] if chosen else None, "gate": chosen[1] if chosen else None,
+            "candidates": candidates}
+
+
+def build_cells(pool: pd.DataFrame, season: int, week: int, gate_state: str) -> tuple[list[dict], int]:
+    # A constant column gives an undefined Spearman: scipy warns, and pytest -W error would turn that into an
+    # exception. The cell is dropped and counted as degenerate instead.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ConstantInputWarning)
+        rows = score_week(pool[["player_id", "position", "our_pts", "ecr", "actual"]], season, week,
+                          REPLACEMENT_RANK, min_cell=5)
+    cells, degenerate = [], 0
+    for r in rows:
+        if not (np.isfinite(r["sp_ours"]) and np.isfinite(r["sp_con"])):
+            degenerate += 1
+            continue
+        cells.append(dict(r, gate_state=gate_state, n_le_slots=bool(r["n"] <= REPLACEMENT_RANK[r["position"]])))
+    return cells, degenerate
+
+
+def cell_summary(cells: list[dict]) -> list[dict]:
+    """Per-week values retained in artifacts (spec §4.3): n, both Spearmans and their delta per position."""
+    return [{"position": c["position"], "n": int(c["n"]), "sp_ours": float(c["sp_ours"]),
+             "sp_con": float(c["sp_con"]), "delta": float(c["sp_ours"] - c["sp_con"])} for c in cells]
+
+
+def _skip(reason: str, **extra) -> dict:
+    return {"status": "skipped", "reason": reason, "cells": [], "degenerate": 0, **extra}
+
+
+def sameweek_week(played: pd.DataFrame, sc: ScheduleCheck, rankings: pd.DataFrame, crosswalk: pd.DataFrame,
+                  season: int, week: int, dates: dict) -> dict:
+    """`played`: validated played rows (player_id, position, team, our_pts, actual). `dates`: sc.dates(season).
+    A failed week N-1 or N schedule slice skips the comparison before the overlap guard (spec §3.7)."""
+    if not window_dates_ok(dates, week):
+        return _skip("validation_failed", detail="schedule_dependency_failed")
+    if overlapping(dates, week):
+        return _skip("overlapping_weeks")
+    sel = select_sameweek_scrape(rankings, sc, season, week, dates)
+    state = sel["gate"].state if sel["gate"] else None
+    selection = {"scrape_date": str(sel["scrape_date"].date()) if sel["scrape_date"] is not None else None,
+                 "state": state, "pages": sel["gate"].pages if sel["gate"] else None,
+                 "label": "inferred_by_window" if state == "unverified" else None,
+                 "candidates": [{"date": str(c["date"].date()), "state": c["state"],
+                                 "has_later_game": c["has_later_game"], "pages": c["pages"],
+                                 "unknown_team_codes": c["unknown_team_codes"]} for c in sel["candidates"]]}
+    if sel["scrape_date"] is None:
+        return _skip("no_candidate_scrape", selection=selection)
+    date = sel["scrape_date"]
+    snap = rankings[(rankings["scrape_date"].dt.normalize() == date) & rankings["pos"].isin(POSITIONS)]
+    v = validate_consensus(snap)
+    if v.fails():
+        return _skip("validation_failed", selection=selection, validation=v.report())
+    m = match_consensus(v.valid, crosswalk)
+    if m.reason:
+        return _skip(m.reason, selection=selection, validation=v.report(), match=m.stats)
+    gdates = sc.game_date(season, week)
+    gday = played["team"].map(gdates)
+    eligible = played[gday > date]
+    early = played[~(gday > date)]
+    con = m.matched[["player_id", "ecr"]].drop_duplicates(subset="player_id", keep="first")
+    pool = eligible.merge(con, on="player_id", how="inner")
+    cells, degenerate = build_cells(pool, season, week, state)
+    retention = {"played": int(len(played)), "excluded_early_game": int(len(early)),
+                 "excluded_early_by_position": early["position"].value_counts().sort_index().astype(int).to_dict(),
+                 "pool": int(len(pool)), "match_rate": m.stats.get("match_rate"),
+                 "pool_by_position": pool["position"].value_counts().sort_index().astype(int).to_dict()}
+    if not cells:
+        return _skip("no_scorable_cell", selection=selection, validation=v.report(), match=m.stats,
+                     retention=retention, degenerate=degenerate)
+    return {"status": "scored", "reason": None, "selection": selection, "cells": cells, "degenerate": degenerate,
+            "validation": v.report(), "match": m.stats, "retention": retention}
+
+
+def staleness_audit_week(rankings: pd.DataFrame, sc: ScheduleCheck, season: int, week: int, dates: dict) -> dict:
+    """The old protocol's scrape for week N and its §3.5 state. Its table read obeys the 1% rule (spec §3.7)."""
+    K = dates[week][0]
+    snap = weekly_snapshot(rankings, pd.Timestamp(K))
+    A = bye_teams(sc.games, season, week)
+    B = bye_teams(sc.games, season, week - 1) if week > 1 else set()
+    out = {"week": int(week), "kickoff": str(K.date()), "scrape_date": None, "state": None, "reason": None,
+           "discriminating": bool(A and B and A != B)}
+    if snap is None:
+        out["reason"] = "no_old_protocol_scrape"
+        return out
+    out["scrape_date"] = str(snap["scrape_date"].iloc[0].date())
+    if validate_consensus(snap[snap["pos"].isin(POSITIONS)]).fails():
+        out["reason"] = "validation_failed"
+        return out
+    out["state"] = gate(snap, sc.games, season, week).state
+    return out
+
+
+def ranking_coverage(raw: pd.DataFrame, rankings: pd.DataFrame, seasons: list[int]) -> dict:
+    """Spec §3.6: per season, raw vs accepted rows, legacy-schema exclusions, scrape dates with weekdays."""
+    def season_of(d: pd.Series) -> pd.Series:
+        return d.dt.year.where(d.dt.month >= 3, d.dt.year - 1)
+
+    raw_wp = raw[(raw["ecr_type"] == "wp") & raw["pos"].isin(POSITIONS)]
+    raw_dates = pd.to_datetime(raw_wp["scrape_date"])
+    out = {}
+    for s in seasons:
+        in_raw = season_of(raw_dates) == s
+        acc = rankings[season_of(rankings["scrape_date"]) == s]
+        days = sorted(pd.Timestamp(d) for d in acc["scrape_date"].dt.normalize().unique())
+        out[str(s)] = {"raw_rows": int(in_raw.sum()), "accepted_rows": int(len(acc)),
+                       "excluded_legacy_schema": int((in_raw & (raw_wp["page_type"] == "weekly-offense")).sum()),
+                       "scrape_dates": [{"date": str(d.date()), "weekday": d.day_name()} for d in days]}
+    return out
