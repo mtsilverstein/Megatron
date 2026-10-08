@@ -206,15 +206,20 @@ per (season, week) before any join.
 **Stage 1 — raw tables (actuals and schedule), before `build_features`:**
 
 - **Order:** conflicting keys are identified **first**, over the raw multiset of rows.
-- **Exact duplicates** (same key, evaluated fields and eligibility fields) collapse to one row and are counted
-  (`exact_duplicates`), **only within keys that are not conflicting**. Collapsing happens *before* features are
+- **Exact duplicates** in stage 1 are rows identical in **every column** of the raw table (not just the key,
+  evaluated and eligibility fields: other columns such as `target_share`, `snap_pct` or the schedule's `roof` also
+  reach `build_features`). Rows sharing a key that differ in any column are conflicting (next bullet). Exact
+  duplicates collapse to one row and are counted (`exact_duplicates`), **only within keys that are not
+  conflicting**. Collapsing happens *before* features are
   built, so a harmless duplicate cannot distort lag features (astra P3: a duplicated week-2 row changed a week-3
   `lag4_carries` from 15.0 to 16.67). A conflicting key keeps its entire original multiset, including any rows
   that repeat each other (astra S7-I2: rows 20, 20, 25 stay three rows, giving 18.75, not 18.33).
 - **Schedule:** the schedule is exploded to `(season, week, team)` sides and validated as its own table. Exact
   duplicate games collapse without error and are counted per week; the count is carried into the artifact.
-  Conflicting duplicates (same side, different `gameday`, `opponent` or `game_id`) invalidate that side. A side's
-  game is identified by `gameday` and `opponent` (plus `game_id` when present).
+  Conflicting duplicates (same side, different `gameday`, `opponent`, home/away role, `game_id`, or any other
+  column of the raw game row) invalidate that side; a game listed twice with home and away swapped is therefore
+  conflicting, never collapsed and never doubled silently. A side's game is identified by `gameday`, `opponent`
+  and its home/away role (plus `game_id` when present).
 - **Schedule dependencies:** `K_N` and `Z_N` are defined only when week N's schedule slice passes the threshold. A
   computation that uses another week's dates needs that week's slice to pass too: the §5.2 window and overlap guard
   for week N need weeks N−1 and N. If a needed slice fails, the computation is skipped with `validation_failed`
