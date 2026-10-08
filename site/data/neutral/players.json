@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 5,
   "data_through": "2026-wk4",
-  "generated_at": "2026-10-08T12:07:40+00:00",
-  "batch_id": "2026-10-08T12:07:40+00:00|2026-wk4|w5",
+  "generated_at": "2026-10-08T22:12:24+00:00",
+  "batch_id": "2026-10-08T22:12:24+00:00|2026-wk4|w5",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,8 +13,8 @@
   },
   "crosswalk": {
     "matched_gsis": 170,
-    "matched_name": 513,
-    "unmatched": 14
+    "matched_name": 514,
+    "unmatched": 13
   },
   "players": [
     {
@@ -6685,8 +6685,8 @@
       "position": "WR",
       "bye": 8,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
@@ -8269,8 +8269,8 @@
       "position": "RB",
       "bye": 5,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
@@ -11323,15 +11323,15 @@
     },
     {
       "player_id": "00-0041398",
-      "sleeper_id": null,
+      "sleeper_id": "13433",
       "name": "Riley Nowakowski",
       "team": "PIT",
       "position": "RB",
       "bye": 9,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_catalog_match",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041399",
