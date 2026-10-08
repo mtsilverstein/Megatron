@@ -15,6 +15,7 @@ from scipy.stats import ConstantInputWarning
 
 from ffmodel.data.features import build_features
 from ffmodel.data.rankings import attach_gsis
+from ffmodel.eval.mean_head_gate import paired_bootstrap
 from ffmodel.eval.weekly_rankings import score_week, weekly_snapshot
 from ffmodel.scoring import PREDICTED_STATS
 from ffmodel.site.draft import REPLACEMENT_RANK
@@ -539,4 +540,95 @@ def ranking_coverage(raw: pd.DataFrame, rankings: pd.DataFrame, seasons: list[in
         out[str(s)] = {"raw_rows": int(in_raw.sum()), "accepted_rows": int(len(acc)),
                        "excluded_legacy_schema": int((in_raw & (raw_wp["page_type"] == "weekly-offense")).sum()),
                        "scrape_dates": [{"date": str(d.date()), "weekday": d.day_name()} for d in days]}
+    return out
+
+
+BOOT_SEED = 20260728
+N_BOOT = 10000
+
+
+def _deltas(cells: pd.DataFrame) -> pd.Series:
+    return (cells["sp_ours"] - cells["sp_con"]).astype(float)
+
+
+def delta_stats(cells: pd.DataFrame) -> dict:
+    d = _deltas(cells)
+    clusters = (cells["season"].astype(int) * 100 + cells["week"].astype(int)).to_numpy()
+    boot = paired_bootstrap(d.to_numpy(), clusters, n_boot=N_BOOT, seed=BOOT_SEED)
+    by_season = d.groupby(cells["season"]).mean()
+    loso = {int(s): float(d[cells["season"] != s].mean()) for s in by_season.index} if len(by_season) > 1 else {}
+    return {"D": float(d.mean()), "ci_week": [float(boot["ci95"][0]), float(boot["ci95"][1])],
+            "D_season": {int(s): float(v) for s, v in by_season.items()}, "loso": loso,
+            "n_cells": int(len(d)), "n_clusters": int(boot["n_clusters"])}
+
+
+def sensitivity_stats(cells: pd.DataFrame) -> dict:
+    sub = cells[cells["gate_state"] == "bye_consistent"]
+    if sub.empty:
+        return {"D": None, "n_cells": 0, "seasons": []}
+    return {"D": float(_deltas(sub).mean()), "n_cells": int(len(sub)),
+            "seasons": sorted(int(s) for s in sub["season"].unique())}
+
+
+def directional_check(stats: dict, sens: dict, sign: int) -> tuple[bool, list[str]]:
+    codes: list[str] = []
+    lo, hi = stats["ci_week"]
+    if not ((lo > 0) if sign > 0 else (hi < 0)):
+        codes.append("interval_includes_zero" if lo <= 0 <= hi else "interval_opposite_side")
+    if sum(1 for v in stats["D_season"].values() if v * sign > 0) < 2:
+        codes.append("season_inconsistent")
+    loso = list(stats["loso"].values())
+    if any(v == 0 for v in loso):
+        codes.append("leave_one_season_out_zero")
+    if any(v * sign < 0 for v in loso):
+        codes.append("leave_one_season_out_reversal")
+    if not sens or not sens.get("n_cells"):
+        codes.append("sensitivity_absent")
+    elif sens["D"] == 0:
+        codes.append("sensitivity_zero")
+    elif sens["D"] * sign < 0:
+        codes.append("sensitivity_disagrees")
+    return (not codes), codes
+
+
+def sufficient(cells: pd.DataFrame, target_weeks: dict, position: str | None = None) -> bool:
+    sub = cells if position is None or cells.empty else cells[cells["position"] == position]
+    for season, weeks in target_weeks.items():
+        have = set(sub.loc[sub["season"] == season, "week"].astype(int)) if len(sub) else set()
+        if len(have & set(weeks)) * 2 < len(weeks):
+            return False
+    return True
+
+
+def rule_1(cells: pd.DataFrame, target_weeks: dict) -> dict:
+    if cells.empty or not sufficient(cells, target_weeks):
+        return {"value": "insufficient", "reasons": []}
+    stats, sens = delta_stats(cells), sensitivity_stats(cells)
+    ok_down, codes_down = directional_check(stats, sens, -1)
+    if ok_down:
+        return {"value": "behind", "reasons": [], "stats": stats, "sensitivity": sens}
+    ok_up, codes_up = directional_check(stats, sens, +1)
+    if ok_up:
+        return {"value": "ahead", "reasons": [], "stats": stats, "sensitivity": sens}
+    if stats["D"] == 0:
+        reasons = ["zero_estimate"] + sorted(set(codes_up) | set(codes_down))
+    else:
+        reasons = codes_up if stats["D"] > 0 else codes_down
+    return {"value": "not_established", "reasons": reasons, "stats": stats, "sensitivity": sens}
+
+
+def rule_2(disc_cells: pd.DataFrame, disc_weeks: dict, rep_cells: pd.DataFrame, rep_weeks: dict) -> dict:
+    samples = {"discovery": (disc_cells, disc_weeks), "replication": (rep_cells, rep_weeks)}
+    short = {name: ["insufficient"] for name, (cells, weeks) in samples.items()
+             if cells.empty or not sufficient(cells, weeks, "RB")}
+    if short:
+        return {"value": "insufficient", "reasons_by_sample": short}
+    out: dict = {"reasons_by_sample": {}}
+    passed = True
+    for name, (cells, _) in samples.items():
+        rb = cells[cells["position"] == "RB"]
+        ok, codes = directional_check(delta_stats(rb), sensitivity_stats(rb), +1)
+        out["reasons_by_sample"][name] = codes
+        passed = passed and ok
+    out["value"] = "established" if passed else "not_established"
     return out
