@@ -169,23 +169,30 @@ def _nonfinite(df: pd.DataFrame, cols: list[str]) -> pd.Series:
     return pd.Series(~np.isfinite(vals).all(axis=1), index=df.index)
 
 
+def _collapse_masks(df: pd.DataFrame, key: list[str], sig: list[str]) -> tuple[pd.Series, set, pd.Series]:
+    """The one place the collapse/conflict masks are computed: (key tuples, conflicting keys, collapsible repeats).
+    A key is conflicting when it has more than one distinct row over `sig`; repeats collapse only elsewhere."""
+    keys = _keys(df, key)
+    repeat = df.duplicated(subset=sig, keep="first")
+    distinct = keys[~repeat].value_counts()
+    conflict = set(distinct[distinct > 1].index)
+    return keys, conflict, repeat & ~keys.isin(conflict)
+
+
 def validate_table(df: pd.DataFrame, key: list[str], evaluated: list[str], eligibility: list[str],
                    extra_invalid: dict | None = None, position_col: str | None = None,
-                   preinvalid: dict | None = None) -> TableValidation:
+                   preinvalid: dict | None = None, signature: list[str] | None = None) -> TableValidation:
     """Spec §3.7 for one table. Conflicting keys (a key with more than one distinct row over the key, evaluated
     and eligibility fields) are identified FIRST, over the raw multiset, and invalid as a whole. Exact duplicate
     rows collapse and are counted only within keys that are not conflicting (astra S7-I2). Non-finite evaluated
     fields invalidate the key. `extra_invalid`: reason -> boolean Series aligned to df.index. `preinvalid`:
-    reason -> key tuples invalidated upstream (the stage-1 mask); only keys present in df are carried."""
+    reason -> key tuples invalidated upstream (the stage-1 mask); only keys present in df are carried.
+    `signature`: columns that define an exact duplicate (stage 1 passes every raw column; default key + evaluated +
+    eligibility)."""
     if len(df) == 0:
         return TableValidation(valid=df.copy())
-    keys = _keys(df, key)
+    keys, conflict, collapse = _collapse_masks(df, key, signature or key + evaluated + eligibility)
     n_keys = int(keys.nunique())
-    sig = key + evaluated + eligibility
-    repeat = df.duplicated(subset=sig, keep="first")
-    distinct = keys[~repeat].value_counts()
-    conflict = set(distinct[distinct > 1].index)
-    collapse = repeat & ~keys.isin(conflict)
     collapsed = df[~collapse]
     exact_dups = int(collapse.sum())
     ckeys = keys.loc[collapsed.index]
@@ -216,20 +223,31 @@ def validate_table(df: pd.DataFrame, key: list[str], evaluated: list[str], eligi
                            key_position=key_position)
 
 
-def explode_sides(games: pd.DataFrame) -> pd.DataFrame:
-    """One row per (season, week, team) side; `opponent` stands in for game_id when the schedule has none."""
+def explode_sides(games: pd.DataFrame, carry: list[str] | None = None) -> pd.DataFrame:
+    """One row per (season, week, team) side; `opponent` stands in for game_id when the schedule has none and
+    `role` (home/away) distinguishes a home/away-swapped listing. `carry`: extra game columns kept on each side."""
     extra = ["game_id"] if "game_id" in games.columns else []
-    base = games[["season", "week", "gameday", "home_team", "away_team", *extra]]
-    home = base.rename(columns={"home_team": "team", "away_team": "opponent"})
-    away = base.rename(columns={"away_team": "team", "home_team": "opponent"})
+    carry = list(carry or [])
+    base = games[["season", "week", "gameday", "home_team", "away_team", *extra, *carry]]
+    home = base.rename(columns={"home_team": "team", "away_team": "opponent"}).assign(role="home")
+    away = base.rename(columns={"away_team": "team", "home_team": "opponent"}).assign(role="away")
     sides = pd.concat([home, away], ignore_index=True)
     sides["gameday"] = pd.to_datetime(sides["gameday"]).dt.normalize()
-    return sides[["season", "week", "team", "gameday", "opponent", *extra]]
+    return sides[["season", "week", "team", "gameday", "opponent", "role", *extra, *carry]]
+
+
+def _game_sides(games: pd.DataFrame) -> pd.DataFrame:
+    """Sides of `games`, each carrying `_row_sig`: an id of the game's WHOLE raw row, so two listings of one side
+    that differ in any column (roof, ...) conflict (spec §3.7 stage 1)."""
+    if games.empty:
+        return explode_sides(games)
+    sig = games.groupby(list(games.columns), dropna=False, sort=False).ngroup()
+    return explode_sides(games.assign(_row_sig=sig), carry=["_row_sig"])
 
 
 def _validate_sides(sides: pd.DataFrame) -> TableValidation:
-    # gameday is a date, so "non-finite" means missing; opponent/game_id identify the game.
-    elig = ["gameday"] + [c for c in ("opponent", "game_id") if c in sides.columns]
+    # gameday is a date, so "non-finite" means missing; opponent/role/game_id identify the game.
+    elig = ["gameday", "role"] + [c for c in ("opponent", "game_id", "_row_sig") if c in sides.columns]
     return validate_table(sides, SIDE_KEY, [], elig, extra_invalid={"missing_gameday": sides["gameday"].isna()})
 
 
@@ -252,7 +270,7 @@ class ScheduleCheck:
 
     def week_validation(self, season: int, week: int) -> TableValidation:
         g = self.games[(self.games["season"] == season) & (self.games["week"] == week)]
-        v = _validate_sides(explode_sides(g))
+        v = _validate_sides(_game_sides(g))
         v.exact_duplicates += self.duplicates_by_week.get((int(season), int(week)), 0)
         return v
 
@@ -272,13 +290,13 @@ def _side_keys(games: pd.DataFrame, col: str) -> pd.Series:
 def validate_schedule(schedules: pd.DataFrame) -> ScheduleCheck:
     """Conflicting sides are identified first, over the raw rows; exact duplicate games collapse (and are counted
     per week) only when neither of their sides is conflicting (spec §3.7 stage 1 order)."""
-    sig = [c for c in GAME_SIGNATURE if c in schedules.columns]
-    conflict = _validate_sides(explode_sides(schedules)).invalid.get("conflicting_duplicates", set())
+    sig = list(schedules.columns)                       # stage 1: an exact duplicate is identical in EVERY column
+    conflict = _validate_sides(_game_sides(schedules)).invalid.get("conflicting_duplicates", set())
     in_conflict = _side_keys(schedules, "home_team").isin(conflict) | _side_keys(schedules, "away_team").isin(conflict)
     dup = schedules.duplicated(subset=sig, keep="first") & ~in_conflict
     games = schedules[~dup]
     by_week = {(int(s), int(w)): int(n) for (s, w), n in schedules[dup].groupby(["season", "week"]).size().items()}
-    sides = _validate_sides(explode_sides(games))
+    sides = _validate_sides(_game_sides(games))
     bad = sides.invalid_keys()
     home_bad, away_bad = _side_keys(games, "home_team").isin(bad), _side_keys(games, "away_team").isin(bad)
     return ScheduleCheck(games=games, sides=sides, valid_games=games[~(home_bad | away_bad)],
@@ -300,11 +318,10 @@ def prepare(weekly_raw: pd.DataFrame, schedules_raw: pd.DataFrame, build=build_f
     otherwise enter every lag/rolling feature). A conflicting group keeps its whole original multiset, repeats
     included (astra S7-I2), and it and non-finite rows stay in the feature input unchanged, masked from scoring."""
     sc = validate_schedule(schedules_raw)
-    sig = ACTUALS_KEY + list(PREDICTED_STATS) + ACTUALS_ELIGIBILITY
+    sig = list(weekly_raw.columns)                      # stage 1: an exact duplicate is identical in EVERY column
     stage1 = validate_table(weekly_raw, ACTUALS_KEY, list(PREDICTED_STATS), ACTUALS_ELIGIBILITY,
-                            position_col="position")
-    conflicting = stage1.invalid.get("conflicting_duplicates", set())
-    dup = weekly_raw.duplicated(subset=sig, keep="first") & ~_keys(weekly_raw, ACTUALS_KEY).isin(conflicting)
+                            position_col="position", signature=sig)
+    dup = _collapse_masks(weekly_raw, ACTUALS_KEY, sig)[2] if len(weekly_raw) else pd.Series(False, index=weekly_raw.index)
     exact_by_week = {(int(s), int(w)): int(n) for (s, w), n in
                      weekly_raw[dup].groupby(["season", "week"]).size().items()}
     features = build(weekly_raw[~dup], sc.games)

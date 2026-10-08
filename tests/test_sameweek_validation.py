@@ -173,3 +173,34 @@ def test_match_consensus_ok():
                        "merge_name": ["a", "b"], "position": ["RB", "RB"]})
     m = sw.match_consensus(snap, cw)
     assert m.reason is None and sorted(m.matched["player_id"]) == ["00-1", "00-2"]
+
+
+def test_stage1_rows_differing_only_in_other_column_conflict():
+    rows = [{"week": 1, "carries": 10.0}, {"week": 2, "carries": 20.0, "target_share": 0.15},
+            {"week": 2, "carries": 20.0, "target_share": 0.25}, {"week": 3, "carries": 30.0}]
+    prep = sw.prepare(_weekly(rows), _games())
+    assert len(prep.features[prep.features["week"] == 2]) == 2                         # both rows reach build_features
+    assert prep.exact_by_week == {} and prep.actuals.exact_duplicates == 0
+    assert prep.actuals.invalid["conflicting_duplicates"] == {(2023, 2, "p1")}
+    assert sw.week_actuals(prep, 2023, 2).invalid_keys() == {(2023, 2, "p1")}
+
+
+def test_game_rows_differing_only_in_roof_conflict():
+    g = _games().assign(roof="dome")
+    games = pd.concat([g, g.iloc[[1]].assign(roof="outdoors")], ignore_index=True)
+    sc = sw.validate_schedule(games)
+    assert len(sc.games) == 5 and sc.duplicate_games == 0
+    v = sc.week_validation(2023, 2)
+    assert v.invalid_keys() == {(2023, 2, "AAA"), (2023, 2, "BBB")} and v.fails()
+
+
+def test_home_away_swapped_listing_conflicts_and_is_not_collapsed():
+    g = _games()
+    swapped = g.iloc[[1]].rename(columns={"home_team": "away_team", "away_team": "home_team"})
+    games = pd.concat([g, swapped], ignore_index=True)
+    rows = [{"week": w, "carries": 5.0} for w in (1, 2, 3)]
+    prep = sw.prepare(_weekly(rows), games)
+    assert prep.schedule.duplicate_games == 0 and len(prep.schedule.games) == 5   # nothing collapsed
+    wi = sw.week_inputs(prep, 2023, 2)
+    assert wi["schedule"].invalid_keys() == {(2023, 2, "AAA"), (2023, 2, "BBB")}
+    assert wi["schedule"].exact_duplicates == 0 and wi["failed"]
