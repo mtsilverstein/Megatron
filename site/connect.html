@@ -5,34 +5,43 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Find my leagues — Megatron</title>
 <link rel="stylesheet" href="assets/style.css?v=league1">
+<link rel="stylesheet" href="assets/interface.css?v=1">
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to content</a>
 <header class="masthead">
-  <h1 class="wordmark"><svg class="logo" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M5 52 Q11 52 14 40 Q17 13 22 13 Q28 13 33 26 Q41 47 59 51 L59 52 Z" fill="#E8A33D"/><rect x="26" y="20" width="3" height="32" rx="1.5" fill="#E9E4D8"/><rect x="5" y="52" width="54" height="3" rx="1.5" fill="#9AA3AB"/></svg>Megatron</h1>
+  <p class="wordmark"><svg class="logo" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M5 52 Q11 52 14 40 Q17 13 22 13 Q28 13 33 26 Q41 47 59 51 L59 52 Z" fill="#E8A33D"/><rect x="26" y="20" width="3" height="32" rx="1.5" fill="#E9E4D8"/><rect x="5" y="52" width="54" height="3" rx="1.5" fill="#9AA3AB"/></svg>Megatron</p>
   <nav aria-label="Main navigation">
     <a href="weekly.html">Weekly</a>
-    <a href="waivers.html">FAAB &amp; waivers</a>
-    <a href="index.html">Draft board</a>
-    <a href="trade.html">Trade calculator</a>
-    <a href="about.html">About the model</a>
+    <a href="waivers.html">Waivers</a>
+    <a href="trade.html">Trade</a>
+    <a href="index.html">Draft</a>
+    <a href="about.html">About</a>
   </nav>
   <p class="stamp">Read-only Sleeper discovery · no claims or bids are submitted</p>
 </header>
-<main>
-<h1>Find my Sleeper leagues</h1>
-<p>Enter your public username to discover current-season leagues and inspect their settings. No password needed. Your public Sleeper identity (username, display name and account id) and the time it was stored are kept on this device until you choose forget in the league panel; opening one league does not switch another tab.</p>
-<h2>Open a league without a username</h2>
-<form id="connect-league-form"><label for="connect-league">Sleeper league id or link</label> <input id="connect-league" autocomplete="off" spellcheck="false" placeholder="https://sleeper.com/leagues/…"> <button type="submit">Open league</button></form>
-<p id="connect-league-status" role="status"></p>
-<h2>Find leagues by username</h2>
-<form id="connect-form"><label for="connect-user">Sleeper username</label> <input id="connect-user" required autocomplete="off" spellcheck="false"> <button type="submit">Find / refresh leagues</button></form>
-<p id="connect-status" role="status">Gabagool and FAM use the same account: Max973.</p>
-<div id="connect-results"></div>
+<main id="main-content">
+<p class="eyebrow">League connection</p>
+<h1>Find your Sleeper league</h1>
+<p>Use a league link or your public username. No password is needed. Your public Sleeper identity (username, display name and account id) and the time it was stored are kept on this device until you choose forget in the league panel; opening one league does not switch another tab.</p>
+<div class="connect-options">
+  <section class="tool-card" aria-labelledby="connect-league-heading">
+    <h2 id="connect-league-heading">Open by league link</h2>
+    <form id="connect-league-form"><label for="connect-league">Sleeper league id or link</label> <input id="connect-league" autocomplete="off" spellcheck="false" placeholder="https://sleeper.com/leagues/…"> <button type="submit">Open league</button></form>
+    <p id="connect-league-status" role="status"></p>
+  </section>
+  <section class="tool-card" aria-labelledby="connect-user-heading">
+    <h2 id="connect-user-heading">Find by username</h2>
+    <form id="connect-form"><label for="connect-user">Sleeper username</label> <input id="connect-user" required autocomplete="off" spellcheck="false"> <button type="submit">Find / refresh leagues</button></form>
+    <p id="connect-status" role="status">Gabagool and FAM use the same account: Max973.</p>
+    <div id="connect-results"></div>
+  </section>
+</div>
 <h2>What is supported?</h2>
 <p>Every current-season Sleeper league opens in the weekly/start-sit, waiver and in-season trade pages by its league id; those pages read the league's live settings each time they load. The draft board is only built for registered leagues (Gabagool and FAM on Sleeper, plus the ESPN family board), and the pre-draft trade grader is Gabagool only. ESPN in-season tools are not connected.</p>
 </main>
 <script src="assets/session.js?v=4"></script>
-<script src="assets/app.js?v=league2"></script>
+<script src="assets/app.js?v=league3"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/connect.js?v=6"></script>
 <script>

@@ -245,7 +245,9 @@ function tradeDom(href) {
     getElementById(id) { return all(main).find(x => x.id === id) || null; },
   };
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
-  const body = html.slice(html.indexOf("<main>"), html.indexOf("</main>"));
+  const mainStart = html.search(/<main\b[^>]*>/);
+  assert.ok(mainStart >= 0, "trade page contains its main landmark");
+  const body = html.slice(mainStart, html.indexOf("</main>"));
   for (const m of body.matchAll(/<(\w+)\b[^>]*\bid="([^"]+)"([^>]*)>/g)) {
     const [, tag, id] = m;
     const x = element(tag); x.id = id; x.hidden = /\bhidden\b/.test(m[0]);

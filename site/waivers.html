@@ -7,32 +7,34 @@
 <title>Waivers — Megatron</title>
 <link rel="stylesheet" href="assets/style.css?v=league1">
 <link rel="stylesheet" href="assets/waivers.css">
+<link rel="stylesheet" href="assets/interface.css?v=1">
 </head>
 <body>
+<a class="skip-link" href="#waiver-app">Skip to content</a>
 <header class="masthead">
-  <h1 class="wordmark"><svg class="logo" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M5 52 Q11 52 14 40 Q17 13 22 13 Q28 13 33 26 Q41 47 59 51 L59 52 Z" fill="#E8A33D"/><rect x="26" y="20" width="3" height="32" rx="1.5" fill="#E9E4D8"/><rect x="5" y="52" width="54" height="3" rx="1.5" fill="#9AA3AB"/></svg>Megatron</h1>
+  <p class="wordmark"><svg class="logo" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M5 52 Q11 52 14 40 Q17 13 22 13 Q28 13 33 26 Q41 47 59 51 L59 52 Z" fill="#E8A33D"/><rect x="26" y="20" width="3" height="32" rx="1.5" fill="#E9E4D8"/><rect x="5" y="52" width="54" height="3" rx="1.5" fill="#9AA3AB"/></svg>Megatron</p>
   <nav aria-label="Main navigation">
     <a href="weekly.html">Weekly</a>
-    <a href="waivers.html" aria-current="page">FAAB & waivers</a>
-    <a href="index.html">Draft board</a>
-    <a href="trade.html">Trade calculator</a>
-    <a href="about.html">About the model</a>
+    <a href="waivers.html" aria-current="page">Waivers</a>
+    <a href="trade.html">Trade</a>
+    <a href="index.html">Draft</a>
+    <a href="about.html">About</a>
   </nav>
   <p class="stamp">Read-only Sleeper connection · no claims or bids are submitted</p>
 </header>
 <main id="waiver-app">
-  <p class="eyebrow">In-season waiver desk · research radar</p>
-  <h1>Buy lineup improvement. Keep options open.</h1>
-  <p class="waiver-intro">Compare available skill players against a roster in any Sleeper league, scored by that league's own settings.
-    FAAB bid ranges are transparent budgeting heuristics; rolling and reverse-standings leagues receive claim-order guidance. Neither predicts a successful claim.
-    Verify injuries, roles, waiver eligibility, and deadlines in Sleeper before acting.</p>
+  <p class="eyebrow">Improve your roster</p>
+  <h1>Waivers</h1>
+  <p class="waiver-intro">Find available players who improve your lineup, in your league's scoring. Compare add/drop options and plan a claim — nothing is submitted for you.</p>
   <div id="waiver-controls" class="waiver-controls">
     <label>Week <input id="waiver-week" type="number" min="1" max="18" placeholder="Auto" title="Automatically follows the current NFL week. Enter a number to override; clear to restore automatic selection."></label>
-    <label>Budget to keep ($) — default 20% of your league budget <input id="waiver-reserve" type="number" min="0" step="1" required></label>
+    <label>Budget to keep ($) <input id="waiver-reserve" type="number" min="0" step="1" required aria-describedby="reserve-hint"><span id="reserve-hint" class="field-hint">Defaults to 20% of your league budget</span></label>
   </div>
   <p id="waiver-status" role="status" aria-live="polite">The desk loads from the league panel above: enter your Sleeper username, or choose a team to view. Refresh it there before placing a claim.</p>
   <div id="waiver-warnings" class="waiver-warnings" hidden></div>
   <section id="waiver-results" hidden>
+    <h2>Your claim options</h2>
+    <p class="waiver-source">Bid ranges and claim order are heuristics, not predictions of success. Verify injuries, roles, eligibility and deadlines in Sleeper.</p>
     <div id="waiver-context" class="waiver-source" aria-label="League format, scoring coverage and heuristics"></div>
     <div id="waiver-budget" class="waiver-budget" aria-label="Waiver budget or rolling priority"></div>
     <p id="waiver-coverage" class="waiver-source" aria-live="polite"></p>
@@ -62,19 +64,21 @@
       <div id="waiver-roster" class="waiver-roster"></div>
     </details>
     <section aria-labelledby="waiver-intel-heading">
-      <h2 id="waiver-intel-heading">Find the next opportunity</h2>
+      <h2 id="waiver-intel-heading">Research radar</h2>
       <p>Research queue, not buy recommendations. Same-team RBs are possible insurance—not confirmed backups or beneficiaries. Popularity is not projected opportunity.</p>
       <p id="waiver-intel-source"></p>
       <p id="waiver-role-source" role="status"></p>
+      <details><summary>How to read usage and trending signals</summary>
       <p>Usage flags describe observed workload—not a breakout probability. Growth requires at least two comparable prior same-team games. Routes and red-zone usage are not available in this layer. Snap share is not route participation.</p>
+      <p>Usage sources: <a href="https://nflreadr.nflverse.com/reference/load_player_stats.html">nflverse player statistics</a> and <a href="https://nflreadr.nflverse.com/reference/load_snap_counts.html">PFR snap counts via nflverse</a>.</p>
+      <p><a href="https://docs.sleeper.com/#trending-players">Trending data: Sleeper</a>. Counts are platform-wide activity, not selected-league demand. “Not listed” is not zero. No net-add rate or claim-success probability is inferred.</p>
+      </details>
       <ul id="waiver-byes"></ul>
       <p>Bye counts cover dedicated positions only, assuming other active-roster players are healthy. FLEX coverage and unknown byes need separate review.</p>
       <label>Research order <select id="waiver-radar-sort"><option value="usage">Observed usage flags first</option><option value="ros">Live ROS rank (PPR reference ranking)</option><option value="fit">Roster fit first</option><option value="adds">Most added first</option></select></label>
       <div class="table-wrap"><table id="waiver-radar"><caption>Available research candidates · position filter applies to both tables</caption>
         <thead><tr><th>Player</th><th>Why investigate</th><th>Observed workload</th><th>Sleeper 24h adds / drops</th><th>Before bidding</th></tr></thead><tbody></tbody></table></div>
-      <p>Usage sources: <a href="https://nflreadr.nflverse.com/reference/load_player_stats.html">nflverse player statistics</a> and <a href="https://nflreadr.nflverse.com/reference/load_snap_counts.html">PFR snap counts via nflverse</a>.</p>
       <p id="waiver-market"></p>
-      <p><a href="https://docs.sleeper.com/#trending-players">Trending data: Sleeper</a>. Counts are platform-wide activity, not selected-league demand. “Not listed” is not zero. No net-add rate or claim-success probability is inferred.</p>
     </section>
     <details><summary>Available watchlist — preseason ECR (PPR reference ranking), not a buy ranking</summary>
       <p>These players are unrostered now. They may be stash candidates even without a projected lineup gain; role changes and injury contingencies are not priced by this version.</p>
@@ -82,8 +86,8 @@
     </details>
     <details><summary>Copyable shortlist</summary><label for="waiver-backup">Select and copy this text; it is not sent anywhere.</label><textarea id="waiver-backup" rows="10" readonly></textarea></details>
   </section>
-  <section class="waiver-method">
-    <h2>What this version knows — and what it doesn't</h2>
+  <details class="waiver-method">
+    <summary>How waiver advice works · assumptions and limits</summary>
     <ul>
       <li>Availability means absent from every league roster, including IR/taxi. It does not prove a player is an immediate free agent rather than awaiting waivers.</li>
       <li>Current-week recommendations require fresh aligned projections and a complete modeled roster baseline. Otherwise recommendations are withheld; research lists are not bid advice.</li>
@@ -95,10 +99,10 @@
       <li>No inferred hidden bids, calibrated win probabilities, automated transactions, or K/DST/IDP projections. No keeper-value premium is priced yet.</li>
     </ul>
     <p><a id="waiver-league-link" href="https://sleeper.com/">Open selected league in Sleeper</a> · <a href="https://docs.sleeper.com/">Read-only API documentation</a></p>
-  </section>
+  </details>
 </main>
 <script src="assets/session.js?v=4"></script>
-<script src="assets/app.js?v=league2"></script>
+<script src="assets/app.js?v=league3"></script>
 <script src="assets/sleeper.js"></script>
 <script src="assets/formats.js?v=1"></script>
 <script src="assets/lineup.js?v=1"></script>

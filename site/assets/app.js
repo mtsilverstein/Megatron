@@ -432,7 +432,18 @@
       connect.href=connectUrl.href; connect.textContent="Find my Sleeper leagues";
       panel.append(connect);
     }
-    document.querySelector("main")?.prepend(panel);
+    // Discovery already has its own username form. Keep the shared account
+    // controls available (including Forget), without two competing entry forms.
+    if (/\/connect\.html$/.test(location.pathname)) {
+      const account = document.createElement("details");
+      account.className = "connection-account";
+      const summary = document.createElement("summary");
+      summary.textContent = "Current league and saved account";
+      account.append(summary, panel);
+      document.querySelector("main")?.prepend(account);
+    } else {
+      document.querySelector("main")?.prepend(panel);
+    }
   }
 
   // An invalid URL must never be treated as a request for the default league:
