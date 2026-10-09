@@ -228,6 +228,18 @@ async function realTick(panel) {
   FC.setLeague(null);
 
   FC.setBoard(null);
+  const connectMain = dom("https://example.test/Megatron/connect.html?league=gabagool");
+  FC.mountLeagueContext("gabagool");
+  const account = connectMain.children[0];
+  assert.equal(account.tagName, "details", "discovery keeps secondary account controls in a disclosure");
+  assert.ok(!account.open, "the second account form is collapsed initially");
+  assert.equal(account.children[0].tagName, "summary");
+  assert.ok(byId(account, "session-forget"), "saved identity can still be forgotten on discovery");
+  byId(account, "session-forget").dispatch("click");
+  assert.equal(Session.identity(), null);
+  assert.ok(byId(account, "session-user"), "account controls remain usable after forgetting");
+  FC.mountLeagueContext("gabagool");
+  assert.equal(connectMain.children.length, 1, "reinitializing does not duplicate the panel");
   console.log("chip_session_fixture: real chip + real Session (mount, identify, tick, change, forget; by-id viewer then owner) OK");
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

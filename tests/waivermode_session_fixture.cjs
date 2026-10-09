@@ -474,7 +474,10 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   const srcs = [...html.matchAll(/<script\b[^>]*src="assets\/([^"?]+)(?:\?[^"]*)?"/g)].map(x => x[1]);
   assert.ok(srcs.indexOf("lineup.js") < srcs.indexOf("waivers.js") && srcs.indexOf("waivers.js") < srcs.indexOf("waivermode.js"));
   assert.ok(!srcs.includes("rostersim.js") && !srcs.includes("ros.js"), "the desk ships no simulation");
-  assert.ok(html.includes("Budget to keep ($) — default 20% of your league budget"));
+  assert.ok(html.includes("Budget to keep ($)"));
+  assert.ok(html.includes('aria-describedby="reserve-hint"'));
+  assert.ok(html.includes('id="reserve-hint"'));
+  assert.ok(html.includes("Defaults to 20% of your league budget"));
   assert.ok(html.includes('id="waiver-context"'));
 
   Date.now = realNow;
