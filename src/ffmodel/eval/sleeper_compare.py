@@ -15,6 +15,7 @@ import hashlib
 import json
 import tempfile
 import warnings
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +24,7 @@ from scipy.stats import ConstantInputWarning
 
 from ffmodel.eval import live_accuracy as la
 from ffmodel.eval import sameweek as sw
+from ffmodel.eval.mean_head_gate import bootstrap_means
 from ffmodel.eval.weekly_rankings import goodness_spearman
 from ffmodel.scoring import PPR, PREDICTED_STATS, fantasy_points
 
@@ -74,10 +76,16 @@ def read_capture(root: Path, cap: dict) -> list[dict]:
     path = Path(root) / cap["path"]
     if not path.exists():
         raise SnapshotIntegrityError(f"missing capture {cap['path']}")
-    raw = gzip.decompress(path.read_bytes())
+    try:
+        raw = gzip.decompress(path.read_bytes())
+    except (OSError, EOFError, zlib.error, ValueError) as exc:
+        raise SnapshotIntegrityError(f"unreadable capture {cap['path']}: {type(exc).__name__}") from exc
     if hashlib.sha256(raw).hexdigest() != cap["sha256"]:
         raise SnapshotIntegrityError(f"sha256 mismatch for {cap['path']}")
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except ValueError as exc:
+        raise SnapshotIntegrityError(f"capture {cap['path']} is not valid JSON") from exc
     if not isinstance(data, list):
         raise SnapshotIntegrityError(f"capture {cap['path']} is not a JSON array")
     return data
@@ -90,6 +98,15 @@ def _sleeper_key(v) -> str | None:
     if isinstance(v, (float, np.floating)) and float(v).is_integer():
         return str(int(v))
     return str(v).strip() or None
+
+
+def _week_int(v) -> int | None:
+    if isinstance(v, bool):
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def crosswalk_map(crosswalk: pd.DataFrame) -> tuple[dict, set]:
@@ -109,7 +126,7 @@ def sleeper_frame(records: list[dict], season: int, week: int) -> pd.DataFrame:
     rows = []
     for r in records:
         pos = (r.get("player") or {}).get("position")
-        if r.get("category") != "proj" or str(r.get("season")) != str(season) or r.get("week") != week \
+        if r.get("category") != "proj" or str(r.get("season")) != str(season) or _week_int(r.get("week")) != week \
                 or pos not in sw.POSITIONS:
             continue
         stats = r.get("stats") or {}
@@ -143,16 +160,9 @@ def validate_sleeper(frame: pd.DataFrame, crosswalk: pd.DataFrame) -> dict:
 
 
 # --- metrics ------------------------------------------------------------------------------------------------------
-def _boot_means(deltas: np.ndarray, clusters: np.ndarray, n_boot: int = sw.N_BOOT, seed: int = sw.BOOT_SEED):
-    """The resample of mean_head_gate.paired_bootstrap, returning the replicate means (for p-values)."""
-    uniq = np.unique(clusters)
-    by_cluster = [deltas[clusters == c] for c in uniq]
-    rng = np.random.default_rng(seed)
-    means = np.empty(n_boot, dtype=float)
-    for b in range(n_boot):
-        pick = rng.integers(0, len(by_cluster), len(by_cluster))
-        means[b] = np.concatenate([by_cluster[i] for i in pick]).mean()
-    return means
+def _boot_means(deltas: np.ndarray, clusters: np.ndarray) -> np.ndarray:
+    """Replicate means via the shared mean_head_gate.bootstrap_means with this module's n_boot and seed."""
+    return bootstrap_means(deltas, clusters, sw.N_BOOT, sw.BOOT_SEED)
 
 
 def _abs_err(rows: pd.DataFrame, col: str) -> np.ndarray:
@@ -259,12 +269,18 @@ def _week_variant(root, cap, season, week, crosswalk, played, ours) -> tuple[dic
         records = read_capture(root, cap)
     except SnapshotIntegrityError as exc:
         return {"status": "skipped", "reason": "snapshot_integrity_failed", "detail": str(exc), "snapshot": snap}, None
-    vs = validate_sleeper(sleeper_frame(records, season, week), crosswalk)
+    frame = sleeper_frame(records, season, week)
+    if frame.empty:
+        return {"status": "skipped", "reason": "validation_failed", "detail": "empty_sleeper_table",
+                "snapshot": snap}, None
+    vs = validate_sleeper(frame, crosswalk)
     rec = {"snapshot": snap, "validation": vs["validation"].report(), "unmapped": vs["unmapped"],
            "reconciliation": vs["reconciliation_abs_pts_ppr_minus_rescore"],
            "missingness": missingness(played, set(ours["player_id"]), set(vs["rows"]["player_id"]))}
     if vs["validation"].fails():
         return {**rec, "status": "skipped", "reason": "validation_failed"}, None
+    if vs["rows"].empty:
+        return {**rec, "status": "skipped", "reason": "validation_failed", "detail": "empty_sleeper_table"}, None
     rows = compare_rows(played, ours, vs["rows"])
     return {**rec, "status": "scored", "primary": view_metrics(relevant(rows)),
             "diagnostic": view_metrics(rows)}, rows

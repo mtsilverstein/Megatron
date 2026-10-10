@@ -231,3 +231,47 @@ def test_exploratory_weeks_never_pooled_and_tampered_snapshot_skipped(tmp_path):
     finally:
         sc.FIRST_COMPARABLE_WEEK.clear()
         sc.FIRST_COMPARABLE_WEEK.update(old)
+
+
+def _rewrite_capture(store, raw_gz: bytes, sha=None):
+    cap = sc.load_manifest(store)[0]
+    (store / cap["path"]).write_bytes(raw_gz)
+    if sha is not None:
+        (store / "sleeper" / "manifest.jsonl").write_text(json.dumps({**cap, "sha256": sha}) + "\n", encoding="utf-8")
+
+
+def test_truncated_and_non_gzip_capture_skipped_run_continues(tmp_path):
+    store, artifact, prep, cw, git, old = _world(tmp_path)
+    try:
+        cap = sc.load_manifest(store)[0]
+        good = (store / cap["path"]).read_bytes()
+        for bad in (good[: len(good) // 2], b"not gzip at all"):
+            (store / cap["path"]).write_bytes(bad)
+            with pytest.raises(sc.SnapshotIntegrityError):
+                sc.read_capture(store, cap)
+            report = sc.run(store, artifact, prep, cw, git)
+            assert report["by_week"]["1"]["paired"]["reason"] == "snapshot_integrity_failed"
+    finally:
+        sc.FIRST_COMPARABLE_WEEK.clear()
+        sc.FIRST_COMPARABLE_WEEK.update(old)
+
+
+def test_empty_sleeper_table_is_validation_failed_not_scored(tmp_path):
+    store, artifact, prep, cw, git, old = _world(tmp_path)
+    try:
+        raw = b"[]"
+        _rewrite_capture(store, gzip.compress(raw), hashlib.sha256(raw).hexdigest())
+        report = sc.run(store, artifact, prep, cw, git)
+    finally:
+        sc.FIRST_COMPARABLE_WEEK.clear()
+        sc.FIRST_COMPARABLE_WEEK.update(old)
+    paired = report["by_week"]["1"]["paired"]
+    assert paired["status"] == "skipped" and paired["reason"] == "validation_failed"
+    assert paired["detail"] == "empty_sleeper_table"
+    assert report["cumulative"]["paired"] == {"status": "no_data"}
+
+
+def test_week_given_as_string_is_still_eligible():
+    frame = sc.sleeper_frame([_rec("1", week="1"), _rec("2", week=1.0), _rec("3", week="x"), _rec("4", week=2)],
+                             2026, 1)
+    assert list(frame["sleeper_id"]) == ["1", "2"]
