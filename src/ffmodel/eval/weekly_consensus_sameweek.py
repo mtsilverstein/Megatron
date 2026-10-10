@@ -46,6 +46,7 @@ def run_sample(prep: sw.Prepared, rankings: pd.DataFrame, crosswalk: pd.DataFram
                 weeks_prov.append({"season": int(season), "week": week, "status": "skipped",
                                    "reason": "validation_failed", "detail": "schedule_dependency_failed",
                                    "input_validation": {"schedule": sched_report}})
+                audit.append(failed_slice_audit_week(prep.schedule, season, week))
                 continue
             audit.append({"season": int(season), **sw.staleness_audit_week(rankings, prep.schedule, season, week,
                                                                            dates)})
@@ -160,12 +161,38 @@ def _sample_block(s: dict) -> dict:
 
 def spec_identity(git, root: Path | str = ".") -> dict:
     """The spec text in force (a citation string cannot say which amendment): the blob id of SPEC at the executing
-    checkout's HEAD, the sha256 of the working-tree bytes, and whether the working tree differs from HEAD."""
-    data = (Path(root) / SPEC).read_bytes()
+    checkout's HEAD, the sha256 of the LF-normalised working-tree bytes (a CRLF and an LF checkout hash alike),
+    and whether the working tree differs from HEAD."""
+    data = (Path(root) / SPEC).read_bytes().replace(b"\r\n", b"\n")
     committed = git.show("HEAD", SPEC)
-    dirty = committed is None or committed.replace(b"\r\n", b"\n") != data.replace(b"\r\n", b"\n")
+    dirty = committed is None or committed.replace(b"\r\n", b"\n") != data
     return {"spec": SPEC, "sections": "§3, §5, §6", "spec_blob": git.rev_parse(f"HEAD:{SPEC}"),
-            "spec_sha256": hashlib.sha256(data).hexdigest(), "spec_dirty": bool(dirty)}
+            "spec_sha256_lf": hashlib.sha256(data).hexdigest(), "spec_dirty": bool(dirty)}
+
+
+def resolve_protocol(git, allow_dirty: bool = False, root: Path | str = ".") -> dict:
+    """spec_identity, refusing (SystemExit 2) a working-tree spec that differs from HEAD unless allow_dirty, in
+    which case the override is recorded in the protocol block."""
+    ident = spec_identity(git, root)
+    if ident["spec_dirty"]:
+        if not allow_dirty:
+            raise SystemExit("refusing to run: the spec differs from HEAD (spec_dirty); commit it or pass "
+                             "--allow-dirty-spec to record the override")
+        ident["allow_dirty_spec"] = True
+    return ident
+
+
+def failed_slice_audit_week(sc, season: int, week: int) -> dict:
+    """Audit row for a week whose own schedule slice failed validation (spec §6.6: every week gets a row). No
+    K_N exists, so no scrape is read; discriminating is still decided from the raw games' bye sets, else null."""
+    try:
+        A = sw.bye_teams(sc.games, season, week)
+        B = sw.bye_teams(sc.games, season, week - 1) if week > 1 else set()
+        disc: bool | None = bool(A and B and A != B)
+    except Exception:
+        disc = None
+    return {"season": int(season), "week": int(week), "kickoff": None, "scrape_date": None, "state": None,
+            "reason": "validation_failed", "detail": "schedule_dependency_failed", "discriminating": disc}
 
 
 def build_report(disc: dict, rep: dict, provenance: dict, alarm_audit: dict | None = None,
@@ -230,7 +257,10 @@ def main(argv=None) -> int:
     ap.add_argument("--first-season", type=int, default=2012)
     ap.add_argument("--out", type=Path, default=Path("models/diagnostics/weekly_consensus_sameweek.json"))
     ap.add_argument("--alarm-audited", type=Path, default=None, help="§3.9 audit record (JSON) with no_defect")
+    ap.add_argument("--allow-dirty-spec", action="store_true",
+                    help="run although the spec differs from HEAD; recorded in the artifact")
     args = ap.parse_args(argv)
+    protocol = resolve_protocol(la.Git("."), args.allow_dirty_spec)         # refuse before any pull or compute
     spans = list(range(args.first_season, max(DISCOVERY) + 1))
     weekly, schedules = pull_weekly(spans, cache_dir=args.data_dir), pull_schedules(spans, cache_dir=args.data_dir)
     prep = sw.prepare(weekly, schedules)
@@ -257,7 +287,7 @@ def main(argv=None) -> int:
             "coverage": sw.ranking_coverage(raw, rankings, REPLICATION + DISCOVERY),
             "old_protocol_numbers": old}
     audit = json.loads(args.alarm_audited.read_text(encoding="utf-8")) if args.alarm_audited else None
-    report = build_report(disc, rep, prov, alarm_audit=audit, protocol=spec_identity(la.Git(".")))
+    report = build_report(disc, rep, prov, alarm_audit=audit, protocol=protocol)
     args.out.write_text(json.dumps(report, indent=1, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
     print(json.dumps({"status": report["status"], "verdicts": report["verdicts"]}, indent=1, default=str))
     return 0

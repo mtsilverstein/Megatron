@@ -219,11 +219,74 @@ def test_protocol_records_the_spec_identity(tmp_path):
     import hashlib
     clean = drv.spec_identity(_G(b"spec text\n"), tmp_path)
     assert clean == {"spec": drv.SPEC, "sections": "§3, §5, §6", "spec_blob": "blob123",
-                     "spec_sha256": hashlib.sha256(b"spec text\n").hexdigest(), "spec_dirty": False}
+                     "spec_sha256_lf": hashlib.sha256(b"spec text\n").hexdigest(), "spec_dirty": False}
     assert drv.spec_identity(_G(b"older text\n"), tmp_path)["spec_dirty"] is True
+    spec.write_bytes(b"spec text\r\n")                                  # a CRLF checkout hashes like the LF one
+    assert drv.spec_identity(_G(b"spec text\n"), tmp_path) == clean
+    spec.write_bytes(b"spec text\n")
     prep, ranks, cw = _world()
     disc = drv.run_sample(prep, ranks, cw, [2024], _good)
     assert drv.build_report(disc, disc, {"inputs": {}}, protocol=clean)["protocol"] == clean
+
+
+class _SpecGit:
+    def __init__(self, committed): self.committed = committed
+    def rev_parse(self, ref): return "blob123"
+    def show(self, sha, path): return self.committed
+
+
+def _spec_root(tmp_path, data=b"spec text\n"):
+    p = tmp_path / drv.SPEC
+    p.parent.mkdir(parents=True)
+    p.write_bytes(data)
+    return tmp_path
+
+
+def test_dirty_spec_refuses_unless_overridden_and_the_override_is_recorded(tmp_path):
+    root = _spec_root(tmp_path)
+    assert "allow_dirty_spec" not in drv.resolve_protocol(_SpecGit(b"spec text\n"), False, root)
+    with pytest.raises(SystemExit, match="--allow-dirty-spec"):
+        drv.resolve_protocol(_SpecGit(b"older text\n"), False, root)
+    rec = drv.resolve_protocol(_SpecGit(b"older text\n"), True, root)
+    assert rec["spec_dirty"] is True and rec["allow_dirty_spec"] is True
+
+
+def test_cli_refuses_a_dirty_spec_before_pulling_anything(monkeypatch, tmp_path):
+    def dirty(git, root="."):
+        return {"spec_dirty": True}
+
+    monkeypatch.setattr(drv, "spec_identity", dirty)
+    monkeypatch.setattr(drv.la, "Git", lambda root: object())
+    with pytest.raises(SystemExit) as e:
+        drv.main(["--out", str(tmp_path / "x.json")])
+    assert e.value.code != 0 and "spec_dirty" in str(e.value.code)
+    assert not (tmp_path / "x.json").exists()
+
+
+def test_failed_slice_weeks_get_audit_rows_and_discriminating_comes_from_the_raw_games():
+    prep, ranks, cw = _world(extra_games=[(2024, 1, "2024-09-09", "CCC", "DDD")])
+    res = drv.run_sample(prep, ranks, cw, [2024], _good)
+    by_week = {a["week"]: a for a in res["audit"]}
+    assert sorted(by_week) == [1, 2, 3, 4]                        # every REG week has a row
+    assert by_week[1]["state"] is None and by_week[1]["reason"] == "validation_failed"
+    assert by_week[1]["detail"] == "schedule_dependency_failed" and by_week[1]["discriminating"] is False
+    assert by_week[2]["kickoff"] is not None                      # a passing week keeps its normal row
+    report = drv.build_report(res, {**res, "audit": []}, {"inputs": {}})["old_protocol_staleness_audit"]
+    assert len(report["weeks"]) == 4 and report["counts"] == {"contradicted": 0, "bye_consistent": 0,
+                                                              "unverified": 0, "none": 0}
+    json.dumps(report, allow_nan=False)
+
+
+def test_failed_slice_week_with_bye_sets_is_counted_discriminating():
+    games = pd.DataFrame([(2024, 1, "2024-09-05", "AAA", "BBB"), (2024, 1, "2024-09-08", "CCC", "DDD"),
+                          (2024, 2, "2024-09-12", "AAA", "BBB"), (2024, 2, "2024-09-15", "EEE", "FFF")],   # byes: week 1 EEE/FFF, week 2 CCC/DDD
+                         columns=["season", "week", "gameday", "home_team", "away_team"])
+    row = drv.failed_slice_audit_week(sw.validate_schedule(games), 2024, 2)
+    assert row["discriminating"] is True and row["state"] is None and row["reason"] == "validation_failed"
+    d = {"audit": [row], "alarm": False, "cells": pd.DataFrame(), "weeks": [], "target_weeks": {}}
+    r = drv.build_report(d, {**d, "audit": []}, {"inputs": {}})["old_protocol_staleness_audit"]
+    assert r["counts"]["none"] == 1 and r["discriminating_weeks"][0]["reason"] == "validation_failed"
+    assert drv.failed_slice_audit_week(object(), 2024, 2)["discriminating"] is None
 
 
 def test_staleness_audit_lists_every_schedule_discriminating_week_with_its_state():
