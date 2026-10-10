@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 5,
   "data_through": "2026-wk4",
-  "generated_at": "2026-10-09T21:47:02+00:00",
-  "batch_id": "2026-10-09T21:47:02+00:00|2026-wk4|w5",
+  "generated_at": "2026-10-10T11:15:43+00:00",
+  "batch_id": "2026-10-10T11:15:43+00:00|2026-wk4|w5",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -10269,12 +10269,12 @@
       "player_id": "00-0041096",
       "sleeper_id": "13405",
       "name": "Kaytron Allen",
-      "team": "WAS",
+      "team": "MIA",
       "position": "RB",
-      "bye": 7,
+      "bye": 6,
       "ecr": 228,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {

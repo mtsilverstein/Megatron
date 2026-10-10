@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 5,
   "data_through": "2026-wk4",
-  "generated_at": "2026-10-09T21:47:02+00:00",
-  "batch_id": "2026-10-09T21:47:02+00:00|2026-wk4|w5",
+  "generated_at": "2026-10-10T11:15:43+00:00",
+  "batch_id": "2026-10-10T11:15:43+00:00|2026-wk4|w5",
   "schema_version": 1,
   "kind": "neutral_weekly",
   "model": "transformer",
@@ -26544,75 +26544,6 @@
       }
     },
     {
-      "player_id": "00-0041096",
-      "name": "Kaytron Allen",
-      "team": "WAS",
-      "opponent": "NYG",
-      "position": "RB",
-      "is_home": true,
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.14753394335115466,
-          "passing_tds": -0.024328493400789165,
-          "passing_interceptions": -0.01431462252734644,
-          "carries": 1.4364193876123839,
-          "rushing_yards": 4.075034137483293,
-          "rushing_tds": -0.012432830828236322,
-          "targets": 0.14385726258042264,
-          "receptions": 0.06477998653823466,
-          "receiving_yards": 0.14819595893820264,
-          "receiving_tds": -0.011503419984774027,
-          "fumbles_lost": -0.015160783012404335,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": 0.043745893985033035,
-          "passing_tds": 0.0018317265203222632,
-          "passing_interceptions": 0.005072989966720343,
-          "carries": 3.5724918842315674,
-          "rushing_yards": 12.123808860778809,
-          "rushing_tds": -0.003066170960664749,
-          "targets": 0.5643065571784973,
-          "receptions": 0.285184770822525,
-          "receiving_yards": 0.5721073746681213,
-          "receiving_tds": 0.0006949386443011463,
-          "fumbles_lost": 0.004469782579690218,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.4897701205936311,
-          "passing_tds": 0.014066242162600606,
-          "passing_interceptions": 0.01135594819011898,
-          "carries": 9.034332270187036,
-          "rushing_yards": 41.104610344259186,
-          "rushing_tds": 0.3633856398077544,
-          "targets": 1.923353801777445,
-          "receptions": 1.5262742938355451,
-          "receiving_yards": 12.565574293307463,
-          "receiving_tds": 0.07567166202243825,
-          "fumbles_lost": 0.028885586537216623,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "points": {
-        "ppr": {
-          "p10": 0.16,
-          "p50": 1.53,
-          "p90": 9.66
-        },
-        "half_ppr": {
-          "p10": 0.13,
-          "p50": 1.39,
-          "p90": 8.9
-        },
-        "standard": {
-          "p10": 0.1,
-          "p50": 1.25,
-          "p90": 8.14
-        }
-      }
-    },
-    {
       "player_id": "00-0033319",
       "name": "Nick Mullens",
       "team": "JAX",
@@ -26816,6 +26747,75 @@
           "p10": -0.17,
           "p50": 0.7,
           "p90": 5.27
+        }
+      }
+    },
+    {
+      "player_id": "00-0041096",
+      "name": "Kaytron Allen",
+      "team": "MIA",
+      "opponent": "CIN",
+      "position": "RB",
+      "is_home": true,
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.1481710906433023,
+          "passing_tds": -0.024263188642167567,
+          "passing_interceptions": -0.01429436001924745,
+          "carries": 1.4180671476120148,
+          "rushing_yards": 4.014164912606484,
+          "rushing_tds": -0.012498163953506983,
+          "targets": 0.14278972928933858,
+          "receptions": 0.06400948183909047,
+          "receiving_yards": 0.1422129110232782,
+          "receiving_tds": -0.011490305973472587,
+          "fumbles_lost": -0.015136424487277342,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": 0.04392882063984871,
+          "passing_tds": 0.0017415856709703803,
+          "passing_interceptions": 0.005091014783829451,
+          "carries": 3.5380704402923584,
+          "rushing_yards": 11.986373901367188,
+          "rushing_tds": -0.003080749185755849,
+          "targets": 0.5587717890739441,
+          "receptions": 0.2832127511501312,
+          "receiving_yards": 0.5601038336753845,
+          "receiving_tds": 0.0006873865495435894,
+          "fumbles_lost": 0.004461825359612703,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.4888958381378288,
+          "passing_tds": 0.013970605980663076,
+          "passing_interceptions": 0.01132252456837518,
+          "carries": 8.980397844504608,
+          "rushing_yards": 40.824257191865854,
+          "rushing_tds": 0.3600747289006403,
+          "targets": 1.9068763352731608,
+          "receptions": 1.5174802599326576,
+          "receiving_yards": 12.418011537216273,
+          "receiving_tds": 0.07601357696057098,
+          "fumbles_lost": 0.028727322941032418,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "points": {
+        "ppr": {
+          "p10": 0.15,
+          "p50": 1.51,
+          "p90": 9.59
+        },
+        "half_ppr": {
+          "p10": 0.12,
+          "p50": 1.37,
+          "p90": 8.83
+        },
+        "standard": {
+          "p10": 0.09,
+          "p50": 1.23,
+          "p90": 8.08
         }
       }
     },
