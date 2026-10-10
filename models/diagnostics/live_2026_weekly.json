@@ -1,0 +1,1150 @@
+{
+ "caveats": [
+  "Projections = the bot pipeline's latest publication on main before K_N 00:00 UTC, proven by GitHub push records; Vercel deployment is not verified.",
+  "Players who recorded a stat line only; DNPs are outside the estimand.",
+  "Both expert sources are FantasyPros mirrors; small samples are descriptive, not tests.",
+  "Reference values are context: the historical population and fallback history differ."
+ ],
+ "evaluator_version": {
+  "dirty": false,
+  "id": "live-accuracy-v1+05abe169f57383e0174e9678f2f464d4eb8214cb",
+  "protocol_version": "live-accuracy-v1",
+  "src_ffmodel_tree": "05abe169f57383e0174e9678f2f464d4eb8214cb"
+ },
+ "inputs": {
+  "actuals_by_season": {
+   "2023": "c149053c931edfe3c7c8868d08afd1a7b59740f0e239ac1c9bb354fd8b729381",
+   "2024": "c8c194e514591c602def6706467a7ee7afec131e45747a5b1cf4a8197ecd310f",
+   "2025": "f49532b98cb865894d88d3db6a5ff9a7aebc31dd27279a36d7c336cbd68fba69",
+   "2026": "261f74581b310c8d849bebd459974e48d4c835e2b6a849ac6cd4487d4ae980e7"
+  },
+  "archive_blobs": {
+   "2026-w04-2026-09-30-220d00155877a0a7.json": "220d00155877a0a71cf83e2cbdb7553065bf4d364753ffad271d9d3bafcb7b8e",
+   "2026-w04-2026-09-30-5aec56b70c3784e6.json": "5aec56b70c3784e6d1afcd5d2f0192f904ae372bef7a6328cd11efe0656c1ec1"
+  },
+  "bakeoff": {
+   "path": "models/backtests/bakeoff.json",
+   "sha256": "25253e1a7ef3034b0eb24573efd73460c66f507812a583d9dff58fcb49a1cfc2"
+  },
+  "crosswalk": "c5c2192e64f93a654f48d9107ac32531417a5ac6079d14181c3e5add6704ad2c",
+  "ledger": {
+   "coverage": [
+    [
+     "-inf",
+     "2026-10-06T19:02:01Z"
+    ],
+    [
+     "-inf",
+     "2026-10-10T21:58:10Z"
+    ]
+   ],
+   "events": 251,
+   "sha256": "25f95327b05bbb56417e30e4e2c26f9f226938b3a7ea91926a7f66ac905edc7b"
+  },
+  "rankings_raw": "fa8e1f79e81c2b7b47bd15111c1039c7b8062e4d951200b1926efc2457057cc5",
+  "schedules": "11e29bec8044b4366f09e65f4bda91017121f862344b99a995293cba72baa2d0"
+ },
+ "points": {
+  "by_position": {
+   "QB": {
+    "above_p90": 0.09352517985611511,
+    "below_p10": 0.06474820143884892,
+    "coverage_p10_p90": 0.841726618705036,
+    "mae": 6.041726618705035,
+    "mean_resid": 1.8893525179856119,
+    "median_resid": 0.9800000000000004,
+    "n": 139,
+    "naive_mae": 6.157805755395683,
+    "pinball_p10": 1.2666115107913671,
+    "pinball_p50": 3.0208633093525177,
+    "pinball_p90": 1.3760935251798558,
+    "share_above_p50": 0.5611510791366906
+   },
+   "RB": {
+    "above_p90": 0.10893854748603352,
+    "below_p10": 0.08100558659217877,
+    "coverage_p10_p90": 0.8100558659217877,
+    "mae": 4.3388268156424585,
+    "mean_resid": 2.955027932960894,
+    "median_resid": 0.7000000000000002,
+    "n": 358,
+    "naive_mae": 4.609101489757914,
+    "pinball_p10": 0.6474078212290504,
+    "pinball_p50": 2.1694134078212293,
+    "pinball_p90": 1.212717877094972,
+    "share_above_p50": 0.5698324022346368
+   },
+   "TE": {
+    "above_p90": 0.1174496644295302,
+    "below_p10": 0.1342281879194631,
+    "coverage_p10_p90": 0.7483221476510067,
+    "mae": 3.7759731543624153,
+    "mean_resid": 2.0715436241610736,
+    "median_resid": 0.31500000000000006,
+    "n": 298,
+    "naive_mae": 4.221057046979865,
+    "pinball_p10": 0.5410838926174496,
+    "pinball_p50": 1.8879865771812077,
+    "pinball_p90": 1.1571845637583893,
+    "share_above_p50": 0.5268456375838926
+   },
+   "WR": {
+    "above_p90": 0.12412587412587413,
+    "below_p10": 0.07342657342657342,
+    "coverage_p10_p90": 0.8024475524475524,
+    "mae": 4.2670279720279725,
+    "mean_resid": 2.2674125874125877,
+    "median_resid": 0.01,
+    "n": 572,
+    "naive_mae": 4.586742424242424,
+    "pinball_p10": 0.640909090909091,
+    "pinball_p50": 2.1335139860139862,
+    "pinball_p90": 1.303146853146853,
+    "share_above_p50": 0.5034965034965035
+   }
+  },
+  "by_week": {
+   "1": {
+    "above_p90": 0.13592233009708737,
+    "below_p10": 0.10032362459546926,
+    "coverage_p10_p90": 0.7637540453074434,
+    "last_game": "2026-09-14",
+    "mae": 4.809870550161813,
+    "mean_resid": 2.513495145631068,
+    "median_resid": 0.30999999999999983,
+    "n": 309,
+    "naive_mae": 5.0772330097087375,
+    "pinball_p10": 0.7671423948220064,
+    "pinball_p50": 2.4049352750809065,
+    "pinball_p90": 1.361576051779935,
+    "share_above_p50": 0.540453074433657
+   },
+   "2": {
+    "above_p90": 0.10285714285714286,
+    "below_p10": 0.10571428571428572,
+    "coverage_p10_p90": 0.7914285714285715,
+    "last_game": "2026-09-21",
+    "mae": 4.1434,
+    "mean_resid": 1.9058571428571431,
+    "median_resid": 0.12000000000000005,
+    "n": 350,
+    "naive_mae": 4.9086428571428575,
+    "pinball_p10": 0.6532742857142858,
+    "pinball_p50": 2.0717,
+    "pinball_p90": 1.3214285714285712,
+    "share_above_p50": 0.5085714285714286
+   },
+   "3": {
+    "above_p90": 0.11898016997167139,
+    "below_p10": 0.07365439093484419,
+    "coverage_p10_p90": 0.8073654390934845,
+    "last_game": "2026-09-28",
+    "mae": 4.279773371104816,
+    "mean_resid": 2.46657223796034,
+    "median_resid": 0.41000000000000014,
+    "n": 353,
+    "naive_mae": 4.515547686496695,
+    "pinball_p10": 0.6738413597733711,
+    "pinball_p50": 2.139886685552408,
+    "pinball_p90": 1.1609745042492918,
+    "share_above_p50": 0.5297450424929179
+   },
+   "4": {
+    "above_p90": 0.10704225352112676,
+    "below_p10": 0.07323943661971831,
+    "coverage_p10_p90": 0.819718309859155,
+    "last_game": "2026-10-05",
+    "mae": 4.258816901408451,
+    "mean_resid": 2.592619718309859,
+    "median_resid": 0.6200000000000001,
+    "n": 355,
+    "naive_mae": 4.243962441314554,
+    "pinball_p10": 0.6538450704225353,
+    "pinball_p50": 2.1294084507042257,
+    "pinball_p90": 1.1904788732394365,
+    "share_above_p50": 0.5492957746478874
+   }
+  },
+  "overall": {
+   "above_p90": 0.11558156547183614,
+   "below_p10": 0.08778346744696415,
+   "ci95_player": [
+    -0.4921551115193519,
+    -0.13495028046829802
+   ],
+   "ci95_week_team": [
+    -0.5229517623546511,
+    -0.10672202250106866
+   ],
+   "coverage_p10_p90": 0.7966349670811997,
+   "delta_mae_model_minus_naive": -0.313390636430139,
+   "mae": 4.359239209948793,
+   "mean_resid": 2.366349670811997,
+   "median_resid": 0.370000000000001,
+   "n": 1367,
+   "naive_mae": 4.672629846378932,
+   "note": "conditional on the observed weeks",
+   "pinball_p10": 0.6844725676664228,
+   "pinball_p50": 2.1796196049743966,
+   "pinball_p90": 1.2550629114850036,
+   "share_above_p50": 0.5318215069495245
+  }
+ },
+ "protocol_version": "live-accuracy-v1",
+ "ranking": {
+  "primary": {
+   "D": 0.00863435014291812,
+   "cells": 4,
+   "ci_week": [
+    0.00863435014291812,
+    0.00863435014291812
+   ],
+   "per_position_D": {
+    "QB": -0.04943267900318876,
+    "RB": 0.02416586688400435,
+    "TE": 0.0331439225290141,
+    "WR": 0.026660290161842792
+   },
+   "sp_con": 0.6159556613324433,
+   "sp_ours": 0.6245900114753614
+  },
+  "secondary": {
+   "D": -0.03751643232763007,
+   "cells": 16,
+   "ci_week": [
+    -0.055729843347645226,
+    -0.019303021307614916
+   ],
+   "per_position_D": {
+    "QB": -0.07259669525321127,
+    "RB": -0.031141189362761806,
+    "TE": -0.01751317936846114,
+    "WR": -0.028814665326086064
+   },
+   "sp_con": 0.6280108182607558,
+   "sp_ours": 0.5904943859331256
+  }
+ },
+ "ranking_coverage": {
+  "2026": {
+   "accepted_rows": 2617,
+   "excluded_legacy_schema": 0,
+   "raw_rows": 2623,
+   "scrape_dates": [
+    {
+     "date": "2026-09-11",
+     "weekday": "Friday"
+    },
+    {
+     "date": "2026-09-18",
+     "weekday": "Friday"
+    },
+    {
+     "date": "2026-09-25",
+     "weekday": "Friday"
+    },
+    {
+     "date": "2026-10-02",
+     "weekday": "Friday"
+    },
+    {
+     "date": "2026-10-09",
+     "weekday": "Friday"
+    }
+   ]
+  }
+ },
+ "reference_context": {
+  "coverage_by_season": {
+   "2023": 0.8185983370100118,
+   "2024": 0.7915540540540541,
+   "2025": 0.7950779327317473
+  },
+  "label": "context: different population and fallback history",
+  "naive_mae_2023_25": 4.611838846476656,
+  "source": {
+   "path": "models/backtests/bakeoff.json",
+   "sha256": "25253e1a7ef3034b0eb24573efd73460c66f507812a583d9dff58fcb49a1cfc2"
+  },
+  "transformer_mae_2023_25": 4.324723397524363
+ },
+ "run": {
+  "as_of_date": "2026-10-10",
+  "main_sha": "31acd5916bae496e5b802cbaf27e7f04840e2e9c",
+  "provisional_weeks": [
+   4
+  ],
+  "run_at": "2026-10-10T21:58:10Z"
+ },
+ "season": 2026,
+ "weeks": {
+  "1": {
+   "cutoff": "2026-09-09T00:00:00Z",
+   "expert_snapshot": {
+    "alternatives": [],
+    "available_by": null,
+    "blob_sha256": null,
+    "commit": null,
+    "event_id": null,
+    "name": null,
+    "path": null,
+    "status": "no_archive",
+    "tie_break": null,
+    "validation": null
+   },
+   "last_game": "2026-09-14",
+   "points": {
+    "above_p90": 0.13592233009708737,
+    "below_p10": 0.10032362459546926,
+    "coverage_p10_p90": 0.7637540453074434,
+    "mae": 4.809870550161813,
+    "mean_resid": 2.513495145631068,
+    "median_resid": 0.30999999999999983,
+    "n": 309,
+    "naive_mae": 5.0772330097087375,
+    "pinball_p10": 0.7671423948220064,
+    "pinball_p50": 2.4049352750809065,
+    "pinball_p90": 1.361576051779935,
+    "share_above_p50": 0.540453074433657
+   },
+   "primary": {
+    "cells": [],
+    "reason": "no_archive",
+    "status": "skipped"
+   },
+   "publication": {
+    "available_by": "2026-09-02T09:45:11Z",
+    "commit": "b451562106344aca804e0e28649f0be72c759355",
+    "detail": null,
+    "event_id": 42252143603,
+    "status": "selected"
+   },
+   "secondary": {
+    "cells": [
+     {
+      "delta": -0.05294771968854278,
+      "n": 30,
+      "position": "QB",
+      "sp_con": 0.48031145717463847,
+      "sp_ours": 0.4273637374860957
+     },
+     {
+      "delta": -0.060285929356176604,
+      "n": 66,
+      "position": "RB",
+      "sp_con": 0.7835892239381159,
+      "sp_ours": 0.7233032945819393
+     },
+     {
+      "delta": -0.06035832144289599,
+      "n": 110,
+      "position": "WR",
+      "sp_con": 0.7045432444865459,
+      "sp_ours": 0.6441849230436499
+     },
+     {
+      "delta": -0.0879517993608584,
+      "n": 60,
+      "position": "TE",
+      "sp_con": 0.6409232531874882,
+      "sp_ours": 0.5529714538266298
+     }
+    ],
+    "degenerate": 0,
+    "match": {
+     "gsis_collisions": 0,
+     "match_rate": 0.9703125,
+     "matched_by_id": 614,
+     "matched_by_name": 7,
+     "matched_by_name_only": 2,
+     "matched_by_name_position": 5,
+     "ranked": 640,
+     "unmatched": 19
+    },
+    "reason": null,
+    "retention": {
+     "excluded_early_by_position": {
+      "QB": 5,
+      "RB": 9,
+      "TE": 9,
+      "WR": 17
+     },
+     "excluded_early_game": 40,
+     "match_rate": 0.9703125,
+     "played": 309,
+     "pool": 266,
+     "pool_by_position": {
+      "QB": 30,
+      "RB": 66,
+      "TE": 60,
+      "WR": 110
+     }
+    },
+    "selection": {
+     "candidates": [
+      {
+       "date": "2026-09-11",
+       "has_later_game": true,
+       "pages": {
+        "QB": "unverified",
+        "RB": "unverified",
+        "TE": "unverified",
+        "WR": "unverified"
+       },
+       "state": "unverified",
+       "unknown_team_codes": 0
+      }
+     ],
+     "label": "inferred_by_window",
+     "pages": {
+      "QB": "unverified",
+      "RB": "unverified",
+      "TE": "unverified",
+      "WR": "unverified"
+     },
+     "scrape_date": "2026-09-11",
+     "state": "unverified"
+    },
+    "status": "scored",
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 640
+    }
+   },
+   "status": "scored",
+   "unprojected": {
+    "by_position": {
+     "QB": {
+      "count": 2,
+      "mean_actual": 7.71,
+      "share": 0.05405405405405406
+     },
+     "RB": {
+      "count": 16,
+      "mean_actual": 3.7250000000000005,
+      "share": 0.17391304347826086
+     },
+     "TE": {
+      "count": 11,
+      "mean_actual": 2.481818181818182,
+      "share": 0.1375
+     },
+     "WR": {
+      "count": 22,
+      "mean_actual": 4.8,
+      "share": 0.1456953642384106
+     }
+    },
+    "count": 51,
+    "mean_actual": 4.0768627450980395,
+    "share": 0.14166666666666666
+   },
+   "validation": {
+    "actuals": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 360
+    },
+    "projections": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 616
+    },
+    "schedule": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 32
+    }
+   },
+   "values": {
+    "equivalence_checked": false,
+    "source": "legacy"
+   }
+  },
+  "2": {
+   "cutoff": "2026-09-17T00:00:00Z",
+   "expert_snapshot": {
+    "alternatives": [],
+    "available_by": null,
+    "blob_sha256": null,
+    "commit": null,
+    "event_id": null,
+    "name": null,
+    "path": null,
+    "status": "no_archive",
+    "tie_break": null,
+    "validation": null
+   },
+   "last_game": "2026-09-21",
+   "points": {
+    "above_p90": 0.10285714285714286,
+    "below_p10": 0.10571428571428572,
+    "coverage_p10_p90": 0.7914285714285715,
+    "mae": 4.1434,
+    "mean_resid": 1.9058571428571431,
+    "median_resid": 0.12000000000000005,
+    "n": 350,
+    "naive_mae": 4.9086428571428575,
+    "pinball_p10": 0.6532742857142858,
+    "pinball_p50": 2.0717,
+    "pinball_p90": 1.3214285714285712,
+    "share_above_p50": 0.5085714285714286
+   },
+   "primary": {
+    "cells": [],
+    "reason": "no_archive",
+    "status": "skipped"
+   },
+   "publication": {
+    "available_by": "2026-09-16T20:15:31Z",
+    "commit": "fa9c095fc20fcee7c6447ad907ac24f5e65f343e",
+    "detail": null,
+    "event_id": 43788243336,
+    "status": "selected"
+   },
+   "secondary": {
+    "cells": [
+     {
+      "delta": -0.07604003407650162,
+      "n": 36,
+      "position": "QB",
+      "sp_con": 0.41389961389961394,
+      "sp_ours": 0.3378595798231123
+     },
+     {
+      "delta": -0.06565025691118775,
+      "n": 90,
+      "position": "RB",
+      "sp_con": 0.7611941609380541,
+      "sp_ours": 0.6955439040268664
+     },
+     {
+      "delta": -0.02903959108339238,
+      "n": 135,
+      "position": "WR",
+      "sp_con": 0.644270039071797,
+      "sp_ours": 0.6152304479884046
+     },
+     {
+      "delta": -0.013565094861606286,
+      "n": 65,
+      "position": "TE",
+      "sp_con": 0.6012464042312292,
+      "sp_ours": 0.5876813093696229
+     }
+    ],
+    "degenerate": 0,
+    "match": {
+     "gsis_collisions": 0,
+     "match_rate": 0.9927272727272727,
+     "matched_by_id": 542,
+     "matched_by_name": 4,
+     "matched_by_name_only": 2,
+     "matched_by_name_position": 2,
+     "ranked": 550,
+     "unmatched": 4
+    },
+    "reason": null,
+    "retention": {
+     "excluded_early_by_position": {
+      "QB": 2,
+      "RB": 5,
+      "TE": 5,
+      "WR": 10
+     },
+     "excluded_early_game": 22,
+     "match_rate": 0.9927272727272727,
+     "played": 350,
+     "pool": 326,
+     "pool_by_position": {
+      "QB": 36,
+      "RB": 90,
+      "TE": 65,
+      "WR": 135
+     }
+    },
+    "selection": {
+     "candidates": [
+      {
+       "date": "2026-09-18",
+       "has_later_game": true,
+       "pages": {
+        "QB": "unverified",
+        "RB": "unverified",
+        "TE": "unverified",
+        "WR": "unverified"
+       },
+       "state": "unverified",
+       "unknown_team_codes": 0
+      }
+     ],
+     "label": "inferred_by_window",
+     "pages": {
+      "QB": "unverified",
+      "RB": "unverified",
+      "TE": "unverified",
+      "WR": "unverified"
+     },
+     "scrape_date": "2026-09-18",
+     "state": "unverified"
+    },
+    "status": "scored",
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 550
+    }
+   },
+   "status": "scored",
+   "unprojected": {
+    "by_position": {
+     "QB": {
+      "count": 1,
+      "mean_actual": -0.040000000000000036,
+      "share": 0.02564102564102564
+     },
+     "RB": {
+      "count": 4,
+      "mean_actual": 1.625,
+      "share": 0.04
+     },
+     "TE": {
+      "count": 3,
+      "mean_actual": 2.0666666666666664,
+      "share": 0.0410958904109589
+     },
+     "WR": {
+      "count": 6,
+      "mean_actual": 2.1500000000000004,
+      "share": 0.039473684210526314
+     }
+    },
+    "count": 14,
+    "mean_actual": 1.8257142857142856,
+    "share": 0.038461538461538464
+   },
+   "validation": {
+    "actuals": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 364
+    },
+    "projections": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 667
+    },
+    "schedule": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 32
+    }
+   },
+   "values": {
+    "equivalence_checked": false,
+    "source": "legacy"
+   }
+  },
+  "3": {
+   "cutoff": "2026-09-24T00:00:00Z",
+   "expert_snapshot": {
+    "alternatives": [],
+    "available_by": null,
+    "blob_sha256": null,
+    "commit": null,
+    "event_id": null,
+    "name": null,
+    "path": null,
+    "status": "no_archive",
+    "tie_break": null,
+    "validation": null
+   },
+   "last_game": "2026-09-28",
+   "points": {
+    "above_p90": 0.11898016997167139,
+    "below_p10": 0.07365439093484419,
+    "coverage_p10_p90": 0.8073654390934845,
+    "mae": 4.279773371104816,
+    "mean_resid": 2.46657223796034,
+    "median_resid": 0.41000000000000014,
+    "n": 353,
+    "naive_mae": 4.515547686496695,
+    "pinball_p10": 0.6738413597733711,
+    "pinball_p50": 2.139886685552408,
+    "pinball_p90": 1.1609745042492918,
+    "share_above_p50": 0.5297450424929179
+   },
+   "primary": {
+    "cells": [],
+    "reason": "no_archive",
+    "status": "skipped"
+   },
+   "publication": {
+    "available_by": "2026-09-23T20:33:45Z",
+    "commit": "fbd66fd4c87f600975b9e6fb991253c698a2a9b5",
+    "detail": null,
+    "event_id": 44399334367,
+    "status": "selected"
+   },
+   "secondary": {
+    "cells": [
+     {
+      "delta": -0.053225806451612956,
+      "n": 31,
+      "position": "QB",
+      "sp_con": 0.25524193548387103,
+      "sp_ours": 0.20201612903225807
+     },
+     {
+      "delta": -0.0036598824490957638,
+      "n": 82,
+      "position": "RB",
+      "sp_con": 0.7082723932671258,
+      "sp_ours": 0.70461251081803
+     },
+     {
+      "delta": -0.025257319640202502,
+      "n": 133,
+      "position": "WR",
+      "sp_con": 0.6881081646682565,
+      "sp_ours": 0.662850845028054
+     },
+     {
+      "delta": -0.010175440446378192,
+      "n": 74,
+      "position": "TE",
+      "sp_con": 0.5979824349930261,
+      "sp_ours": 0.5878069945466479
+     }
+    ],
+    "degenerate": 0,
+    "match": {
+     "gsis_collisions": 0,
+     "match_rate": 0.9957894736842106,
+     "matched_by_id": 470,
+     "matched_by_name": 3,
+     "matched_by_name_only": 1,
+     "matched_by_name_position": 2,
+     "ranked": 475,
+     "unmatched": 2
+    },
+    "reason": null,
+    "retention": {
+     "excluded_early_by_position": {
+      "QB": 2,
+      "RB": 5,
+      "TE": 5,
+      "WR": 10
+     },
+     "excluded_early_game": 22,
+     "match_rate": 0.9957894736842106,
+     "played": 353,
+     "pool": 320,
+     "pool_by_position": {
+      "QB": 31,
+      "RB": 82,
+      "TE": 74,
+      "WR": 133
+     }
+    },
+    "selection": {
+     "candidates": [
+      {
+       "date": "2026-09-25",
+       "has_later_game": true,
+       "pages": {
+        "QB": "unverified",
+        "RB": "unverified",
+        "TE": "unverified",
+        "WR": "unverified"
+       },
+       "state": "unverified",
+       "unknown_team_codes": 0
+      }
+     ],
+     "label": "inferred_by_window",
+     "pages": {
+      "QB": "unverified",
+      "RB": "unverified",
+      "TE": "unverified",
+      "WR": "unverified"
+     },
+     "scrape_date": "2026-09-25",
+     "state": "unverified"
+    },
+    "status": "scored",
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 475
+    }
+   },
+   "status": "scored",
+   "unprojected": {
+    "by_position": {
+     "QB": {
+      "count": 3,
+      "mean_actual": 8.26,
+      "share": 0.08333333333333333
+     },
+     "RB": {
+      "count": 4,
+      "mean_actual": 0.0,
+      "share": 0.042105263157894736
+     },
+     "TE": {
+      "count": 1,
+      "mean_actual": 2.4000000000000004,
+      "share": 0.012195121951219513
+     },
+     "WR": {
+      "count": 6,
+      "mean_actual": 0.3,
+      "share": 0.03896103896103896
+     }
+    },
+    "count": 14,
+    "mean_actual": 2.07,
+    "share": 0.03814713896457766
+   },
+   "validation": {
+    "actuals": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 367
+    },
+    "projections": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 681
+    },
+    "schedule": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 32
+    }
+   },
+   "values": {
+    "equivalence_checked": false,
+    "source": "legacy"
+   }
+  },
+  "4": {
+   "cutoff": "2026-10-01T00:00:00Z",
+   "expert_snapshot": {
+    "alternatives": [
+     {
+      "available_by": "2026-09-30T11:18:20Z",
+      "blob_sha256": "220d00155877a0a71cf83e2cbdb7553065bf4d364753ffad271d9d3bafcb7b8e",
+      "name": "2026-w04-2026-09-30-220d00155877a0a7.json",
+      "status": "qualifies"
+     }
+    ],
+    "available_by": "2026-09-30T21:32:42Z",
+    "blob_sha256": "5aec56b70c3784e6d1afcd5d2f0192f904ae372bef7a6328cd11efe0656c1ec1",
+    "commit": "d43adc47bc09911e46d7de1a74ba78b76d45035e",
+    "event_id": 45080594300,
+    "name": "2026-w04-2026-09-30-5aec56b70c3784e6.json",
+    "path": "data_snapshots/weekly_ecr/2026-w04-2026-09-30-5aec56b70c3784e6.json",
+    "status": "selected",
+    "tie_break": null,
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 408
+    }
+   },
+   "last_game": "2026-10-05",
+   "points": {
+    "above_p90": 0.10704225352112676,
+    "below_p10": 0.07323943661971831,
+    "coverage_p10_p90": 0.819718309859155,
+    "mae": 4.258816901408451,
+    "mean_resid": 2.592619718309859,
+    "median_resid": 0.6200000000000001,
+    "n": 355,
+    "naive_mae": 4.243962441314554,
+    "pinball_p10": 0.6538450704225353,
+    "pinball_p50": 2.1294084507042257,
+    "pinball_p90": 1.1904788732394365,
+    "share_above_p50": 0.5492957746478874
+   },
+   "primary": {
+    "cells": [
+     {
+      "delta": -0.04943267900318876,
+      "n": 33,
+      "position": "QB",
+      "sp_con": 0.4885100710629829,
+      "sp_ours": 0.4390773920597941
+     },
+     {
+      "delta": 0.02416586688400435,
+      "n": 87,
+      "position": "RB",
+      "sp_con": 0.7343565342114221,
+      "sp_ours": 0.7585224010954265
+     },
+     {
+      "delta": 0.026660290161842792,
+      "n": 121,
+      "position": "WR",
+      "sp_con": 0.5886582807210333,
+      "sp_ours": 0.6153185708828761
+     },
+     {
+      "delta": 0.0331439225290141,
+      "n": 57,
+      "position": "TE",
+      "sp_con": 0.6522977593343349,
+      "sp_ours": 0.685441681863349
+     }
+    ],
+    "degenerate": 0,
+    "pool": 298,
+    "pool_by_position": {
+     "QB": 33,
+     "RB": 87,
+     "TE": 57,
+     "WR": 121
+    },
+    "reason": null,
+    "status": "scored"
+   },
+   "publication": {
+    "available_by": "2026-09-30T21:32:42Z",
+    "commit": "d43adc47bc09911e46d7de1a74ba78b76d45035e",
+    "detail": null,
+    "event_id": 45080594300,
+    "status": "selected"
+   },
+   "secondary": {
+    "cells": [
+     {
+      "delta": -0.10817322079618774,
+      "n": 31,
+      "position": "QB",
+      "sp_con": 0.5689516129032259,
+      "sp_ours": 0.4607783921070382
+     },
+     {
+      "delta": 0.005031311265412897,
+      "n": 86,
+      "position": "RB",
+      "sp_con": 0.7703863095977196,
+      "sp_ours": 0.7754176208631325
+     },
+     {
+      "delta": -0.000603429137853384,
+      "n": 136,
+      "position": "WR",
+      "sp_con": 0.7015713620754012,
+      "sp_ours": 0.7009679329375478
+     },
+     {
+      "delta": 0.04163961719499831,
+      "n": 72,
+      "position": "TE",
+      "sp_con": 0.7276814822559823,
+      "sp_ours": 0.7693210994509806
+     }
+    ],
+    "degenerate": 0,
+    "match": {
+     "gsis_collisions": 0,
+     "match_rate": 0.9938900203665988,
+     "matched_by_id": 484,
+     "matched_by_name": 4,
+     "matched_by_name_only": 1,
+     "matched_by_name_position": 3,
+     "ranked": 491,
+     "unmatched": 3
+    },
+    "reason": null,
+    "retention": {
+     "excluded_early_by_position": {
+      "QB": 2,
+      "RB": 6,
+      "TE": 4,
+      "WR": 11
+     },
+     "excluded_early_game": 23,
+     "match_rate": 0.9938900203665988,
+     "played": 355,
+     "pool": 325,
+     "pool_by_position": {
+      "QB": 31,
+      "RB": 86,
+      "TE": 72,
+      "WR": 136
+     }
+    },
+    "selection": {
+     "candidates": [
+      {
+       "date": "2026-10-02",
+       "has_later_game": true,
+       "pages": {
+        "QB": "unverified",
+        "RB": "unverified",
+        "TE": "unverified",
+        "WR": "unverified"
+       },
+       "state": "unverified",
+       "unknown_team_codes": 0
+      }
+     ],
+     "label": "inferred_by_window",
+     "pages": {
+      "QB": "unverified",
+      "RB": "unverified",
+      "TE": "unverified",
+      "WR": "unverified"
+     },
+     "scrape_date": "2026-10-02",
+     "state": "unverified"
+    },
+    "status": "scored",
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 491
+    }
+   },
+   "status": "scored",
+   "unprojected": {
+    "by_position": {
+     "QB": {
+      "count": 1,
+      "mean_actual": 11.040000000000001,
+      "share": 0.029411764705882353
+     },
+     "RB": {
+      "count": 0,
+      "mean_actual": null,
+      "share": 0.0
+     },
+     "TE": {
+      "count": 4,
+      "mean_actual": 2.15,
+      "share": 0.04878048780487805
+     },
+     "WR": {
+      "count": 2,
+      "mean_actual": 1.15,
+      "share": 0.013245033112582781
+     }
+    },
+    "count": 7,
+    "mean_actual": 3.134285714285714,
+    "share": 0.019337016574585635
+   },
+   "validation": {
+    "actuals": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 362
+    },
+    "projections": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 695
+    },
+    "schedule": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 32
+    }
+   },
+   "values": {
+    "equivalence_checked": false,
+    "source": "legacy"
+   }
+  },
+  "5": {
+   "cutoff": "2026-10-08T00:00:00Z",
+   "last_game": "2026-10-12"
+  }
+ },
+ "weeks_scored": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "weeks_skipped": [
+  {
+   "reason": "incomplete_week",
+   "week": 5
+  }
+ ]
+}
