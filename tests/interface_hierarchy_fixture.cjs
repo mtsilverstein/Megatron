@@ -11,7 +11,7 @@ const pages = [
   ["about.html", "about.html"],
   ["connect.html", null],
 ];
-const expectedNav = ["weekly.html", "waivers.html", "index.html", "trade.html", "about.html"];
+const expectedNav = ["weekly.html", "waivers.html", "trade.html", "index.html", "about.html"];
 
 function readPage(name) {
   return fs.readFileSync(path.join(root, "site", name), "utf8");
