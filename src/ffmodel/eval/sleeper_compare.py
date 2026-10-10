@@ -359,7 +359,10 @@ def run(snapshots: Path, artifact: dict, prepared: sw.Prepared, crosswalk: pd.Da
                           "Paired snapshot approximates an equal information deadline only to within the capture "
                           "schedule; 'latest' answers which available product was better, not which method.",
                           "Common-component PPR re-score on both sides; two-point conversions and special-teams "
-                          "scores are excluded.", "Weekly numbers are diagnostic; there are no weekly decisions."]}
+                          "scores are excluded.",
+                          "Sleeper ids are mapped through the nflverse crosswalk without the draft gsis backfill, so "
+                          "rookies whose gsis_id is not yet assigned are unmapped and drop out of both sides (the "
+                          "comparison tilts toward veterans).", "Weekly numbers are diagnostic; there are no weekly decisions."]}
     if season_end_read:
         frames = pooled["paired"]
         report["season_end"] = season_end(relevant(pd.concat(frames, ignore_index=True)) if frames
@@ -416,7 +419,7 @@ def main(argv=None, load_inputs=_load_inputs, git=None) -> int:
     ap = argparse.ArgumentParser(description="Private Sleeper comparator (spec §4.8).")
     ap.add_argument("--snapshots", type=Path, required=True, help="private repository checkout")
     ap.add_argument("--live-artifact", type=Path, required=True)
-    ap.add_argument("--out", type=Path, required=True, help="directory; the only place this writes")
+    ap.add_argument("--out", type=Path, required=True, help="report directory (a temporary nflverse cache is also created when --data-dir is omitted)")
     ap.add_argument("--data-dir", type=Path, default=None, help="nflverse cache (default: a fresh temp dir)")
     ap.add_argument("--season-end", action="store_true", help="the one pre-registered read after the last REG week")
     args = ap.parse_args(argv)

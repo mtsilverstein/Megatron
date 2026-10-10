@@ -328,3 +328,38 @@ def test_archive_content_read_from_first_adding_commit_not_later_tree():
     g, led = _archive_world(early, late, _archive(4, "2026-09-29", _players(3.0)))
     g.c["a3"]["files"][late[0]] = b"tampered later"                                  # later tree differs
     assert la.select_archive(led, g, 2026, 4, CUT, "a3")["status"] == "selected"
+
+
+def test_step5_absence_requires_every_target_in_span_fetchable():
+    # an unfetchable target inside [T_S, cutoff) means a payload may have been published there: never "unpublished"
+    g = _history()
+    inside = _ledger([_ev(1, "ghost", "2026-09-30T20:00:00Z")])
+    r = la.select_publication(inside, g, 2026, 9, CUT, "m1")
+    assert r["status"] == "publication_evidence_unavailable" and "absence not provable" in r["detail"]
+    before = _ledger([_ev(1, "ghost", "2026-05-01T20:00:00Z")])               # before T_S (June 1): irrelevant
+    assert la.select_publication(before, g, 2026, 9, CUT, "m1")["status"] == "weeks_unpublished"
+
+
+class _Stop(Exception):
+    pass
+
+
+def _run_main(monkeypatch, argv):
+    calls = []
+    monkeypatch.setattr(la, "load_ledger", lambda path: {"events": [], "coverage": []})
+    monkeypatch.setattr(la, "fetch_activity", lambda repo: calls.append(repo) or [])
+
+    class _G:
+        def __init__(self, cwd="."): pass
+        def rev_parse(self, ref): raise _Stop
+
+    monkeypatch.setattr(la, "Git", _G)
+    with pytest.raises(_Stop):
+        la.main(["--season", "2026", *argv])
+    return calls
+
+
+def test_frozen_record_implies_no_fetch(monkeypatch, tmp_path):
+    assert _run_main(monkeypatch, ["--frozen-record", str(tmp_path / "f.json")]) == []      # never fetched
+    assert _run_main(monkeypatch, ["--no-fetch"]) == []
+    assert _run_main(monkeypatch, []) != []                                                   # the control: it does fetch

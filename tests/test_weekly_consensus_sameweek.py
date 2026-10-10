@@ -171,3 +171,71 @@ def test_model_artifact_hashes_name_every_fold_file(tmp_path):
     h = drv.model_artifact_hashes([root], [2023])
     assert len(h) == len(drv.FOLD_FILES) and h[(root / "through2022" / "model.pt").as_posix()]
     assert h[(root / "through2022" / "config.yaml").as_posix()] is None        # a missing file shows as None
+
+
+def _anti_record():
+    prep, ranks, cw = _world()
+    disc = drv.run_sample(prep, ranks, cw, [2024], _anti)
+    cells = drv.audit_cells(disc)
+    record = {"fixtures": {"command": drv.AUDIT_FIXTURES, "result": "passed"}, "conclusion": "no_defect",
+              "hand_checks": [{**c, "sp_ours_hand": c["sp_ours_driver"], "sp_con_hand": c["sp_con_driver"]}
+                              for c in cells]}
+    return record, cells
+
+
+def test_alarm_audit_is_bound_to_this_run():
+    record, cells = _anti_record()
+    drv.check_alarm_audit(record, cells)                                           # the valid record passes
+    other_cmd = {**record, "fixtures": {**record["fixtures"], "command": "pytest -k nothing"}}
+    with pytest.raises(ValueError, match="fixed fixture command"):
+        drv.check_alarm_audit(other_cmd, cells)
+    for key in ("sp_ours_hand", "sp_con_hand"):
+        boolish = {**record, "hand_checks": [{**record["hand_checks"][0], key: True}, *record["hand_checks"][1:]]}
+        with pytest.raises(ValueError):
+            drv.check_alarm_audit(boolish, cells)
+    bool_week = {**record, "hand_checks": [{**record["hand_checks"][0], "week": True}, *record["hand_checks"][1:]]}
+    with pytest.raises(ValueError):
+        drv.check_alarm_audit(bool_week, cells)
+    stale = {**record, "hand_checks": [{**record["hand_checks"][0], "sp_ours_driver": record["hand_checks"][0]["sp_ours_driver"] + 1e-6,
+                                        "sp_ours_hand": record["hand_checks"][0]["sp_ours_driver"] + 1e-6},
+                                       *record["hand_checks"][1:]]}
+    with pytest.raises(ValueError, match="differs from this run's driver value"):
+        drv.check_alarm_audit(stale, cells)
+    nan = {**record, "hand_checks": [{**record["hand_checks"][0], "sp_con_hand": float("nan")}, *record["hand_checks"][1:]]}
+    with pytest.raises(ValueError):
+        drv.check_alarm_audit(nan, cells)
+
+
+def test_protocol_records_the_spec_identity(tmp_path):
+    spec = tmp_path / drv.SPEC
+    spec.parent.mkdir(parents=True)
+    spec.write_bytes(b"spec text\n")
+
+    class _G:
+        def __init__(self, committed): self.committed = committed
+        def rev_parse(self, ref): return "blob123" if ref == f"HEAD:{drv.SPEC}" else "x"
+        def show(self, sha, path): return self.committed if (sha, path) == ("HEAD", drv.SPEC) else None
+
+    import hashlib
+    clean = drv.spec_identity(_G(b"spec text\n"), tmp_path)
+    assert clean == {"spec": drv.SPEC, "sections": "§3, §5, §6", "spec_blob": "blob123",
+                     "spec_sha256": hashlib.sha256(b"spec text\n").hexdigest(), "spec_dirty": False}
+    assert drv.spec_identity(_G(b"older text\n"), tmp_path)["spec_dirty"] is True
+    prep, ranks, cw = _world()
+    disc = drv.run_sample(prep, ranks, cw, [2024], _good)
+    assert drv.build_report(disc, disc, {"inputs": {}}, protocol=clean)["protocol"] == clean
+
+
+def test_staleness_audit_lists_every_schedule_discriminating_week_with_its_state():
+    def a(week, disc, state, reason=None):
+        return {"season": 2024, "week": week, "discriminating": disc, "state": state, "reason": reason}
+
+    d = {"audit": [a(1, False, "unverified"), a(2, True, "contradicted"), a(3, True, None, "no_old_protocol_scrape"),
+                   a(4, True, None, "validation_failed")],
+         "alarm": False, "cells": pd.DataFrame(), "weeks": [], "target_weeks": {}}
+    r = drv.build_report(d, {**d, "audit": []}, {"inputs": {}})["old_protocol_staleness_audit"]
+    assert r["discriminating_weeks"] == [
+        {"season": 2024, "week": 2, "state": "contradicted", "reason": None},
+        {"season": 2024, "week": 3, "state": None, "reason": "no_old_protocol_scrape"},
+        {"season": 2024, "week": 4, "state": None, "reason": "validation_failed"}]
+    assert r["counts"] == {"contradicted": 1, "bye_consistent": 0, "unverified": 0, "none": 2}

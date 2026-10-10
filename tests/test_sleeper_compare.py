@@ -168,6 +168,7 @@ def test_run_end_to_end_and_writes_only_under_out(tmp_path):
     assert report["provenance"]["selected_captures"] == [{"path": cap["path"], "sha256": cap["sha256"]}]
     assert report["provenance"]["evaluator_version"]["protocol_version"] == "sleeper-compare-v1"
     json.dumps(report, allow_nan=False)
+    assert any("without the draft gsis backfill" in c and "toward veterans" in c for c in report["caveats"])
 
 
 def test_private_vintage_missing_team_is_private_inputs_incomplete_with_provenance(tmp_path):

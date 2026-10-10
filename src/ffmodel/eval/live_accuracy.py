@@ -791,8 +791,11 @@ def main(argv=None) -> int:
     ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "mtsilverstein/Megatron"))
     ap.add_argument("--main-ref", default="origin/main")
     ap.add_argument("--no-fetch", action="store_true", help="use the committed ledger without a new collection")
-    ap.add_argument("--frozen-record", type=Path, default=None)
+    ap.add_argument("--frozen-record", type=Path, default=None,
+                    help="write the artifact here instead of publishing; implies --no-fetch (a freshly fetched "
+                         "ledger is never saved, so the record must hash the committed one)")
     args = ap.parse_args(argv)
+    args.no_fetch = args.no_fetch or args.frozen_record is not None
     S = args.season or current_nfl_season()
     weeks = None
     if args.weeks:

@@ -8,7 +8,9 @@ record is supplied with --alarm-audited.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -78,19 +80,40 @@ def audit_cells(sample: dict) -> list[dict]:
              "sp_con_driver": float(r.sp_con)} for r in first.itertuples()]
 
 
+def _num(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _int(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
 def check_alarm_audit(record: dict, expected_cells: list[dict]) -> None:
-    """Accept only a complete no_defect audit of exactly the fixed-rule cells (spec §3.9 step 2-3)."""
+    """Accept only a complete no_defect audit of exactly the fixed-rule cells, bound to THIS run (spec §3.9 step
+    2-3): the recorded fixture command is the fixed one and each hand check's recorded driver values equal this
+    run's computed driver values."""
     if record.get("conclusion") != "no_defect":
         raise ValueError("alarm audit conclusion is not no_defect: fix the defect, re-run, publish both (Rule 4)")
-    if (record.get("fixtures") or {}).get("result") != "passed":
+    fx = record.get("fixtures") or {}
+    if fx.get("result") != "passed":
         raise ValueError("alarm audit must record the sign/identity fixture run as passed")
+    if fx.get("command") != AUDIT_FIXTURES:
+        raise ValueError(f"alarm audit must record the fixed fixture command {AUDIT_FIXTURES!r}")
+    checks = record.get("hand_checks") or []
+    if not all(_int(h.get("season")) and _int(h.get("week")) for h in checks):
+        raise ValueError("every hand check names an integer season and week")
     want = {(c["season"], c["week"], c["position"]) for c in expected_cells}
-    got = {(h.get("season"), h.get("week"), h.get("position")) for h in record.get("hand_checks", [])}
-    if want != got:
+    got = {(h.get("season"), h.get("week"), h.get("position")) for h in checks}
+    if want != got or len(checks) != len(want):
         raise ValueError(f"alarm audit hand checks {sorted(got)} differ from the fixed-rule cells {sorted(want)}")
-    for h in record["hand_checks"]:
-        if not all(isinstance(h.get(k), (int, float)) for k in ("sp_ours_hand", "sp_con_hand")):
-            raise ValueError("every hand check records both hand-computed Spearman values")
+    by_key = {(c["season"], c["week"], c["position"]): c for c in expected_cells}
+    for h in checks:
+        if not all(_num(h.get(k)) for k in ("sp_ours_hand", "sp_con_hand", "sp_ours_driver", "sp_con_driver")):
+            raise ValueError("every hand check records finite hand-computed and driver Spearman values")
+        c = by_key[(h["season"], h["week"], h["position"])]
+        for k in ("sp_ours_driver", "sp_con_driver"):
+            if abs(h[k] - c[k]) > 1e-9:
+                raise ValueError(f"hand check {k} {h[k]} differs from this run's driver value {c[k]}")
 
 
 def aggregate_validation(weeks: list[dict]) -> dict:
@@ -135,11 +158,22 @@ def _sample_block(s: dict) -> dict:
             "n_le_slots_cells": int(c["n_le_slots"].sum()), **base}
 
 
-def build_report(disc: dict, rep: dict, provenance: dict, alarm_audit: dict | None = None) -> dict:
+def spec_identity(git, root: Path | str = ".") -> dict:
+    """The spec text in force (a citation string cannot say which amendment): the blob id of SPEC at the executing
+    checkout's HEAD, the sha256 of the working-tree bytes, and whether the working tree differs from HEAD."""
+    data = (Path(root) / SPEC).read_bytes()
+    committed = git.show("HEAD", SPEC)
+    dirty = committed is None or committed.replace(b"\r\n", b"\n") != data.replace(b"\r\n", b"\n")
+    return {"spec": SPEC, "sections": "§3, §5, §6", "spec_blob": git.rev_parse(f"HEAD:{SPEC}"),
+            "spec_sha256": hashlib.sha256(data).hexdigest(), "spec_dirty": bool(dirty)}
+
+
+def build_report(disc: dict, rep: dict, provenance: dict, alarm_audit: dict | None = None,
+                 protocol: dict | None = None) -> dict:
     audit = disc["audit"] + rep["audit"]
-    discriminating = [a for a in audit if a["discriminating"] and a["state"]]
+    discriminating = [a for a in audit if a["discriminating"]]       # §6.6: by schedule alone (A, B non-empty, differ)
     alarmed = [n for n, s in (("discovery", disc), ("replication", rep)) if s["alarm"]]
-    out = {"protocol_version": PROTOCOL_VERSION, "protocol": f"{SPEC} §3, §5, §6 (draft 7.1)",
+    out = {"protocol_version": PROTOCOL_VERSION, "protocol": protocol or {"spec": SPEC, "sections": "§3, §5, §6"},
            "multiplicity": "Rules 1 and 2 are separate pre-specified claims at 95%; no family-wise correction.",
            "estimand": "within-position ranking of players who recorded a stat line, were matched, and had not yet "
                        "played at the scrape date; cutoffs asymmetric; selection effect undetermined",
@@ -147,9 +181,10 @@ def build_report(disc: dict, rep: dict, provenance: dict, alarm_audit: dict | No
            **provenance, "discovery": _sample_block(disc), "replication": _sample_block(rep),
            "old_protocol_staleness_audit": {
                "weeks": audit,
-               "counts": {k: sum(1 for a in discriminating if a["state"] == k)
-                          for k in ("contradicted", "bye_consistent", "unverified")},
-               "discriminating_weeks": [[a["season"], a["week"]] for a in discriminating],
+               "counts": {k: sum(1 for a in discriminating if (a["state"] or "none") == k)
+                          for k in ("contradicted", "bye_consistent", "unverified", "none")},
+               "discriminating_weeks": [{"season": a["season"], "week": a["week"], "state": a["state"],
+                                        "reason": a["reason"]} for a in discriminating],
                "definition": "A and B both non-empty and different"},
            "status": "alarm_negative_correlation" if alarmed else "ok"}
     if alarmed:
@@ -222,7 +257,7 @@ def main(argv=None) -> int:
             "coverage": sw.ranking_coverage(raw, rankings, REPLICATION + DISCOVERY),
             "old_protocol_numbers": old}
     audit = json.loads(args.alarm_audited.read_text(encoding="utf-8")) if args.alarm_audited else None
-    report = build_report(disc, rep, prov, alarm_audit=audit)
+    report = build_report(disc, rep, prov, alarm_audit=audit, protocol=spec_identity(la.Git(".")))
     args.out.write_text(json.dumps(report, indent=1, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
     print(json.dumps({"status": report["status"], "verdicts": report["verdicts"]}, indent=1, default=str))
     return 0

@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: main
           fetch-depth: 0
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
@@ -45,36 +46,38 @@ jobs:
     continue-on-error: true
     permissions:
       contents: read
-    env:
-      PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
     steps:
-      - name: Skip without the private-data secret
-        if: env.PRIVATE_DATA_TOKEN == ''
-        run: echo "::notice::PRIVATE_DATA_TOKEN is not set; Sleeper comparison skipped"
+      - name: Decide whether the private-data secret is available
+        id: gate
+        env:
+          HAVE_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN != '' }}
+        run: |
+          echo "run=$HAVE_TOKEN" >> "$GITHUB_OUTPUT"
+          if [ "$HAVE_TOKEN" != "true" ]; then echo "::notice::PRIVATE_DATA_TOKEN is not set; Sleeper comparison skipped"; fi
       - uses: actions/checkout@v7
-        if: env.PRIVATE_DATA_TOKEN != ''
+        if: steps.gate.outputs.run == 'true'
         with:
           ref: main
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@v7
-        if: env.PRIVATE_DATA_TOKEN != ''
+        if: steps.gate.outputs.run == 'true'
         with:
           repository: mtsilverstein/megatron-private-data
           token: ${{ secrets.PRIVATE_DATA_TOKEN }}
           path: private
       - uses: actions/setup-python@v6
-        if: env.PRIVATE_DATA_TOKEN != ''
+        if: steps.gate.outputs.run == 'true'
         with: { python-version: "3.12" }
-      - if: env.PRIVATE_DATA_TOKEN != ''
+      - if: steps.gate.outputs.run == 'true'
         run: pip install -e .
       - name: Compare against Sleeper snapshots
-        if: env.PRIVATE_DATA_TOKEN != ''
+        if: steps.gate.outputs.run == 'true'
         run: |
           S=$(python -c "from ffmodel.data.pull import current_nfl_season; print(current_nfl_season())")
           python -m ffmodel.eval.sleeper_compare --snapshots private --live-artifact "models/diagnostics/live_${S}_weekly.json" --out private/reports
       - name: Push the private report
-        if: env.PRIVATE_DATA_TOKEN != ''
+        if: steps.gate.outputs.run == 'true'
         working-directory: private
         run: |
           git config user.name "weekly-accuracy-bot"
