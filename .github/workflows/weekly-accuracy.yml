@@ -1,0 +1,103 @@
+name: weekly accuracy
+# Live weekly accuracy scorecard (spec docs/superpowers/specs/2026-10-06-weekly-accuracy-sameweek-design.md §4.7).
+# Tuesday after Monday-night stats, Wednesday as a second run. Never writes the website directory.
+on:
+  schedule:
+    - cron: "47 16 * 9-12,1 2"
+    - cron: "47 13 * 9-12,1 3"
+  workflow_dispatch:
+concurrency:
+  group: weekly-site-refresh
+  cancel-in-progress: false
+jobs:
+  accuracy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: pip install -e .
+      - name: Score published projections (infrastructure errors fail here, before any commit)
+        run: python -m ffmodel.eval.live_accuracy --main-ref origin/main
+      - name: Commit accuracy artifacts
+        run: |
+          git config user.name "weekly-accuracy-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add models/diagnostics/live_*_weekly.json models/diagnostics/live_*_weekly.md models/diagnostics/main_push_ledger.json
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "data: weekly accuracy refresh"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+          done
+          exit 1
+
+  # Private Sleeper comparator (spec §4.8). Fail-soft: it runs after the public job, cannot write the public
+  # repository (contents: read), and its failure only annotates the run.
+  sleeper:
+    needs: accuracy
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - name: Decide whether the private-data secret is available
+        id: gate
+        env:
+          HAVE_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN != '' }}
+        run: |
+          echo "run=$HAVE_TOKEN" >> "$GITHUB_OUTPUT"
+          if [ "$HAVE_TOKEN" != "true" ]; then echo "::notice::PRIVATE_DATA_TOKEN is not set; Sleeper comparison skipped"; fi
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.run == 'true'
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        if: steps.gate.outputs.run == 'true'
+        with: { python-version: "3.12" }
+      - if: steps.gate.outputs.run == 'true'
+        run: pip install -e .
+      # The private checkout comes AFTER the build/install so no install subprocess can see the token, and it does
+      # not persist the credential: the token reaches git again only in the push step's own env.
+      - name: Check out the private data repository
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: mtsilverstein/megatron-private-data
+          token: ${{ secrets.PRIVATE_DATA_TOKEN }}
+          path: private
+          persist-credentials: false
+      - name: Compare against Sleeper snapshots
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          S=$(python -c "from ffmodel.data.pull import current_nfl_season; print(current_nfl_season())")
+          python -m ffmodel.eval.sleeper_compare --snapshots private --live-artifact "models/diagnostics/live_${S}_weekly.json" --out private/reports
+      - name: Push the private report
+        if: steps.gate.outputs.run == 'true'
+        working-directory: private
+        env:
+          PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+        run: |
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PRIVATE_DATA_TOKEN" | base64 -w0)"
+          echo "::add-mask::$AUTH"
+          gitp() { git -c "http.https://github.com/.extraheader=$AUTH" "$@"; }
+          git config user.name "weekly-accuracy-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add reports/sleeper_*.json reports/sleeper_*.md
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "data: sleeper comparison refresh"
+          for i in 1 2 3; do
+            gitp pull --rebase && gitp push && exit 0
+          done
+          exit 1
+      - name: Annotate a failed comparison
+        if: failure()
+        run: echo "::warning::Sleeper comparison failed; the public accuracy artifact is unaffected"

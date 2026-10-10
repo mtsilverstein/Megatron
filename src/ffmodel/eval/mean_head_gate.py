@@ -163,6 +163,23 @@ def weekly_spearman(rows: pd.DataFrame, pred_col: str,
     return pd.DataFrame(out, columns=["season", "week", "position", "spearman", "n"])
 
 
+def bootstrap_means(deltas, clusters, n_boot: int = 10000,
+                    seed: int = BOOTSTRAP_SEED) -> np.ndarray:
+    """Replicate means of the cluster bootstrap (whole clusters resampled with
+    replacement). The single home of the resampling loop; paired_bootstrap and
+    the Sleeper comparator both use it."""
+    deltas = np.asarray(deltas, dtype=float)
+    clusters = np.asarray(clusters)
+    uniq = np.unique(clusters)
+    by_cluster = [deltas[clusters == c] for c in uniq]
+    rng = np.random.default_rng(seed)
+    means = np.empty(n_boot, dtype=float)
+    for b in range(n_boot):
+        pick = rng.integers(0, len(by_cluster), len(by_cluster))
+        means[b] = np.concatenate([by_cluster[i] for i in pick]).mean()
+    return means
+
+
 def paired_bootstrap(deltas, clusters, n_boot: int = 10000,
                      seed: int = BOOTSTRAP_SEED) -> dict:
     """Cluster (fold) bootstrap of the mean paired delta.
@@ -195,12 +212,7 @@ def paired_bootstrap(deltas, clusters, n_boot: int = 10000,
     if len(deltas) == 0:
         raise ValueError("paired_bootstrap: no rows to bootstrap")
     uniq = np.unique(clusters)
-    by_cluster = [deltas[clusters == c] for c in uniq]
-    rng = np.random.default_rng(seed)
-    means = np.empty(n_boot, dtype=float)
-    for b in range(n_boot):
-        pick = rng.integers(0, len(by_cluster), len(by_cluster))
-        means[b] = np.concatenate([by_cluster[i] for i in pick]).mean()
+    means = bootstrap_means(deltas, clusters, n_boot, seed)
     lo, hi = np.percentile(means, [2.5, 97.5])
     return {
         "mean": float(deltas.mean()),

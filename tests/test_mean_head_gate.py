@@ -727,3 +727,16 @@ def test_build_decision_rationale_never_drifts_from_build_summary():
         evaluate_gate(_synthetic_rows(effect_a=0.02, effect_b=0.05), _all_good_coverage()),
     ):
         assert build_decision(result)["rationale"] == build_summary(result)
+
+
+def test_paired_bootstrap_exact_output_pinned():
+    """Values computed with the pre-refactor loop; bootstrap_means must not change them."""
+    rng = np.random.default_rng(11)
+    d = rng.normal(0.3, 1.0, 40)
+    c = np.repeat(np.arange(8), 5)
+    a = paired_bootstrap(d, c, n_boot=500, seed=7)
+    assert a["mean"] == 0.2181885693593165
+    assert a["ci95"] == [-0.0897334528468419, 0.5491506170094841]
+    b = paired_bootstrap(d, c)
+    assert b["ci95"] == [-0.1341478216799399, 0.5315212601605093]
+    assert (b["n"], b["n_clusters"], b["seed"], b["n_boot"]) == (40, 8, 20260727, 10000)

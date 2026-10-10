@@ -140,6 +140,13 @@ Every page shows a "data as of \<date\>" stamp.
 - Kickers, DST, IDP.
 - DFS lineup optimization / salary constraints.
 - Injury-report or news/NLP signals.
+  - **Amendment (2026-10-07, owner decision — market lines allowed):** published betting-market lines (game spread,
+    total, and later possibly player props) may be used as **market context** — as model features after a
+    pre-registered test, and as benchmarks. Markets absorb injury and news information indirectly, so the model can no
+    longer be described as box-score-only once a line feature ships; say so wherever it is described. Direct
+    injury-report ingestion, news text and NLP stay out of scope. Raw third-party data (lines, props, other providers'
+    projections) is stored in a private repository, never in this public one, and is used only within the provider's
+    terms.
 - In-week live updates (one refresh per week).
 - Any paid infrastructure; everything runs on free tiers.
 
