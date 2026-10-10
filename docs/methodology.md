@@ -105,22 +105,39 @@ That single measurement reframes the whole project: **the draft board's ceiling
 is set by information that is not in the box score.** No amount of better
 box-score modeling closes a gap that is mostly about availability.
 
-### Where it holds its own: weekly
+### Weekly: behind same-week expert consensus
 
-> **Correction (2026-10-06).** Every expert comparison in this subsection used
-> the wrong week's consensus. `weekly_rankings.weekly_snapshot` takes the latest
-> nflverse scrape in the seven days before week N's first kickoff, and nflverse
-> scrapes FantasyPros on Fridays — so that scrape is the *previous* Friday's,
-> i.e. week N−1's rankings, made before week N−1's games and injury news. A
-> bye-week check confirms it: in all 13 discriminating weeks of 2023–25 the
-> snapshot ranked week N−1's slate, never week N's. The experts were scored a
-> week stale, which biases every delta below in the model's favour, including
-> the RB replication. First same-week evidence (2026 weeks 3–4, from snapshots
-> this site captured before kickoff): model 0.498 vs consensus 0.515, delta
-> −0.017, 95% interval [−0.042, +0.006], 8 cells — too few to conclude. Until a
-> pre-registered re-measurement against same-week rankings exists, the tie and
-> the RB edge are **not established**. The original text is kept below as the
-> record.
+> **Result (2026-10-10).** The pre-registered re-measurement against same-week
+> rankings (spec `docs/superpowers/specs/2026-10-06-weekly-accuracy-sameweek-design.md`,
+> artifact `models/diagnostics/weekly_consensus_sameweek.json`) finds the model
+> **behind** weekly FantasyPros consensus. Within-position rank correlation with
+> outcomes, players who recorded a stat line and had not played at scrape time:
+>
+> | sample | model | consensus | delta | 95% interval (week-resampled) |
+> |---|---|---|---|---|
+> | 2023–25 (Rule 1) | 0.597 | 0.634 | −0.037 | [−0.047, −0.028] |
+> | 2020–22 (descriptive) | 0.557 | 0.601 | −0.045 | [−0.055, −0.035] |
+>
+> Behind in every season of both samples and in every leave-one-season-out
+> estimate; the bye-consistent-only sensitivity agrees (−0.036). Per position
+> (2023–25 / 2020–22): QB −0.089 / −0.111, RB −0.019 / −0.019, WR −0.019 /
+> −0.020, TE −0.023 / −0.030 — every interval below zero. **Rule 2 (the RB
+> edge) is not established; the RB edge is retracted.** The interval is
+> conditional on these seasons, and within-season serial dependence is not
+> modelled.
+>
+> **Why the earlier numbers were wrong (correction of 2026-10-06).** Every
+> expert comparison below used the wrong week's consensus.
+> `weekly_rankings.weekly_snapshot` takes the latest nflverse scrape in the seven
+> days before week N's first kickoff, and nflverse scrapes FantasyPros on
+> Fridays — so that scrape is the *previous* Friday's, i.e. week N−1's rankings,
+> made before week N−1's Sunday games and injury news. The re-measurement's
+> `old_protocol_staleness_audit` counts it: of the 38 weeks in 2020–25 where the
+> bye schedule distinguishes the two (byes in both weeks N−1 and N, and
+> different), the old snapshot was week N−1's list in 36, week N's in 1, and
+> absent in 1. The experts were scored a week stale, which biased every delta
+> below in the model's favour. The original text is kept below as the record; it
+> is **superseded**.
 
 Over a one-week horizon, the injury report is already public and the
 availability edge largely evaporates. Measured against **weekly** expert
@@ -244,9 +261,10 @@ that was never checked.
 ## 6. What the model is genuinely good for
 
 - **A free, transparent weekly projector** that beats its own baselines
-  (§3). Its standing against a paid expert panel is being re-measured: the
-  earlier "parity" and running-back edge were scored against week-old expert
-  rankings (see the §3 correction).
+  (§3). Against same-week expert rankings it is **behind** at ranking players
+  within position (−0.037 rank correlation on 2023–25, pre-registered; §3); the
+  earlier "parity" and running-back edge were artifacts of week-old expert
+  rankings.
 - **Calibrated floor/ceiling bands.** Held-out weekly coverage sits inside a
   0.75–0.85 target for every position; ADP and ECR give a single number, this
   gives a distribution. That is a real product difference neither benchmark

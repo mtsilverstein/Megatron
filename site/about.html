@@ -112,18 +112,30 @@
     rounding up; snap-count data has no 2012 source and is treated as missing
     for that season. These are design choices, documented, not surprises.</p>
   </div>
-  <h2>Weekly ranking (historical, under correction)</h2>
+  <h2>Weekly ranking: behind same-week expert consensus</h2>
   <div class="prose">
-  <p id="expert-correction"><strong>Correction, 6 October 2026.</strong> The
-  expert comparisons in this section used the wrong week&rsquo;s rankings. The
+  <p id="expert-result"><strong>Result, 10 October 2026.</strong> Measured
+  against same-week expert rankings, under rules fixed before any number was
+  computed, the model is <strong>behind</strong> weekly FantasyPros consensus
+  at ranking players within position. Rank correlation with actual outcomes is
+  0.597 for the model and 0.634 for consensus on 2023&ndash;2025: a difference
+  of &minus;0.037, 95% interval &minus;0.047 to &minus;0.028. It is behind in
+  all three seasons and in every leave-one-season-out estimate, and the
+  separate 2020&ndash;2022 seasons show the same (0.557 vs 0.601). It is behind
+  at every position, running back included, so the running-back edge described
+  below is retracted. Scope: players who recorded a stat line and had not yet
+  played when the rankings were scraped. The interval resamples weeks within
+  these seasons and does not model dependence between weeks of a season.
+  Numbers in models/diagnostics/weekly_consensus_sameweek.json.</p>
+  <p id="expert-correction"><strong>Why the earlier numbers were wrong.</strong>
+  The expert comparisons below used the wrong week&rsquo;s rankings. The
   expert feed is scraped on Fridays, so the last ranking before a Thursday
   kickoff is the previous week&rsquo;s list, made before that week&rsquo;s
-  games and injuries. The experts were working a week behind, which favours
-  the model. Until the comparison is re-run against same-week rankings, treat
-  the tie and the running-back edge below as not established. A first look at
-  2026 weeks 3&ndash;4 with same-week rankings has the model slightly behind
-  (rank correlation 0.498 vs 0.515), on too few weeks to call. The original
-  write-up stays below as the record.</p>
+  Sunday games and injuries. Of the 38 weeks in 2020&ndash;2025 where the bye
+  schedule can tell the two apart, the old comparison used the previous
+  week&rsquo;s list in 36. The experts were working a week behind, which
+  favoured the model. The original write-up stays below as the record; it is
+  superseded by the result above.</p>
   <p class="lim">Historical results: measured on past seasons by the
   diagnostics named below, not a claim about the current output or about any
   league&rsquo;s own scoring.</p>
