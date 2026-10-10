@@ -11,7 +11,17 @@ excludes `site/`. This work is isolated to frontend presentation and its browser
 fixtures. No accuracy implementation, evidence artifact, model, scoring function,
 generated JSON, workflow, spec, or `.claude/` file was modified. Tasks 6 onward in
 Claude's plan are not implemented or signed off by this UI change. Nothing was
-pushed or deployed.
+pushed or deployed during the initial implementation pass.
+
+### Release follow-up
+
+The user subsequently authorized commit and push. UI-only commit `92ac362` was
+made in the original checkout, then cherry-picked onto current `origin/main`
+(`41abe7d`) in a separate `codex/ui-refresh-release` worktree. Only that UI change
+and this release note are being published; Claude's unfinished accuracy commits
+remain on `feat/weekly-accuracy`. The navigation, identity-chip and in-season trade
+fixtures also pass in the production-based checkout. The original checkout's
+branch, private snapshots, and backend files remain untouched by the release.
 
 ## Changes
 

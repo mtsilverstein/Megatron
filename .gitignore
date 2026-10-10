@@ -60,3 +60,8 @@ data_snapshots/keepers_*.json
 models/diagnostics/trade_sim_eval.json
 models/diagnostics/*.cells.jsonl
 models/diagnostics/trade_sim_eval_fam_waiver.json
+
+# Third-party snapshots live in the private repo mtsilverstein/megatron-private-data, never here
+# (design spec §11 amendment, 2026-10-07).
+/private-data/
+/data_snapshots/sleeper_projections/
