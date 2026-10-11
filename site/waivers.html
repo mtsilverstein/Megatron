@@ -25,7 +25,7 @@
 <main id="waiver-app">
   <p class="eyebrow">Improve your roster</p>
   <h1>Waivers</h1>
-  <p class="waiver-intro">Who to claim this week, in your league's scoring: who to add, what to bid or whether to claim, and who to drop. Nothing is submitted for you.</p>
+  <p class="waiver-intro">Who to claim this week, in your league's scoring: who to add and what to bid or whether to claim — and compare drop options. Nothing is submitted for you.</p>
   <p id="waiver-summary" class="waiver-summary" hidden><span id="waiver-summary-league"></span><span id="waiver-budget"></span><span id="waiver-summary-data"></span><a id="waiver-warning-link" class="waiver-warning-link" href="#waiver-warnings-heading" hidden></a></p>
   <div id="waiver-controls" class="waiver-controls" aria-label="Waiver settings" role="group">
     <label>Week <input id="waiver-week" type="number" min="1" max="18" placeholder="Auto" title="Automatically follows the current NFL week. Enter a number to override; clear to restore automatic selection."></label>
@@ -41,7 +41,7 @@
   <p id="waiver-status" role="status" aria-live="polite">The desk loads from the league panel above: enter your Sleeper username, or choose a team to view. Refresh it there before placing a claim.</p>
   <section id="waiver-results" hidden>
     <section id="waiver-best" class="waiver-best" aria-labelledby="waiver-best-heading">
-      <h2 id="waiver-best-heading">Best move</h2>
+      <h2 id="waiver-best-heading">Modeled top option</h2>
       <p id="waiver-best-text" class="waiver-best-text"></p>
       <p id="waiver-best-claim" class="waiver-best-claim"></p>
       <p class="waiver-source">Bids and claim order are heuristics, not predictions of success. Refresh from the league panel, and verify injuries, roles, eligibility and deadlines in Sleeper, before placing a claim.</p>
@@ -127,7 +127,7 @@
 <script src="assets/liveworld.js?v=1"></script>
 <script src="assets/waivers.js?v=neutral1"></script>
 <script src="assets/waiverintel.js?v=neutral1"></script>
-<script src="assets/waivermode.js?v=clean1"></script>
+<script src="assets/waivermode.js?v=review1"></script>
 <script>WaiverMode.init();</script>
 </body>
 </html>

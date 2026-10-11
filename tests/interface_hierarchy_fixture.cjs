@@ -84,6 +84,9 @@ for (const id of ["waiver-week", "waiver-reserve", "waiver-position", "waiver-pr
   assert.ok(controlsHtml.includes(`id="${id}"`), `#${id} is in the settings row`);
 assert.match(controlsHtml, /<button type="button" id="waiver-protect-toggle"[^>]*aria-controls="waiver-protect"/, "the protection control is a real button that opens the editor");
 assert.ok(at("waiver-protect") < at("waiver-best") && at("waiver-roster") > at("waiver-protect"), "the protection editor opens under the settings, before the results");
+// Wording ruled in the astra review: a modeled label, and drop options compared, not picked.
+assert.match(waivers, /<h2 id="waiver-best-heading">Modeled top option<\/h2>/);
+assert.match(waivers, /compare drop options/); assert.doesNotMatch(waivers, /who to drop|Best move/);
 // The live region for loading and errors is kept.
 assert.match(waivers, /<p id="waiver-status" role="status" aria-live="polite">/);
 // Fold-outs: Worth watching and How this works start collapsed; Worth watching
