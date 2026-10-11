@@ -153,7 +153,7 @@
     // a withheld bid; a viewer gets no bid or claim guidance at all.
     const tagText = weak ? "weak signal" : held ? "drop cost unassessed" : negative ? "drop costs more than the add returns" : "";
     const claim = ownerOnly ? "Owner's call"
-      : r.bid ? (dollars ? `${dollars} · ${r.bid.tier} tier` : r.bid.canAfford === false ? "None: minimum bid exceeds spendable budget" : `None suggested (${r.bid.tier})`)
+      : r.bid ? (dollars ? `${dollars} · ${r.bid.tier} tier` : r.bid.canAfford === false ? `None: minimum bid exceeds spendable budget (${r.bid.tier} tier, not suggested)` : `None suggested (${r.bid.tier})`)
       : withheld ? `No priority claim (${tagText})` : "Claim: set order in Sleeper";
     const value = r.valueEstimate && r.valueEstimate.points;
     return {
@@ -167,6 +167,9 @@
       rosShort: priced ? `ROS ${sign(dc.rosDelta)}` : "ROS not priced",
       whyShort: Number.isFinite(value) ? `Add's ROS value ${value.toFixed(2)}` : "Add's ROS value unknown (not zero)",
       withheld,
+      // The engine's actual reason a spend suggestion is withheld (affordability
+      // first, as the engine ranks it), or "" when one is attached.
+      withheldReason: r.bid && r.bid.canAfford === false ? "minimum bid exceeds spendable budget" : tagText,
       // The engine attached a spend suggestion to this row: a dollar range
       // (FAAB) or a priority claim (rolling / reverse standings).
       suggested: r.bid ? !!dollars && r.bid.canAfford !== false : !withheld,
@@ -188,6 +191,24 @@
     return groups;
   }
 
+  // The claim table's display limit, made explicit: the COMPLETE
+  // position-filtered result is grouped first, then the top `maxAdds` adds
+  // (engine order) are shown, each with every one of its drop options. The
+  // card's selected add is always shown, appended if it ranks below the
+  // limit. Selection and slicing only; nothing is re-valued or re-ranked.
+  const MAX_ADDS = 15;
+  function claimDisplay(rows, { maxAdds = MAX_ADDS, selectedAddId = null } = {}) {
+    const all = groupByAdd(rows);
+    const groups = all.slice(0, maxAdds);
+    let appended = false;
+    if (selectedAddId !== null && selectedAddId !== undefined) {
+      const at = all.findIndex(g => String(g.add.id) === String(selectedAddId));
+      if (at >= maxAdds) { groups.push(all[at]); appended = true; }
+    }
+    return { groups, totalAdds: all.length, hiddenAdds: all.length - groups.length, appended,
+      rows: groups.flatMap(g => [g.best, ...g.others]) };
+  }
+
   const NO_MOVE = "No claim recommended this week — no positive modeled lineup swap under the current protections. Do not spend simply because budget remains.";
   // The drop options for one add, as information, not a pick (owner ruling
   // 2026-10-11: no "best drop" claim). Ordered by each move's existing
@@ -198,9 +219,11 @@
     return (rows || []).map((r, i) => ({ r, i })).sort((a, b) => (key(b.r) - key(a.r)) || (a.i - b.i)).map(x => x.r);
   }
 
-  // The best-move card: the highest-ranked ADD with a drop option that
-  // carries a spend suggestion. When none does, the card says so plainly and
-  // names the closest (top-ranked) add. Wording only; every value is rowText's.
+  // The "modeled top option" card, over the COMPLETE position-filtered
+  // result: the highest-ranked ADD with a drop option that carries a spend
+  // suggestion. When none does, the card says so for the selected position
+  // only, with the engine's actual withheld reasons, and names the closest
+  // (top-ranked) add. Wording only; every value is rowText's.
   function bestMove({ rows, result, note = null, ownerOnly = false, position = "ALL" }) {
     if (note) return { empty: true, text: note, claim: "" };
     if (!rows || !rows.length) {
@@ -227,13 +250,21 @@
       ? `${g.options.length} drop option${g.options.length === 1 ? "" : "s"} — see the claim table.`
       : "No drop needed (open roster spot).";
     const move = `add ${g.add.name} (${g.add.position}) — ${week}. ${drops}`;
-    const whose = ownerOnly ? "this team's" : "your";
     const threshold = Number(rows[0].signal && rows[0].signal.thresholdPerWeek) || 1;
-    const lead = at >= 0 ? (ownerOnly ? "Top-ranked option: " : "Top option: ")
+    // The weak-signal test is the engine's per-week MOVE value: this week's
+    // gain plus the priced rest-of-season change, averaged over this week and
+    // every remaining week through NFL week 17 (this week's gain alone when
+    // the rest of season is not priced) -- not this week's gain by itself.
+    const basis = `the ${threshold}-point-per-week heuristic for the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced)`;
+    const scope = `the modeled ${position === "ALL" ? "" : `${position} `}options this week`;
+    const reasons = [...new Set(rows.map(x => rowText(x, result, { ownerOnly }).withheldReason).filter(Boolean))]
+      .map(x => (x === "weak signal" ? `weak signal: below ${basis}` : x));
+    const lead = at >= 0 ? (ownerOnly ? "Top-ranked option: " : "")
       : rows.every(x => x.signal.strength === "weak")
-        ? `No claim recommended this week — no available player improves ${whose} lineup by ${threshold}+ pt/week. Closest option: `
+        ? `No spend guidance for ${scope}: all are below ${basis}. Closest option: `
         : ownerOnly ? "Top-ranked option: "
-        : "No claim recommended this week — no option clears the spend guardrails. Closest option: ";
+        : `No spend guidance for ${scope}: each option is withheld (${reasons.join("; ")}). Closest option: `;
+    const text = `${lead}${move}`;
     // The claim line repeats only what the table row shows without a fold:
     // one status when every drop option shares it, else a pointer.
     const type = result && result.waiver && result.waiver.type;
@@ -244,13 +275,13 @@
       const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? `$${r.bid.low}–$${r.bid.high}` : null;
       if (new Set(g.texts.map(x => x.claim)).size > 1) claim = "Bid or claim depends on the drop option — see the claim table.";
       else if (r.bid) claim = dollars && r.bid.canAfford !== false ? `Bid: ${dollars} (${r.bid.tier} tier; ${r.bid.label}).`
-        : r.bid.canAfford === false ? "Bid: none — minimum bid exceeds spendable budget."
+        : r.bid.canAfford === false ? `Bid: none — minimum bid exceeds spendable budget (${r.bid.tier} tier, not suggested).`
         : `Bid: none suggested (${r.bid.tier}).`;
       else claim = t.suggested ? "Claim: suggested — rank it by value and roster need when you set claim order in Sleeper." : `Claim: none suggested (${t.tagText}).`;
       if (!r.bid && type === "rolling") claim += ` Current waiver priority: ${result.waiver.priority ?? "unknown"} (context, not a claim-success probability).`;
       if (!r.bid && type === "reverse_standings") claim += " Reverse-standings priority is not modeled.";
     }
-    return { empty: false, add: g.add, options: g.options, text: `${lead}${move}`, claim };
+    return { empty: false, add: g.add, options: g.options, text: `${text.charAt(0).toUpperCase()}${text.slice(1)}`, claim };
   }
 
   // Signal badges for a claim row, read from the research radar's entry for
@@ -403,7 +434,11 @@
     let reserveKey = null, userTyped = false;
     const viewer = () => !!snap && snap.world.role === "viewer";
     const playerName = id => snap?.catalog[id]?.full_name || snap?.board.players.find(p => String(p.sleeper_id) === String(id))?.name || id;
-    const activeRows = () => (result?.rows || []).filter(r => $("waiver-position").value === "ALL" || r.add.position === $("waiver-position").value).slice(0, 40);
+    // The COMPLETE position-filtered engine result. The display limit is
+    // applied per add (claimDisplay), never by cutting an add's drop options;
+    // `shownRows` are the pairs of the adds the table actually shows.
+    const activeRows = () => (result?.rows || []).filter(r => $("waiver-position").value === "ALL" || r.add.position === $("waiver-position").value);
+    let shownRows = [];
     const waiverType = () => Number(snap?.world.league.settings?.waiver_type);
 
     function setLink(league) {
@@ -520,18 +555,26 @@
       $("waiver-count-detail").textContent = snap.note ? snap.note
         : rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against ${whose} current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals: under 1 point per week — ${COPY.heuristic(rows[0].signal.thresholdPerWeek)} — kept for research; no bid or priority spend is suggested for them.` : ""}${heldCount ? ` ${heldCount} require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them.` : ""}${pricedCount ? ` ${pricedCount} required-drop alternatives are priced on this week's gain plus the rest-of-season lineup change.` : ""}${negativeCount ? ` ${negativeCount} would forfeit more rest-of-season lineup value than the add returns; no bid or priority spend is suggested for them.` : ""}`
         : result?.recommendationBlock || "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.";
-      renderBest(rows);
-      const groups = groupByAdd(rows);
+      // The card reads the complete filtered result; the table shows the top
+      // adds (plus the card's add) with every drop option each.
+      const best = renderBest(rows);
+      const view = claimDisplay(rows, { selectedAddId: best.add ? best.add.id : null });
+      const groups = view.groups;
+      shownRows = view.rows;
       $("waiver-claims").hidden = !rows.length;
-      // Above the table: two short lines. The full notes move to How this works.
-      $("waiver-count").textContent = rows.length ? "Each row is a separate option — make one claim at a time." : "";
+      // Above the table: two short lines (plus the display limit, when it applies).
+      $("waiver-count").textContent = !rows.length ? ""
+        : `Each row is a separate option — make one claim at a time.${view.hiddenAdds ? ` Showing the top ${MAX_ADDS} of ${view.totalAdds} adds by this week's gain${view.appended ? ", plus the modeled top option" : ""}, each with every drop option; ${view.hiddenAdds} more ${view.hiddenAdds === 1 ? "is" : "are"} not shown (narrow by position to see them).` : ""}`;
       $("waiver-row-notes").textContent = rows.length
-        ? `Gain = this week's projected lineup change; drop options show each move's rest-of-season change (information, not a pick). Weak signal = under ${rows[0].signal.thresholdPerWeek ?? 1} pt/week.`
+        ? `Gain = this week's projected lineup change; drop options show each move's rest-of-season change (information, not a pick). Weak signal = the move's value (this week plus the priced rest of season) averages under ${rows[0].signal.thresholdPerWeek ?? 1} pt/week through week 17.`
         : "";
-      const notes = sharedRowNotes(rows, isViewer), shared = new Set(notes);
+      const notes = sharedRowNotes(shownRows, isViewer), shared = new Set(notes);
       $("waiver-table-notes").textContent = rows.length
-        ? [`${groups.length} player${groups.length === 1 ? "" : "s"}, ${rows.length} add/drop option${rows.length === 1 ? "" : "s"}, each evaluated against ${whose} current roster.`, ...notes].join(" ")
+        ? [`${view.totalAdds} player${view.totalAdds === 1 ? "" : "s"}, ${rows.length} add/drop option${rows.length === 1 ? "" : "s"}, each evaluated against ${whose} current roster.`, ...notes].join(" ")
         : "";
+      // The gated board (same 72 h / team / week checks as Worth watching):
+      // a claim add keeps its preseason watchlist entry, withheld reasons included.
+      const gatedBoard = new Map(rosBoard(snap).players.map(p => [String(p.sleeper_id), p]));
       const radarById = new Map((intel?.radar || []).map(p => [String(p.id), p]));
       for (const g of groups) {
         // Every drop option for this add, each with its own rest-of-season
@@ -575,7 +618,13 @@
           d.append(list(rowDetailItems(o, texts[i], shared, isViewer)));
         });
         d.append(node("p", `Why: ${r.valueEstimate.label}`, "waiver-source"));
-        if (radar) { d.append(node("p", `Research: ${radarReasons(radar).join(". ")}.`, "waiver-source")); d.append(list(radarDetail(radar))); }
+        const boardPlayer = gatedBoard.get(addId);
+        if (boardPlayer && !boardPlayer.identity_only && Number.isFinite(boardPlayer.ecr))
+          d.append(node("p", `Preseason watchlist: ${watchlistText(boardPlayer)}`, "waiver-source"));
+        if (radar) {
+          d.append(node("p", `Research (${radar.name} · ${radar.position} · ${radar.team}${radar.status ? ` · ${radar.status}` : ""}): ${radarReasons(radar).join(". ")}.`, "waiver-source"));
+          d.append(list(radarDetail(radar)));
+        }
         cell.append(d); detail.append(cell); body.append(detail);
       }
       renderIntel(new Set(groups.map(g => String(g.add.id))));
@@ -843,7 +892,7 @@
         : result ? `Remaining $${result.budget.remaining}; reserve $${result.budget.reserve}; spendable $${result.budget.spendable}` : "";
       return [`${league.name || `League ${league.league_id}`} waiver shortlist — independent alternatives, not submitted claims`, $("waiver-source").textContent,
         budgetLine,
-        ...(snap.note ? [snap.note] : activeRows().map(r => rowText(r, result, { ownerOnly: isViewer }).exportLine)),
+        ...(snap.note ? [snap.note] : shownRows.map(r => rowText(r, result, { ownerOnly: isViewer }).exportLine)),
         "RESEARCH ONLY — not an add/drop plan or bid recommendation",
         $("waiver-intel-source").textContent,
         intel.roleStatus,
@@ -873,7 +922,7 @@
     });
   }
   const api = { init, loadWorld, transactionsAlso, loadSignals, hydrateBoard, gateRos, requestedWeek, rowText, defaultReserve,
-    contextLines, rosText, evidenceLines, watchlistText, groupByAdd, orderDrops, bestMove, signalBadges, COPY };
+    contextLines, rosText, evidenceLines, watchlistText, groupByAdd, orderDrops, claimDisplay, bestMove, signalBadges, MAX_ADDS, COPY };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverMode = api;
 })();

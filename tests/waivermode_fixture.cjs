@@ -110,7 +110,10 @@ assert.deepEqual([negative.gainShort, negative.tagText, negative.claim, negative
   const weakFaab = M.rowText({ ...rowBase, signal:{strength:"weak",guidance:"g"}, bid:{low:null,high:null,tier:"weak signal",canAfford:true,status:"no bid suggested: modeled gain is under 1.0 pt/week",label:"heuristic"} }, faabResult);
   assert.deepEqual([weakFaab.gainShort, weakFaab.tagText, weakFaab.claim, weakFaab.suggested], ["+0.40 / ROS not priced", "weak signal", "None suggested (weak signal)", false]);
   const broke = M.rowText({ ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"heuristic bid range"}, bid:{low:null,high:null,tier:"useful",canAfford:false,status:"minimum bid exceeds spendable budget",label:"heuristic"} }, faabResult);
-  assert.deepEqual([broke.claim, broke.suggested], ["None: minimum bid exceeds spendable budget", false], "affordability first, as the engine ranks it");
+  assert.deepEqual([broke.claim, broke.suggested, broke.withheldReason], ["None: minimum bid exceeds spendable budget (useful tier, not suggested)", false, "minimum bid exceeds spendable budget"],
+    "affordability first, as the engine ranks it; the owner-only tier rides beside it as information");
+  assert.doesNotMatch(broke.claim, /\$/);
+  assert.equal(weakFaab.withheldReason, "weak signal");
   assert.deepEqual([weakRolling.claim, weakRolling.suggested], ["No priority claim (weak signal)", false]);
   assert.deepEqual([openSlot.claim, openSlot.suggested], ["Claim: set order in Sleeper", true]);
   assert.deepEqual([viewerText.claim, viewerText.suggested], ["Owner's call", true], "a viewer sees no guidance; the suggestion flag is the engine's");
@@ -131,7 +134,12 @@ assert.deepEqual([negative.gainShort, negative.tagText, negative.claim, negative
   assert.deepEqual(M.groupByAdd([]), []);
 }
 
-// ---- best move: the add only, never a "best drop" (owner ruling 2026-10-11) ---------------------
+// ---- modeled top option: the add only, never a "best drop" (owner ruling 2026-10-11) ------------
+// Fix round 2 (astra review): the card reads the COMPLETE position-filtered
+// result, scopes its conclusions to the selected position, explains the
+// weak-signal basis (per-week MOVE value through week 17) and keeps the
+// engine's actual withheld reasons.
+const BASIS = "the 1-point-per-week heuristic for the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced)";
 {
   const BL = "heuristic, not calibrated and not a win probability";
   const base = { add:{ id:"t", name:"Tee End", position:"TE" }, drop:{ id:"w", name:"Wide Out", position:"WR" }, scoring:{label:"week 5 projection"},
@@ -144,14 +152,16 @@ assert.deepEqual([negative.gainShort, negative.tagText, negative.claim, negative
     signal:{ strength:"modeled", thresholdPerWeek:1, moveValue:30.2, guidance:"heuristic bid range" },
     bid:{ low:4, high:10, tier:"useful", canAfford:true, status:null, label:BL } };
   const noDrop = /Wide Out|Listed|drop [A-Z]/;
-  // FAAB: every option weak -> the plain no-claim lead, then the closest ADD (no drop named).
+  const WEAK_LEAD = `No spend guidance for the modeled options this week: all are below ${BASIS}. Closest option: `;
+  // FAAB: every option weak -> the plain no-spend lead with its basis, then the closest ADD (no drop named).
   const allWeak = M.bestMove({ rows:[weakRow], result:faabResult });
-  assert.equal(allWeak.text, "No claim recommended this week — no available player improves your lineup by 1+ pt/week. Closest option: add Tee End (TE) — +0.36 pts this week. 1 drop option — see the claim table.");
+  assert.equal(allWeak.text, `${WEAK_LEAD}add Tee End (TE) — +0.36 pts this week. 1 drop option — see the claim table.`);
   assert.equal(allWeak.claim, "Bid: none suggested (weak signal).");
-  // FAAB: a lower-ranked add carries a bid -> it is the top option, no lead.
+  assert.doesNotMatch(allWeak.text, /no available player improves|1\+ pt\/week/, "never implies no immediate weekly improvement");
+  // FAAB: a lower-ranked add carries a bid -> it is the modeled top option, no lead.
   const faabBest = M.bestMove({ rows:[weakRow, goodRow], result:faabResult });
   assert.equal(faabBest.add, goodRow.add);
-  assert.equal(faabBest.text, "Top option: add Quinn Back (RB) — +0.20 pts this week. No drop needed (open roster spot).");
+  assert.equal(faabBest.text, "Add Quinn Back (RB) — +0.20 pts this week. No drop needed (open roster spot).");
   assert.equal(faabBest.claim, `Bid: $4–$10 (useful tier; ${BL}).`);
   // C1: drops for one add, tied on this week's gain, different ROS move values ->
   // the card names the add and the number of options, never a drop; the options are
@@ -163,27 +173,38 @@ assert.deepEqual([negative.gainShort, negative.tagText, negative.claim, negative
   assert.deepEqual(M.orderDrops([unpriced, tied[0]]).map(r => r.drop.name), ["First Listed", "Unpriced"], "an unpriced move goes last");
   assert.deepEqual(tied.map(r => r.drop.name), ["First Listed", "Second Listed", "Third Listed", "Fourth Listed"], "orderDrops does not mutate");
   const tiedCard = M.bestMove({ rows:tied.slice(0, 3), result:faabResult });
-  assert.equal(tiedCard.text, "No claim recommended this week — no available player improves your lineup by 1+ pt/week. Closest option: add Tee End (TE) — +0.36 pts this week. 3 drop options — see the claim table.");
+  assert.equal(tiedCard.text, `${WEAK_LEAD}add Tee End (TE) — +0.36 pts this week. 3 drop options — see the claim table.`);
   assert.doesNotMatch(tiedCard.text + tiedCard.claim, /Listed/, "the card never names a drop");
   assert.deepEqual(tiedCard.options.map(r => r.drop.name), ["Second Listed", "Third Listed", "First Listed"]);
   // Drop options that differ in this week's gain or claim status: a range, and a pointer to the table.
   const mixed = [goodRow, { ...goodRow, drop:{ id:"w", name:"Wide Out" }, lineupGain:0.1, bid:{ ...weakRow.bid }, signal:weakRow.signal, dropCost:weakRow.dropCost }];
   const mixedCard = M.bestMove({ rows:mixed, result:faabResult });
-  assert.equal(mixedCard.text, "Top option: add Quinn Back (RB) — +0.10 to +0.20 pts this week, depending on the drop. 2 drop options — see the claim table.");
+  assert.equal(mixedCard.text, "Add Quinn Back (RB) — +0.10 to +0.20 pts this week, depending on the drop. 2 drop options — see the claim table.");
   assert.equal(mixedCard.claim, "Bid or claim depends on the drop option — see the claim table.");
-  // I1, viewer: no bid or claim guidance; "this team's", never "your"; suggestion from the signal state only.
+  // I1, viewer: no bid or claim guidance; never "your"; suggestion from the signal state only.
   const viewing = M.bestMove({ rows:[weakRow], result:faabResult, ownerOnly:true });
   assert.equal(viewing.claim, "Claim guidance is for the team's owner.");
-  assert.match(viewing.text, /improves this team's lineup/);
-  // A modeled row the DEFAULT reserve cannot afford: the owner gets the guardrail lead,
-  // the viewer gets the top-ranked option (the guardrails are the owner's).
+  assert.ok(viewing.text.startsWith(WEAK_LEAD)); assert.doesNotMatch(viewing.text, /\byour\b/i);
+  // Unaffordable: the owner gets the actual withheld reason and the tier as information,
+  // never a suggestion or dollars; the viewer gets the top-ranked option (the guardrails are the owner's).
   const broke = { ...goodRow, bid:{ ...goodRow.bid, low:null, high:null, canAfford:false, status:"minimum bid exceeds spendable budget" } };
-  assert.match(M.bestMove({ rows:[broke], result:faabResult }).text, /^No claim recommended this week — no option clears the spend guardrails\. Closest option: add Quinn Back/, "owner: guardrail lead");
+  const ownerBroke = M.bestMove({ rows:[broke], result:faabResult });
+  assert.equal(ownerBroke.text, "No spend guidance for the modeled options this week: each option is withheld (minimum bid exceeds spendable budget). Closest option: add Quinn Back (RB) — +0.20 pts this week. No drop needed (open roster spot).");
+  assert.equal(ownerBroke.claim, "Bid: none — minimum bid exceeds spendable budget (useful tier, not suggested).");
+  assert.doesNotMatch(ownerBroke.text + ownerBroke.claim, /\$/);
   const viewerBroke = M.bestMove({ rows:[broke], result:faabResult, ownerOnly:true });
   assert.equal(viewerBroke.text, "Top-ranked option: add Quinn Back (RB) — +0.20 pts this week. No drop needed (open roster spot).");
   const heldOnly = { ...weakRow, signal:{ ...weakRow.signal, strength:"modeled" }, dropCost:{ status:"unassessed", label:"u", reason:"x" }, bid:{ ...weakRow.bid, tier:"drop cost unassessed" } };
-  assert.match(M.bestMove({ rows:[heldOnly], result:faabResult, ownerOnly:true }).text, /^Top-ranked option: add Tee End/, "viewer: never the guardrail wording");
-  assert.doesNotMatch(M.bestMove({ rows:[heldOnly, broke], result:faabResult, ownerOnly:true }).text + viewerBroke.text, /guardrail/);
+  assert.match(M.bestMove({ rows:[heldOnly], result:faabResult, ownerOnly:true }).text, /^Top-ranked option: add Tee End/, "viewer: never the withheld-guardrail wording");
+  assert.doesNotMatch(M.bestMove({ rows:[heldOnly, broke], result:faabResult, ownerOnly:true }).text + viewerBroke.text, /withheld|guardrail/);
+  // Fix 2: a position filter scopes every conclusion to that position, even when
+  // another position (here Quinn Back, RB, with a bid) has a suggestion.
+  const fullResult = { ...faabResult, rows:[goodRow, weakRow, heldOnly] };
+  const teWeak = M.bestMove({ rows:[weakRow], result:fullResult, position:"TE" });
+  assert.equal(teWeak.text, `No spend guidance for the modeled TE options this week: all are below ${BASIS}. Closest option: add Tee End (TE) — +0.36 pts this week. 1 drop option — see the claim table.`);
+  const teHeld = M.bestMove({ rows:[heldOnly, weakRow], result:fullResult, position:"TE" });
+  assert.equal(teHeld.text, `No spend guidance for the modeled TE options this week: each option is withheld (drop cost unassessed; weak signal: below ${BASIS}). Closest option: add Tee End (TE) — +0.36 pts this week. 2 drop options — see the claim table.`, "the engine's actual reasons, in row order, deduplicated");
+  for (const b of [teWeak, teHeld]) assert.doesNotMatch(b.text, /no available player|no option clears|Quinn/, "no claim about other positions");
   // Rolling: claim vs. don't, and the current priority.
   const rollingResult = { waiver:{ type:"rolling", priority:2, guidance:"Order claims by value and roster need; current priority is context, not a claim-success probability." } };
   const strip = row => ({ ...row, bid:null });
@@ -192,18 +213,91 @@ assert.deepEqual([negative.gainShort, negative.tagText, negative.claim, negative
   assert.equal(M.bestMove({ rows:[strip(weakRow)], result:rollingResult }).claim, "Claim: none suggested (weak signal). Current waiver priority: 2 (context, not a claim-success probability).");
   assert.equal(M.bestMove({ rows:[strip(goodRow)], result:{ waiver:{ type:"reverse_standings", priority:null } } }).claim,
     "Claim: suggested — rank it by value and roster need when you set claim order in Sleeper. Reverse-standings priority is not modeled.");
-  // Withheld for another reason than weakness (owner): the guardrail lead.
-  assert.match(M.bestMove({ rows:[heldOnly], result:faabResult }).text, /^No claim recommended this week — no option clears the spend guardrails\. Closest option: add Tee End/);
+  // Withheld for another reason than weakness (owner): the actual reason.
+  assert.match(M.bestMove({ rows:[heldOnly], result:faabResult }).text, /^No spend guidance for the modeled options this week: each option is withheld \(drop cost unassessed\)\. Closest option: add Tee End/);
   // No positive move, a withheld desk, a filtered-out position, a note.
   assert.deepEqual(M.bestMove({ rows:[], result:{ ...faabResult, rows:[] } }),
     { empty:true, text:"No claim recommended this week — no positive modeled lineup swap under the current protections. Do not spend simply because budget remains.", claim:"" });
   assert.equal(M.bestMove({ rows:[], result:{ ...faabResult, rows:[], recommendationBlock:"withheld: stale data" } }).text, "withheld: stale data");
   assert.match(M.bestMove({ rows:[], result:{ ...faabResult, rows:[goodRow] }, position:"QB" }).text, /^No claim option at QB this week/);
   assert.equal(M.bestMove({ rows:[goodRow], result:null, note:"Best ball" }).text, "Best ball");
-  for (const b of [allWeak, faabBest, viewing, tiedCard, mixedCard, viewerBroke]) {
+  for (const b of [allWeak, faabBest, viewing, tiedCard, mixedCard, viewerBroke, ownerBroke, teWeak, teHeld]) {
     assert.doesNotMatch(b.text + b.claim, /null|undefined|NaN/);
     assert.doesNotMatch(b.text, noDrop, "no card names a drop");
   }
+}
+
+// ---- claim display: group the COMPLETE result, then limit by add, never by pair ------------------
+{
+  const r = (add, drop) => ({ add:{ id:add, name:add, position:"QB" }, drop:{ id:drop, name:drop } });
+  const rows = ["a1", "a2", "a3", "a4", "a5"].flatMap(a => ["d1", "d2", "d3"].map(d => r(a, d)));
+  const all = M.claimDisplay(rows);
+  assert.equal(M.MAX_ADDS, 15);
+  assert.deepEqual([all.groups.length, all.totalAdds, all.hiddenAdds, all.appended, all.rows.length], [5, 5, 0, false, 15]);
+  const limited = M.claimDisplay(rows, { maxAdds:2, selectedAddId:"a5" });
+  assert.deepEqual(limited.groups.map(g => g.add.id), ["a1", "a2", "a5"], "the card's add is appended when it ranks below the limit");
+  assert.deepEqual([limited.totalAdds, limited.hiddenAdds, limited.appended], [5, 2, true]);
+  assert.ok(limited.groups.every(g => 1 + g.others.length === 3), "every shown add keeps every drop option");
+  assert.deepEqual(limited.rows.length, 9);
+  assert.equal(M.claimDisplay(rows, { maxAdds:2, selectedAddId:"a2" }).appended, false, "an add already shown is not repeated");
+}
+
+// ---- the 40-pair boundary, through the REAL engine (astra's synthetic 2-team league) ---------------
+// One QB slot, six bench spots, the starter protected: seven available QBs
+// each with six legal drops = 42 add/drop pairs. This-week gains descend
+// +0.90 .. +0.30, so the last add's six pairs are pairs 37-42. Its only
+// spend-eligible drops (b5, b6: ROS +21, $4-$10) are pairs 41 and 42 --
+// beyond the old 40-pair display cut.
+{
+  const W = require("../site/assets/waivers.js");
+  const NOW = Date.parse("2026-09-10T12:00:00Z"), H = 3600000, iso = new Date(NOW).toISOString();
+  const qb = (id, wk, fut) => ({ sleeper_id:id, player_id:`g-${id}`, name:`QB ${id}`, position:"QB", team:"A", wk, fut, ros_value:null });
+  const run = (players, ownIds) => {
+    const lg = { league_id:"LB", season:2026, status:"in_season", total_rosters:2, scoring_settings:{ pass_td:4 },
+      roster_positions:["QB", "BN", "BN", "BN", "BN", "BN", "BN"], settings:{ waiver_type:2, waiver_budget:100, waiver_bid_min:1 } };
+    const weekly = { season:2026, week:1, generated_at:iso, data_through:"2026-wk00", players:players.map(p => ({ player_id:p.player_id, team:"A", points:{ league:{ p50:p.wk } } })) };
+    const remaining = { schema_version:1, horizon:"remaining_season", status:"experimental", season:2026, start_week:1, end_week:7, generated_at:iso, data_through:"2026-wk00", evaluation:null,
+      players:players.filter(p => p.fut !== null).map(p => ({ player_id:p.player_id, team:"A",
+        weeks:[2, 3, 4, 5, 6, 7].map(w => ({ week:w, status:"conditional_projection", opponent:"B", points:{ league:{ p10:p.fut - 3, p50:p.fut, p90:p.fut + 3 } } })) })) };
+    const rosters = [{ roster_id:1, players:ownIds, starters:["s"], reserve:[], taxi:[], settings:{ waiver_budget_used:0 } },
+      { roster_id:2, players:[], starters:[], reserve:[], taxi:[], settings:{ waiver_budget_used:0 } }];
+    return W.analyze({ board:{ players }, league:lg, rosters, rosterId:1, weekly, remaining,
+      kickoffs:{ season:2026, week:1, generated_at:iso, teams:["A", "B"], games:[{ home:"A", away:"B", kickoff:new Date(NOW + H).toISOString() }] },
+      snapshotAt:NOW, now:NOW, week:1, protectedIds:["s"], budgetReserve:20 });
+  };
+  const own = ["s", "b1", "b2", "b3", "b4", "b5", "b6"];
+  // b1-b4 have no rest-of-season projection (drop cost unassessed); b5, b6 project 0.
+  const mine = [qb("s", 10, 10), ...[1, 2, 3, 4, 5, 6].map(i => qb(`b${i}`, i, i <= 4 ? null : 0))];
+  const adds = [1, 2, 3, 4, 5, 6, 7].map(k => qb(`a${k}`, 10 + (1 - 0.1 * k), k === 7 ? 13.5 : 5));
+  const out = run([...mine, ...adds], own);
+  assert.equal(out.rows.length, 42);
+  const eligible = out.rows.map((x, i) => [i, x]).filter(([, x]) => M.rowText(x, out).suggested);
+  assert.deepEqual(eligible.map(([i, x]) => [i, x.add.id, x.drop.id]), [[40, "a7", "b5"], [41, "a7", "b6"]], "the only eligible pairs sit beyond pair 40");
+  assert.deepEqual(eligible.map(([, x]) => [x.dropCost.rosDelta, x.bid.low, x.bid.high]), [[21, 4, 10], [21, 4, 10]]);
+  assert.deepEqual(M.groupByAdd(out.rows.slice(0, 40)).map(g => 1 + g.others.length), [6, 6, 6, 6, 6, 6, 4], "the old 40-pair cut split the last add");
+  // The display groups the complete result: every add with all six drops.
+  const shown = M.claimDisplay(out.rows);
+  assert.deepEqual(shown.groups.map(g => 1 + g.others.length), [6, 6, 6, 6, 6, 6, 6]);
+  // The card reads the complete result and selects that last add; its eligible options lead its drop list.
+  const card = M.bestMove({ rows:out.rows, result:out });
+  assert.equal(card.add.id, "a7");
+  assert.equal(card.text, "Add QB a7 (QB) — +0.30 pts this week. 6 drop options — see the claim table.");
+  assert.equal(card.claim, "Bid or claim depends on the drop option — see the claim table.");
+  assert.deepEqual(card.options.map(x => x.drop.id), ["b5", "b6", "b1", "b2", "b3", "b4"], "ROS +21 options first, unpriced last");
+  // Under a tighter add limit the selected add is still shown, with every drop.
+  const tight = M.claimDisplay(out.rows, { maxAdds:3, selectedAddId:card.add.id });
+  assert.deepEqual(tight.groups.map(g => g.add.id), ["a1", "a2", "a3", "a7"]);
+  assert.equal(1 + tight.groups[3].others.length, 6);
+  assert.ok(tight.rows.filter(x => M.rowText(x, out).suggested).length === 2, "the card's eligible options are in the displayed rows");
+
+  // Fix 2: a large this-week gain diluted by the rest-of-season horizon. +5.00
+  // this week, ROS +0 over 6 future weeks: move value 5 / 7 = 0.71 pt/week -> weak.
+  const flat = [qb("s", 10, 10), ...[1, 2, 3, 4, 5, 6].map(i => qb(`b${i}`, i, 0)), qb("big", 15, 10)];
+  const diluted = run(flat, own);
+  assert.ok(diluted.rows.length === 6 && diluted.rows.every(x => x.signal.strength === "weak" && Math.abs(x.signal.perWeekGain - 5 / 7) < 1e-9));
+  const dCard = M.bestMove({ rows:diluted.rows, result:diluted });
+  assert.equal(dCard.text, `No spend guidance for the modeled options this week: all are below ${BASIS}. Closest option: add QB big (QB) — +5.00 pts this week. 6 drop options — see the claim table.`);
+  assert.doesNotMatch(dCard.text, /improves your lineup|no available player/, "a +5.00 week is not described as no improvement");
 }
 
 // ---- signal badges: only what the research radar already derived ------------------------------
@@ -340,5 +434,5 @@ function bundleOf({ league: lg = league, rosters, userId = "helper", status = "f
   await refuse({ bundle: bundleOf({ rosters, league: { ...league, settings: { type: 7, waiver_type: 2 } } }) }, /This league type isn't supported yet\./);
   await refuse({ bundle: bundleOf({ rosters, fetchedAt: null }) }, /timestamps/);
   await assert.rejects(M.loadWorld({ bundle: found, week: 1, get: async () => ({}) }), /incomplete transaction/);
-  console.log("waivermode_fixture: week, hydration, reserve default, row wording (full and compact), grouping by add, drop-option order, best move (no best-drop claim, viewer), signal badges, context/ROS/evidence/ECR lines and session-bundle loading OK");
+  console.log("waivermode_fixture: week, hydration, reserve default, row wording (full and compact), grouping by add, drop-option order, claim display limit, 40-pair boundary through the real engine, modeled top option (no best-drop claim, viewer, position scope, horizon dilution), signal badges, context/ROS/evidence/ECR lines and session-bundle loading OK");
 })().catch(e => { console.error(e); process.exitCode = 1; });

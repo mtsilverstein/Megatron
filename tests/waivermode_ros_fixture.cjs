@@ -55,8 +55,9 @@ window.Sleeper = { get };
 Session._get(get);
 const WaiverMode = require("../site/assets/waivermode.js");
 const analyzeCalls = [];
+let stubRows = [];                      // fix round 2: a claim row for C Free in the overlap scenario
 window.Waivers = { analyze(args) { analyzeCalls.push(args); return {
-  rows: [], warnings: [], recommendationBlock: null, budget: { total: 100, used: 0, remaining: 100, reserve: 20, spendable: 80 },
+  rows: stubRows, warnings: [], recommendationBlock: null, budget: { total: 100, used: 0, remaining: 100, reserve: 20, spendable: 80 },
   waiver: { type: "faab", priority: null, guidance: "g" },
   coverage: { scoringLabel: "fresh weekly projection", weeklyFresh: true, projectedOwnedSkills: 1, activeOwnedSkills: 1, missingOwnedWeekly: [], unmappedOwnedIds: [],
     ros: { fresh: false, reason: "stub" } } }; } };
@@ -193,7 +194,30 @@ const until = async (pred, what, ms = 4000) => {
       assert.doesNotMatch(watch().join(" | "), /rest-of-season \d/, `${mode} / ${name}: no number survives`);
     }
   }
+  // Fix round 2 (overlap): C Free is a claim add AND a preseason watchlist player
+  // whose rest-of-season value is withheld for a player-specific reason (changed
+  // team). He leaves Worth watching, so his gated entry -- reason included, no
+  // number -- must ride into the claim's Details.
+  stubRows = [{ add: { id: "c", name: "C Free", position: "WR" }, drop: null, lineupGain: 2.5, scoring: { source: "weekly", label: "week 3 projection" },
+    signal: { strength: "modeled", perWeekGain: 2.5, thresholdPerWeek: 1, moveValue: null, basis: "this_week", label: "modeled lineup gain", guidance: "heuristic bid range" },
+    rosterCost: "uses an open roster spot", dropCost: { status: "open_slot", label: "no drop required", addContributes: null, rosDelta: null, futureWeeks: null, endWeek: null },
+    availability: { status: null, actionableNow: true, warning: null },
+    valueEstimate: { points: null, label: "no rest-of-season value (unknown, not zero; none when no projected weeks remain); not a FAAB price" },
+    bid: { low: 4, high: 10, tier: "useful", affordable: 80, canAfford: true, status: null, label: "heuristic, not calibrated and not a win probability" } }];
+  {
+    const at = T0 + 4 * 60000;
+    clock = at; catalog.c.team = "Z"; catalog.a.team = "Z"; league = baseLeague;
+    $("session-refresh").dispatch("click");
+    await until(() => Session.state() === "ready" && !$("waiver-results").hidden && Session.bundle().rostersFetchedAt === at
+      && $("waiver-table").querySelector("tbody").children.length === 2, "the overlap scenario");
+    assert.equal(cLine(), undefined, "a claim add leaves Worth watching");
+    const detail = all($("waiver-table").querySelector("tbody").children[1]).map(n => n.textContent);
+    assert.ok(detail.includes(`Preseason watchlist: C Free · WR · preseason ECR 12 (PPR reference ranking) · rest-of-season withheld (${TEAM})`),
+      "the player-specific withheld reason survives in the claim's Details");
+    assert.doesNotMatch(detail.join(" | "), /rest-of-season \d/, "no withheld number is restored");
+  }
+  stubRows = [];
   Date.now = realNow;
-  console.log("waivermode_ros_fixture: watchlist and why-value inputs withheld for stale, future-dated and changed-team data (normal, best ball, unknown slot) OK");
+  console.log("waivermode_ros_fixture: watchlist and why-value inputs withheld for stale, future-dated and changed-team data (normal, best ball, unknown slot), and carried into a claim's Details when the player is a claim add OK");
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
