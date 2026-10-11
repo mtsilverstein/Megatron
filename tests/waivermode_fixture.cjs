@@ -100,6 +100,92 @@ assert.doesNotMatch(viewerText.exportLine, /\$|heuristic bid/);
 // No simulation wording anywhere (spec §6.2).
 assert.doesNotMatch(JSON.stringify(pricedDrop), /sims|simulat/);
 
+// ---- compact forms for the grouped table and the best-move card ----------------------------
+assert.deepEqual([pricedDrop.gainShort, pricedDrop.tagText, pricedDrop.claim, pricedDrop.whyShort, pricedDrop.suggested],
+  ["+11.00 / +14.00", "", "$11–$20 · impact tier", "ROS value 40.00", true]);
+assert.deepEqual([negative.gainShort, negative.tagText, negative.claim, negative.suggested],
+  ["+2.00 / −18.00", "drop costs more than the add returns", "None suggested (drop costs more than the add returns)", false]);
+{
+  const weakFaab = M.rowText({ ...rowBase, signal:{strength:"weak",guidance:"g"}, bid:{low:null,high:null,tier:"weak signal",canAfford:true,status:"no bid suggested: modeled gain is under 1.0 pt/week",label:"heuristic"} }, faabResult);
+  assert.deepEqual([weakFaab.gainShort, weakFaab.tagText, weakFaab.claim, weakFaab.suggested], ["+0.40 / ROS not priced", "weak signal", "None suggested (weak signal)", false]);
+  const broke = M.rowText({ ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"heuristic bid range"}, bid:{low:null,high:null,tier:"useful",canAfford:false,status:"minimum bid exceeds spendable budget",label:"heuristic"} }, faabResult);
+  assert.deepEqual([broke.claim, broke.suggested], ["None: minimum bid exceeds spendable budget", false], "affordability first, as the engine ranks it");
+  assert.deepEqual([weakRolling.claim, weakRolling.suggested], ["No priority claim (weak signal)", false]);
+  assert.deepEqual([openSlot.claim, openSlot.suggested], ["Claim: set order in Sleeper", true]);
+  assert.deepEqual([viewerText.claim, viewerText.suggested], ["Owner's call", true], "a viewer sees no guidance; the suggestion flag is the engine's");
+  assert.equal(M.rowText({ ...rowBase, valueEstimate:{ points:null, label:"no rest-of-season value" }, bid:null, signal:{strength:"weak",guidance:"g"} }, rolling).whyShort, "ROS value unknown (not zero)");
+  for (const t of [weakFaab, broke, weakRolling, negative]) assert.doesNotMatch(t.claim, /\$/, "a withheld bid never prints dollars");
+}
+
+// ---- grouping by add: regroup only, rank order kept -------------------------------------------
+{
+  const r = (add, drop, gain) => ({ add:{ id:add, name:add }, drop:drop ? { id:drop, name:drop } : null, lineupGain:gain });
+  const rows = [r("T", "d1", 0.4), r("T", "d2", 0.3), r("U", "d1", 0.25), r("T", "d3", 0.2), r("V", null, 0.1)];
+  const groups = M.groupByAdd(rows);
+  assert.deepEqual(groups.map(g => g.add.id), ["T", "U", "V"], "one group per add, in the order the add first ranks");
+  assert.equal(groups[0].best, rows[0], "the best-ranked drop leads its group");
+  assert.deepEqual(groups[0].others, [rows[1], rows[3]], "the other drops, in rank order");
+  assert.deepEqual(groups.flatMap(g => [g.best, ...g.others]).sort((a, b) => b.lineupGain - a.lineupGain), rows, "no row created, dropped or changed");
+  assert.deepEqual(M.groupByAdd([]), []);
+}
+
+// ---- best move: the top-ranked row carrying a suggestion, in one sentence -----------------------
+{
+  const BL = "heuristic, not calibrated and not a win probability";
+  const base = { add:{ id:"t", name:"Tee End", position:"TE" }, drop:{ id:"w", name:"Wide Out", position:"WR" }, scoring:{label:"week 5 projection"},
+    valueEstimate:{ points:70, label:"rest-of-season value 70.00" }, rosterCost:"r", availability:{ status:null } };
+  const weakRow = { ...base, lineupGain:0.36, dropCost:{ status:"priced", label:"priced", rosDelta:5.59, dropForfeits:1.55, addContributes:7.14, futureWeeks:12, endWeek:17 },
+    signal:{ strength:"weak", thresholdPerWeek:1, moveValue:5.95, guidance:"no bid suggested; assess the drop cost independently before any move" },
+    bid:{ low:null, high:null, tier:"weak signal", canAfford:true, status:"no bid suggested: modeled gain is under 1.0 pt/week", label:BL } };
+  const goodRow = { ...base, add:{ id:"q", name:"Quinn Back", position:"RB" }, drop:null, lineupGain:0.2,
+    dropCost:{ status:"open_slot", label:"no drop required", rosDelta:30, addContributes:30, futureWeeks:12, endWeek:17 },
+    signal:{ strength:"modeled", thresholdPerWeek:1, moveValue:30.2, guidance:"heuristic bid range" },
+    bid:{ low:4, high:10, tier:"useful", canAfford:true, status:null, label:BL } };
+  // FAAB: every option weak -> the plain no-claim lead, then the closest option.
+  const allWeak = M.bestMove({ rows:[weakRow], result:faabResult });
+  assert.equal(allWeak.text, "No claim recommended this week — no available player improves your lineup by 1+ pt/week. Closest option: Add Tee End (TE), drop Wide Out — +0.36 pts this week, +5.59 rest of season.");
+  assert.equal(allWeak.claim, "Bid: none suggested (weak signal).");
+  // FAAB: a lower-ranked row carries a bid -> it is the best move, no lead.
+  const faabBest = M.bestMove({ rows:[weakRow, goodRow], result:faabResult });
+  assert.equal(faabBest.row, goodRow);
+  assert.equal(faabBest.text, "Add Quinn Back (RB), no drop needed (open roster spot) — +0.20 pts this week, +30.00 rest of season.");
+  assert.equal(faabBest.claim, `Bid: $4–$10 (useful tier; ${BL}).`);
+  // Viewer: no bid or claim guidance; "this team's", never "your".
+  const viewing = M.bestMove({ rows:[weakRow], result:faabResult, ownerOnly:true });
+  assert.equal(viewing.claim, "Claim guidance is for the team's owner.");
+  assert.match(viewing.text, /improves this team's lineup/);
+  // Rolling: claim vs. don't, and the current priority.
+  const rollingResult = { waiver:{ type:"rolling", priority:2, guidance:"Order claims by value and roster need; current priority is context, not a claim-success probability." } };
+  const strip = row => ({ ...row, bid:null });
+  assert.equal(M.bestMove({ rows:[strip(weakRow), strip(goodRow)], result:rollingResult }).claim,
+    "Claim: suggested — rank it by value and roster need when you set claim order in Sleeper. Current waiver priority: 2 (context, not a claim-success probability).");
+  assert.equal(M.bestMove({ rows:[strip(weakRow)], result:rollingResult }).claim, "Claim: none suggested (weak signal). Current waiver priority: 2 (context, not a claim-success probability).");
+  assert.equal(M.bestMove({ rows:[strip(goodRow)], result:{ waiver:{ type:"reverse_standings", priority:null } } }).claim,
+    "Claim: suggested — rank it by value and roster need when you set claim order in Sleeper. Reverse-standings priority is not modeled.");
+  // Withheld for another reason than weakness: the guardrail lead.
+  const heldRow = { ...weakRow, signal:{ ...weakRow.signal, strength:"modeled" }, dropCost:{ status:"unassessed", label:"u", reason:"x" },
+    bid:{ ...weakRow.bid, tier:"drop cost unassessed" } };
+  assert.match(M.bestMove({ rows:[heldRow], result:faabResult }).text, /^No claim recommended this week — no option clears the spend guardrails\. Closest option: Add Tee End/);
+  // No positive move, a withheld desk, a filtered-out position, a note.
+  assert.deepEqual(M.bestMove({ rows:[], result:{ ...faabResult, rows:[] } }),
+    { empty:true, text:"No claim recommended this week — no positive modeled lineup swap under the current protections. Do not spend simply because budget remains.", claim:"" });
+  assert.equal(M.bestMove({ rows:[], result:{ ...faabResult, rows:[], recommendationBlock:"withheld: stale data" } }).text, "withheld: stale data");
+  assert.match(M.bestMove({ rows:[], result:{ ...faabResult, rows:[goodRow] }, position:"QB" }).text, /^No claim option at QB this week/);
+  assert.equal(M.bestMove({ rows:[goodRow], result:null, note:"Best ball" }).text, "Best ball");
+  for (const b of [allWeak, faabBest, viewing]) assert.doesNotMatch(b.text + b.claim, /null|undefined|NaN/);
+}
+
+// ---- signal badges: only what the research radar already derived ------------------------------
+{
+  const radar = { position:"RB", roleFlags:["snap share and opportunity share both increased", "8+ carries and 40%+ of tracked team carries"], adds:149590, drops:16205,
+    sameTeam:["Lead Back"], byeCover:[13], status:"Questionable" };
+  assert.deepEqual(M.signalBadges(radar).map(b => b.text), ["Usage rising", "Carry volume", "Trending add", "Same-team RB", "Bye cover", "Questionable"]);
+  assert.equal(M.signalBadges(radar)[2].title, "Sleeper 24h adds 149590 / drops 16205 (platform-wide, not this league)", "raw counts move to the title");
+  assert.deepEqual(M.signalBadges(null, "OUT").map(b => [b.text, !!b.warn]), [["OUT", true]], "no radar entry: only the engine's own injury tag");
+  assert.deepEqual(M.signalBadges(null, null), []);
+  assert.deepEqual(M.signalBadges({ roleFlags:[], adds:null, drops:5, sameTeam:[], byeCover:[] }), [], "not listed among adds is not a trending add");
+}
+
 // ---- context lines: format line, banner, footnotes, heuristics, simulation note ------------
 const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.";
 {
@@ -223,5 +309,5 @@ function bundleOf({ league: lg = league, rosters, userId = "helper", status = "f
   await refuse({ bundle: bundleOf({ rosters, league: { ...league, settings: { type: 7, waiver_type: 2 } } }) }, /This league type isn't supported yet\./);
   await refuse({ bundle: bundleOf({ rosters, fetchedAt: null }) }, /timestamps/);
   await assert.rejects(M.loadWorld({ bundle: found, week: 1, get: async () => ({}) }), /incomplete transaction/);
-  console.log("waivermode_fixture: week, hydration, reserve default, row wording, context/ROS/evidence/ECR lines and session-bundle loading OK");
+  console.log("waivermode_fixture: week, hydration, reserve default, row wording (full and compact), grouping by add, best move, signal badges, context/ROS/evidence/ECR lines and session-bundle loading OK");
 })().catch(e => { console.error(e); process.exitCode = 1; });

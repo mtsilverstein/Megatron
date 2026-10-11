@@ -71,19 +71,39 @@ const ids = [...waivers.matchAll(/\bid=["']([^"']+)["']/gi)].map((match) => matc
 const duplicates = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
 assert.deepEqual(duplicates, [], "waiver IDs are unique");
 
-const countAt = waivers.indexOf('id="waiver-count"');
-const tableAt = waivers.indexOf('id="waiver-table"');
-const protectionAt = waivers.indexOf("Protect players from drop suggestions");
-const radarAt = waivers.indexOf('id="waiver-radar"');
-assert.ok(countAt >= 0 && tableAt >= 0 && protectionAt >= 0 && radarAt >= 0, "waiver hierarchy landmarks exist");
-assert.ok(countAt < radarAt && tableAt < radarAt && protectionAt < radarAt, "shortlist and drop protection appear before the research radar");
-
-const coverageAt = waivers.indexOf('id="waiver-coverage"');
-const sourcesAt = waivers.indexOf("Data sources and timestamps");
-const sourceAt = waivers.indexOf('id="waiver-source"');
-assert.ok(sourcesAt >= 0 && sourceAt > sourcesAt, "source provenance is inside the data-sources disclosure");
-assert.ok(coverageAt >= 0 && coverageAt < sourcesAt, "coverage remains visible outside the data-sources disclosure");
-assert.doesNotMatch(waivers, /<details\b[^>]*\bopen\b[^>]*>\s*<summary>Available watchlist/i, "preseason watchlist starts collapsed");
+// The waiver page answers "who do I claim" top to bottom: summary line ->
+// settings (week, budget to keep, position, protections) -> best move ->
+// claim table -> worth watching -> copy shortlist -> how this works.
+const at = id => waivers.indexOf(`id="${id}"`);
+const ORDER = ["waiver-summary", "waiver-controls", "waiver-best", "waiver-table", "waiver-watching", "waiver-copy", "waiver-method"];
+for (const id of ORDER) assert.ok(at(id) >= 0, `waiver landmark #${id} exists`);
+assert.deepEqual([...ORDER].sort((a, b) => at(a) - at(b)), ORDER, "waiver sections appear in the approved order");
+// Every setting sits in the settings row, above the results.
+const controlsHtml = waivers.slice(at("waiver-controls"), waivers.indexOf("</div>", at("waiver-controls")));
+for (const id of ["waiver-week", "waiver-reserve", "waiver-position", "waiver-protect-toggle"])
+  assert.ok(controlsHtml.includes(`id="${id}"`), `#${id} is in the settings row`);
+assert.match(controlsHtml, /<button type="button" id="waiver-protect-toggle"[^>]*aria-controls="waiver-protect"/, "the protection control is a real button that opens the editor");
+assert.ok(at("waiver-protect") < at("waiver-best") && at("waiver-roster") > at("waiver-protect"), "the protection editor opens under the settings, before the results");
+// The live region for loading and errors is kept.
+assert.match(waivers, /<p id="waiver-status" role="status" aria-live="polite">/);
+// Fold-outs: Worth watching and How this works start collapsed; Worth watching
+// holds the one merged research list and the bye bullets.
+assert.match(waivers, /<details id="waiver-watching"(?![^>]*\bopen\b)[^>]*>\s*<summary>Worth watching/, "Worth watching starts collapsed");
+assert.match(waivers, /<details id="waiver-method"(?![^>]*\bopen\b)[^>]*>\s*<summary>How this works · data and limits<\/summary>/, "the method fold starts collapsed");
+const watchingHtml = waivers.slice(at("waiver-watching"), at("waiver-copy"));
+for (const id of ["waiver-radar-sort", "waiver-watchlist", "waiver-byes"]) assert.ok(watchingHtml.includes(`id="${id}"`), `#${id} is inside Worth watching`);
+assert.ok(!waivers.includes('id="waiver-radar"'), "one merged list, no separate radar table");
+// Copy shortlist: one button; the text box is only the hidden fallback.
+assert.match(waivers, /<button type="button" id="waiver-copy">Copy shortlist<\/button>/);
+assert.match(waivers, /<div id="waiver-backup-wrap" hidden>/);
+assert.ok(!waivers.includes('id="waiver-export"'), "the separate export button is gone");
+// Data, timestamps, coverage, format lines, market sample and warnings live in the method fold.
+const methodHtml = waivers.slice(at("waiver-method"));
+for (const id of ["waiver-warnings", "waiver-count-detail", "waiver-context", "waiver-coverage", "waiver-ros", "waiver-source", "waiver-evaluation",
+  "waiver-intel-source", "waiver-role-source", "waiver-market", "waiver-league-link"]) assert.ok(methodHtml.includes(`id="${id}"`), `#${id} is in How this works`);
+assert.ok(methodHtml.includes("Data sources and timestamps"), "the data-sources heading the method list refers to is there");
+// The claim table keeps real column headers.
+assert.match(waivers, /<thead><tr><th scope="col">Add<\/th><th scope="col">Drop<\/th><th scope="col">Gain \(week \/ rest of season\)<\/th><th scope="col">Bid or priority<\/th><th scope="col">Signals<\/th><th scope="col">Why<\/th><\/tr><\/thead>/);
 
 // The in-season branch must stamp the masthead from the remaining-season
 // payload, not the draft board's -- a `FC.stampHeader(board)` call outside
