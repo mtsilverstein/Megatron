@@ -72,11 +72,8 @@ caption { padding: .7rem !important; font-size: .8rem; text-align: left; color: 
 #waiver-status, .waiver-warnings { border-radius: .35rem; }
 .waiver-controls { padding: 1rem; background: var(--sunken); border: 1px solid var(--rule); border-radius: .6rem; }
 .field-hint { font-size: .75rem; color: var(--chalk-dim); font-weight: 400; }
-.waiver-budget div { border-radius: .6rem; background: var(--sunken); }
-.waiver-budget strong { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
 .waiver-method { max-width: none; }
 .waiver-method li { max-width: 90ch; }
-#waiver-results > section { margin-top: 2.5rem; padding-top: .5rem; border-top: 1px solid var(--rule); }
 #ss-evidence, #expert-status, #lens-status, .waiver-source { font-size: .85rem; }
 .draft-note, .draft-status, .trade-col-note { font-family: inherit; line-height: 1.6; }
 .season-steps { display: flex; flex-wrap: wrap; gap: .75rem 2rem; padding: 1rem 1rem 1rem 2.5rem; border: 1px solid var(--rule); border-radius: .6rem; background: var(--sunken); }

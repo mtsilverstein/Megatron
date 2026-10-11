@@ -148,13 +148,102 @@
     const tag = weak ? " · weak signal" : held ? " · drop cost unassessed" : negative ? " · drop costs more than the add returns" : "";
     const exportRos = priced ? `; ROS ${sign(dc.rosDelta)} (wk ${(dc.endWeek - dc.futureWeeks) + 1}–${dc.endWeek})` : "";
     const exportTag = weak ? "WEAK SIGNAL" : held ? "DROP COST UNASSESSED" : negative ? "DROP COSTS MORE THAN ADD RETURNS" : "modeled";
+    // Compact forms for the grouped table and the best-move card: the same
+    // values and the same withheld states, shorter words. Never dollars for
+    // a withheld bid; a viewer gets no bid or claim guidance at all.
+    const tagText = weak ? "weak signal" : held ? "drop cost unassessed" : negative ? "drop costs more than the add returns" : "";
+    const claim = ownerOnly ? "Owner's call"
+      : r.bid ? (dollars ? `${dollars} · ${r.bid.tier} tier` : r.bid.canAfford === false ? "None: minimum bid exceeds spendable budget" : `None suggested (${r.bid.tier})`)
+      : withheld ? `No priority claim (${tagText})` : "Claim: set order in Sleeper";
+    const value = r.valueEstimate && r.valueEstimate.points;
     return {
       gain: `+${r.lineupGain.toFixed(2)} pts${rosPart}${tag}`,
       bid, bidNote,
       why: `${r.bid && !ownerOnly ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`,
       dropCostNote: held ? `${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : dc.status === "priced" ? dc.label : null,
       exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label})${exportRos}; ${exportTag}; ${exportBid}; ${r.rosterCost}${held ? `; ${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : ""}`,
+      gainShort: `+${r.lineupGain.toFixed(2)} / ${priced ? sign(dc.rosDelta) : "ROS not priced"}`,
+      tagText, claim,
+      whyShort: Number.isFinite(value) ? `ROS value ${value.toFixed(2)}` : "ROS value unknown (not zero)",
+      // The engine attached a spend suggestion to this row: a dollar range
+      // (FAAB) or a priority claim (rolling / reverse standings).
+      suggested: r.bid ? !!dollars && r.bid.canAfford !== false : !withheld,
     };
+  }
+
+  // The claim table shows one row per added player: the engine's ranked rows
+  // regrouped by add id, in the order each add first appears (its best-ranked
+  // drop); that add's other drops ride along in rank order. Regrouping only:
+  // no row is created, dropped, re-valued or re-ranked.
+  function groupByAdd(rows) {
+    const groups = [], byAdd = new Map();
+    for (const r of rows || []) {
+      const key = String(r.add && (r.add.id ?? r.add.name));
+      const g = byAdd.get(key);
+      if (g) g.others.push(r);
+      else { const fresh = { add: r.add, best: r, others: [] }; byAdd.set(key, fresh); groups.push(fresh); }
+    }
+    return groups;
+  }
+
+  const NO_MOVE = "No claim recommended this week — no positive modeled lineup swap under the current protections. Do not spend simply because budget remains.";
+  // The best-move card: the highest-ranked row that carries a spend
+  // suggestion. When no row carries one, the card says so plainly and names
+  // the closest (top-ranked) option. Wording only; every value is rowText's.
+  function bestMove({ rows, result, note = null, ownerOnly = false, position = "ALL" }) {
+    if (note) return { empty: true, text: note, claim: "" };
+    if (!rows || !rows.length) {
+      const filtered = position !== "ALL" && result && Array.isArray(result.rows) && result.rows.length;
+      const text = result && result.recommendationBlock ? result.recommendationBlock
+        : filtered ? `No claim option at ${position} this week under the current protections. Choose "All skill positions" to see the other options.`
+        : NO_MOVE;
+      return { empty: true, text, claim: "" };
+    }
+    const texts = rows.map(r => rowText(r, result, { ownerOnly }));
+    const at = texts.findIndex(t => t.suggested);
+    const r = rows[at < 0 ? 0 : at], t = texts[at < 0 ? 0 : at];
+    const dc = r.dropCost || {};
+    const sign = x => `${x < 0 ? "−" : "+"}${Math.abs(x).toFixed(2)}`;
+    const move = `Add ${r.add.name} (${r.add.position}), ${r.drop ? `drop ${r.drop.name}` : "no drop needed (open roster spot)"} — +${r.lineupGain.toFixed(2)} pts this week, ${Number.isFinite(dc.rosDelta) ? `${sign(dc.rosDelta)} rest of season` : "rest of season not priced"}.`;
+    let lead = "";
+    if (at < 0) {
+      const whose = ownerOnly ? "this team's" : "your";
+      const threshold = Number(rows[0].signal && rows[0].signal.thresholdPerWeek) || 1;
+      lead = rows.every(x => x.signal.strength === "weak")
+        ? `No claim recommended this week — no available player improves ${whose} lineup by ${threshold}+ pt/week. Closest option: `
+        : "No claim recommended this week — no option clears the spend guardrails. Closest option: ";
+    }
+    const type = result && result.waiver && result.waiver.type;
+    const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? `$${r.bid.low}–$${r.bid.high}` : null;
+    let claim;
+    if (ownerOnly) claim = COPY.ownerOnly;
+    else if (r.bid) claim = dollars && r.bid.canAfford !== false ? `Bid: ${dollars} (${r.bid.tier} tier; ${r.bid.label}).`
+      : r.bid.canAfford === false ? "Bid: none — minimum bid exceeds spendable budget."
+      : `Bid: none suggested (${r.bid.tier}).`;
+    else {
+      claim = t.suggested ? "Claim: suggested — rank it by value and roster need when you set claim order in Sleeper." : `Claim: none suggested (${t.tagText}).`;
+      if (type === "rolling") claim += ` Current waiver priority: ${result.waiver.priority ?? "unknown"} (context, not a claim-success probability).`;
+      if (type === "reverse_standings") claim += " Reverse-standings priority is not modeled.";
+    }
+    return { empty: false, row: r, text: `${lead}${move}`, claim };
+  }
+
+  // Signal badges for a claim row, read from the research radar's entry for
+  // the same player (WaiverIntel.analyze). Nothing is computed here: each
+  // badge is a field the radar already derived; its full text rides in title.
+  function signalBadges(p, availabilityStatus) {
+    const out = [];
+    const status = (p && p.status) || availabilityStatus || null;
+    if (p) for (const flag of p.roleFlags || []) {
+      const short = /increased/.test(flag) ? "Usage rising" : /targets/.test(flag) ? "Target volume" : /carries/.test(flag) ? "Carry volume" : "Usage flag";
+      out.push({ text: short, title: `Observed usage: ${flag}` });
+    }
+    if (p && p.adds !== null && p.adds !== undefined)
+      out.push({ text: "Trending add", title: `Sleeper 24h adds ${p.adds} / drops ${p.drops ?? "Not listed"} (platform-wide, not this league)` });
+    if (p && p.sameTeam && p.sameTeam.length) out.push({ text: "Same-team RB", title: `Shares RB room with ${p.sameTeam.join(", ")}; verify role` });
+    if (p && p.byeCover && p.byeCover.length) out.push({ text: "Bye cover", title: `Different bye in thin ${p.position} weeks: ${p.byeCover.join(", ")}` });
+    if (status) out.push({ text: status, title: "Injury tag from the session-cached Sleeper catalog, not live news", warn: true });
+    return out;
   }
 
   // The lines above the shortlist: the format line (eligibility wins for best
@@ -235,7 +324,29 @@
       if (cls) el.className = cls;
       return el;
     };
-    const status = text => { $("waiver-status").textContent = text; };
+    // The live region. A quiet status (the loaded desk's "who and when" line,
+    // which the summary line repeats visually) stays announced but is visually
+    // hidden; loading, refresh and error messages are always visible.
+    const status = (text, quiet = false) => {
+      $("waiver-status").textContent = text;
+      $("waiver-status").className = quiet ? "visually-hidden" : "";
+    };
+    // Results and everything derived from them (the summary line, the data
+    // part of the method fold, the protection control) show and hide together.
+    const showResults = on => {
+      for (const id of ["waiver-results", "waiver-summary", "waiver-data"]) $(id).hidden = !on;
+      $("waiver-protect-toggle").hidden = !snap;
+      if (!snap) { $("waiver-protect").hidden = true; $("waiver-protect-toggle").setAttribute("aria-expanded", "false"); }
+    };
+    // Open/closed state of rebuilt fold-outs (row details, watch entries)
+    // survives the 15 s re-render.
+    const openKeys = new Set();
+    const keepOpen = (details, key) => {
+      details.open = openKeys.has(key);
+      details.addEventListener("toggle", () => { if (details.open) openKeys.add(key); else openKeys.delete(key); });
+      return details;
+    };
+    const fold = (summary, key) => { const d = keepOpen(node("details"), key); d.append(node("summary", summary)); return d; };
     let leagueRef;
     try { FC.leagueNavigation(); leagueRef = FC.inSeasonLeague(); }
     catch (error) {
@@ -244,6 +355,11 @@
       status(error.message);
       return;
     }
+    $("waiver-protect-toggle").addEventListener("click", () => {
+      const open = $("waiver-protect").hidden;
+      $("waiver-protect").hidden = !open;
+      $("waiver-protect-toggle").setAttribute("aria-expanded", String(open));
+    });
 
     // ---- statics: once per document, a failure retries on the next load ----
     let batchP = null, sideP = null;
@@ -282,90 +398,187 @@
 
     function renderRoster() {
       const own = snap.world.rosters.find(r => r.roster_id === snap.world.rosterId);
+      const locked = new Set([...(own.reserve || []), ...(own.taxi || [])]);
+      const setCount = () => {
+        const n = viewer() ? protectedIds.size : (own.players || []).filter(id => protectedIds.has(id) || locked.has(id)).length;
+        $("waiver-protect-toggle").textContent = viewer() ? `Protected: ${n} starter${n === 1 ? "" : "s"} (owner's choice)` : `Protected: ${n} player${n === 1 ? "" : "s"}`;
+      };
       $("waiver-roster").replaceChildren();
+      setCount();
       if (viewer()) {
         $("waiver-roster").append(node("p", "Drop protections are the team owner's choice; this view protects the current starters."));
         return;
       }
-      const locked = new Set([...(own.reserve || []), ...(own.taxi || [])]);
       for (const id of own.players || []) {
         const label = node("label"), box = document.createElement("input");
         box.type = "checkbox"; box.checked = protectedIds.has(id) || locked.has(id); box.disabled = locked.has(id);
         label.append(box, node("span", `${playerName(id)}${locked.has(id) ? " · IR/taxi" : ""}`));
         box.addEventListener("change", () => {
           if (box.checked) protectedIds.add(id); else protectedIds.delete(id);
+          setCount();
           recompute();
         });
         $("waiver-roster").append(label);
       }
     }
 
+    // Notes identical for every row of a kind (the signal definitions, the
+    // priced-on label, the bid-label caveat, the owner-only line, the
+    // rest-of-season aggregation): stated once above the table, not per row.
+    function sharedRowNotes(rows, isViewer) {
+      const notes = new Set();
+      const capital = s => { const t = String(s).trim(); return `${t.charAt(0).toUpperCase()}${t.slice(1)}${/[.!?]$/.test(t) ? "" : "."}`; };
+      if (isViewer) notes.add(COPY.ownerOnly);
+      for (const r of rows) {
+        notes.add(capital(`gain is the ${r.scoring.label} lineup change`));
+        notes.add(capital(r.signal.label));
+        if (r.dropCost?.status === "priced") notes.add(capital(`drop costs are ${r.dropCost.label}`));
+        if (!isViewer && r.bid) notes.add(capital(`bid ranges: ${r.bid.label}`));
+        if (!isViewer && !r.bid && rowText(r, result).bidNote === result.waiver.guidance) notes.add(capital(result.waiver.guidance));
+      }
+      if (rows.length) notes.add(`ROS value: ${COPY.aggregation}; not a FAAB price.`);
+      return [...notes];
+    }
+
+    // The long per-row text, behind the row's own fold-out.
+    function rowDetailItems(r, text, shared, isViewer) {
+      const items = [];
+      if (!isViewer) items.push(`Claim guidance: ${text.bid}${text.bidNote && !shared.has(text.bidNote) && text.bidNote !== r.bid?.label ? ` — ${text.bidNote}` : ""}`);
+      items.push(r.rosterCost);
+      if (text.dropCostNote && r.dropCost?.status !== "priced") items.push(text.dropCostNote);
+      if (r.availability?.warning) items.push(r.availability.warning);
+      items.push(`Why: ${r.valueEstimate.label}`);
+      return items;
+    }
+
+    const pct = v => typeof v === "number" && Number.isFinite(v) ? `${(v*100).toFixed(1)}%` : "unknown";
+    const change = v => typeof v === "number" && Number.isFinite(v) ? `${v >= 0 ? "+" : ""}${(v*100).toFixed(1)} pp` : "not comparable";
+    // A radar entry's research lines (formerly the research radar's columns).
+    function radarReasons(p) {
+      const reasons = [];
+      if (p.sameTeam.length) reasons.push(`Shares RB room with ${p.sameTeam.join(", ")}; verify role`);
+      if (p.byeCover.length) reasons.push(`Different bye in ${viewer() ? "this team's" : "your"} thin ${p.position} weeks: ${p.byeCover.join(", ")}`);
+      if (!reasons.length) reasons.push(p.adds !== null || p.drops !== null ? "Market activity; investigate the cause" : "Consensus watchlist; verify role and availability");
+      if (p.roleFlags.length) reasons.push(...p.roleFlags);
+      return reasons;
+    }
+    function radarDetail(p) {
+      const r = p.role;
+      const roleText = r ? `Observed W${r.week}: targets ${r.latest.targets ?? "unknown"}; carries ${r.latest.carries ?? "unknown"}; snap share ${pct(r.latest.snap_pct)}; target share ${pct(r.latest.target_share)}; carry share ${pct(r.latest.carry_share)}. Versus mean of prior observed weeks ${r.baseline_weeks.join(", ") || "none"}: snaps ${change(r.delta.snap_pct)}, target share ${change(r.delta.target_share)}, carry share ${change(r.delta.carry_share)}.` : "No comparable current-team usage row. Not zero opportunity.";
+      return [roleText,
+        `Sleeper 24h adds / drops: ${p.adds ?? "Not listed"} / ${p.drops ?? "Not listed"}`,
+        `${p.rosRank === null ? "No matching live ROS rank" : `ROS overall rank ${p.rosRank} (${COPY.ecr})`}. ${p.ecr === null ? "No preseason ECR" : `Preseason ECR ${p.ecr} (${COPY.ecr})`}. ${p.projectionCovered ? "Verify snaps, role, health and the cost of your drop." : "Not on projection board; research only, no modeled price."}`];
+    }
+    const list = items => { const ul = node("ul", undefined, "waiver-detail-list"); for (const t of items) ul.append(node("li", t)); return ul; };
+
+    function renderBest(rows) {
+      const best = bestMove({ rows, result, note: snap.note, ownerOnly: viewer(), position: $("waiver-position").value });
+      $("waiver-best-text").textContent = best.text;
+      $("waiver-best-claim").textContent = best.claim;
+      $("waiver-best-claim").hidden = !best.claim;
+      return best;
+    }
+
     function renderRows() {
       const body = $("waiver-table").querySelector("tbody"); body.replaceChildren();
       const rows = activeRows();
-      const whose = viewer() ? "this team's" : "your";
+      const isViewer = viewer();
+      const whose = isViewer ? "this team's" : "your";
       const weakCount = rows.filter(r => r.signal.strength === "weak").length;
       const heldCount = rows.filter(r => r.signal.strength !== "weak" && r.dropCost?.status === "unassessed").length;
       const negativeCount = rows.filter(r => r.dropCost?.status === "priced" && r.signal.moveValue <= 0).length;
       const pricedCount = rows.filter(r => r.dropCost?.status === "priced" && r.signal.moveValue > 0).length;
-      $("waiver-count").textContent = snap.note ? snap.note
+      // The full count sentence lives in the method fold; the table gets one line.
+      $("waiver-count-detail").textContent = snap.note ? snap.note
         : rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against ${whose} current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals: under 1 point per week — ${COPY.heuristic(rows[0].signal.thresholdPerWeek)} — kept for research; no bid or priority spend is suggested for them.` : ""}${heldCount ? ` ${heldCount} require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them.` : ""}${pricedCount ? ` ${pricedCount} required-drop alternatives are priced on this week's gain plus the rest-of-season lineup change.` : ""}${negativeCount ? ` ${negativeCount} would forfeit more rest-of-season lineup value than the add returns; no bid or priority spend is suggested for them.` : ""}`
         : result?.recommendationBlock || "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.";
-      for (const r of rows) {
-        const text = rowText(r, result, { ownerOnly: viewer() });
+      renderBest(rows);
+      const groups = groupByAdd(rows);
+      $("waiver-claims").hidden = !rows.length;
+      $("waiver-count").textContent = rows.length
+        ? `Each row is a separate option — make one claim at a time. ${groups.length} player${groups.length === 1 ? "" : "s"}, ${rows.length} add/drop option${rows.length === 1 ? "" : "s"}, each evaluated against ${whose} current roster.`
+        : "";
+      const notes = sharedRowNotes(rows, isViewer), shared = new Set(notes);
+      $("waiver-row-notes").textContent = notes.join(" ");
+      const radarById = new Map((intel?.radar || []).map(p => [String(p.id), p]));
+      for (const g of groups) {
+        const r = g.best, text = rowText(r, result, { ownerOnly: isViewer });
         const tr = node("tr");
-        const add = node("td", r.add.name); add.append(node("span", r.add.position, "waiver-row-note"));
+        const add = node("td"); add.append(node("strong", r.add.name), node("span", r.add.position, "waiver-row-note"));
         const drop = node("td", r.drop?.name || "Open roster spot");
-        const gain = node("td", text.gain);
-        gain.append(node("span", r.scoring.label, "waiver-row-note"));
-        gain.append(node("span", r.signal.label, "waiver-row-note"));
-        const bid = node("td", text.bid);
-        if (text.bidNote) bid.append(node("span", text.bidNote, "waiver-row-note"));
-        const why = node("td", text.why);
-        why.append(node("span", r.rosterCost, "waiver-row-note"));
-        if (text.dropCostNote) why.append(node("span", text.dropCostNote, "waiver-row-note"));
-        if (r.availability?.warning) why.append(node("span", r.availability.warning, "waiver-row-note"));
-        tr.append(add, drop, gain, bid, why); body.append(tr);
+        const gain = node("td"); gain.append(node("span", text.gainShort, "waiver-num"));
+        if (text.tagText) gain.append(node("span", text.tagText, "waiver-row-note"));
+        const bid = node("td", text.claim);
+        if (isViewer) bid.title = COPY.ownerOnly;
+        const radar = radarById.get(String(r.add.id));
+        const signals = node("td");
+        const badges = signalBadges(radar, r.availability?.status);
+        for (const b of badges) { const el = node("span", b.text, `waiver-badge${b.warn ? " warn" : ""}`); el.title = b.title; signals.append(el); }
+        if (!badges.length) signals.append(node("span", "—", "waiver-row-note"));
+        const why = node("td", text.whyShort);
+        why.title = r.valueEstimate.label;
+        tr.append(add, drop, gain, bid, signals, why); body.append(tr);
+        // The row's fold-out: the long limitation text, the research detail
+        // and the same add's other drop options.
+        const detail = node("tr", undefined, "waiver-detail-row"), cell = node("td");
+        cell.colSpan = 6; cell.setAttribute("colspan", "6");
+        const others = g.others.length;
+        const d = fold(others ? `Details · ${others} other drop option${others === 1 ? "" : "s"}` : "Details", `claim:${r.add.id}`);
+        d.append(list(rowDetailItems(r, text, shared, isViewer)));
+        if (radar) { d.append(node("p", `Research: ${radarReasons(radar).join(". ")}.`, "waiver-source")); d.append(list(radarDetail(radar))); }
+        if (others) {
+          d.append(node("p", `Other drop options for ${r.add.name}`, "waiver-detail-head"));
+          d.append(list(g.others.map(o => {
+            const t = rowText(o, result, { ownerOnly: isViewer });
+            return `Drop ${o.drop?.name || "none (open roster spot)"}: ${t.gainShort}${t.tagText ? ` (${t.tagText})` : ""} · ${t.claim} · ${o.rosterCost}${t.dropCostNote && o.dropCost?.status !== "priced" ? ` · ${t.dropCostNote}` : ""}`;
+          })));
+        }
+        cell.append(d); detail.append(cell); body.append(detail);
       }
-      renderWatchlist();
-      renderIntel();
+      renderIntel(new Set(groups.map(g => String(g.add.id))));
     }
 
-    function activeRadar() {
+    // The research radar, filtered by position and sorted by the chosen
+    // order. `exclude`: players already in the claim table (their research
+    // detail is in their row there). The copy export reads the full radar.
+    function activeRadar(exclude) {
       const position = $("waiver-position").value;
-      const rows = (intel?.radar || []).filter(p => position === "ALL" || p.position === position);
+      const rows = (intel?.radar || []).filter(p => (position === "ALL" || p.position === position) && !(exclude && exclude.has(String(p.id))));
       if ($("waiver-radar-sort").value === "adds") rows.sort((a,b) => (b.adds ?? -1)-(a.adds ?? -1));
       if ($("waiver-radar-sort").value === "usage") rows.sort((a,b) => b.roleFlags.length-a.roleFlags.length || (b.role?.week || 0)-(a.role?.week || 0));
       if ($("waiver-radar-sort").value === "ros") rows.sort((a,b) => (a.rosRank ?? Infinity)-(b.rosRank ?? Infinity));
       return rows.slice(0,24);
     }
 
-    function renderIntel() {
+    // "Worth watching": ONE list, the research radar (in the chosen order)
+    // then the preseason-ECR watchlist players the radar does not already
+    // list. Each entry is one line; the usage numbers sit in its fold-out.
+    let claimIds = new Set();
+    function renderIntel(exclude) {
       if (!intel) return;
+      if (exclude) claimIds = exclude;
       $("waiver-intel-source").textContent = `Sleeper trends requested ${intel.fetchedAt || "unknown time"}. ${intel.rosStatus} ${intel.warnings.join(" ")}`;
       $("waiver-role-source").textContent = intel.roleStatus;
       $("waiver-byes").replaceChildren();
       for (const r of intel.byeRisks) $("waiver-byes").append(node("li", `Week ${r.week} ${r.position}: ${r.available} available for ${r.required} required — ${r.severity}. On bye: ${r.away.join(", ")}.`));
       if (!intel.byeRisks.length) $("waiver-byes").append(node("li", "No dedicated-position bye shortfall or no-spare week found in known bye data."));
-      const body = $("waiver-radar").querySelector("tbody"); body.replaceChildren();
-      for (const p of activeRadar()) {
-        const reasons = [];
-        if (p.sameTeam.length) reasons.push(`Shares RB room with ${p.sameTeam.join(", ")}; verify role`);
-        if (p.byeCover.length) reasons.push(`Different bye in ${viewer() ? "this team's" : "your"} thin ${p.position} weeks: ${p.byeCover.join(", ")}`);
-        if (!reasons.length) reasons.push(p.adds !== null || p.drops !== null ? "Market activity; investigate the cause" : "Consensus watchlist; verify role and availability");
-        if (p.roleFlags.length) reasons.push(...p.roleFlags);
-        const tr = node("tr");
-        const pct = v => typeof v === "number" && Number.isFinite(v) ? `${(v*100).toFixed(1)}%` : "unknown";
-        const change = v => typeof v === "number" && Number.isFinite(v) ? `${v >= 0 ? "+" : ""}${(v*100).toFixed(1)} pp` : "not comparable";
-        const r = p.role;
-        const roleText = r ? `Observed W${r.week}: targets ${r.latest.targets ?? "unknown"}; carries ${r.latest.carries ?? "unknown"}; snap share ${pct(r.latest.snap_pct)}; target share ${pct(r.latest.target_share)}; carry share ${pct(r.latest.carry_share)}. Versus mean of prior observed weeks ${r.baseline_weeks.join(", ") || "none"}: snaps ${change(r.delta.snap_pct)}, target share ${change(r.delta.target_share)}, carry share ${change(r.delta.carry_share)}.` : "No comparable current-team usage row. Not zero opportunity.";
-        tr.append(node("td", `${p.name} · ${p.position} · ${p.team}${p.status ? ` · ${p.status}` : ""}`),
-          node("td", reasons.join(". ")),
-          node("td", roleText),
-          node("td", `${p.adds ?? "Not listed"} / ${p.drops ?? "Not listed"}`),
-          node("td", `${p.rosRank === null ? "No matching live ROS rank" : `ROS overall rank ${p.rosRank} (${COPY.ecr})`}. ${p.ecr === null ? "No preseason ECR" : `Preseason ECR ${p.ecr} (${COPY.ecr})`}. ${p.projectionCovered ? "Verify snaps, role, health and the cost of your drop." : "Not on projection board; research only, no modeled price."}`));
-        body.append(tr);
+      const pool = watchPool(claimIds);
+      const poolById = new Map(pool.map(p => [String(p.sleeper_id), p]));
+      const out = $("waiver-watchlist"); out.replaceChildren();
+      const radar = activeRadar(claimIds);
+      for (const p of radar) {
+        const li = node("li");
+        li.append(node("span", `${p.name} · ${p.position} · ${p.team}${p.status ? ` · ${p.status}` : ""}`, "waiver-watch-name"),
+          node("span", radarReasons(p).join(". "), "waiver-watch-why"));
+        const d = fold("Usage and market detail", `watch:${p.id}`);
+        const lines = radarDetail(p);
+        const board = poolById.get(String(p.id));
+        if (board) { lines.push(watchlistText(board)); poolById.delete(String(p.id)); }
+        d.append(list(lines)); li.append(d); out.append(li);
       }
+      for (const p of poolById.values()) out.append(node("li", watchlistText(p)));
+      const n = radar.length + poolById.size;
+      $("waiver-watching-count").textContent = `· ${n} available player${n === 1 ? "" : "s"}`;
       const wt = waiverType(), week = $("waiver-week").value;
       $("waiver-market").textContent = wt === 0
         ? `Selected week ${week}: rolling priority is ${result?.waiver.priority ?? snap.world.rosters.find(r => r.roster_id === snap.world.rosterId)?.settings?.waiver_position ?? "unknown"}. Research and rank claims by value; this desk does not estimate claim success.`
@@ -379,14 +592,14 @@
     const rosBoard = s => gateRos(s.board, LeagueData.rosValues(s.view, { league: s.world.league, week: s.week, now: Date.now(),
       catalog: s.catalog, policy: LeagueData.ROS_POLICY.waivers }));
 
-    function renderWatchlist() {
+    // The preseason watchlist pool: unrostered board players with an ECR, in
+    // ECR order, minus the claim table's adds.
+    function watchPool(exclude) {
       const owned = new Set(snap.world.rosters.flatMap(r => [...(r.players || []), ...(r.reserve || []), ...(r.taxi || [])]));
       const pos = $("waiver-position").value;
-      const pool = rosBoard(snap).players.filter(p => p.sleeper_id && !owned.has(p.sleeper_id) && !p.identity_only
-        && Number.isFinite(p.ecr) && (pos === "ALL" || p.position === pos))
+      return rosBoard(snap).players.filter(p => p.sleeper_id && !owned.has(p.sleeper_id) && !p.identity_only
+        && Number.isFinite(p.ecr) && (pos === "ALL" || p.position === pos) && !(exclude && exclude.has(String(p.sleeper_id))))
         .sort((a, b) => a.ecr - b.ecr).slice(0, 24);
-      const list = $("waiver-watchlist"); list.replaceChildren();
-      for (const p of pool) list.append(node("li", watchlistText(p)));
     }
 
     function renderContext(s) {
@@ -423,20 +636,19 @@
           remaining: s.view.remaining, remainingReason, week: s.week, protectedIds: [...protectedIds], budgetReserve: reserve });
         intel = I.analyze({ board: s.board, ...s.world, catalog: s.catalog, signals: s.signals, roles: s.roles, ros: s.rosEcr, week: s.week });
         const mine = s.world.rosters.find(r => r.roster_id === s.world.rosterId);
-        $("waiver-budget").replaceChildren();
-        const b = result?.budget;
-        const tiles = wt === 0 ? [["Rolling priority", mine.settings?.waiver_position ?? "Unknown"], ["Guidance", "Rank claims"]]
-          : wt === 1 ? [["Reverse-standings waivers", "Priority not modeled"], ["Guidance", "Rank claims"]]
-          : !b ? []
-          : isViewer ? [["Remaining", `$${b.remaining}`], ["Tie priority", mine.settings?.waiver_position ?? "Unknown"]]
-          : [["Remaining", `$${b.remaining}`], ["Keep in reserve", `$${b.reserve}`], ["Spendable ceiling", `$${b.spendable}`], ["Tie priority", mine.settings?.waiver_position ?? "Unknown"]];
-        for (const [label, value] of tiles) {
-          const tile = node("div"); tile.append(node("strong", String(value)), node("span", label)); $("waiver-budget").append(tile);
-        }
+        // The summary line: league · week · budget or priority · data as of · whose team.
+        const b = result?.budget, tie = mine.settings?.waiver_position ?? "unknown";
+        const teamName = S.teamName(s.world.users, mine);
+        $("waiver-summary-league").textContent = `${league.name || `League ${league.league_id}`} · Week ${s.week}`;
+        $("waiver-budget").textContent = wt === 0 ? `Waiver priority ${tie} (rolling) · rank claims`
+          : wt === 1 ? "Reverse-standings waivers · priority not modeled · rank claims"
+          : b ? `$${b.remaining} FAAB remaining · tie priority ${tie}` : "";
+        $("waiver-summary-data").textContent = `rosters as of ${new Date(s.world.fetchedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · ${isViewer ? `Viewing ${teamName}` : `Your team: ${teamName}`}`;
+        $("waiver-spendable").textContent = faab && b && !isViewer ? `Keep in reserve $${b.reserve} · spendable ceiling $${b.spendable}` : "";
         const warnings = [...(result ? result.warnings : []), "League eligibility and claim processing time must be checked in Sleeper. Pending bids are not visible through the public API.", `Injury tags are a session-cached catalog snapshot (${s.catalogTime || "unknown time"}), not live news. Verify current availability separately.`];
         $("waiver-warnings").replaceChildren(); const ul = node("ul");
         for (const warning of warnings) ul.append(node("li", warning));
-        $("waiver-warnings").append(ul); $("waiver-warnings").hidden = false;
+        $("waiver-warnings").append(ul);
         const settings = S.settingsText(s.bundle);
         $("waiver-source").textContent = `Roster snapshot requested ${new Date(s.world.requestedAt).toISOString()} (kickoff gate), received ${s.world.fetchedAt} (60 s expiry). Week ${s.week}. Weekly projections: ${s.view.weekly.generated_at}, data through ${s.view.weekly.data_through || "unknown"}.${settings ? ` ${settings}.` : ""}${result ? ` ${result.coverage.scoringLabel}` : ""}`;
         const coverage = result?.coverage;
@@ -448,11 +660,11 @@
         $("waiver-ros").textContent = rosText(coverage ? coverage.ros : null, { remainingReason: s.view.remainingReason, activeOwnedSkills: coverage?.activeOwnedSkills, owner: !isViewer });
         const ev = $("waiver-evaluation"); ev.replaceChildren();
         for (const line of evidenceLines(s.batch.evaluation, s.view)) ev.append(node("p", line));
-        $("waiver-results").hidden = false;
-        const who = isViewer ? `Viewing ${S.teamName(s.world.users, mine)}` : `Connected read-only · roster ${s.world.rosterId}`;
-        status(`${who} · rosters received ${new Date(s.world.fetchedAt).toLocaleTimeString()}. Refresh from the league panel before placing a claim.`);
+        showResults(true);
+        const who = isViewer ? `Viewing ${teamName}` : `Connected read-only · roster ${s.world.rosterId}`;
+        status(`${who} · rosters received ${new Date(s.world.fetchedAt).toLocaleTimeString()}. Refresh from the league panel before placing a claim.`, true);
         renderRows();
-      } catch (error) { result = null; $("waiver-results").hidden = true; status(error.message); }
+      } catch (error) { result = null; showResults(false); status(error.message); }
     }
 
     // The 15 s tick re-evaluates the committed snapshot (age, expiry); it
@@ -460,7 +672,10 @@
     // refresh (Session.refresh) or a page reload.
     setInterval(() => { if (snap && !$("waiver-results").hidden) recompute(); }, 15000);
 
-    const hideResults = () => { snap = null; result = null; intel = null; $("waiver-results").hidden = true; $("waiver-warnings").hidden = true; };
+    const hideResults = () => {
+      snap = null; result = null; intel = null; showResults(false);
+      $("waiver-copy-status").textContent = ""; $("waiver-backup-wrap").hidden = true;
+    };
     const currentWeek = bundle => requestedWeek(autoWeek ? "" : $("waiver-week").value, bundle.state, bundle.league?.season);
     // Why the desk is not showing rows: the session's error, still loading,
     // or the live resolver's own refusal in its order (league status, league
@@ -564,15 +779,16 @@
     $("waiver-reserve").addEventListener("change", recompute);
     $("waiver-position").addEventListener("change", () => { if (snap && !$("waiver-results").hidden) renderRows(); });
     $("waiver-radar-sort").addEventListener("change", () => { if (intel) renderIntel(); });
-    $("waiver-export").addEventListener("click", () => {
-      recompute();
-      if (!snap || $("waiver-results").hidden) return;
+    // Copy shortlist: one button. The text goes to the clipboard when the
+    // browser allows it; otherwise (no clipboard API, or a refusal) the same
+    // text appears in a read-only box to copy by hand. Nothing is sent anywhere.
+    function shortlistText() {
       const wt = waiverType(), isViewer = viewer(), league = snap.world.league;
       const budgetLine = isViewer ? COPY.ownerOnly
         : wt === 0 ? `Current rolling priority ${result?.waiver.priority ?? "unknown"}; rank claims in Sleeper`
         : wt === 1 ? "Reverse-standings waivers; rank claims in Sleeper"
         : result ? `Remaining $${result.budget.remaining}; reserve $${result.budget.reserve}; spendable $${result.budget.spendable}` : "";
-      const lines = [`${league.name || `League ${league.league_id}`} waiver shortlist — independent alternatives, not submitted claims`, $("waiver-source").textContent,
+      return [`${league.name || `League ${league.league_id}`} waiver shortlist — independent alternatives, not submitted claims`, $("waiver-source").textContent,
         budgetLine,
         ...(snap.note ? [snap.note] : activeRows().map(r => rowText(r, result, { ownerOnly: isViewer }).exportLine)),
         "RESEARCH ONLY — not an add/drop plan or bid recommendation",
@@ -580,14 +796,31 @@
         intel.roleStatus,
         ...activeRadar().filter(p => p.role).map(p => `USAGE ${p.name}: W${p.role.week}; ${p.roleFlags.join("; ") || "no threshold flags"}; observed ${JSON.stringify(p.role.latest)}; change ${JSON.stringify(p.role.delta)}; baseline weeks ${p.role.baseline_weeks.join(",")}`),
         ...activeRadar().map(p => `${p.name} (${p.position}); ROS overall rank (${COPY.ecr}) ${p.rosRank ?? "unavailable"}; Sleeper 24h adds ${p.adds ?? "not listed"}, drops ${p.drops ?? "not listed"}; same-team RBs: ${p.sameTeam.join(", ") || "none"}; different bye in thin weeks: ${p.byeCover.join(", ") || "none"}; status ${p.status || "verify"}`),
-        "Verify injury/role updates, claim deadline, total spend and drop conflicts in Sleeper."];
-      $("waiver-backup").value = lines.join("\n");
-      $("waiver-backup").closest("details").open = true;
+        "Verify injury/role updates, claim deadline, total spend and drop conflicts in Sleeper."].join("\n");
+    }
+    $("waiver-copy").addEventListener("click", async () => {
+      recompute();
+      if (!snap || $("waiver-results").hidden) return;
+      const text = shortlistText();
+      $("waiver-backup").value = text;
+      const clip = typeof navigator !== "undefined" && navigator && navigator.clipboard
+        && typeof navigator.clipboard.writeText === "function" ? navigator.clipboard : null;
+      if (clip) {
+        try {
+          await clip.writeText(text);
+          $("waiver-backup-wrap").hidden = true;
+          $("waiver-copy-status").textContent = "Shortlist copied to the clipboard. Nothing was sent anywhere.";
+          return;
+        } catch (_) { /* refused: fall back to the text box */ }
+      }
+      $("waiver-backup-wrap").hidden = false;
+      $("waiver-copy-status").textContent = "Clipboard unavailable: copy the text below instead.";
       $("waiver-backup").focus();
+      if (typeof $("waiver-backup").select === "function") $("waiver-backup").select();
     });
   }
   const api = { init, loadWorld, transactionsAlso, loadSignals, hydrateBoard, gateRos, requestedWeek, rowText, defaultReserve,
-    contextLines, rosText, evidenceLines, watchlistText, COPY };
+    contextLines, rosText, evidenceLines, watchlistText, groupByAdd, bestMove, signalBadges, COPY };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.WaiverMode = api;
 })();
