@@ -1,7 +1,8 @@
 # Betting-lines feature screen — design (pre-registration)
 
-**Status:** draft 2 (2026-10-11). Draft 1 (4e5edc4) was reviewed by astra (`.review/astra-lines-spec-response.md`,
-REVISE); this draft resolves every item (§12 trace). Owner decisions: published betting lines are allowed as market
+**Status:** draft 3 (2026-10-11). Draft 1 (4e5edc4) and draft 2 (f51233d) were reviewed by astra
+(`.review/astra-lines-spec-response.md`, `.review/astra-lines-spec2-response.md`, both REVISE); this draft resolves
+every item (§12 trace). Owner decisions: published betting lines are allowed as market
 context (design spec §11 amendment, 2026-10-07); this batch is **lines only** (the 9-vs-11-season history screen is not
 run); the batch is capped at **two working days** of effort. Design follows astra's roadmap consult
 (`.review/astra-roadmap-consult-response.md` §3, §6).
@@ -51,15 +52,20 @@ Two classes, decided per game before joining:
   team-week collision) but with a missing or non-finite `spread_line` or `total_line`, `total_line <= 0`, or a negative
   implied total: **both features are NaN for both teams**, every player row is kept, and the reason is counted. No
   carry-forward, backfill or line-complete-only analysis.
-- **Fatal — ambiguous identity.** Any of: duplicate `game_id` records that disagree on teams; two `game_id`s claiming
-  the same (season, week, team); missing key fields; an unknown team code; identical home and away team. The run
-  **stops** with status `invalid` (§7); no record is preferred or dropped to continue. Exact duplicate `game_id`
-  records (identical in every allowed column) collapse to one and are counted.
+- **Exact duplicates:** `game_id` records identical in **every allowed column** collapse to one and are counted.
+- **Fatal — ambiguous identity.** After that collapse, **any remaining repeated `game_id` is fatal**, whatever differs
+  (teams, season, week, `game_type`, or quote values — e.g. totals 44 and 47 for one game; no quote is selected,
+  averaged or NaN-ed). Also fatal: two `game_id`s claiming the same (season, week, team); missing key fields; an unknown
+  team code; identical home and away team. The run **stops** with status `invalid` (§7); no record is preferred or
+  dropped to continue.
 - **Join:** a validated unique team-game table (two sides per valid game) is merged onto the feature frame on
-  (season, week, team) with `validate="many_to_one"`. Asserted: player-row count, order and keys unchanged; every
-  joined pair satisfies home + away implied = `T` and home − away implied = `m` (within 1e-9). Counts of matched,
-  missing-quote and unmatched player rows are recorded per training/test season, with reasons; an unmatched schedule
-  join (a team-week with no game) is reported separately from a missing quote.
+  (season, week, team) with `validate="many_to_one"`. Asserted: player-row count, order and keys unchanged. For
+  **valid-quote** games, both features are finite and the pair satisfies home + away implied = `T` and home − away
+  implied = `m` (within 1e-9); for **recoverable** (missing-quote) games, both features are NaN on both sides. Counts of
+  matched and missing-quote player rows are recorded per training/test season, with reasons.
+- **Unmatched player team-week** (a feature row whose (season, week, team) has no game in the validated table): the run
+  is `invalid`. The recoverable class applies only to identified games; an unexplained unmatched join is never
+  continued past.
 
 ## 3. Features
 
@@ -135,8 +141,9 @@ equally. Per-season `G_S` and per-seed `G^{(s)}` (same formula on `d_{i,s}`) are
   It does not change with B, seeds or replicates.
 - `G_rel` = same formula as `G` (seed-averaged `d_i`, rows within season, seasons equally) restricted to relevant rows;
   bootstrap intervals use the **same accepted replicates and weights** as §5.2, restricted to the cohort.
-- If any season has no relevant rows in the original data, the guardrail is **not evaluable** and cannot pass. Counts by
-  season and position, unique players and represented blocks are reported.
+- If any season has no relevant rows in the original data, the run is **`invalid`** immediately (§7), before any
+  bootstrap attempt, with that reason. Counts by season and position, unique players and represented blocks are
+  reported.
 - **Deterioration** `H = −G_rel`. Its 95% upper endpoint is `−(lower endpoint of the central 95% interval of G_rel)`.
   The guardrail passes exactly when that value is `≤ 0.10`.
 
@@ -146,12 +153,18 @@ equally. Per-season `G_S` and per-seed `G^{(s)}` (same formula on `d_{i,s}`) are
 - **Per seed:** Spearman (higher points = better; average ranks for ties) of predicted vs actual points, separately for A
   and B; per-cell paired delta `B − A`. Average deltas over the three seeds, then equally over eligible cells within a
   season, then equally over seasons → pooled delta `R`. Position-specific deltas (same weighting) are diagnostics only.
-- **Common eligible cells:** a cell is excluded symmetrically (counted) when its actuals are constant. If either arm in
-  any seed has a constant or non-finite prediction in an otherwise eligible cell, the ranking status is **not
-  evaluable** (it is never treated as safe).
-- **Ranking veto:** `R < −0.005` → `ranking_veto`. The veto does not change the point pass (§6); it forbids
-  recommending lines for any ranking product. A point pass with a ranking veto may still buy the point-focused forward
-  test (§9), with the veto carried into its pre-registration.
+- **Common eligible cells:** a cell is excluded symmetrically (counted) when its actuals are constant. (Non-finite
+  predictions already make the whole run `invalid`, §4.)
+- **Ranking status** is one of three values, decided independently of the point gate:
+  - `ranking_ok`: `R ≥ −0.005`;
+  - `ranking_veto`: `R < −0.005`;
+  - `ranking_not_evaluable`: either arm in any seed has a **finite constant** prediction in an otherwise eligible cell,
+    or any original season has **no** eligible cell (R is never averaged over the remaining seasons). A position-season
+    with no eligible cell makes only that position's diagnostic unavailable (`null` with reason); it does not change
+    the pooled weighting.
+- **Consequences:** `ranking_veto` and `ranking_not_evaluable` both forbid recommending lines for any ranking product
+  and are carried into the forward test's pre-registration (§9). Neither changes the six-condition point gate (§6) or
+  makes the run invalid; a point pass with either may still buy the point-focused forward test.
 
 ## 6. Decision rule (point screen)
 
@@ -162,7 +175,7 @@ equally. Per-season `G_S` and per-seed `G^{(s)}` (same formula on `d_{i,s}`) are
 3. at least two of the three seasons have `G_S > 0`;
 4. no season has `G_S < −0.05` (exactly −0.05 is allowed);
 5. all three per-seed aggregate gains `G^{(s)} > 0`;
-6. the relevant-cohort guardrail passes (§5.3; not evaluable = fail).
+6. the relevant-cohort guardrail passes (§5.3).
 
 A pass establishes a positive gain whose point estimate is material; it does **not** establish that the true gain
 exceeds 0.05, and is never described as such.
@@ -175,8 +188,13 @@ exceeds 0.05, and is never described as such.
 
 ## 7. Invalid / not completed
 
-A separate disposition `invalid` covers: a fatal data error (§2.1), a non-finite prediction, an undefined required
-metric, fewer than 10,000 accepted replicates within the attempt limit, or the effort cap (§10) reached. It authorizes no
+A separate disposition `invalid` covers: a fatal data error or unmatched join (§2.1), a non-finite prediction, an
+original season with no relevant-cohort rows (§5.3), any undefined **point** metric (G, G_S, G^{(s)}, G_rel or their
+intervals), fewer than 10,000 accepted replicates within the attempt limit, or the effort cap (§10) reached. The ranking
+status is not a required metric for validity (§5.4).
+
+**Precedence:** `invalid` is decided first; only a valid run receives a pass or a scientific failure label (§6). Values
+that are unavailable are serialised as `null` with a status and reason (consistent with `allow_nan=False`). It authorizes no
 further model work under this budget and is **not** evidence that lines failed statistically; it is never written up as
 "what didn't work". A run is never shortened (fewer seeds or seasons) to finish.
 
@@ -186,8 +204,16 @@ disappointing analysis is a new experiment, not a defect fix.
 
 ## 8. Run manifest (frozen before any model is fitted)
 
-Committed or recorded before fitting: this spec's path and git blob id; the implementation commit; the input snapshot's
-sha256, retrieval time and nflreadpy version; the A and B column lists in order; resolved estimator and scoring
+**Frozen modeling frame.** Before any model is fitted, the complete ordered 2012–2025 modeling frame is written to a
+local file under `data/` (gitignored) and hashed: row keys (`player_id`, `season`, `week`), `position`, `team`, every
+A and B feature value (incl. the two line columns), and every `PREDICTED_STATS` target component, in a fixed row order
+and column order. Its path, schema (column names, order and dtypes) and sha256 are recorded. **All folds, arms and seeds
+read that frozen frame** — nothing is rebuilt from live sources during the run.
+
+Committed or recorded before fitting: this spec's path and git blob id; the implementation commit; the schedule
+snapshot's sha256, retrieval time and nflreadpy version; the frozen modeling frame's path, schema and sha256; the source
+data vintage used to build it (paths and sha256 of the weekly/schedule caches, as `ffmodel.eval.run.data_vintage`
+records); the A and B column lists in order; resolved estimator and scoring
 configuration; software versions; row counts per season and per arm; training/test ranges; RNG specification. The run
 writes `models/diagnostics/lines_screen.json` (allow_nan=False) containing the manifest, the timing label, G / G_S /
 G^{(s)} with intervals, rejection counts, the relevant-cohort result with counts, the ranking status with per-position
@@ -218,9 +244,11 @@ rather than extend. Model work stops after this batch unless §6 passes.
 ## 11. Testing (synthetic, no network)
 
 - Implied-total identities, sign convention, pick'em, neutral-site home side, the worked example.
-- Team-code mapping incl. `OAK/SD/STL`; unknown code → fatal; identical home/away → fatal; conflicting duplicate
-  `game_id` → fatal; team-week collision → fatal; exact duplicate → collapsed and counted; missing/non-finite quote,
-  `T ≤ 0`, negative implied total → NaN features for both sides, rows kept.
+- Team-code mapping incl. `OAK/SD/STL`; unknown code → fatal; identical home/away → fatal; team-week collision →
+  fatal; exact duplicate → collapsed and counted; repeated `game_id` with different teams → fatal; with the same teams
+  but different quotes (44 vs 47) → fatal; with the same teams but a different week or `game_type` → fatal;
+  missing/non-finite quote, `T ≤ 0`, negative implied total → NaN features for both sides, rows kept; an unmatched
+  player team-week → invalid.
 - Allow-list: perturbing outcome columns leaves features and matrix byte-identical.
 - Join: `many_to_one`; row count/order/keys unchanged; unmatched join vs missing quote reported separately.
 - Feature lists: A unchanged (40) on the augmented frame; B = A + the two columns (42), in order; v1_lines raises when
@@ -229,12 +257,26 @@ rather than extend. Model work stops after this batch unless §6 passes.
 - Statistics: unequal season sizes still weight seasons equally; average loss ≠ loss of average predictions (seed
   averaging is on losses); relevant membership fixed under B changes and resampling; bootstrap deterministic with the
   seed, week pairs move together, a player's multiplicity carries across seasons, empty-season rejection and the attempt
-  limit; ranking cells paired, ≥ 5 players, constant-actual exclusion, constant-prediction → not evaluable.
+  limit; ranking cells paired, ≥ 5 players, constant-actual exclusion; finite constant prediction → `ranking_not_evaluable`
+  with the point gate unchanged; a season with no eligible ranking cell → `ranking_not_evaluable`; a missing
+  position-season → that diagnostic `null`; an original season with no relevant rows → invalid before bootstrapping.
+- Frozen frame: the run reads only the frozen file; its sha256 and schema are in the manifest; a changed frame changes
+  the recorded hash.
 - Decision: each of the six conditions failing in turn; the exact boundaries (G = 0.05 passes; lower bound = 0 fails;
   a season at −0.05 allowed; deterioration upper bound = 0.10 passes); both failure labels; invalid paths; ranking veto
   independent of the point pass.
 
-## 12. Trace of astra's review of draft 1
+## 12. Trace of astra's reviews
+
+**Draft 2 review (`.review/astra-lines-spec2-response.md`):**
+
+| Item | Resolution in draft 3 |
+|---|---|
+| 1 Unevaluable ranking consequence | §5.4 three-valued ranking status; `ranking_not_evaluable` (finite constant prediction, or a season with no eligible cell) forbids ranking recommendations, is carried forward, and never changes the point gate or validity; position diagnostics `null` |
+| 3 Duplicate/join taxonomy incomplete | §2.1 any repeated `game_id` after exact-duplicate collapse is fatal (teams, week, type or quotes); unmatched player team-week → invalid; identities asserted only for valid-quote games, NaN asserted for recoverable ones |
+| 5 Input freeze regressed; disposition precedence | §8 frozen complete modeling frame (keys, A/B features, targets) hashed before fitting, all folds/seeds read it, source vintage recorded; §5.3 empty relevant season → invalid before bootstrapping; §7 invalid decided first, `null` with reasons |
+
+**Draft 1 review (`.review/astra-lines-spec-response.md`):**
 
 | Item | Resolution |
 |---|---|
