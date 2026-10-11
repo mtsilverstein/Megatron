@@ -89,11 +89,15 @@ def test_private_job_is_fail_soft_and_cannot_write_public_repo():
 
 
 def test_ledger_seed_shape():
+    # The committed ledger is append-only and grows with every weekly-accuracy run, so pin the seed it started
+    # from (the first collection and every event up to its end), not the whole file.
     led = json.loads(LEDGER.read_text(encoding="utf-8"))
-    assert led["coverage"] == [["-inf", "2026-10-06T19:02:01Z"]] and len(led["events"]) == 239
+    assert led["coverage"][0] == ["-inf", "2026-10-06T19:02:01Z"]
     ids = [e["id"] for e in led["events"]]
     assert len(ids) == len(set(ids))
     assert all(isinstance(e["actor"], (str, type(None))) for e in led["events"])
-    kinds = [e["activity_type"] for e in led["events"]]
+    seed = [e for e in led["events"] if e["timestamp"] <= "2026-10-06T19:02:01Z"]
+    assert len(seed) == 239
+    kinds = [e["activity_type"] for e in seed]
     assert kinds.count("push") == 235 and kinds.count("pr_merge") == 3 and kinds.count("branch_creation") == 1
     assert "force_push" not in kinds
