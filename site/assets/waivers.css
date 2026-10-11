@@ -28,8 +28,9 @@
 
 /* 1. Summary line */
 .waiver-summary { margin: 0 0 .25rem; font-size: .95rem; overflow-wrap: anywhere; }
-.waiver-summary > span:empty { display: none; }
-.waiver-summary > span + span::before { content: " · "; color: var(--chalk-dim); }
+.waiver-summary > :empty { display: none; }
+.waiver-summary > * + *::before { content: " · "; color: var(--chalk-dim); }
+.waiver-warning-link { color: var(--te); }
 #waiver-summary-league { font-weight: 600; }
 #waiver-summary-data { color: var(--chalk-dim); }
 
@@ -61,6 +62,10 @@
 .waiver-detail-list { margin: .25rem 0 .5rem; padding-left: 1.1rem; }
 .waiver-detail-list li { font-size: .85rem; color: var(--chalk-dim); margin-bottom: .2rem; max-width: 110ch; }
 .waiver-detail-head { margin: .5rem 0 0; font-size: .85rem; font-weight: 600; }
+.waiver-drops { margin: 0; padding-left: 1.1rem; }
+.waiver-drops li { margin-bottom: .2rem; }
+#waiver-table td:nth-child(2) { min-width: 15rem; }
+ol.waiver-watch { list-style: decimal; padding-left: 1.5rem; }
 
 /* 5. Worth watching */
 #waiver-app .waiver-watching { margin-top: 1.5rem; }
@@ -82,3 +87,4 @@
   #waiver-table { min-width: 700px; }
   .waiver-best-text { font-size: 1.05rem; }
 }
+.waiver-summary > a::before { display: inline-block; white-space: pre; }

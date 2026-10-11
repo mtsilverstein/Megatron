@@ -26,7 +26,7 @@
   <p class="eyebrow">Improve your roster</p>
   <h1>Waivers</h1>
   <p class="waiver-intro">Who to claim this week, in your league's scoring: who to add, what to bid or whether to claim, and who to drop. Nothing is submitted for you.</p>
-  <p id="waiver-summary" class="waiver-summary" hidden><span id="waiver-summary-league"></span><span id="waiver-budget"></span><span id="waiver-summary-data"></span></p>
+  <p id="waiver-summary" class="waiver-summary" hidden><span id="waiver-summary-league"></span><span id="waiver-budget"></span><span id="waiver-summary-data"></span><a id="waiver-warning-link" class="waiver-warning-link" href="#waiver-warnings-heading" hidden></a></p>
   <div id="waiver-controls" class="waiver-controls" aria-label="Waiver settings" role="group">
     <label>Week <input id="waiver-week" type="number" min="1" max="18" placeholder="Auto" title="Automatically follows the current NFL week. Enter a number to override; clear to restore automatic selection."></label>
     <label>Budget to keep ($) <input id="waiver-reserve" type="number" min="0" step="1" required aria-describedby="reserve-hint waiver-spendable"><span id="reserve-hint" class="field-hint">Defaults to 20% of your league budget</span><span id="waiver-spendable" class="field-hint"></span></label>
@@ -52,7 +52,7 @@
       <p id="waiver-row-notes" class="waiver-source"></p>
       <div class="table-wrap">
         <table id="waiver-table">
-          <thead><tr><th scope="col">Add</th><th scope="col">Drop</th><th scope="col">Gain (week / rest of season)</th><th scope="col">Bid or priority</th><th scope="col">Signals</th><th scope="col">Why</th></tr></thead>
+          <thead><tr><th scope="col">Add</th><th scope="col">Drop options (rest of season)</th><th scope="col">This week</th><th scope="col">Bid or priority</th><th scope="col">Signals</th><th scope="col">Why</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -61,7 +61,9 @@
       <summary>Worth watching <span id="waiver-watching-count" class="waiver-source"></span></summary>
       <p class="waiver-source">Available players not in the claim options above. A research queue, not buy recommendations: same-team RBs are possible insurance, not confirmed backups or beneficiaries, and popularity is not projected opportunity. Position filter applies here too.</p>
       <label>Order <select id="waiver-radar-sort"><option value="usage">Observed usage flags first</option><option value="ros">Live ROS rank (PPR reference ranking)</option><option value="fit">Roster fit first</option><option value="adds">Most added first</option></select></label>
-      <ul id="waiver-watchlist" class="waiver-watch"></ul>
+      <ul id="waiver-radar" class="waiver-watch"></ul>
+      <h3 id="waiver-watchlist-head" class="waiver-subhead">Preseason watchlist · ECR order (PPR reference ranking), not a buy ranking</h3>
+      <ol id="waiver-watchlist" class="waiver-watch"></ol>
       <h3 class="waiver-subhead">Bye-week coverage</h3>
       <ul id="waiver-byes"></ul>
       <p class="waiver-source">Bye counts cover dedicated positions only, assuming other active-roster players are healthy. FLEX coverage and unknown byes need separate review.</p>
@@ -88,22 +90,22 @@
       <li>No inferred hidden bids, calibrated win probabilities, automated transactions, or K/DST/IDP projections. No keeper-value premium is priced yet.</li>
     </ul>
     <div id="waiver-data" hidden>
-      <h3 class="waiver-subhead">This week's warnings</h3>
+      <h3 id="waiver-warnings-heading" class="waiver-subhead" tabindex="-1">This week's warnings</h3>
       <div id="waiver-warnings" class="waiver-warnings"></div>
       <h3 class="waiver-subhead">This week's options</h3>
       <p id="waiver-count-detail" class="waiver-source"></p>
       <h3 class="waiver-subhead">League format and heuristics</h3>
       <div id="waiver-context" class="waiver-source" aria-label="League format, scoring coverage and heuristics"></div>
       <h3 class="waiver-subhead">Roster coverage and rest of season</h3>
-      <p id="waiver-coverage" class="waiver-source"></p>
-      <p id="waiver-ros" class="waiver-source"></p>
+      <p id="waiver-coverage" class="waiver-source" aria-live="polite"></p>
+      <p id="waiver-ros" class="waiver-source" aria-live="polite"></p>
       <h3 class="waiver-subhead">Data sources and timestamps</h3>
       <p id="waiver-source" class="waiver-source"></p>
       <div id="waiver-evaluation" class="waiver-source" aria-label="Remaining-season projection evaluation"></div>
       <p class="waiver-source"><a href="about.html">Historical results and their scope</a> are on the about page; they are not claims about your league's scoring.</p>
       <h3 class="waiver-subhead">Research signals and market</h3>
       <p id="waiver-intel-source" class="waiver-source"></p>
-      <p id="waiver-role-source" class="waiver-source"></p>
+      <p id="waiver-role-source" class="waiver-source" role="status"></p>
       <p id="waiver-market" class="waiver-source"></p>
       <p class="waiver-source">Usage flags describe observed workload—not a breakout probability. Growth requires at least two comparable prior same-team games. Routes and red-zone usage are not available in this layer. Snap share is not route participation.</p>
       <p class="waiver-source">Usage sources: <a href="https://nflreadr.nflverse.com/reference/load_player_stats.html">nflverse player statistics</a> and <a href="https://nflreadr.nflverse.com/reference/load_snap_counts.html">PFR snap counts via nflverse</a>.</p>
