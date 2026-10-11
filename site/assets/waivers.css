@@ -30,7 +30,8 @@
 .waiver-summary { margin: 0 0 .25rem; font-size: .95rem; overflow-wrap: anywhere; }
 .waiver-summary > :empty { display: none; }
 .waiver-summary > * + *::before { content: " · "; color: var(--chalk-dim); }
-.waiver-warning-link { color: var(--te); }
+.waiver-warning-link { color: var(--te); white-space: nowrap; }
+.waiver-summary > a::before { display: inline-block; white-space: pre; }
 #waiver-summary-league { font-weight: 600; }
 #waiver-summary-data { color: var(--chalk-dim); }
 
@@ -87,4 +88,3 @@ ol.waiver-watch { list-style: decimal; padding-left: 1.5rem; }
   #waiver-table { min-width: 700px; }
   .waiver-best-text { font-size: 1.05rem; }
 }
-.waiver-summary > a::before { display: inline-block; white-space: pre; }

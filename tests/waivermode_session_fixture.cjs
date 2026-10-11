@@ -316,13 +316,18 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.deepEqual(mainRows[0].children[4].children.map(n => n.textContent), ["Usage rising", "Trending add"]);
   assert.match(mainRows[0].children[4].children[1].title, /^Sleeper 24h adds 5 \/ drops Not listed/);
   assert.equal(mainRows[1].children[4].children[0].textContent, "—", "no radar entry, no badges");
-  // Boilerplate identical for every row is stated once above the table, never per row.
-  for (const once of [BID_LABEL, WEAK_LABEL, "modeled lineup gain"]) {
-    assert.ok(text("waiver-row-notes").toLowerCase().includes(once.toLowerCase()), `stated once: ${once}`);
+  // Above the table: two short lines only.
+  assert.equal($("waiver-count").textContent, "Each row is a separate option — make one claim at a time.");
+  assert.equal($("waiver-row-notes").textContent, "Gain = this week's projected lineup change; drop options show each move's rest-of-season change (information, not a pick). Weak signal = under 1 pt/week.");
+  // Boilerplate identical for every row is stated once, in How this works ("Reading the claim table"), never per row.
+  assert.match($("waiver-table-notes").textContent, /^2 players, 3 add\/drop options, each evaluated against your current roster\. /);
+  assert.ok(text("waiver-table-notes").includes("Add's ROS value: sum of weekly medians through NFL week 17, not a season median; not a FAAB price."));
+  for (const once of [BID_LABEL, WEAK_LABEL, "modeled lineup gain", "not a validated best-drop pick"]) {
+    assert.ok(text("waiver-table-notes").toLowerCase().includes(once.toLowerCase()), `stated once: ${once}`);
     assert.ok(!text("waiver-table").includes(once), `not repeated per row: ${once}`);
   }
-  assert.equal(text("waiver-row-notes").split(BID_LABEL).length - 1, 1, "the bid caveat appears exactly once");
-  assert.match($("waiver-count").textContent, /^Each row is a separate option — make one claim at a time\. 2 players, 3 add\/drop options/);
+  assert.equal(text("waiver-table-notes").split(BID_LABEL).length - 1, 1, "the bid caveat appears exactly once");
+  assert.ok(all($("waiver-method")).some(n => n.id === "waiver-table-notes"), "the full notes live in How this works");
   // The research detail of a claim-table add moved into its row; Worth watching lists the others.
   assert.ok(text("waiver-table").includes("ROS overall rank 30 (PPR reference ranking)") && text("waiver-table").includes("Preseason ECR 12 (PPR reference ranking)"));
   assert.doesNotMatch(text("waiver-radar") + text("waiver-watchlist"), /C Free/, "a claim-table add is not repeated in Worth watching");
@@ -554,9 +559,11 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.match(statusText(), /^Viewing Bo's Bunch · rosters received /);
   assert.doesNotMatch(statusText() + text("waiver-results"), /your roster|Your active/i);
   assert.equal($("waiver-roster").querySelectorAll("input").length, 0, "protect boxes are owner-only");
-  // The owner-only line is stated once above the table, not in every row.
-  assert.equal(text("waiver-row-notes").split("Claim guidance is for the team's owner.").length - 1, 1, "owner-only line stated once");
-  assert.ok(!text("waiver-table").includes("Claim guidance is for the team's owner."), "not repeated per row");
+  // The owner-only line is stated once, in the best-move card: not in the notes, not in every row.
+  const OWNER_ONLY = "Claim guidance is for the team's owner.";
+  assert.equal(text("waiver-results").split(OWNER_ONLY).length - 1, 1, "owner-only line stated exactly once on the page's results");
+  assert.ok(!text("waiver-row-notes").includes(OWNER_ONLY) && !text("waiver-table-notes").includes(OWNER_ONLY), "not in the notes");
+  assert.ok(!text("waiver-table").includes(OWNER_ONLY), "not repeated per row");
   assert.ok(all($("waiver-table").querySelector("tbody")).filter(n => n.tagName === "tr" && n.className !== "waiver-detail-row").every(tr => tr.children[3].textContent === "Owner's call"));
   assert.equal($("waiver-best-claim").textContent, "Claim guidance is for the team's owner.");
   // I1: the viewer's card reads the signal state only (no owner guardrails) and is worded "Top-ranked option".
@@ -595,7 +602,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal($("waiver-best-text").textContent, "Top option: add C Free (WR) — +2.50 pts this week. No drop needed (open roster spot).");
   assert.equal($("waiver-best-claim").textContent, "Claim: suggested — rank it by value and roster need when you set claim order in Sleeper. Current waiver priority: 4 (context, not a claim-success probability).");
   assert.equal(text("waiver-table").includes("$"), false);
-  assert.ok(text("waiver-row-notes").includes("Order claims by value and roster need"), "the rolling guidance is stated once");
+  assert.ok(text("waiver-table-notes").includes("Order claims by value and roster need"), "the rolling guidance is stated once");
   // Only withheld options: the card says no claim is recommended and names the closest ADD.
   engineRows = [ROW_E];
   await refresh("the rolling desk with only a weak option");
@@ -619,7 +626,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal($("waiver-best-text").textContent, "No claim recommended this week — no available player improves your lineup by 1+ pt/week. Closest option: add E Spare (TE) — +0.40 pts this week. 3 drop options — see the claim table.");
   assert.doesNotMatch($("waiver-best-text").textContent + $("waiver-best-claim").textContent, /Roster (First|Second|Third)/, "the card names no drop");
   assert.equal($("waiver-best-claim").textContent, "Bid: none suggested (weak signal).", "what the card says about the bid is visible in the row");
-  assert.ok(text("waiver-row-notes").includes("not a validated best-drop pick"));
+  assert.ok(text("waiver-table-notes").includes("not a validated best-drop pick"));
   // No positive move at all: the card says so plainly and is the only result above the fold-outs.
   engineRows = [];
   await refresh("the desk with no positive move");

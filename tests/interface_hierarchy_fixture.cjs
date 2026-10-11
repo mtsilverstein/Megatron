@@ -107,7 +107,7 @@ assert.match(waivers, /<div id="waiver-backup-wrap" hidden>/);
 assert.ok(!waivers.includes('id="waiver-export"'), "the separate export button is gone");
 // Data, timestamps, coverage, format lines, market sample and warnings live in the method fold.
 const methodHtml = waivers.slice(at("waiver-method"));
-for (const id of ["waiver-warnings", "waiver-count-detail", "waiver-context", "waiver-coverage", "waiver-ros", "waiver-source", "waiver-evaluation",
+for (const id of ["waiver-warnings", "waiver-count-detail", "waiver-table-notes", "waiver-context", "waiver-coverage", "waiver-ros", "waiver-source", "waiver-evaluation",
   "waiver-intel-source", "waiver-role-source", "waiver-market", "waiver-league-link"]) assert.ok(methodHtml.includes(`id="${id}"`), `#${id} is in How this works`);
 assert.ok(methodHtml.includes("Data sources and timestamps"), "the data-sources heading the method list refers to is there");
 // The claim table keeps real column headers.

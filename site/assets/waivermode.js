@@ -449,12 +449,12 @@
     }
 
     // Notes identical for every row of a kind (the signal definitions, the
-    // priced-on label, the bid-label caveat, the owner-only line, the
-    // rest-of-season aggregation): stated once above the table, not per row.
+    // priced-on label, the bid-label caveat, the rest-of-season aggregation):
+    // stated once, in How this works ("Reading the claim table"), not per
+    // row. The owner-only line is the best-move card's alone (viewer mode).
     function sharedRowNotes(rows, isViewer) {
       const notes = new Set();
       const capital = s => { const t = String(s).trim(); return `${t.charAt(0).toUpperCase()}${t.slice(1)}${/[.!?]$/.test(t) ? "" : "."}`; };
-      if (isViewer) notes.add(COPY.ownerOnly);
       for (const r of rows) {
         notes.add(capital(`gain is the ${r.scoring.label} lineup change`));
         notes.add(capital(r.signal.label));
@@ -523,11 +523,15 @@
       renderBest(rows);
       const groups = groupByAdd(rows);
       $("waiver-claims").hidden = !rows.length;
-      $("waiver-count").textContent = rows.length
-        ? `Each row is a separate option — make one claim at a time. ${groups.length} player${groups.length === 1 ? "" : "s"}, ${rows.length} add/drop option${rows.length === 1 ? "" : "s"}, each evaluated against ${whose} current roster.`
+      // Above the table: two short lines. The full notes move to How this works.
+      $("waiver-count").textContent = rows.length ? "Each row is a separate option — make one claim at a time." : "";
+      $("waiver-row-notes").textContent = rows.length
+        ? `Gain = this week's projected lineup change; drop options show each move's rest-of-season change (information, not a pick). Weak signal = under ${rows[0].signal.thresholdPerWeek ?? 1} pt/week.`
         : "";
       const notes = sharedRowNotes(rows, isViewer), shared = new Set(notes);
-      $("waiver-row-notes").textContent = notes.join(" ");
+      $("waiver-table-notes").textContent = rows.length
+        ? [`${groups.length} player${groups.length === 1 ? "" : "s"}, ${rows.length} add/drop option${rows.length === 1 ? "" : "s"}, each evaluated against ${whose} current roster.`, ...notes].join(" ")
+        : "";
       const radarById = new Map((intel?.radar || []).map(p => [String(p.id), p]));
       for (const g of groups) {
         // Every drop option for this add, each with its own rest-of-season
