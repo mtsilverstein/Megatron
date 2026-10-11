@@ -384,6 +384,11 @@ check("weak signals stay visible but never become bids or priority spend", () =>
   assert.ok(weak && close(weak.lineupGain,0.4,1e-12), "weak row must remain researchable");
   assert.equal(weak.signal.strength,"weak"); assert.ok(close(weak.signal.perWeekGain,0.4,1e-12)); assert.equal(weak.signal.thresholdPerWeek,1);
   assert.match(weak.signal.label,/weak signal.*below the conservative product threshold.*not a bid or priority claim/);
+  // The wording names the engine's actual test: the per-week MOVE value (string literals only changed).
+  const BASIS = "the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced)";
+  assert.ok(weak.signal.label.startsWith(`weak signal: ${BASIS} is under 1.0 projected pt/week`), weak.signal.label);
+  assert.equal(weak.bid.status, `no bid suggested: ${BASIS} is under 1.0 pt/week`);
+  assert.ok(out.warnings.some(w => w.includes(`alternative(s) have a move value (${BASIS.slice("the move's value (".length)} under 1.0 projected pt/week`)), out.warnings.join(" | "));
   assert.doesNotMatch(weak.signal.label,/noise/, "cutoff is unvalidated; must not claim the gain is noise");
   assert.deepEqual([weak.bid.low,weak.bid.high,weak.bid.tier,weak.bid.canAfford],[null,null,"weak signal",true]);
   assert.match(weak.bid.status,/no bid suggested/); assert.match(weak.bid.label,/not calibrated/);

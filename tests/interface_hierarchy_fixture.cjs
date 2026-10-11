@@ -87,6 +87,9 @@ assert.ok(at("waiver-protect") < at("waiver-best") && at("waiver-roster") > at("
 // Wording ruled in the astra review: a modeled label, and drop options compared, not picked.
 assert.match(waivers, /<h2 id="waiver-best-heading">Modeled top option<\/h2>/);
 assert.match(waivers, /compare drop options/); assert.doesNotMatch(waivers, /who to drop|Best move/);
+// The display limit's toggle is a real button inside the claim section.
+assert.match(waivers, /<p id="waiver-limit"[^>]*hidden><span id="waiver-limit-text"><\/span> <button type="button" id="waiver-show-all" aria-pressed="false"/);
+assert.ok(at("waiver-show-all") > at("waiver-best") && at("waiver-show-all") < at("waiver-table"));
 // The live region for loading and errors is kept.
 assert.match(waivers, /<p id="waiver-status" role="status" aria-live="polite">/);
 // Fold-outs: Worth watching and How this works start collapsed; Worth watching

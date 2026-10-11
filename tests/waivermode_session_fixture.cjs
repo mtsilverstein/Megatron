@@ -30,7 +30,9 @@
 //   state across re-renders; fix round 2: position-scoped card wording with
 //   the per-week move-value basis, the preseason entry and radar identity in
 //   a claim's Details (with and without a radar entry), and the owner-only
-//   tier beside an unaffordable status; boilerplate stated once above the
+//   tier beside an unaffordable status; minors round: the explicit display
+//   limit with a Show all toggle (table, export), total vs shown counts, the
+//   export's hidden-adds line, and every claim add kept out of Worth watching; boilerplate stated once above the
 //   table; Worth watching collapsed and without the claim adds; summary
 //   line, settings row and protection toggle; clipboard copy with the
 //   text-box fallback.
@@ -114,7 +116,7 @@ const ROW = { add: { id: "c", name: "C Free", position: "WR" }, drop: null, line
   availability: { status: null, actionableNow: true, warning: null }, valueEstimate: { points: 55, label: LABEL },
   bid: { low: 4, high: 10, tier: "useful", affordable: 80, canAfford: true, status: null, label: "heuristic, not calibrated and not a win probability" } };
 const BID_LABEL = "heuristic, not calibrated and not a win probability";
-const WEAK_LABEL = "weak signal: under 1.0 projected pt/week, below the conservative product threshold — research only, not a bid or priority claim";
+const WEAK_LABEL = "weak signal: the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under 1.0 projected pt/week, below the conservative product threshold — research only, not a bid or priority claim";
 // The same add (C Free) with a second, lower-ranked drop, then a weak add.
 const ROW_C2 = { ...ROW, drop: { id: "a", name: "A Back", position: "RB" }, lineupGain: 1.5,
   rosterCost: "dropping A Back costs their rest-of-season value, which this desk does not price",
@@ -126,7 +128,7 @@ const ROW_E = { ...ROW, add: { id: "e", name: "E Spare", position: "TE" }, drop:
   dropCost: { status: "unassessed", label: "drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered", reason: "remaining-season projections unavailable" },
   signal: { strength: "weak", perWeekGain: 0.4, thresholdPerWeek: 1, moveValue: null, basis: "this_week", label: WEAK_LABEL, guidance: "no bid suggested; assess the drop cost independently before any move" },
   valueEstimate: { points: 12, label: "rest-of-season value 12.00 (sum of weekly medians through NFL week 17, not a season median); not a FAAB price" },
-  bid: { low: null, high: null, tier: "weak signal", affordable: 80, canAfford: true, status: "no bid suggested: modeled gain is under 1.0 pt/week", label: BID_LABEL } };
+  bid: { low: null, high: null, tier: "weak signal", affordable: 80, canAfford: true, status: "no bid suggested: the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under 1.0 pt/week", label: BID_LABEL } };
 let engineRows = null;                  // a scenario's override of the engine's rows
 const ENGINE_RESULT = args => {
   const wt = args.league.settings.waiver_type;
@@ -325,7 +327,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal($("waiver-count").textContent, "Each row is a separate option — make one claim at a time.");
   assert.equal($("waiver-row-notes").textContent, "Gain = this week's projected lineup change; drop options show each move's rest-of-season change (information, not a pick). Weak signal = the move's value (this week plus the priced rest of season) averages under 1 pt/week through week 17.");
   // Boilerplate identical for every row is stated once, in How this works ("Reading the claim table"), never per row.
-  assert.match($("waiver-table-notes").textContent, /^2 players, 3 add\/drop options, each evaluated against your current roster\. /);
+  assert.match($("waiver-table-notes").textContent, /^2 players, 3 add\/drop options in total, each evaluated against your current roster; showing 2 players and 3 options\. /);
   assert.ok(text("waiver-table-notes").includes("Add's ROS value: sum of weekly medians through NFL week 17, not a season median; not a FAAB price."));
   for (const once of [BID_LABEL, WEAK_LABEL, "modeled lineup gain", "not a validated best-drop pick"]) {
     assert.ok(text("waiver-table-notes").toLowerCase().includes(once.toLowerCase()), `stated once: ${once}`);
@@ -554,7 +556,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   $("waiver-reserve").value = "20"; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
   // The weak-signal sentence (now in the method fold) carries a single parenthetical.
   assert.ok(!/\([^)]*\([^)]*\)/.test($("waiver-count-detail").textContent), "no nested parentheses in the count line");
-  assert.match($("waiver-count-detail").textContent, /^3 independent add\/drop alternatives\. .* 1 are weak signals: under 1 point per week/);
+  assert.match($("waiver-count-detail").textContent, /^3 independent add\/drop alternatives\. .* 1 are weak signals: the move's value averages under 1 point per week through NFL week 17 \(this week's gain plus the priced rest-of-season change; this week's gain alone where the rest of season is not priced\)/);
 
   // 8. Viewer flow: forget -> choose Bo's team -> "Viewing ...", protections and bids owner-only.
   $("session-forget").dispatch("click");
@@ -662,16 +664,55 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   engineRows = Array.from({ length: 17 }, (_, i) => [0, 1].map(j => ({ ...ROW_E, add: { id: `m${i}`, name: `M Add${i}`, position: "WR" },
     drop: { id: `x${j}`, name: `Drop${j}`, position: "WR" }, lineupGain: 3 - i * 0.1,
     ...(i === 16 ? { signal: { ...ROW.signal }, dropCost: { ...ROW.dropCost }, bid: { ...ROW.bid } } : {}) }))).flat();
+  // A radar entry for the one HIDDEN add (M Add15) and an unrelated player.
+  intelRadar = [{ id: "m15", name: "M Add15", position: "WR", team: "X", status: null, ecr: null, rosRank: 40, adds: 9, drops: null, sameTeam: [], byeCover: [], role: null, roleFlags: [], projectionCovered: true },
+    { id: "z", name: "Z Watch", position: "RB", team: "Y", status: null, ecr: null, rosRank: 80, adds: 40, drops: 2, sameTeam: [], byeCover: [], role: null, roleFlags: [], projectionCovered: false }];
   await refresh("a result larger than the display limit");
   {
-    const shownAdds = $("waiver-table").querySelector("tbody").children.filter(tr => tr.className !== "waiver-detail-row");
+    const mainOf = () => $("waiver-table").querySelector("tbody").children.filter(tr => tr.className !== "waiver-detail-row");
+    const shownAdds = mainOf();
     assert.equal(shownAdds.length, 16, "top 15 adds plus the card's add");
     assert.equal(shownAdds[15].children[0].children[0].textContent, "M Add16", "the card's add is visible");
     assert.ok(shownAdds.every(tr => tr.children[1].children[0].children.length === 2), "every shown add lists both drop options");
-    assert.match($("waiver-count").textContent, /Showing the top 15 of 17 adds by this week's gain, plus the modeled top option, each with every drop option; 1 more is not shown/);
+    assert.equal($("waiver-count").textContent, "Each row is a separate option — make one claim at a time.");
+    assert.equal($("waiver-limit").hidden, false);
+    assert.equal($("waiver-limit-text").textContent, "Showing the top 15 of 17 adds by this week's gain, plus the modeled top option, each with every drop option; 1 more is hidden.");
+    assert.equal($("waiver-show-all").tagName, "button");
+    assert.equal($("waiver-show-all").textContent, "Show all 17 adds"); assert.equal($("waiver-show-all").attrs["aria-pressed"], "false");
     assert.equal($("waiver-best-text").textContent, "Add M Add16 (WR) — +1.40 pts this week. 2 drop options — see the claim table.");
-    assert.match($("waiver-table-notes").textContent, /^17 players, 34 add\/drop options/, "counts describe the complete result");
+    // Total vs shown, both stated.
+    assert.match($("waiver-table-notes").textContent, /^17 players, 34 add\/drop options in total, each evaluated against your current roster; showing 16 players and 32 options\. /);
+    // Worth watching excludes every claim add, hidden ones included.
+    assert.doesNotMatch(text("waiver-radar"), /M Add15/, "a hidden claim add is not offered as 'worth watching'");
+    assert.ok(text("waiver-radar").includes("Z Watch"));
+    // The copy export says what it leaves out.
+    const setNav = value => Object.defineProperty(globalThis, "navigator", { value, configurable: true, writable: true });
+    const savedNav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    setNav({});
+    $("waiver-copy").dispatch("click"); await new Promise(r => setImmediate(r));
+    const limitedExport = $("waiver-backup").value.split("\n");
+    assert.ok(limitedExport.includes("Showing the top 15 of 17 adds; 1 more not included — use Show all adds on the page."));
+    assert.equal(limitedExport.filter(l => l.startsWith("ADD ")).length, 32);
+    // Show all: every add in the table and the export; the card's selection is the same complete-result pick.
+    $("waiver-show-all").dispatch("click");
+    assert.equal(mainOf().length, 17);
+    assert.equal($("waiver-limit-text").textContent, "Showing all 17 adds by this week's gain, each with every drop option.");
+    assert.equal($("waiver-show-all").textContent, "Show top 15"); assert.equal($("waiver-show-all").attrs["aria-pressed"], "true");
+    assert.equal($("waiver-best-text").textContent, "Add M Add16 (WR) — +1.40 pts this week. 2 drop options — see the claim table.");
+    assert.match($("waiver-table-notes").textContent, /in total, each evaluated against your current roster; showing 17 players and 34 options\. /);
+    $("waiver-copy").dispatch("click"); await new Promise(r => setImmediate(r));
+    const fullExport = $("waiver-backup").value.split("\n");
+    assert.ok(!fullExport.some(l => l.includes("not included")));
+    assert.equal(fullExport.filter(l => l.startsWith("ADD ")).length, 34);
+    assert.doesNotMatch(text("waiver-radar"), /M Add15/, "now in the table; still not in Worth watching");
+    // The toggle survives a re-render (the 15 s tick) for this tab, and toggles back.
+    $("waiver-reserve").dispatch("change");
+    assert.equal(mainOf().length, 17, "show-all persists across the re-render");
+    $("waiver-show-all").dispatch("click");
+    assert.equal(mainOf().length, 16); assert.equal($("waiver-show-all").textContent, "Show all 17 adds");
+    if (savedNav) Object.defineProperty(globalThis, "navigator", savedNav); else delete globalThis.navigator;
   }
+  intelRadar = null;
   // No positive move at all: the card says so plainly and is the only result above the fold-outs.
   engineRows = [];
   await refresh("the desk with no positive move");

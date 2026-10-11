@@ -233,7 +233,7 @@
                status: `no bid suggested: dropping ${move.dropName} forfeits ${fmt(dropCost.dropForfeits)} rest-of-season lineup points against ${fmt(dropCost.addContributes)} from ${move.addName}`, label: BID_LABEL };
     }
     if (weak) {
-      return { low: null, high: null, tier: "weak signal", affordable, canAfford: true, status: `no bid suggested: modeled gain is under ${WEAK_SIGNAL_PTS.toFixed(1)} pt/week`, label: BID_LABEL };
+      return { low: null, high: null, tier: "weak signal", affordable, canAfford: true, status: `no bid suggested: the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under ${WEAK_SIGNAL_PTS.toFixed(1)} pt/week`, label: BID_LABEL };
     }
     if (dropCost && dropCost.status === "unassessed") {
       return { low: null, high: null, tier: "drop cost unassessed", affordable, canAfford: true, status: `no bid suggested: drop cost unassessed — ${dropCost.reason}`, label: BID_LABEL };
@@ -455,7 +455,7 @@
       const signal = {
         strength: weak ? "weak" : "modeled", perWeekGain, thresholdPerWeek: WEAK_SIGNAL_PTS, moveValue, basis,
         label: weak
-          ? `weak signal: under ${WEAK_SIGNAL_PTS.toFixed(1)} projected pt/week, below the conservative product threshold — research only, not a bid or priority claim`
+          ? `weak signal: the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under ${WEAK_SIGNAL_PTS.toFixed(1)} projected pt/week, below the conservative product threshold — research only, not a bid or priority claim`
           : basis === "move"
             ? "modeled lineup gain this week plus rest-of-season lineup change; projection error is not quantified and no claim-success probability is implied"
             : "modeled lineup gain; projection error is not quantified and no claim-success probability is implied",
@@ -497,7 +497,7 @@
     const rows = pairs.map(x => x.row);
     if (!rows.length) warnings.push("no positive legal skill-player waiver transaction found");
     const weakRows = rows.filter(r => r.signal.strength === "weak").length;
-    if (weakRows) warnings.push(`${weakRows} alternative(s) gain under ${WEAK_SIGNAL_PTS.toFixed(1)} projected pt/week and are shown for research only; no bid or priority spend is suggested for them`);
+    if (weakRows) warnings.push(`${weakRows} alternative(s) have a move value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) under ${WEAK_SIGNAL_PTS.toFixed(1)} projected pt/week and are shown for research only; no bid or priority spend is suggested for them`);
     const unassessedRows = rows.filter(r => r.signal.strength !== "weak" && r.dropCost.status === "unassessed").length;
     if (unassessedRows) warnings.push(`${unassessedRows} alternative(s) require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them`);
     const negativeRows = rows.filter(r => r.dropCost.status === "priced" && r.signal.moveValue <= 0).length;

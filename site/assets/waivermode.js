@@ -169,7 +169,8 @@
       withheld,
       // The engine's actual reason a spend suggestion is withheld (affordability
       // first, as the engine ranks it), or "" when one is attached.
-      withheldReason: r.bid && r.bid.canAfford === false ? "minimum bid exceeds spendable budget" : tagText,
+      // A viewer's reason is the signal state only (the budget is the owner's).
+      withheldReason: !ownerOnly && r.bid && r.bid.canAfford === false ? "minimum bid exceeds spendable budget" : tagText,
       // The engine attached a spend suggestion to this row: a dollar range
       // (FAAB) or a priority claim (rolling / reverse standings).
       suggested: r.bid ? !!dollars && r.bid.canAfford !== false : !withheld,
@@ -262,7 +263,7 @@
     const lead = at >= 0 ? (ownerOnly ? "Top-ranked option: " : "")
       : rows.every(x => x.signal.strength === "weak")
         ? `No spend guidance for ${scope}: all are below ${basis}. Closest option: `
-        : ownerOnly ? "Top-ranked option: "
+        : ownerOnly ? `None of ${scope} carries a modeled spend signal: each is withheld (${reasons.join("; ")}). Closest option: `
         : `No spend guidance for ${scope}: each option is withheld (${reasons.join("; ")}). Closest option: `;
     const text = `${lead}${move}`;
     // The claim line repeats only what the table row shows without a fold:
@@ -412,6 +413,7 @@
       return;
     }
     $("waiver-warning-link").addEventListener("click", () => { $("waiver-method").open = true; });
+    $("waiver-show-all").addEventListener("click", () => { showAll = !showAll; if (snap && !$("waiver-results").hidden) renderRows(); });
     $("waiver-protect-toggle").addEventListener("click", () => {
       const open = $("waiver-protect").hidden;
       $("waiver-protect").hidden = !open;
@@ -438,7 +440,9 @@
     // applied per add (claimDisplay), never by cutting an add's drop options;
     // `shownRows` are the pairs of the adds the table actually shows.
     const activeRows = () => (result?.rows || []).filter(r => $("waiver-position").value === "ALL" || r.add.position === $("waiver-position").value);
-    let shownRows = [];
+    let shownRows = [], lastView = null;
+    // "Show all adds": this tab only (no storage), off on load.
+    let showAll = false;
     const waiverType = () => Number(snap?.world.league.settings?.waiver_type);
 
     function setLink(league) {
@@ -553,24 +557,30 @@
       const pricedCount = rows.filter(r => r.dropCost?.status === "priced" && r.signal.moveValue > 0).length;
       // The full count sentence lives in the method fold; the table gets one line.
       $("waiver-count-detail").textContent = snap.note ? snap.note
-        : rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against ${whose} current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals: under 1 point per week — ${COPY.heuristic(rows[0].signal.thresholdPerWeek)} — kept for research; no bid or priority spend is suggested for them.` : ""}${heldCount ? ` ${heldCount} require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them.` : ""}${pricedCount ? ` ${pricedCount} required-drop alternatives are priced on this week's gain plus the rest-of-season lineup change.` : ""}${negativeCount ? ` ${negativeCount} would forfeit more rest-of-season lineup value than the add returns; no bid or priority spend is suggested for them.` : ""}`
+        : rows.length ? `${rows.length} independent add/drop alternatives. Each is evaluated against ${whose} current roster, not after other claims.${weakCount ? ` ${weakCount} are weak signals: the move's value averages under ${rows[0].signal.thresholdPerWeek} point per week through NFL week 17 (this week's gain plus the priced rest-of-season change; this week's gain alone where the rest of season is not priced) — ${COPY.heuristic(rows[0].signal.thresholdPerWeek)} — kept for research; no bid or priority spend is suggested for them.` : ""}${heldCount ? ` ${heldCount} require a drop whose rest-of-season cost is not priced; the gain is shown for research but no bid or priority spend is suggested for them.` : ""}${pricedCount ? ` ${pricedCount} required-drop alternatives are priced on this week's gain plus the rest-of-season lineup change.` : ""}${negativeCount ? ` ${negativeCount} would forfeit more rest-of-season lineup value than the add returns; no bid or priority spend is suggested for them.` : ""}`
         : result?.recommendationBlock || "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.";
       // The card reads the complete filtered result; the table shows the top
       // adds (plus the card's add) with every drop option each.
       const best = renderBest(rows);
-      const view = claimDisplay(rows, { selectedAddId: best.add ? best.add.id : null });
+      const view = claimDisplay(rows, { maxAdds: showAll ? Infinity : MAX_ADDS, selectedAddId: best.add ? best.add.id : null });
       const groups = view.groups;
-      shownRows = view.rows;
+      shownRows = view.rows; lastView = view;
       $("waiver-claims").hidden = !rows.length;
-      // Above the table: two short lines (plus the display limit, when it applies).
-      $("waiver-count").textContent = !rows.length ? ""
-        : `Each row is a separate option — make one claim at a time.${view.hiddenAdds ? ` Showing the top ${MAX_ADDS} of ${view.totalAdds} adds by this week's gain${view.appended ? ", plus the modeled top option" : ""}, each with every drop option; ${view.hiddenAdds} more ${view.hiddenAdds === 1 ? "is" : "are"} not shown (narrow by position to see them).` : ""}`;
+      // Above the table: two short lines, plus the display limit and its toggle when it applies.
+      $("waiver-count").textContent = rows.length ? "Each row is a separate option — make one claim at a time." : "";
+      const limited = view.totalAdds > MAX_ADDS;
+      $("waiver-limit").hidden = !rows.length || !limited;
+      $("waiver-limit-text").textContent = !limited ? ""
+        : showAll ? `Showing all ${view.totalAdds} adds by this week's gain, each with every drop option.`
+        : `Showing the top ${MAX_ADDS} of ${view.totalAdds} adds by this week's gain${view.appended ? ", plus the modeled top option" : ""}, each with every drop option; ${view.hiddenAdds} more ${view.hiddenAdds === 1 ? "is" : "are"} hidden.`;
+      $("waiver-show-all").textContent = showAll ? `Show top ${MAX_ADDS}` : `Show all ${view.totalAdds} adds`;
+      $("waiver-show-all").setAttribute("aria-pressed", String(showAll));
       $("waiver-row-notes").textContent = rows.length
         ? `Gain = this week's projected lineup change; drop options show each move's rest-of-season change (information, not a pick). Weak signal = the move's value (this week plus the priced rest of season) averages under ${rows[0].signal.thresholdPerWeek ?? 1} pt/week through week 17.`
         : "";
       const notes = sharedRowNotes(shownRows, isViewer), shared = new Set(notes);
       $("waiver-table-notes").textContent = rows.length
-        ? [`${view.totalAdds} player${view.totalAdds === 1 ? "" : "s"}, ${rows.length} add/drop option${rows.length === 1 ? "" : "s"}, each evaluated against ${whose} current roster.`, ...notes].join(" ")
+        ? [`${view.totalAdds} player${view.totalAdds === 1 ? "" : "s"}, ${rows.length} add/drop option${rows.length === 1 ? "" : "s"} in total, each evaluated against ${whose} current roster; showing ${groups.length} player${groups.length === 1 ? "" : "s"} and ${shownRows.length} option${shownRows.length === 1 ? "" : "s"}.`, ...notes].join(" ")
         : "";
       // The gated board (same 72 h / team / week checks as Worth watching):
       // a claim add keeps its preseason watchlist entry, withheld reasons included.
@@ -627,7 +637,7 @@
         }
         cell.append(d); detail.append(cell); body.append(detail);
       }
-      renderIntel(new Set(groups.map(g => String(g.add.id))));
+      renderIntel(new Set((result?.rows || []).map(r => String(r.add.id))));
     }
 
     // The research radar, filtered by position and sorted by the chosen
@@ -892,6 +902,7 @@
         : result ? `Remaining $${result.budget.remaining}; reserve $${result.budget.reserve}; spendable $${result.budget.spendable}` : "";
       return [`${league.name || `League ${league.league_id}`} waiver shortlist — independent alternatives, not submitted claims`, $("waiver-source").textContent,
         budgetLine,
+        ...(!snap.note && lastView && lastView.hiddenAdds ? [`Showing the top ${MAX_ADDS} of ${lastView.totalAdds} adds; ${lastView.hiddenAdds} more not included — use Show all adds on the page.`] : []),
         ...(snap.note ? [snap.note] : shownRows.map(r => rowText(r, result, { ownerOnly: isViewer }).exportLine)),
         "RESEARCH ONLY — not an add/drop plan or bid recommendation",
         $("waiver-intel-source").textContent,

@@ -6,7 +6,7 @@
 <meta name="description" content="Read-only waiver planning for any Sleeper league: available players, lineup upgrades in your league's scoring, drop costs, FAAB guardrails, and rolling or reverse-standings claim guidance.">
 <title>Waivers — Megatron</title>
 <link rel="stylesheet" href="assets/style.css?v=league1">
-<link rel="stylesheet" href="assets/waivers.css?v=clean1">
+<link rel="stylesheet" href="assets/waivers.css?v=minors1">
 <link rel="stylesheet" href="assets/interface.css?v=1">
 </head>
 <body>
@@ -49,6 +49,7 @@
     <section id="waiver-claims" aria-labelledby="waiver-claims-heading">
       <h2 id="waiver-claims-heading">Claim options</h2>
       <p id="waiver-count" class="waiver-count"></p>
+      <p id="waiver-limit" class="waiver-limit" hidden><span id="waiver-limit-text"></span> <button type="button" id="waiver-show-all" aria-pressed="false" aria-controls="waiver-table">Show all adds</button></p>
       <p id="waiver-row-notes" class="waiver-source"></p>
       <div class="table-wrap">
         <table id="waiver-table">
@@ -125,9 +126,9 @@
 <script src="assets/leaguelens.js?v=1"></script>
 <script src="assets/leaguedata.js?v=1"></script>
 <script src="assets/liveworld.js?v=1"></script>
-<script src="assets/waivers.js?v=neutral1"></script>
+<script src="assets/waivers.js?v=minors1"></script>
 <script src="assets/waiverintel.js?v=neutral1"></script>
-<script src="assets/waivermode.js?v=review1"></script>
+<script src="assets/waivermode.js?v=minors1"></script>
 <script>WaiverMode.init();</script>
 </body>
 </html>
