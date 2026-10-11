@@ -26,9 +26,24 @@ All four weeks select the expected bot publications, proven by push events in th
 | Naive last-4 MAE | 4.673 | 4.67263 | match |
 | Model − naive | −0.313, CI [−0.492, −0.135] | −0.31339, player CI [−0.4922, −0.1350] | match; the record adds a `week|team` CI [−0.5230, −0.1067] |
 
-Astra's 2026-10-07 in-memory run reported naive MAE 4.6757. Astra built that run from a 2012–2026 weekly cache that
-ended at week 3 plus a separate 2026 cache; it was not pinned to the scratch vintage (its own response says so). The
-record, built by the shipped code from one pull, gives 4.67263, matching the scratch. No rule was changed.
+**Astra's 2026-10-07 naive MAE 4.6757 — row-level reconciliation** (corrected 2026-10-11 from astra's build review,
+`.review/astra-weeklyacc-build-response.md` fix 1; the first version of this note misdescribed astra's inputs).
+Astra's earlier in-memory run used `weekly_v2_2012_2025.parquet` filtered to 2023–25 plus
+`weekly_v2_2026_2026.parquet`. That older historical cache has none of the 2023–25 rows for one player, **Bo Melton
+(`00-0037091`)**; the newer cache has 30. His last four historical PPR outcomes there (0, 0, 4.4, 0) replace the week-1
+position-mean fallback and then enter his rolling history for weeks 2–4:
+
+| Week | Actual | Earlier naive | Record's naive | Change in absolute error (record − earlier) |
+|---|---:|---:|---:|---:|
+| 1 | 2.0 | 7.1297 | 1.1 | −4.2297 |
+| 2 | 0.0 | 2.0 | 1.6 | −0.4 |
+| 3 | 0.0 | 1.0 | 1.6 | +0.6 |
+| 4 | 0.0 | 0.6667 | 0.5 | −0.1667 |
+
+Across the identical 1,367 scored keys no actual or published value changes. Total naive absolute error falls by
+4.19635, i.e. 0.0030698 per row: **4.675700 → 4.672630**. That accounts for the whole difference. The baseline rule was
+not changed. (Astra's reconciliation matched the record's enriched 2023–25 hashes exactly; its 2026 frame hash did not,
+though it reproduced every pooled point metric and every secondary ranking cell.)
 
 ## Ranking: expected divergences
 
@@ -37,9 +52,15 @@ record, built by the shipped code from one pull, gives 4.67263, matching the scr
   `2026-w04-2026-09-30-5aec56b70c3784e6.json`; `…220d00155877a0a7.json` is listed, not used. The scratch had used
   `…220d…` by tie-break. Result: 4 cells (week 4), ours − consensus D = +0.009. That is one week and descriptive only.
 - **Secondary (nflverse same-week, §5.2).** 16 cells over weeks 1–4: ours 0.590 vs consensus 0.628, D = −0.038,
-  week-clustered CI [−0.056, −0.019]. The scratch's corrected comparison (weeks 3–4 only, 0.498 vs 0.515) used a
-  different population: all players with a stat line, whereas §5.2 keeps only players whose game came after the
-  scrape. These are different estimands, so the numbers are not directly comparable.
+  week-clustered CI [−0.056, −0.019]. Retained pools 266, 326, 320 and 325 players, with 40, 22, 22 and 23 projected
+  played rows excluded because their game came before the scrape.
+- **Why these differ from the scratch's 0.498 vs 0.515.** The scratch's corrected comparison (exact means 0.4977 and
+  0.5146) used **our archived snapshots**, not nflverse, for **weeks 3–4 only** (269 and 252 joined players), with the
+  scratch's tie-break archive for week 4 and no game-date filter. The record changes all four of those: week 3 drops
+  out of the primary (archive pushed after the cutoff); week 4 uses the `…5aec…` archive, which raises the joined pool
+  from 252 to 298 (46 played IDs added, none lost) and gives 0.6246 vs 0.6160 (D = +0.0086); and the secondary is a
+  different source over weeks 1–4 with the §5.2 date filter. Source, weeks, archive and pool all differ, so these are
+  different estimands and are not directly comparable.
 
 ## Provisional
 
