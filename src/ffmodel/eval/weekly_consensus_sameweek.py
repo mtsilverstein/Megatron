@@ -48,8 +48,11 @@ def run_sample(prep: sw.Prepared, rankings: pd.DataFrame, crosswalk: pd.DataFram
                                    "input_validation": {"schedule": sched_report}})
                 audit.append(failed_slice_audit_week(prep.schedule, season, week))
                 continue
-            audit.append({"season": int(season), **sw.staleness_audit_week(rankings, prep.schedule, season, week,
-                                                                           dates)})
+            if sw.window_dates_ok(dates, week):
+                audit.append({"season": int(season), **sw.staleness_audit_week(rankings, prep.schedule, season, week,
+                                                                               dates)})
+            else:                                        # the audit's bye sets also read week N-1's slice
+                audit.append(failed_slice_audit_week(prep.schedule, season, week))
             wi = sw.week_inputs(prep, season, week)
             if wi["failed"]:
                 weeks_prov.append({"season": int(season), "week": week, "status": "skipped",

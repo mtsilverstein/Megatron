@@ -270,11 +270,22 @@ def test_failed_slice_weeks_get_audit_rows_and_discriminating_comes_from_the_raw
     assert sorted(by_week) == [1, 2, 3, 4]                        # every REG week has a row
     assert by_week[1]["state"] is None and by_week[1]["reason"] == "validation_failed"
     assert by_week[1]["detail"] == "schedule_dependency_failed" and by_week[1]["discriminating"] is False
-    assert by_week[2]["kickoff"] is not None                      # a passing week keeps its normal row
+    assert by_week[2]["state"] is None and by_week[2]["reason"] == "validation_failed"   # week 1's slice failed
+    assert by_week[3]["kickoff"] is not None                      # a week with both slices passing keeps its normal row
     report = drv.build_report(res, {**res, "audit": []}, {"inputs": {}})["old_protocol_staleness_audit"]
     assert len(report["weeks"]) == 4 and report["counts"] == {"contradicted": 0, "bye_consistent": 0,
                                                               "unverified": 0, "none": 0}
     json.dumps(report, allow_nan=False)
+
+
+def test_audit_row_respects_a_failed_prior_week_slice():
+    prep, ranks, cw = _world(extra_games=[(2024, 1, "2024-09-09", "CCC", "DDD")])
+    res = drv.run_sample(prep, ranks, cw, [2024], _good)
+    by_week = {a["week"]: a for a in res["audit"]}
+    assert by_week[2]["state"] is None and by_week[2]["reason"] == "validation_failed"
+    assert by_week[2]["detail"] == "schedule_dependency_failed" and by_week[2]["scrape_date"] is None
+    assert by_week[3]["reason"] != "validation_failed" and "detail" not in by_week[3]    # normal week unaffected
+    assert by_week[3]["kickoff"] is not None
 
 
 def test_failed_slice_week_with_bye_sets_is_counted_discriminating():
