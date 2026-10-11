@@ -8,23 +8,83 @@
 #waiver-app button:disabled { opacity: .6; cursor: wait; }
 #waiver-status, .waiver-warnings { border-left: 3px solid var(--accent); padding: .7rem 1rem; background: var(--sunken); }
 .waiver-warnings ul { margin: 0; padding-left: 1rem; }
-.waiver-budget { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .8rem; margin: 1.5rem 0; }
-.waiver-budget div { background: var(--board-raised); border: 1px solid var(--rule); padding: 1rem; }
-.waiver-budget strong { display: block; font-size: 1.7rem; }
-.waiver-budget span, .waiver-source, .waiver-row-note { color: var(--chalk-dim); }
+.waiver-source, .waiver-row-note { color: var(--chalk-dim); }
 #waiver-app details { margin: 1rem 0; border: 1px solid var(--rule); padding: .8rem 1rem; }
 #waiver-app summary { cursor: pointer; font-weight: 600; }
 .waiver-roster { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .5rem; }
 #waiver-app .waiver-roster label { flex-direction: row; align-items: center; }
 #waiver-app .waiver-roster input { width: auto; }
-#waiver-table { width: 100%; min-width: 740px; }
-#waiver-table caption { text-align: left; color: var(--chalk-dim); padding: .5rem 0; }
+#waiver-table { width: 100%; min-width: 760px; }
 #waiver-table td { white-space: normal; vertical-align: top; }
 #waiver-table th { text-align: left; }
-#waiver-radar { width: 100%; min-width: 700px; }
-#waiver-radar td, #waiver-radar th { text-align: left; white-space: normal; vertical-align: top; padding: .6rem; }
 .waiver-row-note { display: block; font-size: .85rem; }
 #waiver-backup { width: 100%; margin-top: .5rem; }
 .waiver-method { max-width: 90ch; margin-top: 2rem; }
 .waiver-method li { margin-bottom: .55rem; }
-@media (max-width: 600px) { #waiver-app { padding: 1rem; } .waiver-controls { align-items: stretch; } .waiver-controls label:first-child { width: 100%; } #waiver-table { min-width: 700px; } }
+
+/* Screen-reader-only text: the loaded desk's status line stays in the live
+   region while the summary line shows the same facts visually. */
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* 1. Summary line */
+.waiver-summary { margin: 0 0 .25rem; font-size: .95rem; overflow-wrap: anywhere; }
+.waiver-summary > :empty { display: none; }
+.waiver-summary > * + *::before { content: " · "; color: var(--chalk-dim); }
+.waiver-warning-link { color: var(--te); white-space: nowrap; }
+.waiver-summary > a::before { display: inline-block; white-space: pre; }
+#waiver-summary-league { font-weight: 600; }
+#waiver-summary-data { color: var(--chalk-dim); }
+
+/* 2. Settings row */
+#waiver-app .waiver-protect-toggle { align-self: end; }
+#waiver-app .waiver-protect-toggle[aria-expanded="true"] { border-color: var(--chalk-dim); }
+.waiver-protect { margin: -.4rem 0 1.2rem; padding: .85rem 1rem; border: 1px solid var(--rule); border-radius: .6rem; background: var(--sunken); }
+.waiver-protect p { margin-top: 0; font-size: .875rem; color: var(--chalk-dim); }
+
+/* 3. Best move card */
+#waiver-app .waiver-best { margin: 1.25rem 0 1.75rem; padding: 1rem 1.25rem; border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: .6rem; background: var(--sunken); }
+#waiver-app .waiver-best h2 { margin: 0 0 .35rem; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--chalk-dim); }
+.waiver-best-text { margin: 0 0 .35rem; font-size: 1.15rem; font-weight: 600; line-height: 1.45; }
+.waiver-best-claim { margin: 0 0 .35rem; }
+.waiver-best p.waiver-source { margin: 0; }
+
+/* 4. Claim table */
+#waiver-claims h2 { margin: 0 0 .35rem; }
+.waiver-count { margin: 0 0 .25rem; }
+#waiver-row-notes { margin: 0; }
+.waiver-num { display: block; font-variant-numeric: tabular-nums; font-weight: 600; }
+.waiver-badge { display: inline-block; margin: 0 .3rem .3rem 0; padding: .05rem .45rem; font-size: .75rem; line-height: 1.5; white-space: nowrap; color: var(--chalk-dim); border: 1px solid var(--rule); border-radius: 3px; }
+.waiver-badge.warn { color: var(--te); border-color: var(--te); }
+#waiver-table tr.waiver-detail-row td { padding-top: 0; border-top: none; }
+#waiver-table tbody tr:not(.waiver-detail-row) td { border-top: 1px solid var(--hairline); }
+#waiver-app .waiver-detail-row details, #waiver-app .waiver-watch details { margin: 0; padding: 0; border: none; background: none; }
+#waiver-app .waiver-detail-row summary, #waiver-app .waiver-watch summary { font-size: .8rem; font-weight: 500; color: var(--chalk-dim); }
+#waiver-app .waiver-detail-row details[open] > summary, #waiver-app .waiver-watch details[open] > summary { margin-bottom: .4rem; }
+.waiver-detail-list { margin: .25rem 0 .5rem; padding-left: 1.1rem; }
+.waiver-detail-list li { font-size: .85rem; color: var(--chalk-dim); margin-bottom: .2rem; max-width: 110ch; }
+.waiver-detail-head { margin: .5rem 0 0; font-size: .85rem; font-weight: 600; }
+.waiver-drops { margin: 0; padding-left: 1.1rem; }
+.waiver-drops li { margin-bottom: .2rem; }
+#waiver-table td:nth-child(2) { min-width: 15rem; }
+ol.waiver-watch { list-style: decimal; padding-left: 1.5rem; }
+
+/* 5. Worth watching */
+#waiver-app .waiver-watching { margin-top: 1.5rem; }
+#waiver-app .waiver-watching > summary { font-size: 1rem; }
+.waiver-watch { list-style: none; margin: .75rem 0 1rem; padding: 0; }
+.waiver-watch > li { padding: .55rem 0; border-bottom: 1px solid var(--hairline); font-size: .9rem; }
+.waiver-watch-name { font-weight: 600; margin-right: .5rem; }
+.waiver-watch-why { color: var(--chalk-dim); }
+.waiver-subhead { margin: 1.25rem 0 .4rem; font-size: .9rem; }
+
+/* 6. Copy shortlist */
+.waiver-copy { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin: 1.25rem 0; }
+#waiver-backup-wrap { flex-basis: 100%; }
+
+@media (max-width: 600px) {
+  #waiver-app { padding: 1rem; }
+  .waiver-controls { align-items: stretch; }
+  .waiver-controls label:first-child { width: 100%; }
+  #waiver-table { min-width: 700px; }
+  .waiver-best-text { font-size: 1.05rem; }
+}

@@ -21,6 +21,16 @@
 //   change unless typed; viewer flow ("Viewing {team}", protections and bids
 //   owner-only) then owner; live settings recompute; best ball (projections
 //   only, no shortlist); reverse standings.
+//   Page layout (waiver cleanup, 2026-10-10): the fake DOM is parsed from the
+//   real waivers.html; the claim table has one row per add listing EVERY
+//   drop option with its rest-of-season figure, highest first (fix round 1:
+//   no "best drop" claim); the best-move card names the add only, for FAAB,
+//   rolling and viewers, with its no-claim and no-positive-move states; the
+//   data stamp and warnings signpost; protections, position filter and fold
+//   state across re-renders; boilerplate stated once above the
+//   table; Worth watching collapsed and without the claim adds; summary
+//   line, settings row and protection toggle; clipboard copy with the
+//   text-box fallback.
 // All league data is synthetic (fictional owners and ids).
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -59,29 +69,13 @@ function dom(href) {
   };
   return main;
 }
-// waivers.html's ids, in the shape init() reads them (a label around the
-// reserve input for closest("label"); tbodies inside the two tables; the
-// export textarea inside a details).
+// waivers.html itself, parsed into the fake DOM (tests/waiverpage_dom.cjs):
+// the real ids, nesting and initial hidden/open state.
+const { buildWaiverPage } = require("./waiverpage_dom.cjs");
 function waiversPage(main) {
-  const withId = (tag, id, parent = main) => { const e = element(tag); e.id = id; parent.append(e); return e; };
-  const controls = withId("div", "waiver-controls");
-  withId("input", "waiver-week", controls).value = "";
-  const reserveLabel = element("label"); controls.append(reserveLabel);
-  withId("input", "waiver-reserve", reserveLabel).value = "";
-  withId("p", "waiver-status");
-  withId("div", "waiver-warnings").hidden = true;
-  const results = withId("section", "waiver-results"); results.hidden = true;
-  for (const [tag, id] of [["div", "waiver-context"], ["div", "waiver-budget"], ["p", "waiver-coverage"], ["p", "waiver-ros"], ["p", "waiver-source"],
-    ["div", "waiver-evaluation"], ["select", "waiver-position"], ["button", "waiver-export"], ["p", "waiver-count"],
-    ["table", "waiver-table"], ["div", "waiver-roster"], ["p", "waiver-intel-source"], ["p", "waiver-role-source"],
-    ["ul", "waiver-byes"], ["select", "waiver-radar-sort"], ["table", "waiver-radar"], ["p", "waiver-market"],
-    ["ol", "waiver-watchlist"]]) withId(tag, id, results);
-  const details = element("details"); results.append(details);
-  withId("textarea", "waiver-backup", details);
+  buildWaiverPage(element, main);
   document.getElementById("waiver-position").value = "ALL";
   document.getElementById("waiver-radar-sort").value = "usage";
-  for (const t of ["waiver-table", "waiver-radar"]) document.getElementById(t).append(element("tbody"));
-  withId("a", "waiver-league-link");
 }
 
 // ---- modules ------------------------------------------------------------------
@@ -116,18 +110,36 @@ const ROW = { add: { id: "c", name: "C Free", position: "WR" }, drop: null, line
   rosterCost: "uses an open roster spot", dropCost: { status: "open_slot", label: "no drop required", addContributes: null, rosDelta: null, futureWeeks: null, endWeek: null },
   availability: { status: null, actionableNow: true, warning: null }, valueEstimate: { points: 55, label: LABEL },
   bid: { low: 4, high: 10, tier: "useful", affordable: 80, canAfford: true, status: null, label: "heuristic, not calibrated and not a win probability" } };
+const BID_LABEL = "heuristic, not calibrated and not a win probability";
+const WEAK_LABEL = "weak signal: under 1.0 projected pt/week, below the conservative product threshold — research only, not a bid or priority claim";
+// The same add (C Free) with a second, lower-ranked drop, then a weak add.
+const ROW_C2 = { ...ROW, drop: { id: "a", name: "A Back", position: "RB" }, lineupGain: 1.5,
+  rosterCost: "dropping A Back costs their rest-of-season value, which this desk does not price",
+  dropCost: { status: "unassessed", label: "drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered", reason: "remaining-season projections unavailable" },
+  signal: { ...ROW.signal, perWeekGain: 1.5, guidance: "no bid suggested; the dropped player's rest-of-season cost is not priced, so assess the drop cost independently before any move" },
+  bid: { low: null, high: null, tier: "drop cost unassessed", affordable: 80, canAfford: true, status: "no bid suggested: drop cost unassessed — remaining-season projections unavailable", label: BID_LABEL } };
+const ROW_E = { ...ROW, add: { id: "e", name: "E Spare", position: "TE" }, drop: { id: "a", name: "A Back", position: "RB" }, lineupGain: 0.4,
+  rosterCost: "dropping A Back costs their rest-of-season value, which this desk does not price",
+  dropCost: { status: "unassessed", label: "drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered", reason: "remaining-season projections unavailable" },
+  signal: { strength: "weak", perWeekGain: 0.4, thresholdPerWeek: 1, moveValue: null, basis: "this_week", label: WEAK_LABEL, guidance: "no bid suggested; assess the drop cost independently before any move" },
+  valueEstimate: { points: 12, label: "rest-of-season value 12.00 (sum of weekly medians through NFL week 17, not a season median); not a FAAB price" },
+  bid: { low: null, high: null, tier: "weak signal", affordable: 80, canAfford: true, status: "no bid suggested: modeled gain is under 1.0 pt/week", label: BID_LABEL } };
+let engineRows = null;                  // a scenario's override of the engine's rows
 const ENGINE_RESULT = args => {
   const wt = args.league.settings.waiver_type;
+  const rows = engineRows || [ROW, ROW_C2, ROW_E];
   return {
-    rows: [{ ...ROW, bid: wt === 2 ? ROW.bid : null }], warnings: ["engine warning"], recommendationBlock: null,
+    rows: rows.map(r => ({ ...r, bid: wt === 2 ? r.bid : null })), warnings: ["engine warning"], recommendationBlock: null,
     budget: wt === 2 ? { total: args.league.settings.waiver_budget, used: 0, remaining: args.league.settings.waiver_budget, reserve: args.budgetReserve, spendable: Math.max(0, args.league.settings.waiver_budget - args.budgetReserve) } : null,
-    waiver: { type: wt === 2 ? "faab" : wt === 1 ? "reverse_standings" : "rolling", priority: wt === 0 ? 4 : null, guidance: "g" },
+    waiver: { type: wt === 2 ? "faab" : wt === 1 ? "reverse_standings" : "rolling", priority: wt === 0 ? 4 : null, guidance: require("../site/assets/waivers.js").COPY.guidance[wt === 2 ? "faab" : wt === 1 ? "reverse_standings" : "rolling"] },
     coverage: { scoringLabel: "fresh weekly projection", weeklyFresh: true, projectedOwnedSkills: 1, activeOwnedSkills: 1,
                 missingOwnedWeekly: [], unmappedOwnedIds: [], ros: { fresh: false, reason: "remaining-season projections unavailable" } },
   };
 };
 window.Waivers = { analyze(args) { analyzeCalls.push(args); return ENGINE_RESULT(args); } };
-window.WaiverIntel = { analyze: () => ({ radar: [{ id: "c", name: "C Free", position: "WR", team: "X", status: null, ecr: 12, rosRank: 30, adds: 5, drops: null, sameTeam: [], byeCover: [], role: null, roleFlags: [], projectionCovered: true }],
+window.WaiverIntel = { analyze: () => ({ radar: [
+    { id: "c", name: "C Free", position: "WR", team: "X", status: null, ecr: 12, rosRank: 30, adds: 5, drops: null, sameTeam: [], byeCover: [], role: null, roleFlags: ["snap share and opportunity share both increased"], projectionCovered: true },
+    { id: "z", name: "Z Watch", position: "RB", team: "Y", status: "Questionable", ecr: null, rosRank: 80, adds: 40, drops: 2, sameTeam: [], byeCover: [], role: null, roleFlags: [], projectionCovered: false }],
   fetchedAt: "t", rosStatus: "ros", warnings: [], roleStatus: "roles", byeRisks: [], bids: [], freeAgentMoves: 0 }) };
 
 // ---- synthetic neutral batch, Sleeper data, clock ---------------------------------
@@ -273,15 +285,155 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   // Rows: the "why" value with its aggregation label, owner bid shown; ECR labels.
   assert.ok(text("waiver-table").includes(LABEL));
   assert.ok(text("waiver-table").includes("$4–$10"));
-  assert.ok(text("waiver-watchlist").includes("C Free · WR · preseason ECR 12 (PPR reference ranking)"));
-  assert.doesNotMatch(text("waiver-watchlist"), /A Back|B Wide/, "rostered players are not on the watchlist");
-  assert.ok(text("waiver-radar").includes("ROS overall rank 30 (PPR reference ranking)") && text("waiver-radar").includes("Preseason ECR 12 (PPR reference ranking)"));
+  // Grouped by add: one main row per added player (C Free, E Spare), the
+  // engine's rank order kept. Every drop option is listed in the Drop cell
+  // with its own rest-of-season figure (no hidden drops, no "best drop");
+  // what differs between options is shown with each option.
+  const tbody = $("waiver-table").querySelector("tbody");
+  const mainRows = tbody.children.filter(tr => tr.className !== "waiver-detail-row");
+  const detailRows = tbody.children.filter(tr => tr.className === "waiver-detail-row");
+  assert.equal(mainRows.length, 2, "one row per add");
+  assert.deepEqual(mainRows.map(tr => tr.children[0].children[0].textContent), ["C Free", "E Spare"], "ranked as the engine ranked them");
+  const dropItems = tr => tr.children[1].children[0].children.map(li => li.textContent);
+  assert.deepEqual(dropItems(mainRows[0]), [
+    "Open roster spot (no drop) — ROS not priced · this week +2.50 · $4–$10 · useful tier",
+    "A Back — ROS not priced · this week +1.50 · drop cost unassessed · None suggested (drop cost unassessed)"], "every drop option, each with its own figures");
+  assert.equal(mainRows[0].children[1].children[0].tagName, "ul", "a plain list: the order is information, not a numbered pick");
+  assert.deepEqual(dropItems(mainRows[1]), ["A Back — ROS not priced"], "shared status is not repeated per option");
+  assert.deepEqual(mainRows[0].children[2].children.map(n => n.textContent), ["+1.50 to +2.50", "varies by drop"]);
+  assert.deepEqual(mainRows[1].children[2].children.map(n => n.textContent), ["+0.40", "weak signal"]);
+  assert.equal(mainRows[0].children[3].textContent, "Varies by drop option (listed with each drop)");
+  assert.equal(mainRows[1].children[3].textContent, "None suggested (weak signal)");
+  assert.equal(mainRows[0].children[5].textContent, "Add's ROS value 55.00"); assert.equal(mainRows[0].children[5].title, LABEL);
+  assert.equal(detailRows.length, 2);
+  const cDetail = detailRows[0].children[0].children[0];
+  assert.equal(cDetail.tagName, "details"); assert.equal(cDetail.open, false, "row details start collapsed");
+  assert.equal(cDetail.children[0].textContent, "Details");
+  assert.deepEqual(cDetail.children.filter(n => n.className === "waiver-detail-head").map(n => n.textContent), ["Open roster spot (no drop)", "Drop A Back"], "the long text per drop option");
+  assert.ok(all(cDetail).some(n => n.textContent === "Claim guidance: no bid suggested: drop cost unassessed — remaining-season projections unavailable"));
+  assert.ok(all(cDetail).some(n => /^drop cost unassessed: .* — remaining-season projections unavailable$/.test(n.textContent)), "the unassessed note with its reason");
+  // Signals: badges from the research radar's entry for the same player.
+  assert.deepEqual(mainRows[0].children[4].children.map(n => n.textContent), ["Usage rising", "Trending add"]);
+  assert.match(mainRows[0].children[4].children[1].title, /^Sleeper 24h adds 5 \/ drops Not listed/);
+  assert.equal(mainRows[1].children[4].children[0].textContent, "—", "no radar entry, no badges");
+  // Above the table: two short lines only.
+  assert.equal($("waiver-count").textContent, "Each row is a separate option — make one claim at a time.");
+  assert.equal($("waiver-row-notes").textContent, "Gain = this week's projected lineup change; drop options show each move's rest-of-season change (information, not a pick). Weak signal = under 1 pt/week.");
+  // Boilerplate identical for every row is stated once, in How this works ("Reading the claim table"), never per row.
+  assert.match($("waiver-table-notes").textContent, /^2 players, 3 add\/drop options, each evaluated against your current roster\. /);
+  assert.ok(text("waiver-table-notes").includes("Add's ROS value: sum of weekly medians through NFL week 17, not a season median; not a FAAB price."));
+  for (const once of [BID_LABEL, WEAK_LABEL, "modeled lineup gain", "not a validated best-drop pick"]) {
+    assert.ok(text("waiver-table-notes").toLowerCase().includes(once.toLowerCase()), `stated once: ${once}`);
+    assert.ok(!text("waiver-table").includes(once), `not repeated per row: ${once}`);
+  }
+  assert.equal(text("waiver-table-notes").split(BID_LABEL).length - 1, 1, "the bid caveat appears exactly once");
+  assert.ok(all($("waiver-method")).some(n => n.id === "waiver-table-notes"), "the full notes live in How this works");
+  // The research detail of a claim-table add moved into its row; Worth watching lists the others.
+  assert.ok(text("waiver-table").includes("ROS overall rank 30 (PPR reference ranking)") && text("waiver-table").includes("Preseason ECR 12 (PPR reference ranking)"));
+  assert.doesNotMatch(text("waiver-radar") + text("waiver-watchlist"), /C Free/, "a claim-table add is not repeated in Worth watching");
+  assert.ok(text("waiver-radar").includes("Z Watch · RB · Y · Questionable") && text("waiver-radar").includes("Market activity; investigate the cause"));
+  assert.ok(text("waiver-radar").includes("Sleeper 24h adds / drops: 40 / 2"), "the usage/market numbers ride in the entry's fold-out");
+  assert.doesNotMatch(text("waiver-radar") + text("waiver-watchlist"), /A Back|B Wide/, "rostered players are not on the watchlist");
+  assert.equal($("waiver-watchlist").tagName, "ol", "the preseason part keeps its ECR order as an ordered list");
+  assert.equal($("waiver-watchlist-head").hidden, true, "no preseason-only entries here: its heading is hidden");
+  assert.equal($("waiver-watching").open, false, "Worth watching starts collapsed");
+  // Best move: the top-ranked ADD carrying a suggestion; never a drop.
+  assert.equal($("waiver-best-text").textContent, "Top option: add C Free (WR) — +1.50 to +2.50 pts this week, depending on the drop. 2 drop options — see the claim table.");
+  assert.doesNotMatch($("waiver-best-text").textContent, /A Back/, "the card names no drop");
+  assert.equal($("waiver-best-claim").textContent, "Bid or claim depends on the drop option — see the claim table.");
+  assert.equal($("waiver-claims").hidden, false);
+  // Summary line: data stamp (rosters + projection batch) and the warnings signpost.
+  assert.match($("waiver-summary-data").textContent, /^rosters as of .+ · projections through 2026-wk2, generated [A-Z][a-z]{2} \d{1,2} · Your team: /);
+  assert.equal($("waiver-warning-link").hidden, false);
+  assert.equal($("waiver-warning-link").textContent, "1 data warning — see How this works");
+  assert.equal($("waiver-warning-link").attrs.href, "#waiver-warnings-heading");
+  assert.equal($("waiver-method").open, false);
+  $("waiver-warning-link").dispatch("click");
+  assert.equal($("waiver-method").open, true, "the signpost opens the method fold");
+  $("waiver-method").open = false;
+  // A protection change re-runs the engine with the new protections.
+  {
+    const boxes = $("waiver-roster").querySelectorAll("input");
+    const an = analyzeCalls.length;
+    boxes[0].checked = false; boxes[0].dispatch("change");
+    assert.equal(analyzeCalls.length, an + 1);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds.slice().sort(), ["k"], "unprotected A Back reaches the engine");
+    assert.equal($("waiver-protect-toggle").textContent, "Protected: 1 player");
+    boxes[0].checked = true; boxes[0].dispatch("change");
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds.slice().sort(), ["a", "k"]);
+    assert.equal($("waiver-protect-toggle").textContent, "Protected: 2 players");
+  }
+  // The position filter narrows the claim table, the card and Worth watching together.
+  {
+    const mainAdds = () => $("waiver-table").querySelector("tbody").children.filter(tr => tr.className !== "waiver-detail-row").map(tr => tr.children[0].children[0].textContent);
+    $("waiver-position").value = "TE"; $("waiver-position").dispatch("change");
+    assert.deepEqual(mainAdds(), ["E Spare"]);
+    assert.doesNotMatch(text("waiver-radar"), /Z Watch/, "an RB is filtered out of Worth watching");
+    assert.match($("waiver-best-text").textContent, /add E Spare \(TE\)/);
+    $("waiver-position").value = "RB"; $("waiver-position").dispatch("change");
+    assert.deepEqual(mainAdds(), []); assert.equal($("waiver-claims").hidden, true);
+    assert.match($("waiver-best-text").textContent, /^No claim option at RB this week/);
+    assert.ok(text("waiver-radar").includes("Z Watch"));
+    $("waiver-position").value = "ALL"; $("waiver-position").dispatch("change");
+    assert.deepEqual(mainAdds(), ["C Free", "E Spare"]);
+  }
+  // Fold state survives a re-render (the 15 s tick's recompute rebuilds the rows).
+  {
+    const claimFold = () => $("waiver-table").querySelector("tbody").children[1].children[0].children[0];
+    const watchFold = () => all($("waiver-radar")).find(n => n.tagName === "details");
+    claimFold().open = true; claimFold().dispatch("toggle");
+    watchFold().open = true; watchFold().dispatch("toggle");
+    const before = claimFold();
+    $("waiver-reserve").dispatch("change");
+    assert.notEqual(claimFold(), before, "the rows were rebuilt");
+    assert.equal(claimFold().open, true, "an open row detail stays open");
+    assert.equal(watchFold().open, true, "an open watch entry stays open");
+    assert.equal($("waiver-table").querySelector("tbody").children[3].children[0].children[0].open, false, "others stay closed");
+    claimFold().open = false; claimFold().dispatch("toggle"); watchFold().open = false; watchFold().dispatch("toggle");
+  }
+  // Summary line and settings row.
+  assert.equal($("waiver-summary").hidden, false);
+  assert.equal($("waiver-summary-league").textContent, "Synthetic League · Week 3");
+  assert.equal($("waiver-budget").textContent, "$100 FAAB remaining · tie priority 4");
+  assert.match($("waiver-summary-data").textContent, /^rosters as of .+ · Your team: /);
+  assert.equal($("waiver-spendable").textContent, "Keep in reserve $20 · spendable ceiling $80");
+  assert.equal($("waiver-status").className, "visually-hidden", "the loaded status stays in the live region, shown by the summary line");
+  assert.equal($("waiver-data").hidden, false, "the method fold's data part follows the results");
+  assert.equal($("waiver-protect-toggle").hidden, false);
+  assert.equal($("waiver-protect-toggle").textContent, "Protected: 2 players", "the starters are protected initially");
+  assert.equal($("waiver-protect").hidden, true);
+  $("waiver-protect-toggle").dispatch("click");
+  assert.equal($("waiver-protect").hidden, false); assert.equal($("waiver-protect-toggle").attrs["aria-expanded"], "true");
+  $("waiver-protect-toggle").dispatch("click");
+  assert.equal($("waiver-protect").hidden, true); assert.equal($("waiver-protect-toggle").attrs["aria-expanded"], "false");
   assert.equal($("waiver-roster").children.length, 2, "my roster's players are listed for protection");
   assert.equal(transactionsCalls(), 1, "the week's transactions were fetched once by loadWorld");
-  // The export carries the league name and no simulation note.
-  $("waiver-export").dispatch("click");
+  // Copy shortlist, fallback: no clipboard API -> the text box shows the same text.
+  const setNavigator = value => Object.defineProperty(globalThis, "navigator", { value, configurable: true, writable: true });
+  const realNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  setNavigator({});
+  const settle = () => new Promise(r => setImmediate(r));
+  $("waiver-copy").dispatch("click"); await settle();
   assert.match($("waiver-backup").value, /^Synthetic League waiver shortlist/);
   assert.doesNotMatch($("waiver-backup").value, /sims|simulated price/);
+  assert.equal($("waiver-backup-wrap").hidden, false, "no clipboard API: the text box is the fallback");
+  assert.equal($("waiver-copy-status").textContent, "Clipboard unavailable: copy the text below instead.");
+  // ... a refused clipboard falls back the same way ...
+  setNavigator({ clipboard: { writeText: async () => { throw new Error("denied"); } } });
+  $("waiver-backup-wrap").hidden = true;
+  $("waiver-copy").dispatch("click"); await settle(); await settle();
+  assert.equal($("waiver-backup-wrap").hidden, false, "a refused clipboard write falls back to the text box");
+  // ... and a working clipboard gets the exact text, the box stays hidden.
+  const copied = [];
+  setNavigator({ clipboard: { writeText: async t => { copied.push(t); } } });
+  $("waiver-copy").dispatch("click"); await settle(); await settle();
+  assert.equal(copied.length, 1); assert.equal(copied[0], $("waiver-backup").value);
+  assert.match(copied[0], /^Synthetic League waiver shortlist/);
+  assert.match(copied[0], /\nADD C Free; DROP none; /, "the export keeps one line per add/drop alternative");
+  assert.equal(copied[0].split("\n").filter(l => l.startsWith("ADD ")).length, 3, "every alternative, not only the grouped rows");
+  assert.equal($("waiver-backup-wrap").hidden, true);
+  assert.equal($("waiver-copy-status").textContent, "Shortlist copied to the clipboard. Nothing was sent anywhere.");
+  if (realNavigator) Object.defineProperty(globalThis, "navigator", realNavigator); else delete globalThis.navigator;
 
   // 3. Identity change: the account-derived output is gone the moment the lookup starts.
   $("session-change").dispatch("click");
@@ -390,8 +542,9 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal(analyzeCalls.at(-1).budgetReserve, 9, "a typed value still persists");
   assert.equal($("waiver-reserve").value, "9");
   $("waiver-reserve").value = "20"; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
-  // The weak-signal sentence carries a single parenthetical.
-  assert.ok(!/\([^)]*\([^)]*\)/.test($("waiver-count").textContent), "no nested parentheses in the count line");
+  // The weak-signal sentence (now in the method fold) carries a single parenthetical.
+  assert.ok(!/\([^)]*\([^)]*\)/.test($("waiver-count-detail").textContent), "no nested parentheses in the count line");
+  assert.match($("waiver-count-detail").textContent, /^3 independent add\/drop alternatives\. .* 1 are weak signals: under 1 point per week/);
 
   // 8. Viewer flow: forget -> choose Bo's team -> "Viewing ...", protections and bids owner-only.
   $("session-forget").dispatch("click");
@@ -406,7 +559,18 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.match(statusText(), /^Viewing Bo's Bunch · rosters received /);
   assert.doesNotMatch(statusText() + text("waiver-results"), /your roster|Your active/i);
   assert.equal($("waiver-roster").querySelectorAll("input").length, 0, "protect boxes are owner-only");
-  assert.ok(text("waiver-table").includes("Claim guidance is for the team's owner."));
+  // The owner-only line is stated once, in the best-move card: not in the notes, not in every row.
+  const OWNER_ONLY = "Claim guidance is for the team's owner.";
+  assert.equal(text("waiver-results").split(OWNER_ONLY).length - 1, 1, "owner-only line stated exactly once on the page's results");
+  assert.ok(!text("waiver-row-notes").includes(OWNER_ONLY) && !text("waiver-table-notes").includes(OWNER_ONLY), "not in the notes");
+  assert.ok(!text("waiver-table").includes(OWNER_ONLY), "not repeated per row");
+  assert.ok(all($("waiver-table").querySelector("tbody")).filter(n => n.tagName === "tr" && n.className !== "waiver-detail-row").every(tr => tr.children[3].textContent === "Owner's call"));
+  assert.equal($("waiver-best-claim").textContent, "Claim guidance is for the team's owner.");
+  // I1: the viewer's card reads the signal state only (no owner guardrails) and is worded "Top-ranked option".
+  assert.equal($("waiver-best-text").textContent, "Top-ranked option: add C Free (WR) — +1.50 to +2.50 pts this week, depending on the drop. 2 drop options — see the claim table.");
+  assert.match($("waiver-summary-data").textContent, / · Viewing Bo's Bunch$/);
+  assert.equal($("waiver-spendable").textContent, "", "reserve and spendable are the owner's");
+  assert.equal($("waiver-protect-toggle").textContent, "Protected: 1 starter (owner's choice)");
   assert.doesNotMatch(text("waiver-table"), /\$4–\$10/, "no bids for viewers");
   assert.equal($("waiver-reserve").closest("label").hidden, true, "the reserve is the owner's choice");
   assert.equal(analyzeCalls.at(-1).budgetReserve, 20, "the viewer's engine run uses the league default");
@@ -429,6 +593,52 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.ok(text("waiver-context").includes("Your league also scores bonus_fd_wr, which these projections leave out; rankings may be off for your league."));
   assert.ok(text("waiver-context").includes("Format: not in the format test"));
 
+  // 9b. Rolling priority: no dollars; the best-move card says claim or not, and the priority.
+  league = { ...baseLeague, settings: { ...baseLeague.settings, waiver_type: 0 } };
+  engineRows = [ROW, ROW_E];
+  await refresh("the rolling desk");
+  assert.equal($("waiver-reserve").closest("label").hidden, true, "no budget to keep in a rolling league");
+  assert.equal($("waiver-budget").textContent, "Waiver priority 4 (rolling) · rank claims");
+  assert.equal($("waiver-best-text").textContent, "Top option: add C Free (WR) — +2.50 pts this week. No drop needed (open roster spot).");
+  assert.equal($("waiver-best-claim").textContent, "Claim: suggested — rank it by value and roster need when you set claim order in Sleeper. Current waiver priority: 4 (context, not a claim-success probability).");
+  assert.equal(text("waiver-table").includes("$"), false);
+  assert.ok(text("waiver-table-notes").includes("Order claims by value and roster need"), "the rolling guidance is stated once");
+  // Only withheld options: the card says no claim is recommended and names the closest ADD.
+  engineRows = [ROW_E];
+  await refresh("the rolling desk with only a weak option");
+  assert.equal($("waiver-best-text").textContent, "No claim recommended this week — no available player improves your lineup by 1+ pt/week. Closest option: add E Spare (TE) — +0.40 pts this week. 1 drop option — see the claim table.");
+  assert.equal($("waiver-best-claim").textContent, "Claim: none suggested (weak signal). Current waiver priority: 4 (context, not a claim-success probability).");
+  // C1: one add, three drops tied on this week's gain, different rest-of-season move
+  // values (engine order = roster order): all three listed, highest ROS first, and
+  // the card names no drop.
+  league = baseLeague;
+  const tiedDrop = (id, name, rosDelta) => ({ ...ROW_E, drop: { id, name, position: "WR" },
+    rosterCost: `dropping ${name} forfeits ${(9 - rosDelta).toFixed(2)} projected lineup points over weeks 4–17; E Spare adds 9.00 in his place`,
+    dropCost: { status: "priced", label: "priced: rest-of-season lineup change over weeks 4–17, assuming participation", addContributes: 9, dropForfeits: 9 - rosDelta, rosDelta, futureWeeks: 14, endWeek: 17 },
+    signal: { ...ROW_E.signal, moveValue: 0.4 + rosDelta, basis: "move" } });
+  engineRows = [tiedDrop("r1", "Roster First", 5.59), tiedDrop("r2", "Roster Second", 7.14), tiedDrop("r3", "Roster Third", 6.2)];
+  await refresh("three tied drops");
+  const tiedRows = $("waiver-table").querySelector("tbody").children.filter(tr => tr.className !== "waiver-detail-row");
+  assert.equal(tiedRows.length, 1, "one row for the add");
+  assert.deepEqual(tiedRows[0].children[1].children[0].children.map(li => li.textContent),
+    ["Roster Second — ROS +7.14", "Roster Third — ROS +6.20", "Roster First — ROS +5.59"], "every drop option, highest rest-of-season move value first");
+  assert.equal(tiedRows[0].children[3].textContent, "None suggested (weak signal)", "a shared status is shown once, visibly");
+  assert.equal($("waiver-best-text").textContent, "No claim recommended this week — no available player improves your lineup by 1+ pt/week. Closest option: add E Spare (TE) — +0.40 pts this week. 3 drop options — see the claim table.");
+  assert.doesNotMatch($("waiver-best-text").textContent + $("waiver-best-claim").textContent, /Roster (First|Second|Third)/, "the card names no drop");
+  assert.equal($("waiver-best-claim").textContent, "Bid: none suggested (weak signal).", "what the card says about the bid is visible in the row");
+  assert.ok(text("waiver-table-notes").includes("not a validated best-drop pick"));
+  // No positive move at all: the card says so plainly and is the only result above the fold-outs.
+  engineRows = [];
+  await refresh("the desk with no positive move");
+  assert.equal($("waiver-best-text").textContent, "No claim recommended this week — no positive modeled lineup swap under the current protections. Do not spend simply because budget remains.");
+  assert.equal($("waiver-best-claim").hidden, true);
+  assert.equal($("waiver-claims").hidden, true, "no claim table when there is nothing to claim");
+  assert.equal($("waiver-table").querySelector("tbody").children.length, 0);
+  assert.equal($("waiver-watching").open, false, "Worth watching stays collapsed");
+  assert.ok(text("waiver-radar").includes("C Free"), "with no claim rows, every research player is worth watching");
+  assert.equal($("waiver-count-detail").textContent, "No positive modeled lineup swaps under the current protections. Do not spend simply because budget remains.");
+  engineRows = null;
+
   // 10. Reverse standings: no dollars, labeled, no priority claimed.
   league = { ...baseLeague, settings: { ...baseLeague.settings, waiver_type: 1 } };
   await refresh("the reverse-standings desk");
@@ -443,12 +653,14 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   const an11 = analyzeCalls.length;
   clock += 1000;
   $("session-refresh").dispatch("click");
-  await until(() => $("waiver-count").textContent === WaiverMode.COPY.bestBall && !$("waiver-results").hidden, "the best-ball note", 5000);
+  await until(() => $("waiver-best-text").textContent === WaiverMode.COPY.bestBall && !$("waiver-results").hidden, "the best-ball note", 5000);
+  assert.equal($("waiver-claims").hidden, true, "best ball: no claim table, the card carries the note");
+  assert.equal($("waiver-count-detail").textContent, WaiverMode.COPY.bestBall);
   assert.equal(analyzeCalls.length, an11, "best ball: the engine is never run");
   assert.ok(text("waiver-context").includes("Best ball — not eligible for the format test"));
   assert.equal($("waiver-table").querySelector("tbody").children.length, 0, "no shortlist");
   assert.ok($("waiver-ros").textContent.includes(AGG));
-  assert.ok(text("waiver-watchlist").includes("preseason ECR 12 (PPR reference ranking)"), "projections/research still render");
+  assert.ok(text("waiver-radar").includes("preseason ECR 12 (PPR reference ranking)"), "projections/research still render");
 
   // 12. An unsupported league type is refused with the plain message.
   league = { ...baseLeague, settings: { ...baseLeague.settings, type: 3 } };
@@ -475,12 +687,12 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.ok(srcs.indexOf("lineup.js") < srcs.indexOf("waivers.js") && srcs.indexOf("waivers.js") < srcs.indexOf("waivermode.js"));
   assert.ok(!srcs.includes("rostersim.js") && !srcs.includes("ros.js"), "the desk ships no simulation");
   assert.ok(html.includes("Budget to keep ($)"));
-  assert.ok(html.includes('aria-describedby="reserve-hint"'));
+  assert.match(html, /aria-describedby="reserve-hint[ "]/);
   assert.ok(html.includes('id="reserve-hint"'));
   assert.ok(html.includes("Defaults to 20% of your league budget"));
   assert.ok(html.includes('id="waiver-context"'));
 
   Date.now = realNow;
-  console.log("waivermode_session_fixture: real WaiverMode.init + Session + chip + LeagueData + LiveWorld (anonymous gate, owner flow, identity change, failed/successful refresh, timestamps, statics, rendered labels, reserve default, viewer -> owner, live settings, reverse standings, best ball, unsupported type, page wiring) OK");
+  console.log("waivermode_session_fixture: real WaiverMode.init + Session + chip + LeagueData + LiveWorld (anonymous gate, owner flow, identity change, failed/successful refresh, timestamps, statics, rendered labels, reserve default, viewer -> owner, live settings, reverse standings, best ball, unsupported type, page wiring; grouped claim table with every drop option, best move (add only) FAAB/rolling/viewer/empty, data stamp, warnings signpost, protections, position filter, fold state, boilerplate once, worth watching, clipboard copy + fallback) OK");
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

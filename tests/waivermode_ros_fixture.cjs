@@ -41,7 +41,6 @@ global.document = {
   querySelectorAll() { return []; },
   getElementById(id) { return all(main).find(n => n.id === id) || null; },
 };
-const withId = (tag, id, parent = main) => { const e = element(tag); e.id = id; parent.append(e); return e; };
 
 global.window = {};
 const Session = require("../site/assets/session.js");
@@ -129,22 +128,9 @@ const until = async (pred, what, ms = 4000) => {
 
 (async () => {
   global.location = new URL(`https://example.test/Megatron/waivers.html?league=${L}`);
-  const controls = withId("div", "waiver-controls");
-  withId("input", "waiver-week", controls).value = "";
-  const reserveLabel = element("label"); controls.append(reserveLabel);
-  withId("input", "waiver-reserve", reserveLabel).value = "";
-  withId("p", "waiver-status");
-  withId("div", "waiver-warnings").hidden = true;
-  const results = withId("section", "waiver-results"); results.hidden = true;
-  for (const [tag, id] of [["div", "waiver-context"], ["div", "waiver-budget"], ["p", "waiver-coverage"], ["p", "waiver-ros"], ["p", "waiver-source"],
-    ["div", "waiver-evaluation"], ["select", "waiver-position"], ["button", "waiver-export"], ["p", "waiver-count"],
-    ["table", "waiver-table"], ["div", "waiver-roster"], ["p", "waiver-intel-source"], ["p", "waiver-role-source"],
-    ["ul", "waiver-byes"], ["select", "waiver-radar-sort"], ["table", "waiver-radar"], ["p", "waiver-market"], ["ol", "waiver-watchlist"]]) withId(tag, id, results);
-  const details = element("details"); results.append(details); withId("textarea", "waiver-backup", details);
+  require("./waiverpage_dom.cjs").buildWaiverPage(element, main);   // the real waivers.html structure
   document.getElementById("waiver-position").value = "ALL";
   document.getElementById("waiver-radar-sort").value = "usage";
-  for (const t of ["waiver-table", "waiver-radar"]) document.getElementById(t).append(element("tbody"));
-  withId("a", "waiver-league-link");
   const $ = id => document.getElementById(id);
   const watch = () => all($("waiver-watchlist")).filter(n => n.tagName === "li").map(n => n.textContent);
   const cLine = () => watch().find(l => l.startsWith("C Free"));
@@ -198,11 +184,11 @@ const until = async (pred, what, ms = 4000) => {
   ];
   for (const [mode, lg, note] of modes) {
     await scenario({ at: T0 + 3 * 60000, lg });
-    assert.equal($("waiver-count").textContent, note, mode);
+    assert.equal($("waiver-best-text").textContent, note, mode);
     assert.match(cLine(), new RegExp(`· rest-of-season ${FRESH_VALUE.toFixed(2)} \\(`), `${mode}: fresh value shown`);
     for (const [name, s, reason] of CASES) {
       await scenario({ ...s, lg });
-      assert.equal($("waiver-count").textContent, note, `${mode} / ${name}`);
+      assert.equal($("waiver-best-text").textContent, note, `${mode} / ${name}`);
       assert.equal(cLine(), `C Free · WR · preseason ECR 12 (PPR reference ranking) · rest-of-season withheld (${reason})`, `${mode} / ${name}`);
       assert.doesNotMatch(watch().join(" | "), /rest-of-season \d/, `${mode} / ${name}: no number survives`);
     }
