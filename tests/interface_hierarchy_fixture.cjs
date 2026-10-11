@@ -90,6 +90,9 @@ assert.match(waivers, /compare drop options/); assert.doesNotMatch(waivers, /who
 // The display limit's toggle is a real button inside the claim section.
 assert.match(waivers, /<p id="waiver-limit"[^>]*hidden><span id="waiver-limit-text"><\/span> <button type="button" id="waiver-show-all" aria-pressed="false"/);
 assert.ok(at("waiver-show-all") > at("waiver-best") && at("waiver-show-all") < at("waiver-table"));
+// The method's weak-signal item names the per-week move-value basis, like the engine's labels.
+assert.ok(waivers.includes("Weak signals: an alternative whose move value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under 1.0 projected point per week stays listed"));
+assert.ok(!waivers.includes("gaining under 1.0 projected point per week"));
 // The live region for loading and errors is kept.
 assert.match(waivers, /<p id="waiver-status" role="status" aria-live="polite">/);
 // Fold-outs: Worth watching and How this works start collapsed; Worth watching
