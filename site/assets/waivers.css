@@ -52,6 +52,8 @@
 #waiver-claims h2 { margin: 0 0 .35rem; }
 .waiver-count { margin: 0 0 .25rem; }
 #waiver-row-notes { margin: 0; }
+.waiver-limit { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; margin: .25rem 0 .4rem; }
+.waiver-limit[hidden] { display: none; }
 .waiver-num { display: block; font-variant-numeric: tabular-nums; font-weight: 600; }
 .waiver-badge { display: inline-block; margin: 0 .3rem .3rem 0; padding: .05rem .45rem; font-size: .75rem; line-height: 1.5; white-space: nowrap; color: var(--chalk-dim); border: 1px solid var(--rule); border-radius: 3px; }
 .waiver-badge.warn { color: var(--te); border-color: var(--te); }

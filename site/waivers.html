@@ -6,7 +6,7 @@
 <meta name="description" content="Read-only waiver planning for any Sleeper league: available players, lineup upgrades in your league's scoring, drop costs, FAAB guardrails, and rolling or reverse-standings claim guidance.">
 <title>Waivers — Megatron</title>
 <link rel="stylesheet" href="assets/style.css?v=league1">
-<link rel="stylesheet" href="assets/waivers.css?v=clean1">
+<link rel="stylesheet" href="assets/waivers.css?v=minors1">
 <link rel="stylesheet" href="assets/interface.css?v=1">
 </head>
 <body>
@@ -49,6 +49,7 @@
     <section id="waiver-claims" aria-labelledby="waiver-claims-heading">
       <h2 id="waiver-claims-heading">Claim options</h2>
       <p id="waiver-count" class="waiver-count"></p>
+      <p id="waiver-limit" class="waiver-limit" hidden><span id="waiver-limit-text"></span> <button type="button" id="waiver-show-all" aria-pressed="false" aria-controls="waiver-table">Show all adds</button></p>
       <p id="waiver-row-notes" class="waiver-source"></p>
       <div class="table-wrap">
         <table id="waiver-table">
@@ -83,7 +84,7 @@
       <li>Availability means absent from every league roster, including IR/taxi. It does not prove a player is an immediate free agent rather than awaiting waivers.</li>
       <li>Current-week recommendations require fresh aligned projections and a complete modeled roster baseline. Otherwise recommendations are withheld; research lists are not bid advice.</li>
       <li>For FAAB, the budget reserve is your choice, not a measured optimum. For rolling waivers, no dollar amounts are invented: current priority is context and add/drop alternatives remain value-based.</li>
-      <li>Weak signals: an alternative gaining under 1.0 projected point per week stays listed for research but gets no bid range and no priority-claim suggestion. The 1-point cutoff (like the 2- and 5-point FAAB bands) is a heuristic in your league's points, not a validated noise or confidence threshold, and projection quantiles are not claim-success probabilities.</li>
+      <li>Weak signals: an alternative whose move value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under 1.0 projected point per week stays listed for research but gets no bid range and no priority-claim suggestion. The 1-point cutoff (like the 2- and 5-point FAAB bands) is a heuristic in your league's points, not a validated noise or confidence threshold, and projection quantiles are not claim-success probabilities.</li>
       <li>Drop cost is priced as the change in the roster's lineup projected points over the remaining weeks, from the model's remaining-season projections (NFL weeks through 17, regardless of your league's schedule): what the add contributes to the roster, and what the drop then forfeits with the add on it. A bench player who never starts forfeits little whatever his season total. Values assume participation; injuries and returns are not forecast. A measured accuracy is shown under "Data sources and timestamps" only when it was measured under your league's scoring and this model.</li>
       <li>Rest-of-season values are a sum of weekly medians through NFL week 17, not a season median. Simulation-based drop costs are off for every league in this version.</li>
       <li>Spend guidance reads this week's gain plus that rest-of-season change, averaged per remaining week, through the same uncalibrated bands as before. A swap whose drop forfeits more than the add returns shows both numbers and gets no bid or priority claim; it is not called wrong. When a player has no rest-of-season projection, or the projections are stale or misaligned, the drop cost is unassessed and no spend guidance is offered for that swap — unknown is never priced as zero.</li>
@@ -125,9 +126,9 @@
 <script src="assets/leaguelens.js?v=1"></script>
 <script src="assets/leaguedata.js?v=1"></script>
 <script src="assets/liveworld.js?v=1"></script>
-<script src="assets/waivers.js?v=neutral1"></script>
+<script src="assets/waivers.js?v=minors1"></script>
 <script src="assets/waiverintel.js?v=neutral1"></script>
-<script src="assets/waivermode.js?v=review1"></script>
+<script src="assets/waivermode.js?v=minors1"></script>
 <script>WaiverMode.init();</script>
 </body>
 </html>

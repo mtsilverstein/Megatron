@@ -59,7 +59,7 @@ const rowBase = { add:{name:"A"}, drop:{name:"B"}, lineupGain:0.4, scoring:{labe
 const faabResult = { waiver:{type:"faab",guidance:"Bid ranges are budgeting heuristics, not claim-success probabilities."} };
 const rolling = { waiver:{type:"rolling",guidance:"Order claims by value and roster need; current priority is context, not a claim-success probability."} };
 for (const [name, row] of [
-  ["weak", { ...rowBase, signal:{strength:"weak",guidance:"no bid suggested; assess the drop cost independently before any move"}, bid:{low:null,high:null,tier:"weak signal",canAfford:true,status:"no bid suggested: modeled gain is under 1.0 pt/week",label:"heuristic, not calibrated and not a win probability"} }],
+  ["weak", { ...rowBase, signal:{strength:"weak",guidance:"no bid suggested; assess the drop cost independently before any move"}, bid:{low:null,high:null,tier:"weak signal",canAfford:true,status:"no bid suggested: the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under 1.0 pt/week",label:"heuristic, not calibrated and not a win probability"} }],
   ["unaffordable", { ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"heuristic bid range"}, bid:{low:null,high:null,tier:"useful",canAfford:false,status:"minimum bid exceeds spendable budget",label:"heuristic, not calibrated and not a win probability"} }],
   ["drop cost unassessed", { ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"no bid suggested; the dropped player's rest-of-season cost is not priced, so assess the drop cost independently before any move"}, dropCost:{status:"unassessed",label:"drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered"}, bid:{low:null,high:null,tier:"drop cost unassessed",canAfford:true,status:"no bid suggested: drop cost unassessed, rest-of-season value is not priced",label:"heuristic, not calibrated and not a win probability"} }],
 ]) {
@@ -107,7 +107,7 @@ assert.equal(pricedDrop.rosShort, "ROS +14.00"); assert.equal(negative.rosShort,
 assert.deepEqual([negative.gainShort, negative.tagText, negative.claim, negative.suggested],
   ["+2.00 / −18.00", "drop costs more than the add returns", "None suggested (drop costs more than the add returns)", false]);
 {
-  const weakFaab = M.rowText({ ...rowBase, signal:{strength:"weak",guidance:"g"}, bid:{low:null,high:null,tier:"weak signal",canAfford:true,status:"no bid suggested: modeled gain is under 1.0 pt/week",label:"heuristic"} }, faabResult);
+  const weakFaab = M.rowText({ ...rowBase, signal:{strength:"weak",guidance:"g"}, bid:{low:null,high:null,tier:"weak signal",canAfford:true,status:"no bid suggested: the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under 1.0 pt/week",label:"heuristic"} }, faabResult);
   assert.deepEqual([weakFaab.gainShort, weakFaab.tagText, weakFaab.claim, weakFaab.suggested], ["+0.40 / ROS not priced", "weak signal", "None suggested (weak signal)", false]);
   const broke = M.rowText({ ...rowBase, lineupGain:3, signal:{strength:"modeled",guidance:"heuristic bid range"}, bid:{low:null,high:null,tier:"useful",canAfford:false,status:"minimum bid exceeds spendable budget",label:"heuristic"} }, faabResult);
   assert.deepEqual([broke.claim, broke.suggested, broke.withheldReason], ["None: minimum bid exceeds spendable budget (useful tier, not suggested)", false, "minimum bid exceeds spendable budget"],
@@ -146,7 +146,7 @@ const BASIS = "the 1-point-per-week heuristic for the move's value (this week's 
     valueEstimate:{ points:70, label:"rest-of-season value 70.00" }, rosterCost:"r", availability:{ status:null } };
   const weakRow = { ...base, lineupGain:0.36, dropCost:{ status:"priced", label:"priced", rosDelta:5.59, dropForfeits:1.55, addContributes:7.14, futureWeeks:12, endWeek:17 },
     signal:{ strength:"weak", thresholdPerWeek:1, moveValue:5.95, guidance:"no bid suggested; assess the drop cost independently before any move" },
-    bid:{ low:null, high:null, tier:"weak signal", canAfford:true, status:"no bid suggested: modeled gain is under 1.0 pt/week", label:BL } };
+    bid:{ low:null, high:null, tier:"weak signal", canAfford:true, status:"no bid suggested: the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under 1.0 pt/week", label:BL } };
   const goodRow = { ...base, add:{ id:"q", name:"Quinn Back", position:"RB" }, drop:null, lineupGain:0.2,
     dropCost:{ status:"open_slot", label:"no drop required", rosDelta:30, addContributes:30, futureWeeks:12, endWeek:17 },
     signal:{ strength:"modeled", thresholdPerWeek:1, moveValue:30.2, guidance:"heuristic bid range" },
@@ -195,8 +195,14 @@ const BASIS = "the 1-point-per-week heuristic for the move's value (this week's 
   const viewerBroke = M.bestMove({ rows:[broke], result:faabResult, ownerOnly:true });
   assert.equal(viewerBroke.text, "Top-ranked option: add Quinn Back (RB) — +0.20 pts this week. No drop needed (open roster spot).");
   const heldOnly = { ...weakRow, signal:{ ...weakRow.signal, strength:"modeled" }, dropCost:{ status:"unassessed", label:"u", reason:"x" }, bid:{ ...weakRow.bid, tier:"drop cost unassessed" } };
-  assert.match(M.bestMove({ rows:[heldOnly], result:faabResult, ownerOnly:true }).text, /^Top-ranked option: add Tee End/, "viewer: never the withheld-guardrail wording");
-  assert.doesNotMatch(M.bestMove({ rows:[heldOnly, broke], result:faabResult, ownerOnly:true }).text + viewerBroke.text, /withheld|guardrail/);
+  // Viewer, every option withheld but not all weak: says no option qualifies, in signal terms only.
+  const viewerHeld = M.bestMove({ rows:[heldOnly], result:faabResult, ownerOnly:true });
+  assert.equal(viewerHeld.text, "None of the modeled options this week carries a modeled spend signal: each is withheld (drop cost unassessed). Closest option: add Tee End (TE) — +0.36 pts this week. 1 drop option — see the claim table.");
+  assert.doesNotMatch(viewerHeld.text + viewerHeld.claim, /budget|spendable|guardrail|\$/, "no owner budget language for a viewer");
+  const viewerMixed = M.bestMove({ rows:[heldOnly, { ...broke, signal:{ ...weakRow.signal, strength:"modeled", moveValue:-2.8 }, dropCost:{ status:"priced", rosDelta:-3, label:"p" }, bid:{ ...broke.bid, tier:"drop costs more than the add returns" } }], result:faabResult, ownerOnly:true, position:"TE" });
+  assert.match(viewerMixed.text, /^None of the modeled TE options this week carries a modeled spend signal: each is withheld \(drop cost unassessed; drop costs more than the add returns\)\. Closest option: add Tee End/,
+    "a viewer's reasons are signal states, never the owner's affordability");
+  assert.doesNotMatch(M.bestMove({ rows:[heldOnly, broke], result:faabResult, ownerOnly:true }).text + viewerBroke.text, /withheld|guardrail/, "a modeled row the viewer may see as a signal");
   // Fix 2: a position filter scopes every conclusion to that position, even when
   // another position (here Quinn Back, RB, with a bid) has a suggestion.
   const fullResult = { ...faabResult, rows:[goodRow, weakRow, heldOnly] };
