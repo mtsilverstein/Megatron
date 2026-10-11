@@ -6,7 +6,7 @@
   "season": 2026,
   "snapshot_at": "2026-10-09",
   "snapshot_precision": "date",
-  "retrieved_at": "2026-10-10T20:41:27.757683+00:00",
+  "retrieved_at": "2026-10-11T11:32:49.104961+00:00",
   "source": "FantasyPros via nflverse free rankings mirror",
   "source_url": "https://www.fantasypros.com/nfl/rankings/ros-ppr-overall.php",
   "players": [
@@ -305,17 +305,17 @@
       "ros_rank": 47.0
     },
     {
-      "player_id": "00-0039361",
-      "name": "Bucky Irving",
-      "position": "RB",
-      "team": "TB",
-      "ros_rank": 48.33
-    },
-    {
       "player_id": "00-0040666",
       "name": "Omarion Hampton",
       "position": "RB",
       "team": "LAC",
+      "ros_rank": 48.33
+    },
+    {
+      "player_id": "00-0039361",
+      "name": "Bucky Irving",
+      "position": "RB",
+      "team": "TB",
       "ros_rank": 48.33
     },
     {
@@ -1019,17 +1019,17 @@
       "ros_rank": 148.5
     },
     {
-      "player_id": "00-0039880",
-      "name": "Malik Washington",
-      "position": "WR",
-      "team": "MIA",
-      "ros_rank": 150.0
-    },
-    {
       "player_id": "00-0035700",
       "name": "Josh Jacobs",
       "position": "RB",
       "team": "GB",
+      "ros_rank": 150.0
+    },
+    {
+      "player_id": "00-0039880",
+      "name": "Malik Washington",
+      "position": "WR",
+      "team": "MIA",
       "ros_rank": 150.0
     },
     {
@@ -1397,17 +1397,17 @@
       "ros_rank": 215.6
     },
     {
-      "player_id": "00-0039032",
-      "name": "Tyjae Spears",
-      "position": "RB",
-      "team": "TEN",
-      "ros_rank": 218.5
-    },
-    {
       "player_id": "00-0036259",
       "name": "Jauan Jennings",
       "position": "WR",
       "team": "MIN",
+      "ros_rank": 218.5
+    },
+    {
+      "player_id": "00-0039032",
+      "name": "Tyjae Spears",
+      "position": "RB",
+      "team": "TEN",
       "ros_rank": 218.5
     },
     {
@@ -1439,17 +1439,17 @@
       "ros_rank": 224.0
     },
     {
-      "player_id": "00-0039344",
-      "name": "Jonathon Brooks",
-      "position": "RB",
-      "team": "CAR",
-      "ros_rank": 224.67
-    },
-    {
       "player_id": "00-0039901",
       "name": "Keon Coleman",
       "position": "WR",
       "team": "BUF",
+      "ros_rank": 224.67
+    },
+    {
+      "player_id": "00-0039344",
+      "name": "Jonathon Brooks",
+      "position": "RB",
+      "team": "CAR",
       "ros_rank": 224.67
     },
     {
@@ -1817,17 +1817,17 @@
       "ros_rank": 280.6
     },
     {
-      "player_id": "00-0037112",
-      "name": "Jake Tonges",
-      "position": "TE",
-      "team": "SF",
-      "ros_rank": 281.0
-    },
-    {
       "player_id": "00-0034975",
       "name": "Justice Hill",
       "position": "RB",
       "team": "BAL",
+      "ros_rank": 281.0
+    },
+    {
+      "player_id": "00-0037112",
+      "name": "Jake Tonges",
+      "position": "TE",
+      "team": "SF",
       "ros_rank": 281.0
     },
     {
@@ -1845,17 +1845,17 @@
       "ros_rank": 281.4
     },
     {
-      "player_id": "00-0041125",
-      "name": "Seth McGowan",
-      "position": "RB",
-      "team": "IND",
-      "ros_rank": 282.5
-    },
-    {
       "player_id": "00-0036290",
       "name": "Cole Kmet",
       "position": "TE",
       "team": "CHI",
+      "ros_rank": 282.5
+    },
+    {
+      "player_id": "00-0041125",
+      "name": "Seth McGowan",
+      "position": "RB",
+      "team": "IND",
       "ros_rank": 282.5
     },
     {
@@ -1901,17 +1901,17 @@
       "ros_rank": 286.6
     },
     {
-      "player_id": "00-0041104",
-      "name": "Demond Claiborne",
-      "position": "RB",
-      "team": "MIN",
-      "ros_rank": 289.33
-    },
-    {
       "player_id": "00-0040739",
       "name": "Elijah Arroyo",
       "position": "TE",
       "team": "SEA",
+      "ros_rank": 289.33
+    },
+    {
+      "player_id": "00-0041104",
+      "name": "Demond Claiborne",
+      "position": "RB",
+      "team": "MIN",
       "ros_rank": 289.33
     },
     {
@@ -1922,13 +1922,6 @@
       "ros_rank": 290.4
     },
     {
-      "player_id": "00-0030061",
-      "name": "Zach Ertz",
-      "position": "TE",
-      "team": "PHI",
-      "ros_rank": 293.0
-    },
-    {
       "player_id": "00-0041472",
       "name": "Marlin Klein",
       "position": "TE",
@@ -1936,17 +1929,24 @@
       "ros_rank": 293.0
     },
     {
-      "player_id": "00-0040466",
-      "name": "Raheim Sanders",
-      "position": "RB",
-      "team": "CLE",
-      "ros_rank": 294.8
+      "player_id": "00-0030061",
+      "name": "Zach Ertz",
+      "position": "TE",
+      "team": "PHI",
+      "ros_rank": 293.0
     },
     {
       "player_id": "00-0035250",
       "name": "Devin Singletary",
       "position": "RB",
       "team": "NYG",
+      "ros_rank": 294.8
+    },
+    {
+      "player_id": "00-0040466",
+      "name": "Raheim Sanders",
+      "position": "RB",
+      "team": "CLE",
       "ros_rank": 294.8
     },
     {
@@ -2034,17 +2034,17 @@
       "ros_rank": 305.4
     },
     {
-      "player_id": "00-0041326",
-      "name": "CJ Donaldson",
-      "position": "RB",
-      "team": "NO",
-      "ros_rank": 306.0
-    },
-    {
       "player_id": "00-0035662",
       "name": "Hollywood Brown",
       "position": "WR",
       "team": "PHI",
+      "ros_rank": 306.0
+    },
+    {
+      "player_id": "00-0041326",
+      "name": "CJ Donaldson",
+      "position": "RB",
+      "team": "NO",
       "ros_rank": 306.0
     },
     {
@@ -2363,17 +2363,17 @@
       "ros_rank": 339.25
     },
     {
-      "player_id": "00-0041558",
-      "name": "Sam Roush",
-      "position": "TE",
-      "team": "CHI",
-      "ros_rank": 340.0
-    },
-    {
       "player_id": "00-0039373",
       "name": "Audric Estime",
       "position": "RB",
       "team": "MIN",
+      "ros_rank": 340.0
+    },
+    {
+      "player_id": "00-0041558",
+      "name": "Sam Roush",
+      "position": "TE",
+      "team": "CHI",
       "ros_rank": 340.0
     },
     {
@@ -2384,17 +2384,17 @@
       "ros_rank": 340.33
     },
     {
-      "player_id": "00-0040009",
-      "name": "Savion Williams",
-      "position": "WR",
-      "team": "GB",
-      "ros_rank": 341.0
-    },
-    {
       "player_id": "00-0041077",
       "name": "Justin Joly",
       "position": "TE",
       "team": "MIA",
+      "ros_rank": 341.0
+    },
+    {
+      "player_id": "00-0040009",
+      "name": "Savion Williams",
+      "position": "WR",
+      "team": "GB",
       "ros_rank": 341.0
     },
     {
@@ -2412,17 +2412,17 @@
       "ros_rank": 342.5
     },
     {
-      "player_id": "00-0039824",
-      "name": "Jared Wiley",
-      "position": "TE",
-      "team": "KC",
-      "ros_rank": 344.0
-    },
-    {
       "player_id": "00-0038589",
       "name": "Josh Whyle",
       "position": "TE",
       "team": "GB",
+      "ros_rank": 344.0
+    },
+    {
+      "player_id": "00-0039824",
+      "name": "Jared Wiley",
+      "position": "TE",
+      "team": "KC",
       "ros_rank": 344.0
     },
     {
