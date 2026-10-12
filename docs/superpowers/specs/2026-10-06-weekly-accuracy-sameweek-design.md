@@ -1,6 +1,6 @@
 # Weekly accuracy tracking and same-week expert benchmark — design
 
-**Status:** draft 7.1 (2026-10-07; astra S7-I1–I5 fixes, and four wording clarifications from plan revision b880f9e: schedule game identity, alarm fixture selection, manifest hash and path, Holm p-value). Amended 2026-10-12: §4.8.6 pre-analysis consequence amendment for the Sleeper season-end read (owner-only 2027 blended path, rights-gated); no analysis change (astra review rev 1). The owner approved the design section by section in conversation, and on
+**Status:** draft 7.1 (2026-10-07; astra S7-I1–I5 fixes, and four wording clarifications from plan revision b880f9e: schedule game identity, alarm fixture selection, manifest hash and path, Holm p-value). Amended 2026-10-12: §4.8.6 pre-analysis consequence amendment for the Sleeper season-end read (owner-only 2027 blended path, rights-gated); no analysis change (astra review rev 2). The owner approved the design section by section in conversation, and on
 2026-10-07 approved three additions: a Sleeper comparator kept private until checked, a private data repository for
 third-party snapshots, and a slimmer scope ("smallest trustworthy report").
 
@@ -687,8 +687,8 @@ all continue unchanged. This section alone adds a prospective consequence.
 
 - **Blend win.** A blend win needs Holm to reject `blend − Sleeper` **and** the primary-view paired MAE delta to be
   strictly negative, meaning the blend is more accurate.
-  - Holm runs as registered: the smaller p-value is tested at 0.025, then the larger at 0.05. There is no halved
-    p-value, no one-sided test and no unadjusted interval.
+  - Holm runs as registered: the smaller p-value is tested at 0.025. The larger is tested at 0.05 **only if** the
+    smaller rejects. There is no halved p-value, no one-sided test and no unadjusted interval.
   - `ours − Sleeper` stays in the family, but its rejection is not required.
   - No diagnostic can stand in for the trigger: not the whole-population view, the latest-snapshot variant, the
     per-position results or `blend − ours`.
@@ -730,13 +730,23 @@ all continue unchanged. This section alone adds a prospective consequence.
   - A transient computation failure may be recovered **only** from that week's originally eligible archived captures.
   - Missing pregame captures are never reconstructed from retrospective API pulls.
   - The comparator is never swapped to keep the path alive.
-- **Suspension.** If the comparator fails to produce a scheduled week's result within 7 days of that week's scoring
-  run, the owner stops using the path until that week is recovered.
-- **Retirement checkpoint.** The finalisation deadline is the later of 2028-02-15 or 30 days after the last 2027 REG
-  week is scored.
+- **Due time.** Each 2027 REG week N has one scheduled scoring due time, fixed before any of that week's results
+  exist. It is 23:59:59 UTC on the first Wednesday after the last game of week N in the nflverse schedule as frozen at
+  the start of the 2027 season. That covers both scheduled §4.7 runs (Tuesday and Wednesday).
+- **Suspension.** A week is overdue once its due time plus 7 days has passed without a valid scored result for it.
+  - The clock runs from the due time, whether or not any workflow ran: delayed, cancelled, skipped or never-started
+    runs still count against it. Retries and manual dispatches do not reset it.
+  - While **any** required week is overdue, the owner does not use the path. Recovering one week does not clear
+    another week's failure.
+  - Only a valid scored result clears a week. A skip record, a successful process exit or an empty report does not.
+- **Retirement checkpoint.** The finalisation deadline is fixed: 2028-02-15T23:59:59Z, or 30 days after week 18's due
+  time if that is later. No retry or missing input extends it.
+  - At the deadline, the checkpoint reads the private report as last committed to the private repository before the
+    deadline. That freezes the report and input vintage.
   - The path is retired if the pooled 2027 delta is greater than zero, regardless of significance.
-  - It is also retired if any week is still unscored at the deadline, or no valid delta can be established. A missing
-    or NaN result never counts as `delta ≤ 0`.
+  - It is also retired if any required week is unscored at the deadline, or if no valid pooled delta can be
+    established. A missing or NaN result never counts as `delta ≤ 0`. A week recovered after the deadline cannot
+    reverse a retirement under this authorisation.
   - A delta of exactly zero does not retire the path, but it is not a win.
   - The owner may stop earlier at any time. Early stopping never selects which weeks count and never permits a
     result-driven restart.
@@ -767,18 +777,23 @@ all continue unchanged. This section alone adds a prospective consequence.
   A hidden route or owner switch on the public site does not count as private. Showing our point and the blend
   together reveals Sleeper's value (`Sleeper = 2·blend − ours`), so the path needs real access control and private
   storage.
-- **The one public exception.** The public methodology may carry one season-end outcome statement, in words, subject
-  to applicable reporting rights. It names the season and the primary-population scope, and it says that the inputs
-  and numbers are private and not publicly reproducible. It uses exactly one of these wordings:
+- **The one public exception.** The public methodology may carry one season-end methodological report, subject to
+  applicable reporting rights.
+  - It contains at most one qualitative outcome per registered claim, each in words.
+  - It names the season and the primary-population scope.
+  - It says that the inputs and numbers are private and not publicly reproducible.
+
+  For `blend − Sleeper`, it uses exactly one of these wordings:
   - **Blend win:** "the pre-registered comparison found evidence of lower paired error for a fixed blend of our
     projection and a commercial projection than for the commercial projection alone".
   - **Reverse:** "… found evidence of lower error for the commercial projection alone".
   - **Inconclusive:** "… did not establish a blend advantage" (never "the blend was not more accurate").
   - **No read:** "the planned comparison could not be completed; no accuracy conclusion follows".
 
-  `ours − Sleeper` is reported separately with the same four distinctions. Nothing else from the comparison may be
-  published: no blended prediction, number, player/position/week comparison, ranking, endorsement or
-  product-performance claim.
+  For `ours − Sleeper`, it uses the same four wordings with "our projection" in place of "a fixed blend of our
+  projection and a commercial projection", and "an our-projection advantage" in place of "a blend advantage". Nothing
+  else from the comparison may be published: no extra diagnostic, blended prediction, number,
+  player/position/week comparison, ranking, endorsement or product-performance claim.
 
 ## 5. (B) Same-week reanalysis
 
