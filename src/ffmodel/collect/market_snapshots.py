@@ -106,19 +106,38 @@ def _pause(seconds: float) -> None:
 
 
 def _parse_utc(s: str) -> datetime:
-    return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
+    """Aware UTC datetime from an ISO string; an offset-free timestamp is rejected, never read as local time."""
+    t = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    if t.tzinfo is None:
+        raise ValueError(f"timestamp without a UTC offset: {s!r}")
+    return t.astimezone(timezone.utc)
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Authenticated SharpAPI calls never follow a redirect: the default handler would copy X-API-Key to the new
+    location (another host, or plain HTTP). A 3xx surfaces as an HTTPError and is treated as a failed request."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_SHARP_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 def sharp_get(path: str, params: dict, key: str, timeout: int = 60) -> tuple[int, bytes]:
-    """GET a SharpAPI path. The key travels only in the X-API-Key header, never in the URL or a log line."""
+    """GET a SharpAPI path. The key travels only in the X-API-Key header, never in the URL, a log line or a
+    redirected request."""
     url = SHARP_BASE + path + (f"?{urllib.parse.urlencode(params)}" if params else "")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "X-API-Key": key,
                                                "Accept": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with _SHARP_OPENER.open(req, timeout=timeout) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
-        return e.code, e.read()
+        try:
+            return e.code, e.read()
+        finally:
+            e.close()
 
 
 def select_prop_games(events: list[dict], now: datetime, window_hours: int = PROPS_WINDOW_HOURS) -> list[dict]:
@@ -141,19 +160,22 @@ def select_prop_games(events: list[dict], now: datetime, window_hours: int = PRO
 
 
 def filter_props(raw: bytes) -> tuple[bytes, dict]:
-    """Keep the full-game offensive player-prop rows of one /events/{id}/odds response, unmodified."""
+    """Keep the full-game offensive player-prop rows of one /events/{id}/odds response, unmodified. Full game means an
+    explicit `"market_segment": null`; a row without the field is not assumed to be full-game. Only free-tier books
+    are kept, whatever the account is entitled to."""
     body = json.loads(raw)
     rows = body.get("data") if isinstance(body, dict) else None
     if not isinstance(rows, list):
         raise ValueError("SharpAPI odds response has no data list")
     kept = [r for r in rows if isinstance(r, dict) and r.get("market_type") in PROPS_MARKETS
-            and r.get("market_segment") is None]
-    counts = Counter(f"{r['market_type']}|{r.get('sportsbook')}" for r in kept)
+            and "market_segment" in r and r["market_segment"] is None and r.get("sportsbook") in PROPS_BOOKS]
+    counts = Counter(f"{r['market_type']}|{r['sportsbook']}" for r in kept)
     return (json.dumps(kept, separators=(",", ":")).encode("utf-8"),
             {"rows_total": len(rows), "rows_kept": len(kept), "kept_by_market_book": dict(sorted(counts.items()))})
 
 
 def list_nfl_events(key: str) -> list[dict]:
+    """Every NFL event, following the documented pagination. A malformed envelope is an error, never "no events"."""
     events, offset = [], 0
     for page in range(PROPS_MAX_EVENT_PAGES):
         if page:
@@ -162,36 +184,72 @@ def list_nfl_events(key: str) -> list[dict]:
         if status != 200:
             raise RuntimeError(f"events HTTP {status}")
         body = json.loads(raw)
-        events += body.get("data") or []
-        pg = body.get("pagination") or {}
-        if not pg.get("has_more"):
+        if not isinstance(body, dict) or not isinstance(body.get("data"), list):
+            raise ValueError("events response has no data list")
+        pg = body.get("pagination")
+        if not isinstance(pg, dict) or not isinstance(pg.get("has_more"), bool):
+            raise ValueError("events response has no pagination.has_more")
+        events += body["data"]
+        if not pg["has_more"]:
             return events
+        if not isinstance(pg.get("next_offset"), int) or pg["next_offset"] <= offset:
+            raise ValueError("events pagination.next_offset missing or not advancing")
         offset = pg["next_offset"]
     raise RuntimeError(f"events list exceeded {PROPS_MAX_EVENT_PAGES} pages")
 
 
-def capture_props(dest: Path, season: int, week: int, key: str, common: dict) -> list[dict]:
-    games = select_prop_games(list_nfl_events(key), _now())
-    lines = []
-    for g in games:
+def _batch_record(dest: Path, line: dict) -> None:
+    (Path(dest) / "props").mkdir(parents=True, exist_ok=True)
+    with (Path(dest) / "props" / "batches.jsonl").open("a", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(line, sort_keys=True) + "\n")
+
+
+def capture_props(dest: Path, season: int, week: int, key: str, common: dict) -> tuple[list[dict], dict]:
+    """Capture every selected game; one game's failure never stops the others (a 429 stops the batch). Each run
+    appends one batch line to props/batches.jsonl naming the selected, captured, skipped, failed and unattempted
+    games, so an incomplete batch is identifiable from the archive itself."""
+    started = _now()
+    batch = {"batch_started_at": utc_iso(started), "season": season, "week": week, "window_hours": PROPS_WINDOW_HOURS,
+             "selected": [], "captured": [], "skipped_started": [], "failed": {}, "not_attempted": [], **common}
+    lines: list[dict] = []
+    try:
+        games = select_prop_games(list_nfl_events(key), started)
+    except Exception as e:
+        batch.update(status="events_failed", error=str(e).replace(key, "***"))
+        _batch_record(dest, batch)
+        raise
+    batch["selected"] = [g["id"] for g in games]
+    for i, g in enumerate(games):
         _pause(PROPS_MIN_INTERVAL)
+        if _parse_utc(g["start_time"]) <= _now():          # kicked off while queued: never request a started game
+            batch["skipped_started"].append(g["id"])
+            continue
         path = f"/events/{g['id']}/odds"
         retrieved_at = _now()
-        status, raw = sharp_get(path, {}, key)
-        if status != 200:
-            raise RuntimeError(f"{g['id']}: HTTP {status}")
-        kept, counts = filter_props(raw)
-        meta = {"source": "sharpapi.io", "request_url": SHARP_BASE + path, "http_status": status,
-                "event_id": g["id"], "start_time": g["start_time"], "home_team": g.get("home_team"),
-                "away_team": g.get("away_team"), "window_hours": PROPS_WINDOW_HOURS,
-                "response_sha256": hashlib.sha256(raw).hexdigest(), **counts, **common}
-        lines.append(write_capture(dest, "props", season, week, retrieved_at, kept, meta, name=g["id"]))
-    return lines
+        try:
+            status, raw = sharp_get(path, {}, key)
+            if status != 200:
+                raise RuntimeError(f"HTTP {status}")
+            kept, counts = filter_props(raw)
+            meta = {"source": "sharpapi.io", "request_url": SHARP_BASE + path, "http_status": status,
+                    "event_id": g["id"], "start_time": g["start_time"], "home_team": g.get("home_team"),
+                    "away_team": g.get("away_team"), "window_hours": PROPS_WINDOW_HOURS,
+                    "response_sha256": hashlib.sha256(raw).hexdigest(), **counts, **common}
+            lines.append(write_capture(dest, "props", season, week, retrieved_at, kept, meta, name=g["id"]))
+            batch["captured"].append(g["id"])
+        except Exception as e:
+            batch["failed"][g["id"]] = str(e).replace(key, "***")
+            if "HTTP 429" in str(e):                         # rate-limited: stop rather than hammer the API
+                batch["not_attempted"] = [x["id"] for x in games[i + 1:]]
+                break
+    batch["status"] = "complete" if not batch["failed"] and not batch["not_attempted"] else "incomplete"
+    _batch_record(dest, batch)
+    return lines, batch
 
 
 def write_capture(dest: Path, kind: str, season: int, week: int, retrieved_at: datetime,
                   raw: bytes, meta: dict, name: str | None = None) -> dict:
-    """Write one gzipped capture and append its manifest line. Never overwrites."""
+    """Write one gzipped capture and append its manifest line. Never overwrites (exclusive create)."""
     if name is not None and (not _SAFE_NAME.match(name) or ".." in name):
         raise ValueError(f"unsafe capture name: {name!r}")
     stem = utc_stamp(retrieved_at) + (f"_{name}" if name else "")
@@ -200,7 +258,7 @@ def write_capture(dest: Path, kind: str, season: int, week: int, retrieved_at: d
     if path.exists():
         raise FileExistsError(f"capture already exists: {rel.as_posix()}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.GzipFile(path, "wb", mtime=0) as f:
+    with open(path, "xb") as fh, gzip.GzipFile(filename=str(path), fileobj=fh, mode="wb", mtime=0) as f:
         f.write(raw)
     line = {"retrieved_at": utc_iso(retrieved_at), "sha256": hashlib.sha256(raw).hexdigest(),
             "season": season, "week": week, "path": rel.as_posix(), **meta}
@@ -255,8 +313,12 @@ def main(argv: list[str] | None = None) -> int:
         print("props: SHARPAPI_KEY is not set; skipping props")
     else:
         try:
-            lines = capture_props(args.dest, season, week, key, common)
-            print(f"props: {len(lines)} games, {sum(x['rows_kept'] for x in lines)} rows kept")
+            lines, batch = capture_props(args.dest, season, week, key, common)
+            print(f"props: {len(lines)} of {len(batch['selected'])} games captured, "
+                  f"{sum(x['rows_kept'] for x in lines)} rows kept ({batch['status']})")
+            if batch["status"] != "complete":
+                failures.append(f"props: incomplete batch (failed {sorted(batch['failed'])}, "
+                                f"not attempted {batch['not_attempted']})")
         except Exception as e:
             failures.append(f"props: {str(e).replace(key, '***')}")
 
