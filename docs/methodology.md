@@ -204,6 +204,41 @@ mechanism is the useful part:
   fix quarterback. It improved *points* significantly and *ranking* not at all,
   and was not promoted. The most useful negative result the project has produced
   — the full record is in §7.
+- **Betting lines as features** (team implied total and expected margin from
+  historical schedule lines, added to the XGBoost baseline; pre-registered
+  2026-10-11, run once on 2026-10-12). **Fail, inconclusive.** One of the six
+  registered conditions failed: *materiality*. Adding the lines cut PPR error by
+  0.039 points per player-week, equal-weighted over 2023–25 and averaged over
+  three seeds. The registered bar is 0.05, so the gain falls below our
+  materiality threshold. The 95% crossed player × week-pair bootstrap interval is
+  [0.021, 0.058]. It excludes zero but reaches past 0.05, which is why the label
+  is inconclusive rather than below materiality. The other five conditions held:
+  - the interval's lower bound is above zero;
+  - all three seasons gained (0.052, 0.025, 0.040);
+  - all three seeds gained;
+  - players projected at 8+ PPR were not hurt (gain 0.076, interval
+    [0.035, 0.118]).
+
+  Ranking status: `ranking_ok`, with within-position rank correlation up
+  0.007. So no lines-based forward test was earned, and model work returns to
+  maintenance. The screen's own label, quoted from its record: "Optimistic
+  historical information screen. These are historical schedule lines, treated
+  as closing-time context based on nflfastR's documentation of the related
+  fields; their book and quote time are not recorded in the feed and their
+  availability at our mid-week deadline is unverified. The screen admits
+  information later than our publication deadline (injuries, lineup decisions,
+  weather and market moves up to the close). A pass shows the information is
+  worth chasing, not that a mid-week deployment would gain the same; it is
+  never deployable performance. 'Optimistic' is a description, not a
+  mathematical bound." Even on that favourable footing, the gain fell short of
+  the bar.
+
+  Disclosure: before the run record was frozen, one timing-only fit of the
+  lines model was run while the plan was being written (seed 0, trained on
+  2012–24, predicting 2025). Only its wall time was looked at. Its predictions
+  were never scored or inspected, and nothing from it entered the run. Record:
+  `models/diagnostics/lines_screen.json`; the frozen run manifest was committed
+  before fitting: `lines_screen_manifest.json`.
 
 ## 5. The discipline earning its keep
 
