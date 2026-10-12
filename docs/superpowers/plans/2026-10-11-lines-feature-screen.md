@@ -33,12 +33,24 @@ pyarrow 24.0.0, nflreadpy 0.1.5 (snapshot only), pytest.
 `fd3217b66351c257716a8f0ca97c86dd213a5fea`). astra found it READY TO PLAN (`.review/astra-lines-spec3-response.md` in the
 main checkout). The spec is the source of truth; read it before any task. Section references below (§n) are to it.
 
-**Verified when this plan was written (2026-10-11):** every task's code and tests below were materialised from this
-file into the worktree and run.
+**Verified when this plan was written (2026-10-11), and re-verified after astra's plan review (rev 1, 2026-10-12):**
+every task's code and tests below were materialised from this file into the worktree and run. Revision 1 changed the
+embedded code and tests and the controller procedure (see "Plan-review revisions" at the end). It re-ran the test
+files and the full suite below. It did not re-run `freeze` or `run` on real data, and it fitted no model.
 
-- **The new and touched test files:** 150 tests pass with `-W error`. Per file: `test_lines_features` 6,
-  `test_lines_data` 49, `test_lines_stats` 42, `test_lines_screen` 23, `test_features` 25, `test_xgb` 5.
-- **The full suite:** `1425 passed, 2 deselected` (the deselected two are the network `integration` tests; the branch base was `1305 passed`).
+- **The new and touched test files (rev 1):** 188 tests pass with `-W error`. Per file: `test_lines_features` 6,
+  `test_lines_data` 52, `test_lines_stats` 60, `test_lines_screen` 40, `test_features` 25, `test_xgb` 5. (The
+  original plan had 150: 49 / 42 / 23 in the three changed files.)
+- **The full suite (rev 1):** `1463 passed, 2 deselected` in about 4 minutes. The deselected two are the network
+  `integration` tests. The branch base was `1305 passed`, and the original plan recorded `1425 passed, 2 deselected`.
+  Run the suite with `FFMODEL_CACHE_FROZEN` unset: with it set to `1`, 15 existing cache tests in `test_pull.py` and
+  `test_rosters.py` fail by design. The plan does not touch those files.
+- **The new tests fail on the original plan's code.** With the 2026-10-11 modules swapped back in: 3 of the 52 data
+  tests fail (the two joint-non-finite quote cases and the sidecar refusal), 17 of the 60 statistics tests (every
+  interval-family case), and 17 of the 40 driver tests (freeze replacement, refusal-before-validation, `write_json`,
+  abandon, and the `tracked_changes_uncommitted` record).
+
+The remaining bullets are the plan author's 2026-10-11 checks. Revision 1 did not repeat them.
 - **Premises checked against the real data:**
   - The live `nflreadpy.load_schedules(2012..2025)` payload has 3,829 records and 46 columns.
   - It has 3,663 REG games with zero missing `spread_line`/`total_line`.
@@ -54,10 +66,19 @@ file into the worktree and run.
   - A = 40 columns and B = 42;
   - frame schema of 57 columns.
 - **`run` on that frozen frame** exercised the driver path only. It used a stand-in predictor, completed 10,000
-  accepted replicates with 0 rejections, found 216 eligible ranking cells and finished in 4.4 s. No XGBoost result was
-  computed or recorded.
-- **Timing:** one real XGBoost arm fit plus predict (2012–24 → 2025) takes about 18 s, so the real run is about
-  18 fits, roughly 6 minutes. All of these files were then deleted; only this plan is committed.
+  accepted replicates with 0 rejections, found 216 eligible ranking cells and finished in 4.4 s. That driver run computed
+  and recorded no XGBoost result.
+- **Timing-fit disclosure.** During plan authoring on 2026-10-11 a single timing fit was run:
+  - arm B (`v1_lines`), seed 0, the existing XGBoost baseline config;
+  - trained on the dry-run frozen frame's 2012–2024 rows, predicting 2025
+    (`m=make_xgb_predictor('B',0); m.fit(tr); p=m.predict(te)`);
+  - only the elapsed wall time (~18 s) was printed.
+
+  The timed call produced arm-B stat predictions for 2025 inside the timed statement. They were never printed,
+  scored or inspected. No losses, A/B differences, ranking values or decisions were computed or inspected, and the
+  frame was deleted. The manifest cannot retroactively preregister that fit. The registered run's fits are the ones
+  that follow the committed manifest. From that timing, the real run (18 fits) takes roughly 6 minutes.
+- All of these files were then deleted; only this plan is committed.
 
 ## Global Constraints
 
@@ -133,12 +154,18 @@ owns the code.
    lists, and `week` appears once even though it is both a key and a feature.
    Pinned by `test_model_frame_holds_exactly_keys_features_and_targets` and the read-back list check in `run_screen`
    (Task 4).
-5. **Re-running over an existing frozen input or result.** The schedule snapshot, the frozen frame, the paired rows
-   and the artifact are each written once and refused if they already exist. A defect rerun keeps both results under
-   new paths (§7).
-   Pinned by `test_snapshot_writes_meta_and_refuses_overwrite` (Task 2), and by
-   `test_frozen_frame_hash_schema_and_no_overwrite` and `test_run_reads_frozen_frame_and_writes_strict_artifact`
-   (Task 4).
+5. **Re-running over an existing frozen input or result.** The schedule snapshot and its sidecar, the frozen frame, the
+   manifest, the paired rows and the artifact are each written once and refused if they already exist. `freeze`
+   refuses an existing manifest, artifact or frame path before any validation or write, so even a failing freeze
+   cannot replace an earlier `invalid` result. `write_json` itself opens with exclusive create. A defect rerun uses
+   new manifest, frame, result and paired-row paths and keeps every earlier record (§7).
+   Pinned by `test_snapshot_writes_meta_and_refuses_overwrite` and
+   `test_snapshot_refuses_an_existing_sidecar_and_keeps_its_bytes` (Task 2), and by
+   `test_frozen_frame_hash_schema_and_no_overwrite`, `test_run_reads_frozen_frame_and_writes_strict_artifact`,
+   `test_freeze_never_replaces_an_existing_manifest_or_result`, `test_freeze_refuses_before_any_validation`,
+   `test_second_failing_freeze_preserves_the_first_invalid_result`,
+   `test_second_freeze_with_a_new_frame_path_cannot_replace_the_manifest` and
+   `test_write_json_refuses_replacement_and_leaves_no_partial_file` (Task 4).
 
 ## File Structure
 
@@ -381,8 +408,8 @@ join cardinality).
   - `file_sha256(path) -> str` and `package_version(name) -> str | None`.
   - `snapshot_meta_path(path) -> Path`, which gives `<stem>.meta.json`.
   - `snapshot_schedules(seasons, path, loader=None) -> dict` returns `{path, seasons, rows, retrieved_at,
-    nflreadpy_version, sha256}`. It writes the parquet and the sidecar, and raises `FileExistsError` if the path
-    exists.
+    nflreadpy_version, sha256}`. It writes the parquet and the sidecar (exclusive create), and raises
+    `FileExistsError` if the path or its sidecar exists.
   - `read_snapshot(path, expected_sha256) -> DataFrame` raises `LinesDataError` on a hash mismatch.
   - `select_allowed(raw) -> DataFrame` returns exactly `ALLOWED_COLUMNS`.
   - `validate_games(allowed, seasons) -> (games, report)`. `games` holds the REG games in `seasons`, sorted by
@@ -407,6 +434,11 @@ Behaviour notes for the reviewer:
 - **Quote status precedence:** a non-finite spread or total is `missing_quote`, then `total ≤ 0` is
   `nonpositive_total`, then either side's implied total `< 0` is `negative_implied_total`. An implied total of
   exactly 0 is allowed.
+- **No arithmetic on unusable quotes.** The status checks do arithmetic only on rows with a finite spread and total,
+  and `team_game_lines` computes implied totals and margins only on `valid` rows (mask first, never `np.where`). This
+  matters because `np.where` evaluates both branches: with spread and total both infinite, `inf - inf` emits a
+  `RuntimeWarning`, and that warning is an error under `-W error`. Pinned by the joint-non-finite cases of
+  `test_unusable_quote_gives_nan_for_both_sides`.
 - **The join** checks unmatched rows before key equality, so a null team is reported as unmatched.
 
 - [ ] **Step 1: Write the failing tests**
@@ -420,6 +452,7 @@ All synthetic; no network. Quote values are invented round numbers, not
 real market data.
 """
 import json
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -610,12 +643,18 @@ def test_missing_allowed_column_is_fatal():
     ({"spread_line": np.nan}, "missing_quote"),
     ({"total_line": np.nan}, "missing_quote"),
     ({"total_line": np.inf}, "missing_quote"),
+    # Joint non-finite: inf - inf / inf + -inf must never be evaluated (it
+    # would emit a RuntimeWarning, an error under -W error).
+    ({"total_line": np.inf, "spread_line": np.inf}, "missing_quote"),
+    ({"total_line": np.inf, "spread_line": -np.inf}, "missing_quote"),
     ({"total_line": 0.0}, "nonpositive_total"),
     ({"total_line": -40.0}, "nonpositive_total"),
     ({"total_line": 10.0, "spread_line": 14.0}, "negative_implied_total"),
 ])
 def test_unusable_quote_gives_nan_for_both_sides(quote, reason):
-    table, report = build_line_table(raw_frame(raw_game(**quote)), SEASONS)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")                       # no warning, whatever the pytest flags
+        table, report = build_line_table(raw_frame(raw_game(**quote)), SEASONS)
     assert len(table) == 2                                   # both sides kept
     assert set(table["quote_status"]) == {reason}
     assert table[["team_implied_total", "team_expected_margin"]].isna().all().all()
@@ -759,6 +798,19 @@ def test_snapshot_writes_meta_and_refuses_overwrite(tmp_path):
         snapshot_schedules([2023], path, loader=lambda: _world_raw())
 
 
+def test_snapshot_refuses_an_existing_sidecar_and_keeps_its_bytes(tmp_path):
+    path = tmp_path / "schedules_raw.parquet"
+    snapshot_meta_path(path).write_bytes(b"original sidecar")
+
+    def never():
+        raise AssertionError("must not pull when the sidecar exists")
+
+    with pytest.raises(FileExistsError):
+        snapshot_schedules([2023], path, loader=never)
+    assert snapshot_meta_path(path).read_bytes() == b"original sidecar"
+    assert not path.exists()
+
+
 def test_read_snapshot_rejects_changed_bytes(tmp_path):
     path = tmp_path / "schedules_raw.parquet"
     meta = snapshot_schedules([2023], path, loader=lambda: _world_raw())
@@ -854,14 +906,16 @@ def snapshot_meta_path(path: Path | str) -> Path:
 def snapshot_schedules(seasons: list[int], path: Path | str, loader=None) -> dict:
     """Pull the raw schedule payload ONCE and freeze it as a local parquet.
 
-    Refuses to overwrite an existing snapshot: the input freeze (spec §2) is
-    only meaningful if the bytes cannot be silently replaced. Writes a sidecar
-    `<stem>.meta.json` with retrieval time (UTC), nflreadpy version, row count
-    and the file's sha256, and returns the same dict.
+    Refuses to overwrite an existing snapshot or sidecar: the input freeze
+    (spec §2) is only meaningful if the bytes cannot be silently replaced.
+    Writes a sidecar `<stem>.meta.json` (exclusive create) with retrieval time
+    (UTC), nflreadpy version, row count and the file's sha256, and returns the
+    same dict.
     """
     path = Path(path)
-    if path.exists():
-        raise FileExistsError(f"{path} already exists; a schedule snapshot is never overwritten")
+    for p in (path, snapshot_meta_path(path)):
+        if p.exists():
+            raise FileExistsError(f"{p} already exists; a schedule snapshot is never overwritten")
     if loader is None:
         def loader() -> pd.DataFrame:
             import nflreadpy  # deferred: keep offline unit tests import-light
@@ -885,7 +939,8 @@ def snapshot_schedules(seasons: list[int], path: Path | str, loader=None) -> dic
         "nflreadpy_version": package_version("nflreadpy"),
         "sha256": file_sha256(path),
     }
-    snapshot_meta_path(path).write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    with snapshot_meta_path(path).open("x", encoding="utf-8") as fh:   # "x": never replace
+        fh.write(json.dumps(meta, indent=2))
     return meta
 
 
@@ -953,9 +1008,12 @@ def validate_games(allowed: pd.DataFrame, seasons: list[int]) -> tuple[pd.DataFr
     total = scoped["total_line"].astype(float).to_numpy()
     spread = scoped["spread_line"].astype(float).to_numpy()
     finite = np.isfinite(total) & np.isfinite(spread)
-    with np.errstate(invalid="ignore"):
-        negative_implied = finite & (((total + spread) / 2 < 0) | ((total - spread) / 2 < 0))
-        nonpositive = finite & (total <= 0)
+    # Arithmetic on finite rows only: inf - inf would warn (an error under -W error).
+    nonpositive = np.zeros(len(scoped), dtype=bool)
+    negative_implied = np.zeros(len(scoped), dtype=bool)
+    t, m = total[finite], spread[finite]
+    nonpositive[finite] = t <= 0
+    negative_implied[finite] = ((t + m) / 2 < 0) | ((t - m) / 2 < 0)
     status = np.select(
         [~finite, nonpositive, negative_implied],
         ["missing_quote", "nonpositive_total", "negative_implied_total"],
@@ -986,17 +1044,21 @@ def team_game_lines(games: pd.DataFrame) -> pd.DataFrame:
     valid = (games["quote_status"] == "valid").to_numpy()
     total = games["total_line"].astype(float).to_numpy()
     spread = games["spread_line"].astype(float).to_numpy()
-    nan = np.full(len(games), np.nan)
+    # Mask first, then compute on valid rows only. np.where would evaluate
+    # both branches, and inf - inf on a missing quote emits a RuntimeWarning.
+    home_implied, away_implied = np.full(len(games), np.nan), np.full(len(games), np.nan)
+    home_margin, away_margin = np.full(len(games), np.nan), np.full(len(games), np.nan)
+    t, m = total[valid], spread[valid]
+    home_implied[valid], away_implied[valid] = (t + m) / 2, (t - m) / 2
+    home_margin[valid], away_margin[valid] = m, -m
     base = games[["season", "week", "game_id", "quote_status"]].reset_index(drop=True)
     home = base.assign(
         team=games["home_team"].to_numpy(), side="home",
-        team_implied_total=np.where(valid, (total + spread) / 2, nan),
-        team_expected_margin=np.where(valid, spread, nan),
+        team_implied_total=home_implied, team_expected_margin=home_margin,
     )
     away = base.assign(
         team=games["away_team"].to_numpy(), side="away",
-        team_implied_total=np.where(valid, (total - spread) / 2, nan),
-        team_expected_margin=np.where(valid, -spread, nan),
+        team_implied_total=away_implied, team_expected_margin=away_margin,
     )
     h_imp, a_imp = home["team_implied_total"].to_numpy(), away["team_implied_total"].to_numpy()
     h_mar, a_mar = home["team_expected_margin"].to_numpy(), away["team_expected_margin"].to_numpy()
@@ -1072,7 +1134,7 @@ def join_line_features(features: pd.DataFrame,
 - [ ] **Step 4: Run to verify pass**
 
 Run: `PYTHONPATH=C:/Users/reisu/projects/Megatron-lines/src C:/Users/reisu/projects/Megatron/.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider -q tests/test_lines_data.py`
-Expected: `49 passed`.
+Expected: `52 passed`.
 
 - [ ] **Step 5: Commit**
 
@@ -1122,9 +1184,14 @@ threshold boundaries, disposition precedence).
   - `ranking_status(paired, seeds, season_order)` returns `{"status", "R", "reasons", "R_by_season", "by_position":
     {pos: {"delta", "reason"}}, "eligible_cells", "excluded_cells", "constant_prediction_cells"}`.
   - `guardrail(G_rel, G_rel_interval)` returns `{"G_rel", "G_rel_interval", "H", "H_upper", "passed"}`.
-  - `decide(point, guard, invalid_reasons)` returns `{"disposition": "pass"|"fail"|"invalid", "failure_label":
-    None|"below_materiality"|"inconclusive", "conditions", "failed_conditions", "invalid_reasons"}`. The `point`
-    argument needs `G`, `G_interval`, `G_S` and `G_seed`.
+  - `validity_reasons(point, guard, season_order, seeds) -> list[str]` names every required metric that is missing,
+    `None`, NaN or ±inf, as `"undefined point metric <name>"`.
+  - `decide(point, guard, invalid_reasons, season_order=TEST_SEASONS, seeds=SEEDS)` returns `{"disposition":
+    "pass"|"fail"|"invalid", "failure_label": None|"below_materiality"|"inconclusive", "conditions",
+    "failed_conditions", "invalid_reasons"}`. The `point` argument needs `G`, `G_interval`, and the complete
+    families `G_S` and `G_S_interval` (one entry per registered test season) and `G_seed` and `G_seed_interval` (one
+    entry per registered seed). Every required value and both endpoints of every required interval are validated
+    before the six conditions; any failure is `invalid`, naming the metric (spec §7).
   - `consequences(decision, ranking) -> {"buys_forward_shadow_test", "ranking_status",
     "ranking_recommendation_forbidden", "carry_into_forward_preregistration", "site_change_authorized"}`.
   - `evaluate(paired, seeds=SEEDS, season_order=TEST_SEASONS, *, n_accept, max_attempts, rng_seed)` returns
@@ -1144,6 +1211,16 @@ listed in the plan's ambiguity notes.
 - **`consequences`.** `ranking_recommendation_forbidden` is true for `ranking_veto`, for `ranking_not_evaluable`, and
   when ranking was not computed. `carry_into_forward_preregistration` is populated only on a point pass, and then
   carries the status whichever of the three it is.
+
+Behaviour note for the reviewer (not a spec degree of freedom; spec §7 requires it):
+
+- **Required-metric validity runs before the six conditions.** `decide` checks `G`, `G_interval`, and `G_S` plus
+  `G_S_interval` for every registered test season. It also checks `G_seed` plus `G_seed_interval` for every
+  registered seed, and `G_rel` plus `G_rel_interval`. Each interval must have both endpoints. A missing family, a
+  missing entry, a malformed interval, `None`, NaN or ±inf makes the disposition `invalid`, and `invalid_reasons`
+  names each offending metric (e.g. `undefined point metric G_S_interval[2023].lower`). The expected families come
+  from the caller's registered `season_order` and `seeds`, never from the keys the dict happens to have. The
+  conditions then read exactly those entries. This adds no decision condition and no per-season cohort interval.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1435,13 +1512,30 @@ def test_constant_actual_cell_is_excluded_symmetrically_and_counted():
 
 
 def test_finite_constant_prediction_is_not_evaluable_and_point_gate_unchanged():
-    paired = make_paired()
-    cell = (paired["season"] == 2023) & (paired["week"] == 1)
-    paired.loc[cell, pred_col("B", 1)] = 12.0            # finite but constant
+    wr = make_paired(seed=0)
+    rb = make_paired(seed=1).assign(position="RB")
+    rb["player_id"] = "rb_" + rb["player_id"]
+    paired = pd.concat([wr, rb], ignore_index=True)
+    cell = (paired["season"] == 2023) & (paired["week"] == 1) & (paired["position"] == "WR")
+    paired.loc[cell, pred_col("B", 1)] = 12.0            # finite but constant, one WR cell
     out = evaluate(paired, SEEDS, SEASONS, n_accept=200, max_attempts=2000)
-    assert out["ranking"]["status"] == "ranking_not_evaluable"
-    assert out["ranking"]["R"] is None
-    assert out["ranking"]["constant_prediction_cells"][0]["arms"] == ["B/seed1"]
+    ranking = out["ranking"]
+    assert ranking["status"] == "ranking_not_evaluable"
+    assert ranking["R"] is None
+    assert ranking["constant_prediction_cells"] == [
+        {"season": 2023, "week": 1, "position": "WR", "arms": ["B/seed1"]}]
+    # Only the affected season and position are nulled ...
+    assert ranking["R_by_season"][2023] is None
+    assert ranking["by_position"]["WR"] == {
+        "delta": None, "reason": "constant prediction in an eligible WR cell in season 2023"}
+    # ... the other seasons' R and the unaffected position's diagnostic are kept.
+    for season in (2024, 2025):
+        assert ranking["R_by_season"][season] is not None
+        assert np.isfinite(ranking["R_by_season"][season])
+    assert ranking["by_position"]["RB"]["reason"] is None
+    assert ranking["by_position"]["RB"]["delta"] is not None
+    assert np.isfinite(ranking["by_position"]["RB"]["delta"])
+    assert ranking["eligible_cells"] == 24                  # 3 seasons x 4 weeks x 2 positions
     assert out["decision"]["disposition"] in {"pass", "fail"}       # never invalid for ranking
     assert out["consequences"]["ranking_recommendation_forbidden"] is True
 
@@ -1469,10 +1563,30 @@ def test_missing_position_season_nulls_only_that_diagnostic():
 # --- §6 / §7 decision -------------------------------------------------------------
 
 def passing_point(**over) -> dict:
+    """An otherwise passing point dict carrying the COMPLETE required families:
+    one G_S / G_S_interval entry per registered season and one G_seed /
+    G_seed_interval entry per registered seed."""
     point = {"G": 0.1, "G_interval": [0.02, 0.18],
-             "G_S": {2023: 0.1, 2024: 0.1, 2025: 0.1}, "G_seed": {0: 0.1, 1: 0.1, 2: 0.1}}
+             "G_S": {2023: 0.1, 2024: 0.1, 2025: 0.1},
+             "G_S_interval": {2023: [0.01, 0.2], 2024: [0.01, 0.2], 2025: [0.01, 0.2]},
+             "G_seed": {0: 0.1, 1: 0.1, 2: 0.1},
+             "G_seed_interval": {0: [0.01, 0.2], 1: [0.01, 0.2], 2: [0.01, 0.2]}}
     point.update(over)
     return point
+
+
+MISSING = object()
+NAN, INF = float("nan"), float("inf")
+
+
+def with_entry(family: str, key: int, value) -> dict:
+    """passing_point() with one entry of `family` replaced (value=MISSING drops it)."""
+    entries = dict(passing_point()[family])
+    if value is MISSING:
+        del entries[key]
+    else:
+        entries[key] = value
+    return passing_point(**{family: entries})
 
 
 def passing_guard(lower=0.0) -> dict:
@@ -1530,6 +1644,60 @@ def test_undefined_point_metric_is_invalid(over):
     assert out["invalid_reasons"][0].startswith("undefined point metric")
 
 
+def test_complete_families_are_required_by_the_passing_fixture():
+    # The fixture itself passes; every case below changes exactly one entry.
+    assert decide(passing_point(), passing_guard(), [])["disposition"] == "pass"
+
+
+@pytest.mark.parametrize("family,key,value,named", [
+    # season-interval family: an endpoint that is None / NaN / +inf / -inf
+    ("G_S_interval", 2023, [NAN, 0.2], "G_S_interval[2023].lower"),   # astra's reproduction
+    ("G_S_interval", 2024, [0.01, None], "G_S_interval[2024].upper"),
+    ("G_S_interval", 2025, [0.01, INF], "G_S_interval[2025].upper"),
+    ("G_S_interval", 2023, [-INF, 0.2], "G_S_interval[2023].lower"),
+    # ... a null or missing entry
+    ("G_S_interval", 2024, None, "G_S_interval[2024] (missing or malformed interval)"),
+    ("G_S_interval", 2025, MISSING, "G_S_interval[2025] (missing or malformed interval)"),
+    # seed-interval family: the same cases
+    ("G_seed_interval", 0, [NAN, 0.2], "G_seed_interval[0].lower"),
+    ("G_seed_interval", 1, [0.01, None], "G_seed_interval[1].upper"),
+    ("G_seed_interval", 2, [0.01, INF], "G_seed_interval[2].upper"),
+    ("G_seed_interval", 0, [-INF, 0.2], "G_seed_interval[0].lower"),
+    ("G_seed_interval", 1, None, "G_seed_interval[1] (missing or malformed interval)"),
+    ("G_seed_interval", 2, MISSING, "G_seed_interval[2] (missing or malformed interval)"),
+    # point families: a missing entry is undefined, not silently skipped
+    ("G_S", 2024, MISSING, "G_S[2024]"),
+    ("G_seed", 1, MISSING, "G_seed[1]"),
+])
+def test_undefined_season_or_seed_interval_is_invalid_and_named(family, key, value, named):
+    out = decide(with_entry(family, key, value), passing_guard(), [])
+    assert out["disposition"] == "invalid"
+    assert out["conditions"] is None and out["failure_label"] is None
+    assert out["invalid_reasons"] == [f"undefined point metric {named}"]
+
+
+@pytest.mark.parametrize("family", ["G_S_interval", "G_seed_interval"])
+def test_absent_interval_family_names_every_registered_entry(family):
+    point = passing_point()
+    del point[family]
+    out = decide(point, passing_guard(), [])
+    keys = SEASONS if family == "G_S_interval" else SEEDS
+    assert out["disposition"] == "invalid"
+    assert out["invalid_reasons"] == [
+        f"undefined point metric {family}[{k}] (missing or malformed interval)" for k in keys]
+
+
+def test_registered_families_come_from_the_caller():
+    # Two registered seasons/seeds: complete for those, so it passes;
+    # registering a third season the dict lacks makes it invalid.
+    point = passing_point(G_S={2024: 0.1, 2025: 0.1},
+                          G_S_interval={2024: [0.01, 0.2], 2025: [0.01, 0.2]})
+    assert decide(point, passing_guard(), [], season_order=(2024, 2025))["disposition"] == "pass"
+    out = decide(point, passing_guard(), [], season_order=SEASONS)
+    assert out["disposition"] == "invalid"
+    assert "undefined point metric G_S[2023]" in out["invalid_reasons"]
+
+
 def test_undefined_guardrail_metric_is_invalid():
     out = decide(passing_point(), guardrail(float("nan"), [-0.01, 0.2]), [])
     assert out["disposition"] == "invalid"
@@ -1563,6 +1731,8 @@ def test_evaluate_end_to_end_on_a_clear_gain():
     assert out["bootstrap"]["accepted"] == 300
     assert out["point"]["G_interval"][0] > 0
     assert set(out["point"]["G_S_interval"]) == set(SEASONS)
+    assert set(out["point"]["G_seed_interval"]) == set(SEEDS)
+    assert out["decision"]["invalid_reasons"] == []
     assert out["relevant"]["passed"] is True
     assert out["relevant"]["counts"]["rows_by_season"][2023] > 0
 
@@ -1910,30 +2080,65 @@ def guardrail(G_rel: float, G_rel_interval: list[float]) -> dict:
             "H_upper": h_upper, "passed": bool(h_upper <= MAX_DETERIORATION)}
 
 
-def decide(point: dict | None, guard: dict | None, invalid_reasons: list[str]) -> dict:
+def validity_reasons(point: dict | None, guard: dict | None, season_order, seeds) -> list[str]:
+    """Every metric §7 requires to be defined, checked BEFORE the six conditions.
+
+    Required: G and both endpoints of G_interval; for every registered test
+    season, G_S[S] and both endpoints of G_S_interval[S]; for every registered
+    seed, G_seed[s] and both endpoints of G_seed_interval[s]; G_rel and both
+    endpoints of G_rel_interval. A missing family, a missing entry, a malformed
+    interval, None, NaN or +/-inf is named as `undefined point metric <name>`.
+    """
+    point, guard = point or {}, guard or {}
+    reasons: list[str] = []
+
+    def scalar(name: str, value) -> None:
+        if not _finite(value):
+            reasons.append(f"undefined point metric {name}")
+
+    def interval(name: str, value) -> None:
+        if not isinstance(value, (list, tuple)) or len(value) != 2:
+            reasons.append(f"undefined point metric {name} (missing or malformed interval)")
+            return
+        for end, v in zip(("lower", "upper"), value):
+            scalar(f"{name}.{end}", v)
+
+    scalar("G", point.get("G"))
+    interval("G_interval", point.get("G_interval"))
+    G_S, G_S_int = point.get("G_S") or {}, point.get("G_S_interval") or {}
+    for s in season_order:
+        scalar(f"G_S[{s}]", G_S.get(s))
+        interval(f"G_S_interval[{s}]", G_S_int.get(s))
+    G_seed, G_seed_int = point.get("G_seed") or {}, point.get("G_seed_interval") or {}
+    for s in seeds:
+        scalar(f"G_seed[{s}]", G_seed.get(s))
+        interval(f"G_seed_interval[{s}]", G_seed_int.get(s))
+    scalar("G_rel", guard.get("G_rel"))
+    interval("G_rel_interval", guard.get("G_rel_interval"))
+    return reasons
+
+
+def decide(point: dict | None, guard: dict | None, invalid_reasons: list[str],
+           season_order=TEST_SEASONS, seeds=SEEDS) -> dict:
     """Disposition with `invalid` decided first (spec §7), then the six
-    conditions on unrounded values (§6), then the scientific failure label."""
+    conditions on unrounded values (§6), then the scientific failure label.
+    `season_order` and `seeds` are the registered families every required
+    metric must cover; the conditions read exactly those entries."""
+    season_order = tuple(int(s) for s in season_order)
+    seeds = tuple(int(s) for s in seeds)
     reasons = list(invalid_reasons)
     if not reasons:
-        required = {"G": point["G"], "G_interval_lower": point["G_interval"][0],
-                    "G_interval_upper": point["G_interval"][1], "G_rel": guard["G_rel"],
-                    "G_rel_interval_lower": guard["G_rel_interval"][0],
-                    "G_rel_interval_upper": guard["G_rel_interval"][1]}
-        required.update({f"G_S[{s}]": v for s, v in point["G_S"].items()})
-        required.update({f"G_seed[{s}]": v for s, v in point["G_seed"].items()})
-        for name, value in required.items():
-            if not _finite(value):
-                reasons.append(f"undefined point metric {name}")
+        reasons = validity_reasons(point, guard, season_order, seeds)
     if reasons:
         return {"disposition": "invalid", "failure_label": None, "conditions": None,
                 "failed_conditions": None, "invalid_reasons": reasons}
-    G_S = list(point["G_S"].values())
+    G_S = [point["G_S"][s] for s in season_order]
     conditions = {
         "materiality": point["G"] >= MATERIALITY,
         "interval_lower_above_0": point["G_interval"][0] > 0,
         "two_seasons_positive": sum(g > 0 for g in G_S) >= 2,
         "no_season_below_floor": all(g >= SEASON_FLOOR for g in G_S),
-        "all_seeds_positive": all(g > 0 for g in point["G_seed"].values()),
+        "all_seeds_positive": all(point["G_seed"][s] > 0 for s in seeds),
         "relevant_guardrail": guard["H_upper"] <= MAX_DETERIORATION,
     }
     conditions = {k: bool(v) for k, v in conditions.items()}
@@ -1997,7 +2202,7 @@ def evaluate(paired: pd.DataFrame, seeds=SEEDS, season_order=TEST_SEASONS, *,
                         "rejected": boot["rejected"]}
     except ScreenInvalid as exc:
         invalid.append(str(exc))
-    decision = decide(point, relevant, invalid)
+    decision = decide(point, relevant, invalid, season_order, seeds)
     return {"point": point, "bootstrap": boot_summary, "relevant": relevant,
             "ranking": ranking, "decision": decision,
             "consequences": consequences(decision, ranking)}
@@ -2006,7 +2211,7 @@ def evaluate(paired: pd.DataFrame, seeds=SEEDS, season_order=TEST_SEASONS, *,
 - [ ] **Step 4: Run to verify pass**
 
 Run: `PYTHONPATH=C:/Users/reisu/projects/Megatron-lines/src C:/Users/reisu/projects/Megatron/.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider -q tests/test_lines_stats.py`
-Expected: `42 passed` (about 2 s).
+Expected: `60 passed` (about 3 s).
 
 - [ ] **Step 5: Commit**
 
@@ -2059,12 +2264,16 @@ against §8).
   - `collect_paired_predictions(frame, seeds, test_seasons, make_predictor=make_xgb_predictor) -> DataFrame`.
   - `software_versions()`, `resolved_estimator_params(seed=0)`, `row_counts(frame, test_seasons)` and
     `git_provenance(spec_path=SPEC_PATH)`.
-  - `write_json(payload, path)`, which applies `allow_nan=False` after converting NaN to `None`.
+  - `refuse_existing(*paths)` raises `FileExistsError` naming every given path that exists.
+  - `write_json(payload, path)`, which applies `allow_nan=False` after converting NaN to `None` and opens the file
+    with exclusive create (`"x"`): it never replaces an existing file. Every JSON this module writes is evidence
+    (manifest or artifact), so there is no separate overwriting writer.
   - `invalid_artifact(reasons, manifest, stage)`.
   - `freeze_screen(raw_schedules, features, *, frame_path, manifest_path, artifact_path, provenance, seasons,
-    test_seasons, seeds) -> manifest | invalid artifact`.
+    test_seasons, seeds) -> manifest | invalid artifact`. It calls `refuse_existing(manifest_path, artifact_path,
+    frame_path)` before any validation or write.
   - `run_screen(manifest_path, artifact_path, paired_path, *, make_predictor, n_accept=None, max_attempts=None) ->
-    artifact`.
+    artifact`. Its `run` block records `run_commit` (HEAD) and `tracked_changes_uncommitted`.
   - `build_parser()` and `main(argv) -> int`.
 
 `build_model_frame` and `collect_paired_predictions` accept any frame from `build_features`. The `world()` helper gives
@@ -2224,7 +2433,7 @@ from ffmodel.eval.lines_screen import (
     run_screen,
     write_frozen_frame,
 )
-from ffmodel.eval.lines_stats import ScreenInvalid, pred_col
+from ffmodel.eval.lines_stats import RNG_SEED, ScreenInvalid, evaluate, pred_col
 from ffmodel.scoring import PPR, PREDICTED_STATS, fantasy_points
 
 from tests.lines_world import FakePredictor, world_features
@@ -2403,15 +2612,95 @@ def test_freeze_writes_frame_and_complete_manifest(tmp_path):
     assert not p["artifact_path"].exists()                           # nothing fitted yet
 
 
+def unmatched(raw: pd.DataFrame) -> pd.DataFrame:
+    """Drop one game, so its players' team-week is unmatched (a fatal join error)."""
+    return raw[~((raw["season"] == 2024) & (raw["week"] == 3) & (raw["home_team"] == "MIA"))]
+
+
 def test_freeze_on_unmatched_join_writes_invalid_and_no_frame(tmp_path):
     features, raw = world_features()
-    raw = raw[~((raw["season"] == 2024) & (raw["week"] == 3) & (raw["home_team"] == "MIA"))]
+    raw = unmatched(raw)
     p = paths(tmp_path)
     out = freeze_screen(raw, features, provenance=PROVENANCE, **p)
     assert out["decision"]["disposition"] == "invalid"
     assert "unmatched player team-week" in out["decision"]["invalid_reasons"][0]
     assert strict_json(p["artifact_path"])["decision"]["disposition"] == "invalid"
     assert not p["frame_path"].exists() and not p["manifest_path"].exists()
+
+
+# --- evidence files are written once (R1) ------------------------------------------------
+
+ORIGINAL = {"manifest_path": b'{"original": "manifest"}\n',
+            "artifact_path": b'{"original": "result"}\n'}
+
+
+@pytest.mark.parametrize("scenario", ["would_succeed", "fatal_join"])
+@pytest.mark.parametrize("existing", ["manifest_path", "artifact_path"])
+def test_freeze_never_replaces_an_existing_manifest_or_result(tmp_path, existing, scenario):
+    features, raw = world_features()
+    if scenario == "fatal_join":
+        raw = unmatched(raw)          # would write an `invalid` artifact
+    p = paths(tmp_path)               # a fresh frame path: only the one record exists
+    p[existing].write_bytes(ORIGINAL[existing])
+    with pytest.raises(FileExistsError, match="never replaced"):
+        freeze_screen(raw, features, provenance=PROVENANCE, **p)
+    assert p[existing].read_bytes() == ORIGINAL[existing]
+    assert [k for k in p if p[k].exists()] == [existing]        # nothing else written
+
+
+@pytest.mark.parametrize("existing", ["manifest_path", "artifact_path", "frame_path"])
+def test_freeze_refuses_before_any_validation(tmp_path, monkeypatch, existing):
+    def boom(*args, **kwargs):
+        raise AssertionError("validation must not start when a destination exists")
+
+    monkeypatch.setattr(lines_screen, "build_line_table", boom)
+    features, raw = world_features()
+    p = paths(tmp_path)
+    p[existing].parent.mkdir(parents=True, exist_ok=True)
+    p[existing].write_bytes(b"original")
+    with pytest.raises(FileExistsError):
+        freeze_screen(raw, features, provenance=PROVENANCE, **p)
+    assert p[existing].read_bytes() == b"original"
+
+
+def test_second_failing_freeze_preserves_the_first_invalid_result(tmp_path):
+    features, raw = world_features()
+    raw = unmatched(raw)
+    p = paths(tmp_path)
+    assert freeze_screen(raw, features, provenance=PROVENANCE, **p)["decision"]["disposition"] == "invalid"
+    original = p["artifact_path"].read_bytes()
+    retry = {**p, "frame_path": tmp_path / "data" / "frame_v2.parquet",
+             "manifest_path": tmp_path / "manifest_v2.json"}
+    with pytest.raises(FileExistsError):        # the replacement would also be `invalid`
+        freeze_screen(raw, features, provenance={**PROVENANCE, "implementation_commit": "fix"}, **retry)
+    assert p["artifact_path"].read_bytes() == original
+    # A rerun under a new result path is allowed and keeps both records.
+    retry["artifact_path"] = tmp_path / "lines_screen_v2.json"
+    assert freeze_screen(raw, features, provenance=PROVENANCE, **retry)["decision"]["disposition"] == "invalid"
+    assert p["artifact_path"].read_bytes() == original and retry["artifact_path"].exists()
+
+
+def test_second_freeze_with_a_new_frame_path_cannot_replace_the_manifest(tmp_path):
+    _, p = frozen(tmp_path)
+    original = p["manifest_path"].read_bytes()
+    features, raw = world_features()
+    new_frame = tmp_path / "data" / "frame_v2.parquet"
+    with pytest.raises(FileExistsError):
+        freeze_screen(raw, features, provenance=PROVENANCE, **{**p, "frame_path": new_frame})
+    assert p["manifest_path"].read_bytes() == original
+    assert not new_frame.exists() and not p["artifact_path"].exists()
+
+
+def test_write_json_refuses_replacement_and_leaves_no_partial_file(tmp_path):
+    path = tmp_path / "evidence.json"
+    path.write_bytes(b"original")
+    with pytest.raises(FileExistsError):
+        lines_screen.write_json({"a": 1}, path)
+    assert path.read_bytes() == b"original"
+    fresh = tmp_path / "fresh.json"
+    with pytest.raises(TypeError):
+        lines_screen.write_json({"a": object()}, fresh)       # serialised before opening
+    assert not fresh.exists()
 
 
 def test_run_reads_frozen_frame_and_writes_strict_artifact(tmp_path):
@@ -2436,20 +2725,57 @@ def test_run_reads_frozen_frame_and_writes_strict_artifact(tmp_path):
                    make_predictor=fake(), n_accept=200, max_attempts=2000)
 
 
-def test_run_on_tampered_frame_is_invalid_without_fitting(tmp_path):
-    manifest, p = frozen(tmp_path)
+def _tamper_frame(p) -> None:
     frame = pd.read_parquet(p["frame_path"])
     frame.assign(team_implied_total=0.0).to_parquet(p["frame_path"], index=False)
 
-    def never(arm, seed):
-        raise AssertionError("must not fit on a tampered frame")
+
+def _tamper_manifest(edit):
+    def apply(p) -> None:
+        manifest = json.loads(p["manifest_path"].read_text(encoding="utf-8"))
+        edit(manifest)
+        p["manifest_path"].write_text(json.dumps(manifest), encoding="utf-8")
+    return apply
+
+
+def _set_dtype(m) -> None:
+    m["model_frame"]["schema"][5]["dtype"] = "int8"
+
+
+def _swap_b_line_columns(m) -> None:
+    b = m["feature_lists"]["B"]
+    b[-2], b[-1] = b[-1], b[-2]
+
+
+def _drop_a_column(m) -> None:
+    m["feature_lists"]["A"] = m["feature_lists"]["A"][:-1]
+
+
+@pytest.mark.parametrize("tamper,match", [
+    (_tamper_frame, "sha256"),                                    # frame bytes changed
+    (_tamper_manifest(_set_dtype), "schema differs"),             # schema mismatch
+    (_tamper_manifest(_swap_b_line_columns), "feature lists differ"),   # B list mismatch
+    (_tamper_manifest(_drop_a_column), "feature lists differ"),         # A list mismatch
+], ids=["hash", "schema", "feature_list_B", "feature_list_A"])
+def test_run_integrity_mismatch_is_invalid_without_fitting(tmp_path, tamper, match):
+    _, p = frozen(tmp_path)
+    tamper(p)
+    calls = []
+
+    def recording(arm, seed):
+        calls.append((arm, seed))
+        raise AssertionError("must not fit when the frozen inputs do not match the manifest")
 
     paired_path = tmp_path / "paired.parquet"
-    out = run_screen(p["manifest_path"], p["artifact_path"], paired_path, make_predictor=never)
+    out = run_screen(p["manifest_path"], p["artifact_path"], paired_path, make_predictor=recording)
+    assert calls == []                                            # factory never called
     assert out["decision"]["disposition"] == "invalid"
-    assert "sha256" in out["decision"]["invalid_reasons"][0]
+    assert match in out["decision"]["invalid_reasons"][0]
     assert not paired_path.exists()
-    assert strict_json(p["artifact_path"])["consequences"]["buys_forward_shadow_test"] is False
+    art = strict_json(p["artifact_path"])
+    assert art["stage"] == "run" and art["decision"]["disposition"] == "invalid"
+    assert art["consequences"]["buys_forward_shadow_test"] is False
+    assert "tracked_changes_uncommitted" in art["run"]
 
 
 def test_run_with_non_finite_prediction_is_invalid(tmp_path):
@@ -2467,17 +2793,77 @@ def test_abandon_records_invalid(tmp_path):
     art = strict_json(artifact)
     assert art["decision"]["invalid_reasons"] == ["effort cap reached"]
     assert art["stage"] == "abandon"
+    assert art["manifest"] is None
 
 
-def test_run_takes_the_bootstrap_protocol_from_the_manifest(tmp_path):
+def test_abandon_with_a_manifest_that_does_not_exist_writes_nothing(tmp_path):
+    artifact = tmp_path / "lines_screen.json"
+    with pytest.raises(SystemExit, match="omit --manifest"):
+        lines_screen.main(["abandon", "--reason", "effort cap reached",
+                           "--manifest", str(tmp_path / "no_manifest.json"), "--artifact", str(artifact)])
+    assert not artifact.exists()
+
+
+def test_abandon_never_replaces_an_existing_artifact(tmp_path):
+    artifact = tmp_path / "lines_screen.json"
+    artifact.write_bytes(ORIGINAL["artifact_path"])
+    with pytest.raises(SystemExit, match="preserve and report"):
+        lines_screen.main(["abandon", "--reason", "effort cap reached", "--artifact", str(artifact)])
+    assert artifact.read_bytes() == ORIGINAL["artifact_path"]
+
+
+def test_abandon_after_a_successful_freeze_carries_the_manifest(tmp_path):
+    manifest, p = frozen(tmp_path)
+    code = lines_screen.main(["abandon", "--reason", "effort cap reached",
+                              "--manifest", str(p["manifest_path"]), "--artifact", str(p["artifact_path"])])
+    assert code == 2
+    art = strict_json(p["artifact_path"])
+    assert art["manifest"]["model_frame"]["sha256"] == manifest["model_frame"]["sha256"]
+    assert art["decision"]["invalid_reasons"] == ["effort cap reached"]
+
+
+def test_run_takes_seeds_seasons_and_bootstrap_protocol_from_the_manifest(tmp_path):
     _, p = frozen(tmp_path)
     manifest = json.loads(p["manifest_path"].read_text(encoding="utf-8"))
-    manifest["rng"]["n_accept"] = 120            # a small protocol, so the test stays fast
+    manifest["seeds"] = [0, 2]
+    manifest["test_seasons"] = [2024, 2025]
+    manifest["rng"].update(seed=7, n_accept=120, max_attempts=4_000)   # small, so the test stays fast
     p["manifest_path"].write_text(json.dumps(manifest), encoding="utf-8")
-    out = run_screen(p["manifest_path"], p["artifact_path"], tmp_path / "paired.parquet",
-                     make_predictor=fake())
+    calls = []
+
+    def recording(arm, seed):
+        calls.append((arm, seed))
+        return FakePredictor(arm, seed)
+
+    paired_path = tmp_path / "paired.parquet"
+    out = run_screen(p["manifest_path"], p["artifact_path"], paired_path, make_predictor=recording)
+    # Seeds and test seasons: 2 arms x seeds {0, 2} x folds {2024, 2025}; no seed 1, no 2023.
+    assert sorted(calls) == sorted([(a, s) for a in ("A", "B") for s in (0, 2)] * 2)
+    saved = pd.read_parquet(paired_path)
+    assert set(saved["season"]) == {2024, 2025}
+    assert [c for c in saved.columns if c.startswith("pred_")] == [
+        pred_col(a, s) for a in ("A", "B") for s in (0, 2)]
+    assert set(out["point"]["G_S"]) == {2024, 2025} and set(out["point"]["G_seed"]) == {0, 2}
+    # Bootstrap protocol: accepted count, attempt limit and generator seed.
     assert out["bootstrap"]["accepted"] == 120
-    assert out["run"]["n_accept"] == 120 and out["run"]["max_attempts"] == 100_000
+    assert out["run"]["n_accept"] == 120 and out["run"]["max_attempts"] == 4_000
+    paired = saved.drop(columns=["d", "d_0", "d_2"])
+    kwargs = {"n_accept": 120, "max_attempts": 4_000}
+    with_manifest_seed = evaluate(paired, (0, 2), (2024, 2025), rng_seed=7, **kwargs)
+    with_code_default = evaluate(paired, (0, 2), (2024, 2025), rng_seed=RNG_SEED, **kwargs)
+    assert out["point"]["G_interval"] == with_manifest_seed["point"]["G_interval"]
+    assert out["point"]["G_interval"] != with_code_default["point"]["G_interval"]
+
+
+def test_run_records_head_and_dirty_status(tmp_path, monkeypatch):
+    _, p = frozen(tmp_path)
+    monkeypatch.setattr(lines_screen, "git_provenance", lambda *a, **k: {
+        "spec": None, "implementation_commit": "abc123", "tracked_changes_uncommitted": True})
+    run_screen(p["manifest_path"], p["artifact_path"], tmp_path / "paired.parquet",
+               make_predictor=fake(), n_accept=50, max_attempts=500)
+    run = strict_json(p["artifact_path"])["run"]
+    assert run["run_commit"] == "abc123"
+    assert run["tracked_changes_uncommitted"] is True             # recorded, not discarded
 ```
 
 - [ ] **Step 3: Run to verify failure**
@@ -2765,11 +3151,28 @@ def _jsonable(obj):
     return obj
 
 
+def refuse_existing(*paths: Path | str) -> None:
+    """Raise FileExistsError naming every evidence path that already exists.
+
+    A manifest, frozen frame, result artifact or paired-row file is written
+    once. A defect rerun uses NEW manifest, frame, result and paired-row paths
+    and keeps the earlier files (spec §7) -- even an earlier `invalid` result."""
+    existing = [Path(p).as_posix() for p in paths if Path(p).exists()]
+    if existing:
+        raise FileExistsError(
+            f"{existing} already exist(s); evidence files are never replaced -- "
+            f"a rerun uses new manifest, frame, result and paired-row paths")
+
+
 def write_json(payload: dict, path: Path | str) -> None:
+    """Write an evidence JSON once: exclusive create ("x"), so an existing
+    file raises FileExistsError and its bytes are untouched. Serialised
+    before the file is opened, so a serialisation error leaves no file."""
     path = Path(path)
+    text = json.dumps(_jsonable(payload), indent=2, allow_nan=False) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(_jsonable(payload), indent=2, allow_nan=False) + "\n",
-                    encoding="utf-8")
+    with path.open("x", encoding="utf-8") as fh:
+        fh.write(text)
 
 
 def invalid_artifact(reasons: list[str], manifest: dict | None, stage: str) -> dict:
@@ -2794,7 +3197,12 @@ def freeze_screen(raw_schedules: pd.DataFrame, features: pd.DataFrame, *,
                   seasons=tuple(range(FIRST_SEASON, LAST_SEASON + 1)),
                   test_seasons=TEST_SEASONS, seeds=SEEDS) -> dict:
     """Validate + join lines, write the frozen frame and the manifest. On a
-    fatal data error writes an `invalid` artifact instead and returns it."""
+    fatal data error writes an `invalid` artifact instead and returns it.
+
+    Refuses (FileExistsError) BEFORE any validation or write if the manifest,
+    the artifact or the frame path already exists, so neither a successful nor
+    a failing freeze can replace an earlier manifest or result."""
+    refuse_existing(manifest_path, artifact_path, frame_path)
     try:
         team_lines, lines_report = build_line_table(raw_schedules, list(seasons))
         joined, join_report = join_line_features(features, team_lines)
@@ -2850,15 +3258,17 @@ def run_screen(manifest_path: Path | str, artifact_path: Path | str, paired_path
     `n_accept`/`max_attempts` overrides exist for tests only (the CLI never
     passes them) and are recorded in the artifact when used."""
     artifact_path, paired_path = Path(artifact_path), Path(paired_path)
-    for p in (artifact_path, paired_path):
-        if p.exists():
-            raise FileExistsError(f"{p} exists; a rerun keeps both results under new paths")
+    refuse_existing(artifact_path, paired_path)
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     n_accept = manifest["rng"]["n_accept"] if n_accept is None else n_accept
     max_attempts = manifest["rng"]["max_attempts"] if max_attempts is None else max_attempts
     started = time.perf_counter()
+    prov = git_provenance()
     run_info = {"started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "run_commit": git_provenance()["implementation_commit"],
+                # HEAD at run time (the manifest commit, one after implementation_commit)
+                # and whether tracked files were dirty -- recorded, never discarded.
+                "run_commit": prov["implementation_commit"],
+                "tracked_changes_uncommitted": prov["tracked_changes_uncommitted"],
                 "software": software_versions()}
     try:
         mf = manifest["model_frame"]
@@ -2934,6 +3344,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if os.environ.get("FFMODEL_CACHE_FROZEN") != "1":
             raise SystemExit("set FFMODEL_CACHE_FROZEN=1: freeze must read existing caches only")
+        refuse_existing(args.manifest, args.artifact, args.frame)   # before reading any input
         meta = json.loads(snapshot_meta_path(args.snapshot).read_text(encoding="utf-8"))
         raw = read_snapshot(args.snapshot, meta["sha256"])
         weekly = pull_weekly(seasons, cache_dir=args.data_dir)
@@ -2956,9 +3367,12 @@ def main(argv: list[str] | None = None) -> int:
               f"failed={d['failed_conditions']} reasons={d['invalid_reasons']} "
               f"ranking={out['consequences']['ranking_status']} -> {args.artifact}")
         return 0 if d["disposition"] != "invalid" else 2
-    manifest = json.loads(args.manifest.read_text(encoding="utf-8")) if args.manifest else None
+    # abandon: an existing artifact is the record -- preserve and report it.
     if args.artifact.exists():
-        raise SystemExit(f"{args.artifact} exists; not overwriting")
+        raise SystemExit(f"{args.artifact} exists; not overwriting -- preserve and report it")
+    if args.manifest is not None and not args.manifest.exists():
+        raise SystemExit(f"{args.manifest} does not exist; omit --manifest before a successful freeze")
+    manifest = json.loads(args.manifest.read_text(encoding="utf-8")) if args.manifest else None
     write_json(invalid_artifact([args.reason], manifest, stage="abandon"), args.artifact)
     return 2
 
@@ -2970,12 +3384,12 @@ if __name__ == "__main__":
 - [ ] **Step 5: Run to verify pass**
 
 Run: `PYTHONPATH=C:/Users/reisu/projects/Megatron-lines/src C:/Users/reisu/projects/Megatron/.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider -q tests/test_lines_screen.py`
-Expected: `23 passed` (about 8 s).
+Expected: `40 passed` (about 15 s).
 
 - [ ] **Step 6: Run every lines test plus the touched existing files**
 
 Run: `PYTHONPATH=C:/Users/reisu/projects/Megatron-lines/src C:/Users/reisu/projects/Megatron/.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider -q tests/test_lines_features.py tests/test_lines_data.py tests/test_lines_stats.py tests/test_lines_screen.py tests/test_features.py tests/test_xgb.py`
-Expected: `150 passed`.
+Expected: `188 passed`.
 
 - [ ] **Step 7: Commit**
 
@@ -2992,7 +3406,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] Run the full suite from the worktree root:
   `PYTHONPATH=C:/Users/reisu/projects/Megatron-lines/src C:/Users/reisu/projects/Megatron/.venv/Scripts/python.exe -m pytest -W error -p no:cacheprovider -q`
-  Expected: `1425 passed, 2 deselected` (the deselected two are the network `integration` tests; the branch base was `1305 passed`) (about 4 minutes).
+  Expected: `1463 passed, 2 deselected` (about 4 minutes). The deselected two are the network `integration` tests,
+  and the branch base was `1305 passed`. Leave `FFMODEL_CACHE_FROZEN` unset for the suite: with it set to `1`, 15
+  existing `test_pull.py` / `test_rosters.py` cache tests fail by design.
 - [ ] Confirm the import really resolves into the worktree:
   `PYTHONPATH=C:/Users/reisu/projects/Megatron-lines/src C:/Users/reisu/projects/Megatron/.venv/Scripts/python.exe -c "import ffmodel; print(ffmodel.__file__)"`
   Expected: a path under `Megatron-lines\src`.
@@ -3001,15 +3417,21 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ## After the build (controller, owner-gated)
 
 This section is not an implementer task. It runs only after the final review passes, the branch is clean, and the
-owner says go. It is the one real experiment run, and it must follow spec §7–§8 exactly: the manifest is frozen and
-committed **before any model is fitted**, all fits read only the frozen frame, and nothing is shortened to finish.
-The two-working-day cap (§10) includes this.
+owner says go. It is the one real experiment run, and it must follow spec §7–§8 exactly:
+- the manifest is frozen and committed **before any of the registered run's models is fitted**;
+- all fits read only the frozen frame;
+- nothing is shortened to finish.
+
+One fit did precede the manifest: the single timing-only fit disclosed under "Verified when this plan was written". It
+is not covered by the manifest, and nothing from it enters the run. The two-working-day cap (§10) includes this
+section.
 
 From the worktree root, in Git Bash:
 
 ```bash
 export PYTHONPATH=C:/Users/reisu/projects/Megatron-lines/src
 PY=C:/Users/reisu/projects/Megatron/.venv/Scripts/python.exe
+M=models/diagnostics/lines_screen_manifest.json
 
 # 0. Preconditions: on feat/lines-screen, final review passed, no tracked changes.
 git status --porcelain --untracked-files=no        # must print nothing
@@ -3020,36 +3442,78 @@ $PY -m ffmodel.eval.lines_screen snapshot
 
 # 2. Freeze: validate lines, build features from the frozen local caches, join,
 #    write data/lines/model_frame_2012_2025.parquet and the manifest. No fitting.
+#    Refuses (before reading anything) if the manifest, artifact or frame path exists.
 FFMODEL_CACHE_FROZEN=1 $PY -m ffmodel.eval.lines_screen freeze \
     --data-dir C:/Users/reisu/projects/Megatron/data/raw
 ```
 
-Check the printed line and `models/diagnostics/lines_screen_manifest.json`:
-- **Exit code.** Exit `0` means frozen. Exit `2` means a fatal data error: the `invalid` artifact is already written to
-  `models/diagnostics/lines_screen.json`. In that case commit that artifact, write the methodology note below, and stop.
-- **Recorded fields to read:**
-  - `rows.test_rows` should match 5,893 / 5,920 / 6,095. A mismatch is recorded and reported, not fixed.
-  - `lines_validation.coverage_matches_claim`.
-  - `tracked_changes_uncommitted` must be `false`.
-  - `implementation_commit` must be the reviewed branch head.
-  - `spec.git_blob` must equal `fd3217b66351c257716a8f0ca97c86dd213a5fea` (the spec astra reviewed). If either
-    differs, stop and report.
+Check the exit code first. Not every freeze failure returns exit 2 with an artifact.
+- **Exit `0`: frozen.** The frame and `$M` are written. Continue below.
+- **Exit `2`: fatal data error at freeze.** This covers an identity, join or frame-population error. The `invalid`
+  artifact is written to `models/diagnostics/lines_screen.json`; no manifest or frame is written. Commit that
+  artifact, write the methodology note below, and stop. Do not run `abandon` over it.
+- **Any other non-zero exit (a traceback or an exit message): a pre-manifest failure.** Nothing was recorded: no
+  manifest and no artifact. The accepted ruling 5 makes a schedule-snapshot hash mismatch (`LinesDataError` from
+  `read_snapshot`) end this way on purpose. So does a missing local cache, an existing destination
+  (`FileExistsError`), or a failed `snapshot` in step 1. Stop: do not retry, edit or work around it. Record the reason
+  through the no-manifest abandonment path below, quoting the exception.
+
+After exit `0`, read `$M`:
+- `rows.test_rows` should match 5,893 / 5,920 / 6,095. A mismatch is recorded and reported, not fixed.
+- `lines_validation.coverage_matches_claim`.
+- `tracked_changes_uncommitted` must be `false`.
+- `implementation_commit` must be the reviewed branch head.
+- `spec.git_blob` must equal `fd3217b66351c257716a8f0ca97c86dd213a5fea` (the spec astra reviewed).
+
+If `tracked_changes_uncommitted`, `implementation_commit` or `spec.git_blob` is wrong, stop and report. Record that
+through abandonment with `--manifest` (below).
 
 ```bash
 # 3. Commit the manifest BEFORE fitting (the pre-registration record).
-git add models/diagnostics/lines_screen_manifest.json
+#    A successful commit is a prerequisite of step 4, not just the previous
+#    command: if it fails, stop. Step 4's checks verify it independently.
+git add "$M"
 git commit -m "lines screen: freeze run manifest before fitting
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
-# 4. Run: 2 arms x 3 seeds x 3 folds from the frozen frame (~6 min on CPU),
-#    10,000 accepted bootstrap replicates; writes data/lines/paired_rows.parquet
+# 4. Pre-run checks, then run. `run` executes only if every check passes:
+#    (a) no tracked changes;
+#    (b) the manifest file equals its committed blob (git hash-object applies the
+#        same clean filters git add used, so line-ending conversion cannot mask or
+#        fake a difference; a missing HEAD:$M blob also fails);
+#    (c) the commit(s) between implementation_commit and HEAD change ONLY the
+#        manifest. HEAD is expected to differ from implementation_commit (the
+#        manifest commit sits on top) -- never test them for equality.
+#    The run fits 2 arms x 3 seeds x 3 folds from the frozen frame (~6 min on CPU),
+#    draws 10,000 accepted bootstrap replicates, and writes data/lines/paired_rows.parquet
 #    (gitignored, sha256 in the artifact) and models/diagnostics/lines_screen.json.
-$PY -m ffmodel.eval.lines_screen run
+#    The artifact's run block records run_commit (HEAD) and tracked_changes_uncommitted.
+IMPL=$($PY -c "import json, sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['implementation_commit'])" "$M")
+[ -z "$(git status --porcelain --untracked-files=no)" ] \
+  && [ "$(git hash-object "$M")" = "$(git rev-parse --verify --quiet "HEAD:$M")" ] \
+  && [ "$(git diff --name-only "$IMPL"..HEAD)" = "$M" ] \
+  && echo "pre-run checks OK" \
+  && $PY -m ffmodel.eval.lines_screen run
 ```
 
-If the effort cap is reached at any point before a valid artifact exists, record it instead of extending:
-`$PY -m ffmodel.eval.lines_screen abandon --reason "effort cap reached (spec §10)" --manifest models/diagnostics/lines_screen_manifest.json`.
+If step 4 prints neither `pre-run checks OK` nor a disposition, a check failed and nothing was fitted. Stop and report
+which check failed. Do not amend, re-commit or rerun to make the checks pass.
+
+**Effort cap or a stop before a valid artifact (§10).** Record the stop instead of extending. Which form to use depends
+on what already exists:
+- **An artifact already exists** at `models/diagnostics/lines_screen.json`. This is an `invalid` result from `freeze`
+  (exit 2) or from `run`. Do not abandon over it; `abandon` refuses anyway. Preserve it, commit it and report it as
+  the outcome.
+- **No manifest exists yet.** This is the case before or during `snapshot`/`freeze`, and after a pre-manifest freeze
+  failure. Omit `--manifest`:
+  `$PY -m ffmodel.eval.lines_screen abandon --reason "effort cap reached (spec §10)"`, or
+  `--reason "freeze failed before a manifest existed: <exception>"`.
+- **After a successful freeze** (`$M` exists). Include it:
+  `$PY -m ffmodel.eval.lines_screen abandon --reason "effort cap reached (spec §10)" --manifest "$M"`.
+
+`abandon` exits `2` after writing the `invalid` artifact. If it is given a `--manifest` path that does not exist, it
+writes nothing and says to omit the flag.
 
 5. **Report the outcome either way.** Commit `models/diagnostics/lines_screen.json` with a short `docs/methodology.md`
    paragraph, staged by explicit path. The paragraph always quotes the artifact's `timing_label`, and its wording
@@ -3067,8 +3531,15 @@ If the effort cap is reached at any point before a valid artifact exists, record
    - **Every disposition:** state the ranking status. `ranking_veto` and `ranking_not_evaluable` both forbid
      recommending lines for any ranking product.
    - **Any disposition other than `pass`:** model work returns to maintenance (§1, §10).
-6. **Defects.** A defect found after the run is named, fixed, and the run repeated under new artifact and paired paths
-   (both CLI paths are flags), keeping both manifests and results (§7).
+   - **The methodology note also states the timing-fit disclosure** (one timing-only arm-B fit before the manifest,
+     nothing inspected).
+6. **Defects.** A defect found at freeze or after the run is named and fixed. The screen is then repeated under new
+   manifest, frame, result and paired-row paths, every one a CLI flag:
+   - `freeze --manifest <new> --frame <new> --artifact <new>`;
+   - `run --manifest <new> --artifact <new> --paired <new>`, with the step-4 checks run against the new manifest.
+
+   Every earlier manifest and result is kept, including an earlier `invalid` one (§7). `freeze`, `run`, `abandon` and
+   `write_json` all refuse to replace an existing evidence file.
 
 ## Spec ambiguities resolved in this plan (fixed before any result)
 
@@ -3088,24 +3559,116 @@ exists.
      `test_repeated_game_id_that_is_not_an_exact_duplicate_is_fatal[override4]`.
 3. **"Negative implied total" (§2.1).**
    - Ruling: either side's implied total is `< 0`, which means `|m| > T`. An implied total of exactly 0 is valid.
-     Precedence is non-finite, then `T ≤ 0`, then negative implied.
-   - Pinned by: Task 2 `test_unusable_quote_gives_nan_for_both_sides`.
+     Precedence is non-finite, then `T ≤ 0`, then negative implied. Arithmetic runs on finite (status) or valid
+     (features) rows only, so a jointly infinite quote is a warning-free `missing_quote` (rev 1).
+   - Pinned by: Task 2 `test_unusable_quote_gives_nan_for_both_sides`, including its two joint-non-finite cases.
 4. **Ranking diagnostics around a constant-prediction cell (§5.4).**
    - Ruling: pooled `R` is null and the status is `ranking_not_evaluable`. That season's `R_by_season` is null, and
      that position's diagnostic is null with a reason. Other positions are still reported. Ranking is computed, and
      reported, even when the point side ends `invalid` for a non-prediction reason.
    - Pinned by: Task 3 `test_finite_constant_prediction_is_not_evaluable_and_point_gate_unchanged` and
-     `test_empty_relevant_season_is_invalid_before_any_bootstrap`.
+     `test_empty_relevant_season_is_invalid_before_any_bootstrap`. Since rev 1 the first test uses a WR + RB frame
+     with one constant WR cell in 2023. It asserts that `R_by_season[2023]` and the WR diagnostic are null with the
+     stated reason. It also asserts that `R_by_season` for 2024 and 2025 and the RB diagnostic stay finite and
+     non-null, and that all 24 cells stay eligible.
 5. **Integrity failures at run time.**
    - Ruling: a frozen-frame hash, schema or feature-list mismatch at `run` is treated as a §7 fatal data error. It
      writes an `invalid` artifact without fitting. A schedule-snapshot hash mismatch at `freeze` raises before
-     anything is written (nothing was fitted or recorded).
-   - Pinned by: Task 4 `test_run_on_tampered_frame_is_invalid_without_fitting`.
+     anything is written (nothing was fitted or recorded). That is a pre-manifest failure, so the controller stops and
+     records it through the no-manifest `abandon` form ("After the build").
+   - Pinned by: Task 4 `test_run_integrity_mismatch_is_invalid_without_fitting`, with four cases (rev 1): frame
+     bytes changed (`sha256`), a manifest schema mismatch, and a B and an A feature-list mismatch. Each case asserts
+     an `invalid` artifact, no paired rows, and that the predictor factory was never called. Task 2
+     `test_read_snapshot_rejects_changed_bytes` pins the snapshot raise.
 6. **Relevant-cohort reporting (§5.3).**
    - Ruling: the gate uses the pooled `G_rel` interval from the shared accepted replicates. Per-season `G_rel` values
-     are reported as point estimates only. The spec requires no per-season cohort interval, so none is added.
+     are reported as point estimates only. The spec requires no per-season cohort interval, so none is added. (The
+     separately required primary `G_S_interval` and `G_seed_interval` families are validated before the gate: see
+     revision R2 below.)
    - Pinned by: Task 3 `test_evaluate_end_to_end_on_a_clear_gain`.
 7. **Where the bootstrap protocol lives.**
    - Ruling: `run` reads `n_accept`, `max_attempts`, the RNG seed, the seeds and the test seasons from the committed
-     manifest, not from code defaults. Overrides exist for tests only and are recorded in the artifact.
-   - Pinned by: Task 4 `test_run_takes_the_bootstrap_protocol_from_the_manifest`.
+     manifest, not from code defaults. Overrides exist for tests only and are recorded in the artifact. PCG64, the
+     draw algorithm, the percentile method, the estimator and scoring settings, and the thresholds come from the
+     reviewed implementation code. The manifest records them but does not execute them, so the binding also requires
+     that implementation to stay fixed (checked before `run` by the "After the build" step-4 checks). The production
+     manifest keeps 10,000 / 100,000 and the registered seeds and seasons.
+   - Pinned by: Task 4 `test_run_takes_seeds_seasons_and_bootstrap_protocol_from_the_manifest` (rev 1). The test
+     edits the manifest to seeds `[0, 2]`, test seasons `[2024, 2025]`, RNG seed 7, and 120 / 4,000. It asserts the
+     exact fits made (2 arms × seeds {0, 2} × 2 folds), the paired seasons and columns, and the `G_S` / `G_seed`
+     keys. It asserts the accepted count and attempt limit. It asserts that `G_interval` equals the RNG-seed-7
+     interval and differs from the code-default seed's interval.
+
+## Plan-review revisions (astra, rev 1, 2026-10-12)
+
+astra reviewed this plan at `bfc2e58` (`.review/astra-lines-plan-response.md` in the main checkout) and returned
+REVISE. All seven rulings above were accepted. Revision 1 resolves each finding below. It does not change the
+registered analysis: estimand, thresholds, population, seeds, seasons, the bootstrap protocol (`PCG64(20261007)`,
+10,000 accepted / 100,000 attempts), the ranking consequences and the six pass conditions are all unchanged.
+
+1. **R1 — `freeze` could overwrite a prior manifest or result (Task 4).**
+   - Fix: `refuse_existing(manifest_path, artifact_path, frame_path)` runs first in `freeze_screen`, before any
+     validation or write. The `freeze` CLI also runs it before it reads the snapshot or caches.
+   - `write_json` opens with exclusive create (`"x"`). Every JSON it writes is evidence, so there is no separate
+     overwriting writer.
+   - The `snapshot` sidecar is also exclusive-create, and `snapshot` refuses an existing sidecar.
+   - Rerun guidance: a defect rerun uses new manifest, frame, result and paired-row paths.
+   - Pinned by (Task 4):
+     - `test_freeze_never_replaces_an_existing_manifest_or_result`, which covers a pre-existing manifest or result ×
+       a freeze that would succeed or would write `invalid`;
+     - `test_freeze_refuses_before_any_validation`;
+     - `test_second_failing_freeze_preserves_the_first_invalid_result`, where the replacement would also be
+       `invalid`;
+     - `test_second_freeze_with_a_new_frame_path_cannot_replace_the_manifest`;
+     - `test_write_json_refuses_replacement_and_leaves_no_partial_file`.
+   - Also pinned by Task 2 `test_snapshot_refuses_an_existing_sidecar_and_keeps_its_bytes`.
+2. **R2 — interval validity was incomplete (Task 3).**
+   - Fix: `validity_reasons` / `decide` require the complete registered families. That means `G_S` and both
+     endpoints of `G_S_interval` for every test season, and `G_seed` and both endpoints of `G_seed_interval` for
+     every seed. This is on top of `G`, `G_interval`, `G_rel` and `G_rel_interval`. Each offending metric is named.
+   - `evaluate` passes its `season_order` and `seeds` as the expected families.
+   - Fixtures now carry the full families.
+   - Pinned by:
+     - `test_undefined_season_or_seed_interval_is_invalid_and_named`: 14 cases of null, NaN, ±inf, null-entry and
+       missing-entry, across both interval families and both point families, including astra's
+       `G_S_interval[2023] = [NaN, 0.2]` reproduction;
+     - `test_absent_interval_family_names_every_registered_entry`;
+     - `test_registered_families_come_from_the_caller`;
+     - `test_complete_families_are_required_by_the_passing_fixture`.
+3. **R3 — cap handling assumed a manifest (After the build).**
+   - The abandonment procedure omits `--manifest` until a freeze succeeds and includes it afterwards.
+   - An existing `invalid` artifact is preserved and reported, never abandoned over.
+   - A snapshot-hash exception or another pre-manifest failure stops the run and is recorded through the
+     no-manifest form.
+   - The exit-code guidance no longer implies that every freeze failure returns exit 2 with an artifact.
+   - `abandon` now checks the artifact first. Given a `--manifest` path that does not exist, it writes nothing and
+     says to omit the flag.
+   - Pinned by `test_abandon_with_a_manifest_that_does_not_exist_writes_nothing`,
+     `test_abandon_never_replaces_an_existing_artifact` and
+     `test_abandon_after_a_successful_freeze_carries_the_manifest` (Task 4).
+4. **Joint non-finite quote warning (Task 2).**
+   - Fix: arithmetic runs on finite or valid rows only, masked first.
+   - Pinned by two new cases of `test_unusable_quote_gives_nan_for_both_sides`: total and spread both `inf`, and
+     total `inf` with spread `-inf`. Each case runs under `warnings.simplefilter("error")`.
+5. **Pre-run controller checks (After the build, step 4).** `run` executes only after all three checks pass, chained
+   with `&&`:
+   - the tracked files are clean;
+   - `git hash-object $M` equals `git rev-parse HEAD:$M`;
+   - `git diff --name-only <implementation_commit>..HEAD` is exactly the manifest path. HEAD is never compared for
+     equality with `implementation_commit`.
+
+   The chain was exercised in a throwaway `core.autocrlf=true` repository. It stopped on an uncommitted manifest, a
+   dirty tracked file and an extra code commit, and passed on a committed CRLF manifest. `run` now records
+   `tracked_changes_uncommitted` beside `run_commit`. Pinned by `test_run_records_head_and_dirty_status`, and by the
+   `run`-block assertion in `test_run_integrity_mismatch_is_invalid_without_fitting`.
+6. **Timing-fit disclosure.** The "Timing" bullet now records the single 2026-10-11 timing-only fit as a disclosure:
+   - arm B, seed 0, the baseline config;
+   - trained on the dry-run frame's 2012–2024 rows, predicting 2025;
+   - only the wall time was printed, and nothing was scored or inspected.
+
+   The "After the build" wording now says the manifest precedes the registered run's fits, not every fit.
+7. **Pinning tests strengthened, as astra noted:**
+   - the constant-cell test now covers the unaffected seasons and position (ruling 4);
+   - the run-integrity test now covers schema and both feature-list mismatches, with no factory call (ruling 5);
+   - the manifest-parameters test now varies the seeds, the test seasons and the RNG seed, not only `n_accept`
+     (ruling 7).
