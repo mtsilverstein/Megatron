@@ -173,9 +173,25 @@ def test_workflow_structure():
     (priv,) = [s for s in steps if s.get("with", {}).get("repository") == "mtsilverstein/megatron-private-data"]
     assert priv["with"]["path"] == "private-data"
     assert "secrets.PRIVATE_DATA_TOKEN" in priv["with"]["token"]
-    pushers = [s for s in steps if "git push" in s.get("run", "")]
+    pushers = [s for s in steps if "gitp push" in s.get("run", "")]
     assert len(pushers) == 1 and pushers[0]["working-directory"] == "private-data"
     assert "workflow_run.conclusion == 'success'" in wf["jobs"]["snapshot"]["if"]
+
+
+def test_workflow_token_hardening():
+    """Same credential hardening as the comparator job: the token is never job-level env, no checkout persists a
+    credential, the private checkout follows the install, and only the push step's own env carries the token."""
+    wf = _wf("market-snapshots.yml")
+    job = wf["jobs"]["snapshot"]
+    assert "PRIVATE_DATA_TOKEN" not in job.get("env", {})
+    steps = job["steps"]
+    checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout")]
+    assert checkouts and all(s["with"]["persist-credentials"] is False for s in checkouts)
+    install = next(i for i, s in enumerate(steps) if "pip install" in s.get("run", ""))
+    private = next(i for i, s in enumerate(steps) if s.get("with", {}).get("repository"))
+    assert install < private
+    with_token = [s for s in steps if "PRIVATE_DATA_TOKEN" in s.get("env", {})]
+    assert len(with_token) == 1 and "gitp push" in with_token[0]["run"]
 
 
 # 6. the listened-to workflow exists
