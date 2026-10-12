@@ -662,8 +662,8 @@ all continue unchanged. This section alone adds a prospective consequence.
 
 - **Who and when.** The controller (Claude, acting for the owner) wrote this record at 2026-10-12T22:20:48Z. That is
   before the first scheduled comparator run of the series, on 2026-10-13. The owner chose the consequence ("private
-  tools only") in conversation the same day. The owner's approval of this section's commit confirms the attestation
-  for them.
+  tools only") in conversation the same day. The owner confirmed the "what had been seen" statement below for
+  themselves in conversation on 2026-10-12, after astra accepted rev 2.
 - **What existed.**
   - Private-repo commit `e08bb36a296b5078fd53cf52dd8fc0d251e1ebe9` (2026-10-12T13:24:14Z) last touched `reports/`. It
     holds `reports/sleeper_2026.json` (sha256 `7613fc25501b677dae88a1a993c2e78c2d3282fa170c9eedb525cfc80539dd82`), which
