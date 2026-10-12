@@ -336,6 +336,10 @@ def freeze_screen(raw_schedules: pd.DataFrame, features: pd.DataFrame, *,
         write_json(artifact, artifact_path)
         return artifact
     frozen = write_frozen_frame(frame, frame_path)
+    try:    # the run reads the frame back from parquet: prove that round trip BEFORE the manifest
+        read_frozen_frame(frozen["path"], frozen["sha256"], frozen["schema"])
+    except ScreenInvalid as exc:
+        raise RuntimeError(f"frozen frame parquet round trip failed; no manifest written: {exc}") from exc
     first = int(frame["season"].min())
     manifest = {
         "screen": "lines_feature_screen",

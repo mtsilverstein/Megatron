@@ -219,6 +219,24 @@ def test_freeze_on_unmatched_join_writes_invalid_and_no_frame(tmp_path):
     assert not p["frame_path"].exists() and not p["manifest_path"].exists()
 
 
+def test_freeze_fails_before_the_manifest_when_the_parquet_round_trip_changes_the_schema(
+        tmp_path, monkeypatch):
+    real_write = lines_screen.write_frozen_frame
+
+    def altered(frame, path):
+        out = real_write(frame, path)
+        out["schema"] = [dict(c) for c in out["schema"]]
+        out["schema"][0]["dtype"] = "round_trip_mismatch"
+        return out
+
+    monkeypatch.setattr(lines_screen, "write_frozen_frame", altered)
+    features, raw = world_features()
+    p = paths(tmp_path)
+    with pytest.raises(Exception, match="round trip"):
+        freeze_screen(raw, features, provenance=PROVENANCE, **p)
+    assert not p["manifest_path"].exists() and not p["artifact_path"].exists()
+
+
 # --- evidence files are written once (R1) ------------------------------------------------
 
 ORIGINAL = {"manifest_path": b'{"original": "manifest"}\n',
