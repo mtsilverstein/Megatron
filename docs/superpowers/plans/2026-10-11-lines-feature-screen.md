@@ -3452,11 +3452,13 @@ Check the exit code first. Not every freeze failure returns exit 2 with an artif
 - **Exit `2`: fatal data error at freeze.** This covers an identity, join or frame-population error. The `invalid`
   artifact is written to `models/diagnostics/lines_screen.json`; no manifest or frame is written. Commit that
   artifact, write the methodology note below, and stop. Do not run `abandon` over it.
-- **Any other non-zero exit (a traceback or an exit message): a pre-manifest failure.** Nothing was recorded: no
-  manifest and no artifact. The accepted ruling 5 makes a schedule-snapshot hash mismatch (`LinesDataError` from
-  `read_snapshot`) end this way on purpose. So does a missing local cache, an existing destination
-  (`FileExistsError`), or a failed `snapshot` in step 1. Stop: do not retry, edit or work around it. Record the reason
-  through the no-manifest abandonment path below, quoting the exception.
+- **Any other non-zero exit (a traceback or an exit message): a pre-manifest failure.** This run recorded nothing
+  new, but do not infer from the exit code that no evidence exists. An existing-destination refusal
+  (`FileExistsError`) means an earlier manifest or result is already there, and an I/O exception can leave a partial
+  file. Inspect the destination paths and preserve whatever is there. The accepted ruling 5 makes a schedule-snapshot
+  hash mismatch (`LinesDataError` from `read_snapshot`) end this way on purpose. So does a missing local cache or a
+  failed `snapshot` in step 1. Stop: do not retry, edit or work around it. Then choose the abandonment form from the
+  existing state, using the procedure below, and quote the exception.
 
 After exit `0`, read `$M`:
 - `rows.test_rows` should match 5,893 / 5,920 / 6,095. A mismatch is recorded and reported, not fixed.
