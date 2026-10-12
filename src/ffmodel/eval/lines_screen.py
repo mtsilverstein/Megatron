@@ -397,6 +397,11 @@ def run_screen(manifest_path: Path | str, artifact_path: Path | str, paired_path
                 "tracked_changes_uncommitted": prov["tracked_changes_uncommitted"],
                 "software": software_versions()}
     try:
+        seasons, seeds = list(manifest["test_seasons"]), list(manifest["seeds"])
+        if any(b <= a for a, b in zip(seasons, seasons[1:])):
+            raise ScreenInvalid("manifest test_seasons is not strictly ascending")
+        if len(set(seeds)) != len(seeds):
+            raise ScreenInvalid("manifest seeds contain duplicate seeds")
         mf = manifest["model_frame"]
         frame = read_frozen_frame(mf["path"], mf["sha256"], mf["schema"])
         a_cols, b_cols = arm_feature_lists(frame)

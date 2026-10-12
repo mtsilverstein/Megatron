@@ -93,6 +93,22 @@ def test_arms_paired_on_the_frozen_frame(frame):
     assert_arms_paired(frame)       # does not raise
 
 
+def test_arms_paired_rejects_a_non_line_difference_between_arms(frame, monkeypatch):
+    original = XGBBaseline._matrix
+    a_cols, _ = arm_feature_lists(frame)
+
+    def perturbed(self, df):
+        out = original(self, df)
+        if LINE_FEATURE_COLUMNS[0] in out.columns:       # arm B only
+            out = out.copy()
+            out[a_cols[0]] = out[a_cols[0]] + 1.0
+        return out
+
+    monkeypatch.setattr(XGBBaseline, "_matrix", perturbed)
+    with pytest.raises(ScreenInvalid, match="non-line values"):
+        assert_arms_paired(frame)
+
+
 def test_frozen_frame_hash_schema_and_no_overwrite(frame, tmp_path):
     info = write_frozen_frame(frame, tmp_path / "frame.parquet")
     assert info["sha256"] == file_sha256(tmp_path / "frame.parquet")
@@ -360,12 +376,22 @@ def _drop_a_column(m) -> None:
     m["feature_lists"]["A"] = m["feature_lists"]["A"][:-1]
 
 
+def _set_key(key, value):
+    def edit(m) -> None:
+        m[key] = value
+    return edit
+
+
 @pytest.mark.parametrize("tamper,match", [
     (_tamper_frame, "sha256"),                                    # frame bytes changed
     (_tamper_manifest(_set_dtype), "schema differs"),             # schema mismatch
     (_tamper_manifest(_swap_b_line_columns), "feature lists differ"),   # B list mismatch
     (_tamper_manifest(_drop_a_column), "feature lists differ"),         # A list mismatch
-], ids=["hash", "schema", "feature_list_B", "feature_list_A"])
+    (_tamper_manifest(_set_key("test_seasons", [2025, 2023, 2024])), "strictly ascending"),
+    (_tamper_manifest(_set_key("test_seasons", [2023, 2023, 2024])), "strictly ascending"),
+    (_tamper_manifest(_set_key("seeds", [0, 0, 1])), "duplicate seeds"),
+], ids=["hash", "schema", "feature_list_B", "feature_list_A",
+        "seasons_not_ascending", "seasons_duplicate", "seeds_duplicate"])
 def test_run_integrity_mismatch_is_invalid_without_fitting(tmp_path, tamper, match):
     _, p = frozen(tmp_path)
     tamper(p)

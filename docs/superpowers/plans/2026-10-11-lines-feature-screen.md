@@ -3457,7 +3457,10 @@ Check the exit code first. Not every freeze failure returns exit 2 with an artif
   (`FileExistsError`) means an earlier manifest or result is already there, and an I/O exception can leave a partial
   file. Inspect the destination paths and preserve whatever is there. The accepted ruling 5 makes a schedule-snapshot
   hash mismatch (`LinesDataError` from `read_snapshot`) end this way on purpose. So does a missing local cache or a
-  failed `snapshot` in step 1. Stop: do not retry, edit or work around it. Then choose the abandonment form from the
+  failed `snapshot` in step 1. A frozen-frame round-trip `RuntimeError` ("frozen frame parquet round trip failed; no
+  manifest written") leaves the complete frozen frame on disk with no manifest: preserve it, and the owner chooses
+  between the item-6 defect rerun under new `--frame`, `--manifest` and `--artifact` paths and the no-manifest
+  `abandon`. Stop: do not retry, edit or work around it. Then choose the abandonment form from the
   existing state, using the procedure below, and quote the exception.
 
 After exit `0`, read `$M`:
