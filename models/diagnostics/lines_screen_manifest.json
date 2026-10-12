@@ -1,0 +1,709 @@
+{
+  "screen": "lines_feature_screen",
+  "frozen_at": "2026-10-12T19:06:11+00:00",
+  "spec": {
+    "path": "docs/superpowers/specs/2026-10-11-lines-feature-screen-design.md",
+    "git_blob": "fd3217b66351c257716a8f0ca97c86dd213a5fea"
+  },
+  "implementation_commit": "39e5d51a11ec357380bd1b672062cd4371bf9bf4",
+  "tracked_changes_uncommitted": false,
+  "schedule_snapshot": {
+    "path": "data/lines/schedules_raw_2012_2025.parquet",
+    "seasons": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "rows": 3829,
+    "retrieved_at": "2026-10-12T19:05:54+00:00",
+    "nflreadpy_version": "0.1.5",
+    "sha256": "0b8afa073b4e21295532e83eedabd6c29414a7e6a3e3a012cb2ac24710afbea5"
+  },
+  "source_data_vintage": {
+    "feature_rows": 80090,
+    "sources": [
+      {
+        "file": "weekly_v2_2012_2025.parquet",
+        "bytes": 812687,
+        "sha256": "11e485e1c9eba55c4fc2a9e6072753ebd8116c09d1a64529e64b2d3837e8c296"
+      },
+      {
+        "file": "snaps_2012_2025.parquet",
+        "bytes": 2444447,
+        "sha256": "651295768799b47ccfc17dcf6bb5bccca8a31ce6356caeeabbd2297f48ddc42a"
+      },
+      {
+        "file": "players.parquet",
+        "bytes": 3397226,
+        "sha256": "57c50e250a8051dfba52844f198d18d8f59fc9bf36b6d09a8d82a9d12b82b97d"
+      },
+      {
+        "file": "schedules_v3_2012_2025.parquet",
+        "bytes": 24439,
+        "sha256": "882e58be1e0bd255c30ac1eecb5ca6fb1e20983aea6602ede34da1b1a2b0623a"
+      }
+    ]
+  },
+  "lines_validation": {
+    "payload_records": 3829,
+    "exact_duplicates_collapsed": 0,
+    "reg_games": 3663,
+    "reg_games_by_season": {
+      "2012": 256,
+      "2013": 256,
+      "2014": 256,
+      "2015": 256,
+      "2016": 256,
+      "2017": 256,
+      "2018": 256,
+      "2019": 256,
+      "2020": 256,
+      "2021": 272,
+      "2022": 271,
+      "2023": 272,
+      "2024": 272,
+      "2025": 272
+    },
+    "quote_status_counts": {
+      "valid": 3663,
+      "missing_quote": 0,
+      "nonpositive_total": 0,
+      "negative_implied_total": 0
+    },
+    "expected_reg_games": 3663,
+    "coverage_matches_claim": true
+  },
+  "line_join_by_season": {
+    "2012": {
+      "rows": 5620,
+      "matched_valid_quote": 5620,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2013": {
+      "rows": 5516,
+      "matched_valid_quote": 5516,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2014": {
+      "rows": 5599,
+      "matched_valid_quote": 5599,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2015": {
+      "rows": 5618,
+      "matched_valid_quote": 5618,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2016": {
+      "rows": 5563,
+      "matched_valid_quote": 5563,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2017": {
+      "rows": 5641,
+      "matched_valid_quote": 5641,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2018": {
+      "rows": 5520,
+      "matched_valid_quote": 5520,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2019": {
+      "rows": 5530,
+      "matched_valid_quote": 5530,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2020": {
+      "rows": 5670,
+      "matched_valid_quote": 5670,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2021": {
+      "rows": 5987,
+      "matched_valid_quote": 5987,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2022": {
+      "rows": 5918,
+      "matched_valid_quote": 5918,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2023": {
+      "rows": 5893,
+      "matched_valid_quote": 5893,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2024": {
+      "rows": 5920,
+      "matched_valid_quote": 5920,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    },
+    "2025": {
+      "rows": 6095,
+      "matched_valid_quote": 6095,
+      "missing_quote_by_reason": {
+        "missing_quote": 0,
+        "nonpositive_total": 0,
+        "negative_implied_total": 0
+      }
+    }
+  },
+  "model_frame": {
+    "path": "data/lines/model_frame_2012_2025.parquet",
+    "sha256": "3efb90e5c52ab88263ef3a872ca09a475730398f22c51db507ab8d53c944672b",
+    "rows": 80090,
+    "schema": [
+      {
+        "name": "player_id",
+        "dtype": "str"
+      },
+      {
+        "name": "season",
+        "dtype": "int32"
+      },
+      {
+        "name": "week",
+        "dtype": "int32"
+      },
+      {
+        "name": "position",
+        "dtype": "str"
+      },
+      {
+        "name": "team",
+        "dtype": "str"
+      },
+      {
+        "name": "lag4_passing_yards",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_passing_yards",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_passing_tds",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_passing_tds",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_passing_interceptions",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_passing_interceptions",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_carries",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_carries",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_rushing_yards",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_rushing_yards",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_rushing_tds",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_rushing_tds",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_targets",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_targets",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_receptions",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_receptions",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_receiving_yards",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_receiving_yards",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_receiving_tds",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_receiving_tds",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_fumbles_lost",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_fumbles_lost",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_target_share",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_target_share",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_carry_share",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_carry_share",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_ppr_points",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_ppr_points",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag4_snap_pct",
+        "dtype": "float64"
+      },
+      {
+        "name": "lag8_snap_pct",
+        "dtype": "float64"
+      },
+      {
+        "name": "games_prior",
+        "dtype": "int64"
+      },
+      {
+        "name": "is_home",
+        "dtype": "int64"
+      },
+      {
+        "name": "rest_days",
+        "dtype": "int64"
+      },
+      {
+        "name": "opp_allowed_last4",
+        "dtype": "float64"
+      },
+      {
+        "name": "opp_allowed_season",
+        "dtype": "float64"
+      },
+      {
+        "name": "pos_QB",
+        "dtype": "int64"
+      },
+      {
+        "name": "pos_RB",
+        "dtype": "int64"
+      },
+      {
+        "name": "pos_WR",
+        "dtype": "int64"
+      },
+      {
+        "name": "pos_TE",
+        "dtype": "int64"
+      },
+      {
+        "name": "team_implied_total",
+        "dtype": "float64"
+      },
+      {
+        "name": "team_expected_margin",
+        "dtype": "float64"
+      },
+      {
+        "name": "passing_yards",
+        "dtype": "int32"
+      },
+      {
+        "name": "passing_tds",
+        "dtype": "int32"
+      },
+      {
+        "name": "passing_interceptions",
+        "dtype": "int32"
+      },
+      {
+        "name": "carries",
+        "dtype": "int32"
+      },
+      {
+        "name": "rushing_yards",
+        "dtype": "int32"
+      },
+      {
+        "name": "rushing_tds",
+        "dtype": "int32"
+      },
+      {
+        "name": "targets",
+        "dtype": "int32"
+      },
+      {
+        "name": "receptions",
+        "dtype": "int32"
+      },
+      {
+        "name": "receiving_yards",
+        "dtype": "int32"
+      },
+      {
+        "name": "receiving_tds",
+        "dtype": "int32"
+      },
+      {
+        "name": "fumbles_lost",
+        "dtype": "int32"
+      }
+    ]
+  },
+  "feature_lists": {
+    "A": [
+      "lag4_passing_yards",
+      "lag8_passing_yards",
+      "lag4_passing_tds",
+      "lag8_passing_tds",
+      "lag4_passing_interceptions",
+      "lag8_passing_interceptions",
+      "lag4_carries",
+      "lag8_carries",
+      "lag4_rushing_yards",
+      "lag8_rushing_yards",
+      "lag4_rushing_tds",
+      "lag8_rushing_tds",
+      "lag4_targets",
+      "lag8_targets",
+      "lag4_receptions",
+      "lag8_receptions",
+      "lag4_receiving_yards",
+      "lag8_receiving_yards",
+      "lag4_receiving_tds",
+      "lag8_receiving_tds",
+      "lag4_fumbles_lost",
+      "lag8_fumbles_lost",
+      "lag4_target_share",
+      "lag8_target_share",
+      "lag4_carry_share",
+      "lag8_carry_share",
+      "lag4_ppr_points",
+      "lag8_ppr_points",
+      "lag4_snap_pct",
+      "lag8_snap_pct",
+      "games_prior",
+      "is_home",
+      "rest_days",
+      "week",
+      "opp_allowed_last4",
+      "opp_allowed_season",
+      "pos_QB",
+      "pos_RB",
+      "pos_WR",
+      "pos_TE"
+    ],
+    "B": [
+      "lag4_passing_yards",
+      "lag8_passing_yards",
+      "lag4_passing_tds",
+      "lag8_passing_tds",
+      "lag4_passing_interceptions",
+      "lag8_passing_interceptions",
+      "lag4_carries",
+      "lag8_carries",
+      "lag4_rushing_yards",
+      "lag8_rushing_yards",
+      "lag4_rushing_tds",
+      "lag8_rushing_tds",
+      "lag4_targets",
+      "lag8_targets",
+      "lag4_receptions",
+      "lag8_receptions",
+      "lag4_receiving_yards",
+      "lag8_receiving_yards",
+      "lag4_receiving_tds",
+      "lag8_receiving_tds",
+      "lag4_fumbles_lost",
+      "lag8_fumbles_lost",
+      "lag4_target_share",
+      "lag8_target_share",
+      "lag4_carry_share",
+      "lag8_carry_share",
+      "lag4_ppr_points",
+      "lag8_ppr_points",
+      "lag4_snap_pct",
+      "lag8_snap_pct",
+      "games_prior",
+      "is_home",
+      "rest_days",
+      "week",
+      "opp_allowed_last4",
+      "opp_allowed_season",
+      "pos_QB",
+      "pos_RB",
+      "pos_WR",
+      "pos_TE",
+      "team_implied_total",
+      "team_expected_margin"
+    ]
+  },
+  "arms": {
+    "A": {
+      "feature_set": "v1"
+    },
+    "B": {
+      "feature_set": "v1_lines"
+    }
+  },
+  "estimator": {
+    "config": {
+      "n_estimators": 300,
+      "max_depth": 5,
+      "learning_rate": 0.05,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "tree_method": "hist",
+      "n_jobs": -1
+    },
+    "resolved_params": {
+      "colsample_bytree": 0.8,
+      "enable_categorical": true,
+      "learning_rate": 0.05,
+      "max_depth": 5,
+      "missing": null,
+      "n_estimators": 300,
+      "n_jobs": -1,
+      "objective": "reg:squarederror",
+      "random_state": 0,
+      "subsample": 0.8,
+      "tree_method": "hist"
+    },
+    "per_component": [
+      "passing_yards",
+      "passing_tds",
+      "passing_interceptions",
+      "carries",
+      "rushing_yards",
+      "rushing_tds",
+      "targets",
+      "receptions",
+      "receiving_yards",
+      "receiving_tds",
+      "fumbles_lost"
+    ]
+  },
+  "scoring": {
+    "construction": "common-component PPR",
+    "actual": "fantasy_points(test[PREDICTED_STATS], PPR)",
+    "pred": "fantasy_points(pred_stats[PREDICTED_STATS], PPR)",
+    "components": [
+      "passing_yards",
+      "passing_tds",
+      "passing_interceptions",
+      "carries",
+      "rushing_yards",
+      "rushing_tds",
+      "targets",
+      "receptions",
+      "receiving_yards",
+      "receiving_tds",
+      "fumbles_lost"
+    ],
+    "pass_td": 4.0,
+    "reception": 1.0,
+    "excluded": [
+      "two_point_conversions",
+      "special_teams_tds",
+      "passing_pick_sixes"
+    ],
+    "predictions": "unclipped stat components; a non-finite component makes the run invalid"
+  },
+  "software": {
+    "python": "3.14.3",
+    "xgboost": "3.3.0",
+    "numpy": "2.5.1",
+    "pandas": "3.0.3",
+    "scipy": "1.18.0",
+    "pyarrow": "24.0.0",
+    "nflreadpy": "0.1.5"
+  },
+  "rows": {
+    "per_season": {
+      "2012": 5620,
+      "2013": 5516,
+      "2014": 5599,
+      "2015": 5618,
+      "2016": 5563,
+      "2017": 5641,
+      "2018": 5520,
+      "2019": 5530,
+      "2020": 5670,
+      "2021": 5987,
+      "2022": 5918,
+      "2023": 5893,
+      "2024": 5920,
+      "2025": 6095
+    },
+    "test_rows": {
+      "2023": {
+        "rows": 5893,
+        "expected": 5893
+      },
+      "2024": {
+        "rows": 5920,
+        "expected": 5920
+      },
+      "2025": {
+        "rows": 6095,
+        "expected": 6095
+      }
+    },
+    "test_rows_match_expected": true,
+    "per_arm_test_rows": {
+      "A": 17908,
+      "B": 17908
+    }
+  },
+  "train_test_ranges": {
+    "2023": {
+      "train": [
+        2012,
+        2022
+      ],
+      "test": 2023
+    },
+    "2024": {
+      "train": [
+        2012,
+        2023
+      ],
+      "test": 2024
+    },
+    "2025": {
+      "train": [
+        2012,
+        2024
+      ],
+      "test": 2025
+    }
+  },
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "test_seasons": [
+    2023,
+    2024,
+    2025
+  ],
+  "rng": {
+    "bit_generator": "numpy.random.PCG64",
+    "seed": 20261007,
+    "draws": "integers(0, P, size=P) for players, then integers(0, k_S, size=k_S) per season ascending",
+    "n_accept": 10000,
+    "max_attempts": 100000,
+    "percentiles": [
+      2.5,
+      97.5
+    ],
+    "percentile_method": "linear"
+  },
+  "thresholds": {
+    "materiality": 0.05,
+    "season_floor": -0.05,
+    "max_deterioration": 0.1,
+    "relevant_min_ppr": 8.0,
+    "ranking_veto_below": -0.005,
+    "min_cell_players": 5
+  },
+  "timing_label": "Optimistic historical information screen. These are historical schedule lines, treated as closing-time context based on nflfastR's documentation of the related fields; their book and quote time are not recorded in the feed and their availability at our mid-week deadline is unverified. The screen admits information later than our publication deadline (injuries, lineup decisions, weather and market moves up to the close). A pass shows the information is worth chasing, not that a mid-week deployment would gain the same; it is never deployable performance. 'Optimistic' is a description, not a mathematical bound."
+}
