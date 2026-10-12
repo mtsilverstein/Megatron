@@ -345,7 +345,8 @@ def test_game_that_kicks_off_while_queued_is_skipped(props_env, monkeypatch):
 
 @pytest.mark.parametrize("body", [{}, {"error": "x"}, {"data": []}, {"data": [], "pagination": {}},
                                   {"data": [], "pagination": {"has_more": True}},
-                                  {"data": [], "pagination": {"has_more": True, "next_offset": 0}}])
+                                  {"data": [], "pagination": {"has_more": True, "next_offset": 0}},
+                                  {"data": [], "pagination": {"has_more": True, "next_offset": True}}])
 def test_malformed_events_envelope_is_an_error_not_zero_games(body, monkeypatch):
     monkeypatch.setattr(ms, "sharp_get", lambda path, params, key, timeout=60: (200, json.dumps(body).encode()))
     monkeypatch.setattr(ms, "_pause", lambda s: None)

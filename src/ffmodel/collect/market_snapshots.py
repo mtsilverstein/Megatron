@@ -192,7 +192,7 @@ def list_nfl_events(key: str) -> list[dict]:
         events += body["data"]
         if not pg["has_more"]:
             return events
-        if not isinstance(pg.get("next_offset"), int) or pg["next_offset"] <= offset:
+        if type(pg.get("next_offset")) is not int or pg["next_offset"] <= offset:   # bool is an int subclass
             raise ValueError("events pagination.next_offset missing or not advancing")
         offset = pg["next_offset"]
     raise RuntimeError(f"events list exceeded {PROPS_MAX_EVENT_PAGES} pages")
