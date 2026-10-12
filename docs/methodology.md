@@ -116,7 +116,7 @@ box-score modeling closes a gap that is mostly about availability.
 > | sample | model | consensus | delta | 95% interval (week-resampled) |
 > |---|---|---|---|---|
 > | 2023–25 (Rule 1) | 0.597 | 0.634 | −0.037 | [−0.047, −0.028] |
-> | 2020–22 (descriptive) | 0.557 | 0.601 | −0.045 | [−0.055, −0.035] |
+> | 2020–22 (descriptive) | 0.556 | 0.601 | −0.045 | [−0.055, −0.035] |
 >
 > Behind in every season of both samples and in every leave-one-season-out
 > estimate; the bye-consistent-only sensitivity agrees (−0.036). Per position
@@ -132,12 +132,17 @@ box-score modeling closes a gap that is mostly about availability.
 > days before week N's first kickoff, and nflverse scrapes FantasyPros on
 > Fridays — so that scrape is the *previous* Friday's, i.e. week N−1's rankings,
 > made before week N−1's Sunday games and injury news. The re-measurement's
-> `old_protocol_staleness_audit` counts it: of the 38 weeks in 2020–25 where the
-> bye schedule distinguishes the two (byes in both weeks N−1 and N, and
-> different), the old snapshot was week N−1's list in 36, week N's in 1, and
-> absent in 1. The experts were scored a week stale, which biased every delta
-> below in the model's favour. The original text is kept below as the record; it
-> is **superseded**.
+> `old_protocol_staleness_audit` checks the old snapshots against the bye
+> schedule: of the 38 weeks in 2020–25 where the bye schedule can discriminate
+> (byes in both weeks N−1 and N, and different), 36 **contradicted** the assigned
+> week, 1 was **bye-consistent** (compatible with week N, which is not proof of
+> it), and 1 had no eligible scrape. Together with the Friday scrape dates, this
+> supports the stale-consensus explanation. The earlier tie and RB edge are
+> **invalidated by the corrected analysis**; the old and new comparisons also
+> differ in population and coverage, so the size of each change is not
+> attributed to staleness alone. This re-measurement is a pre-registered
+> reanalysis of data already examined, not an untouched replication. The
+> original text is kept below as the record; it is **superseded**.
 
 Over a one-week horizon, the injury report is already public and the
 availability edge largely evaporates. Measured against **weekly** expert
@@ -261,10 +266,11 @@ that was never checked.
 ## 6. What the model is genuinely good for
 
 - **A free, transparent weekly projector** that beats its own baselines
-  (§3). Against same-week expert rankings it is **behind** at ranking players
-  within position (−0.037 rank correlation on 2023–25, pre-registered; §3); the
-  earlier "parity" and running-back edge were artifacts of week-old expert
-  rankings.
+  (§3). In the historical 2023–25 PPR benchmark against same-week FantasyPros
+  consensus, it ranks matched players who played after the scrape **less
+  accurately within position** (−0.037 rank correlation, pre-registered
+  reanalysis; §3). The earlier "parity" and running-back edge are invalidated by
+  that corrected analysis.
 - **Calibrated floor/ceiling bands.** Held-out weekly coverage sits inside a
   0.75–0.85 target for every position; ADP and ECR give a single number, this
   gives a distribution. That is a real product difference neither benchmark
