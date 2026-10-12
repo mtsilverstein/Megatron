@@ -1,6 +1,6 @@
 # Weekly accuracy tracking and same-week expert benchmark — design
 
-**Status:** draft 7.1 (2026-10-07; astra S7-I1–I5 fixes, and four wording clarifications from plan revision b880f9e: schedule game identity, alarm fixture selection, manifest hash and path, Holm p-value). Amended 2026-10-12: §4.8.6 consequences of the Sleeper season-end read (owner-only blended path); no analysis change. The owner approved the design section by section in conversation, and on
+**Status:** draft 7.1 (2026-10-07; astra S7-I1–I5 fixes, and four wording clarifications from plan revision b880f9e: schedule game identity, alarm fixture selection, manifest hash and path, Holm p-value). Amended 2026-10-12: §4.8.6 pre-analysis consequence amendment for the Sleeper season-end read (owner-only 2027 blended path, rights-gated); no analysis change (astra review rev 1). The owner approved the design section by section in conversation, and on
 2026-10-07 approved three additions: a Sleeper comparator kept private until checked, a private data repository for
 third-party snapshots, and a slimmer scope ("smallest trustworthy report").
 
@@ -643,43 +643,142 @@ For week N with a selected publication (§4.1):
   bytes, the manifest, and every selected capture's sha256; its own `evaluator_version` (§4.6, with protocol
   `sleeper-compare-v1`) and `run_at`.
 
-#### 4.8.6 Consequences of the season-end read (amendment, 2026-10-12)
+#### 4.8.6 Consequences of the season-end read (pre-analysis consequence amendment, 2026-10-12)
 
-This amendment fixes what each outcome of the §4.8.4 read buys. It changes nothing in §4.8.1–§4.8.5:
-- the population, views and the 8-PPR threshold;
+This amendment was made on 2026-10-12. That is after data collection began (week-5 captures exist) but before any
+series result was scored. It fixes what each outcome of the §4.8.4 read buys. It changes nothing in §4.8.1–§4.8.5:
+- the capture pairing;
+- the population and the 8-PPR primary union;
+- the common-component scoring;
 - the fixed 50/50 blend;
-- the two claims, the bootstrap p-values (the larger of the two clusterings) and Holm at family level 0.05;
+- the two claims, their two-sided bootstrap p-values (the larger of the two clusterings) and Holm at family level 0.05;
 - the single read after the last REG week;
-- the exclusion of weeks 1–4.
+- the exclusion of 2026 weeks 1–4.
 
-**Written before any series result.** When this was written (2026-10-12), the private report had scored no week of
-the 2026 series. `reports/sleeper_2026.md` had an empty table, and its last change was private-repo commit `e08bb36`.
-The week-5 captures existed but had not been scored. The owner chose the consequence ("private tools only") on that
-date, before the first weekly comparator run of the series.
+Throughout 2026 the blend remains the §4.8.4 shadow comparator. Capture, the shadow calculation and the comparator
+all continue unchanged. This section alone adds a prospective consequence.
 
-- **Blend win.** The `blend − Sleeper` claim is rejected by Holm **and** its primary-view paired MAE delta is negative
-  (the blend is more accurate). A rejection with a positive delta is a Sleeper win on that claim and buys nothing.
-  A blend win authorises one thing: an **owner-only** blended path for the 2027 season.
-  - A private job writes the fixed 50/50 blend of our p50 and the paired Sleeper projection for the owner's own leagues
-    into the private repository. The owner uses it for their own lineup and waiver decisions.
-  - The weights stay 50/50. No reweighting, learned weights or per-position weights are allowed without a new
-    pre-registered test.
-  - Nothing derived from Sleeper values reaches the public repository, the public site, public JSON or any public
-    claim. This is the §4.8 privacy rule, unchanged.
-  - The blend has no band. Where a band is shown beside a blended number, it is our model's own p10–p90, labelled as
-    ours. It is never re-centred on the blend.
-  - Nothing is built before the read. A win is read after week 18, past the fantasy playoffs, so it applies from 2027.
-- **Not a blend win.** This covers an inconclusive result, a Sleeper win or no read. Nothing is built, Sleeper alone is
-  not adopted either, and the result is reported as evidence.
-- **`ours − Sleeper`.** This claim stays evidence only, in either direction. Its result is reported in the
-  methodology write-up and authorises no product change.
-- **2027 monitoring (only if the path is built).** The same comparator keeps running over 2027 on the same
-  definitions. The path is retired after the 2027 REG season if that season's cumulative primary-view paired delta
-  `blend − Sleeper` is greater than zero. This is a stopping rule, not a new test: it can retire the path but never
-  extend or widen it. The owner may also stop using it at any time.
-- **Reporting.** The read and its consequence are recorded in the private report. The public methodology may state
-  the outcome only in words (e.g. "a fixed blend with a commercial projection was / was not more accurate than the
-  commercial projection alone"), with no Sleeper-derived numbers, per §4.8.
+##### 4.8.6.1 Timing record (attestation)
+
+- **Who and when.** The controller (Claude, acting for the owner) wrote this record at 2026-10-12T22:20:48Z. That is
+  before the first scheduled comparator run of the series, on 2026-10-13. The owner chose the consequence ("private
+  tools only") in conversation the same day. The owner's approval of this section's commit confirms the attestation
+  for them.
+- **What existed.**
+  - Private-repo commit `e08bb36a296b5078fd53cf52dd8fc0d251e1ebe9` (2026-10-12T13:24:14Z) last touched `reports/`. It
+    holds `reports/sleeper_2026.json` (sha256 `7613fc25501b677dae88a1a993c2e78c2d3282fa170c9eedb525cfc80539dd82`), which
+    has no scored week. It also holds `reports/sleeper_2026.md` (sha256
+    `9b17e105bf257b3a0c815c0990a2d7245f2df92c60acdba03dff6bcea22a39b8`), whose table is empty.
+  - The private head was `f639dc21d3c1cbb44475fa6d258cbbbb36628366`.
+  - Twelve scheduled week-5 captures existed under `sleeper/2026/w05/`, unscored.
+- **What had been seen.** Neither the controller nor the owner had computed or viewed any comparison of our
+  projections, Sleeper's or the blend for 2026 weeks 5–18, in or outside that report. That covers errors, deltas, tests
+  and informal comparisons alike. The only Sleeper comparison seen was the disclosed weeks 1–4 exploratory scratch,
+  which is excluded. Week-5 game outcomes were ordinary public knowledge, so this is not claimed as outcome blinding.
+- **Remote timestamp.** The timestamp of record is GitHub's push event for this amendment on the public repository,
+  not the git author date. It is the same evidence class as the §4.1 ledger.
+- **(B) provenance.** The 2026-10-10 (B) artifact records this file's pre-amendment identity: blob
+  `34b5e5a2b818786149178a24f78e560c21c8dd34`, LF sha256
+  `d66d9a298f940178d7a504f822a6477edb01cd6f1f9d8dafb7ba37bca516fd40`. This amendment changes only the status line and
+  §4.8.6, so the sections that govern (B), §5–§6, are unchanged. The (B) artifact keeps its recorded identity and is
+  not rerun.
+
+##### 4.8.6.2 What each outcome buys
+
+- **Blend win.** A blend win needs Holm to reject `blend − Sleeper` **and** the primary-view paired MAE delta to be
+  strictly negative, meaning the blend is more accurate.
+  - Holm runs as registered: the smaller p-value is tested at 0.025, then the larger at 0.05. There is no halved
+    p-value, no one-sided test and no unadjusted interval.
+  - `ours − Sleeper` stays in the family, but its rejection is not required.
+  - No diagnostic can stand in for the trigger: not the whole-population view, the latest-snapshot variant, the
+    per-position results or `blend − ours`.
+  - A win shows lower paired MAE than Sleeper on the primary population. It does not show that the blend beats both
+    sources, improves lineup or waiver outcomes, or holds for other scoring systems.
+  - A win authorises one bounded experiment: an owner-only blended path for the 2027 season (§4.8.6.3), subject to
+    §4.8.6.4.
+- **Any other outcome.** This covers a reverse result (Holm rejects `blend − Sleeper` with a positive delta), an
+  inconclusive result, or no read. Nothing is built, and Sleeper alone is not adopted either.
+- **`ours − Sleeper`.** This claim is evidence only, in either direction. It cannot rescue a failed blend trigger.
+- **Recording the read.** The read is bound to this protocol (§4.8.1–§4.8.5) and this amendment, with the existing
+  input and evaluator provenance. The private report records:
+  - the read time;
+  - both claims' results;
+  - the outcome category;
+  - the action authorised, including "none" or "no read possible".
+
+##### 4.8.6.3 The 2027 owner-only path (only after a blend win)
+
+- **Scope.**
+  - A private job writes the fixed 50/50 blend of our p50 and the paired Sleeper projection for the owner's own
+    leagues. The owner uses it for their own lineup and waiver decisions.
+  - The weights stay 50/50. A new weight, source, timing policy or scoring target needs a new pre-registered test and
+    never inherits this validation.
+  - Our own p50 stays identifiable beside the blend.
+  - The blend has no band. Our p10–p90 may appear only as a separately labelled "our model's interval". It is never
+    re-centred on the blend or presented as the blend's interval.
+  - "Nothing is built before the read" refers to this operational path only.
+- **Duration.** The authorisation covers the 2027 REG season and expires after it. Any later use needs a separate
+  prospective authorisation. A non-positive 2027 delta never extends or widens the path by itself.
+- **Monitoring estimand.** The same comparator runs over **all** 2027 REG weeks, including weeks 1–4; the weeks 1–4
+  exclusion applied to 2026 only.
+  - It uses the paired snapshot and the primary view over the full eligible comparison population. That is not
+    limited to the owner's roster or to the weeks the owner used the path.
+  - The statistic is the pooled player-week mean over all eligible rows of
+    `|0.5·ours + 0.5·Sleeper − actual| − |Sleeper − actual|`. It is not a mean of weekly MAEs.
+- **Coverage.** Every scheduled 2027 REG week must be scored under the registered eligibility and validation rules.
+  Each week's status and row/position coverage is reported.
+  - A transient computation failure may be recovered **only** from that week's originally eligible archived captures.
+  - Missing pregame captures are never reconstructed from retrospective API pulls.
+  - The comparator is never swapped to keep the path alive.
+- **Suspension.** If the comparator fails to produce a scheduled week's result within 7 days of that week's scoring
+  run, the owner stops using the path until that week is recovered.
+- **Retirement checkpoint.** The finalisation deadline is the later of 2028-02-15 or 30 days after the last 2027 REG
+  week is scored.
+  - The path is retired if the pooled 2027 delta is greater than zero, regardless of significance.
+  - It is also retired if any week is still unscored at the deadline, or no valid delta can be established. A missing
+    or NaN result never counts as `delta ≤ 0`.
+  - A delta of exactly zero does not retire the path, but it is not a win.
+  - The owner may stop earlier at any time. Early stopping never selects which weeks count and never permits a
+    result-driven restart.
+
+##### 4.8.6.4 Rights, privacy and public reporting
+
+- **Rights are a precondition.** A statistical win authorises the 2027 path only after documented permission covers
+  all of the following:
+  - the exact Sleeper endpoint;
+  - automated acquisition;
+  - retention;
+  - private derived use and any reporting.
+
+  The evidence is the applicable terms (with version and date) or a written authorisation, recorded in the private
+  repository. Later changes to those terms are respected. If permission cannot be established, no operational path is
+  built.
+  - The relevant terms restrict automated access, archiving and derivative or AI/ML use:
+    - Sleeper's General Terms (last updated 2026-10-06): §9.2, §11.1 and §11.3;
+    - RotoWire's terms (effective 2026-09-19): Articles V–VII.
+  - Owner-only distribution is not a licence.
+  - The same open question applies to the existing §4.8 capture and benchmark. It is tracked separately and is not
+    settled by this section.
+- **Privacy boundary.** No Sleeper-derived value, numeric aggregate, ranking or recommendation may reach:
+  - the public repository, the public site or public JSON;
+  - CI logs, summaries or artifacts;
+  - caches, screenshots or exports.
+
+  A hidden route or owner switch on the public site does not count as private. Showing our point and the blend
+  together reveals Sleeper's value (`Sleeper = 2·blend − ours`), so the path needs real access control and private
+  storage.
+- **The one public exception.** The public methodology may carry one season-end outcome statement, in words, subject
+  to applicable reporting rights. It names the season and the primary-population scope, and it says that the inputs
+  and numbers are private and not publicly reproducible. It uses exactly one of these wordings:
+  - **Blend win:** "the pre-registered comparison found evidence of lower paired error for a fixed blend of our
+    projection and a commercial projection than for the commercial projection alone".
+  - **Reverse:** "… found evidence of lower error for the commercial projection alone".
+  - **Inconclusive:** "… did not establish a blend advantage" (never "the blend was not more accurate").
+  - **No read:** "the planned comparison could not be completed; no accuracy conclusion follows".
+
+  `ours − Sleeper` is reported separately with the same four distinctions. Nothing else from the comparison may be
+  published: no blended prediction, number, player/position/week comparison, ranking, endorsement or
+  product-performance claim.
 
 ## 5. (B) Same-week reanalysis
 
