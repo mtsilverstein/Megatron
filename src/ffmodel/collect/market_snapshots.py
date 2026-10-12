@@ -1,9 +1,12 @@
 """Market snapshot collector: raw third-party snapshots into the PRIVATE data repo.
 
 Run after each site publication. For the week the site just published, saves:
-  - Sleeper's QB/RB/WR/TE projections (source: Rotowire via Sleeper), and
-  - nflverse game lines (spread/total/moneylines/odds) from load_schedules,
-as gzipped raw bytes plus one manifest line each. Contract: weekly-accuracy spec section 4.8.1.
+  - Sleeper's QB/RB/WR/TE projections (source: Rotowire via Sleeper),
+  - nflverse game lines (spread/total/moneylines/odds) from load_schedules, and
+  - SharpAPI full-game offensive player props (free tier: DraftKings and FanDuel, 60 s delayed) for every game that
+    kicks off within the next 72 hours, one file per game,
+as gzipped raw bytes plus one manifest line each. Contract: weekly-accuracy spec section 4.8.1. Props are an archive
+only: no model uses them without its own pre-registered test.
 
 Nothing here writes into the public repo: every write goes under --dest (the private checkout).
 Captures are append-only; an existing capture path is an error, never an overwrite.
@@ -14,15 +17,33 @@ import argparse
 import gzip
 import hashlib
 import json
+import os
+import re
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SLEEPER_URL = ("https://api.sleeper.app/projections/nfl/{season}/{week}?season_type=regular"
                "&position%5B%5D=QB&position%5B%5D=RB&position%5B%5D=WR&position%5B%5D=TE")
 USER_AGENT = "megatron-market-snapshots (github.com/mtsilverstein/Megatron)"
+
+SHARP_BASE = "https://api.sharpapi.io/api/v1"
+# Full-game (market_segment null) offensive player props; quarter/half, defensive and novelty markets are dropped.
+PROPS_MARKETS = frozenset({
+    "player_passing_yards", "player_passing_touchdowns", "player_passing_attempts", "player_passing_completions",
+    "player_interceptions", "player_rushing_yards", "player_rushing_attempts", "player_receiving_yards",
+    "player_receptions", "player_rushing_+_receiving_yards", "anytime_touchdown_scorer"})
+PROPS_BOOKS = frozenset({"draftkings", "fanduel"})   # the free tier's books
+PROPS_WINDOW_HOURS = 72
+PROPS_MIN_INTERVAL = 6.5                             # seconds between requests: <= ~9/min, under the free 12/min
+PROPS_MAX_EVENT_PAGES = 10
+_SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
 def utc_iso(t: datetime) -> str:
@@ -76,10 +97,105 @@ def lines_snapshot(season: int, week: int) -> bytes:
     return df.to_json(orient="records", date_format="iso").encode("utf-8")
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _pause(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _parse_utc(s: str) -> datetime:
+    return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def sharp_get(path: str, params: dict, key: str, timeout: int = 60) -> tuple[int, bytes]:
+    """GET a SharpAPI path. The key travels only in the X-API-Key header, never in the URL or a log line."""
+    url = SHARP_BASE + path + (f"?{urllib.parse.urlencode(params)}" if params else "")
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "X-API-Key": key,
+                                               "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+
+
+def select_prop_games(events: list[dict], now: datetime, window_hours: int = PROPS_WINDOW_HOURS) -> list[dict]:
+    """Upcoming NFL game fixtures carried by a free book that start in (now, now + window]; one event per game
+    (duplicate feeds of the same matchup and kickoff keep the one with the most markets), ordered by kickoff then id."""
+    horizon = now + timedelta(hours=window_hours)
+    best: dict[tuple, dict] = {}
+    for e in events:
+        if e.get("event_type") != "fixture" or e.get("status") != "upcoming" or not e.get("away_team"):
+            continue
+        if not PROPS_BOOKS & set(e.get("books") or []):
+            continue
+        start = _parse_utc(e["start_time"])
+        if not now < start <= horizon:
+            continue
+        k = (e.get("home_team"), e.get("away_team"), start)
+        if k not in best or (e.get("market_count") or 0) > (best[k].get("market_count") or 0):
+            best[k] = e
+    return sorted(best.values(), key=lambda e: (_parse_utc(e["start_time"]), e["id"]))
+
+
+def filter_props(raw: bytes) -> tuple[bytes, dict]:
+    """Keep the full-game offensive player-prop rows of one /events/{id}/odds response, unmodified."""
+    body = json.loads(raw)
+    rows = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("SharpAPI odds response has no data list")
+    kept = [r for r in rows if isinstance(r, dict) and r.get("market_type") in PROPS_MARKETS
+            and r.get("market_segment") is None]
+    counts = Counter(f"{r['market_type']}|{r.get('sportsbook')}" for r in kept)
+    return (json.dumps(kept, separators=(",", ":")).encode("utf-8"),
+            {"rows_total": len(rows), "rows_kept": len(kept), "kept_by_market_book": dict(sorted(counts.items()))})
+
+
+def list_nfl_events(key: str) -> list[dict]:
+    events, offset = [], 0
+    for page in range(PROPS_MAX_EVENT_PAGES):
+        if page:
+            _pause(PROPS_MIN_INTERVAL)
+        status, raw = sharp_get("/events", {"league": "nfl", "limit": 200, "offset": offset}, key)
+        if status != 200:
+            raise RuntimeError(f"events HTTP {status}")
+        body = json.loads(raw)
+        events += body.get("data") or []
+        pg = body.get("pagination") or {}
+        if not pg.get("has_more"):
+            return events
+        offset = pg["next_offset"]
+    raise RuntimeError(f"events list exceeded {PROPS_MAX_EVENT_PAGES} pages")
+
+
+def capture_props(dest: Path, season: int, week: int, key: str, common: dict) -> list[dict]:
+    games = select_prop_games(list_nfl_events(key), _now())
+    lines = []
+    for g in games:
+        _pause(PROPS_MIN_INTERVAL)
+        path = f"/events/{g['id']}/odds"
+        retrieved_at = _now()
+        status, raw = sharp_get(path, {}, key)
+        if status != 200:
+            raise RuntimeError(f"{g['id']}: HTTP {status}")
+        kept, counts = filter_props(raw)
+        meta = {"source": "sharpapi.io", "request_url": SHARP_BASE + path, "http_status": status,
+                "event_id": g["id"], "start_time": g["start_time"], "home_team": g.get("home_team"),
+                "away_team": g.get("away_team"), "window_hours": PROPS_WINDOW_HOURS,
+                "response_sha256": hashlib.sha256(raw).hexdigest(), **counts, **common}
+        lines.append(write_capture(dest, "props", season, week, retrieved_at, kept, meta, name=g["id"]))
+    return lines
+
+
 def write_capture(dest: Path, kind: str, season: int, week: int, retrieved_at: datetime,
-                  raw: bytes, meta: dict) -> dict:
+                  raw: bytes, meta: dict, name: str | None = None) -> dict:
     """Write one gzipped capture and append its manifest line. Never overwrites."""
-    rel = Path(kind) / str(season) / f"w{week:02d}" / f"{utc_stamp(retrieved_at)}.json.gz"
+    if name is not None and (not _SAFE_NAME.match(name) or ".." in name):
+        raise ValueError(f"unsafe capture name: {name!r}")
+    stem = utc_stamp(retrieved_at) + (f"_{name}" if name else "")
+    rel = Path(kind) / str(season) / f"w{week:02d}" / f"{stem}.json.gz"
     path = Path(dest) / rel
     if path.exists():
         raise FileExistsError(f"capture already exists: {rel.as_posix()}")
@@ -133,6 +249,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"lines: {line['path']} ({line['games']} games)")
     except Exception as e:
         failures.append(f"lines: {e}")
+
+    key = os.environ.get("SHARPAPI_KEY")
+    if not key:
+        print("props: SHARPAPI_KEY is not set; skipping props")
+    else:
+        try:
+            lines = capture_props(args.dest, season, week, key, common)
+            print(f"props: {len(lines)} games, {sum(x['rows_kept'] for x in lines)} rows kept")
+        except Exception as e:
+            failures.append(f"props: {str(e).replace(key, '***')}")
 
     for f in failures:
         print(f"::warning::snapshot failed - {f}", file=sys.stderr)

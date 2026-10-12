@@ -158,6 +158,139 @@ def test_main_writes_only_under_dest(env):
     assert weekly in before
 
 
+# 4b. SharpAPI props (synthetic: invented teams, players and prices; no real odds in this public repo)
+NOW = datetime(2026, 10, 15, 17, 30, tzinfo=timezone.utc)
+
+
+def _event(eid, home, away, start, books=("draftkings", "fanduel"), etype="fixture", status="upcoming", markets=50):
+    return {"id": eid, "home_team": home, "away_team": away, "start_time": start, "event_type": etype,
+            "status": status, "books": list(books), "market_count": markets, "league": "nfl"}
+
+
+def _prop(market, book="draftkings", segment=None, player="Test Player"):
+    return {"market_type": market, "sportsbook": book, "market_segment": segment, "player_name": player,
+            "selection": "Over", "line": 10.5, "odds_american": -110, "is_alternate_line": False}
+
+
+def test_select_games_window_dedupe_and_books():
+    events = [
+        _event("a_b3", "Home A", "Away A", "2026-10-16T00:15:00Z", markets=900),          # in window
+        _event("a_b0", "Home A", "Away A", "2026-10-16T00:15:00Z", books=("onexbet",)),  # no free book
+        _event("a_dup", "Home A", "Away A", "2026-10-16T00:15:00Z", markets=40),         # duplicate feed
+        _event("late", "Home B", "Away B", "2026-10-18T18:00:00Z"),                       # 72.5 h out
+        _event("edge", "Home C", "Away C", "2026-10-18T17:30:00Z"),                       # exactly 72 h: in
+        _event("past", "Home D", "Away D", "2026-10-15T17:00:00Z"),                       # started
+        _event("fut", "AFC Winner", "", "2026-10-16T00:15:00Z", etype="outright"),
+        _event("live", "Home E", "Away E", "2026-10-15T18:00:00Z", status="live"),
+    ]
+    got = ms.select_prop_games(events, NOW, window_hours=72)
+    assert [e["id"] for e in got] == ["a_b3", "edge"]
+
+
+def test_filter_props_keeps_full_game_offensive_markets_only():
+    rows = [_prop("player_receiving_yards"), _prop("anytime_touchdown_scorer", "fanduel"),
+            _prop("player_receiving_yards", segment="1st_half"), _prop("player_tackles"),
+            _prop("point_spread"), _prop("player_passing_attempts", "fanduel")]
+    raw = json.dumps({"data": rows, "updated_at": "x"}).encode()
+    kept, counts = ms.filter_props(raw)
+    assert [r["market_type"] for r in json.loads(kept)] == ["player_receiving_yards", "anytime_touchdown_scorer",
+                                                           "player_passing_attempts"]
+    assert counts == {"rows_total": 6, "rows_kept": 3,
+                      "kept_by_market_book": {"anytime_touchdown_scorer|fanduel": 1,
+                                              "player_passing_attempts|fanduel": 1,
+                                              "player_receiving_yards|draftkings": 1}}
+
+
+def test_filter_props_rejects_bad_payload():
+    with pytest.raises(ValueError):
+        ms.filter_props(b'{"nope": 1}')
+
+
+def test_write_capture_name_suffix(tmp_path):
+    a = ms.write_capture(tmp_path, "props", 2026, 6, T0, b"[]", {}, name="game_one")
+    b = ms.write_capture(tmp_path, "props", 2026, 6, T0, b"[]", {}, name="game_two")
+    assert a["path"] == "props/2026/w06/2026-10-14T21-05-09Z_game_one.json.gz"
+    assert b["path"].endswith("_game_two.json.gz")
+    with pytest.raises(ValueError):
+        ms.write_capture(tmp_path, "props", 2026, 6, T0, b"[]", {}, name="../escape")
+
+
+class FakeSharp:
+    """Records every request; serves a two-page events list and per-event odds."""
+
+    def __init__(self, events, odds_status=200):
+        self.calls, self.events, self.odds_status = [], events, odds_status
+
+    def __call__(self, path, params, key, timeout=60):
+        self.calls.append((path, dict(params)))
+        assert key == "k-test"
+        if path == "/events":
+            off = int(params.get("offset", 0))
+            page = self.events[off:off + 2]
+            more = off + 2 < len(self.events)
+            body = {"data": page, "pagination": {"has_more": more, "next_offset": off + 2}}
+            return 200, json.dumps(body).encode()
+        rows = [_prop("player_rushing_yards"), _prop("player_tackles")]
+        return self.odds_status, json.dumps({"data": rows}).encode()
+
+
+@pytest.fixture
+def props_env(env, monkeypatch):
+    tmp, weekly, dest = env
+    weekly.write_text(json.dumps({"season": 2026, "week": 6, "batch_id": "b|y"}), encoding="utf-8")
+    events = [_event("g1", "Home A", "Away A", "2026-10-16T00:15:00Z"),
+              _event("fut", "AFC Winner", "", "2026-10-16T00:15:00Z", etype="outright"),
+              _event("g2", "Home B", "Away B", "2026-10-18T17:00:00Z")]
+    fake = FakeSharp(events)
+    monkeypatch.setattr(ms, "sharp_get", fake)
+    monkeypatch.setattr(ms, "_now", lambda: NOW)
+    monkeypatch.setattr(ms, "_pause", lambda s: None)
+    monkeypatch.setenv("SHARPAPI_KEY", "k-test")
+    return tmp, weekly, dest, fake
+
+
+def test_main_props_happy(props_env):
+    tmp, weekly, dest, fake = props_env
+    assert _run(weekly, dest) == 0
+    files = sorted(p.name for p in (dest / "props" / "2026" / "w06").glob("*.json.gz"))
+    assert files == ["2026-10-15T17-30-00Z_g1.json.gz", "2026-10-15T17-30-00Z_g2.json.gz"]
+    m = _manifest(dest, "props")
+    assert [x["event_id"] for x in m] == ["g1", "g2"]
+    g1 = m[0]
+    assert g1["rows_total"] == 2 and g1["rows_kept"] == 1
+    assert g1["request_url"] == "https://api.sharpapi.io/api/v1/events/g1/odds"
+    assert "k-test" not in json.dumps(m)
+    assert g1["published_commit"] == "abc123" and g1["capture_kind"] == "scheduled"
+    assert g1["response_sha256"] != g1["sha256"]
+    kept = json.loads(gzip.decompress((dest / g1["path"]).read_bytes()))
+    assert [r["market_type"] for r in kept] == ["player_rushing_yards"]
+    assert [c[0] for c in fake.calls] == ["/events", "/events", "/events/g1/odds", "/events/g2/odds"]
+
+
+def test_main_props_without_key_is_a_skip_not_a_failure(props_env, monkeypatch, capsys):
+    tmp, weekly, dest, fake = props_env
+    monkeypatch.delenv("SHARPAPI_KEY")
+    assert _run(weekly, dest) == 0
+    assert not (dest / "props").exists() and fake.calls == []
+    assert "SHARPAPI_KEY" in capsys.readouterr().out
+
+
+def test_main_props_failure_is_independent(props_env, monkeypatch):
+    tmp, weekly, dest, fake = props_env
+    fake.odds_status = 429
+    assert _run(weekly, dest) == 1
+    assert len(list((dest / "sleeper").rglob("*.json.gz"))) == 1
+    assert len(list((dest / "lines").rglob("*.json.gz"))) == 1
+    assert not list(dest.rglob("props/**/*.json.gz"))
+
+
+def test_props_never_logs_the_key(props_env, capsys):
+    tmp, weekly, dest, fake = props_env
+    _run(weekly, dest)
+    out = capsys.readouterr()
+    assert "k-test" not in out.out + out.err
+
+
 # 5. workflow text
 def _wf(name: str) -> dict:
     return yaml.safe_load((ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8"))
@@ -192,6 +325,16 @@ def test_workflow_token_hardening():
     assert install < private
     with_token = [s for s in steps if "PRIVATE_DATA_TOKEN" in s.get("env", {})]
     assert len(with_token) == 1 and "gitp push" in with_token[0]["run"]
+    with_key = [s for s in steps if "SHARPAPI_KEY" in s.get("env", {})]
+    assert len(with_key) == 1 and "ffmodel.collect.market_snapshots" in with_key[0]["run"]
+    assert "secrets.SHARPAPI_KEY" in with_key[0]["env"]["SHARPAPI_KEY"]
+    assert "SHARPAPI_KEY" not in job.get("env", {})
+
+
+def test_workflow_commits_props():
+    steps = _wf("market-snapshots.yml")["jobs"]["snapshot"]["steps"]
+    (commit,) = [s for s in steps if "gitp push" in s.get("run", "")]
+    assert "git add sleeper lines props" in commit["run"]
 
 
 # 6. the listened-to workflow exists

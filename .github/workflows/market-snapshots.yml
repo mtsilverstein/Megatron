@@ -1,5 +1,5 @@
 name: market snapshots
-# Saves raw third-party snapshots (Sleeper projections, nflverse game lines) for the week the site
+# Saves raw third-party snapshots (Sleeper projections, nflverse game lines, SharpAPI player props) for the week the site
 # just published, into the PRIVATE repo mtsilverstein/megatron-private-data. Never writes this
 # public repo. A failure here never affects the site (separate workflow).
 on:
@@ -50,6 +50,9 @@ jobs:
       - name: Capture snapshots (each source independent)
         id: capture
         if: steps.gate.outputs.skip != 'true'
+        # SharpAPI key only here (props source); absent -> props are skipped, not failed.
+        env:
+          SHARPAPI_KEY: ${{ secrets.SHARPAPI_KEY }}
         run: |
           rc=0
           python -m ffmodel.collect.market_snapshots --dest private-data || rc=$?
@@ -65,7 +68,7 @@ jobs:
           gitp() { git -c "http.https://github.com/.extraheader=$AUTH" "$@"; }
           git config user.name "market-snapshot-bot"
           git config user.email "market-snapshot-bot@users.noreply.github.com"
-          git add sleeper lines 2>/dev/null || true
+          git add sleeper lines props 2>/dev/null || true
           if git diff --cached --quiet; then echo "nothing captured"; exit 0; fi
           git commit -m "snapshot: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           for i in 1 2 3; do
