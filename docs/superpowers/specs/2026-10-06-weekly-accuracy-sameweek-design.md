@@ -1,6 +1,6 @@
 # Weekly accuracy tracking and same-week expert benchmark — design
 
-**Status:** draft 7.1 (2026-10-07; astra S7-I1–I5 fixes, and four wording clarifications from plan revision b880f9e: schedule game identity, alarm fixture selection, manifest hash and path, Holm p-value). The owner approved the design section by section in conversation, and on
+**Status:** draft 7.1 (2026-10-07; astra S7-I1–I5 fixes, and four wording clarifications from plan revision b880f9e: schedule game identity, alarm fixture selection, manifest hash and path, Holm p-value). Amended 2026-10-12: §4.8.6 consequences of the Sleeper season-end read (owner-only blended path); no analysis change. The owner approved the design section by section in conversation, and on
 2026-10-07 approved three additions: a Sleeper comparator kept private until checked, a private data repository for
 third-party snapshots, and a slimmer scope ("smallest trustworthy report").
 
@@ -642,6 +642,44 @@ For week N with a selected publication (§4.1):
 - **Private provenance:** content hashes of the actuals, schedule and crosswalk actually read, the public artifact's
   bytes, the manifest, and every selected capture's sha256; its own `evaluator_version` (§4.6, with protocol
   `sleeper-compare-v1`) and `run_at`.
+
+#### 4.8.6 Consequences of the season-end read (amendment, 2026-10-12)
+
+This amendment fixes what each outcome of the §4.8.4 read buys. It changes nothing in §4.8.1–§4.8.5:
+- the population, views and the 8-PPR threshold;
+- the fixed 50/50 blend;
+- the two claims, the bootstrap p-values (the larger of the two clusterings) and Holm at family level 0.05;
+- the single read after the last REG week;
+- the exclusion of weeks 1–4.
+
+**Written before any series result.** When this was written (2026-10-12), the private report had scored no week of
+the 2026 series. `reports/sleeper_2026.md` had an empty table, and its last change was private-repo commit `e08bb36`.
+The week-5 captures existed but had not been scored. The owner chose the consequence ("private tools only") on that
+date, before the first weekly comparator run of the series.
+
+- **Blend win.** The `blend − Sleeper` claim is rejected by Holm **and** its primary-view paired MAE delta is negative
+  (the blend is more accurate). A rejection with a positive delta is a Sleeper win on that claim and buys nothing.
+  A blend win authorises one thing: an **owner-only** blended path for the 2027 season.
+  - A private job writes the fixed 50/50 blend of our p50 and the paired Sleeper projection for the owner's own leagues
+    into the private repository. The owner uses it for their own lineup and waiver decisions.
+  - The weights stay 50/50. No reweighting, learned weights or per-position weights are allowed without a new
+    pre-registered test.
+  - Nothing derived from Sleeper values reaches the public repository, the public site, public JSON or any public
+    claim. This is the §4.8 privacy rule, unchanged.
+  - The blend has no band. Where a band is shown beside a blended number, it is our model's own p10–p90, labelled as
+    ours. It is never re-centred on the blend.
+  - Nothing is built before the read. A win is read after week 18, past the fantasy playoffs, so it applies from 2027.
+- **Not a blend win.** This covers an inconclusive result, a Sleeper win or no read. Nothing is built, Sleeper alone is
+  not adopted either, and the result is reported as evidence.
+- **`ours − Sleeper`.** This claim stays evidence only, in either direction. Its result is reported in the
+  methodology write-up and authorises no product change.
+- **2027 monitoring (only if the path is built).** The same comparator keeps running over 2027 on the same
+  definitions. The path is retired after the 2027 REG season if that season's cumulative primary-view paired delta
+  `blend − Sleeper` is greater than zero. This is a stopping rule, not a new test: it can retire the path but never
+  extend or widen it. The owner may also stop using it at any time.
+- **Reporting.** The read and its consequence are recorded in the private report. The public methodology may state
+  the outcome only in words (e.g. "a fixed blend with a commercial projection was / was not more accurate than the
+  commercial projection alone"), with no Sleeper-derived numbers, per §4.8.
 
 ## 5. (B) Same-week reanalysis
 
