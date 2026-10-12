@@ -35,8 +35,16 @@ V2_FEATURE_COLUMNS = [
 BASELINE_FEATURE_SETS = {
     "v1": (),
     "v2": tuple(V2_FEATURE_COLUMNS),
+    # Lines screen (docs/superpowers/specs/2026-10-11-lines-feature-screen-design.md
+    # §3): the frozen v1 list, then exactly LINE_FEATURE_COLUMNS appended.
+    "v1_lines": (),
 }
 DEFAULT_BASELINE_FEATURE_SET = "v1"
+# Current-game betting-market columns. Never built by build_features: they are
+# joined by ffmodel.data.lines.join_line_features, and only a feature set in
+# LINE_FEATURE_SETS consumes them -- appended after its base list, in this order.
+LINE_FEATURE_COLUMNS = ["team_implied_total", "team_expected_margin"]
+LINE_FEATURE_SETS = frozenset({"v1_lines"})
 
 
 def build_features(weekly: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
@@ -80,7 +88,17 @@ def feature_columns(
     extra = [c for c in ("opp_allowed_last4", "opp_allowed_season",
                          "team_pass_att_last4")
              if c in df.columns and c not in excluded]
-    return lag_cols + context + extra + pos_cols
+    cols = lag_cols + context + extra + pos_cols
+    if feature_set in LINE_FEATURE_SETS:
+        # Raise rather than skip: a lines arm silently resolving to its base
+        # list would run arm B as arm A and report a zero effect.
+        missing = [c for c in LINE_FEATURE_COLUMNS if c not in df.columns]
+        if missing:
+            raise ValueError(
+                f"feature_set {feature_set!r} needs line column(s) {missing}; "
+                f"join them with ffmodel.data.lines.join_line_features first")
+        cols = cols + LINE_FEATURE_COLUMNS
+    return cols
 
 
 def _add_carry_share(df: pd.DataFrame) -> pd.DataFrame:

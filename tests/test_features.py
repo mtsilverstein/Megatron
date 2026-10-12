@@ -115,6 +115,9 @@ def test_home_and_rest_days():
 
 def test_feature_columns_never_include_same_week_stats():
     out = build_features(make_weekly([{"week": 1}]), make_schedules())
+    # v1_lines raises without its two joined line columns; supply them so
+    # every registered set is checked.
+    out = out.assign(team_implied_total=24.0, team_expected_margin=3.0)
     for feature_set in sorted(BASELINE_FEATURE_SETS):
         cols = feature_columns(out, feature_set)
         assert not set(cols) & set(PREDICTED_STATS), feature_set
