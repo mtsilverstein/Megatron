@@ -1,9 +1,9 @@
-# Megatron: a fantasy football model built to be trusted, not to look good
+# Megatron: an NFL fantasy football projection system
 
 **Live site:** [megatron-ff.vercel.app](https://megatron-ff.vercel.app) · **Code:** this repository ·
 **Full methodology and every result:** [`docs/methodology.md`](methodology.md)
 
-## In one paragraph
+## Overview
 
 Megatron is an NFL fantasy-football projection system I built end to end on free infrastructure. It has four parts:
 
@@ -13,11 +13,10 @@ Megatron is an NFL fantasy-football projection system I built end to end on free
   and redeploys a static site twice a day during the season.
 - **Site:** a draft board with a live pick-time optimizer, weekly projections, a waiver tool and a trade calculator.
   Each works with any Sleeper league's own scoring.
-- **Evaluation discipline:** this is the part I'm proudest of. Every claim is measured walk-forward on seasons the model
-  never saw, pre-registered before the result is known, and independently reviewed. Results are reported whichever way
-  they land.
+- **Evaluation:** every claim is measured walk-forward on seasons the model never saw, with its pass/fail rule written
+  down before the result is known, and is independently reviewed. Results are reported whether they are good or bad.
 
-Several of the results are honest losses, and they are on the site.
+Several results are losses, and they are reported on the site.
 
 ## What I built
 
@@ -34,9 +33,9 @@ Several of the results are honest losses, and they are on the site.
 The codebase has over 1,400 Python tests and 42 JavaScript fixture suites, and CI runs them with warnings treated as
 errors.
 
-## How I kept the numbers honest
+## Evaluation process
 
-Sports models are easy to make look good. The two usual ways are leakage (using information that wasn't available at
+Two common problems in sports modelling are leakage (using information that wasn't available at
 prediction time) and forking paths (trying many things and reporting the one that worked). I built guards against both
 into the process:
 
@@ -51,10 +50,9 @@ into the process:
   - a consensus benchmark that silently used the previous week's expert rankings, in 36 of 38 checkable weeks;
   - a workflow step that would have dropped captured data;
   - a redirect path that could have leaked an API key.
-- **Report the losses.** Negative results go on the site and in the methodology with their mechanism, because the
-  mechanism is the useful part.
+- **Negative results are reported.** They go on the site and in the methodology, with the reason each one failed.
 
-## Results (the short version)
+## Results
 
 **It beats its own baselines.** Weekly PPR mean absolute error, walk-forward over 2023–25 (17,908 player-weeks):
 
@@ -64,10 +62,10 @@ into the process:
 | XGBoost | 4.45 |
 | **Quantile transformer** | **4.33** |
 
-**It holds up live.** In 2026 weeks 1–4, scored from the projections actually published before kickoff, the MAE was
+**Live 2026 results.** In weeks 1–4, scored from the projections actually published before kickoff, the MAE was
 4.36 against 4.67 for the naive baseline. About 80% of outcomes landed inside the p10–p90 band, against a target of 80%.
 
-**It does not beat the experts, and the site says so.**
+**It does not beat expert consensus.**
 - **Preseason ranking:** FantasyPros expert consensus wins every position-season. About 60% of that edge is
   availability (knowing who will actually play), not per-game production, which is information that isn't in box
   scores.
@@ -83,16 +81,16 @@ into the process:
 - **Betting lines as features (2026):** cut error by 0.039 points per player-week, consistently across seasons and
   seeds. That fell short of the 0.05 bar set in advance, so it was labelled inconclusive and not adopted.
 
-## What I'd point a reviewer at
+## Where to look
 
-- **The betting-lines screen** shows the whole discipline in one place:
+- **The betting-lines screen** covers the full process in one place:
   - spec: [`docs/superpowers/specs/2026-10-11-lines-feature-screen-design.md`](superpowers/specs/2026-10-11-lines-feature-screen-design.md);
   - frozen manifest committed before fitting: `models/diagnostics/lines_screen_manifest.json`;
   - result: `models/diagnostics/lines_screen.json`.
 - **The weekly-accuracy system** reproduces "what did the site actually publish before kickoff" from git push events
   rather than trusting timestamps: [`src/ffmodel/eval/live_accuracy.py`](../src/ffmodel/eval/live_accuracy.py).
-- **The stale-benchmark correction** in [`docs/methodology.md`](methodology.md) §3: finding and publicly retracting my
-  own favourable result.
+- **The stale-benchmark correction** in [`docs/methodology.md`](methodology.md) §3, which retracts an earlier favourable
+  result.
 
 ## What I learned
 
@@ -102,8 +100,7 @@ into the process:
   better box-score model cannot close it, which is why the next real gain is data, not a bigger network.
 - **Infrastructure constraints shape design.** Free GPU sessions that end without warning mean every training loop
   checkpoints every epoch. No scheduled jobs on the training platform means all recurring work lives in GitHub Actions.
-- **Review pays for itself.** An independent reviewer with a mandate to break things found real defects in almost every
-  round.
+- **Independent review finds real defects.** The reviewer found something to fix in almost every round.
 
 ## What's next
 
@@ -111,6 +108,6 @@ into the process:
   for future pre-registered tests.
 - **A blend test.** A private, pre-registered comparison against a commercial projection reads once after week 18. Its
   consequences were fixed before any result existed.
-- **Bigger questions:** different model architectures, once there is enough new data to test them honestly.
+- **Model architecture:** try different architectures once there is enough new data to test them properly.
 
-*Scope guards, deliberately: QB/RB/WR/TE only; no kickers, defenses or DFS; no injury/news signals in the model.*
+*Scope: QB/RB/WR/TE only; no kickers, defenses or DFS; no injury/news signals in the model.*
