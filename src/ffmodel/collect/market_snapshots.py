@@ -34,7 +34,8 @@ SLEEPER_URL = ("https://api.sleeper.app/projections/nfl/{season}/{week}?season_t
 USER_AGENT = "megatron-market-snapshots (github.com/mtsilverstein/Megatron)"
 
 SHARP_BASE = "https://api.sharpapi.io/api/v1"
-# Full-game (market_segment null) offensive player props; quarter/half, defensive and novelty markets are dropped.
+# Full-game offensive player props (market_segment absent or null, unprefixed name); quarter/half, defensive and
+# novelty markets are dropped.
 PROPS_MARKETS = frozenset({
     "player_passing_yards", "player_passing_touchdowns", "player_passing_attempts", "player_passing_completions",
     "player_interceptions", "player_rushing_yards", "player_rushing_attempts", "player_receiving_yards",
@@ -169,11 +170,20 @@ def filter_props(raw: bytes) -> tuple[bytes, dict]:
     rows = body.get("data") if isinstance(body, dict) else None
     if not isinstance(rows, list):
         raise ValueError("SharpAPI odds response has no data list")
-    kept = [r for r in rows if isinstance(r, dict) and r.get("market_type") in PROPS_MARKETS
-            and r.get("market_segment") is None and r.get("sportsbook") in PROPS_BOOKS]
+    kept, rejected = [], Counter()
+    for r in rows:   # the first failing test names the rejection, so a schema change shows up in the counts
+        reason = ("not_an_object" if not isinstance(r, dict) else "market_not_listed" if r.get("market_type") not in PROPS_MARKETS
+                  else "segment" if r.get("market_segment") is not None else "book" if r.get("sportsbook") not in PROPS_BOOKS
+                  else None)
+        if reason:
+            rejected[reason] += 1
+        else:
+            kept.append(r)
     counts = Counter(f"{r['market_type']}|{r['sportsbook']}" for r in kept)
     return (json.dumps(kept, separators=(",", ":")).encode("utf-8"),
-            {"rows_total": len(rows), "rows_kept": len(kept), "kept_by_market_book": dict(sorted(counts.items()))})
+            {"rows_total": len(rows), "rows_kept": len(kept), "kept_by_market_book": dict(sorted(counts.items())),
+             "rejected_by_reason": dict(sorted(rejected.items())),
+             "segment_field_present": sum(1 for r in rows if isinstance(r, dict) and "market_segment" in r)})
 
 
 def list_nfl_events(key: str) -> list[dict]:
@@ -212,7 +222,8 @@ def capture_props(dest: Path, season: int, week: int, key: str, common: dict) ->
     games, so an incomplete batch is identifiable from the archive itself."""
     started = _now()
     batch = {"batch_started_at": utc_iso(started), "season": season, "week": week, "window_hours": PROPS_WINDOW_HOURS,
-             "selected": [], "captured": [], "skipped_started": [], "failed": {}, "not_attempted": [], **common}
+             "selected": [], "captured": [], "zero_kept": [], "skipped_started": [], "failed": {}, "not_attempted": [],
+             **common}
     lines: list[dict] = []
     try:
         games = select_prop_games(list_nfl_events(key), started)
@@ -239,6 +250,8 @@ def capture_props(dest: Path, season: int, week: int, key: str, common: dict) ->
                     "response_sha256": hashlib.sha256(raw).hexdigest(), **counts, **common}
             lines.append(write_capture(dest, "props", season, week, retrieved_at, kept, meta, name=g["id"]))
             batch["captured"].append(g["id"])
+            if counts["rows_kept"] == 0:      # zero can be legitimate (props not posted yet); it is flagged for review,
+                batch["zero_kept"].append(g["id"])   # never read as "no props were available"
         except Exception as e:
             batch["failed"][g["id"]] = str(e).replace(key, "***")
             if "HTTP 429" in str(e):                         # rate-limited: stop rather than hammer the API

@@ -503,6 +503,22 @@ async function dropFlow() {
   tickPlayer(els.mine, "d");                                                     // give 1, get 1: fits again
   assert.equal(els.mineDrops.hidden, true);
   for (const id of ["a", "d", "e", "k"]) assert.equal(dropBtn(els.mine, id).hidden, true, `Drop withdrawn on ${id}`);
+
+  // A marked drop that then becomes a trade asset leaves the drop set; an obligation that returns starts unmarked.
+  tickPlayer(els.theirs, "c");                                                   // give 1, get 2: one over again
+  dropBtn(els.mine, "a").dispatch("click");
+  assert.match(els.mineDrops.children[0].textContent, /\(1 of 1 marked\)$/);
+  tickPlayer(els.mine, "a");                                                     // give 2, get 2: fits
+  assert.equal(els.mineDrops.hidden, true);
+  assert.equal(dropBtn(els.mine, "a").hidden, true, "a traded player never shows Drop");
+  tickPlayer(els.theirs, "f");                                                   // give 2, get 3: one over
+  assert.match(els.mineDrops.children[0].textContent, /\(0 of 1 marked\)$/, "the earlier mark did not survive");
+  assert.equal(dropBtn(els.mine, "a").hidden, true);
+  assert.equal(dropBtn(els.mine, "e").attrs["aria-pressed"], "false");
+  dropBtn(els.mine, "e").dispatch("click");
+  await clickCompare(els, () => analyzeCalls.length === 2, "the comparison after the transitions");
+  assert.deepEqual(analyzeCalls[1].give.slice().sort(), ["a", "d"]);
+  assert.deepEqual(analyzeCalls[1].drops, { 9: ["e"] });
 }
 
 // A tiny stand-in for the batch the controller loaded (same statics), for computing expectations.

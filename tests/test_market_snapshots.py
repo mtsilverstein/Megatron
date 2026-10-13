@@ -199,7 +199,8 @@ def test_filter_props_keeps_full_game_offensive_markets_only():
     assert counts == {"rows_total": 6, "rows_kept": 3,
                       "kept_by_market_book": {"anytime_touchdown_scorer|fanduel": 1,
                                               "player_passing_attempts|fanduel": 1,
-                                              "player_receiving_yards|draftkings": 1}}
+                                              "player_receiving_yards|draftkings": 1},
+                      "rejected_by_reason": {"market_not_listed": 2, "segment": 1}, "segment_field_present": 6}
 
 
 def test_filter_props_rejects_bad_payload():
@@ -370,6 +371,32 @@ def test_filter_keeps_absent_or_null_segment_and_free_books_only():
             _prop("player_rushing_yards", book="betmgm")]
     kept, counts = ms.filter_props(json.dumps({"data": rows}).encode())
     assert [r["market_type"] for r in json.loads(kept)] == ["player_receiving_yards", "player_receptions"]
+
+
+@pytest.mark.parametrize("market,segment,present,kept", [
+    ("1st_half_player_receiving_yards", None, True, False),     # prefixed name, null segment: the whitelist rejects it
+    ("1st_half_player_receiving_yards", None, False, False),    # prefixed name, no segment field
+    ("1st_quarter_player_rushing_yards", None, False, False),
+    ("player_receiving_yards", 0, True, False),                 # falsy but non-null segments are segments
+    ("player_receiving_yards", "", True, False),
+    ("player_receiving_yards", False, True, False),
+    ("player_receiving_yards", None, False, True),              # the live full-game shape
+    ("player_receiving_yards", None, True, True),
+])
+def test_segment_and_prefix_boundaries(market, segment, present, kept):
+    row = {k: v for k, v in _prop(market, segment=segment).items() if present or k != "market_segment"}
+    out, counts = ms.filter_props(json.dumps({"data": [row]}).encode())
+    assert (len(json.loads(out)) == 1) is kept
+    assert counts["segment_field_present"] == (1 if present else 0)
+
+
+def test_zero_kept_capture_is_flagged_in_the_batch(props_env, monkeypatch):
+    tmp, weekly, dest, fake = props_env
+    monkeypatch.setattr(ms, "filter_props", lambda raw: (b"[]", {"rows_total": 5, "rows_kept": 0, "kept_by_market_book": {},
+                                                                  "rejected_by_reason": {"segment": 5}, "segment_field_present": 5}))
+    assert _run(weekly, dest) == 0
+    (b,) = _batches(dest)
+    assert b["zero_kept"] == ["g1", "g2"] and b["status"] == "complete"
 
 
 def test_offset_free_timestamp_is_rejected():
