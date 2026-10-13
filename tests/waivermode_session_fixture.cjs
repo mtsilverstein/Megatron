@@ -141,7 +141,8 @@ const ENGINE_RESULT = args => {
                 missingOwnedWeekly: [], unmappedOwnedIds: [], ros: { fresh: false, reason: "remaining-season projections unavailable" } },
   };
 };
-window.Waivers = { analyze(args) { analyzeCalls.push(args); return ENGINE_RESULT(args); } };
+// The controller captures this stub at init (a later require of waivers.js replaces window.Waivers).
+const WaiversStub = window.Waivers = { analyze(args) { analyzeCalls.push(args); return ENGINE_RESULT(args); } };
 let intelRadar = null;                  // a scenario's override of the research radar
 const BASIS = "the 1-point-per-week heuristic for the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced)";
 window.WaiverIntel = { analyze: () => ({ radar: intelRadar || [
@@ -275,7 +276,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal(b1.rostersFetchedAt - b1.rostersRequestedAt, ROSTERS_STEP);
   assert.equal(c0.snapshotAt, b1.rostersRequestedAt, "snapshotAt === bundle.rostersRequestedAt (kickoff gate)");
   assert.notEqual(c0.snapshotAt, b1.rostersFetchedAt);
-  assert.match($("waiver-source").textContent, new RegExp(`requested ${new Date(b1.rostersRequestedAt).toISOString()} \\(kickoff gate\\), received ${new Date(b1.rostersFetchedAt).toISOString()} \\(60 s expiry\\)`));
+  assert.match($("waiver-source").textContent, new RegExp(`requested ${new Date(b1.rostersRequestedAt).toISOString()} \\(kickoff gate\\), received ${new Date(b1.rostersFetchedAt).toISOString()} \\(marked stale after 60 s\\)`));
   assert.match($("waiver-source").textContent, /League settings read /, "the settings stamp sits with the data timestamps");
   // Reserve default: 20% of a $100 budget.
   assert.equal($("waiver-reserve").value, "20"); assert.equal(c0.budgetReserve, 20);
@@ -511,17 +512,52 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal(analyzeCalls[an5].snapshotAt, b4.rostersRequestedAt, "the engine gets the NEW pre-request time");
   assert.deepEqual(analyzeCalls[an5].transactions, b4.extra.transactions);
 
-  // 6. The 60 s UI expiry reads rostersFetchedAt (the reserve change handler is the tick's recompute()).
+  // 6. Roster age reads rostersFetchedAt (the reserve change handler is the tick's recompute()).
+  //    Past 60 s the desk STAYS on screen, marked stale, with its own refresh
+  //    button (owner report 2026-10-13: the old expiry hid the whole desk every
+  //    minute). The hard stop is the engine's kickoff gate: an engine refusal
+  //    still hides the results.
+  assert.equal($("waiver-stale").hidden, true, "fresh rosters: no stale notice");
   clock = b4.rostersFetchedAt + 59000;
   $("waiver-reserve").dispatch("change");
-  assert.ok(!$("waiver-results").hidden, "59 s after the FETCH the snapshot is still usable");
+  assert.ok(!$("waiver-results").hidden, "59 s after the FETCH the snapshot is fresh");
+  assert.equal($("waiver-stale").hidden, true);
   assert.equal(analyzeCalls.length, an5 + 2);
   assert.equal(analyzeCalls[an5 + 1].snapshotAt, b4.rostersRequestedAt, "recompute keeps the committed snapshotAt");
   clock = b4.rostersFetchedAt + 61000;
   $("waiver-reserve").dispatch("change");
-  assert.equal(statusText(), "Roster snapshot expired. Refresh from the league panel before using waiver recommendations.");
-  assert.ok($("waiver-results").hidden, "an expired snapshot hides the recommendations");
-  assert.equal(analyzeCalls.length, an5 + 2, "expired: the engine is not run");
+  assert.ok(!$("waiver-results").hidden, "past 60 s the recommendations stay on screen");
+  assert.equal(analyzeCalls.length, an5 + 3, "stale: the engine still runs (its kickoff gate is the hard stop)");
+  assert.equal($("waiver-stale").hidden, false, "past 60 s the stale notice shows");
+  assert.equal($("waiver-stale-text").textContent, "Rosters loaded 1 min ago — claims may have processed since. Refresh before placing a claim.");
+  clock = b4.rostersFetchedAt + 2 * 3600000 + 5000;
+  $("waiver-reserve").dispatch("change");
+  assert.equal($("waiver-stale-text").textContent, "Rosters loaded 2 h ago — claims may have processed since. Refresh before placing a claim.");
+  // The notice's button refreshes like the chip (transactions in the same
+  // generation); the desk stays visible throughout and the notice clears.
+  {
+    const an6 = analyzeCalls.length, tx6 = transactionsCalls(), hiddenSeen = [];
+    const off = Session.onChange(() => hiddenSeen.push($("waiver-results").hidden));
+    $("waiver-stale-refresh").dispatch("click");
+    assert.equal($("waiver-stale-refresh").disabled, true, "disabled while the refresh runs");
+    await until(() => Session.bundle() !== b4 && analyzeCalls.length > an6, "the stale-notice refresh to be adopted", 5000);
+    if (typeof off === "function") off();
+    await until(() => !$("waiver-stale-refresh").disabled, "the button to re-enable");
+    assert.equal(transactionsCalls(), tx6 + 1, "the page's refresh options ride along (transactions re-read)");
+    assert.ok(!hiddenSeen.includes(true) && !$("waiver-results").hidden, "a same-team refresh never hides the desk");
+    assert.equal($("waiver-stale").hidden, true, "fresh rosters again: the notice clears");
+  }
+  // An engine refusal (e.g. its kickoff gate) still withholds the desk.
+  {
+    const realAnalyze = WaiversStub.analyze;
+    WaiversStub.analyze = () => { throw new Error("a game started since the roster was loaded; refresh required"); };
+    $("waiver-reserve").dispatch("change");
+    assert.ok($("waiver-results").hidden, "an engine refusal hides the recommendations");
+    assert.equal(statusText(), "a game started since the roster was loaded; refresh required");
+    WaiversStub.analyze = realAnalyze;
+    $("waiver-reserve").dispatch("change");
+    assert.ok(!$("waiver-results").hidden);
+  }
 
   // 7. FAAB reserve: the default follows a budget change; a typed value is kept; an emptied box hands back.
   league = { ...baseLeague, settings: { ...baseLeague.settings, waiver_budget: 10 } };

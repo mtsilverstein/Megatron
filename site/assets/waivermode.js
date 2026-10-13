@@ -39,9 +39,10 @@
     heuristic: n => `${n}-point threshold in your league's points (a heuristic)`,
     ecr: "PPR reference ranking",
     ownerOnly: "Claim guidance is for the team's owner.",
-    expired: "Roster snapshot expired. Refresh from the league panel before using waiver recommendations.",
   });
   const ROS_METRIC = "rest_of_season_points_mae";
+  // Rosters older than this (from the post-fetch time) are marked stale.
+  const STALE_MS = 60000;
 
   function requestedWeek(value, state, season) {
     const automatic = !String(value ?? "").trim();
@@ -718,9 +719,12 @@
       if (!snap) return;
       const s = snap;
       try {
-        // UI expiry: 60 s from the POST-fetch time (bundle.rostersFetchedAt).
-        // The engine's kickoff gate uses snapshotAt = the PRE-request time.
-        if (Date.now() - s.bundle.rostersFetchedAt > 60000) throw new Error(COPY.expired);
+        // Roster age from the POST-fetch time (bundle.rostersFetchedAt): past
+        // 60 s the desk stays on screen, marked stale (claims may have
+        // processed). The hard stop is the engine's kickoff gate (snapshotAt =
+        // the PRE-request time): a game started since the rosters were read
+        // withholds every recommendation until a refresh.
+        const age = Date.now() - s.bundle.rostersFetchedAt;
         const league = s.world.league, wt = waiverType(), faab = wt === 2, isViewer = viewer();
         let reserve;
         if (faab) {
@@ -762,7 +766,7 @@
         for (const warning of warnings) ul.append(node("li", warning));
         $("waiver-warnings").append(ul);
         const settings = S.settingsText(s.bundle);
-        $("waiver-source").textContent = `Roster snapshot requested ${new Date(s.world.requestedAt).toISOString()} (kickoff gate), received ${s.world.fetchedAt} (60 s expiry). Week ${s.week}. Weekly projections: ${s.view.weekly.generated_at}, data through ${s.view.weekly.data_through || "unknown"}.${settings ? ` ${settings}.` : ""}${result ? ` ${result.coverage.scoringLabel}` : ""}`;
+        $("waiver-source").textContent = `Roster snapshot requested ${new Date(s.world.requestedAt).toISOString()} (kickoff gate), received ${s.world.fetchedAt} (marked stale after 60 s). Week ${s.week}. Weekly projections: ${s.view.weekly.generated_at}, data through ${s.view.weekly.data_through || "unknown"}.${settings ? ` ${settings}.` : ""}${result ? ` ${result.coverage.scoringLabel}` : ""}`;
         const coverage = result?.coverage;
         const whose = isViewer ? "This team's" : "Your";
         $("waiver-coverage").textContent = !coverage ? ""
@@ -775,13 +779,31 @@
         showResults(true);
         const who = isViewer ? `Viewing ${teamName}` : `Connected read-only · roster ${s.world.rosterId}`;
         status(`${who} · rosters received ${new Date(s.world.fetchedAt).toLocaleTimeString()}. Refresh from the league panel before placing a claim.`, true);
+        renderStale(age);
         renderRows();
       } catch (error) { result = null; showResults(false); status(error.message); }
     }
 
-    // The 15 s tick re-evaluates the committed snapshot (age, expiry); it
-    // never fetches. No polling: new data arrives only through the chip's
-    // refresh (Session.refresh) or a page reload.
+    // The stale notice: past STALE_MS the rosters may be out of date, so the
+    // notice says how old they are and carries its own refresh button (the
+    // chip's, with this page's options) -- no trip back up the page.
+    function renderStale(age) {
+      const stale = age > STALE_MS;
+      $("waiver-stale").hidden = !stale;
+      if (!stale) return;
+      const min = Math.floor(age / 60000);
+      const ago = min < 60 ? `${min} min ago` : `${Math.floor(min / 60)} h ago`;
+      $("waiver-stale-text").textContent = `Rosters loaded ${ago} — claims may have processed since. Refresh before placing a claim.`;
+    }
+    $("waiver-stale-refresh").addEventListener("click", () => {
+      const btn = $("waiver-stale-refresh");
+      btn.disabled = true;
+      FC.chip.refresh(refreshOptions()).then(() => { btn.disabled = false; });
+    });
+
+    // The 15 s tick re-evaluates the committed snapshot (age, kickoff gate);
+    // it never fetches. No polling: new data arrives only through a refresh
+    // (Session.refresh) or a page reload.
     setInterval(() => { if (snap && !$("waiver-results").hidden) recompute(); }, 15000);
 
     const hideResults = () => {
@@ -809,7 +831,13 @@
     // copy; views are recomputed for every bundle (live settings, spec §5.2).
     async function load(bundle) {
       const thisRequest = ++requestId;
-      hideResults();
+      // A new bundle for the SAME team (a refresh, a week change) keeps the
+      // current desk on screen until the new one renders: no collapse, no
+      // scroll jump. Any other team, role or league clears it at once.
+      const sameTeam = !!snap && !!bundle.analysisRoster && snap.bundle.analysisRole === bundle.analysisRole
+        && String(snap.bundle.league?.league_id) === String(bundle.league?.league_id)
+        && snap.bundle.analysisRoster?.roster_id === bundle.analysisRoster.roster_id;
+      if (!sameTeam) hideResults();
       setLink(bundle.league);
       if (!bundle.analysisRoster) { status(gateMessage(bundle)); return; }
       status("Reading current rosters, waiver settings, scoring, and projections…");
@@ -869,13 +897,16 @@
     // nothing commits and the chip's age does not advance. The week is
     // resolved from the FRESH state inside the hook, so "auto" follows the
     // live NFL week.
-    FC.chip.onRefresh(() => ({
-      scope: "league",
-      also: async (parts, get) => {
-        try { return await transactionsAlso(parts, get, requestedWeek(autoWeek ? "" : $("waiver-week").value, parts.state, parts.league.season)); }
-        catch (error) { refreshError = error.message; throw error; }
-      },
-    }));
+    function refreshOptions() {
+      return {
+        scope: "league",
+        also: async (parts, get) => {
+          try { return await transactionsAlso(parts, get, requestedWeek(autoWeek ? "" : $("waiver-week").value, parts.state, parts.league.season)); }
+          catch (error) { refreshError = error.message; throw error; }
+        },
+      };
+    }
+    FC.chip.onRefresh(refreshOptions);
     S.onChange(sync);
     // Any Sleeper league by id (spec §5.1): loaded at once, identity optional.
     FC.setLeague(leagueRef.leagueId);
