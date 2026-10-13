@@ -1,9 +1,9 @@
 {
   "season": 2026,
-  "week": 5,
-  "data_through": "2026-wk4",
-  "generated_at": "2026-10-12T23:40:53+00:00",
-  "batch_id": "2026-10-12T23:40:53+00:00|2026-wk4|w5",
+  "week": 6,
+  "data_through": "2026-wk5",
+  "generated_at": "2026-10-13T12:49:43+00:00",
+  "batch_id": "2026-10-13T12:49:43+00:00|2026-wk5|w6",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -12,8 +12,8 @@
     "scoring": "PPR"
   },
   "crosswalk": {
-    "matched_gsis": 170,
-    "matched_name": 514,
+    "matched_gsis": 168,
+    "matched_name": 520,
     "unmatched": 13
   },
   "players": [
@@ -582,18 +582,6 @@
       "match": "gsis"
     },
     {
-      "player_id": "00-0033040",
-      "sleeper_id": "3321",
-      "name": "Tyreek Hill",
-      "team": "MIA",
-      "position": "WR",
-      "bye": 6,
-      "ecr": 329,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "gsis"
-    },
-    {
       "player_id": "00-0033077",
       "sleeper_id": "3294",
       "name": "Dak Prescott",
@@ -798,18 +786,6 @@
       "match": "gsis"
     },
     {
-      "player_id": "00-0033455",
-      "sleeper_id": "4435",
-      "name": "Anthony Firkser",
-      "team": "DET",
-      "position": "TE",
-      "bye": 6,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "gsis"
-    },
-    {
       "player_id": "00-0033526",
       "sleeper_id": "4147",
       "name": "Samaje Perine",
@@ -954,6 +930,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0033857",
+      "sleeper_id": "4040",
+      "name": "JuJu Smith-Schuster",
+      "team": "KC",
+      "position": "WR",
+      "bye": 5,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0033858",
       "sleeper_id": "4144",
       "name": "Jonnu Smith",
@@ -1062,6 +1050,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0033923",
+      "sleeper_id": "4098",
+      "name": "Kareem Hunt",
+      "team": "KC",
+      "position": "RB",
+      "bye": 5,
+      "ecr": 330,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0033943",
       "sleeper_id": "4171",
       "name": "Josh Reynolds",
@@ -1104,18 +1104,6 @@
       "team": "WAS",
       "position": "WR",
       "bye": 7,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0034073",
-      "sleeper_id": "5285",
-      "name": "Ross Dwelley",
-      "team": "DET",
-      "position": "TE",
-      "bye": 6,
       "ecr": null,
       "identity_only": true,
       "reason": "team_disagrees",
@@ -1236,18 +1224,6 @@
       "team": "CHI",
       "position": "WR",
       "bye": 10,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0034418",
-      "sleeper_id": "5113",
-      "name": "Cedrick Wilson",
-      "team": "MIA",
-      "position": "WR",
-      "bye": 6,
       "ecr": null,
       "identity_only": true,
       "reason": "team_disagrees",
@@ -1590,6 +1566,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0034983",
+      "sleeper_id": "5955",
+      "name": "Hunter Renfrow",
+      "team": "CAR",
+      "position": "WR",
+      "bye": 5,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0035021",
       "sleeper_id": "6427",
       "name": "Ashton Dulin",
@@ -1623,18 +1611,6 @@
       "ecr": null,
       "identity_only": true,
       "reason": "no_projection",
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0035100",
-      "sleeper_id": "6111",
-      "name": "Jake Browning",
-      "team": "CIN",
-      "position": "QB",
-      "bye": 6,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -2190,18 +2166,6 @@
       "match": null
     },
     {
-      "player_id": "00-0035956",
-      "sleeper_id": null,
-      "name": "Giovanni Ricci",
-      "team": "DET",
-      "position": "TE",
-      "bye": 6,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "no_catalog_match",
-      "match": null
-    },
-    {
       "player_id": "00-0035993",
       "sleeper_id": "7083",
       "name": "Tyler Huntley",
@@ -2562,6 +2526,18 @@
       "match": "name"
     },
     {
+      "player_id": "00-0036360",
+      "sleeper_id": "6820",
+      "name": "Clyde Edwards-Helaire",
+      "team": "KC",
+      "position": "RB",
+      "bye": 5,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "name"
+    },
+    {
       "player_id": "00-0036387",
       "sleeper_id": null,
       "name": null,
@@ -2826,13 +2802,13 @@
       "match": "name"
     },
     {
-      "player_id": "00-0036569",
-      "sleeper_id": "7529",
-      "name": "Gary Brightwell",
-      "team": "CIN",
+      "player_id": "00-0036567",
+      "sleeper_id": "7561",
+      "name": "Elijah Mitchell",
+      "team": "KC",
       "position": "RB",
-      "bye": 6,
-      "ecr": null,
+      "bye": 5,
+      "ecr": 511,
       "identity_only": true,
       "reason": "team_disagrees",
       "match": "name"
@@ -2859,18 +2835,6 @@
       "ecr": 32,
       "identity_only": false,
       "reason": null,
-      "match": "name"
-    },
-    {
-      "player_id": "00-0036620",
-      "sleeper_id": "7612",
-      "name": "Dee Eskridge",
-      "team": "MIA",
-      "position": "WR",
-      "bye": 6,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -4267,15 +4231,15 @@
     },
     {
       "player_id": "00-0037745",
-      "sleeper_id": "8223",
-      "name": "Velus Jones",
+      "sleeper_id": null,
+      "name": "Velus Jones Jr.",
       "team": "SEA",
-      "position": "WR",
+      "position": "RB",
       "bye": 11,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
-      "match": "name"
+      "identity_only": true,
+      "reason": "no_catalog_match",
+      "match": null
     },
     {
       "player_id": "00-0037746",
@@ -4471,15 +4435,15 @@
     },
     {
       "player_id": "00-0038098",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "8116",
+      "name": "Pierre Strong",
       "team": "GB",
-      "position": null,
+      "position": "RB",
       "bye": 11,
       "ecr": 512,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0038102",
@@ -6079,15 +6043,15 @@
     },
     {
       "player_id": "00-0039325",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "11582",
+      "name": "Carson Steele",
       "team": "PHI",
-      "position": null,
+      "position": "RB",
       "bye": 10,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0039329",
@@ -10183,15 +10147,15 @@
     },
     {
       "player_id": "00-0041070",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13297",
+      "name": "Reggie Virgil",
       "team": "ARI",
-      "position": null,
+      "position": "WR",
       "bye": 14,
       "ecr": 470,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041077",
@@ -11059,15 +11023,15 @@
     },
     {
       "player_id": "00-0041314",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13827",
+      "name": "Tanner Arkin",
       "team": "NE",
-      "position": null,
+      "position": "TE",
       "bye": 11,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041317",
@@ -11431,15 +11395,15 @@
     },
     {
       "player_id": "00-0041443",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13402",
+      "name": "Skyler Bell",
       "team": "BUF",
-      "position": null,
+      "position": "WR",
       "bye": 7,
       "ecr": 298,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041446",
@@ -11803,15 +11767,15 @@
     },
     {
       "player_id": "00-0041562",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13269",
+      "name": "Fernando Mendoza",
       "team": "LV",
-      "position": null,
+      "position": "QB",
       "bye": 13,
       "ecr": 253,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041565",
@@ -11923,15 +11887,15 @@
     },
     {
       "player_id": "00-0041579",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13429",
+      "name": "Seydou Traore",
       "team": "MIA",
-      "position": null,
+      "position": "TE",
       "bye": 6,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041585",
