@@ -778,22 +778,27 @@
         for (const line of evidenceLines(s.batch.evaluation, s.view)) ev.append(node("p", line));
         showResults(true);
         const who = isViewer ? `Viewing ${teamName}` : `Connected read-only · roster ${s.world.rosterId}`;
-        status(`${who} · rosters received ${new Date(s.world.fetchedAt).toLocaleTimeString()}. Refresh from the league panel before placing a claim.`, true);
-        renderStale(age);
+        // The live status announces the fresh-to-stale change once: its stale
+        // text is constant (no age), so the 15 s tick does not re-announce it.
+        const stale = staleText(age);
+        status(`${who} · rosters received ${new Date(s.world.fetchedAt).toLocaleTimeString()}. ${stale
+          ? "Rosters are over a minute old and claims may have processed since; use Refresh rosters above the recommendations before placing a claim."
+          : "Refresh from the league panel before placing a claim."}`, true);
+        $("waiver-stale").hidden = !stale;
+        if (stale) $("waiver-stale-text").textContent = stale;
         renderRows();
       } catch (error) { result = null; showResults(false); status(error.message); }
     }
 
     // The stale notice: past STALE_MS the rosters may be out of date, so the
-    // notice says how old they are and carries its own refresh button (the
-    // chip's, with this page's options) -- no trip back up the page.
-    function renderStale(age) {
-      const stale = age > STALE_MS;
-      $("waiver-stale").hidden = !stale;
-      if (!stale) return;
+    // notice (and a copied shortlist) says how old they are; the notice
+    // carries its own refresh button (the chip's, with this page's options)
+    // -- no trip back up the page. Null while the rosters are fresh.
+    function staleText(age) {
+      if (!(age > STALE_MS)) return null;
       const min = Math.floor(age / 60000);
       const ago = min < 60 ? `${min} min ago` : `${Math.floor(min / 60)} h ago`;
-      $("waiver-stale-text").textContent = `Rosters loaded ${ago} — claims may have processed since. Refresh before placing a claim.`;
+      return `Rosters loaded ${ago} — claims may have processed since. Refresh before placing a claim.`;
     }
     $("waiver-stale-refresh").addEventListener("click", () => {
       const btn = $("waiver-stale-refresh");
@@ -861,6 +866,9 @@
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
         protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
         applyReserveDefault(world.league);
+        // A copied shortlist describes the snapshot it came from: adopting a
+        // new one (even for the same team) clears it and its status.
+        $("waiver-copy-status").textContent = ""; $("waiver-backup").value = ""; $("waiver-backup-wrap").hidden = true;
         snap = { bundle, world, view, board, catalog, catalogTime, roles, kickoffs, rosEcr, signals, format, note, batch: b, week };
         renderRoster(); recompute();
       } catch (error) {
@@ -931,7 +939,9 @@
         : wt === 0 ? `Current rolling priority ${result?.waiver.priority ?? "unknown"}; rank claims in Sleeper`
         : wt === 1 ? "Reverse-standings waivers; rank claims in Sleeper"
         : result ? `Remaining $${result.budget.remaining}; reserve $${result.budget.reserve}; spendable $${result.budget.spendable}` : "";
+      const stale = staleText(Date.now() - snap.bundle.rostersFetchedAt);
       return [`${league.name || `League ${league.league_id}`} waiver shortlist — independent alternatives, not submitted claims`, $("waiver-source").textContent,
+        ...(stale ? [`STALE: ${stale}`] : []),
         budgetLine,
         ...(!snap.note && lastView && lastView.hiddenAdds ? [`Showing the top ${MAX_ADDS} of ${lastView.totalAdds} adds; ${lastView.hiddenAdds} more not included — use Show all adds on the page.`] : []),
         ...(snap.note ? [snap.note] : shownRows.map(r => rowText(r, result, { ownerOnly: isViewer }).exportLine)),

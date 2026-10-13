@@ -533,6 +533,18 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   clock = b4.rostersFetchedAt + 2 * 3600000 + 5000;
   $("waiver-reserve").dispatch("change");
   assert.equal($("waiver-stale-text").textContent, "Rosters loaded 2 h ago — claims may have processed since. Refresh before placing a claim.");
+  // The live status announces the stale state with constant text (no age), so the tick does not re-announce it.
+  assert.match(statusText(), /\. Rosters are over a minute old and claims may have processed since; use Refresh rosters above the recommendations before placing a claim\.$/);
+  const staleStatus = statusText();
+  clock += 15000; $("waiver-reserve").dispatch("change");
+  assert.equal(statusText(), staleStatus, "the stale status text is stable across ticks");
+  // A copied stale shortlist carries the stale warning, computed at copy time.
+  setNavigator({});
+  $("waiver-copy").dispatch("click"); await settle();
+  const staleLines = $("waiver-backup").value.split("\n");
+  assert.equal(staleLines[2], "STALE: Rosters loaded 2 h ago — claims may have processed since. Refresh before placing a claim.", "the warning sits right after the source line, before any claim row");
+  assert.ok(staleLines.findIndex(l => l.startsWith("ADD ")) > 2);
+  assert.equal($("waiver-backup-wrap").hidden, false);
   // The notice's button refreshes like the chip (transactions in the same
   // generation); the desk stays visible throughout and the notice clears.
   {
@@ -546,7 +558,24 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.equal(transactionsCalls(), tx6 + 1, "the page's refresh options ride along (transactions re-read)");
     assert.ok(!hiddenSeen.includes(true) && !$("waiver-results").hidden, "a same-team refresh never hides the desk");
     assert.equal($("waiver-stale").hidden, true, "fresh rosters again: the notice clears");
+    assert.equal($("waiver-backup-wrap").hidden, true, "a same-team refresh clears the old snapshot's copied shortlist");
+    assert.equal($("waiver-backup").value, ""); assert.equal($("waiver-copy-status").textContent, "");
+    assert.match(statusText(), /Refresh from the league panel before placing a claim\.$/, "fresh again: the status drops the stale wording");
   }
+  // A week change (same team) clears a copied shortlist too.
+  {
+    $("waiver-copy").dispatch("click"); await settle();
+    assert.equal($("waiver-backup-wrap").hidden, false);
+    assert.doesNotMatch($("waiver-backup").value, /^STALE:/m, "fresh rosters: no stale line in the export");
+    const an7 = analyzeCalls.length;
+    $("waiver-week").value = "3"; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > an7, "the week-change reload");
+    assert.equal($("waiver-backup-wrap").hidden, true, "a week change clears the copied shortlist");
+    assert.equal($("waiver-backup").value, "");
+    $("waiver-week").value = ""; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > an7 + 1, "back to the automatic week");
+  }
+  if (realNavigator) Object.defineProperty(globalThis, "navigator", realNavigator); else delete globalThis.navigator;
   // An engine refusal (e.g. its kickoff gate) still withholds the desk.
   {
     const realAnalyze = WaiversStub.analyze;
