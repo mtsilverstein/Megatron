@@ -7,20 +7,23 @@
  ],
  "evaluator_version": {
   "dirty": false,
-  "id": "live-accuracy-v1+05abe169f57383e0174e9678f2f464d4eb8214cb",
+  "id": "live-accuracy-v1+19757ebb98ffb8d50ba1827baaa579043ec21fbb",
   "protocol_version": "live-accuracy-v1",
-  "src_ffmodel_tree": "05abe169f57383e0174e9678f2f464d4eb8214cb"
+  "src_ffmodel_tree": "19757ebb98ffb8d50ba1827baaa579043ec21fbb"
  },
  "inputs": {
   "actuals_by_season": {
    "2023": "c149053c931edfe3c7c8868d08afd1a7b59740f0e239ac1c9bb354fd8b729381",
    "2024": "c8c194e514591c602def6706467a7ee7afec131e45747a5b1cf4a8197ecd310f",
    "2025": "f49532b98cb865894d88d3db6a5ff9a7aebc31dd27279a36d7c336cbd68fba69",
-   "2026": "261f74581b310c8d849bebd459974e48d4c835e2b6a849ac6cd4487d4ae980e7"
+   "2026": "0e50e579c72c8aec595653ff03326c08a4c048cde49ea0ba54588b9549eb5abe"
   },
   "archive_blobs": {
    "2026-w04-2026-09-30-220d00155877a0a7.json": "220d00155877a0a71cf83e2cbdb7553065bf4d364753ffad271d9d3bafcb7b8e",
-   "2026-w04-2026-09-30-5aec56b70c3784e6.json": "5aec56b70c3784e6d1afcd5d2f0192f904ae372bef7a6328cd11efe0656c1ec1"
+   "2026-w04-2026-09-30-5aec56b70c3784e6.json": "5aec56b70c3784e6d1afcd5d2f0192f904ae372bef7a6328cd11efe0656c1ec1",
+   "2026-w05-2026-10-06-2f2d5b70f126e312.json": "2f2d5b70f126e312e7f3a7fec9012398d0a74c012fd72ff150bf802db6f98ef6",
+   "2026-w05-2026-10-06-ee9605284afbd188.json": "ee9605284afbd18858f07176beb483cc9a2af9a75f279745f160891d47afea9a",
+   "2026-w05-2026-10-07-14b76b29997431ec.json": "14b76b29997431ec039201d5fc96bfe08233fe3126be86e6c477b349e2965b7c"
   },
   "bakeoff": {
    "path": "models/backtests/bakeoff.json",
@@ -36,71 +39,75 @@
     [
      "-inf",
      "2026-10-10T21:58:10Z"
+    ],
+    [
+     "-inf",
+     "2026-10-13T21:36:29Z"
     ]
    ],
-   "events": 251,
-   "sha256": "25f95327b05bbb56417e30e4e2c26f9f226938b3a7ea91926a7f66ac905edc7b"
+   "events": 270,
+   "sha256": "24a1842b87453b986be5a7ef92298dfd4d791b367e0f52e00caffbc938f0d336"
   },
   "rankings_raw": "fa8e1f79e81c2b7b47bd15111c1039c7b8062e4d951200b1926efc2457057cc5",
-  "schedules": "11e29bec8044b4366f09e65f4bda91017121f862344b99a995293cba72baa2d0"
+  "schedules": "da914d2ea737dd512937663d913f426f4d80ca513d662b61c860b367b843d539"
  },
  "points": {
   "by_position": {
    "QB": {
-    "above_p90": 0.09352517985611511,
-    "below_p10": 0.06474820143884892,
-    "coverage_p10_p90": 0.841726618705036,
-    "mae": 6.041726618705035,
-    "mean_resid": 1.8893525179856119,
-    "median_resid": 0.9800000000000004,
-    "n": 139,
-    "naive_mae": 6.157805755395683,
-    "pinball_p10": 1.2666115107913671,
-    "pinball_p50": 3.0208633093525177,
-    "pinball_p90": 1.3760935251798558,
-    "share_above_p50": 0.5611510791366906
+    "above_p90": 0.10344827586206896,
+    "below_p10": 0.06896551724137931,
+    "coverage_p10_p90": 0.8275862068965517,
+    "mae": 6.335977011494253,
+    "mean_resid": 2.011034482758621,
+    "median_resid": 0.9700000000000006,
+    "n": 174,
+    "naive_mae": 6.641676245210728,
+    "pinball_p10": 1.2838275862068966,
+    "pinball_p50": 3.1679885057471266,
+    "pinball_p90": 1.4382068965517238,
+    "share_above_p50": 0.5459770114942529
    },
    "RB": {
-    "above_p90": 0.10893854748603352,
-    "below_p10": 0.08100558659217877,
-    "coverage_p10_p90": 0.8100558659217877,
-    "mae": 4.3388268156424585,
-    "mean_resid": 2.955027932960894,
-    "median_resid": 0.7000000000000002,
-    "n": 358,
-    "naive_mae": 4.609101489757914,
-    "pinball_p10": 0.6474078212290504,
-    "pinball_p50": 2.1694134078212293,
-    "pinball_p90": 1.212717877094972,
-    "share_above_p50": 0.5698324022346368
+    "above_p90": 0.10762331838565023,
+    "below_p10": 0.08071748878923767,
+    "coverage_p10_p90": 0.8116591928251121,
+    "mae": 4.330650224215247,
+    "mean_resid": 2.9509641255605383,
+    "median_resid": 0.655,
+    "n": 446,
+    "naive_mae": 4.6070067264574,
+    "pinball_p10": 0.6466524663677131,
+    "pinball_p50": 2.1653251121076234,
+    "pinball_p90": 1.1923408071748876,
+    "share_above_p50": 0.5672645739910314
    },
    "TE": {
-    "above_p90": 0.1174496644295302,
-    "below_p10": 0.1342281879194631,
-    "coverage_p10_p90": 0.7483221476510067,
-    "mae": 3.7759731543624153,
-    "mean_resid": 2.0715436241610736,
-    "median_resid": 0.31500000000000006,
-    "n": 298,
-    "naive_mae": 4.221057046979865,
-    "pinball_p10": 0.5410838926174496,
-    "pinball_p50": 1.8879865771812077,
-    "pinball_p90": 1.1571845637583893,
-    "share_above_p50": 0.5268456375838926
+    "above_p90": 0.11811023622047244,
+    "below_p10": 0.13910761154855644,
+    "coverage_p10_p90": 0.7427821522309711,
+    "mae": 3.749685039370079,
+    "mean_resid": 1.9924146981627298,
+    "median_resid": 0.27,
+    "n": 381,
+    "naive_mae": 4.172922134733159,
+    "pinball_p10": 0.5372125984251969,
+    "pinball_p50": 1.8748425196850396,
+    "pinball_p90": 1.1410866141732283,
+    "share_above_p50": 0.5144356955380578
    },
    "WR": {
-    "above_p90": 0.12412587412587413,
-    "below_p10": 0.07342657342657342,
-    "coverage_p10_p90": 0.8024475524475524,
-    "mae": 4.2670279720279725,
-    "mean_resid": 2.2674125874125877,
-    "median_resid": 0.01,
-    "n": 572,
-    "naive_mae": 4.586742424242424,
-    "pinball_p10": 0.640909090909091,
-    "pinball_p50": 2.1335139860139862,
-    "pinball_p90": 1.303146853146853,
-    "share_above_p50": 0.5034965034965035
+    "above_p90": 0.12198581560283688,
+    "below_p10": 0.075177304964539,
+    "coverage_p10_p90": 0.8028368794326242,
+    "mae": 4.28113475177305,
+    "mean_resid": 2.3039432624113476,
+    "median_resid": 0.07000000000000028,
+    "n": 705,
+    "naive_mae": 4.5739479905437355,
+    "pinball_p10": 0.6454539007092199,
+    "pinball_p50": 2.140567375886525,
+    "pinball_p90": 1.2766184397163118,
+    "share_above_p50": 0.5163120567375886
    }
   },
   "by_week": {
@@ -163,66 +170,81 @@
     "pinball_p50": 2.1294084507042257,
     "pinball_p90": 1.1904788732394365,
     "share_above_p50": 0.5492957746478874
+   },
+   "5": {
+    "above_p90": 0.11504424778761062,
+    "below_p10": 0.10029498525073746,
+    "coverage_p10_p90": 0.7846607669616519,
+    "last_game": "2026-10-12",
+    "mae": 4.48873156342183,
+    "mean_resid": 2.40306784660767,
+    "median_resid": 0.4500000000000002,
+    "n": 339,
+    "naive_mae": 4.830113077679449,
+    "pinball_p10": 0.6956991150442479,
+    "pinball_p50": 2.244365781710915,
+    "pinball_p90": 1.183277286135693,
+    "share_above_p50": 0.5339233038348082
    }
   },
   "overall": {
-   "above_p90": 0.11558156547183614,
-   "below_p10": 0.08778346744696415,
+   "above_p90": 0.11547479484173505,
+   "below_p10": 0.09026963657678781,
    "ci95_player": [
-    -0.4921551115193519,
-    -0.13495028046829802
+    -0.4747942159306742,
+    -0.16835689299106257
    ],
    "ci95_week_team": [
-    -0.5229517623546511,
-    -0.10672202250106866
+    -0.4994701933145944,
+    -0.14208200107740546
    ],
-   "coverage_p10_p90": 0.7966349670811997,
-   "delta_mae_model_minus_naive": -0.313390636430139,
-   "mae": 4.359239209948793,
-   "mean_resid": 2.366349670811997,
-   "median_resid": 0.370000000000001,
-   "n": 1367,
-   "naive_mae": 4.672629846378932,
+   "coverage_p10_p90": 0.7942555685814772,
+   "delta_mae_model_minus_naive": -0.31895271590465024,
+   "mae": 4.384970691676436,
+   "mean_resid": 2.3736459554513485,
+   "median_resid": 0.38500000000000023,
+   "n": 1706,
+   "naive_mae": 4.703923407581087,
    "note": "conditional on the observed weeks",
-   "pinball_p10": 0.6844725676664228,
-   "pinball_p50": 2.1796196049743966,
-   "pinball_p90": 1.2550629114850036,
-   "share_above_p50": 0.5318215069495245
+   "pinball_p10": 0.6867033997655334,
+   "pinball_p50": 2.192485345838218,
+   "pinball_p90": 1.2407983587338802,
+   "share_above_p50": 0.5322391559202814
   }
  },
  "protocol_version": "live-accuracy-v1",
  "ranking": {
   "primary": {
-   "D": 0.00863435014291812,
-   "cells": 4,
+   "D": -0.0052676578352133865,
+   "cells": 8,
    "ci_week": [
-    0.00863435014291812,
+    -0.019169665813344894,
     0.00863435014291812
    ],
    "per_position_D": {
-    "QB": -0.04943267900318876,
-    "RB": 0.02416586688400435,
-    "TE": 0.0331439225290141,
-    "WR": 0.026660290161842792
+    "QB": -0.06701918303710361,
+    "RB": 0.023127132359347047,
+    "TE": 0.011239587635068493,
+    "WR": 0.011581831701834522
    },
-   "sp_con": 0.6159556613324433,
-   "sp_ours": 0.6245900114753614
+   "sp_con": 0.6037554875808826,
+   "sp_ours": 0.5984878297456693
   },
   "secondary": {
-   "D": -0.03751643232763007,
-   "cells": 16,
+   "D": -0.03488473117353617,
+   "cells": 20,
    "ci_week": [
-    -0.055729843347645226,
-    -0.019303021307614916
+    -0.05306223677326993,
+    -0.020314002357524043
    ],
    "per_position_D": {
-    "QB": -0.07259669525321127,
-    "RB": -0.031141189362761806,
-    "TE": -0.01751317936846114,
-    "WR": -0.028814665326086064
+    "QB": -0.07461200745888741,
+    "RB": -0.027687360840756004,
+    "TE": -0.010222003310790772,
+    "WR": -0.027017553083710476
    },
-   "sp_con": 0.6280108182607558,
-   "sp_ours": 0.5904943859331256
+   "sp_con": 0.6376713018272128,
+   "sp_ours": 0.6027865706536766
   }
  },
  "ranking_coverage": {
@@ -269,12 +291,12 @@
   "transformer_mae_2023_25": 4.324723397524363
  },
  "run": {
-  "as_of_date": "2026-10-10",
-  "main_sha": "31acd5916bae496e5b802cbaf27e7f04840e2e9c",
+  "as_of_date": "2026-10-13",
+  "main_sha": "4a6e94c24e8813363ee47bf493e789b21cd65518",
   "provisional_weeks": [
-   4
+   5
   ],
-  "run_at": "2026-10-10T21:58:10Z"
+  "run_at": "2026-10-13T21:36:29Z"
  },
  "season": 2026,
  "weeks": {
@@ -1132,19 +1154,270 @@
   },
   "5": {
    "cutoff": "2026-10-08T00:00:00Z",
-   "last_game": "2026-10-12"
+   "expert_snapshot": {
+    "alternatives": [
+     {
+      "available_by": "2026-10-06T21:47:33Z",
+      "blob_sha256": "ee9605284afbd18858f07176beb483cc9a2af9a75f279745f160891d47afea9a",
+      "name": "2026-w05-2026-10-06-ee9605284afbd188.json",
+      "status": "qualifies"
+     },
+     {
+      "available_by": "2026-10-06T12:10:37Z",
+      "blob_sha256": "2f2d5b70f126e312e7f3a7fec9012398d0a74c012fd72ff150bf802db6f98ef6",
+      "name": "2026-w05-2026-10-06-2f2d5b70f126e312.json",
+      "status": "qualifies"
+     }
+    ],
+    "available_by": "2026-10-07T11:57:14Z",
+    "blob_sha256": "14b76b29997431ec039201d5fc96bfe08233fe3126be86e6c477b349e2965b7c",
+    "commit": "4d00ef483541a16154f64ddf640823449434153f",
+    "event_id": 45728498214,
+    "name": "2026-w05-2026-10-07-14b76b29997431ec.json",
+    "path": "data_snapshots/weekly_ecr/2026-w05-2026-10-07-14b76b29997431ec.json",
+    "status": "selected",
+    "tie_break": null,
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 299
+    }
+   },
+   "last_game": "2026-10-12",
+   "points": {
+    "above_p90": 0.11504424778761062,
+    "below_p10": 0.10029498525073746,
+    "coverage_p10_p90": 0.7846607669616519,
+    "mae": 4.48873156342183,
+    "mean_resid": 2.40306784660767,
+    "median_resid": 0.4500000000000002,
+    "n": 339,
+    "naive_mae": 4.830113077679449,
+    "pinball_p10": 0.6956991150442479,
+    "pinball_p50": 2.244365781710915,
+    "pinball_p90": 1.183277286135693,
+    "share_above_p50": 0.5339233038348082
+   },
+   "primary": {
+    "cells": [
+     {
+      "delta": -0.08460568707101845,
+      "n": 35,
+      "position": "QB",
+      "sp_con": 0.6925339683429051,
+      "sp_ours": 0.6079282812718867
+     },
+     {
+      "delta": 0.022088397834689744,
+      "n": 65,
+      "position": "RB",
+      "sp_con": 0.6093271982591695,
+      "sp_ours": 0.6314155960938592
+     },
+     {
+      "delta": -0.0034966267581737487,
+      "n": 88,
+      "position": "WR",
+      "sp_con": 0.47250701261744316,
+      "sp_ours": 0.4690103858592694
+     },
+     {
+      "delta": -0.010664747258877116,
+      "n": 53,
+      "position": "TE",
+      "sp_con": 0.5918530760977704,
+      "sp_ours": 0.5811883288388933
+     }
+    ],
+    "degenerate": 0,
+    "pool": 241,
+    "pool_by_position": {
+     "QB": 35,
+     "RB": 65,
+     "TE": 53,
+     "WR": 88
+    },
+    "reason": null,
+    "status": "scored"
+   },
+   "publication": {
+    "available_by": "2026-10-07T22:09:32Z",
+    "commit": "4c83160e305ae26d1b033a194d87ee396a8e05ba",
+    "detail": null,
+    "event_id": 45783894382,
+    "status": "selected"
+   },
+   "secondary": {
+    "cells": [
+     {
+      "delta": -0.08267325628159194,
+      "n": 33,
+      "position": "QB",
+      "sp_con": 0.7318459121398571,
+      "sp_ours": 0.6491726558582651
+     },
+     {
+      "delta": -0.013872046752732792,
+      "n": 78,
+      "position": "RB",
+      "sp_con": 0.7280029897001763,
+      "sp_ours": 0.7141309429474435
+     },
+     {
+      "delta": -0.01982910411420813,
+      "n": 117,
+      "position": "WR",
+      "sp_con": 0.6775254749508423,
+      "sp_ours": 0.6576963708366341
+     },
+     {
+      "delta": 0.018942700919890698,
+      "n": 76,
+      "position": "TE",
+      "sp_con": 0.5678785675812872,
+      "sp_ours": 0.5868212685011779
+     }
+    ],
+    "degenerate": 0,
+    "match": {
+     "gsis_collisions": 0,
+     "match_rate": 0.9934924078091106,
+     "matched_by_id": 455,
+     "matched_by_name": 3,
+     "matched_by_name_only": 1,
+     "matched_by_name_position": 2,
+     "ranked": 461,
+     "unmatched": 3
+    },
+    "reason": null,
+    "retention": {
+     "excluded_early_by_position": {
+      "QB": 2,
+      "RB": 5,
+      "TE": 6,
+      "WR": 9
+     },
+     "excluded_early_game": 22,
+     "match_rate": 0.9934924078091106,
+     "played": 339,
+     "pool": 304,
+     "pool_by_position": {
+      "QB": 33,
+      "RB": 78,
+      "TE": 76,
+      "WR": 117
+     }
+    },
+    "selection": {
+     "candidates": [
+      {
+       "date": "2026-10-09",
+       "has_later_game": true,
+       "pages": {
+        "QB": "bye_consistent",
+        "RB": "bye_consistent",
+        "TE": "bye_consistent",
+        "WR": "bye_consistent"
+       },
+       "state": "bye_consistent",
+       "unknown_team_codes": 0
+      }
+     ],
+     "label": null,
+     "pages": {
+      "QB": "bye_consistent",
+      "RB": "bye_consistent",
+      "TE": "bye_consistent",
+      "WR": "bye_consistent"
+     },
+     "scrape_date": "2026-10-09",
+     "state": "bye_consistent"
+    },
+    "status": "scored",
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 461
+    }
+   },
+   "status": "scored",
+   "unprojected": {
+    "by_position": {
+     "QB": {
+      "count": 1,
+      "mean_actual": 2.2199999999999998,
+      "share": 0.027777777777777776
+     },
+     "RB": {
+      "count": 2,
+      "mean_actual": 2.4000000000000004,
+      "share": 0.022222222222222223
+     },
+     "TE": {
+      "count": 2,
+      "mean_actual": 0.0,
+      "share": 0.023529411764705882
+     },
+     "WR": {
+      "count": 2,
+      "mean_actual": 2.45,
+      "share": 0.014814814814814815
+     }
+    },
+    "count": 7,
+    "mean_actual": 1.702857142857143,
+    "share": 0.02023121387283237
+   },
+   "validation": {
+    "actuals": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 346
+    },
+    "projections": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 658
+    },
+    "schedule": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 30
+    }
+   },
+   "values": {
+    "equivalence_checked": true,
+    "max_abs_diff": 0.00499909986057645,
+    "source": "legacy"
+   }
   }
  },
  "weeks_scored": [
   1,
   2,
   3,
-  4
+  4,
+  5
  ],
- "weeks_skipped": [
-  {
-   "reason": "incomplete_week",
-   "week": 5
-  }
- ]
+ "weeks_skipped": []
 }
