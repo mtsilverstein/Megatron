@@ -363,12 +363,13 @@ def test_events_failure_is_recorded_and_isolated(props_env, monkeypatch):
     assert len(list((dest / "sleeper").rglob("*.json.gz"))) == 1
 
 
-def test_filter_requires_explicit_null_segment_and_a_free_book():
-    rows = [_prop("player_receiving_yards"), {k: v for k, v in _prop("player_receptions").items()
-                                              if k != "market_segment"},
+def test_filter_keeps_absent_or_null_segment_and_free_books_only():
+    """Live full-game rows omit market_segment entirely; a non-null segment is never kept."""
+    absent = {k: v for k, v in _prop("player_receptions").items() if k != "market_segment"}
+    rows = [_prop("player_receiving_yards"), absent, _prop("player_rushing_yards", segment="1st_half"),
             _prop("player_rushing_yards", book="betmgm")]
     kept, counts = ms.filter_props(json.dumps({"data": rows}).encode())
-    assert [r["market_type"] for r in json.loads(kept)] == ["player_receiving_yards"]
+    assert [r["market_type"] for r in json.loads(kept)] == ["player_receiving_yards", "player_receptions"]
 
 
 def test_offset_free_timestamp_is_rejected():

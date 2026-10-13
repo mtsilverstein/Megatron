@@ -160,15 +160,17 @@ def select_prop_games(events: list[dict], now: datetime, window_hours: int = PRO
 
 
 def filter_props(raw: bytes) -> tuple[bytes, dict]:
-    """Keep the full-game offensive player-prop rows of one /events/{id}/odds response, unmodified. Full game means an
-    explicit `"market_segment": null`; a row without the field is not assumed to be full-game. Only free-tier books
-    are kept, whatever the account is entitled to."""
+    """Keep the full-game offensive player-prop rows of one /events/{id}/odds response, unmodified. SharpAPI omits
+    `market_segment` on full-game rows (verified on live responses, 2026-10-12: 731 of 731 full-game rows had no such
+    field); segment rows carry it and also use prefixed market names (`1st_half_...`) that never match PROPS_MARKETS.
+    So a row is full-game when the field is absent or null; any non-null segment is dropped. Only free-tier books are
+    kept, whatever the account is entitled to."""
     body = json.loads(raw)
     rows = body.get("data") if isinstance(body, dict) else None
     if not isinstance(rows, list):
         raise ValueError("SharpAPI odds response has no data list")
     kept = [r for r in rows if isinstance(r, dict) and r.get("market_type") in PROPS_MARKETS
-            and "market_segment" in r and r["market_segment"] is None and r.get("sportsbook") in PROPS_BOOKS]
+            and r.get("market_segment") is None and r.get("sportsbook") in PROPS_BOOKS]
     counts = Counter(f"{r['market_type']}|{r['sportsbook']}" for r in kept)
     return (json.dumps(kept, separators=(",", ":")).encode("utf-8"),
             {"rows_total": len(rows), "rows_kept": len(kept), "kept_by_market_book": dict(sorted(counts.items()))})
