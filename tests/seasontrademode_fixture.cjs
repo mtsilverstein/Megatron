@@ -466,6 +466,45 @@ async function ownerFlow() {
   });
 }
 
+// Over the roster limit: drops are marked inline in that team's own column; the roster is never listed twice.
+async function dropFlow() {
+  fresh(); statics = makeStatics(); routes = baseRoutes(); state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
+  league = { ...baseLeague, roster_positions: ["RB", "WR", "FLEX", "K"] };       // capacity 4: Max973's 4 players fill it
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els });
+  FC.setLeague(L);
+  await Session.identify("max973");
+  await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
+  const dropBtn = (ul, id) => ul.children.find(li => li.dataset.id === id).children.find(x => x.className === "season-drop-btn");
+  for (const id of ["a", "d", "e", "k"]) assert.equal(dropBtn(els.mine, id).hidden, true, `no Drop on ${id} before any trade`);
+  assert.equal(els.mineDrops.hidden, true);
+
+  tickPlayer(els.theirs, "b");                                                  // get 1, give 0: one over
+  assert.equal(els.mineDrops.hidden, false);
+  assert.deepEqual(els.mineDrops.children.map(x => x.className), ["season-drop-prompt"], "a prompt line only, no second roster list");
+  assert.equal(els.mineDrops.children[0].textContent, "Max973 would be 1 over the roster limit — mark one player to drop below (0 of 1 marked)");
+  for (const id of ["a", "d", "e", "k"]) assert.equal(dropBtn(els.mine, id).hidden, false, `Drop offered on ${id}, kicker included`);
+  for (const id of ["b", "c", "f"]) assert.equal(dropBtn(els.theirs, id).hidden, true, "the other side is not over");
+  assert.equal(els.compare.disabled, true, "compare waits for the drop");
+
+  dropBtn(els.mine, "e").dispatch("click");
+  assert.equal(dropBtn(els.mine, "e").attrs["aria-pressed"], "true");
+  assert.equal(dropBtn(els.mine, "e").textContent, "Dropping — undo");
+  assert.match(els.mineDrops.children[0].textContent, /\(1 of 1 marked\)$/);
+  assert.equal(els.compare.disabled, false, "one marked drop unlocks compare");
+  await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, "the comparison with a drop");
+  assert.deepEqual(analyzeCalls[0].drops, { 9: ["e"] }, "the marked drop reaches the engine");
+
+  dropBtn(els.mine, "e").dispatch("click");                                     // undo
+  assert.equal(dropBtn(els.mine, "e").attrs["aria-pressed"], "false");
+  assert.equal(els.compare.disabled, true);
+
+  tickPlayer(els.mine, "d");                                                     // give 1, get 1: fits again
+  assert.equal(els.mineDrops.hidden, true);
+  for (const id of ["a", "d", "e", "k"]) assert.equal(dropBtn(els.mine, id).hidden, true, `Drop withdrawn on ${id}`);
+}
+
 // A tiny stand-in for the batch the controller loaded (same statics), for computing expectations.
 const LD_BATCH = () => {
   const d = name => JSON.parse(JSON.stringify(statics[`data/neutral/${name}.json`]));
@@ -722,6 +761,7 @@ async function pageRollover() {
 
 (async () => {
   await sub("owner flow under the real Session, LeagueData and LiveWorld", ownerFlow);
+  await sub("over the roster limit: inline Drop buttons in the team's own column, no second roster list", dropFlow);
   await sub("Review Focus 1: a player traded after the batch blocks the comparison by name", reviewFocus1);
   await sub("viewer flow: Viewing {team}, reworded columns, the viewer's comparison, then the owner identifies", viewerFlow);
   await sub("best ball: projections and rest-of-season values only, with the note", bestBall);

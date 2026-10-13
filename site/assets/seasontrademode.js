@@ -394,7 +394,9 @@
     // the explicit drop choices, `weeks` the raw "assume unavailable" text per
     // player id (parsed on input; `errors` holds the parse message for any
     // field that does not).
-    const newSide = (ul, dropsEl) => ({ ul, dropsEl, roster: null, active: [], players: new Set(), drops: new Set(), weeks: new Map(), errors: new Map(), needed: 0 });
+    // `dropBtns` maps a rendered row's id to its inline Drop button: a side over the roster limit marks its drops in
+    // its own column, so the roster is never listed twice.
+    const newSide = (ul, dropsEl) => ({ ul, dropsEl, roster: null, active: [], players: new Set(), drops: new Set(), weeks: new Map(), errors: new Map(), needed: 0, dropBtns: new Map() });
     const sides = { mine: newSide(els.mine, els.mineDrops), theirs: newSide(els.theirs, els.theirsDrops) };
     const sideName = s => s.roster ? rosterName(s.roster.roster_id) : "";
 
@@ -606,6 +608,7 @@
     function drawColumns() {
       for (const side of [sides.mine, sides.theirs]) {
         side.ul.replaceChildren();
+        side.dropBtns.clear();
         const heading = side.ul.parentElement && side.ul.parentElement.querySelector("h2");
         if (heading) heading.textContent = headingFor(side);
         const skill = [], other = [], locked = [], missing = [];
@@ -617,10 +620,11 @@
         const order = { QB: 0, RB: 1, WR: 2, TE: 3 };
         skill.sort((a, b) => (order[S.catalog[a].position] - order[S.catalog[b].position]) || playerName(a).localeCompare(playerName(b)));
         for (const id of skill) side.ul.append(playerRow(side, id));
-        for (const id of other) side.ul.append(disabledRow(id, "no modeled points"));
-        for (const id of missing) side.ul.append(disabledRow(id, "not in the player catalog — reload the page"));
-        for (const id of locked) side.ul.append(disabledRow(id, "IR/taxi — not tradeable in this version"));
+        for (const id of other) side.ul.append(disabledRow(side, id, "no modeled points"));
+        for (const id of missing) side.ul.append(disabledRow(side, id, "not in the player catalog — reload the page"));
+        for (const id of locked) side.ul.append(disabledRow(side, id, "IR/taxi — not tradeable in this version"));
       }
+      updateDrops();
     }
 
     const rowLabel = id => {
@@ -628,14 +632,30 @@
       return `${playerName(id)} · ${c.position || "?"} · ${c.team || "FA"}`;
     };
 
-    function disabledRow(id, note) {
+    function disabledRow(side, id, note) {
       const li = el("li", null, "season-row season-disabled");
       li.dataset.id = id;
       const label = el("label"), box = el("input");
       box.type = "checkbox"; box.disabled = true;
       label.append(box, document.createTextNode(` ${rowLabel(id)}`));
       li.append(label, el("span", note, "trade-why"));
+      dropButton(side, li, id);
       return li;
+    }
+
+    // Shown only while this side is over the roster limit, on rows that can be dropped (active, not being traded).
+    function dropButton(side, li, id) {
+      const btn = el("button", "Drop", "season-drop-btn");
+      btn.type = "button"; btn.hidden = true;
+      btn.setAttribute("aria-pressed", "false");
+      btn.setAttribute("aria-label", `drop ${playerName(id)} to make room`);
+      btn.addEventListener("click", () => {
+        if (side.drops.has(id)) side.drops.delete(id); else side.drops.add(id);
+        updateDrops();
+        onInputChange();
+      });
+      side.dropBtns.set(id, { btn, li });
+      li.append(btn);
     }
 
     function playerRow(side, id) {
@@ -686,6 +706,7 @@
       });
       weeks.addEventListener("input", () => { parse(); onInputChange(); });
       li.append(toggle, weeks, err);
+      dropButton(side, li, id);
       return li;
     }
 
@@ -700,19 +721,21 @@
         s.needed = neededDrops({ activeCount: s.active.length, giveCount: s.players.size, receiveCount: o.players.size, capacity });
         for (const id of [...s.drops]) if (s.players.has(id)) s.drops.delete(id);
         s.dropsEl.replaceChildren();
-        if (!s.needed) { s.drops.clear(); s.dropsEl.hidden = true; continue; }
-        s.dropsEl.hidden = false;
-        s.dropsEl.append(el("span", `${sideName(s)} must drop ${s.needed} player(s) to fit this trade`, "season-drop-prompt"));
-        for (const id of s.active) {
-          if (s.players.has(id)) continue;
-          const label = el("label", null, "season-drop"), box = el("input");
-          box.type = "checkbox"; box.checked = s.drops.has(id);
-          label.append(box, document.createTextNode(` ${rowLabel(id)}`));
-          box.addEventListener("change", () => {
-            if (box.checked) s.drops.add(id); else s.drops.delete(id);
-            onInputChange();
-          });
-          s.dropsEl.append(label);
+        if (!s.needed) { s.drops.clear(); s.dropsEl.hidden = true; }
+        else {
+          s.dropsEl.hidden = false;
+          const n = s.needed, what = n === 1 ? "one player" : `${n} players`;
+          s.dropsEl.append(el("span", `${sideName(s)} would be ${n} over the roster limit — mark ${what} to drop below `
+            + `(${s.drops.size} of ${n} marked)`, "season-drop-prompt"));
+        }
+        const droppable = new Set(s.active.map(String));
+        for (const [id, { btn, li }] of s.dropBtns) {
+          const can = s.needed > 0 && droppable.has(id) && !s.players.has(id);
+          const on = can && s.drops.has(id);
+          btn.hidden = !can;
+          btn.textContent = on ? "Dropping — undo" : "Drop";
+          btn.setAttribute("aria-pressed", on ? "true" : "false");
+          li.classList.toggle("season-dropping", on);
         }
       }
     }
