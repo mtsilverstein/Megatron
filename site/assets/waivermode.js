@@ -385,9 +385,12 @@
     // The live region. A quiet status (the loaded desk's "who and when" line,
     // which the summary line repeats visually) stays announced but is visually
     // hidden; loading, refresh and error messages are always visible.
+    // Writes only on a change: rewriting identical text into the live region
+    // can re-announce it, and the 15 s tick re-runs this every time.
     const status = (text, quiet = false) => {
-      $("waiver-status").textContent = text;
-      $("waiver-status").className = quiet ? "visually-hidden" : "";
+      const el = $("waiver-status"), cls = quiet ? "visually-hidden" : "";
+      if (el.textContent !== text) el.textContent = text;
+      if (el.className !== cls) el.className = cls;
     };
     // Results and everything derived from them (the summary line, the data
     // part of the method fold, the protection control) show and hide together.

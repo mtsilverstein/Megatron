@@ -535,9 +535,16 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal($("waiver-stale-text").textContent, "Rosters loaded 2 h ago — claims may have processed since. Refresh before placing a claim.");
   // The live status announces the stale state with constant text (no age), so the tick does not re-announce it.
   assert.match(statusText(), /\. Rosters are over a minute old and claims may have processed since; use Refresh rosters above the recommendations before placing a claim\.$/);
-  const staleStatus = statusText();
-  clock += 15000; $("waiver-reserve").dispatch("change");
-  assert.equal(statusText(), staleStatus, "the stale status text is stable across ticks");
+  {
+    // Stale ticks write NOTHING to the live region (an identical rewrite can re-announce).
+    const el = $("waiver-status");
+    let text = el.textContent, writes = 0;
+    Object.defineProperty(el, "textContent", { configurable: true, get: () => text, set: v => { writes++; text = v; } });
+    clock += 15000; $("waiver-reserve").dispatch("change");
+    clock += 15000; $("waiver-reserve").dispatch("change");
+    assert.equal(writes, 0, "stale ticks do not rewrite the live status");
+    delete el.textContent; el.textContent = text;
+  }
   // A copied stale shortlist carries the stale warning, computed at copy time.
   setNavigator({});
   $("waiver-copy").dispatch("click"); await settle();
