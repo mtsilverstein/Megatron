@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 6,
   "data_through": "2026-wk5",
-  "generated_at": "2026-10-14T10:20:20+00:00",
-  "batch_id": "2026-10-14T10:20:20+00:00|2026-wk5|w6",
+  "generated_at": "2026-10-15T10:03:47+00:00",
+  "batch_id": "2026-10-15T10:03:47+00:00|2026-wk5|w6",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -12,7 +12,7 @@
     "scoring": "PPR"
   },
   "crosswalk": {
-    "matched_gsis": 168,
+    "matched_gsis": 169,
     "matched_name": 520,
     "unmatched": 13
   },
@@ -1614,6 +1614,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0035100",
+      "sleeper_id": "6111",
+      "name": "Jake Browning",
+      "team": "LAC",
+      "position": "QB",
+      "bye": 7,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0035125",
       "sleeper_id": "6109",
       "name": "Alec Ingold",
@@ -2209,8 +2221,8 @@
       "position": "WR",
       "bye": 11,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -2485,8 +2497,8 @@
       "position": "TE",
       "bye": 10,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -3625,8 +3637,8 @@
       "position": "WR",
       "bye": 8,
       "ecr": 534,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
@@ -3753,12 +3765,12 @@
       "player_id": "00-0037267",
       "sleeper_id": "8143",
       "name": "Jerome Ford",
-      "team": "MIN",
+      "team": "ARI",
       "position": "RB",
-      "bye": 6,
+      "bye": 14,
       "ecr": 328,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
@@ -5425,8 +5437,8 @@
       "position": "WR",
       "bye": 6,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -5469,12 +5481,12 @@
       "player_id": "00-0038891",
       "sleeper_id": "11257",
       "name": "Shedrick Jackson",
-      "team": "BAL",
+      "team": "ARI",
       "position": "WR",
-      "bye": 13,
+      "bye": 14,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
@@ -8425,8 +8437,8 @@
       "position": "RB",
       "bye": 8,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -9105,9 +9117,9 @@
       "player_id": "00-0040692",
       "sleeper_id": null,
       "name": null,
-      "team": "MIA",
+      "team": "NO",
       "position": null,
-      "bye": 6,
+      "bye": 8,
       "ecr": 332,
       "identity_only": true,
       "reason": "no_projection",
