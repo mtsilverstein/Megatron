@@ -7,7 +7,7 @@
 
 Megatron is an NFL fantasy-football projection system I built end to end on free infrastructure. It has four parts:
 
-- **Model:** a small PyTorch quantile transformer, trained on a free Kaggle GPU. It predicts each player's weekly stat
+- **Model:** a small PyTorch quantile transformer, trained on a free NVIDIA T4 GPU through Kaggle. It predicts each player's weekly stat
   line with a floor (p10), median (p50) and ceiling (p90).
 - **Automation:** GitHub Actions retrains nothing. It pulls fresh data, runs CPU inference, regenerates the site's JSON
   and redeploys a static site twice a day during the season.
