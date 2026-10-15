@@ -12,6 +12,10 @@ the backtest numbers. Models predict raw stat lines; fantasy points are
 computed from those by pure scoring functions, so PPR, half-PPR, standard and
 this league's custom rules all derive from one set of predictions.
 
+**Start here:** [`docs/case-study.md`](docs/case-study.md), a two-page overview of what was built, how the numbers
+are kept honest and what they say. The full record is [`docs/methodology.md`](docs/methodology.md).
+
+**Live site:** [megatron-ff.vercel.app](https://megatron-ff.vercel.app) ·
 **Design spec:** `docs/superpowers/specs/2026-07-09-fantasy-football-model-design.md`
 
 ## Quickstart
@@ -103,19 +107,20 @@ for the transformer, called out here rather than hidden.
 
 ## Automation (GitHub Actions)
 
-Three workflows live in `.github/workflows/`:
+The main workflows in `.github/workflows/`:
 
-- **`ci.yml`** — runs the test suite (`pytest -W error`) on every push to `main`
-  and on every pull request.
-- **`weekly-update.yml`** — regenerates the site JSON in-season. Runs on a
-  cron of `23 5 * 9-12,1 3` (Wednesdays 05:23 UTC — overnight after
-  Tuesday's stat finalization, ET — September through January), and can
-  also be triggered manually (`workflow_dispatch`).
-- **`pages.yml`** — deploys `site/` to GitHub Pages whenever a push to
-  `main` touches `site/**`, can be triggered manually, and is explicitly
-  dispatched by `weekly-update.yml` after it pushes fresh data (bot-token
-  pushes don't fire `on: push` workflows, so the weekly job calls
-  `gh workflow run pages.yml` itself).
+- **`ci.yml`** runs the Python suite (`pytest -W error`) and every Node fixture on each push to `main` and on every
+  pull request.
+- **`weekly-update.yml`** regenerates the site JSON in season. It runs twice daily (`23 5,17 * 9-12,1 *`, September
+  through January) so that 72-hour consumers stay fresh, and it can also be triggered manually. The site is
+  served from `site/` by Vercel, which redeploys on every push to `main`.
+- **`weekly-accuracy.yml`** scores the projections the site actually published before kickoff against what happened,
+  every Tuesday and Wednesday. It publishes the scorecard in `models/diagnostics/live_<season>_weekly.json`.
+- **`market-snapshots.yml`** runs after each site update. It archives third-party market data (projections, game
+  lines, player props) into a **private** repository, for future pre-registered tests. Nothing it captures is
+  committed here.
+- **`prospective-freeze.yml` / `prospective-outcomes.yml`** freeze a pre-registered 2026 forecast, then capture its
+  outcomes after the season.
 
 **Fail-safe contract:** `weekly-update.yml` generates the site JSON before it
 commits anything. If the data pull or generation step fails for any
@@ -185,7 +190,11 @@ recorded is worth more than a promotion that would not have replicated.
 - [x] Plan 3: draft board + weekly site, GitHub Actions automation, Pages live
 - [x] Draft tool: pick-time optimizer, live Sleeper draft mode, keeper
       handling, trade calculator
-- [ ] In-season: the weekly cron takes over from week 1
+- [x] In season: automated twice-daily refresh, any-Sleeper-league weekly, waiver and trade tools
+- [x] Live accuracy scorecard and a pre-registered same-week re-measurement against expert consensus (model behind;
+      see the methodology)
+- [x] Betting-lines feature screen, run once, pre-registered: fail / inconclusive (gain 0.039 against a 0.05 bar)
+- [ ] Season end: the private blend comparison is read once after week 18
 
 Scope guards (v1), deliberately: QB/RB/WR/TE only — no K/DST/IDP projections,
 no DFS optimization, no injury or news signals.
