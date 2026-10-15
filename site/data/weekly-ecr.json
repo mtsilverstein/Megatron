@@ -6,7 +6,7 @@
   "week": 6,
   "snapshot_at": "2026-10-15",
   "snapshot_precision": "date",
-  "retrieved_at": "2026-10-15T10:07:40.236734+00:00",
+  "retrieved_at": "2026-10-15T20:27:48.152000+00:00",
   "source": "FantasyPros via DynastyProcess/nflverse free weekly mirror",
   "source_url": "https://github.com/dynastyprocess/data/blob/master/files/fp_latest_weekly.csv",
   "period_attribution": "inferred_from_schedule_opponents",
@@ -24,238 +24,238 @@
       "name": "Brock Purdy",
       "position": "QB",
       "team": "SF",
-      "ecr": 2.5
+      "ecr": 2.33
     },
     {
       "player_id": "00-0026498",
       "name": "Matthew Stafford",
       "position": "QB",
       "team": "LA",
-      "ecr": 3.14
+      "ecr": 3.17
     },
     {
       "player_id": "00-0039851",
       "name": "Drake Maye",
       "position": "QB",
       "team": "NE",
-      "ecr": 4.5
+      "ecr": 4.39
     },
     {
       "player_id": "00-0036264",
       "name": "Jordan Love",
       "position": "QB",
       "team": "GB",
-      "ecr": 5.07
+      "ecr": 4.94
     },
     {
       "player_id": "00-0033077",
       "name": "Dak Prescott",
       "position": "QB",
       "team": "DAL",
-      "ecr": 6.93
+      "ecr": 6.89
     },
     {
       "player_id": "00-0039910",
       "name": "Jayden Daniels",
       "position": "QB",
       "team": "WAS",
-      "ecr": 7.57
-    },
-    {
-      "player_id": "00-0036971",
-      "name": "Trevor Lawrence",
-      "position": "QB",
-      "team": "JAX",
-      "ecr": 10.21
-    },
-    {
-      "player_id": "00-0036389",
-      "name": "Jalen Hurts",
-      "position": "QB",
-      "team": "PHI",
-      "ecr": 10.79
-    },
-    {
-      "player_id": "00-0040743",
-      "name": "Tyler Shough",
-      "position": "QB",
-      "team": "NO",
-      "ecr": 11.14
-    },
-    {
-      "player_id": "00-0033873",
-      "name": "Patrick Mahomes",
-      "position": "QB",
-      "team": "KC",
-      "ecr": 12.0
-    },
-    {
-      "player_id": "00-0039150",
-      "name": "Bryce Young",
-      "position": "QB",
-      "team": "CAR",
-      "ecr": 12.64
+      "ecr": 7.61
     },
     {
       "player_id": "00-0039918",
       "name": "Caleb Williams",
       "position": "QB",
       "team": "CHI",
-      "ecr": 12.86
+      "ecr": 9.78
+    },
+    {
+      "player_id": "00-0036971",
+      "name": "Trevor Lawrence",
+      "position": "QB",
+      "team": "JAX",
+      "ecr": 10.17
+    },
+    {
+      "player_id": "00-0033873",
+      "name": "Patrick Mahomes",
+      "position": "QB",
+      "team": "KC",
+      "ecr": 10.56
+    },
+    {
+      "player_id": "00-0040743",
+      "name": "Tyler Shough",
+      "position": "QB",
+      "team": "NO",
+      "ecr": 11.17
+    },
+    {
+      "player_id": "00-0039150",
+      "name": "Bryce Young",
+      "position": "QB",
+      "team": "CAR",
+      "ecr": 12.39
     },
     {
       "player_id": "00-0029604",
       "name": "Kirk Cousins",
       "position": "QB",
       "team": "LV",
-      "ecr": 14.14
+      "ecr": 14.17
     },
     {
       "player_id": "00-0039163",
       "name": "CJ Stroud",
       "position": "QB",
       "team": "HOU",
-      "ecr": 15.0
-    },
-    {
-      "player_id": "00-0033119",
-      "name": "Jacoby Brissett",
-      "position": "QB",
-      "team": "ARI",
-      "ecr": 16.79
+      "ecr": 14.5
     },
     {
       "player_id": "00-0031503",
       "name": "Jameis Winston",
       "position": "QB",
       "team": "NYG",
-      "ecr": 17.14
+      "ecr": 17.33
     },
     {
-      "player_id": "00-0023459",
-      "name": "Aaron Rodgers",
+      "player_id": "00-0033119",
+      "name": "Jacoby Brissett",
       "position": "QB",
-      "team": "PIT",
-      "ecr": 18.5
+      "team": "ARI",
+      "ecr": 17.5
     },
     {
       "player_id": "00-0033537",
       "name": "Deshaun Watson",
       "position": "QB",
       "team": "CLE",
-      "ecr": 18.64
+      "ecr": 18.17
+    },
+    {
+      "player_id": "00-0023459",
+      "name": "Aaron Rodgers",
+      "position": "QB",
+      "team": "PIT",
+      "ecr": 18.83
     },
     {
       "player_id": "00-0035710",
       "name": "Daniel Jones",
       "position": "QB",
       "team": "IND",
-      "ecr": 21.93
-    },
-    {
-      "player_id": "00-0039732",
-      "name": "Bo Nix",
-      "position": "QB",
-      "team": "DEN",
-      "ecr": 21.93
-    },
-    {
-      "player_id": "00-0034869",
-      "name": "Sam Darnold",
-      "position": "QB",
-      "team": "SEA",
-      "ecr": 22.79
+      "ecr": 20.5
     },
     {
       "player_id": "00-0041251",
       "name": "Jalon Daniels",
       "position": "QB",
       "team": "TB",
-      "ecr": 22.86
+      "ecr": 22.22
     },
     {
       "player_id": "00-0039917",
       "name": "Michael Penix",
       "position": "QB",
       "team": "ATL",
-      "ecr": 23.86
+      "ecr": 22.39
+    },
+    {
+      "player_id": "00-0039732",
+      "name": "Bo Nix",
+      "position": "QB",
+      "team": "DEN",
+      "ecr": 22.83
+    },
+    {
+      "player_id": "00-0034869",
+      "name": "Sam Darnold",
+      "position": "QB",
+      "team": "SEA",
+      "ecr": 23.78
     },
     {
       "player_id": "00-0036355",
       "name": "Justin Herbert",
       "position": "QB",
       "team": "LAC",
-      "ecr": 24.0
+      "ecr": 24.56
     },
     {
       "player_id": "00-0040676",
       "name": "Cam Ward",
       "position": "QB",
       "team": "TEN",
-      "ecr": 25.93
-    },
-    {
-      "player_id": "00-0034796",
-      "name": "Lamar Jackson",
-      "position": "QB",
-      "team": "BAL",
-      "ecr": 19.17
+      "ecr": 25.61
     },
     {
       "player_id": "00-0030565",
       "name": "Geno Smith",
       "position": "QB",
       "team": "NYJ",
-      "ecr": 27.21
+      "ecr": 27.06
     },
     {
       "player_id": "00-0035993",
       "name": "Tyler Huntley",
       "position": "QB",
       "team": "BAL",
-      "ecr": 26.45
+      "ecr": 22.63
+    },
+    {
+      "player_id": "00-0034796",
+      "name": "Lamar Jackson",
+      "position": "QB",
+      "team": "BAL",
+      "ecr": 22.0
     },
     {
       "player_id": "00-0038416",
       "name": "Tyson Bagent",
       "position": "QB",
       "team": "CHI",
-      "ecr": 29.1
+      "ecr": 30.5
     },
     {
       "player_id": "00-0036212",
       "name": "Tua Tagovailoa",
       "position": "QB",
       "team": "ATL",
-      "ecr": 37.14
+      "ecr": 35.78
     },
     {
       "player_id": "00-0040668",
       "name": "Shedeur Sanders",
       "position": "QB",
       "team": "CLE",
-      "ecr": 31.8
+      "ecr": 32.0
     },
     {
       "player_id": "00-0041562",
       "name": "Fernando Mendoza",
       "position": "QB",
       "team": "LV",
-      "ecr": 32.6
+      "ecr": 32.67
+    },
+    {
+      "player_id": "00-0038400",
+      "name": "Tanner McKee",
+      "position": "QB",
+      "team": "PHI",
+      "ecr": 39.57
     },
     {
       "player_id": "00-0036972",
       "name": "Mac Jones",
       "position": "QB",
       "team": "SF",
-      "ecr": 34.6
+      "ecr": 35.2
     },
     {
       "player_id": "00-0035704",
       "name": "Drew Lock",
       "position": "QB",
       "team": "SEA",
-      "ecr": 36.8
+      "ecr": 37.4
     },
     {
       "player_id": "00-0028986",
@@ -263,6 +263,13 @@
       "position": "QB",
       "team": "CHI",
       "ecr": 38.5
+    },
+    {
+      "player_id": "00-0039923",
+      "name": "JJ McCarthy",
+      "position": "QB",
+      "team": "NYG",
+      "ecr": 33.67
     },
     {
       "player_id": "00-0035264",
@@ -307,6 +314,13 @@
       "ecr": 39.33
     },
     {
+      "player_id": "00-0041561",
+      "name": "Carson Beck",
+      "position": "QB",
+      "team": "ARI",
+      "ecr": 47.0
+    },
+    {
       "player_id": "00-0033662",
       "name": "Cooper Rush",
       "position": "QB",
@@ -342,13 +356,6 @@
       "ecr": 51.5
     },
     {
-      "player_id": "00-0039923",
-      "name": "JJ McCarthy",
-      "position": "QB",
-      "team": "NYG",
-      "ecr": 36.0
-    },
-    {
       "player_id": "00-0034771",
       "name": "Mason Rudolph",
       "position": "QB",
@@ -377,32 +384,25 @@
       "ecr": 58.25
     },
     {
-      "player_id": "00-0041561",
-      "name": "Carson Beck",
-      "position": "QB",
-      "team": "ARI",
-      "ecr": 50.67
-    },
-    {
       "player_id": "00-0040203",
       "name": "Will Howard",
       "position": "QB",
       "team": "PIT",
-      "ecr": 54.33
+      "ecr": 54.0
     },
     {
       "player_id": "00-0041092",
       "name": "Taylen Green",
       "position": "QB",
       "team": "CLE",
-      "ecr": 58.0
+      "ecr": 57.67
     },
     {
       "player_id": "00-0031345",
       "name": "Jimmy Garoppolo",
       "position": "QB",
       "team": "LA",
-      "ecr": 64.33
+      "ecr": 64.0
     },
     {
       "player_id": "00-0038476",
@@ -416,707 +416,735 @@
       "name": "Zach Wilson",
       "position": "QB",
       "team": "NO",
-      "ecr": 61.67
-    },
-    {
-      "player_id": "00-0038400",
-      "name": "Tanner McKee",
-      "position": "QB",
-      "team": "PHI",
-      "ecr": 65.33
+      "ecr": 61.33
     },
     {
       "player_id": "00-0040673",
       "name": "Jalen Milroe",
       "position": "QB",
       "team": "SEA",
-      "ecr": 62.67
+      "ecr": 62.33
     },
     {
       "player_id": "00-0040906",
       "name": "Garrett Nussmeier",
       "position": "QB",
       "team": "KC",
-      "ecr": 71.0
+      "ecr": 70.67
     },
     {
       "player_id": "00-0038542",
       "name": "Bijan Robinson",
       "position": "RB",
       "team": "ATL",
-      "ecr": 1.43
+      "ecr": 1.18
     },
     {
       "player_id": "00-0038134",
       "name": "Kenneth Walker",
       "position": "RB",
       "team": "KC",
-      "ecr": 1.79
+      "ecr": 2.0
     },
     {
       "player_id": "00-0036223",
       "name": "Jonathan Taylor",
       "position": "RB",
       "team": "IND",
-      "ecr": 3.07
-    },
-    {
-      "player_id": "00-0037840",
-      "name": "Kyren Williams",
-      "position": "RB",
-      "team": "LA",
-      "ecr": 4.21
+      "ecr": 3.24
     },
     {
       "player_id": "00-0033280",
       "name": "Christian McCaffrey",
       "position": "RB",
       "team": "SF",
-      "ecr": 4.64
+      "ecr": 4.0
     },
     {
-      "player_id": "00-0036997",
-      "name": "Javonte Williams",
+      "player_id": "00-0037840",
+      "name": "Kyren Williams",
       "position": "RB",
-      "team": "DAL",
-      "ecr": 7.43
+      "team": "LA",
+      "ecr": 4.65
     },
     {
       "player_id": "00-0032764",
       "name": "Derrick Henry",
       "position": "RB",
       "team": "BAL",
-      "ecr": 7.71
+      "ecr": 7.65
+    },
+    {
+      "player_id": "00-0036997",
+      "name": "Javonte Williams",
+      "position": "RB",
+      "team": "DAL",
+      "ecr": 7.88
     },
     {
       "player_id": "00-0037248",
       "name": "James Cook",
       "position": "RB",
       "team": "BUF",
-      "ecr": 8.14
+      "ecr": 8.41
     },
     {
       "player_id": "00-0037228",
       "name": "Jaylen Warren",
       "position": "RB",
       "team": "PIT",
-      "ecr": 9.29
-    },
-    {
-      "player_id": "00-0036275",
-      "name": "DAndre Swift",
-      "position": "RB",
-      "team": "CHI",
-      "ecr": 10.5
+      "ecr": 8.65
     },
     {
       "player_id": "00-0036875",
       "name": "Rhamondre Stevenson",
       "position": "RB",
       "team": "NE",
-      "ecr": 10.93
+      "ecr": 10.0
     },
     {
-      "player_id": "00-0040122",
-      "name": "Ashton Jeanty",
+      "player_id": "00-0036275",
+      "name": "DAndre Swift",
       "position": "RB",
-      "team": "LV",
-      "ecr": 11.57
+      "team": "CHI",
+      "ecr": 11.06
     },
     {
       "player_id": "00-0036555",
       "name": "Chuba Hubbard",
       "position": "RB",
       "team": "CAR",
-      "ecr": 11.57
+      "ecr": 11.47
+    },
+    {
+      "player_id": "00-0040122",
+      "name": "Ashton Jeanty",
+      "position": "RB",
+      "team": "LV",
+      "ecr": 11.71
     },
     {
       "player_id": "00-0039361",
       "name": "Bucky Irving",
       "position": "RB",
       "team": "TB",
-      "ecr": 14.29
+      "ecr": 14.12
     },
     {
       "player_id": "00-0040715",
       "name": "Cam Skattebo",
       "position": "RB",
       "team": "NYG",
-      "ecr": 15.64
-    },
-    {
-      "player_id": "00-0038797",
-      "name": "Emanuel Wilson",
-      "position": "RB",
-      "team": "SEA",
-      "ecr": 16.5
+      "ecr": 15.71
     },
     {
       "player_id": "00-0039794",
       "name": "Braelon Allen",
       "position": "RB",
       "team": "NYJ",
-      "ecr": 16.79
+      "ecr": 16.06
+    },
+    {
+      "player_id": "00-0038797",
+      "name": "Emanuel Wilson",
+      "position": "RB",
+      "team": "SEA",
+      "ecr": 16.71
     },
     {
       "player_id": "00-0040719",
       "name": "Bhayshul Tuten",
       "position": "RB",
       "team": "JAX",
-      "ecr": 17.07
+      "ecr": 17.47
     },
     {
       "player_id": "00-0041027",
       "name": "Jeremiyah Love",
       "position": "RB",
       "team": "ARI",
-      "ecr": 19.07
+      "ecr": 20.35
     },
     {
       "player_id": "00-0040583",
       "name": "Woody Marks",
       "position": "RB",
       "team": "HOU",
-      "ecr": 20.86
+      "ecr": 20.71
     },
     {
       "player_id": "00-0039811",
       "name": "MarShawn Lloyd",
       "position": "RB",
       "team": "GB",
-      "ecr": 21.64
+      "ecr": 20.94
     },
     {
       "player_id": "00-0035261",
       "name": "Tony Pollard",
       "position": "RB",
       "team": "TEN",
-      "ecr": 21.79
+      "ecr": 21.47
     },
     {
       "player_id": "00-0040784",
       "name": "Quinshon Judkins",
       "position": "RB",
       "team": "CLE",
-      "ecr": 23.07
-    },
-    {
-      "player_id": "00-0040666",
-      "name": "Omarion Hampton",
-      "position": "RB",
-      "team": "LAC",
-      "ecr": 24.71
+      "ecr": 22.12
     },
     {
       "player_id": "00-0040242",
       "name": "Jacory Croskey-Merritt",
       "position": "RB",
       "team": "WAS",
-      "ecr": 25.57
-    },
-    {
-      "player_id": "00-0040730",
-      "name": "RJ Harvey",
-      "position": "RB",
-      "team": "DEN",
-      "ecr": 25.79
+      "ecr": 25.65
     },
     {
       "player_id": "00-0033906",
       "name": "Alvin Kamara",
       "position": "RB",
       "team": "NO",
-      "ecr": 26.21
+      "ecr": 26.29
+    },
+    {
+      "player_id": "00-0040666",
+      "name": "Omarion Hampton",
+      "position": "RB",
+      "team": "LAC",
+      "ecr": 26.47
+    },
+    {
+      "player_id": "00-0040730",
+      "name": "RJ Harvey",
+      "position": "RB",
+      "team": "DEN",
+      "ecr": 26.53
     },
     {
       "player_id": "00-0036158",
       "name": "JK Dobbins",
       "position": "RB",
       "team": "DEN",
-      "ecr": 28.14
-    },
-    {
-      "player_id": "00-0038454",
-      "name": "Keaton Mitchell",
-      "position": "RB",
-      "team": "LAC",
-      "ecr": 29.93
+      "ecr": 27.76
     },
     {
       "player_id": "00-0037258",
       "name": "Dameon Pierce",
       "position": "RB",
       "team": "PHI",
-      "ecr": 30.14
+      "ecr": 28.0
     },
     {
-      "player_id": "00-0039738",
-      "name": "Blake Corum",
+      "player_id": "00-0038454",
+      "name": "Keaton Mitchell",
       "position": "RB",
-      "team": "LA",
-      "ecr": 31.86
+      "team": "LAC",
+      "ecr": 30.65
     },
     {
       "player_id": "00-0038551",
       "name": "Kendre Miller",
       "position": "RB",
       "team": "NO",
-      "ecr": 31.93
+      "ecr": 31.12
+    },
+    {
+      "player_id": "00-0039738",
+      "name": "Blake Corum",
+      "position": "RB",
+      "team": "LA",
+      "ecr": 32.35
     },
     {
       "player_id": "00-0036919",
       "name": "Kenny Gainwell",
       "position": "RB",
       "team": "TB",
-      "ecr": 33.79
+      "ecr": 33.88
     },
     {
       "player_id": "00-0037256",
       "name": "Rachaad White",
       "position": "RB",
       "team": "WAS",
-      "ecr": 35.07
-    },
-    {
-      "player_id": "00-0037263",
-      "name": "Tyler Allgeier",
-      "position": "RB",
-      "team": "ARI",
-      "ecr": 35.5
+      "ecr": 34.24
     },
     {
       "player_id": "00-0039032",
       "name": "Tyjae Spears",
       "position": "RB",
       "team": "TEN",
-      "ecr": 35.86
+      "ecr": 34.65
+    },
+    {
+      "player_id": "00-0037263",
+      "name": "Tyler Allgeier",
+      "position": "RB",
+      "team": "ARI",
+      "ecr": 35.71
     },
     {
       "player_id": "00-0037746",
       "name": "Brian Robinson",
       "position": "RB",
       "team": "ATL",
-      "ecr": 36.0
+      "ecr": 38.18
     },
     {
       "player_id": "00-0039299",
       "name": "George Holani",
       "position": "RB",
       "team": "SEA",
-      "ecr": 39.36
-    },
-    {
-      "player_id": "00-0040878",
-      "name": "Mike Washington",
-      "position": "RB",
-      "team": "LV",
-      "ecr": 39.57
+      "ecr": 38.71
     },
     {
       "player_id": "00-0039391",
       "name": "Kimani Vidal",
       "position": "RB",
       "team": "LAC",
-      "ecr": 41.29
+      "ecr": 40.82
     },
     {
-      "player_id": "00-0038611",
-      "name": "Chris Rodriguez",
+      "player_id": "00-0040878",
+      "name": "Mike Washington",
       "position": "RB",
-      "team": "JAX",
-      "ecr": 42.36
-    },
-    {
-      "player_id": "00-0035537",
-      "name": "Ty Johnson",
-      "position": "RB",
-      "team": "BUF",
-      "ecr": 43.21
+      "team": "LV",
+      "ecr": 41.35
     },
     {
       "player_id": "00-0034975",
       "name": "Justice Hill",
       "position": "RB",
       "team": "BAL",
-      "ecr": 43.43
+      "ecr": 42.47
     },
     {
-      "player_id": "00-0040142",
-      "name": "Kaleb Johnson",
+      "player_id": "00-0035537",
+      "name": "Ty Johnson",
       "position": "RB",
-      "team": "GB",
-      "ecr": 44.5
+      "team": "BUF",
+      "ecr": 42.59
+    },
+    {
+      "player_id": "00-0038611",
+      "name": "Chris Rodriguez",
+      "position": "RB",
+      "team": "JAX",
+      "ecr": 45.18
     },
     {
       "player_id": "00-0036893",
       "name": "Najee Harris",
       "position": "RB",
       "team": "NYG",
-      "ecr": 45.64
+      "ecr": 46.29
+    },
+    {
+      "player_id": "00-0040142",
+      "name": "Kaleb Johnson",
+      "position": "RB",
+      "team": "GB",
+      "ecr": 46.53
     },
     {
       "player_id": "00-0041052",
       "name": "Kaelon Black",
       "position": "RB",
       "team": "SF",
-      "ecr": 46.36
-    },
-    {
-      "player_id": "00-0041013",
-      "name": "Emmett Johnson",
-      "position": "RB",
-      "team": "KC",
-      "ecr": 48.5
-    },
-    {
-      "player_id": "00-0036139",
-      "name": "Rico Dowdle",
-      "position": "RB",
-      "team": "PIT",
-      "ecr": 48.31
+      "ecr": 46.76
     },
     {
       "player_id": "00-0039021",
       "name": "Roschon Johnson",
       "position": "RB",
       "team": "CHI",
-      "ecr": 50.08
+      "ecr": 46.94
     },
     {
-      "player_id": "00-0038794",
-      "name": "Jaleel McLaughlin",
+      "player_id": "00-0041013",
+      "name": "Emmett Johnson",
       "position": "RB",
-      "team": "CLE",
-      "ecr": 53.64
+      "team": "KC",
+      "ecr": 47.41
     },
     {
-      "player_id": "00-0038951",
-      "name": "Sean Tucker",
+      "player_id": "00-0036139",
+      "name": "Rico Dowdle",
       "position": "RB",
-      "team": "TB",
-      "ecr": 54.43
-    },
-    {
-      "player_id": "00-0039384",
-      "name": "Tyrone Tracy",
-      "position": "RB",
-      "team": "NYG",
-      "ecr": 55.14
+      "team": "PIT",
+      "ecr": 48.06
     },
     {
       "player_id": "00-0033699",
       "name": "Austin Ekeler",
       "position": "RB",
       "team": "WAS",
-      "ecr": 52.69
+      "ecr": 52.94
     },
     {
-      "player_id": "00-0039875",
-      "name": "Ray Davis",
+      "player_id": "00-0038794",
+      "name": "Jaleel McLaughlin",
       "position": "RB",
-      "team": "BUF",
-      "ecr": 56.29
+      "team": "CLE",
+      "ecr": 53.88
+    },
+    {
+      "player_id": "00-0039384",
+      "name": "Tyrone Tracy",
+      "position": "RB",
+      "team": "NYG",
+      "ecr": 54.06
     },
     {
       "player_id": "00-0039798",
       "name": "Isaiah Davis",
       "position": "RB",
       "team": "NYJ",
-      "ecr": 53.69
-    },
-    {
-      "player_id": "00-0041125",
-      "name": "Seth McGowan",
-      "position": "RB",
-      "team": "IND",
-      "ecr": 57.62
-    },
-    {
-      "player_id": "00-0037120",
-      "name": "Tyler Goodson",
-      "position": "RB",
-      "team": "DAL",
-      "ecr": 58.46
-    },
-    {
-      "player_id": "00-0037085",
-      "name": "Tyler Badie",
-      "position": "RB",
-      "team": "DEN",
-      "ecr": 59.31
+      "ecr": 54.06
     },
     {
       "player_id": "00-0038098",
       "name": "Pierre Strong",
       "position": "RB",
       "team": "GB",
-      "ecr": 59.17
+      "ecr": 56.06
+    },
+    {
+      "player_id": "00-0038951",
+      "name": "Sean Tucker",
+      "position": "RB",
+      "team": "TB",
+      "ecr": 56.35
+    },
+    {
+      "player_id": "00-0041125",
+      "name": "Seth McGowan",
+      "position": "RB",
+      "team": "IND",
+      "ecr": 57.71
+    },
+    {
+      "player_id": "00-0039875",
+      "name": "Ray Davis",
+      "position": "RB",
+      "team": "BUF",
+      "ecr": 58.18
+    },
+    {
+      "player_id": "00-0037120",
+      "name": "Tyler Goodson",
+      "position": "RB",
+      "team": "DAL",
+      "ecr": 59.0
     },
     {
       "player_id": "00-0041326",
       "name": "CJ Donaldson",
       "position": "RB",
       "team": "NO",
-      "ecr": 62.69
-    },
-    {
-      "player_id": "00-0040238",
-      "name": "LeQuint Allen",
-      "position": "RB",
-      "team": "JAX",
-      "ecr": 63.92
+      "ecr": 61.41
     },
     {
       "player_id": "00-0040556",
       "name": "Corey Kiner",
       "position": "RB",
       "team": "NE",
-      "ecr": 61.27
+      "ecr": 59.94
+    },
+    {
+      "player_id": "00-0037085",
+      "name": "Tyler Badie",
+      "position": "RB",
+      "team": "DEN",
+      "ecr": 60.81
     },
     {
       "player_id": "00-0036265",
       "name": "AJ Dillon",
       "position": "RB",
       "team": "CAR",
-      "ecr": 64.91
+      "ecr": 63.94
     },
     {
-      "player_id": "00-0034844",
-      "name": "Saquon Barkley",
+      "player_id": "00-0040238",
+      "name": "LeQuint Allen",
       "position": "RB",
-      "team": "PHI",
-      "ecr": 57.88
+      "team": "JAX",
+      "ecr": 64.44
     },
     {
       "player_id": "00-0039407",
       "name": "Dylan Laube",
       "position": "RB",
       "team": "LV",
-      "ecr": 69.09
+      "ecr": 66.69
+    },
+    {
+      "player_id": "00-0034844",
+      "name": "Saquon Barkley",
+      "position": "RB",
+      "team": "PHI",
+      "ecr": 60.0
     },
     {
       "player_id": "00-0040236",
       "name": "Kyle Monangai",
       "position": "RB",
       "team": "CHI",
-      "ecr": 60.5
-    },
-    {
-      "player_id": "00-0035685",
-      "name": "David Montgomery",
-      "position": "RB",
-      "team": "HOU",
-      "ecr": 64.63
-    },
-    {
-      "player_id": "00-0040078",
-      "name": "Brashard Smith",
-      "position": "RB",
-      "team": "KC",
-      "ecr": 68.38
-    },
-    {
-      "player_id": "00-0039325",
-      "name": "Carson Steele",
-      "position": "RB",
-      "team": "PHI",
-      "ecr": 72.88
-    },
-    {
-      "player_id": "00-0038738",
-      "name": "Hunter Luepke",
-      "position": "RB",
-      "team": "DAL",
-      "ecr": 68.5
-    },
-    {
-      "player_id": "00-0038120",
-      "name": "Breece Hall",
-      "position": "RB",
-      "team": "NYJ",
-      "ecr": 64.2
-    },
-    {
-      "player_id": "00-0040586",
-      "name": "Jaydon Blue",
-      "position": "RB",
-      "team": "PHI",
-      "ecr": 70.17
-    },
-    {
-      "player_id": "00-0035250",
-      "name": "Devin Singletary",
-      "position": "RB",
-      "team": "NYG",
-      "ecr": 74.71
-    },
-    {
-      "player_id": "00-0035125",
-      "name": "Alec Ingold",
-      "position": "RB",
-      "team": "LAC",
-      "ecr": 68.4
+      "ecr": 60.82
     },
     {
       "player_id": "00-0039405",
       "name": "Jawhar Jordan",
       "position": "RB",
       "team": "HOU",
-      "ecr": 73.33
+      "ecr": 68.0
     },
     {
-      "player_id": "00-0033376",
-      "name": "Patrick Ricard",
+      "player_id": "00-0039325",
+      "name": "Carson Steele",
       "position": "RB",
-      "team": "NYG",
-      "ecr": 70.2
+      "team": "PHI",
+      "ecr": 70.64
     },
     {
-      "player_id": "00-0033854",
-      "name": "Dare Ogunbowale",
+      "player_id": "00-0040078",
+      "name": "Brashard Smith",
+      "position": "RB",
+      "team": "KC",
+      "ecr": 69.45
+    },
+    {
+      "player_id": "00-0035685",
+      "name": "David Montgomery",
       "position": "RB",
       "team": "HOU",
-      "ecr": 69.25
+      "ecr": 67.89
+    },
+    {
+      "player_id": "00-0038738",
+      "name": "Hunter Luepke",
+      "position": "RB",
+      "team": "DAL",
+      "ecr": 68.89
+    },
+    {
+      "player_id": "00-0040586",
+      "name": "Jaydon Blue",
+      "position": "RB",
+      "team": "PHI",
+      "ecr": 69.67
+    },
+    {
+      "player_id": "00-0035125",
+      "name": "Alec Ingold",
+      "position": "RB",
+      "team": "LAC",
+      "ecr": 70.75
+    },
+    {
+      "player_id": "00-0035250",
+      "name": "Devin Singletary",
+      "position": "RB",
+      "team": "NYG",
+      "ecr": 74.89
     },
     {
       "player_id": "00-0032104",
       "name": "Ameer Abdullah",
       "position": "RB",
       "team": "JAX",
-      "ecr": 79.83
-    },
-    {
-      "player_id": "00-0035594",
-      "name": "Travis Homer",
-      "position": "RB",
-      "team": "PIT",
-      "ecr": 76.8
+      "ecr": 79.33
     },
     {
       "player_id": "00-0040177",
       "name": "Jordan James",
       "position": "RB",
       "team": "SF",
-      "ecr": 80.17
+      "ecr": 80.0
     },
     {
-      "player_id": "00-0040205",
-      "name": "Kalel Mullings",
+      "player_id": "00-0033376",
+      "name": "Patrick Ricard",
       "position": "RB",
-      "team": "TEN",
-      "ecr": 77.4
+      "team": "NYG",
+      "ecr": 74.57
     },
     {
-      "player_id": "00-0036727",
-      "name": "Adam Prentice",
+      "player_id": "00-0038120",
+      "name": "Breece Hall",
       "position": "RB",
-      "team": "DEN",
-      "ecr": 74.5
-    },
-    {
-      "player_id": "00-0037157",
-      "name": "Bam Knight",
-      "position": "RB",
-      "team": "ARI",
-      "ecr": 79.0
+      "team": "NYJ",
+      "ecr": 73.0
     },
     {
       "player_id": "00-0040644",
       "name": "Trevor Etienne",
       "position": "RB",
       "team": "CAR",
-      "ecr": 79.4
+      "ecr": 79.75
     },
     {
-      "player_id": "00-0040179",
-      "name": "DJ Giddens",
+      "player_id": "00-0033854",
+      "name": "Dare Ogunbowale",
       "position": "RB",
-      "team": "IND",
-      "ecr": 80.4
+      "team": "HOU",
+      "ecr": 74.17
+    },
+    {
+      "player_id": "00-0040205",
+      "name": "Kalel Mullings",
+      "position": "RB",
+      "team": "TEN",
+      "ecr": 79.0
+    },
+    {
+      "player_id": "00-0035594",
+      "name": "Travis Homer",
+      "position": "RB",
+      "team": "PIT",
+      "ecr": 80.0
+    },
+    {
+      "player_id": "00-0036727",
+      "name": "Adam Prentice",
+      "position": "RB",
+      "team": "DEN",
+      "ecr": 78.67
+    },
+    {
+      "player_id": "00-0037157",
+      "name": "Bam Knight",
+      "position": "RB",
+      "team": "ARI",
+      "ecr": 81.71
     },
     {
       "player_id": "00-0031595",
       "name": "Michael Burton",
       "position": "RB",
       "team": "CLE",
-      "ecr": 79.5
-    },
-    {
-      "player_id": "00-0040162",
-      "name": "Dylan Sampson",
-      "position": "RB",
-      "team": "CLE",
-      "ecr": 66.0
+      "ecr": 82.67
     },
     {
       "player_id": "00-0040886",
       "name": "Nicholas Singleton",
       "position": "RB",
       "team": "TEN",
-      "ecr": 84.8
+      "ecr": 85.57
+    },
+    {
+      "player_id": "00-0040162",
+      "name": "Dylan Sampson",
+      "position": "RB",
+      "team": "CLE",
+      "ecr": 80.0
     },
     {
       "player_id": "00-0029892",
       "name": "Kyle Juszczyk",
       "position": "RB",
       "team": "SF",
-      "ecr": 69.0
+      "ecr": 76.75
     },
     {
-      "player_id": "00-0039796",
-      "name": "Rasheen Ali",
+      "player_id": "00-0040179",
+      "name": "DJ Giddens",
       "position": "RB",
-      "team": "BAL",
-      "ecr": 83.0
+      "team": "IND",
+      "ecr": 84.83
+    },
+    {
+      "player_id": "00-0039373",
+      "name": "Audric Estime",
+      "position": "RB",
+      "team": "CLE",
+      "ecr": 73.33
     },
     {
       "player_id": "00-0034959",
       "name": "Andrew Beck",
       "position": "RB",
       "team": "NYJ",
-      "ecr": 80.33
+      "ecr": 85.2
+    },
+    {
+      "player_id": "00-0039796",
+      "name": "Rasheen Ali",
+      "position": "RB",
+      "team": "BAL",
+      "ecr": 86.0
     },
     {
       "player_id": "00-0036842",
       "name": "Kene Nwangwu",
       "position": "RB",
       "team": "NYJ",
-      "ecr": 86.0
-    },
-    {
-      "player_id": "00-0040568",
-      "name": "Lan Larison",
-      "position": "RB",
-      "team": "NE",
-      "ecr": 79.0
+      "ecr": 89.33
     },
     {
       "player_id": "00-0041178",
       "name": "Robert Henry",
       "position": "RB",
       "team": "SEA",
-      "ecr": 85.33
+      "ecr": 89.0
     },
     {
       "player_id": "00-0041415",
       "name": "Dean Connors",
       "position": "RB",
       "team": "LA",
-      "ecr": 84.0
+      "ecr": 89.4
     },
     {
       "player_id": "00-0038409",
       "name": "Lew Nichols",
       "position": "RB",
       "team": "PIT",
-      "ecr": 90.5
+      "ecr": 91.5
+    },
+    {
+      "player_id": "00-0040568",
+      "name": "Lan Larison",
+      "position": "RB",
+      "team": "NE",
+      "ecr": 90.75
+    },
+    {
+      "player_id": "00-0038440",
+      "name": "Zavier Scott",
+      "position": "RB",
+      "team": "CHI",
+      "ecr": 82.0
+    },
+    {
+      "player_id": "00-0040888",
+      "name": "Adam Randall",
+      "position": "RB",
+      "team": "BAL",
+      "ecr": 84.5
+    },
+    {
+      "player_id": "00-0033955",
+      "name": "Jeremy McNichols",
+      "position": "RB",
+      "team": "WAS",
+      "ecr": 88.5
+    },
+    {
+      "player_id": "00-0035700",
+      "name": "Josh Jacobs",
+      "position": "RB",
+      "team": "GB",
+      "ecr": 89.5
     },
     {
       "player_id": "00-0039075",
       "name": "Puka Nacua",
       "position": "WR",
       "team": "LA",
-      "ecr": 1.14
+      "ecr": 1.06
     },
     {
       "player_id": "00-0038543",
@@ -1130,21 +1158,21 @@
       "name": "CeeDee Lamb",
       "position": "WR",
       "team": "DAL",
-      "ecr": 3.29
+      "ecr": 3.06
     },
     {
       "player_id": "00-0038124",
       "name": "Christian Watson",
       "position": "WR",
       "team": "GB",
-      "ecr": 4.36
+      "ecr": 4.35
     },
     {
       "player_id": "00-0037238",
       "name": "Drake London",
       "position": "WR",
       "team": "ATL",
-      "ecr": 4.86
+      "ecr": 4.88
     },
     {
       "player_id": "00-0037239",
@@ -1158,602 +1186,602 @@
       "name": "Nico Collins",
       "position": "WR",
       "team": "HOU",
-      "ecr": 7.57
+      "ecr": 8.0
     },
     {
       "player_id": "00-0039337",
       "name": "Malik Nabers",
       "position": "WR",
       "team": "NYG",
-      "ecr": 8.5
+      "ecr": 8.29
     },
     {
       "player_id": "00-0039064",
       "name": "Zay Flowers",
       "position": "WR",
       "team": "BAL",
-      "ecr": 10.21
+      "ecr": 9.71
     },
     {
       "player_id": "00-0031408",
       "name": "Mike Evans",
       "position": "WR",
       "team": "SF",
-      "ecr": 10.71
+      "ecr": 9.76
     },
     {
       "player_id": "00-0038606",
       "name": "Parker Washington",
       "position": "WR",
       "team": "JAX",
-      "ecr": 11.79
-    },
-    {
-      "player_id": "00-0037740",
-      "name": "Garrett Wilson",
-      "position": "WR",
-      "team": "NYJ",
-      "ecr": 12.14
+      "ecr": 11.82
     },
     {
       "player_id": "00-0031381",
       "name": "Davante Adams",
       "position": "WR",
       "team": "LA",
-      "ecr": 12.86
+      "ecr": 13.06
+    },
+    {
+      "player_id": "00-0037740",
+      "name": "Garrett Wilson",
+      "position": "WR",
+      "team": "NYJ",
+      "ecr": 13.12
     },
     {
       "player_id": "00-0037247",
       "name": "George Pickens",
       "position": "WR",
       "team": "DAL",
-      "ecr": 14.14
+      "ecr": 13.53
     },
     {
       "player_id": "00-0040667",
       "name": "Matthew Golden",
       "position": "WR",
       "team": "GB",
-      "ecr": 14.14
+      "ecr": 13.53
     },
     {
       "player_id": "00-0040124",
       "name": "Tetairoa McMillan",
       "position": "WR",
       "team": "CAR",
-      "ecr": 16.0
+      "ecr": 16.76
     },
     {
       "player_id": "00-0039491",
       "name": "Jalen Coker",
       "position": "WR",
       "team": "CAR",
-      "ecr": 16.71
+      "ecr": 16.76
     },
     {
       "player_id": "00-0038559",
       "name": "Michael Wilson",
       "position": "WR",
       "team": "ARI",
-      "ecr": 16.93
+      "ecr": 16.88
     },
     {
       "player_id": "00-0041037",
       "name": "Denzel Boston",
       "position": "WR",
       "team": "CLE",
-      "ecr": 18.86
+      "ecr": 18.94
     },
     {
       "player_id": "00-0040735",
       "name": "Luther Burden",
       "position": "WR",
       "team": "CHI",
-      "ecr": 19.86
+      "ecr": 19.82
     },
     {
       "player_id": "00-0035640",
       "name": "DK Metcalf",
       "position": "WR",
       "team": "PIT",
-      "ecr": 22.43
+      "ecr": 22.24
     },
     {
       "player_id": "00-0038997",
       "name": "Josh Downs",
       "position": "WR",
       "team": "IND",
-      "ecr": 22.93
+      "ecr": 23.18
     },
     {
       "player_id": "00-0035659",
       "name": "Terry McLaurin",
       "position": "WR",
       "team": "WAS",
-      "ecr": 23.57
+      "ecr": 23.41
     },
     {
       "player_id": "00-0041438",
       "name": "Carnell Tate",
       "position": "WR",
       "team": "TEN",
-      "ecr": 25.5
+      "ecr": 24.53
     },
     {
       "player_id": "00-0036613",
       "name": "Jaylen Waddle",
       "position": "WR",
       "team": "DEN",
-      "ecr": 27.36
+      "ecr": 26.24
     },
     {
       "player_id": "00-0039424",
       "name": "Devaughn Vele",
       "position": "WR",
       "team": "NO",
-      "ecr": 27.43
+      "ecr": 27.76
     },
     {
       "player_id": "00-0038117",
       "name": "WanDale Robinson",
       "position": "WR",
       "team": "TEN",
-      "ecr": 28.5
+      "ecr": 28.47
     },
     {
       "player_id": "00-0039919",
       "name": "Rome Odunze",
       "position": "WR",
       "team": "CHI",
-      "ecr": 30.21
+      "ecr": 29.94
     },
     {
       "player_id": "00-0037816",
       "name": "Romeo Doubs",
       "position": "WR",
       "team": "NE",
-      "ecr": 30.64
-    },
-    {
-      "player_id": "00-0041489",
-      "name": "Germie Bernard",
-      "position": "WR",
-      "team": "PIT",
-      "ecr": 33.0
+      "ecr": 30.65
     },
     {
       "player_id": "00-0038563",
       "name": "Tre Tucker",
       "position": "WR",
       "team": "LV",
-      "ecr": 33.07
+      "ecr": 31.88
     },
     {
-      "player_id": "00-0034960",
-      "name": "Jakobi Meyers",
+      "player_id": "00-0041489",
+      "name": "Germie Bernard",
       "position": "WR",
-      "team": "JAX",
-      "ecr": 33.64
+      "team": "PIT",
+      "ecr": 32.76
     },
     {
       "player_id": "00-0040129",
       "name": "Emeka Egbuka",
       "position": "WR",
       "team": "TB",
-      "ecr": 34.0
+      "ecr": 33.47
     },
     {
-      "player_id": "00-0038393",
-      "name": "Dontayvion Wicks",
+      "player_id": "00-0034960",
+      "name": "Jakobi Meyers",
       "position": "WR",
-      "team": "PHI",
-      "ecr": 34.93
-    },
-    {
-      "player_id": "00-0030279",
-      "name": "Keenan Allen",
-      "position": "WR",
-      "team": "IND",
-      "ecr": 36.14
-    },
-    {
-      "player_id": "00-0037261",
-      "name": "Khalil Shakir",
-      "position": "WR",
-      "team": "BUF",
-      "ecr": 37.36
+      "team": "JAX",
+      "ecr": 35.24
     },
     {
       "player_id": "00-0039894",
       "name": "Xavier Worthy",
       "position": "WR",
       "team": "KC",
-      "ecr": 38.71
+      "ecr": 35.59
+    },
+    {
+      "player_id": "00-0038393",
+      "name": "Dontayvion Wicks",
+      "position": "WR",
+      "team": "PHI",
+      "ecr": 36.06
+    },
+    {
+      "player_id": "00-0030279",
+      "name": "Keenan Allen",
+      "position": "WR",
+      "team": "IND",
+      "ecr": 36.06
+    },
+    {
+      "player_id": "00-0037261",
+      "name": "Khalil Shakir",
+      "position": "WR",
+      "team": "BUF",
+      "ecr": 37.18
     },
     {
       "player_id": "00-0033307",
       "name": "Kendrick Bourne",
       "position": "WR",
       "team": "ARI",
-      "ecr": 38.86
+      "ecr": 40.59
     },
     {
       "player_id": "00-0039410",
       "name": "Ryan Flournoy",
       "position": "WR",
       "team": "DAL",
-      "ecr": 41.29
+      "ecr": 41.0
     },
     {
       "player_id": "00-0039901",
       "name": "Keon Coleman",
       "position": "WR",
       "team": "BUF",
-      "ecr": 42.43
+      "ecr": 42.06
     },
     {
       "player_id": "00-0032464",
       "name": "Kalif Raymond",
       "position": "WR",
       "team": "CHI",
-      "ecr": 44.21
-    },
-    {
-      "player_id": "00-0040867",
-      "name": "Makai Lemon",
-      "position": "WR",
-      "team": "PHI",
-      "ecr": 45.21
-    },
-    {
-      "player_id": "00-0033921",
-      "name": "Chris Godwin",
-      "position": "WR",
-      "team": "TB",
-      "ecr": 46.21
-    },
-    {
-      "player_id": "00-0038621",
-      "name": "Demario Douglas",
-      "position": "WR",
-      "team": "NE",
-      "ecr": 46.29
-    },
-    {
-      "player_id": "00-0041040",
-      "name": "Antonio Williams",
-      "position": "WR",
-      "team": "WAS",
-      "ecr": 46.5
+      "ecr": 44.88
     },
     {
       "player_id": "00-0034348",
       "name": "Courtland Sutton",
       "position": "WR",
       "team": "DEN",
-      "ecr": 46.5
+      "ecr": 45.24
     },
     {
-      "player_id": "00-0036550",
-      "name": "Rashod Bateman",
-      "position": "WR",
-      "team": "BAL",
-      "ecr": 48.07
-    },
-    {
-      "player_id": "00-0039893",
-      "name": "Brian Thomas",
-      "position": "WR",
-      "team": "JAX",
-      "ecr": 51.21
-    },
-    {
-      "player_id": "00-0041042",
-      "name": "Malachi Fields",
-      "position": "WR",
-      "team": "NYG",
-      "ecr": 53.36
-    },
-    {
-      "player_id": "00-0034827",
-      "name": "DJ Moore",
-      "position": "WR",
-      "team": "BUF",
-      "ecr": 53.86
-    },
-    {
-      "player_id": "00-0039067",
-      "name": "Rashee Rice",
-      "position": "WR",
-      "team": "KC",
-      "ecr": 40.25
-    },
-    {
-      "player_id": "00-0040138",
-      "name": "Jaylin Noel",
-      "position": "WR",
-      "team": "HOU",
-      "ecr": 54.71
-    },
-    {
-      "player_id": "00-0040563",
-      "name": "Efton Chism",
-      "position": "WR",
-      "team": "NE",
-      "ecr": 54.93
-    },
-    {
-      "player_id": "00-0040024",
-      "name": "Darius Cooper",
+      "player_id": "00-0040867",
+      "name": "Makai Lemon",
       "position": "WR",
       "team": "PHI",
-      "ecr": 55.36
+      "ecr": 45.41
     },
     {
-      "player_id": "00-0037545",
-      "name": "Rashid Shaheed",
+      "player_id": "00-0033921",
+      "name": "Chris Godwin",
       "position": "WR",
-      "team": "SEA",
-      "ecr": 56.43
-    },
-    {
-      "player_id": "00-0031236",
-      "name": "Brandin Cooks",
-      "position": "WR",
-      "team": "SF",
-      "ecr": 56.86
-    },
-    {
-      "player_id": "00-0038618",
-      "name": "Xavier Hutchinson",
-      "position": "WR",
-      "team": "HOU",
-      "ecr": 57.5
-    },
-    {
-      "player_id": "00-0039849",
-      "name": "Marvin Harrison",
-      "position": "WR",
-      "team": "HOU",
-      "ecr": 58.21
-    },
-    {
-      "player_id": "00-0033908",
-      "name": "Cooper Kupp",
-      "position": "WR",
-      "team": "SEA",
-      "ecr": 59.86
+      "team": "TB",
+      "ecr": 45.47
     },
     {
       "player_id": "00-0039915",
       "name": "Ladd McConkey",
       "position": "WR",
       "team": "LAC",
-      "ecr": 55.08
+      "ecr": 45.53
     },
     {
-      "player_id": "00-0038608",
-      "name": "Kayshon Boutte",
+      "player_id": "00-0041040",
+      "name": "Antonio Williams",
+      "position": "WR",
+      "team": "WAS",
+      "ecr": 46.0
+    },
+    {
+      "player_id": "00-0034827",
+      "name": "DJ Moore",
+      "position": "WR",
+      "team": "BUF",
+      "ecr": 48.0
+    },
+    {
+      "player_id": "00-0038621",
+      "name": "Demario Douglas",
+      "position": "WR",
+      "team": "NE",
+      "ecr": 48.0
+    },
+    {
+      "player_id": "00-0036550",
+      "name": "Rashod Bateman",
+      "position": "WR",
+      "team": "BAL",
+      "ecr": 49.82
+    },
+    {
+      "player_id": "00-0040563",
+      "name": "Efton Chism",
+      "position": "WR",
+      "team": "NE",
+      "ecr": 50.88
+    },
+    {
+      "player_id": "00-0039893",
+      "name": "Brian Thomas",
+      "position": "WR",
+      "team": "JAX",
+      "ecr": 52.88
+    },
+    {
+      "player_id": "00-0040138",
+      "name": "Jaylin Noel",
       "position": "WR",
       "team": "HOU",
-      "ecr": 62.29
+      "ecr": 53.12
+    },
+    {
+      "player_id": "00-0031236",
+      "name": "Brandin Cooks",
+      "position": "WR",
+      "team": "SF",
+      "ecr": 54.53
+    },
+    {
+      "player_id": "00-0041042",
+      "name": "Malachi Fields",
+      "position": "WR",
+      "team": "NYG",
+      "ecr": 54.65
+    },
+    {
+      "player_id": "00-0037545",
+      "name": "Rashid Shaheed",
+      "position": "WR",
+      "team": "SEA",
+      "ecr": 56.35
+    },
+    {
+      "player_id": "00-0040024",
+      "name": "Darius Cooper",
+      "position": "WR",
+      "team": "PHI",
+      "ecr": 56.41
+    },
+    {
+      "player_id": "00-0038618",
+      "name": "Xavier Hutchinson",
+      "position": "WR",
+      "team": "HOU",
+      "ecr": 59.47
+    },
+    {
+      "player_id": "00-0039067",
+      "name": "Rashee Rice",
+      "position": "WR",
+      "team": "KC",
+      "ecr": 49.07
+    },
+    {
+      "player_id": "00-0039849",
+      "name": "Marvin Harrison",
+      "position": "WR",
+      "team": "HOU",
+      "ecr": 60.29
+    },
+    {
+      "player_id": "00-0033908",
+      "name": "Cooper Kupp",
+      "position": "WR",
+      "team": "SEA",
+      "ecr": 61.06
     },
     {
       "player_id": "00-0037741",
       "name": "Jahan Dotson",
       "position": "WR",
       "team": "ATL",
-      "ecr": 62.36
+      "ecr": 62.18
     },
     {
-      "player_id": "00-0036912",
-      "name": "DeVonta Smith",
+      "player_id": "00-0038608",
+      "name": "Kayshon Boutte",
       "position": "WR",
-      "team": "PHI",
-      "ecr": 49.18
-    },
-    {
-      "player_id": "00-0040782",
-      "name": "Isaiah Bond",
-      "position": "WR",
-      "team": "CLE",
-      "ecr": 69.14
+      "team": "HOU",
+      "ecr": 62.65
     },
     {
       "player_id": "00-0036407",
       "name": "Jerry Jeudy",
       "position": "WR",
       "team": "CLE",
-      "ecr": 66.62
+      "ecr": 64.94
     },
     {
-      "player_id": "00-0037742",
-      "name": "Treylon Burks",
+      "player_id": "00-0040782",
+      "name": "Isaiah Bond",
       "position": "WR",
-      "team": "WAS",
-      "ecr": 72.36
-    },
-    {
-      "player_id": "00-0041100",
-      "name": "Josh Cameron",
-      "position": "WR",
-      "team": "JAX",
-      "ecr": 71.77
-    },
-    {
-      "player_id": "00-0032951",
-      "name": "Laquon Treadwell",
-      "position": "WR",
-      "team": "IND",
-      "ecr": 67.17
+      "team": "CLE",
+      "ecr": 66.0
     },
     {
       "player_id": "00-0035891",
       "name": "Cody White",
       "position": "WR",
       "team": "LV",
-      "ecr": 67.83
+      "ecr": 66.31
+    },
+    {
+      "player_id": "00-0037742",
+      "name": "Treylon Burks",
+      "position": "WR",
+      "team": "WAS",
+      "ecr": 70.94
+    },
+    {
+      "player_id": "00-0032951",
+      "name": "Laquon Treadwell",
+      "position": "WR",
+      "team": "IND",
+      "ecr": 67.06
+    },
+    {
+      "player_id": "00-0041100",
+      "name": "Josh Cameron",
+      "position": "WR",
+      "team": "JAX",
+      "ecr": 72.0
+    },
+    {
+      "player_id": "00-0036912",
+      "name": "DeVonta Smith",
+      "position": "WR",
+      "team": "PHI",
+      "ecr": 53.85
     },
     {
       "player_id": "00-0040646",
       "name": "Jalen Royals",
       "position": "WR",
       "team": "KC",
-      "ecr": 77.92
-    },
-    {
-      "player_id": "00-0037614",
-      "name": "John Metchie",
-      "position": "WR",
-      "team": "CAR",
-      "ecr": 75.08
-    },
-    {
-      "player_id": "00-0041048",
-      "name": "Ted Hurst",
-      "position": "WR",
-      "team": "TB",
-      "ecr": 77.0
-    },
-    {
-      "player_id": "00-0041547",
-      "name": "KC Concepcion",
-      "position": "WR",
-      "team": "CLE",
-      "ecr": 72.45
+      "ecr": 77.24
     },
     {
       "player_id": "00-0036309",
       "name": "Darnell Mooney",
       "position": "WR",
       "team": "NYG",
-      "ecr": 78.33
+      "ecr": 76.31
+    },
+    {
+      "player_id": "00-0037614",
+      "name": "John Metchie",
+      "position": "WR",
+      "team": "CAR",
+      "ecr": 76.63
     },
     {
       "player_id": "00-0040170",
       "name": "Elic Ayomanor",
       "position": "WR",
       "team": "TEN",
-      "ecr": 81.17
+      "ecr": 79.5
     },
     {
-      "player_id": "00-0040727",
-      "name": "Tre Harris",
+      "player_id": "00-0041048",
+      "name": "Ted Hurst",
       "position": "WR",
-      "team": "LAC",
-      "ecr": 77.9
+      "team": "TB",
+      "ecr": 77.67
     },
     {
-      "player_id": "00-0039792",
-      "name": "Devontez Walker",
+      "player_id": "00-0041547",
+      "name": "KC Concepcion",
       "position": "WR",
-      "team": "BAL",
-      "ecr": 86.36
-    },
-    {
-      "player_id": "00-0038840",
-      "name": "Brycen Tremayne",
-      "position": "WR",
-      "team": "CAR",
-      "ecr": 86.4
-    },
-    {
-      "player_id": "00-0033375",
-      "name": "Tim Patrick",
-      "position": "WR",
-      "team": "NYJ",
-      "ecr": 83.0
+      "team": "CLE",
+      "ecr": 73.93
     },
     {
       "player_id": "00-0039868",
       "name": "Troy Franklin",
       "position": "WR",
       "team": "DEN",
-      "ecr": 83.44
+      "ecr": 80.0
     },
     {
-      "player_id": "00-0040890",
-      "name": "Cyrus Allen",
+      "player_id": "00-0039792",
+      "name": "Devontez Walker",
       "position": "WR",
-      "team": "KC",
-      "ecr": 91.9
+      "team": "BAL",
+      "ecr": 84.67
     },
     {
-      "player_id": "00-0040237",
-      "name": "Tez Johnson",
+      "player_id": "00-0033375",
+      "name": "Tim Patrick",
       "position": "WR",
-      "team": "TB",
-      "ecr": 89.33
-    },
-    {
-      "player_id": "00-0037291",
-      "name": "Jalen Nailor",
-      "position": "WR",
-      "team": "LV",
-      "ecr": 83.38
+      "team": "NYJ",
+      "ecr": 78.23
     },
     {
       "player_id": "00-0034837",
       "name": "Calvin Ridley",
       "position": "WR",
       "team": "TEN",
-      "ecr": 91.0
+      "ecr": 87.64
     },
     {
-      "player_id": "00-0034272",
-      "name": "Marquez Valdes-Scantling",
+      "player_id": "00-0038840",
+      "name": "Brycen Tremayne",
       "position": "WR",
-      "team": "LAC",
-      "ecr": 91.56
+      "team": "CAR",
+      "ecr": 84.23
     },
     {
       "player_id": "00-0041067",
       "name": "Bryce Lance",
       "position": "WR",
       "team": "NO",
-      "ecr": 84.71
+      "ecr": 81.08
+    },
+    {
+      "player_id": "00-0040727",
+      "name": "Tre Harris",
+      "position": "WR",
+      "team": "LAC",
+      "ecr": 81.27
+    },
+    {
+      "player_id": "00-0034272",
+      "name": "Marquez Valdes-Scantling",
+      "position": "WR",
+      "team": "LAC",
+      "ecr": 91.46
     },
     {
       "player_id": "00-0038640",
       "name": "Jalen Brooks",
       "position": "WR",
       "team": "ARI",
-      "ecr": 85.86
+      "ecr": 85.0
     },
     {
-      "player_id": "00-0031588",
-      "name": "Stefon Diggs",
+      "player_id": "00-0040237",
+      "name": "Tez Johnson",
       "position": "WR",
-      "team": "WAS",
-      "ecr": 71.6
+      "team": "TB",
+      "ecr": 89.83
+    },
+    {
+      "player_id": "00-0040890",
+      "name": "Cyrus Allen",
+      "position": "WR",
+      "team": "KC",
+      "ecr": 89.92
     },
     {
       "player_id": "00-0037091",
       "name": "Bo Melton",
       "position": "WR",
       "team": "GB",
-      "ecr": 84.0
+      "ecr": 82.1
     },
     {
-      "player_id": "00-0041044",
-      "name": "Zachariah Branch",
+      "player_id": "00-0037291",
+      "name": "Jalen Nailor",
       "position": "WR",
-      "team": "ATL",
-      "ecr": 94.0
+      "team": "LV",
+      "ecr": 85.5
     },
     {
       "player_id": "00-0035208",
       "name": "Olamide Zaccheaus",
       "position": "WR",
       "team": "ATL",
-      "ecr": 94.43
+      "ecr": 92.27
+    },
+    {
+      "player_id": "00-0041044",
+      "name": "Zachariah Branch",
+      "position": "WR",
+      "team": "ATL",
+      "ecr": 93.27
     },
     {
       "player_id": "00-0036626",
       "name": "Dyami Brown",
       "position": "WR",
       "team": "WAS",
-      "ecr": 97.57
+      "ecr": 96.0
+    },
+    {
+      "player_id": "00-0041070",
+      "name": "Reggie Virgil",
+      "position": "WR",
+      "team": "ARI",
+      "ecr": 97.1
     },
     {
       "player_id": "00-0038976",
@@ -1767,210 +1795,224 @@
       "name": "AJ Brown",
       "position": "WR",
       "team": "NE",
-      "ecr": 69.5
-    },
-    {
-      "player_id": "00-0040172",
-      "name": "Jordan Watkins",
-      "position": "WR",
-      "team": "SF",
-      "ecr": 84.2
+      "ecr": 82.0
     },
     {
       "player_id": "00-0040705",
       "name": "Chimere Dike",
       "position": "WR",
       "team": "TEN",
-      "ecr": 102.29
+      "ecr": 100.9
     },
     {
       "player_id": "00-0039365",
       "name": "Jacob Cowing",
       "position": "WR",
       "team": "SF",
-      "ecr": 88.4
-    },
-    {
-      "player_id": "00-0041070",
-      "name": "Reggie Virgil",
-      "position": "WR",
-      "team": "ARI",
-      "ecr": 97.83
-    },
-    {
-      "player_id": "00-0037801",
-      "name": "KaVontae Turpin",
-      "position": "WR",
-      "team": "DAL",
-      "ecr": 98.33
-    },
-    {
-      "player_id": "00-0040894",
-      "name": "Malik Benson",
-      "position": "WR",
-      "team": "LV",
-      "ecr": 99.17
+      "ecr": 90.75
     },
     {
       "player_id": "00-0038544",
       "name": "Quentin Johnston",
       "position": "WR",
       "team": "LAC",
-      "ecr": 94.0
+      "ecr": 92.75
+    },
+    {
+      "player_id": "00-0037801",
+      "name": "KaVontae Turpin",
+      "position": "WR",
+      "team": "DAL",
+      "ecr": 98.56
+    },
+    {
+      "player_id": "00-0031588",
+      "name": "Stefon Diggs",
+      "position": "WR",
+      "team": "WAS",
+      "ecr": 79.17
+    },
+    {
+      "player_id": "00-0040894",
+      "name": "Malik Benson",
+      "position": "WR",
+      "team": "LV",
+      "ecr": 100.78
     },
     {
       "player_id": "00-0040648",
       "name": "Tory Horton",
       "position": "WR",
       "team": "SEA",
-      "ecr": 99.33
+      "ecr": 101.22
     },
     {
-      "player_id": "00-0036988",
-      "name": "Josh Palmer",
+      "player_id": "00-0040172",
+      "name": "Jordan Watkins",
       "position": "WR",
-      "team": "BUF",
-      "ecr": 96.4
+      "team": "SF",
+      "ecr": 90.43
     },
     {
       "player_id": "00-0036849",
       "name": "Tutu Atwell",
       "position": "WR",
       "team": "LA",
-      "ecr": 104.17
+      "ecr": 103.67
     },
     {
-      "player_id": "00-0040718",
-      "name": "Travis Hunter",
+      "player_id": "00-0036988",
+      "name": "Josh Palmer",
       "position": "WR",
-      "team": "JAX",
-      "ecr": 98.8
-    },
-    {
-      "player_id": "00-0040311",
-      "name": "Theo Wease",
-      "position": "WR",
-      "team": "LAC",
-      "ecr": 99.0
+      "team": "BUF",
+      "ecr": 95.57
     },
     {
       "player_id": "00-0040590",
       "name": "Konata Mumpfield",
       "position": "WR",
       "team": "LA",
-      "ecr": 105.83
-    },
-    {
-      "player_id": "00-0038090",
-      "name": "Skyy Moore",
-      "position": "WR",
-      "team": "GB",
-      "ecr": 100.2
+      "ecr": 106.56
     },
     {
       "player_id": "00-0041443",
       "name": "Skyler Bell",
       "position": "WR",
       "team": "BUF",
-      "ecr": 91.75
+      "ecr": 99.86
     },
     {
-      "player_id": "00-0039890",
-      "name": "Adonai Mitchell",
+      "player_id": "00-0038090",
+      "name": "Skyy Moore",
       "position": "WR",
-      "team": "NYJ",
-      "ecr": 93.5
+      "team": "GB",
+      "ecr": 100.57
     },
     {
-      "player_id": "00-0039751",
-      "name": "Jordan Whittington",
+      "player_id": "00-0040718",
+      "name": "Travis Hunter",
       "position": "WR",
-      "team": "LA",
-      "ecr": 104.2
+      "team": "JAX",
+      "ecr": 104.86
+    },
+    {
+      "player_id": "00-0040311",
+      "name": "Theo Wease",
+      "position": "WR",
+      "team": "LAC",
+      "ecr": 107.29
     },
     {
       "player_id": "00-0041051",
       "name": "Zavion Thomas",
       "position": "WR",
       "team": "CHI",
-      "ecr": 108.0
+      "ecr": 105.33
     },
     {
       "player_id": "00-0041132",
       "name": "Deion Burks",
       "position": "WR",
       "team": "IND",
-      "ecr": 102.75
+      "ecr": 103.0
+    },
+    {
+      "player_id": "00-0039890",
+      "name": "Adonai Mitchell",
+      "position": "WR",
+      "team": "NYJ",
+      "ecr": 94.0
     },
     {
       "player_id": "00-0036862",
       "name": "Ben Skowronek",
       "position": "WR",
       "team": "PIT",
-      "ecr": 94.33
-    },
-    {
-      "player_id": "00-0040876",
-      "name": "Elijah Sarratt",
-      "position": "WR",
-      "team": "BAL",
-      "ecr": 110.0
+      "ecr": 95.25
     },
     {
       "player_id": "00-0040948",
       "name": "J Michael Sturdivant",
       "position": "WR",
       "team": "GB",
-      "ecr": 108.75
+      "ecr": 108.8
+    },
+    {
+      "player_id": "00-0039751",
+      "name": "Jordan Whittington",
+      "position": "WR",
+      "team": "LA",
+      "ecr": 109.2
     },
     {
       "player_id": "00-0036182",
       "name": "Nick Westbrook-Ikhine",
       "position": "WR",
       "team": "IND",
-      "ecr": 110.25
+      "ecr": 111.8
     },
     {
-      "player_id": "00-0039816",
-      "name": "Anthony Gould",
+      "player_id": "00-0040876",
+      "name": "Elijah Sarratt",
       "position": "WR",
-      "team": "IND",
-      "ecr": 113.0
-    },
-    {
-      "player_id": "00-0035535",
-      "name": "Darius Slayton",
-      "position": "WR",
-      "team": "IND",
-      "ecr": 118.5
+      "team": "BAL",
+      "ecr": 111.25
     },
     {
       "player_id": "00-0036775",
       "name": "Brandon Smith",
       "position": "WR",
       "team": "PIT",
-      "ecr": 114.0
+      "ecr": 111.0
     },
     {
       "player_id": "00-0035406",
       "name": "LilJordan Humphrey",
       "position": "WR",
       "team": "DEN",
-      "ecr": 101.5
-    },
-    {
-      "player_id": "00-0037093",
-      "name": "Dareke Young",
-      "position": "WR",
-      "team": "LV",
-      "ecr": 105.0
+      "ecr": 101.33
     },
     {
       "player_id": "00-0039062",
       "name": "Jonathan Mingo",
       "position": "WR",
       "team": "DAL",
-      "ecr": 105.0
+      "ecr": 104.0
+    },
+    {
+      "player_id": "00-0037093",
+      "name": "Dareke Young",
+      "position": "WR",
+      "team": "LV",
+      "ecr": 107.0
+    },
+    {
+      "player_id": "00-0039816",
+      "name": "Anthony Gould",
+      "position": "WR",
+      "team": "IND",
+      "ecr": 120.75
+    },
+    {
+      "player_id": "00-0035535",
+      "name": "Darius Slayton",
+      "position": "WR",
+      "team": "IND",
+      "ecr": 118.0
+    },
+    {
+      "player_id": "00-0038573",
+      "name": "Derius Davis",
+      "position": "WR",
+      "team": "LAC",
+      "ecr": 119.25
+    },
+    {
+      "player_id": "00-0040277",
+      "name": "Jahdae Walker",
+      "position": "WR",
+      "team": "CHI",
+      "ecr": 120.25
     },
     {
       "player_id": "00-0038977",
@@ -1980,46 +2022,39 @@
       "ecr": 117.0
     },
     {
-      "player_id": "00-0040277",
-      "name": "Jahdae Walker",
+      "player_id": "00-0036980",
+      "name": "Elijah Moore",
       "position": "WR",
-      "team": "CHI",
-      "ecr": 119.33
-    },
-    {
-      "player_id": "00-0038573",
-      "name": "Derius Davis",
-      "position": "WR",
-      "team": "LAC",
-      "ecr": 120.33
+      "team": "PHI",
+      "ecr": 117.33
     },
     {
       "player_id": "00-0036463",
       "name": "Chris Blair",
       "position": "WR",
       "team": "ATL",
-      "ecr": 114.0
+      "ecr": 117.67
     },
     {
-      "player_id": "00-0041099",
-      "name": "Barion Brown",
+      "player_id": "00-0039920",
+      "name": "Malachi Corley",
       "position": "WR",
-      "team": "NO",
-      "ecr": 115.5
+      "team": "CLE",
+      "ecr": 119.0
     },
     {
-      "player_id": "00-0038576",
-      "name": "Charlie Jones",
+      "player_id": "00-0041550",
+      "name": "Brenen Thompson",
       "position": "WR",
-      "team": "NYG",
+      "team": "LAC",
+      "ecr": 129.5
+    },
+    {
+      "player_id": "00-0036630",
+      "name": "Tylan Wallace",
+      "position": "WR",
+      "team": "CLE",
       "ecr": 116.0
-    },
-    {
-      "player_id": "00-0040009",
-      "name": "Savion Williams",
-      "position": "WR",
-      "team": "GB",
-      "ecr": 116.5
     },
     {
       "player_id": "00-0035662",
@@ -2029,522 +2064,571 @@
       "ecr": 116.5
     },
     {
-      "player_id": "00-0041550",
-      "name": "Brenen Thompson",
+      "player_id": "00-0038576",
+      "name": "Charlie Jones",
       "position": "WR",
-      "team": "LAC",
-      "ecr": 130.0
+      "team": "NYG",
+      "ecr": 125.33
     },
     {
-      "player_id": "00-0039920",
-      "name": "Malachi Corley",
+      "player_id": "00-0041099",
+      "name": "Barion Brown",
       "position": "WR",
-      "team": "CLE",
-      "ecr": 118.5
+      "team": "NO",
+      "ecr": 125.33
+    },
+    {
+      "player_id": "00-0040009",
+      "name": "Savion Williams",
+      "position": "WR",
+      "team": "GB",
+      "ecr": 117.0
+    },
+    {
+      "player_id": "00-0032398",
+      "name": "Chris Moore",
+      "position": "WR",
+      "team": "BAL",
+      "ecr": 126.0
     },
     {
       "player_id": "00-0040075",
       "name": "LaJohntay Wester",
       "position": "WR",
       "team": "BAL",
-      "ecr": 122.5
-    },
-    {
-      "player_id": "00-0036980",
-      "name": "Elijah Moore",
-      "position": "WR",
-      "team": "PHI",
-      "ecr": 126.0
-    },
-    {
-      "player_id": "00-0035021",
-      "name": "Ashton Dulin",
-      "position": "WR",
-      "team": "IND",
-      "ecr": 129.5
-    },
-    {
-      "player_id": "00-0035500",
-      "name": "Greg Dortch",
-      "position": "WR",
-      "team": "BUF",
-      "ecr": 129.5
-    },
-    {
-      "player_id": "00-0039589",
-      "name": "Kameron Johnson",
-      "position": "WR",
-      "team": "TB",
-      "ecr": 133.0
+      "ecr": 128.0
     },
     {
       "player_id": "00-0039355",
       "name": "Luke McCaffrey",
       "position": "WR",
       "team": "WAS",
-      "ecr": 135.5
+      "ecr": 131.0
     },
     {
-      "player_id": "00-0036646",
-      "name": "Simi Fehoko",
+      "player_id": "00-0041397",
+      "name": "Kaden Wetjen",
       "position": "WR",
-      "team": "ARI",
-      "ecr": 135.0
+      "team": "PIT",
+      "ecr": 121.5
+    },
+    {
+      "player_id": "00-0035500",
+      "name": "Greg Dortch",
+      "position": "WR",
+      "team": "BUF",
+      "ecr": 130.0
+    },
+    {
+      "player_id": "00-0039589",
+      "name": "Kameron Johnson",
+      "position": "WR",
+      "team": "TB",
+      "ecr": 132.33
+    },
+    {
+      "player_id": "00-0035021",
+      "name": "Ashton Dulin",
+      "position": "WR",
+      "team": "IND",
+      "ecr": 126.0
     },
     {
       "player_id": "00-0037132",
       "name": "Britain Covey",
       "position": "WR",
       "team": "PHI",
-      "ecr": 142.5
+      "ecr": 138.0
+    },
+    {
+      "player_id": "00-0038519",
+      "name": "Nikko Remigio",
+      "position": "WR",
+      "team": "KC",
+      "ecr": 128.0
+    },
+    {
+      "player_id": "00-0038979",
+      "name": "Cedric Tillman",
+      "position": "WR",
+      "team": "NO",
+      "ecr": 132.0
+    },
+    {
+      "player_id": "00-0036331",
+      "name": "Devin Duvernay",
+      "position": "WR",
+      "team": "ARI",
+      "ecr": 133.0
+    },
+    {
+      "player_id": "00-0036646",
+      "name": "Simi Fehoko",
+      "position": "WR",
+      "team": "ARI",
+      "ecr": 136.33
+    },
+    {
+      "player_id": "00-0036415",
+      "name": "Van Jefferson",
+      "position": "WR",
+      "team": "WAS",
+      "ecr": 138.5
+    },
+    {
+      "player_id": "00-0037487",
+      "name": "Deven Thompkins",
+      "position": "WR",
+      "team": "LV",
+      "ecr": 138.5
+    },
+    {
+      "player_id": "00-0040431",
+      "name": "Dalen Cambre",
+      "position": "WR",
+      "team": "NYG",
+      "ecr": 146.0
     },
     {
       "player_id": "00-0039338",
       "name": "Brock Bowers",
       "position": "TE",
       "team": "LV",
-      "ecr": 1.14
+      "ecr": 1.0
     },
     {
       "player_id": "00-0033288",
       "name": "George Kittle",
       "position": "TE",
       "team": "SF",
-      "ecr": 2.29
+      "ecr": 2.35
     },
     {
       "player_id": "00-0037744",
       "name": "Trey McBride",
       "position": "TE",
       "team": "ARI",
-      "ecr": 2.79
+      "ecr": 2.71
     },
     {
       "player_id": "00-0037838",
       "name": "Isaiah Likely",
       "position": "TE",
       "team": "NYG",
-      "ecr": 3.79
+      "ecr": 4.0
     },
     {
       "player_id": "00-0040128",
       "name": "Tyler Warren",
       "position": "TE",
       "team": "IND",
-      "ecr": 5.07
+      "ecr": 5.0
     },
     {
       "player_id": "00-0030506",
       "name": "Travis Kelce",
       "position": "TE",
       "team": "KC",
-      "ecr": 7.0
-    },
-    {
-      "player_id": "00-0038933",
-      "name": "Dalton Kincaid",
-      "position": "TE",
-      "team": "BUF",
-      "ecr": 7.79
+      "ecr": 6.24
     },
     {
       "player_id": "00-0038996",
       "name": "Tucker Kraft",
       "position": "TE",
       "team": "GB",
-      "ecr": 8.14
+      "ecr": 7.76
     },
     {
-      "player_id": "00-0034351",
-      "name": "Dallas Goedert",
+      "player_id": "00-0038933",
+      "name": "Dalton Kincaid",
       "position": "TE",
-      "team": "PHI",
-      "ecr": 9.36
+      "team": "BUF",
+      "ecr": 8.65
     },
     {
       "player_id": "00-0036040",
       "name": "Juwan Johnson",
       "position": "TE",
       "team": "NO",
-      "ecr": 9.93
+      "ecr": 9.06
+    },
+    {
+      "player_id": "00-0034351",
+      "name": "Dallas Goedert",
+      "position": "TE",
+      "team": "PHI",
+      "ecr": 9.65
     },
     {
       "player_id": "00-0040663",
       "name": "Harold Fannin",
       "position": "TE",
       "team": "CLE",
-      "ecr": 10.14
+      "ecr": 10.41
     },
     {
       "player_id": "00-0038935",
       "name": "Brenton Strange",
       "position": "TE",
       "team": "JAX",
-      "ecr": 13.14
+      "ecr": 12.88
     },
     {
       "player_id": "00-0036894",
       "name": "Pat Freiermuth",
       "position": "TE",
       "team": "PIT",
-      "ecr": 13.36
+      "ecr": 12.88
     },
     {
       "player_id": "00-0034753",
       "name": "Mark Andrews",
       "position": "TE",
       "team": "BAL",
-      "ecr": 14.14
+      "ecr": 14.71
     },
     {
       "player_id": "00-0033110",
       "name": "Tyler Higbee",
       "position": "TE",
       "team": "LA",
-      "ecr": 14.5
+      "ecr": 14.94
     },
     {
       "player_id": "00-0040126",
       "name": "Colston Loveland",
       "position": "TE",
       "team": "CHI",
-      "ecr": 15.29
+      "ecr": 15.06
     },
     {
       "player_id": "00-0033090",
       "name": "Hunter Henry",
       "position": "TE",
       "team": "NE",
-      "ecr": 18.14
+      "ecr": 17.65
     },
     {
       "player_id": "00-0034383",
       "name": "Dalton Schultz",
       "position": "TE",
       "team": "HOU",
-      "ecr": 18.21
+      "ecr": 18.35
     },
     {
       "player_id": "00-0038041",
       "name": "Jake Ferguson",
       "position": "TE",
       "team": "DAL",
-      "ecr": 18.64
+      "ecr": 19.76
     },
     {
       "player_id": "00-0031610",
       "name": "Darren Waller",
       "position": "TE",
       "team": "CAR",
-      "ecr": 20.0
+      "ecr": 19.82
     },
     {
       "player_id": "00-0036970",
       "name": "Kyle Pitts",
       "position": "TE",
       "team": "ATL",
-      "ecr": 20.93
+      "ecr": 20.47
     },
     {
       "player_id": "00-0037809",
       "name": "Chigoziem Okonkwo",
       "position": "TE",
       "team": "WAS",
-      "ecr": 22.43
+      "ecr": 21.82
     },
     {
       "player_id": "00-0039793",
       "name": "AJ Barner",
       "position": "TE",
       "team": "SEA",
-      "ecr": 23.79
+      "ecr": 23.53
     },
     {
       "player_id": "00-0039066",
       "name": "Michael Mayer",
       "position": "TE",
       "team": "LV",
-      "ecr": 23.93
-    },
-    {
-      "player_id": "00-0040189",
-      "name": "Oronde Gadsden",
-      "position": "TE",
-      "team": "LAC",
-      "ecr": 24.29
+      "ecr": 23.82
     },
     {
       "player_id": "00-0038129",
       "name": "Cade Otton",
       "position": "TE",
       "team": "TB",
-      "ecr": 24.64
+      "ecr": 24.41
+    },
+    {
+      "player_id": "00-0040189",
+      "name": "Oronde Gadsden",
+      "position": "TE",
+      "team": "LAC",
+      "ecr": 25.82
     },
     {
       "player_id": "00-0038558",
       "name": "Darnell Washington",
       "position": "TE",
       "team": "PIT",
-      "ecr": 28.0
+      "ecr": 27.65
     },
     {
       "player_id": "00-0033881",
       "name": "Evan Engram",
       "position": "TE",
       "team": "DEN",
-      "ecr": 28.86
+      "ecr": 28.47
     },
     {
       "player_id": "00-0035644",
       "name": "Noah Fant",
       "position": "TE",
       "team": "NO",
-      "ecr": 29.79
-    },
-    {
-      "player_id": "00-0040584",
-      "name": "Gunnar Helm",
-      "position": "TE",
-      "team": "TEN",
-      "ecr": 31.54
-    },
-    {
-      "player_id": "00-0036244",
-      "name": "Colby Parkinson",
-      "position": "TE",
-      "team": "LA",
-      "ecr": 34.46
-    },
-    {
-      "player_id": "00-0035689",
-      "name": "Dawson Knox",
-      "position": "TE",
-      "team": "BUF",
-      "ecr": 34.62
-    },
-    {
-      "player_id": "00-0039847",
-      "name": "Theo Johnson",
-      "position": "TE",
-      "team": "NYG",
-      "ecr": 36.92
+      "ecr": 30.65
     },
     {
       "player_id": "00-0040736",
       "name": "Mason Taylor",
       "position": "TE",
       "team": "NYJ",
-      "ecr": 32.33
+      "ecr": 31.63
     },
     {
-      "player_id": "00-0041032",
-      "name": "Kenyon Sadiq",
+      "player_id": "00-0040584",
+      "name": "Gunnar Helm",
       "position": "TE",
-      "team": "NYJ",
-      "ecr": 33.09
+      "team": "TEN",
+      "ecr": 31.69
+    },
+    {
+      "player_id": "00-0036244",
+      "name": "Colby Parkinson",
+      "position": "TE",
+      "team": "LA",
+      "ecr": 34.25
+    },
+    {
+      "player_id": "00-0035689",
+      "name": "Dawson Knox",
+      "position": "TE",
+      "team": "BUF",
+      "ecr": 34.75
+    },
+    {
+      "player_id": "00-0039847",
+      "name": "Theo Johnson",
+      "position": "TE",
+      "team": "NYG",
+      "ecr": 37.38
     },
     {
       "player_id": "00-0041395",
       "name": "Eli Raridon",
       "position": "TE",
       "team": "NE",
-      "ecr": 35.7
+      "ecr": 34.33
+    },
+    {
+      "player_id": "00-0041032",
+      "name": "Kenyon Sadiq",
+      "position": "TE",
+      "team": "NYJ",
+      "ecr": 36.58
     },
     {
       "player_id": "00-0038046",
       "name": "Charlie Kolar",
       "position": "TE",
       "team": "LAC",
-      "ecr": 36.56
+      "ecr": 33.2
     },
     {
       "player_id": "00-0039041",
       "name": "Elijah Higgins",
       "position": "TE",
       "team": "ARI",
-      "ecr": 39.89
-    },
-    {
-      "player_id": "00-0036290",
-      "name": "Cole Kmet",
-      "position": "TE",
-      "team": "CHI",
-      "ecr": 41.13
+      "ecr": 39.11
     },
     {
       "player_id": "00-0037005",
       "name": "Tommy Tremble",
       "position": "TE",
       "team": "CAR",
-      "ecr": 41.63
+      "ecr": 40.44
+    },
+    {
+      "player_id": "00-0036290",
+      "name": "Cole Kmet",
+      "position": "TE",
+      "team": "CHI",
+      "ecr": 41.33
     },
     {
       "player_id": "00-0036637",
       "name": "Noah Gray",
       "position": "TE",
       "team": "KC",
-      "ecr": 44.75
+      "ecr": 43.22
     },
     {
       "player_id": "00-0034981",
       "name": "Foster Moreau",
       "position": "TE",
       "team": "HOU",
-      "ecr": 42.14
-    },
-    {
-      "player_id": "00-0037805",
-      "name": "Jeremy Ruckert",
-      "position": "TE",
-      "team": "NYJ",
-      "ecr": 46.17
+      "ecr": 44.29
     },
     {
       "player_id": "00-0039074",
       "name": "Davis Allen",
       "position": "TE",
       "team": "LA",
-      "ecr": 48.0
+      "ecr": 47.43
     },
     {
       "player_id": "00-0030061",
       "name": "Zach Ertz",
       "position": "TE",
       "team": "PHI",
-      "ecr": 50.0
+      "ecr": 53.57
     },
     {
-      "player_id": "00-0037277",
-      "name": "Teagan Quitoriano",
+      "player_id": "00-0037805",
+      "name": "Jeremy Ruckert",
       "position": "TE",
-      "team": "ARI",
-      "ecr": 55.5
+      "team": "NYJ",
+      "ecr": 45.33
     },
     {
       "player_id": "00-0033858",
       "name": "Jonnu Smith",
       "position": "TE",
       "team": "GB",
-      "ecr": 48.4
+      "ecr": 47.83
     },
     {
-      "player_id": "00-0040187",
-      "name": "Mitchell Evans",
+      "player_id": "00-0037277",
+      "name": "Teagan Quitoriano",
       "position": "TE",
-      "team": "CAR",
-      "ecr": 48.8
+      "team": "ARI",
+      "ecr": 54.5
     },
     {
       "player_id": "00-0038115",
       "name": "Daniel Bellinger",
       "position": "TE",
       "team": "TEN",
-      "ecr": 49.0
+      "ecr": 48.8
+    },
+    {
+      "player_id": "00-0040187",
+      "name": "Mitchell Evans",
+      "position": "TE",
+      "team": "CAR",
+      "ecr": 49.2
     },
     {
       "player_id": "00-0040739",
       "name": "Elijah Arroyo",
       "position": "TE",
       "team": "SEA",
-      "ecr": 49.0
-    },
-    {
-      "player_id": "00-0033246",
-      "name": "Johnny Mundt",
-      "position": "TE",
-      "team": "PHI",
-      "ecr": 50.8
+      "ecr": 51.2
     },
     {
       "player_id": "00-0041503",
       "name": "Nate Boerkircher",
       "position": "TE",
       "team": "JAX",
-      "ecr": 52.4
+      "ecr": 51.6
     },
     {
-      "player_id": "00-0041558",
-      "name": "Sam Roush",
+      "player_id": "00-0033246",
+      "name": "Johnny Mundt",
       "position": "TE",
-      "team": "CHI",
-      "ecr": 53.4
+      "team": "PHI",
+      "ecr": 52.6
     },
     {
       "player_id": "00-0032392",
       "name": "Austin Hooper",
       "position": "TE",
       "team": "ATL",
-      "ecr": 42.75
-    },
-    {
-      "player_id": "00-0036628",
-      "name": "John Bates",
-      "position": "TE",
-      "team": "WAS",
-      "ecr": 59.2
-    },
-    {
-      "player_id": "00-0040598",
-      "name": "Mark Redman",
-      "position": "TE",
-      "team": "GB",
-      "ecr": 50.25
-    },
-    {
-      "player_id": "00-0038547",
-      "name": "Luke Schoonmaker",
-      "position": "TE",
-      "team": "DAL",
-      "ecr": 62.2
-    },
-    {
-      "player_id": "00-0040194",
-      "name": "Jackson Hawes",
-      "position": "TE",
-      "team": "BUF",
-      "ecr": 53.5
-    },
-    {
-      "player_id": "00-0039912",
-      "name": "Ben Sinnott",
-      "position": "TE",
-      "team": "WAS",
-      "ecr": 63.8
-    },
-    {
-      "player_id": "00-0036887",
-      "name": "Luke Farrell",
-      "position": "TE",
-      "team": "SF",
-      "ecr": 55.25
-    },
-    {
-      "player_id": "00-0033217",
-      "name": "Mo Alie-Cox",
-      "position": "TE",
-      "team": "IND",
-      "ecr": 55.5
+      "ecr": 42.25
     },
     {
       "player_id": "00-0039530",
       "name": "Brevyn Spann-Ford",
       "position": "TE",
       "team": "DAL",
-      "ecr": 56.25
+      "ecr": 55.4
+    },
+    {
+      "player_id": "00-0041558",
+      "name": "Sam Roush",
+      "position": "TE",
+      "team": "CHI",
+      "ecr": 58.8
+    },
+    {
+      "player_id": "00-0036628",
+      "name": "John Bates",
+      "position": "TE",
+      "team": "WAS",
+      "ecr": 61.4
+    },
+    {
+      "player_id": "00-0040598",
+      "name": "Mark Redman",
+      "position": "TE",
+      "team": "GB",
+      "ecr": 52.0
+    },
+    {
+      "player_id": "00-0036887",
+      "name": "Luke Farrell",
+      "position": "TE",
+      "team": "SF",
+      "ecr": 53.75
+    },
+    {
+      "player_id": "00-0033217",
+      "name": "Mo Alie-Cox",
+      "position": "TE",
+      "team": "IND",
+      "ecr": 54.5
+    },
+    {
+      "player_id": "00-0039912",
+      "name": "Ben Sinnott",
+      "position": "TE",
+      "team": "WAS",
+      "ecr": 64.4
+    },
+    {
+      "player_id": "00-0038547",
+      "name": "Luke Schoonmaker",
+      "position": "TE",
+      "team": "DAL",
+      "ecr": 65.2
     },
     {
       "player_id": "00-0037755",
       "name": "Jelani Woods",
       "position": "TE",
       "team": "NYJ",
-      "ecr": 58.75
+      "ecr": 55.75
     },
     {
-      "player_id": "00-0038783",
-      "name": "Nate Adkins",
+      "player_id": "00-0040194",
+      "name": "Jackson Hawes",
       "position": "TE",
-      "team": "DEN",
-      "ecr": 59.0
+      "team": "BUF",
+      "ecr": 58.0
     },
     {
       "player_id": "00-0040887",
@@ -2554,150 +2638,150 @@
       "ecr": 60.0
     },
     {
-      "player_id": "00-0034365",
-      "name": "Ian Thomas",
-      "position": "TE",
-      "team": "LV",
-      "ecr": 61.75
-    },
-    {
-      "player_id": "00-0036422",
-      "name": "Adam Trautman",
+      "player_id": "00-0038783",
+      "name": "Nate Adkins",
       "position": "TE",
       "team": "DEN",
-      "ecr": 61.75
-    },
-    {
-      "player_id": "00-0038710",
-      "name": "Blake Whiteheart",
-      "position": "TE",
-      "team": "CLE",
-      "ecr": 63.0
+      "ecr": 61.25
     },
     {
       "player_id": "00-0036429",
       "name": "Charlie Woerner",
       "position": "TE",
       "team": "ATL",
-      "ecr": 64.25
+      "ecr": 62.5
+    },
+    {
+      "player_id": "00-0036422",
+      "name": "Adam Trautman",
+      "position": "TE",
+      "team": "DEN",
+      "ecr": 63.75
+    },
+    {
+      "player_id": "00-0038710",
+      "name": "Blake Whiteheart",
+      "position": "TE",
+      "team": "CLE",
+      "ecr": 67.75
     },
     {
       "player_id": "00-0041041",
       "name": "Oscar Delp",
       "position": "TE",
       "team": "NO",
-      "ecr": 64.5
-    },
-    {
-      "player_id": "00-0039489",
-      "name": "Hayden Rucci",
-      "position": "TE",
-      "team": "LAC",
-      "ecr": 65.0
+      "ecr": 69.25
     },
     {
       "player_id": "00-0036556",
       "name": "Brevin Jordan",
       "position": "TE",
       "team": "HOU",
-      "ecr": 66.5
-    },
-    {
-      "player_id": "00-0039686",
-      "name": "Colson Yankoff",
-      "position": "TE",
-      "team": "WAS",
-      "ecr": 74.25
-    },
-    {
-      "player_id": "00-0039359",
-      "name": "Cade Stover",
-      "position": "TE",
-      "team": "HOU",
-      "ecr": 65.33
-    },
-    {
-      "player_id": "00-0033757",
-      "name": "Robert Tonyan",
-      "position": "TE",
-      "team": "PIT",
-      "ecr": 68.67
-    },
-    {
-      "player_id": "00-0033576",
-      "name": "Eric Saubert",
-      "position": "TE",
-      "team": "SEA",
-      "ecr": 69.67
-    },
-    {
-      "player_id": "00-0038589",
-      "name": "Josh Whyle",
-      "position": "TE",
-      "team": "GB",
-      "ecr": 72.67
-    },
-    {
-      "player_id": "00-0032394",
-      "name": "Nick Vannett",
-      "position": "TE",
-      "team": "BAL",
-      "ecr": 59.0
-    },
-    {
-      "player_id": "00-0041472",
-      "name": "Marlin Klein",
-      "position": "TE",
-      "team": "HOU",
-      "ecr": 74.0
+      "ecr": 69.25
     },
     {
       "player_id": "00-0040081",
       "name": "Jake Briningstool",
       "position": "TE",
       "team": "KC",
-      "ecr": 59.5
+      "ecr": 63.0
     },
     {
       "player_id": "00-0039050",
       "name": "Payne Durham",
       "position": "TE",
       "team": "TB",
-      "ecr": 74.33
+      "ecr": 75.0
     },
     {
-      "player_id": "00-0041510",
-      "name": "Max Klare",
+      "player_id": "00-0039359",
+      "name": "Cade Stover",
       "position": "TE",
-      "team": "LA",
-      "ecr": 61.0
+      "team": "HOU",
+      "ecr": 68.67
+    },
+    {
+      "player_id": "00-0032394",
+      "name": "Nick Vannett",
+      "position": "TE",
+      "team": "BAL",
+      "ecr": 70.33
+    },
+    {
+      "player_id": "00-0034365",
+      "name": "Ian Thomas",
+      "position": "TE",
+      "team": "LV",
+      "ecr": 70.33
+    },
+    {
+      "player_id": "00-0039686",
+      "name": "Colson Yankoff",
+      "position": "TE",
+      "team": "WAS",
+      "ecr": 79.0
+    },
+    {
+      "player_id": "00-0033757",
+      "name": "Robert Tonyan",
+      "position": "TE",
+      "team": "PIT",
+      "ecr": 71.0
+    },
+    {
+      "player_id": "00-0039489",
+      "name": "Hayden Rucci",
+      "position": "TE",
+      "team": "LAC",
+      "ecr": 72.67
+    },
+    {
+      "player_id": "00-0033576",
+      "name": "Eric Saubert",
+      "position": "TE",
+      "team": "SEA",
+      "ecr": 73.33
+    },
+    {
+      "player_id": "00-0038589",
+      "name": "Josh Whyle",
+      "position": "TE",
+      "team": "GB",
+      "ecr": 74.0
     },
     {
       "player_id": "00-0031484",
       "name": "Chris Manhertz",
       "position": "TE",
       "team": "NYG",
-      "ecr": 76.33
+      "ecr": 76.67
     },
     {
       "player_id": "00-0038643",
       "name": "Brayden Willis",
       "position": "TE",
       "team": "SF",
-      "ecr": 77.0
+      "ecr": 79.33
     },
     {
-      "player_id": "00-0036590",
-      "name": "Quintin Morris",
+      "player_id": "00-0041472",
+      "name": "Marlin Klein",
       "position": "TE",
-      "team": "JAX",
-      "ecr": 81.67
+      "team": "HOU",
+      "ecr": 70.5
     },
     {
       "player_id": "00-0037317",
       "name": "Nick Muse",
       "position": "TE",
       "team": "ATL",
+      "ecr": 82.33
+    },
+    {
+      "player_id": "00-0036590",
+      "name": "Quintin Morris",
+      "position": "TE",
+      "team": "JAX",
       "ecr": 82.67
     },
     {
@@ -2705,21 +2789,14 @@
       "name": "Tanner Koziol",
       "position": "TE",
       "team": "JAX",
-      "ecr": 85.33
+      "ecr": 86.33
     },
     {
       "player_id": "00-0038498",
       "name": "EJ Jenkins",
       "position": "TE",
       "team": "PHI",
-      "ecr": 86.67
-    },
-    {
-      "player_id": "00-0041314",
-      "name": "Tanner Arkin",
-      "position": "TE",
-      "team": "NE",
-      "ecr": 89.0
+      "ecr": 87.67
     },
     {
       "player_id": "00-0033439",
@@ -2736,18 +2813,18 @@
       "ecr": 84.5
     },
     {
-      "player_id": "00-0038564",
-      "name": "Cameron Latu",
-      "position": "TE",
-      "team": "NE",
-      "ecr": 91.0
-    },
-    {
       "player_id": "00-0039648",
       "name": "David Martin-Robinson",
       "position": "TE",
       "team": "TEN",
-      "ecr": 91.67
+      "ecr": 92.33
+    },
+    {
+      "player_id": "00-0041314",
+      "name": "Tanner Arkin",
+      "position": "TE",
+      "team": "NE",
+      "ecr": 92.67
     },
     {
       "player_id": "00-0036825",
@@ -2757,18 +2834,25 @@
       "ecr": 87.5
     },
     {
-      "player_id": "00-0040363",
-      "name": "Keleki Latu",
-      "position": "TE",
-      "team": "BUF",
-      "ecr": 93.33
-    },
-    {
       "player_id": "00-0039356",
       "name": "JaTavion Sanders",
       "position": "TE",
       "team": "CAR",
       "ecr": 89.5
+    },
+    {
+      "player_id": "00-0041131",
+      "name": "Carsen Ryan",
+      "position": "TE",
+      "team": "CLE",
+      "ecr": 95.33
+    },
+    {
+      "player_id": "00-0041094",
+      "name": "Bauer Sharp",
+      "position": "TE",
+      "team": "TB",
+      "ecr": 95.67
     },
     {
       "player_id": "00-0038394",
@@ -2778,11 +2862,18 @@
       "ecr": 92.5
     },
     {
+      "player_id": "00-0040363",
+      "name": "Keleki Latu",
+      "position": "TE",
+      "team": "BUF",
+      "ecr": 96.67
+    },
+    {
       "player_id": "00-0039518",
       "name": "Treyton Welch",
       "position": "TE",
       "team": "NO",
-      "ecr": 96.67
+      "ecr": 97.0
     },
     {
       "player_id": "00-0041398",
@@ -2792,6 +2883,13 @@
       "ecr": 94.0
     },
     {
+      "player_id": "00-0038564",
+      "name": "Cameron Latu",
+      "position": "TE",
+      "team": "NE",
+      "ecr": 97.33
+    },
+    {
       "player_id": "00-0040058",
       "name": "Nick Kallerup",
       "position": "TE",
@@ -2799,11 +2897,11 @@
       "ecr": 94.5
     },
     {
-      "player_id": "00-0041094",
-      "name": "Bauer Sharp",
+      "player_id": "00-0037311",
+      "name": "Ko Kieft",
       "position": "TE",
       "team": "TB",
-      "ecr": 96.5
+      "ecr": 98.67
     },
     {
       "player_id": "00-0041133",
@@ -2811,20 +2909,6 @@
       "position": "TE",
       "team": "DEN",
       "ecr": 97.5
-    },
-    {
-      "player_id": "00-0041131",
-      "name": "Carsen Ryan",
-      "position": "TE",
-      "team": "CLE",
-      "ecr": 98.5
-    },
-    {
-      "player_id": "00-0037311",
-      "name": "Ko Kieft",
-      "position": "TE",
-      "team": "TB",
-      "ecr": 102.5
     },
     {
       "player_id": "00-0040225",
@@ -2835,7 +2919,7 @@
     }
   ],
   "coverage": {
-    "matched": 403,
+    "matched": 415,
     "unmatched": [
       {
         "name": "Isaiah Williams",
