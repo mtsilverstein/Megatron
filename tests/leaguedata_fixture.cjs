@@ -14,7 +14,7 @@ const clone = x => JSON.parse(JSON.stringify(x));
 // ---- synthetic batch: 4 players, remaining weeks 15..17 ---------------------
 const HDR = { season: 2026, week: 15, data_through: "2026-wk14", generated_at: "2026-12-15T12:00:00+00:00",
   batch_id: "2026-12-15T12:00:00+00:00|2026-wk14|w15" };
-const METHOD = { v: 1, model: "transformer", artifacts: ["models/transformer/v1", "models/transformer/v1_s43"],
+const METHOD = { v: 2, model: "transformer", checkpoints: [{ path: "models/transformer/v1/through2025/model.pt", sha256: "b".repeat(64) }], artifacts: ["models/transformer/v1", "models/transformer/v1_s43"],
   ensemble: "mean_of_seed_quantiles", band_construction: "sign_coherent_v1",
   calibration: [{ path: "models/transformer/v1/through2025/calibration.json", sha256: "a".repeat(64) }],
   prior: { method: "pooled_return_rate_expected_cost_v1", rate: 0.08759124087591241, first_season: 2021, through_season: 2025 } };
@@ -410,6 +410,13 @@ const sqFrom = (stats, order = STATS) => {
       "extra top-level field": m => { m.extra = 1; },
       "calibration entry missing sha": m => { m.calibration = [{ path: "x" }]; },
       "calibration not a list": m => { m.calibration = { path: "x", sha256: "y" }; },
+      // M5: a descriptor that cannot name its checkpoints cannot tell a retrained model apart.
+      "v1 descriptor (no checkpoints)": m => { m.v = 1; delete m.checkpoints; },
+      "checkpoints missing": m => { delete m.checkpoints; },
+      "checkpoints null": m => { m.checkpoints = null; },
+      "checkpoints empty": m => { m.checkpoints = []; },
+      "checkpoint entry missing sha": m => { m.checkpoints = [{ path: "x" }]; },
+      "checkpoint entry extra field": m => { m.checkpoints[0].size = 1; },
       "all unknown at once": m => { m.v = 999; m.artifacts = null; m.ensemble = null; m.band_construction = null; m.prior.rate = null; m.extra = "x"; },
     };
     for (const [name, mutate] of Object.entries(unknowns)) {
@@ -418,6 +425,9 @@ const sqFrom = (stats, order = STATS) => {
     }
     { const okDoc = ev([{ ...synthetic, method: clone(METHOD) }]);
       assert.strictEqual(LD.evidenceFor(okDoc, "synthetic_claim", lens, clone(METHOD)), okDoc.records[0], "valid equal descriptor returns the record"); }
+    // M5: same roots, a retrained checkpoint -> a different method, no claim.
+    { const retrained = clone(METHOD); retrained.checkpoints[0].sha256 = "c".repeat(64);
+      assert.strictEqual(LD.evidenceFor(ev([{ ...synthetic, method: clone(METHOD) }]), "synthetic_claim", lens, retrained), null, "retrained checkpoint, same artifacts"); }
     const nullCal = { ...clone(METHOD), calibration: null };
     assert.ok(LD.evidenceFor(ev([{ ...synthetic, method: nullCal }]), "synthetic_claim", lens, clone(nullCal)), "null calibration is a present field");
     assert.strictEqual(LD.evidenceFor(ev([{ ...synthetic, prediction_scoring: null }]), "synthetic_claim", lens, METHOD), null);

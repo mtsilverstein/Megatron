@@ -42,7 +42,7 @@
     evaluation: ["neutral_evaluation", 1, false],
     formats: ["neutral_formats", 1, true],
   });
-  const METHOD_FIELDS = Object.freeze(["v", "model", "artifacts", "ensemble", "band_construction", "calibration", "prior"]);
+  const METHOD_FIELDS = Object.freeze(["v", "model", "artifacts", "ensemble", "band_construction", "calibration", "checkpoints", "prior"]);
   const PRIOR_FIELDS = Object.freeze(["method", "rate", "first_season", "through_season"]);
   const COPY = Object.freeze({
     mixed: "Projection files are from different refreshes; reload.",
@@ -405,15 +405,18 @@
   const nonEmptyStr = v => typeof v === "string" && v !== "";
   const exactKeys = (o, fields) => isObj(o) && Object.keys(o).length === fields.length && fields.every(k => has(o, k));
   /* The supported method-descriptor schema (src/ffmodel/site/method.py,
-     METHOD_VERSION 1). Anything else -- another version, a null or mistyped
+     METHOD_VERSION 2). Anything else -- another version, a null or mistyped
      required field, an unknown field -- is an unknown method and never
      matches, even when both sides carry the same unknowns (spec §3.2). */
   function methodSupported(m) {
-    if (!exactKeys(m, METHOD_FIELDS) || m.v !== 1) return false;
+    if (!exactKeys(m, METHOD_FIELDS) || m.v !== 2) return false;
     if (!nonEmptyStr(m.model) || !nonEmptyStr(m.ensemble) || !nonEmptyStr(m.band_construction)) return false;
     if (!Array.isArray(m.artifacts) || !m.artifacts.length || !m.artifacts.every(nonEmptyStr)) return false;
-    if (m.calibration !== null && !(Array.isArray(m.calibration)
-      && m.calibration.every(c => exactKeys(c, ["path", "sha256"]) && nonEmptyStr(c.path) && nonEmptyStr(c.sha256)))) return false;
+    const fileList = l => Array.isArray(l) && l.every(c => exactKeys(c, ["path", "sha256"]) && nonEmptyStr(c.path) && nonEmptyStr(c.sha256));
+    if (m.calibration !== null && !fileList(m.calibration)) return false;
+    // v2: the checkpoint files every member loads (method.py, review M5); a
+    // descriptor without them cannot tell a retrained checkpoint apart.
+    if (!fileList(m.checkpoints) || !m.checkpoints.length) return false;
     const p = m.prior;
     return exactKeys(p, PRIOR_FIELDS) && nonEmptyStr(p.method) && finite(p.rate) && p.rate >= 0 && p.rate <= 1
       && Number.isInteger(p.first_season) && Number.isInteger(p.through_season);
