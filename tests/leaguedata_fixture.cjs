@@ -417,6 +417,12 @@ const sqFrom = (stats, order = STATS) => {
       "checkpoints empty": m => { m.checkpoints = []; },
       "checkpoint entry missing sha": m => { m.checkpoints = [{ path: "x" }]; },
       "checkpoint entry extra field": m => { m.checkpoints[0].size = 1; },
+      "checkpoint hash not hex": m => { m.checkpoints[0].sha256 = "not-a-sha256"; },
+      "checkpoint hash short": m => { m.checkpoints[0].sha256 = "abc"; },
+      "checkpoint hash 64 non-hex": m => { m.checkpoints[0].sha256 = "z".repeat(64); },
+      "checkpoint hash uppercase": m => { m.checkpoints[0].sha256 = "B".repeat(64); },
+      "checkpoint hash blank": m => { m.checkpoints[0].sha256 = " "; },
+      "calibration hash not hex": m => { m.calibration[0].sha256 = "y"; },
       "all unknown at once": m => { m.v = 999; m.artifacts = null; m.ensemble = null; m.band_construction = null; m.prior.rate = null; m.extra = "x"; },
     };
     for (const [name, mutate] of Object.entries(unknowns)) {

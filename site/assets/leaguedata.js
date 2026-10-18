@@ -412,7 +412,9 @@
     if (!exactKeys(m, METHOD_FIELDS) || m.v !== 2) return false;
     if (!nonEmptyStr(m.model) || !nonEmptyStr(m.ensemble) || !nonEmptyStr(m.band_construction)) return false;
     if (!Array.isArray(m.artifacts) || !m.artifacts.length || !m.artifacts.every(nonEmptyStr)) return false;
-    const fileList = l => Array.isArray(l) && l.every(c => exactKeys(c, ["path", "sha256"]) && nonEmptyStr(c.path) && nonEmptyStr(c.sha256));
+    // A file entry's hash is method.py's canonical form: 64 lowercase hex digits.
+    const fileList = l => Array.isArray(l) && l.every(c => exactKeys(c, ["path", "sha256"]) && nonEmptyStr(c.path)
+      && typeof c.sha256 === "string" && /^[0-9a-f]{64}$/.test(c.sha256));
     if (m.calibration !== null && !fileList(m.calibration)) return false;
     // v2: the checkpoint files every member loads (method.py, review M5); a
     // descriptor without them cannot tell a retrained checkpoint apart.
