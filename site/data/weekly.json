@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-17T19:30:14+00:00",
+  "generated_at": "2026-10-18T09:43:34+00:00",
   "data_through": "2026-wk5",
   "season": 2026,
   "week": 6,
@@ -23512,93 +23512,6 @@
       }
     },
     {
-      "player_id": "00-0039398",
-      "name": "Joe Milton III",
-      "team": "DAL",
-      "opponent": "GB",
-      "position": "QB",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -2.38,
-          "p50": 2.78,
-          "p90": 13.36
-        },
-        "half_ppr": {
-          "p10": -2.36,
-          "p50": 2.79,
-          "p90": 13.25
-        },
-        "standard": {
-          "p10": -2.34,
-          "p50": 2.8,
-          "p90": 13.15
-        },
-        "league": {
-          "p10": -2.47,
-          "p50": 2.82,
-          "p90": 15.04
-        }
-      },
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": 20.31527427139895,
-          "passing_tds": 0.002917264434772804,
-          "passing_interceptions": 0.016350579719542013,
-          "carries": 0.8115259610457031,
-          "rushing_yards": -0.5802019667413845,
-          "rushing_tds": -0.01848284110293652,
-          "targets": -0.0682904925232366,
-          "receptions": -0.04501828391353313,
-          "receiving_yards": -0.4145247267081267,
-          "receiving_tds": -0.002724603852057028,
-          "fumbles_lost": -0.029403559347216057,
-          "passing_pick_sixes": 0.03296434058420731
-        },
-        "p50": {
-          "passing_yards": 59.27639389038086,
-          "passing_tds": 0.06671731173992157,
-          "passing_interceptions": 0.07105018198490143,
-          "carries": 2.308150053024292,
-          "rushing_yards": 3.080198287963867,
-          "rushing_tds": -0.00174877664539963,
-          "targets": 0.0209189485758543,
-          "receptions": -0.01784617267549038,
-          "receiving_yards": 0.05989088490605354,
-          "receiving_tds": 0.0023444562684744596,
-          "fumbles_lost": 0.0066851102747023106,
-          "passing_pick_sixes": 0.03296434058420731
-        },
-        "p90": {
-          "passing_yards": 145.12903166337264,
-          "passing_tds": 0.8886558756122653,
-          "passing_interceptions": 0.9941738180053754,
-          "carries": 5.081970092301049,
-          "rushing_yards": 19.411436902341507,
-          "rushing_tds": 0.2181101677373647,
-          "targets": 0.21394279514883863,
-          "receptions": 0.21177764250931297,
-          "receiving_yards": 1.3683336326165545,
-          "receiving_tds": 0.06235599097977307,
-          "fumbles_lost": 0.47221781327174384,
-          "passing_pick_sixes": 0.03296434058420731
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 59.28,
-        "passing_tds": 0.07,
-        "passing_interceptions": 0.07,
-        "carries": 2.31,
-        "rushing_yards": 3.08,
-        "rushing_tds": -0.0,
-        "targets": 0.02,
-        "receptions": -0.02,
-        "receiving_yards": 0.06,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.01
-      }
-    },
-    {
       "player_id": "00-0036679",
       "name": "Shane Buechele",
       "team": "BUF",
@@ -25247,6 +25160,93 @@
         "targets": 0.0,
         "receptions": 0.0,
         "receiving_yards": -0.28,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.01
+      }
+    },
+    {
+      "player_id": "00-0039398",
+      "name": "Joe Milton III",
+      "team": "PHI",
+      "opponent": "CAR",
+      "position": "QB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -2.57,
+          "p50": 2.41,
+          "p90": 12.59
+        },
+        "half_ppr": {
+          "p10": -2.54,
+          "p50": 2.42,
+          "p90": 12.5
+        },
+        "standard": {
+          "p10": -2.51,
+          "p50": 2.44,
+          "p90": 12.4
+        },
+        "league": {
+          "p10": -2.68,
+          "p50": 2.41,
+          "p90": 14.19
+        }
+      },
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": 16.11123503111014,
+          "passing_tds": -0.008066694712336897,
+          "passing_interceptions": 0.0107372935040011,
+          "carries": 0.7100347249964045,
+          "rushing_yards": -1.03320579011843,
+          "rushing_tds": -0.01766095309051885,
+          "targets": -0.08545275969022237,
+          "receptions": -0.05302766131191672,
+          "receiving_yards": -0.4456073845624626,
+          "receiving_tds": -0.0028909221704287447,
+          "fumbles_lost": -0.029200691464231654,
+          "passing_pick_sixes": 0.03146267962311313
+        },
+        "p50": {
+          "passing_yards": 53.883636474609375,
+          "passing_tds": 0.0449095256626606,
+          "passing_interceptions": 0.05288626626133919,
+          "carries": 2.1230509281158447,
+          "rushing_yards": 2.1321356296539307,
+          "rushing_tds": -0.002186917932704091,
+          "targets": -0.011315432377159595,
+          "receptions": -0.022861352190375328,
+          "receiving_yards": 0.04449249804019928,
+          "receiving_tds": 0.0027933288365602493,
+          "fumbles_lost": 0.007735075894743204,
+          "passing_pick_sixes": 0.03146267962311313
+        },
+        "p90": {
+          "passing_yards": 139.58107673897075,
+          "passing_tds": 0.844908660789006,
+          "passing_interceptions": 0.9668700272359629,
+          "carries": 4.819477662416119,
+          "rushing_yards": 17.51229834198591,
+          "rushing_tds": 0.19331680847719035,
+          "targets": 0.17685325099656524,
+          "receptions": 0.19202647066100642,
+          "receiving_yards": 1.291516225837519,
+          "receiving_tds": 0.059853915855359485,
+          "fumbles_lost": 0.460280221077376,
+          "passing_pick_sixes": 0.03146267962311313
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 53.88,
+        "passing_tds": 0.04,
+        "passing_interceptions": 0.05,
+        "carries": 2.12,
+        "rushing_yards": 2.13,
+        "rushing_tds": -0.0,
+        "targets": -0.01,
+        "receptions": -0.02,
+        "receiving_yards": 0.04,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.01
       }
