@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 6,
   "data_through": "2026-wk5",
-  "generated_at": "2026-10-18T09:43:34+00:00",
-  "batch_id": "2026-10-18T09:43:34+00:00|2026-wk5|w6",
+  "generated_at": "2026-10-19T10:55:30+00:00",
+  "batch_id": "2026-10-19T10:55:30+00:00|2026-wk5|w6",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -1141,8 +1141,8 @@
       "position": "WR",
       "bye": 7,
       "ecr": 510,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -4141,8 +4141,8 @@
       "position": "RB",
       "bye": 11,
       "ecr": 550,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
