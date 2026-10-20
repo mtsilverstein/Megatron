@@ -1,7 +1,7 @@
 {
   "season": 2026,
-  "week": 6,
-  "generated_at": "2026-10-19T21:39:55+00:00",
+  "week": 7,
+  "generated_at": "2026-10-20T10:11:08+00:00",
   "teams": [
     "ARI",
     "ATL",
@@ -38,74 +38,74 @@
   ],
   "games": [
     {
-      "home": "DEN",
-      "away": "SEA",
-      "kickoff": "2026-10-16T00:15:00+00:00"
+      "home": "CHI",
+      "away": "NE",
+      "kickoff": "2026-10-23T00:15:00+00:00"
     },
     {
-      "home": "JAX",
-      "away": "HOU",
-      "kickoff": "2026-10-18T13:30:00+00:00"
+      "home": "NO",
+      "away": "PIT",
+      "kickoff": "2026-10-25T13:30:00+00:00"
     },
     {
       "home": "ATL",
-      "away": "CHI",
-      "kickoff": "2026-10-18T17:00:00+00:00"
+      "away": "SF",
+      "kickoff": "2026-10-25T17:00:00+00:00"
     },
     {
-      "home": "CLE",
-      "away": "BAL",
-      "kickoff": "2026-10-18T17:00:00+00:00"
+      "home": "BAL",
+      "away": "CIN",
+      "kickoff": "2026-10-25T17:00:00+00:00"
     },
     {
-      "home": "IND",
-      "away": "TEN",
-      "kickoff": "2026-10-18T17:00:00+00:00"
+      "home": "CAR",
+      "away": "TB",
+      "kickoff": "2026-10-25T17:00:00+00:00"
     },
     {
-      "home": "NE",
-      "away": "NYJ",
-      "kickoff": "2026-10-18T17:00:00+00:00"
+      "home": "HOU",
+      "away": "NYG",
+      "kickoff": "2026-10-25T17:00:00+00:00"
     },
     {
-      "home": "NYG",
-      "away": "NO",
-      "kickoff": "2026-10-18T17:00:00+00:00"
+      "home": "MIN",
+      "away": "IND",
+      "kickoff": "2026-10-25T17:00:00+00:00"
     },
     {
-      "home": "PHI",
-      "away": "CAR",
-      "kickoff": "2026-10-18T17:00:00+00:00"
+      "home": "NYJ",
+      "away": "MIA",
+      "kickoff": "2026-10-25T17:00:00+00:00"
     },
     {
-      "home": "TB",
-      "away": "PIT",
-      "kickoff": "2026-10-18T17:00:00+00:00"
+      "home": "TEN",
+      "away": "CLE",
+      "kickoff": "2026-10-25T17:00:00+00:00"
     },
     {
-      "home": "LA",
-      "away": "ARI",
-      "kickoff": "2026-10-18T20:05:00+00:00"
+      "home": "ARI",
+      "away": "DEN",
+      "kickoff": "2026-10-25T20:05:00+00:00"
     },
     {
-      "home": "KC",
-      "away": "LAC",
-      "kickoff": "2026-10-18T20:25:00+00:00"
+      "home": "DET",
+      "away": "GB",
+      "kickoff": "2026-10-25T20:25:00+00:00"
     },
     {
       "home": "LV",
-      "away": "BUF",
-      "kickoff": "2026-10-18T20:25:00+00:00"
+      "away": "LA",
+      "kickoff": "2026-10-25T20:25:00+00:00"
     },
     {
-      "home": "GB",
+      "home": "SEA",
+      "away": "KC",
+      "kickoff": "2026-10-26T00:20:00+00:00"
+    },
+    {
+      "home": "PHI",
       "away": "DAL",
-      "kickoff": "2026-10-19T00:20:00+00:00"
-    },
-    {
-      "home": "SF",
-      "away": "WAS",
-      "kickoff": "2026-10-20T00:15:00+00:00"
+      "kickoff": "2026-10-27T00:15:00+00:00"
     }
   ],
   "source": "https://nflreadr.nflverse.com/articles/dictionary_schedules.html"
