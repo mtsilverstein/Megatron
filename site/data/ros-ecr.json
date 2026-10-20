@@ -6,7 +6,7 @@
   "season": 2026,
   "snapshot_at": "2026-10-16",
   "snapshot_precision": "date",
-  "retrieved_at": "2026-10-20T10:14:24.545265+00:00",
+  "retrieved_at": "2026-10-20T20:46:14.162471+00:00",
   "source": "FantasyPros via nflverse free rankings mirror",
   "source_url": "https://www.fantasypros.com/nfl/rankings/ros-ppr-overall.php",
   "players": [
@@ -67,17 +67,17 @@
       "ros_rank": 8.67
     },
     {
-      "player_id": "00-0036358",
-      "name": "CeeDee Lamb",
-      "position": "WR",
-      "team": "DAL",
-      "ros_rank": 10.17
-    },
-    {
       "player_id": "00-0033280",
       "name": "Christian McCaffrey",
       "position": "RB",
       "team": "SF",
+      "ros_rank": 10.17
+    },
+    {
+      "player_id": "00-0036358",
+      "name": "CeeDee Lamb",
+      "position": "WR",
+      "team": "DAL",
       "ros_rank": 10.17
     },
     {
@@ -221,13 +221,6 @@
       "ros_rank": 32.0
     },
     {
-      "player_id": "00-0037247",
-      "name": "George Pickens",
-      "position": "WR",
-      "team": "DAL",
-      "ros_rank": 33.33
-    },
-    {
       "player_id": "00-0037744",
       "name": "Trey McBride",
       "position": "TE",
@@ -239,6 +232,13 @@
       "name": "Ashton Jeanty",
       "position": "RB",
       "team": "LV",
+      "ros_rank": 33.33
+    },
+    {
+      "player_id": "00-0037247",
+      "name": "George Pickens",
+      "position": "WR",
+      "team": "DAL",
       "ros_rank": 33.33
     },
     {
@@ -459,17 +459,17 @@
       "ros_rank": 64.83
     },
     {
-      "player_id": "00-0040129",
-      "name": "Emeka Egbuka",
-      "position": "WR",
-      "team": "TB",
-      "ros_rank": 65.0
-    },
-    {
       "player_id": "00-0033077",
       "name": "Dak Prescott",
       "position": "QB",
       "team": "DAL",
+      "ros_rank": 65.0
+    },
+    {
+      "player_id": "00-0040129",
+      "name": "Emeka Egbuka",
+      "position": "WR",
+      "team": "TB",
       "ros_rank": 65.0
     },
     {
@@ -648,17 +648,17 @@
       "ros_rank": 96.67
     },
     {
-      "player_id": "00-0034348",
-      "name": "Courtland Sutton",
-      "position": "WR",
-      "team": "DEN",
-      "ros_rank": 97.0
-    },
-    {
       "player_id": "00-0040867",
       "name": "Makai Lemon",
       "position": "WR",
       "team": "PHI",
+      "ros_rank": 97.0
+    },
+    {
+      "player_id": "00-0034348",
+      "name": "Courtland Sutton",
+      "position": "WR",
+      "team": "DEN",
       "ros_rank": 97.0
     },
     {
@@ -1047,15 +1047,15 @@
       "ros_rank": 156.33
     },
     {
-      "player_id": "00-0041525",
-      "name": "Chris Bell",
+      "player_id": "00-0041523",
+      "name": "Caleb Douglas",
       "position": "WR",
       "team": "MIA",
       "ros_rank": 156.5
     },
     {
-      "player_id": "00-0041523",
-      "name": "Caleb Douglas",
+      "player_id": "00-0041525",
+      "name": "Chris Bell",
       "position": "WR",
       "team": "MIA",
       "ros_rank": 156.5
@@ -1124,17 +1124,17 @@
       "ros_rank": 164.67
     },
     {
-      "player_id": "00-0036139",
-      "name": "Rico Dowdle",
-      "position": "RB",
-      "team": "PIT",
-      "ros_rank": 166.33
-    },
-    {
       "player_id": "00-0037809",
       "name": "Chig Okonkwo",
       "position": "TE",
       "team": "WAS",
+      "ros_rank": 166.33
+    },
+    {
+      "player_id": "00-0036139",
+      "name": "Rico Dowdle",
+      "position": "RB",
+      "team": "PIT",
       "ros_rank": 166.33
     },
     {
@@ -1187,6 +1187,13 @@
       "ros_rank": 177.5
     },
     {
+      "player_id": "00-0037252",
+      "name": "Greg Dulcich",
+      "position": "TE",
+      "team": "MIA",
+      "ros_rank": 177.83
+    },
+    {
       "player_id": "00-0038454",
       "name": "Keaton Mitchell",
       "position": "RB",
@@ -1198,13 +1205,6 @@
       "name": "Mike Washington Jr.",
       "position": "RB",
       "team": "LV",
-      "ros_rank": 177.83
-    },
-    {
-      "player_id": "00-0037252",
-      "name": "Greg Dulcich",
-      "position": "TE",
-      "team": "MIA",
       "ros_rank": 177.83
     },
     {
@@ -1292,17 +1292,17 @@
       "ros_rank": 190.83
     },
     {
-      "player_id": "00-0039901",
-      "name": "Keon Coleman",
-      "position": "WR",
-      "team": "BUF",
-      "ros_rank": 191.5
-    },
-    {
       "player_id": "00-0040134",
       "name": "Pat Bryant",
       "position": "WR",
       "team": "DEN",
+      "ros_rank": 191.5
+    },
+    {
+      "player_id": "00-0039901",
+      "name": "Keon Coleman",
+      "position": "WR",
+      "team": "BUF",
       "ros_rank": 191.5
     },
     {
@@ -1600,17 +1600,17 @@
       "ros_rank": 256.67
     },
     {
-      "player_id": "00-0041069",
-      "name": "Colbie Young",
-      "position": "WR",
-      "team": "CIN",
-      "ros_rank": 257.0
-    },
-    {
       "player_id": "00-0035644",
       "name": "Noah Fant",
       "position": "TE",
       "team": "NO",
+      "ros_rank": 257.0
+    },
+    {
+      "player_id": "00-0041069",
+      "name": "Colbie Young",
+      "position": "WR",
+      "team": "CIN",
       "ros_rank": 257.0
     },
     {
@@ -1852,17 +1852,17 @@
       "ros_rank": 289.0
     },
     {
-      "player_id": "00-0040729",
-      "name": "Jack Bech",
-      "position": "WR",
-      "team": "LV",
-      "ros_rank": 289.6
-    },
-    {
       "player_id": "00-0040705",
       "name": "Chimere Dike",
       "position": "WR",
       "team": "TEN",
+      "ros_rank": 289.6
+    },
+    {
+      "player_id": "00-0040729",
+      "name": "Jack Bech",
+      "position": "WR",
+      "team": "LV",
       "ros_rank": 289.6
     },
     {
@@ -1999,17 +1999,17 @@
       "ros_rank": 304.75
     },
     {
-      "player_id": "00-0038705",
-      "name": "Emari Demercado",
-      "position": "RB",
-      "team": "DAL",
-      "ros_rank": 305.0
-    },
-    {
       "player_id": "00-0040782",
       "name": "Isaiah Bond",
       "position": "WR",
       "team": "CLE",
+      "ros_rank": 305.0
+    },
+    {
+      "player_id": "00-0038705",
+      "name": "Emari Demercado",
+      "position": "RB",
+      "team": "DAL",
       "ros_rank": 305.0
     },
     {
@@ -2097,17 +2097,17 @@
       "ros_rank": 315.0
     },
     {
-      "player_id": "00-0037157",
-      "name": "Bam Knight",
-      "position": "RB",
-      "team": "ARI",
-      "ros_rank": 318.0
-    },
-    {
       "player_id": "00-0041326",
       "name": "CJ Donaldson",
       "position": "RB",
       "team": "NO",
+      "ros_rank": 318.0
+    },
+    {
+      "player_id": "00-0037157",
+      "name": "Bam Knight",
+      "position": "RB",
+      "team": "ARI",
       "ros_rank": 318.0
     },
     {
@@ -2132,17 +2132,17 @@
       "ros_rank": 320.0
     },
     {
-      "player_id": "00-0040586",
-      "name": "Jaydon Blue",
-      "position": "RB",
-      "team": "PHI",
-      "ros_rank": 320.5
-    },
-    {
       "player_id": "00-0040668",
       "name": "Shedeur Sanders",
       "position": "QB",
       "team": "CLE",
+      "ros_rank": 320.5
+    },
+    {
+      "player_id": "00-0040586",
+      "name": "Jaydon Blue",
+      "position": "RB",
+      "team": "PHI",
       "ros_rank": 320.5
     },
     {
@@ -2174,17 +2174,17 @@
       "ros_rank": 323.0
     },
     {
-      "player_id": "00-0041051",
-      "name": "Zavion Thomas",
-      "position": "WR",
-      "team": "CHI",
-      "ros_rank": 325.0
-    },
-    {
       "player_id": "00-0037666",
       "name": "Jalen Tolbert",
       "position": "WR",
       "team": "MIA",
+      "ros_rank": 325.0
+    },
+    {
+      "player_id": "00-0041051",
+      "name": "Zavion Thomas",
+      "position": "WR",
+      "team": "CHI",
       "ros_rank": 325.0
     },
     {
@@ -2223,17 +2223,17 @@
       "ros_rank": 326.75
     },
     {
-      "player_id": "00-0039921",
-      "name": "Trey Benson",
-      "position": "RB",
-      "team": "ARI",
-      "ros_rank": 327.0
-    },
-    {
       "player_id": "00-0040556",
       "name": "Corey Kiner",
       "position": "RB",
       "team": "NE",
+      "ros_rank": 327.0
+    },
+    {
+      "player_id": "00-0039921",
+      "name": "Trey Benson",
+      "position": "RB",
+      "team": "ARI",
       "ros_rank": 327.0
     },
     {
@@ -2265,13 +2265,6 @@
       "ros_rank": 330.75
     },
     {
-      "player_id": "00-0041399",
-      "name": "CJ Daniels",
-      "position": "WR",
-      "team": "LA",
-      "ros_rank": 331.0
-    },
-    {
       "player_id": "00-0038979",
       "name": "Cedric Tillman",
       "position": "WR",
@@ -2279,17 +2272,24 @@
       "ros_rank": 331.0
     },
     {
-      "player_id": "00-0033923",
-      "name": "Kareem Hunt",
-      "position": "RB",
-      "team": "FA",
-      "ros_rank": 334.0
+      "player_id": "00-0041399",
+      "name": "CJ Daniels",
+      "position": "WR",
+      "team": "LA",
+      "ros_rank": 331.0
     },
     {
       "player_id": "00-0037120",
       "name": "Tyler Goodson",
       "position": "RB",
       "team": "DAL",
+      "ros_rank": 334.0
+    },
+    {
+      "player_id": "00-0033923",
+      "name": "Kareem Hunt",
+      "position": "RB",
+      "team": "FA",
       "ros_rank": 334.0
     },
     {
@@ -2300,13 +2300,6 @@
       "ros_rank": 334.5
     },
     {
-      "player_id": "00-0041503",
-      "name": "Nate Boerkircher",
-      "position": "TE",
-      "team": "JAX",
-      "ros_rank": 336.0
-    },
-    {
       "player_id": "00-0040646",
       "name": "Jalen Royals",
       "position": "WR",
@@ -2314,10 +2307,10 @@
       "ros_rank": 336.0
     },
     {
-      "player_id": "00-0036212",
-      "name": "Tua Tagovailoa",
-      "position": "QB",
-      "team": "ATL",
+      "player_id": "00-0041503",
+      "name": "Nate Boerkircher",
+      "position": "TE",
+      "team": "JAX",
       "ros_rank": 336.0
     },
     {
@@ -2325,6 +2318,13 @@
       "name": "Sam Roush",
       "position": "TE",
       "team": "CHI",
+      "ros_rank": 336.0
+    },
+    {
+      "player_id": "00-0036212",
+      "name": "Tua Tagovailoa",
+      "position": "QB",
+      "team": "ATL",
       "ros_rank": 336.0
     },
     {
@@ -2363,17 +2363,17 @@
       "ros_rank": 339.0
     },
     {
-      "player_id": "00-0026158",
-      "name": "Joe Flacco",
-      "position": "QB",
-      "team": "CIN",
-      "ros_rank": 340.0
-    },
-    {
       "player_id": "00-0040078",
       "name": "Brashard Smith",
       "position": "RB",
       "team": "KC",
+      "ros_rank": 340.0
+    },
+    {
+      "player_id": "00-0026158",
+      "name": "Joe Flacco",
+      "position": "QB",
+      "team": "CIN",
       "ros_rank": 340.0
     },
     {

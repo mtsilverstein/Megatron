@@ -2,7 +2,7 @@
   "schema_version": 1,
   "season": 2026,
   "before_week": 7,
-  "generated_at": "2026-10-20T10:11:09+00:00",
+  "generated_at": "2026-10-20T20:42:10+00:00",
   "through_week": 6,
   "status": "observed",
   "completed_team_games": 186,
@@ -240,7 +240,7 @@
         "targets": 2.0,
         "carries": 0.0,
         "target_share": 0.069,
-        "snap_pct": null,
+        "snap_pct": 0.56,
         "carry_share": 0.0
       },
       "baseline": {
@@ -451,7 +451,7 @@
         "targets": 2.0,
         "carries": 0.0,
         "target_share": 0.069,
-        "snap_pct": null,
+        "snap_pct": 0.52,
         "carry_share": 0.0
       },
       "baseline": {
@@ -523,7 +523,7 @@
         "targets": 5.0,
         "carries": 0.0,
         "target_share": 0.1724,
-        "snap_pct": null,
+        "snap_pct": 0.4,
         "carry_share": 0.0
       },
       "baseline": {
@@ -537,7 +537,7 @@
         "targets": -3.0,
         "carries": 0.0,
         "target_share": -0.1199,
-        "snap_pct": null,
+        "snap_pct": -0.1167,
         "carry_share": 0.0
       },
       "flags": []
@@ -628,7 +628,7 @@
         "targets": 7.0,
         "carries": 0.0,
         "target_share": 0.2,
-        "snap_pct": null,
+        "snap_pct": 0.61,
         "carry_share": 0.0
       },
       "baseline": {
@@ -1343,7 +1343,7 @@
         "targets": 10.0,
         "carries": 16.0,
         "target_share": 0.3448,
-        "snap_pct": null,
+        "snap_pct": 0.85,
         "carry_share": 0.5517
       },
       "baseline": {
@@ -1357,7 +1357,7 @@
         "targets": 5.6667,
         "carries": 2.3333,
         "target_share": 0.1862,
-        "snap_pct": null,
+        "snap_pct": 0.0533,
         "carry_share": 0.0387
       },
       "flags": [
@@ -1382,7 +1382,7 @@
         "targets": 8.0,
         "carries": 0.0,
         "target_share": 0.2759,
-        "snap_pct": null,
+        "snap_pct": 0.89,
         "carry_share": 0.0
       },
       "baseline": {
@@ -1396,7 +1396,7 @@
         "targets": 1.6667,
         "carries": 0.0,
         "target_share": 0.0431,
-        "snap_pct": null,
+        "snap_pct": -0.0033,
         "carry_share": 0.0
       },
       "flags": [
@@ -1842,7 +1842,7 @@
         "targets": 2.0,
         "carries": 1.0,
         "target_share": 0.0571,
-        "snap_pct": null,
+        "snap_pct": 0.1,
         "carry_share": 0.0588
       },
       "baseline": {
@@ -2192,7 +2192,7 @@
         "targets": 0.0,
         "carries": 5.0,
         "target_share": 0.0,
-        "snap_pct": null,
+        "snap_pct": 0.18,
         "carry_share": 0.2941
       },
       "baseline": {
@@ -3714,7 +3714,7 @@
         "targets": 1.0,
         "carries": 0.0,
         "target_share": 0.0286,
-        "snap_pct": null,
+        "snap_pct": 0.1,
         "carry_share": 0.0
       },
       "baseline": {
@@ -5245,7 +5245,7 @@
         "targets": 1.0,
         "carries": 0.0,
         "target_share": 0.0286,
-        "snap_pct": null,
+        "snap_pct": 0.49,
         "carry_share": 0.0
       },
       "baseline": {
@@ -5259,7 +5259,7 @@
         "targets": -1.3333,
         "carries": 0.0,
         "target_share": -0.0485,
-        "snap_pct": null,
+        "snap_pct": 0.08,
         "carry_share": 0.0
       },
       "flags": []
@@ -5280,7 +5280,7 @@
         "targets": 1.0,
         "carries": 0.0,
         "target_share": 0.0286,
-        "snap_pct": null,
+        "snap_pct": 0.37,
         "carry_share": 0.0
       },
       "baseline": {
@@ -5735,7 +5735,7 @@
         "targets": 0.0,
         "carries": 0.0,
         "target_share": 0.0,
-        "snap_pct": null,
+        "snap_pct": 0.48,
         "carry_share": 0.0
       },
       "baseline": {
@@ -5749,7 +5749,7 @@
         "targets": -0.6667,
         "carries": 0.0,
         "target_share": -0.0252,
-        "snap_pct": null,
+        "snap_pct": 0.0233,
         "carry_share": 0.0
       },
       "flags": []
@@ -6848,7 +6848,7 @@
         "targets": 5.0,
         "carries": 7.0,
         "target_share": 0.1429,
-        "snap_pct": null,
+        "snap_pct": 0.69,
         "carry_share": 0.4118
       },
       "baseline": {
@@ -7617,7 +7617,7 @@
         "targets": 6.0,
         "carries": 0.0,
         "target_share": 0.1714,
-        "snap_pct": null,
+        "snap_pct": 0.55,
         "carry_share": 0.0
       },
       "baseline": {
@@ -7631,7 +7631,7 @@
         "targets": 2.6667,
         "carries": 0.0,
         "target_share": 0.0489,
-        "snap_pct": null,
+        "snap_pct": -0.01,
         "carry_share": 0.0
       },
       "flags": [
@@ -7869,7 +7869,7 @@
         "targets": 7.0,
         "carries": 0.0,
         "target_share": 0.2,
-        "snap_pct": null,
+        "snap_pct": 0.76,
         "carry_share": 0.0
       },
       "baseline": {
@@ -7943,7 +7943,7 @@
         "targets": 0.0,
         "carries": 5.0,
         "target_share": 0.0,
-        "snap_pct": null,
+        "snap_pct": 1.0,
         "carry_share": 0.1724
       },
       "baseline": {
@@ -7957,7 +7957,7 @@
         "targets": 0.0,
         "carries": -0.6667,
         "target_share": 0.0,
-        "snap_pct": null,
+        "snap_pct": 0.0,
         "carry_share": -0.0213
       },
       "flags": []
@@ -11282,7 +11282,7 @@
         "targets": 1.0,
         "carries": 0.0,
         "target_share": 0.0286,
-        "snap_pct": null,
+        "snap_pct": 0.12,
         "carry_share": 0.0
       },
       "baseline": {
@@ -11430,7 +11430,7 @@
         "targets": 0.0,
         "carries": 0.0,
         "target_share": 0.0,
-        "snap_pct": null,
+        "snap_pct": 0.24,
         "carry_share": 0.0
       },
       "baseline": {
@@ -11444,7 +11444,7 @@
         "targets": -1.6667,
         "carries": -0.3333,
         "target_share": -0.0618,
-        "snap_pct": null,
+        "snap_pct": -0.1133,
         "carry_share": -0.0095
       },
       "flags": []
@@ -11994,7 +11994,7 @@
         "targets": 0.0,
         "carries": 0.0,
         "target_share": 0.0,
-        "snap_pct": null,
+        "snap_pct": 0.07,
         "carry_share": 0.0
       },
       "baseline": {
@@ -12008,7 +12008,7 @@
         "targets": -1.0,
         "carries": 0.0,
         "target_share": -0.0315,
-        "snap_pct": null,
+        "snap_pct": -0.1267,
         "carry_share": 0.0
       },
       "flags": []
@@ -12954,7 +12954,7 @@
         "targets": 0.0,
         "carries": 4.0,
         "target_share": 0.0,
-        "snap_pct": null,
+        "snap_pct": 1.0,
         "carry_share": 0.2353
       },
       "baseline": {
@@ -13877,7 +13877,7 @@
         "targets": 1.0,
         "carries": 0.0,
         "target_share": 0.0345,
-        "snap_pct": null,
+        "snap_pct": 0.76,
         "carry_share": 0.0
       },
       "baseline": {
@@ -13911,7 +13911,7 @@
         "targets": 0.0,
         "carries": 0.0,
         "target_share": 0.0,
-        "snap_pct": null,
+        "snap_pct": 0.0,
         "carry_share": 0.0
       },
       "baseline": {
@@ -16669,7 +16669,7 @@
         "targets": 4.0,
         "carries": 0.0,
         "target_share": 0.1143,
-        "snap_pct": null,
+        "snap_pct": 0.67,
         "carry_share": 0.0
       },
       "baseline": {
@@ -16683,7 +16683,7 @@
         "targets": -1.0,
         "carries": 0.0,
         "target_share": -0.0477,
-        "snap_pct": null,
+        "snap_pct": 0.0767,
         "carry_share": 0.0
       },
       "flags": []
@@ -16888,7 +16888,7 @@
         "targets": 1.0,
         "carries": 8.0,
         "target_share": 0.0345,
-        "snap_pct": null,
+        "snap_pct": 0.23,
         "carry_share": 0.2759
       },
       "baseline": {
@@ -16902,7 +16902,7 @@
         "targets": 0.6667,
         "carries": 2.6667,
         "target_share": 0.0217,
-        "snap_pct": null,
+        "snap_pct": 0.0333,
         "carry_share": 0.0775
       },
       "flags": []
