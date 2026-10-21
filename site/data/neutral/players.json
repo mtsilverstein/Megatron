@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 7,
   "data_through": "2026-wk6",
-  "generated_at": "2026-10-20T20:42:16+00:00",
-  "batch_id": "2026-10-20T20:42:16+00:00|2026-wk6|w7",
+  "generated_at": "2026-10-21T10:18:37+00:00",
+  "batch_id": "2026-10-21T10:18:37+00:00|2026-wk6|w7",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -12,7 +12,7 @@
     "scoring": "PPR"
   },
   "crosswalk": {
-    "matched_gsis": 166,
+    "matched_gsis": 167,
     "matched_name": 523,
     "unmatched": 14
   },
@@ -1113,12 +1113,12 @@
       "player_id": "00-0034272",
       "sleeper_id": "5086",
       "name": "Marquez Valdes-Scantling",
-      "team": "LAC",
+      "team": "PIT",
       "position": "WR",
-      "bye": 7,
+      "bye": 9,
       "ecr": 510,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "gsis"
     },
     {
@@ -1611,6 +1611,18 @@
       "ecr": 462,
       "identity_only": true,
       "reason": "position_disagrees",
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0035140",
+      "sleeper_id": "5917",
+      "name": "Mecole Hardman",
+      "team": "IND",
+      "position": "WR",
+      "bye": 13,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
       "match": "gsis"
     },
     {
@@ -2781,12 +2793,12 @@
       "player_id": "00-0036567",
       "sleeper_id": "7561",
       "name": "Elijah Mitchell",
-      "team": "KC",
+      "team": "PHI",
       "position": "RB",
-      "bye": 5,
+      "bye": 10,
       "ecr": 511,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
@@ -3208,6 +3220,18 @@
       "identity_only": false,
       "reason": null,
       "match": "name"
+    },
+    {
+      "player_id": "00-0036928",
+      "sleeper_id": null,
+      "name": null,
+      "team": "DAL",
+      "position": null,
+      "bye": 14,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "no_projection",
+      "match": null
     },
     {
       "player_id": "00-0036945",
@@ -4809,12 +4833,12 @@
       "player_id": "00-0038492",
       "sleeper_id": "11311",
       "name": "Jason Brownlee",
-      "team": "KC",
+      "team": "NYG",
       "position": "WR",
-      "bye": 5,
+      "bye": 8,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
