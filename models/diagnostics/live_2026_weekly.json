@@ -54,10 +54,14 @@
     [
      "-inf",
      "2026-10-20T20:11:10Z"
+    ],
+    [
+     "-inf",
+     "2026-10-21T18:17:16Z"
     ]
    ],
-   "events": 288,
-   "sha256": "a0e79676f9826d9135818542d76dce3130805766b55d07e84defcc8509eadfcd"
+   "events": 291,
+   "sha256": "dd1b2b17490e42361af7faa69058ef628bfa5acef42c59de52eef4e73ac0e2d7"
   },
   "rankings_raw": "729083b4cf19089a23643b213ad4f03cf380821386b8a8497261366a8c573bb0",
   "schedules": "3ffa33ecd5d70230921f4e7447a2b6785c7bbf55f963f072080c991bede0c8b7"
@@ -321,12 +325,12 @@
   "transformer_mae_2023_25": 4.324723397524363
  },
  "run": {
-  "as_of_date": "2026-10-20",
-  "main_sha": "5f8f203cbbf0f20f37a09591e5bb97b2806d205f",
+  "as_of_date": "2026-10-21",
+  "main_sha": "8f6dec3fe1f88b64c85995455f755659afdf2c0f",
   "provisional_weeks": [
    6
   ],
-  "run_at": "2026-10-20T20:11:10Z"
+  "run_at": "2026-10-21T18:17:16Z"
  },
  "season": 2026,
  "weeks": {
