@@ -483,6 +483,8 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.ok($("waiver-results").hidden, "forget hides the results synchronously");
   assert.equal(statusText(), GATE);
   routes["/user/max973"] = baseRoutes()["/user/max973"];
+  // A saved id no longer on the roster (and junk types) is pruned on a fresh load, in storage too.
+  lsStore.set(`megatron.waivers.protected.v1|${L}|9`, '["a","gone"]');
   $("session-user").value = "max973";
   chipForm().dispatch("submit");
   await until(() => !$("waiver-results").hidden && /roster 9/.test(statusText()), "roster 9 back after re-identify", 5000);
@@ -490,6 +492,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   const an3 = analyzeCalls.length;
   // A fresh load (as after a page reload) restores the saved protections.
   assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "saved protections come back on a fresh load");
+  assert.equal(lsStore.get(`megatron.waivers.protected.v1|${L}|9`), '["a"]', "the saved copy is pruned to the roster");
   assert.equal($("waiver-protect-toggle").textContent, "Protected: 1 player");
 
   // 4. A FAILED refresh: nothing commits, both stamps stay, the desk says so.
@@ -533,7 +536,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     $("waiver-protect-clear").dispatch("click");
     assert.deepEqual(analyzeCalls.at(-1).protectedIds, [], "Clear all reaches the engine");
     assert.equal(analyzeCalls.length, an + 1);
-    assert.equal(lsStore.get(`megatron.waivers.protected.v1|${L}|9`), "[]");
+    assert.equal(lsStore.has(`megatron.waivers.protected.v1|${L}|9`), false, "an empty set removes the saved key");
     assert.equal($("waiver-protect-toggle").textContent, "Protected: 0 players");
     assert.ok($("waiver-roster").querySelectorAll("input").every(b => !b.checked));
     assert.equal($("waiver-protect-clear").hidden, true);
@@ -541,8 +544,6 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     boxes[0].checked = true; boxes[0].dispatch("change");
     assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"]);
   }
-  // Saved ids no longer on the roster are pruned on load.
-  lsStore.set(`megatron.waivers.protected.v1|${L}|9`, '["a","gone"]');
   const an6b = analyzeCalls.length - 1;   // section 6 counts engine runs from here (the clear-all block above added two)
 
   // 6. Roster age reads rostersFetchedAt (the reserve change handler is the tick's recompute()).
@@ -601,7 +602,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.equal($("waiver-backup-wrap").hidden, true, "a same-team refresh clears the old snapshot's copied shortlist");
     assert.equal($("waiver-backup").value, ""); assert.equal($("waiver-copy-status").textContent, "");
     assert.match(statusText(), /Refresh from the league panel before placing a claim\.$/, "fresh again: the status drops the stale wording");
-    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "the refresh kept the protection and pruned an id no longer on the roster");
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "the same-team refresh kept the in-memory protection");
   }
   // A week change (same team) clears a copied shortlist too.
   {
@@ -609,8 +610,12 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.equal($("waiver-backup-wrap").hidden, false);
     assert.doesNotMatch($("waiver-backup").value, /^STALE:/m, "fresh rosters: no stale line in the export");
     const an7 = analyzeCalls.length;
+    // A browser that cannot save (storage throws) still keeps the ticks across a same-team reload.
+    const realLS = global.localStorage;
+    global.localStorage = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); }, removeItem() { throw new Error("blocked"); } };
     $("waiver-week").value = "3"; $("waiver-week").dispatch("change");
     await until(() => analyzeCalls.length > an7, "the week-change reload");
+    global.localStorage = realLS;
     assert.equal($("waiver-backup-wrap").hidden, true, "a week change clears the copied shortlist");
     assert.equal($("waiver-backup").value, "");
     assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "a week change keeps the protections");
@@ -678,6 +683,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.match(statusText(), /^Viewing Bo's Bunch · rosters received /);
   assert.doesNotMatch(statusText() + text("waiver-results"), /your roster|Your active/i);
   assert.equal($("waiver-roster").querySelectorAll("input").length, 0, "protect boxes are owner-only");
+  assert.ok(![...lsStore.keys()].some(k => k.endsWith(`|${L}|3`)), "viewer mode never saves protections");
   // The owner-only line is stated once, in the best-move card: not in the notes, not in every row.
   const OWNER_ONLY = "Claim guidance is for the team's owner.";
   assert.equal(text("waiver-results").split(OWNER_ONLY).length - 1, 1, "owner-only line stated exactly once on the page's results");

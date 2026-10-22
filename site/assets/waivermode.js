@@ -421,6 +421,9 @@
     $("waiver-protect-clear").addEventListener("click", () => {
       if (!snap || viewer()) return;
       protectedIds.clear(); saveProtected(); renderRoster(); recompute();
+      // The button hides itself; keep keyboard focus in the panel.
+      const first = $("waiver-roster").querySelector("input");
+      if (first) first.focus(); else $("waiver-protect-toggle").focus();
     });
     $("waiver-protect-toggle").addEventListener("click", () => {
       const open = $("waiver-protect").hidden;
@@ -475,27 +478,43 @@
     // resets them. Nothing is sent anywhere. The viewer mode protects the
     // viewed team's starters (that owner's choice is not visible).
     const protectKey = world => `megatron.waivers.protected.v1|${world.league.league_id}|${world.rosterId}`;
-    function readProtected(world, own) {
-      let ids = [];
-      try { const v = JSON.parse(localStorage.getItem(protectKey(world)) || "[]"); if (Array.isArray(v)) ids = v.map(String); } catch (_) {}
-      const onRoster = new Set((own.players || []).map(String));
-      return new Set(ids.filter(id => onRoster.has(id)));
+    const onRoster = own => new Set((own.players || []).map(String));
+    // The owner's protections for a load: the in-memory set for the same team
+    // (so a browser that cannot save still keeps them across a refresh or a
+    // week change), else the saved set; pruned to the roster either way, and
+    // the saved copy pruned too (a player who left and returns is not
+    // silently protected again).
+    function ownerProtections(world, own, keep) {
+      const ids = onRoster(own);
+      let base = keep;
+      if (!base) {
+        base = [];
+        try { const v = JSON.parse(localStorage.getItem(protectKey(world)) || "[]"); if (Array.isArray(v)) base = v.map(String); } catch (_) {}
+      }
+      const kept = new Set([...base].filter(id => ids.has(id)));
+      if (kept.size !== [...base].length) writeProtected(world, kept);
+      return kept;
+    }
+    function writeProtected(world, ids) {
+      try { if (ids.size) localStorage.setItem(protectKey(world), JSON.stringify([...ids])); else localStorage.removeItem(protectKey(world)); } catch (_) {}
     }
     function saveProtected() {
-      if (!snap || viewer()) return;
-      try { localStorage.setItem(protectKey(snap.world), JSON.stringify([...protectedIds])); } catch (_) {}
+      if (snap && !viewer()) writeProtected(snap.world, protectedIds);
     }
 
     function renderRoster() {
       const own = snap.world.rosters.find(r => r.roster_id === snap.world.rosterId);
       const locked = new Set([...(own.reserve || []), ...(own.taxi || [])]);
+      // The count and Clear all cover the owner's own ticks; IR/taxi players
+      // are always excluded from drops and shown ticked, but are not counted.
+      const chosen = () => (own.players || []).filter(id => protectedIds.has(id) && !locked.has(id)).length;
       const setCount = () => {
-        const n = viewer() ? protectedIds.size : (own.players || []).filter(id => protectedIds.has(id) || locked.has(id)).length;
+        const n = viewer() ? protectedIds.size : chosen();
         $("waiver-protect-toggle").textContent = viewer() ? `Protected: ${n} starter${n === 1 ? "" : "s"} (owner's choice)` : `Protected: ${n} player${n === 1 ? "" : "s"}`;
+        $("waiver-protect-clear").hidden = viewer() || !chosen();
       };
       $("waiver-roster").replaceChildren();
       setCount();
-      $("waiver-protect-clear").hidden = viewer() || !protectedIds.size;
       if (viewer()) {
         $("waiver-roster").append(node("p", "Drop protections are the team owner's choice; this view protects the current starters."));
         return;
@@ -508,7 +527,6 @@
           if (box.checked) protectedIds.add(id); else protectedIds.delete(id);
           saveProtected();
           setCount();
-          $("waiver-protect-clear").hidden = !protectedIds.size;
           recompute();
         });
         $("waiver-roster").append(label);
@@ -891,7 +909,8 @@
         $("waiver-week").value = String(week);
         const board = hydrateBoard(view.board, catalog, world.rosters, view);
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
-        protectedIds = world.role === "viewer" ? new Set((own.starters || []).filter(id => id !== "0")) : readProtected(world, own);
+        protectedIds = world.role === "viewer" ? new Set((own.starters || []).filter(id => id !== "0"))
+          : ownerProtections(world, own, sameTeam ? protectedIds : null);
         applyReserveDefault(world.league);
         // A copied shortlist describes the snapshot it came from: adopting a
         // new one (even for the same team) clears it and its status.
