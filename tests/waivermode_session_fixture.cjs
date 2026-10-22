@@ -443,6 +443,11 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.equal(analyzeCalls.length, an + 2);
     clock = Date.parse(HDR.generated_at) + 72 * 3600000 + 1; tick();
     assert.equal(analyzeCalls.length, an + 3, "a data file's 72 h freshness window closed: one engine run");
+    clock = fetchedAt + 30000; tick();
+    assert.equal(analyzeCalls.length, an + 4, "a clock moved backward: one engine run (astra P3)");
+    assert.equal($("waiver-stale").hidden, true, "and the stale notice reflects the earlier time");
+    clock = fetchedAt + 45000; tick();
+    assert.equal(analyzeCalls.length, an + 4, "forward again, no threshold: no engine run");
     clock = saved; $("waiver-reserve").dispatch("change");
     assert.equal($("waiver-stale").hidden, true, "back on the fixture's clock");
   }

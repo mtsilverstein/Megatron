@@ -443,8 +443,9 @@
     let snap = null, result = null, intel = null;
     let requestId = 0, protectedIds = new Set(), autoWeek = true;
     let currentBundle, refreshing = false, refreshError = null;
-    // The next clock threshold of the committed snapshot (clockBoundary).
-    let nextBoundary = Infinity;
+    // The next clock threshold of the committed snapshot (clockBoundary), and
+    // when the last full run happened (a clock that moves backward re-runs).
+    let nextBoundary = Infinity, lastRunAt = -Infinity;
     // FAAB reserve: the default follows the league and its budget until the
     // user types a value (an emptied box hands control back to the default).
     let reserveKey = null, userTyped = false;
@@ -766,7 +767,8 @@
     function recompute() {
       if (!snap) return;
       const s = snap;
-      nextBoundary = clockBoundary(s, Date.now());
+      lastRunAt = Date.now();
+      nextBoundary = clockBoundary(s, lastRunAt);
       try {
         // Roster age from the POST-fetch time (bundle.rostersFetchedAt): past
         // 60 s the desk stays on screen, marked stale (claims may have
@@ -884,7 +886,8 @@
     // league (Opus review, 2026-10-22).
     setInterval(() => {
       if (!snap || $("waiver-results").hidden) return;
-      if (Date.now() >= nextBoundary) { recompute(); return; }
+      const now = Date.now();
+      if (now >= nextBoundary || now < lastRunAt) { recompute(); return; }
       const text = staleText(Date.now() - snap.bundle.rostersFetchedAt);
       if (text && $("waiver-stale-text").textContent !== text) $("waiver-stale-text").textContent = text;
     }, 15000);
