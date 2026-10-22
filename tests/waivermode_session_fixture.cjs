@@ -206,6 +206,9 @@ function baseRoutes() {
     "/players/nfl/trending/add?lookback_hours=24&limit=100": [], "/players/nfl/trending/drop?lookback_hours=24&limit=100": [],
   };
 }
+// The browser's localStorage, for the page's saved drop protections (Session uses its own injected store below).
+const lsStore = new Map();
+global.localStorage = { getItem: k => (lsStore.has(k) ? lsStore.get(k) : null), setItem: (k, v) => { lsStore.set(k, String(v)); }, removeItem: k => { lsStore.delete(k); } };
 const m = new Map();
 Session._storage({ getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); },
   removeItem: k => { m.delete(k); }, key: i => [...m.keys()][i] ?? null, get length() { return m.size; } });
@@ -363,17 +366,24 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   $("waiver-warning-link").dispatch("click");
   assert.equal($("waiver-method").open, true, "the signpost opens the method fold");
   $("waiver-method").open = false;
-  // A protection change re-runs the engine with the new protections.
+  // Protections (owner report 2026-10-21): NOTHING is protected by default; a
+  // ticked player reaches the engine and is saved for this league and team.
   {
+    assert.deepEqual(c0.protectedIds, [], "the first engine run protects nobody");
+    assert.equal($("waiver-protect-toggle").textContent, "Protected: 0 players", "nothing protected by default");
+    assert.equal($("waiver-protect-clear").hidden, true, "nothing to clear");
     const boxes = $("waiver-roster").querySelectorAll("input");
+    assert.ok(boxes.length === 2 && boxes.every(b => !b.checked), "every box starts unticked");
     const an = analyzeCalls.length;
-    boxes[0].checked = false; boxes[0].dispatch("change");
-    assert.equal(analyzeCalls.length, an + 1);
-    assert.deepEqual(analyzeCalls.at(-1).protectedIds.slice().sort(), ["k"], "unprotected A Back reaches the engine");
-    assert.equal($("waiver-protect-toggle").textContent, "Protected: 1 player");
     boxes[0].checked = true; boxes[0].dispatch("change");
-    assert.deepEqual(analyzeCalls.at(-1).protectedIds.slice().sort(), ["a", "k"]);
-    assert.equal($("waiver-protect-toggle").textContent, "Protected: 2 players");
+    assert.equal(analyzeCalls.length, an + 1);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "a ticked player reaches the engine");
+    assert.equal($("waiver-protect-toggle").textContent, "Protected: 1 player");
+    assert.equal($("waiver-protect-clear").hidden, false);
+    assert.equal(lsStore.get(`megatron.waivers.protected.v1|${L}|9`), '["a"]', "saved for this league and team");
+    boxes[1].checked = true; boxes[1].dispatch("change");
+    boxes[1].checked = false; boxes[1].dispatch("change");
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "unticking works");
   }
   // The position filter narrows the claim table, the card and Worth watching together.
   {
@@ -413,7 +423,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal($("waiver-status").className, "visually-hidden", "the loaded status stays in the live region, shown by the summary line");
   assert.equal($("waiver-data").hidden, false, "the method fold's data part follows the results");
   assert.equal($("waiver-protect-toggle").hidden, false);
-  assert.equal($("waiver-protect-toggle").textContent, "Protected: 2 players", "the starters are protected initially");
+  assert.equal($("waiver-protect-toggle").textContent, "Protected: 1 player", "the owner's own choice, not the starters");
   assert.equal($("waiver-protect").hidden, true);
   $("waiver-protect-toggle").dispatch("click");
   assert.equal($("waiver-protect").hidden, false); assert.equal($("waiver-protect-toggle").attrs["aria-expanded"], "true");
@@ -467,6 +477,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.deepEqual(calls.slice(before3).filter(p => /^\/league\//.test(p) && !/transactions/.test(p)), [], "an identity change loads no league data");
   assert.equal(analyzeCalls.at(-1).snapshotAt, b2.rostersRequestedAt);
   assert.match(text("waiver-roster"), /B Wide/); assert.doesNotMatch(text("waiver-roster"), /A Back/);
+  assert.deepEqual(analyzeCalls.at(-1).protectedIds, [], "another team never inherits roster 9's protections");
   // forget: cleared synchronously, back to the gate; re-identify brings roster 9 back.
   $("session-forget").dispatch("click");
   assert.ok($("waiver-results").hidden, "forget hides the results synchronously");
@@ -477,6 +488,9 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   await until(() => !$("waiver-results").hidden && /roster 9/.test(statusText()), "roster 9 back after re-identify", 5000);
   const b3 = Session.bundle();
   const an3 = analyzeCalls.length;
+  // A fresh load (as after a page reload) restores the saved protections.
+  assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "saved protections come back on a fresh load");
+  assert.equal($("waiver-protect-toggle").textContent, "Protected: 1 player");
 
   // 4. A FAILED refresh: nothing commits, both stamps stay, the desk says so.
   routes[`/league/${L}/rosters`] = new Error("HTTP 503");
@@ -511,6 +525,25 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal(transactionsCalls(), tx5 + 1, "one transactions fetch (the also hook); loadWorld reused bundle.extra");
   assert.equal(analyzeCalls[an5].snapshotAt, b4.rostersRequestedAt, "the engine gets the NEW pre-request time");
   assert.deepEqual(analyzeCalls[an5].transactions, b4.extra.transactions);
+  assert.deepEqual(analyzeCalls[an5].protectedIds, ["a"], "a refresh keeps the owner's protections (it used to reset them to the starters)");
+  // Clear all: nothing protected, saved as such, survives the next refresh.
+  {
+    assert.equal($("waiver-protect-clear").hidden, false);
+    const an = analyzeCalls.length;
+    $("waiver-protect-clear").dispatch("click");
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, [], "Clear all reaches the engine");
+    assert.equal(analyzeCalls.length, an + 1);
+    assert.equal(lsStore.get(`megatron.waivers.protected.v1|${L}|9`), "[]");
+    assert.equal($("waiver-protect-toggle").textContent, "Protected: 0 players");
+    assert.ok($("waiver-roster").querySelectorAll("input").every(b => !b.checked));
+    assert.equal($("waiver-protect-clear").hidden, true);
+    const boxes = $("waiver-roster").querySelectorAll("input");
+    boxes[0].checked = true; boxes[0].dispatch("change");
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"]);
+  }
+  // Saved ids no longer on the roster are pruned on load.
+  lsStore.set(`megatron.waivers.protected.v1|${L}|9`, '["a","gone"]');
+  const an6b = analyzeCalls.length - 1;   // section 6 counts engine runs from here (the clear-all block above added two)
 
   // 6. Roster age reads rostersFetchedAt (the reserve change handler is the tick's recompute()).
   //    Past 60 s the desk STAYS on screen, marked stale, with its own refresh
@@ -522,12 +555,12 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   $("waiver-reserve").dispatch("change");
   assert.ok(!$("waiver-results").hidden, "59 s after the FETCH the snapshot is fresh");
   assert.equal($("waiver-stale").hidden, true);
-  assert.equal(analyzeCalls.length, an5 + 2);
-  assert.equal(analyzeCalls[an5 + 1].snapshotAt, b4.rostersRequestedAt, "recompute keeps the committed snapshotAt");
+  assert.equal(analyzeCalls.length, an6b + 2);
+  assert.equal(analyzeCalls[an6b + 1].snapshotAt, b4.rostersRequestedAt, "recompute keeps the committed snapshotAt");
   clock = b4.rostersFetchedAt + 61000;
   $("waiver-reserve").dispatch("change");
   assert.ok(!$("waiver-results").hidden, "past 60 s the recommendations stay on screen");
-  assert.equal(analyzeCalls.length, an5 + 3, "stale: the engine still runs (its kickoff gate is the hard stop)");
+  assert.equal(analyzeCalls.length, an6b + 3, "stale: the engine still runs (its kickoff gate is the hard stop)");
   assert.equal($("waiver-stale").hidden, false, "past 60 s the stale notice shows");
   assert.equal($("waiver-stale-text").textContent, "Rosters loaded 1 min ago — claims may have processed since. Refresh before placing a claim.");
   clock = b4.rostersFetchedAt + 2 * 3600000 + 5000;
@@ -568,6 +601,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.equal($("waiver-backup-wrap").hidden, true, "a same-team refresh clears the old snapshot's copied shortlist");
     assert.equal($("waiver-backup").value, ""); assert.equal($("waiver-copy-status").textContent, "");
     assert.match(statusText(), /Refresh from the league panel before placing a claim\.$/, "fresh again: the status drops the stale wording");
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "the refresh kept the protection and pruned an id no longer on the roster");
   }
   // A week change (same team) clears a copied shortlist too.
   {
@@ -579,6 +613,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     await until(() => analyzeCalls.length > an7, "the week-change reload");
     assert.equal($("waiver-backup-wrap").hidden, true, "a week change clears the copied shortlist");
     assert.equal($("waiver-backup").value, "");
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "a week change keeps the protections");
     $("waiver-week").value = ""; $("waiver-week").dispatch("change");
     await until(() => analyzeCalls.length > an7 + 1, "back to the automatic week");
   }

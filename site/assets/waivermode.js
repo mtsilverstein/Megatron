@@ -418,6 +418,10 @@
     }
     $("waiver-warning-link").addEventListener("click", () => { $("waiver-method").open = true; });
     $("waiver-show-all").addEventListener("click", () => { showAll = !showAll; if (snap && !$("waiver-results").hidden) renderRows(); });
+    $("waiver-protect-clear").addEventListener("click", () => {
+      if (!snap || viewer()) return;
+      protectedIds.clear(); saveProtected(); renderRoster(); recompute();
+    });
     $("waiver-protect-toggle").addEventListener("click", () => {
       const open = $("waiver-protect").hidden;
       $("waiver-protect").hidden = !open;
@@ -465,6 +469,23 @@
       $("waiver-reserve").value = d === null ? "" : String(d);
     }
 
+    // Drop protections are the owner's own choice: none by default (every
+    // drop option already shows its rest-of-season cost), kept per league
+    // and team in this browser so a refresh, a week change or a reload never
+    // resets them. Nothing is sent anywhere. The viewer mode protects the
+    // viewed team's starters (that owner's choice is not visible).
+    const protectKey = world => `megatron.waivers.protected.v1|${world.league.league_id}|${world.rosterId}`;
+    function readProtected(world, own) {
+      let ids = [];
+      try { const v = JSON.parse(localStorage.getItem(protectKey(world)) || "[]"); if (Array.isArray(v)) ids = v.map(String); } catch (_) {}
+      const onRoster = new Set((own.players || []).map(String));
+      return new Set(ids.filter(id => onRoster.has(id)));
+    }
+    function saveProtected() {
+      if (!snap || viewer()) return;
+      try { localStorage.setItem(protectKey(snap.world), JSON.stringify([...protectedIds])); } catch (_) {}
+    }
+
     function renderRoster() {
       const own = snap.world.rosters.find(r => r.roster_id === snap.world.rosterId);
       const locked = new Set([...(own.reserve || []), ...(own.taxi || [])]);
@@ -474,6 +495,7 @@
       };
       $("waiver-roster").replaceChildren();
       setCount();
+      $("waiver-protect-clear").hidden = viewer() || !protectedIds.size;
       if (viewer()) {
         $("waiver-roster").append(node("p", "Drop protections are the team owner's choice; this view protects the current starters."));
         return;
@@ -484,7 +506,9 @@
         label.append(box, node("span", `${playerName(id)}${locked.has(id) ? " · IR/taxi" : ""}`));
         box.addEventListener("change", () => {
           if (box.checked) protectedIds.add(id); else protectedIds.delete(id);
+          saveProtected();
           setCount();
+          $("waiver-protect-clear").hidden = !protectedIds.size;
           recompute();
         });
         $("waiver-roster").append(label);
@@ -867,7 +891,7 @@
         $("waiver-week").value = String(week);
         const board = hydrateBoard(view.board, catalog, world.rosters, view);
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
-        protectedIds = new Set((own.starters || []).filter(id => id !== "0"));
+        protectedIds = world.role === "viewer" ? new Set((own.starters || []).filter(id => id !== "0")) : readProtected(world, own);
         applyReserveDefault(world.league);
         // A copied shortlist describes the snapshot it came from: adopting a
         // new one (even for the same team) clears it and its status.
