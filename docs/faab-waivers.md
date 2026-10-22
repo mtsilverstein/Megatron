@@ -7,7 +7,7 @@ Open `waivers.html?league=gabagool` or `waivers.html?league=fam`, enter your Sle
 - Reads every live roster, including IR/taxi, and matches your owner/co-owner account uniquely.
 - Checks the live scoring, roster, season, league size, and FAAB contract against the Gabagool board.
 - Reads remaining FAAB, subtracts a user-selected reserve (default $20, not an optimized amount), and caps each independent bid alternative.
-- Protects starters initially and always excludes IR/taxi and unmapped players from drops.
+- Protects nothing initially for the owner (since 2026-10-22; protections are the owner's ticks, saved per league and team in the browser), protects the current starters in viewer mode, and always excludes IR/taxi and unmapped players from drops.
 - Compares legal skill-position lineups before and after individual add/drop swaps. K/DST are outside this model.
 - Uses weekly projections only when their league/scoring, season, week, and timestamp match. Missing player projections are excluded, never replaced with season totals in the same comparison.
 - In-season stale, missing or misaligned weekly data withholds lineup gains and bid recommendations. Research/watchlists remain available. The pure engine retains a labeled preseason proxy outside in-season mode; the live desk requires an in-season league.
