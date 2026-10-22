@@ -2,7 +2,7 @@
   "schema_version": 1,
   "season": 2026,
   "before_week": 7,
-  "generated_at": "2026-10-22T10:19:13+00:00",
+  "generated_at": "2026-10-22T20:37:15+00:00",
   "through_week": 6,
   "status": "observed",
   "completed_team_games": 186,
@@ -14654,7 +14654,7 @@
     {
       "player_id": "00-0040390",
       "name": "Jackson Meeks",
-      "position": "WR",
+      "position": "TE",
       "team": "DET",
       "week": 3,
       "current_for_team": false,
