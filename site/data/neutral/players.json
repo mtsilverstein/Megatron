@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 7,
   "data_through": "2026-wk6",
-  "generated_at": "2026-10-21T20:42:51+00:00",
-  "batch_id": "2026-10-21T20:42:51+00:00|2026-wk6|w7",
+  "generated_at": "2026-10-22T10:19:20+00:00",
+  "batch_id": "2026-10-22T10:19:20+00:00|2026-wk6|w7",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -236,7 +236,7 @@
     {
       "player_id": "00-0031235",
       "sleeper_id": "2078",
-      "name": "Odell Beckham",
+      "name": "Odell Beckham Jr.",
       "team": "MIN",
       "position": "WR",
       "bye": 6,
@@ -404,7 +404,7 @@
     {
       "player_id": "00-0032208",
       "sleeper_id": "2334",
-      "name": "Phillip Dorsett",
+      "name": "Phillip Dorsett II",
       "team": "LV",
       "position": null,
       "bye": 13,
@@ -692,7 +692,7 @@
     {
       "player_id": "00-0033293",
       "sleeper_id": "4199",
-      "name": "Aaron Jones",
+      "name": "Aaron Jones Sr.",
       "team": "MIN",
       "position": "RB",
       "bye": 6,
@@ -1028,7 +1028,7 @@
     {
       "player_id": "00-0033921",
       "sleeper_id": "4037",
-      "name": "Chris Godwin",
+      "name": "Chris Godwin Jr.",
       "team": "TB",
       "position": "WR",
       "bye": 10,
@@ -1232,7 +1232,7 @@
     {
       "player_id": "00-0034487",
       "sleeper_id": "5154",
-      "name": "Trent Sherfield",
+      "name": "Trent Sherfield Sr.",
       "team": "BUF",
       "position": "WR",
       "bye": 7,
@@ -1616,7 +1616,7 @@
     {
       "player_id": "00-0035140",
       "sleeper_id": "5917",
-      "name": "Mecole Hardman",
+      "name": "Mecole Hardman Jr.",
       "team": "IND",
       "position": "WR",
       "bye": 13,
@@ -1748,7 +1748,7 @@
     {
       "player_id": "00-0035289",
       "sleeper_id": "6011",
-      "name": "Gardner Minshew",
+      "name": "Gardner Minshew II",
       "team": "ARI",
       "position": "QB",
       "bye": 14,
@@ -1808,7 +1808,7 @@
     {
       "player_id": "00-0035359",
       "sleeper_id": "6154",
-      "name": "David Sills",
+      "name": "David Sills V",
       "team": "TB",
       "position": "WR",
       "bye": 10,
@@ -2096,7 +2096,7 @@
     {
       "player_id": "00-0035719",
       "sleeper_id": "5872",
-      "name": "Deebo Samuel",
+      "name": "Deebo Samuel Sr.",
       "team": "SF",
       "position": "WR",
       "bye": 8,
@@ -2336,7 +2336,7 @@
     {
       "player_id": "00-0036252",
       "sleeper_id": "6819",
-      "name": "Michael Pittman",
+      "name": "Michael Pittman Jr.",
       "team": "PIT",
       "position": "WR",
       "bye": 9,
@@ -3284,7 +3284,7 @@
     {
       "player_id": "00-0036970",
       "sleeper_id": "7553",
-      "name": "Kyle Pitts",
+      "name": "Kyle Pitts Sr.",
       "team": "ATL",
       "position": "TE",
       "bye": 11,
@@ -3320,7 +3320,7 @@
     {
       "player_id": "00-0036973",
       "sleeper_id": "7543",
-      "name": "Travis Etienne",
+      "name": "Travis Etienne Jr.",
       "team": "NO",
       "position": "RB",
       "bye": 8,
@@ -3704,7 +3704,7 @@
     {
       "player_id": "00-0037248",
       "sleeper_id": "8138",
-      "name": "James Cook",
+      "name": "James Cook III",
       "team": "BUF",
       "position": "RB",
       "bye": 7,
@@ -4136,7 +4136,7 @@
     {
       "player_id": "00-0037614",
       "sleeper_id": "8147",
-      "name": "John Metchie",
+      "name": "John Metchie III",
       "team": "CAR",
       "position": "WR",
       "bye": 5,
@@ -4256,7 +4256,7 @@
     {
       "player_id": "00-0037746",
       "sleeper_id": "8154",
-      "name": "Brian Robinson",
+      "name": "Brian Robinson Jr.",
       "team": "ATL",
       "position": "RB",
       "bye": 11,
@@ -4352,7 +4352,7 @@
     {
       "player_id": "00-0037837",
       "sleeper_id": "8125",
-      "name": "Calvin Austin",
+      "name": "Calvin Austin III",
       "team": "NYG",
       "position": "WR",
       "bye": 8,
@@ -4448,7 +4448,7 @@
     {
       "player_id": "00-0038098",
       "sleeper_id": "8116",
-      "name": "Pierre Strong",
+      "name": "Pierre Strong Jr.",
       "team": "GB",
       "position": "RB",
       "bye": 11,
@@ -4568,7 +4568,7 @@
     {
       "player_id": "00-0038134",
       "sleeper_id": "8151",
-      "name": "Kenneth Walker",
+      "name": "Kenneth Walker III",
       "team": "KC",
       "position": "RB",
       "bye": 5,
@@ -5120,7 +5120,7 @@
     {
       "player_id": "00-0038611",
       "sleeper_id": "10219",
-      "name": "Chris Rodriguez",
+      "name": "Chris Rodriguez Jr.",
       "team": "JAX",
       "position": "RB",
       "bye": 7,
@@ -5600,7 +5600,7 @@
     {
       "player_id": "00-0038976",
       "sleeper_id": "9494",
-      "name": "Marvin Mims",
+      "name": "Marvin Mims Jr.",
       "team": "DEN",
       "position": "WR",
       "bye": 10,
@@ -5852,7 +5852,7 @@
     {
       "player_id": "00-0039107",
       "sleeper_id": "10857",
-      "name": "Stetson Bennett",
+      "name": "Stetson Bennett IV",
       "team": "LA",
       "position": "QB",
       "bye": 11,
@@ -5936,7 +5936,7 @@
     {
       "player_id": "00-0039164",
       "sleeper_id": "9229",
-      "name": "Anthony Richardson",
+      "name": "Anthony Richardson Sr.",
       "team": "IND",
       "position": "QB",
       "bye": 13,
@@ -6248,7 +6248,7 @@
     {
       "player_id": "00-0039384",
       "sleeper_id": "11655",
-      "name": "Tyrone Tracy",
+      "name": "Tyrone Tracy Jr.",
       "team": "NYG",
       "position": "RB",
       "bye": 8,
@@ -6932,7 +6932,7 @@
     {
       "player_id": "00-0039814",
       "sleeper_id": "11592",
-      "name": "Erick All",
+      "name": "Erick All Jr.",
       "team": "CIN",
       "position": "TE",
       "bye": 6,
@@ -6992,7 +6992,7 @@
     {
       "player_id": "00-0039849",
       "sleeper_id": "11628",
-      "name": "Marvin Harrison",
+      "name": "Marvin Harrison Jr.",
       "team": "HOU",
       "position": "WR",
       "bye": 8,
@@ -7100,7 +7100,7 @@
     {
       "player_id": "00-0039893",
       "sleeper_id": "11631",
-      "name": "Brian Thomas",
+      "name": "Brian Thomas Jr.",
       "team": "JAX",
       "position": "WR",
       "bye": 7,
@@ -7196,7 +7196,7 @@
     {
       "player_id": "00-0039917",
       "sleeper_id": "11559",
-      "name": "Michael Penix",
+      "name": "Michael Penix Jr.",
       "team": "ATL",
       "position": "QB",
       "bye": 11,
@@ -7724,7 +7724,7 @@
     {
       "player_id": "00-0040198",
       "sleeper_id": "12495",
-      "name": "Ollie Gordon",
+      "name": "Ollie Gordon II",
       "team": "MIA",
       "position": "RB",
       "bye": 6,
@@ -7820,7 +7820,7 @@
     {
       "player_id": "00-0040218",
       "sleeper_id": "12523",
-      "name": "Jimmy Horn",
+      "name": "Jimmy Horn Jr.",
       "team": "CLE",
       "position": "WR",
       "bye": 11,
@@ -7844,7 +7844,7 @@
     {
       "player_id": "00-0040225",
       "sleeper_id": "12715",
-      "name": "Thomas Fidone",
+      "name": "Thomas Fidone II",
       "team": "NYG",
       "position": "TE",
       "bye": 8,
@@ -7892,7 +7892,7 @@
     {
       "player_id": "00-0040238",
       "sleeper_id": "12544",
-      "name": "LeQuint Allen",
+      "name": "LeQuint Allen Jr.",
       "team": "JAX",
       "position": "RB",
       "bye": 7,
@@ -8060,7 +8060,7 @@
     {
       "player_id": "00-0040311",
       "sleeper_id": "12860",
-      "name": "Theo Wease",
+      "name": "Theo Wease Jr.",
       "team": "LAC",
       "position": "WR",
       "bye": 7,
@@ -8240,7 +8240,7 @@
     {
       "player_id": "00-0040394",
       "sleeper_id": "12939",
-      "name": "Anthony Tyus",
+      "name": "Anthony Tyus III",
       "team": "CAR",
       "position": "RB",
       "bye": 5,
@@ -8648,7 +8648,7 @@
     {
       "player_id": "00-0040563",
       "sleeper_id": "12542",
-      "name": "Efton Chism",
+      "name": "Efton Chism III",
       "team": "NE",
       "position": "WR",
       "bye": 11,
@@ -8708,7 +8708,7 @@
     {
       "player_id": "00-0040581",
       "sleeper_id": "12541",
-      "name": "Dont'e Thornton",
+      "name": "Dont'e Thornton Jr.",
       "team": "LV",
       "position": "WR",
       "bye": 13,
@@ -8876,7 +8876,7 @@
     {
       "player_id": "00-0040621",
       "sleeper_id": "13199",
-      "name": "Montorie Foster",
+      "name": "Montorie Foster Jr.",
       "team": "SEA",
       "position": "WR",
       "bye": 11,
@@ -9020,7 +9020,7 @@
     {
       "player_id": "00-0040663",
       "sleeper_id": "12506",
-      "name": "Harold Fannin",
+      "name": "Harold Fannin Jr.",
       "team": "CLE",
       "position": "TE",
       "bye": 11,
@@ -9260,7 +9260,7 @@
     {
       "player_id": "00-0040735",
       "sleeper_id": "12519",
-      "name": "Luther Burden",
+      "name": "Luther Burden III",
       "team": "CHI",
       "position": "WR",
       "bye": 10,
@@ -9440,7 +9440,7 @@
     {
       "player_id": "00-0040878",
       "sleeper_id": "13305",
-      "name": "Mike Washington",
+      "name": "Mike Washington Jr.",
       "team": "LV",
       "position": "RB",
       "bye": 13,
@@ -10100,7 +10100,7 @@
     {
       "player_id": "00-0041048",
       "sleeper_id": "13317",
-      "name": "Ted Hurst",
+      "name": "Ted Hurst III",
       "team": "TB",
       "position": "WR",
       "bye": 10,
@@ -11660,7 +11660,7 @@
     {
       "player_id": "00-0041511",
       "sleeper_id": "13276",
-      "name": "Omar Cooper",
+      "name": "Omar Cooper Jr.",
       "team": "NYJ",
       "position": "WR",
       "bye": 13,
@@ -11720,7 +11720,7 @@
     {
       "player_id": "00-0041529",
       "sleeper_id": "13338",
-      "name": "Kevin Coleman",
+      "name": "Kevin Coleman Jr.",
       "team": "MIA",
       "position": "WR",
       "bye": 6,
@@ -11756,7 +11756,7 @@
     {
       "player_id": "00-0041547",
       "sleeper_id": "13298",
-      "name": "KC Concepcion",
+      "name": "KC Concepcion Jr.",
       "team": "CLE",
       "position": "WR",
       "bye": 11,
