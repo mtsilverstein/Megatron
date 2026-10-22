@@ -93,7 +93,7 @@ assert.equal(typeof StartSitMode.init, "function");
 // ---- synthetic neutral batch, Sleeper data, clock ---------------------------------
 const L = "900000000000000777";              // not in the registry
 const HDR = { season: 2026, week: 3, data_through: "2026-wk2", generated_at: "2026-09-16T00:00:00Z", batch_id: "2026-09-16T00:00:00Z|2026-wk2|w3" };
-const METHOD = { v: 1, model: "transformer", artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles",
+const METHOD = { v: 2, model: "transformer", checkpoints: [{ path: "models/transformer/v1/through2025/model.pt", sha256: "b".repeat(64) }], artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles",
   band_construction: "sign_coherent_v1", calibration: [], prior: { method: "pooled", rate: 0.09, first_season: 2021, through_season: 2025 } };
 const sq = (rec, yds) => {
   const o = f => Object.fromEntries(LL.STATS.map(s => [s, s === "receptions" ? rec * f : s === "receiving_yards" ? yds * f : 0]));

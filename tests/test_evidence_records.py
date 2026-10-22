@@ -39,26 +39,90 @@ PRIOR = {"method": "pooled_return_rate_expected_cost_v1", "rate": 0.09, "interce
 
 def _calibrated_root(tmp_path, first="models/transformer/v1", through=2025, body=b'{"a": 1}\r\n'):
     path = tmp_path / first / f"through{through}" / "calibration.json"
-    path.parent.mkdir(parents=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(body)
     return path
 
 
+# A binary checkpoint body with a CRLF pair inside: git never converts a
+# binary file, so it must be hashed raw (a NUL byte marks it binary).
+PT = b"\x80\x02\0weights\r\n\x01"
+
+
+def _checkpoints(tmp_path, root, through=2025, pt=PT):
+    d = tmp_path / root.replace("\\", "/") / f"through{through}"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "metrics.json").write_bytes(b'{"seq_len": 8}\r\n')
+    (d / "scaler.json").write_bytes(b'{"mean": [0]}\n')
+    (d / "model.pt").write_bytes(pt)
+    return d
+
+
 def test_current_method_shape_and_normalisation(tmp_path):
+    for r in ("models/transformer/v1_s44", "models/transformer/v1"):
+        _checkpoints(tmp_path, r)
     _calibrated_root(tmp_path, "models/transformer/v1_s44")
     m = current_method(["models/transformer/v1_s44", "models\\transformer\\v1"], PRIOR, through=2025,
                        root=tmp_path)
-    assert m == {"v": 1, "model": "transformer",
+    ck = lambda r: [{"path": f"{r}/through2025/metrics.json", "sha256": hashlib.sha256(b'{"seq_len": 8}\n').hexdigest()},
+                    {"path": f"{r}/through2025/model.pt", "sha256": hashlib.sha256(PT).hexdigest()},
+                    {"path": f"{r}/through2025/scaler.json", "sha256": hashlib.sha256(b'{"mean": [0]}\n').hexdigest()}]
+    assert m == {"v": 2, "model": "transformer",
                  "artifacts": ["models/transformer/v1", "models/transformer/v1_s44"],
                  "ensemble": "mean_of_seed_quantiles", "band_construction": BAND_CONSTRUCTION,
                  "calibration": [{"path": "models/transformer/v1_s44/through2025/calibration.json",
                                   "sha256": hashlib.sha256(b'{"a": 1}\n').hexdigest()}],
+                 "checkpoints": ck("models/transformer/v1") + ck("models/transformer/v1_s44"),
                  "prior": {"method": "pooled_return_rate_expected_cost_v1", "rate": 0.09,
                            "first_season": 2021, "through_season": 2025}}
     assert m["band_construction"] == "sign_coherent_v1"
 
 
+def test_checkpoint_retrained_in_place_changes_the_method(tmp_path):
+    """M5: the same artifact roots with different weights are a different method."""
+    _checkpoints(tmp_path, "models/transformer/v1")
+    before = current_method(["models/transformer/v1"], PRIOR, through=2025, root=tmp_path)
+    _checkpoints(tmp_path, "models/transformer/v1", pt=PT + b"\x02")
+    after = current_method(["models/transformer/v1"], PRIOR, through=2025, root=tmp_path)
+    assert before["artifacts"] == after["artifacts"] and before != after
+    assert [c["path"] for c in before["checkpoints"]] == [c["path"] for c in after["checkpoints"]]
+
+
+def test_checkpoints_follow_the_fit_season_and_every_root(tmp_path):
+    _checkpoints(tmp_path, "models/transformer/v1", 2024)
+    _checkpoints(tmp_path, "models/transformer/v1_s43", 2024)
+    m = current_method(["models/transformer/v1_s43", "models/transformer/v1"], PRIOR, through=2024, root=tmp_path)
+    assert all("/through2024/" in c["path"] for c in m["checkpoints"]) and len(m["checkpoints"]) == 6
+
+
+@pytest.mark.parametrize("missing", ["metrics.json", "model.pt", "scaler.json"])
+def test_a_missing_checkpoint_file_raises(tmp_path, missing):
+    d = _checkpoints(tmp_path, "models/transformer/v1")
+    (d / missing).unlink()
+    with pytest.raises(FileNotFoundError, match=missing):
+        current_method(["models/transformer/v1"], PRIOR, through=2025, root=tmp_path)
+
+
+def test_committed_sha256_hashes_binary_raw_and_text_lf(tmp_path):
+    b, t = tmp_path / "b.pt", tmp_path / "t.json"
+    b.write_bytes(PT); t.write_bytes(b"a\r\nb\r\n")
+    assert er.committed_sha256(b) == hashlib.sha256(PT).hexdigest()
+    assert er.committed_sha256(t) == hashlib.sha256(b"a\nb\n").hexdigest()
+
+
+def test_real_checkpoint_hashes_match_git_blobs():
+    """The hashes name the committed bytes: model.pt raw, JSON as LF."""
+    import subprocess
+    m = current_method(["models/transformer/v1"], PRIOR, through=2024)
+    for c in m["checkpoints"]:
+        blob = subprocess.run(["git", "cat-file", "blob", f"HEAD:{c['path']}"], capture_output=True, check=True).stdout
+        assert c["sha256"] == hashlib.sha256(blob).hexdigest(), c["path"]
+
+
 def test_calibration_follows_the_predictors_first_root_and_fit_season(tmp_path):
+    for r in ("models/transformer/v1", "models/transformer/v1_s43"):
+        for t in (2025, 2026):
+            _checkpoints(tmp_path, r, t)
     _calibrated_root(tmp_path, "models/transformer/v1", 2025)
     roots = ["models/transformer/v1", "models/transformer/v1_s43"]
     assert current_method(roots, PRIOR, through=2025, root=tmp_path)["calibration"][0]["path"] == \

@@ -156,7 +156,7 @@ let clock = realNow();
 Date.now = () => clock;                 // Session stamps the two roster timestamps with this
 const L = "900000000000000888";              // not in the registry
 const HDR = { season: 2026, week: 3, data_through: "2026-wk2", generated_at: new Date(clock).toISOString(), batch_id: "b-w3" };
-const METHOD = { v: 1, model: "transformer", artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles",
+const METHOD = { v: 2, model: "transformer", checkpoints: [{ path: "models/transformer/v1/through2025/model.pt", sha256: "b".repeat(64) }], artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles",
   band_construction: "sign_coherent_v1", calibration: [], prior: { method: "pooled", rate: 0.09, first_season: 2021, through_season: 2025 } };
 const sq = (rec, yds) => {
   const o = f => Object.fromEntries(LL.STATS.map(s => [s, s === "receptions" ? rec * f : s === "receiving_yards" ? yds * f : 0]));

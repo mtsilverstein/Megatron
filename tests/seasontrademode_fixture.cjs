@@ -166,7 +166,7 @@ check("evidenceLines: the fallback unless a rest-of-season record binds to the l
   assert.deepEqual(M.evidenceLines(EVAL_DOC, { lens, method: null }), [`Rest-of-season accuracy: ${NO_EVIDENCE}`], "a null method never binds");
   const rec = EVAL_DOC.records.find(r => r.metric === "rest_of_season_points_mae");
   assert.ok(rec, "the fixture carries a rest-of-season record");
-  const method = { v: 1, model: "transformer", artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles", band_construction: "sign_coherent_v1",
+  const method = { v: 2, model: "transformer", checkpoints: [{ path: "models/transformer/v1/through2025/model.pt", sha256: "b".repeat(64) }], artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles", band_construction: "sign_coherent_v1",
     calibration: [], prior: { method: "pooled", rate: 0.09, first_season: 2021, through_season: 2025 } };
   const bound = { records: [{ ...rec, method, effective_scoring: LL.evidenceIdentity(lens.weights), prediction_scoring: LL.evidenceIdentity(lens.weights) }] };
   const lines = M.evidenceLines(bound, { lens, method });
@@ -292,7 +292,7 @@ global.fetch = async p => {
   return doc ? { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(doc)) } : { ok: false, status: 404, json: async () => ({}) };
 };
 const STATS = LL.STATS;
-const METHOD = { v: 1, model: "transformer", artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles",
+const METHOD = { v: 2, model: "transformer", checkpoints: [{ path: "models/transformer/v1/through2025/model.pt", sha256: "b".repeat(64) }], artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles",
   band_construction: "sign_coherent_v1", calibration: [], prior: { method: "pooled", rate: 0.09, first_season: 2021, through_season: 2025 } };
 // [sleeper id, gsis, position, name, receptions, receiving yards]
 const PEOPLE = [["a", "00-0000001", "RB", "A Back", 4, 60], ["d", "00-0000004", "WR", "D Deep", 2, 30], ["e", "00-0000005", "WR", "E Slot", 1, 20],

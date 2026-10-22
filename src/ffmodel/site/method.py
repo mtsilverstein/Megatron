@@ -16,6 +16,13 @@ applies: `TransformerPredictor.fit` (default `calibration=True`) reads only
 last season of the fit frame and `artifact_roots[0]` is the FIRST root in the
 order the predictor was given (not the sorted order). One entry when that file
 exists, `None` when it does not.
+
+`checkpoints` (v2, review finding M5) names every file each ensemble member
+loads for the fit season -- `_SingleRootTransformer.fit` reads
+`<root>/through<through>/{metrics.json, scaler.json, model.pt}` -- with its
+content hash. The artifact roots are directories; without these hashes a
+checkpoint retrained in place would keep the same method identity, and an
+evidence record measured on the old weights would match today's output.
 """
 from __future__ import annotations
 
@@ -25,17 +32,24 @@ from pathlib import Path
 
 from ffmodel.scoring import BAND_CONSTRUCTION
 
-METHOD_VERSION = 1
+METHOD_VERSION = 2
 MODEL = "transformer"
 ENSEMBLE = "mean_of_seed_quantiles"
 PRIOR_FIELDS = ("method", "rate", "first_season", "through_season")
-REQUIRED_FIELDS = ("v", "model", "artifacts", "ensemble", "band_construction", "calibration", "prior")
+REQUIRED_FIELDS = ("v", "model", "artifacts", "ensemble", "band_construction", "calibration", "checkpoints", "prior")
+# What `_SingleRootTransformer.fit` (ffmodel.model.predictor) loads per root.
+CHECKPOINT_FILES = ("metrics.json", "model.pt", "scaler.json")
 
 
 def committed_sha256(path: Path) -> str:
-    """sha256 of the committed (LF) bytes: a Windows autocrlf checkout and the
-    Linux runner must name the same artifact."""
-    return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+    """sha256 of the committed bytes: a Windows autocrlf checkout and the Linux
+    runner must name the same artifact. Text is hashed with CRLF -> LF; a
+    binary file (git's rule: a NUL byte in the first 8000 bytes) is never
+    converted on checkout, so its raw bytes are hashed."""
+    data = Path(path).read_bytes()
+    if b"\0" not in data[:8000]:
+        data = data.replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
 
 
 def _root(r) -> str:
@@ -77,6 +91,21 @@ def applied_calibration(artifact_roots: list[str], through: int, root: Path = Pa
     return sorted([{"path": rel, "sha256": committed_sha256(path)}], key=lambda e: e["path"])
 
 
+def loaded_checkpoints(artifact_roots: list[str], through: int, root: Path = Path(".")) -> list[dict]:
+    """Every file the ensemble loads for a fit through `through`, path-sorted.
+
+    A missing file raises: the predictor could not have produced this output."""
+    out = []
+    for r in artifact_roots:
+        for name in CHECKPOINT_FILES:
+            rel = f"{_root(r)}/through{through}/{name}"
+            path = Path(root) / rel
+            if not path.is_file():
+                raise FileNotFoundError(f"method descriptor: checkpoint file missing: {rel}")
+            out.append({"path": rel, "sha256": committed_sha256(path)})
+    return sorted(out, key=lambda e: e["path"])
+
+
 def current_method(artifact_roots: list[str], pick_six_prior: dict, *, through: int,
                    root: Path = Path(".")) -> dict:
     """The method identity of the output this batch publishes.
@@ -95,4 +124,5 @@ def current_method(artifact_roots: list[str], pick_six_prior: dict, *, through: 
     return {"v": METHOD_VERSION, "model": MODEL, "artifacts": sorted(roots), "ensemble": ENSEMBLE,
             "band_construction": BAND_CONSTRUCTION,
             "calibration": applied_calibration(roots, through, root),
+            "checkpoints": loaded_checkpoints(roots, through, root),
             "prior": prior}
