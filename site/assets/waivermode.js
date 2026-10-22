@@ -422,7 +422,8 @@
       if (!snap || viewer()) return;
       protectedIds.clear(); saveProtected(); renderRoster(); recompute();
       // The button hides itself; keep keyboard focus in the panel.
-      const first = $("waiver-roster").querySelector("input");
+      // (an IR/taxi box is disabled and cannot take focus)
+      const first = [...$("waiver-roster").querySelectorAll("input")].find(b => !b.disabled);
       if (first) first.focus(); else $("waiver-protect-toggle").focus();
     });
     $("waiver-protect-toggle").addEventListener("click", () => {
