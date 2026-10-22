@@ -156,6 +156,11 @@ let clock = realNow();
 Date.now = () => clock;                 // Session stamps the two roster timestamps with this
 const L = "900000000000000888";              // not in the registry
 const HDR = { season: 2026, week: 3, data_through: "2026-wk2", generated_at: new Date(clock).toISOString(), batch_id: "b-w3" };
+const KICK = clock + 5 * 3600000;       // the week's one game, five hours out: a clock threshold for the tick
+// The page's 15 s tick, captured so the test drives it on the fake clock (the chip's 1 s ticker is untouched).
+const ticks = [];
+const realSetInterval = global.setInterval;
+global.setInterval = (fn, ms) => { if (ms === 15000) { ticks.push(fn); return 0; } return realSetInterval(fn, ms); };
 const METHOD = { v: 2, model: "transformer", checkpoints: [{ path: "models/transformer/v1/through2025/model.pt", sha256: "b".repeat(64) }], artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles",
   band_construction: "sign_coherent_v1", calibration: [], prior: { method: "pooled", rate: 0.09, first_season: 2021, through_season: 2025 } };
 const sq = (rec, yds) => {
@@ -172,7 +177,7 @@ const statics = {
     players: PEOPLE.map(([sid, pid, pos, name, , , ecr]) => ({ player_id: pid, sleeper_id: sid, name, team: "X", position: pos, bye: 9, ecr, identity_only: false, reason: null })) },
   "data/neutral/formats.json": { ...require("./fixtures/neutral_formats.json"), ...HDR },
   "data/neutral/evaluation.json": { ...require("./fixtures/neutral_evaluation.json"), ...HDR },
-  "data/kickoffs.json": { season: 2026, week: 3, generated_at: HDR.generated_at, teams: ["X", "Y"], games: [] },
+  "data/kickoffs.json": { season: 2026, week: 3, generated_at: HDR.generated_at, teams: ["X", "Y"], games: [{ home: "X", away: "Y", kickoff: new Date(KICK).toISOString() }] },
   "data/roles.json": { schema_version: 1, season: 2026, before_week: 3, generated_at: HDR.generated_at, status: "observed", players: [] },
 };
 const fetched = [];
@@ -413,6 +418,33 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.equal(watchFold().open, true, "an open watch entry stays open");
     assert.equal($("waiver-table").querySelector("tbody").children[3].children[0].children[0].open, false, "others stay closed");
     claimFold().open = false; claimFold().dispatch("toggle"); watchFold().open = false; watchFold().dispatch("toggle");
+  }
+  // The 15 s tick re-runs the engine only once a clock threshold has passed
+  // (Opus review F5: a full run every tick cost ~0.2-0.35 s on a 12-team league).
+  {
+    assert.equal(ticks.length, 1, "one 15 s tick");
+    const tick = ticks[0], fetchedAt = Session.bundle().rostersFetchedAt, saved = clock, an = analyzeCalls.length;
+    clock = fetchedAt + 30000; tick();
+    assert.equal(analyzeCalls.length, an, "fresh and no threshold passed: no engine run");
+    clock = fetchedAt + 60000; tick();
+    assert.equal(analyzeCalls.length, an, "exactly 60 s is not yet stale");
+    clock = fetchedAt + 60001; tick();
+    assert.equal(analyzeCalls.length, an + 1, "the stale mark passed: one engine run");
+    assert.equal($("waiver-stale").hidden, false);
+    assert.equal($("waiver-stale-text").textContent, "Rosters loaded 1 min ago — claims may have processed since. Refresh before placing a claim.");
+    clock = fetchedAt + 3 * 60000; tick();
+    assert.equal(analyzeCalls.length, an + 1, "still stale, no new threshold: no engine run");
+    assert.equal($("waiver-stale-text").textContent, "Rosters loaded 3 min ago — claims may have processed since. Refresh before placing a claim.", "the notice's age still updates");
+    clock = KICK - 1; tick();
+    assert.equal(analyzeCalls.length, an + 1, "a millisecond before kickoff: no engine run");
+    clock = KICK; tick();
+    assert.equal(analyzeCalls.length, an + 2, "the kickoff passed: one engine run (the engine's kickoff gate)");
+    clock = KICK + 15000; tick();
+    assert.equal(analyzeCalls.length, an + 2);
+    clock = Date.parse(HDR.generated_at) + 72 * 3600000 + 1; tick();
+    assert.equal(analyzeCalls.length, an + 3, "a data file's 72 h freshness window closed: one engine run");
+    clock = saved; $("waiver-reserve").dispatch("change");
+    assert.equal($("waiver-stale").hidden, true, "back on the fixture's clock");
   }
   // Summary line and settings row.
   assert.equal($("waiver-summary").hidden, false);
