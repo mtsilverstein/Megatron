@@ -443,6 +443,9 @@
     let snap = null, result = null, intel = null;
     let requestId = 0, protectedIds = new Set(), autoWeek = true;
     let currentBundle, refreshing = false, refreshError = null;
+    // The next clock threshold of the committed snapshot (clockBoundary), and
+    // when the last full run happened (a clock that moves backward re-runs).
+    let nextBoundary = Infinity, lastRunAt = -Infinity;
     // FAAB reserve: the default follows the league and its budget until the
     // user types a value (an emptied box hands control back to the default).
     let reserveKey = null, userTyped = false;
@@ -764,6 +767,8 @@
     function recompute() {
       if (!snap) return;
       const s = snap;
+      lastRunAt = Date.now();
+      nextBoundary = clockBoundary(s, lastRunAt);
       try {
         // Roster age from the POST-fetch time (bundle.rostersFetchedAt): past
         // 60 s the desk stays on screen, marked stale (claims may have
@@ -852,10 +857,40 @@
       FC.chip.refresh(refreshOptions()).then(() => { btn.disabled = false; });
     });
 
-    // The 15 s tick re-evaluates the committed snapshot (age, kickoff gate);
-    // it never fetches. No polling: new data arrives only through a refresh
-    // (Session.refresh) or a page reload.
-    setInterval(() => { if (snap && !$("waiver-results").hidden) recompute(); }, 15000);
+    // Clock thresholds of the committed snapshot: the engine's and the
+    // research radar's answers depend on the clock only through these, so
+    // between two of them a re-run would reproduce the same result. Each is
+    // the first instant the outcome differs: the roster stale mark (age >
+    // 60 s), a kickoff (now >= kickoff), a data file's freshness window
+    // (72 h: weekly, kickoffs, remaining, roles; 7 days: the ROS ranking;
+    // and the one-hour future-dated tolerance).
+    function clockBoundary(s, from) {
+      const H = 3600000, t = [s.bundle.rostersFetchedAt + STALE_MS + 1];
+      for (const d of [s.view.weekly, s.kickoffs, s.view.remaining, s.roles]) {
+        const g = Date.parse(d && d.generated_at);
+        if (Number.isFinite(g)) t.push(g - H, g + 72 * H + 1);
+      }
+      const r = Date.parse(s.rosEcr && s.rosEcr.snapshot_at);
+      if (Number.isFinite(r)) t.push(r, r + 7 * 24 * H + 1);
+      for (const g of (s.kickoffs && Array.isArray(s.kickoffs.games) ? s.kickoffs.games : [])) {
+        const k = Date.parse(g && g.kickoff);
+        if (Number.isFinite(k)) t.push(k);
+      }
+      return t.reduce((m, x) => (x > from && x < m ? x : m), Infinity);
+    }
+
+    // The 15 s tick never fetches (no polling: new data arrives only through a
+    // refresh or a page reload) and re-runs the engine only once a clock
+    // threshold has passed; otherwise it just updates the stale notice's age.
+    // The full run on every tick cost ~0.2-0.35 s of main thread on a 12-team
+    // league (Opus review, 2026-10-22).
+    setInterval(() => {
+      if (!snap || $("waiver-results").hidden) return;
+      const now = Date.now();
+      if (now >= nextBoundary || now < lastRunAt) { recompute(); return; }
+      const text = staleText(Date.now() - snap.bundle.rostersFetchedAt);
+      if (text && $("waiver-stale-text").textContent !== text) $("waiver-stale-text").textContent = text;
+    }, 15000);
 
     const hideResults = () => {
       snap = null; result = null; intel = null; showResults(false);
