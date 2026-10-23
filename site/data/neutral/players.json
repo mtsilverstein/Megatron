@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 7,
   "data_through": "2026-wk6",
-  "generated_at": "2026-10-22T20:37:19+00:00",
-  "batch_id": "2026-10-22T20:37:19+00:00|2026-wk6|w7",
+  "generated_at": "2026-10-23T10:13:13+00:00",
+  "batch_id": "2026-10-23T10:13:13+00:00|2026-wk6|w7",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -1232,7 +1232,7 @@
     {
       "player_id": "00-0034487",
       "sleeper_id": "5154",
-      "name": "Trent Sherfield Sr.",
+      "name": "Trent Sherfield",
       "team": "BUF",
       "position": "WR",
       "bye": 7,
@@ -8761,8 +8761,8 @@
       "position": "RB",
       "bye": 10,
       "ecr": 305,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {

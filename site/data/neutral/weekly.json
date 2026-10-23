@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 7,
   "data_through": "2026-wk6",
-  "generated_at": "2026-10-22T20:37:19+00:00",
-  "batch_id": "2026-10-22T20:37:19+00:00|2026-wk6|w7",
+  "generated_at": "2026-10-23T10:13:13+00:00",
+  "batch_id": "2026-10-23T10:13:13+00:00|2026-wk6|w7",
   "schema_version": 1,
   "kind": "neutral_weekly",
   "model": "transformer",
@@ -24,7 +24,7 @@
     "uncertainty": "expected cost only; discrete pick-six variance not simulated"
   },
   "method": {
-    "v": 1,
+    "v": 2,
     "model": "transformer",
     "artifacts": [
       "models/transformer/v1",
@@ -37,6 +37,44 @@
       {
         "path": "models/transformer/v1/through2025/calibration.json",
         "sha256": "d30ef7ae58d6f7ed85b432eef2de69498d5c41be6177e65e53090cd063e8a57a"
+      }
+    ],
+    "checkpoints": [
+      {
+        "path": "models/transformer/v1/through2025/metrics.json",
+        "sha256": "90c1015f27acbe80a2a7dba90c26ce61298ccb79be8649c6bfa3201ee86a67f6"
+      },
+      {
+        "path": "models/transformer/v1/through2025/model.pt",
+        "sha256": "57510e207a2ce17d09f3c2583c8da8285d976fd61214bcef19d5ee806aac7303"
+      },
+      {
+        "path": "models/transformer/v1/through2025/scaler.json",
+        "sha256": "c2bf94f4c72f073bea9c750cb9545c7e8db4e16bd2122c6209185afe5f95f5b8"
+      },
+      {
+        "path": "models/transformer/v1_s43/through2025/metrics.json",
+        "sha256": "63167c87c888ba6c3c305bb394e01a8a40ded4b51aa51140cff9facea2cd104b"
+      },
+      {
+        "path": "models/transformer/v1_s43/through2025/model.pt",
+        "sha256": "7afd307bd0264079771ec5678ad0a2dced63500f7d22879d99d582ba9f597c3d"
+      },
+      {
+        "path": "models/transformer/v1_s43/through2025/scaler.json",
+        "sha256": "c2bf94f4c72f073bea9c750cb9545c7e8db4e16bd2122c6209185afe5f95f5b8"
+      },
+      {
+        "path": "models/transformer/v1_s44/through2025/metrics.json",
+        "sha256": "8d8af58302d0fac29f5c8ea0cd18b3ea64b6e66b7daeabf7979890e964302ad2"
+      },
+      {
+        "path": "models/transformer/v1_s44/through2025/model.pt",
+        "sha256": "ded273725adb43ee1c43d3b4349514aa2b204395024b2ca0e73b2302a1ebebda"
+      },
+      {
+        "path": "models/transformer/v1_s44/through2025/scaler.json",
+        "sha256": "c2bf94f4c72f073bea9c750cb9545c7e8db4e16bd2122c6209185afe5f95f5b8"
       }
     ],
     "prior": {
