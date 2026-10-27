@@ -1,9 +1,9 @@
 {
   "season": 2026,
-  "week": 7,
-  "data_through": "2026-wk6",
-  "generated_at": "2026-10-26T21:41:50+00:00",
-  "batch_id": "2026-10-26T21:41:50+00:00|2026-wk6|w7",
+  "week": 8,
+  "data_through": "2026-wk7",
+  "generated_at": "2026-10-27T10:42:05+00:00",
+  "batch_id": "2026-10-27T10:42:05+00:00|2026-wk7|w8",
   "schema_version": 1,
   "kind": "neutral_evaluation",
   "records": [

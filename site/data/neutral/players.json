@@ -1,9 +1,9 @@
 {
   "season": 2026,
-  "week": 7,
-  "data_through": "2026-wk6",
-  "generated_at": "2026-10-26T21:41:50+00:00",
-  "batch_id": "2026-10-26T21:41:50+00:00|2026-wk6|w7",
+  "week": 8,
+  "data_through": "2026-wk7",
+  "generated_at": "2026-10-27T10:42:05+00:00",
+  "batch_id": "2026-10-27T10:42:05+00:00|2026-wk7|w8",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -12,8 +12,8 @@
     "scoring": "PPR"
   },
   "crosswalk": {
-    "matched_gsis": 167,
-    "matched_name": 524,
+    "matched_gsis": 168,
+    "matched_name": 527,
     "unmatched": 13
   },
   "players": [
@@ -123,18 +123,6 @@
       "ecr": null,
       "identity_only": false,
       "reason": null,
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0029263",
-      "sleeper_id": "1234",
-      "name": "Russell Wilson",
-      "team": "NYG",
-      "position": "QB",
-      "bye": 8,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -510,6 +498,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0032688",
+      "sleeper_id": "3423",
+      "name": "Robbie Chosen",
+      "team": "WAS",
+      "position": "WR",
+      "bye": 7,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0032764",
       "sleeper_id": "3198",
       "name": "Derrick Henry",
@@ -678,6 +678,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0033282",
+      "sleeper_id": "4082",
+      "name": "Curtis Samuel",
+      "team": "BUF",
+      "position": "WR",
+      "bye": 7,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0033288",
       "sleeper_id": "4217",
       "name": "George Kittle",
@@ -723,18 +735,6 @@
       "ecr": null,
       "identity_only": false,
       "reason": null,
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0033357",
-      "sleeper_id": "4381",
-      "name": "Taysom Hill",
-      "team": "NO",
-      "position": "TE",
-      "bye": 8,
-      "ecr": 536,
-      "identity_only": true,
-      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -867,6 +867,18 @@
       "ecr": null,
       "identity_only": false,
       "reason": null,
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0033591",
+      "sleeper_id": "4234",
+      "name": "Noah Brown",
+      "team": "WAS",
+      "position": "WR",
+      "bye": 7,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -1086,12 +1098,36 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0034054",
+      "sleeper_id": "4854",
+      "name": "River Cracraft",
+      "team": "WAS",
+      "position": "WR",
+      "bye": 7,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0034073",
       "sleeper_id": "5285",
       "name": "Ross Dwelley",
       "team": "DET",
       "position": "TE",
       "bye": 6,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0034159",
+      "sleeper_id": "5010",
+      "name": "Will Dissly",
+      "team": "LAC",
+      "position": "TE",
+      "bye": 7,
       "ecr": null,
       "identity_only": true,
       "reason": "team_disagrees",
@@ -1155,18 +1191,6 @@
       "ecr": null,
       "identity_only": false,
       "reason": null,
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0034367",
-      "sleeper_id": "5347",
-      "name": "Nyheim Miller-Hines",
-      "team": "NO",
-      "position": "RB",
-      "bye": 8,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -1278,6 +1302,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0034681",
+      "sleeper_id": "5000",
+      "name": "Chase Edmonds",
+      "team": "WAS",
+      "position": "RB",
+      "bye": 7,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0034753",
       "sleeper_id": "5012",
       "name": "Mark Andrews",
@@ -1311,18 +1347,6 @@
       "ecr": 285,
       "identity_only": false,
       "reason": null,
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0034791",
-      "sleeper_id": "4988",
-      "name": "Nick Chubb",
-      "team": "HOU",
-      "position": "RB",
-      "bye": 8,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -2106,18 +2130,6 @@
       "match": "gsis"
     },
     {
-      "player_id": "00-0035726",
-      "sleeper_id": "6202",
-      "name": "Jakob Johnson",
-      "team": "HOU",
-      "position": "RB",
-      "bye": 8,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "gsis"
-    },
-    {
       "player_id": "00-0035876",
       "sleeper_id": "7233",
       "name": "Andre Baccellia",
@@ -2286,6 +2298,18 @@
       "match": "name"
     },
     {
+      "player_id": "00-0036196",
+      "sleeper_id": "6943",
+      "name": "Gabe Davis",
+      "team": "BUF",
+      "position": "WR",
+      "bye": 7,
+      "ecr": 527,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "name"
+    },
+    {
       "player_id": "00-0036212",
       "sleeper_id": "6768",
       "name": "Tua Tagovailoa",
@@ -2307,18 +2331,6 @@
       "ecr": 10,
       "identity_only": false,
       "reason": null,
-      "match": "name"
-    },
-    {
-      "player_id": "00-0036232",
-      "sleeper_id": "6850",
-      "name": "Harrison Bryant",
-      "team": "HOU",
-      "position": "TE",
-      "bye": 8,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -4158,6 +4170,18 @@
       "match": "name"
     },
     {
+      "player_id": "00-0037654",
+      "sleeper_id": "8885",
+      "name": "Tucker Fisk",
+      "team": "LAC",
+      "position": "TE",
+      "bye": 7,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "name"
+    },
+    {
       "player_id": "00-0037664",
       "sleeper_id": "8142",
       "name": "Alec Pierce",
@@ -5611,15 +5635,15 @@
     },
     {
       "player_id": "00-0038977",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "9502",
+      "name": "Tank Dell",
       "team": "HOU",
-      "position": null,
+      "position": "WR",
       "bye": 8,
       "ecr": 247,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0038979",
@@ -11563,15 +11587,15 @@
     },
     {
       "player_id": "00-0041483",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13349",
+      "name": "Eli Stowers",
       "team": "PHI",
-      "position": null,
+      "position": "TE",
       "bye": 10,
       "ecr": 293,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041485",
