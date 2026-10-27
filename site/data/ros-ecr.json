@@ -6,7 +6,7 @@
   "season": 2026,
   "snapshot_at": "2026-10-23",
   "snapshot_precision": "date",
-  "retrieved_at": "2026-10-27T10:45:37.823277+00:00",
+  "retrieved_at": "2026-10-27T21:27:38.535824+00:00",
   "source": "FantasyPros via nflverse free rankings mirror",
   "source_url": "https://www.fantasypros.com/nfl/rankings/ros-ppr-overall.php",
   "players": [
@@ -480,17 +480,17 @@
       "ros_rank": 69.83
     },
     {
-      "player_id": "00-0036875",
-      "name": "Rhamondre Stevenson",
-      "position": "RB",
-      "team": "NE",
-      "ros_rank": 70.5
-    },
-    {
       "player_id": "00-0039919",
       "name": "Rome Odunze",
       "position": "WR",
       "team": "CHI",
+      "ros_rank": 70.5
+    },
+    {
+      "player_id": "00-0036875",
+      "name": "Rhamondre Stevenson",
+      "position": "RB",
+      "team": "NE",
       "ros_rank": 70.5
     },
     {
@@ -641,17 +641,17 @@
       "ros_rank": 97.17
     },
     {
-      "player_id": "00-0040126",
-      "name": "Colston Loveland",
-      "position": "TE",
-      "team": "CHI",
-      "ros_rank": 97.67
-    },
-    {
       "player_id": "00-0039910",
       "name": "Jayden Daniels",
       "position": "QB",
       "team": "WAS",
+      "ros_rank": 97.67
+    },
+    {
+      "player_id": "00-0040126",
+      "name": "Colston Loveland",
+      "position": "TE",
+      "team": "CHI",
       "ros_rank": 97.67
     },
     {
@@ -697,6 +697,13 @@
       "ros_rank": 105.17
     },
     {
+      "player_id": "00-0039163",
+      "name": "C.J. Stroud",
+      "position": "QB",
+      "team": "HOU",
+      "ros_rank": 105.33
+    },
+    {
       "player_id": "00-0040583",
       "name": "Woody Marks",
       "position": "RB",
@@ -711,24 +718,17 @@
       "ros_rank": 105.33
     },
     {
-      "player_id": "00-0039163",
-      "name": "C.J. Stroud",
+      "player_id": "00-0040743",
+      "name": "Tyler Shough",
       "position": "QB",
-      "team": "HOU",
-      "ros_rank": 105.33
+      "team": "NO",
+      "ros_rank": 105.5
     },
     {
       "player_id": "00-0041511",
       "name": "Omar Cooper Jr.",
       "position": "WR",
       "team": "NYJ",
-      "ros_rank": 105.5
-    },
-    {
-      "player_id": "00-0040743",
-      "name": "Tyler Shough",
-      "position": "QB",
-      "team": "NO",
       "ros_rank": 105.5
     },
     {
@@ -746,17 +746,17 @@
       "ros_rank": 106.83
     },
     {
-      "player_id": "00-0038393",
-      "name": "Dontayvion Wicks",
-      "position": "WR",
-      "team": "PHI",
-      "ros_rank": 107.5
-    },
-    {
       "player_id": "00-0038563",
       "name": "Tre Tucker",
       "position": "WR",
       "team": "LV",
+      "ros_rank": 107.5
+    },
+    {
+      "player_id": "00-0038393",
+      "name": "Dontayvion Wicks",
+      "position": "WR",
+      "team": "PHI",
       "ros_rank": 107.5
     },
     {
@@ -1138,17 +1138,17 @@
       "ros_rank": 164.0
     },
     {
-      "player_id": "00-0039165",
-      "name": "Zach Charbonnet",
-      "position": "RB",
-      "team": "SEA",
-      "ros_rank": 167.17
-    },
-    {
       "player_id": "00-0035710",
       "name": "Daniel Jones",
       "position": "QB",
       "team": "IND",
+      "ros_rank": 167.17
+    },
+    {
+      "player_id": "00-0039165",
+      "name": "Zach Charbonnet",
+      "position": "RB",
+      "team": "SEA",
       "ros_rank": 167.17
     },
     {
@@ -1299,17 +1299,17 @@
       "ros_rank": 198.0
     },
     {
-      "player_id": "00-0039398",
-      "name": "Joe Milton III",
-      "position": "QB",
-      "team": "PHI",
-      "ros_rank": 201.0
-    },
-    {
       "player_id": "00-0038129",
       "name": "Cade Otton",
       "position": "TE",
       "team": "TB",
+      "ros_rank": 201.0
+    },
+    {
+      "player_id": "00-0039398",
+      "name": "Joe Milton III",
+      "position": "QB",
+      "team": "PHI",
       "ros_rank": 201.0
     },
     {
@@ -1838,17 +1838,17 @@
       "ros_rank": 284.8
     },
     {
-      "player_id": "00-0039299",
-      "name": "George Holani",
-      "position": "RB",
-      "team": "SEA",
-      "ros_rank": 285.67
-    },
-    {
       "player_id": "00-0040170",
       "name": "Elic Ayomanor",
       "position": "WR",
       "team": "TEN",
+      "ros_rank": 285.67
+    },
+    {
+      "player_id": "00-0039299",
+      "name": "George Holani",
+      "position": "RB",
+      "team": "SEA",
       "ros_rank": 285.67
     },
     {
@@ -1894,17 +1894,17 @@
       "ros_rank": 292.6
     },
     {
-      "player_id": "00-0040648",
-      "name": "Tory Horton",
-      "position": "WR",
-      "team": "SEA",
-      "ros_rank": 293.33
-    },
-    {
       "player_id": "00-0038104",
       "name": "Tyquan Thornton",
       "position": "WR",
       "team": "KC",
+      "ros_rank": 293.33
+    },
+    {
+      "player_id": "00-0040648",
+      "name": "Tory Horton",
+      "position": "WR",
+      "team": "SEA",
       "ros_rank": 293.33
     },
     {
@@ -1929,13 +1929,6 @@
       "ros_rank": 295.8
     },
     {
-      "player_id": "00-0037112",
-      "name": "Jake Tonges",
-      "position": "TE",
-      "team": "SF",
-      "ros_rank": 297.0
-    },
-    {
       "player_id": "00-0037742",
       "name": "Treylon Burks",
       "position": "WR",
@@ -1950,11 +1943,25 @@
       "ros_rank": 297.0
     },
     {
+      "player_id": "00-0037112",
+      "name": "Jake Tonges",
+      "position": "TE",
+      "team": "SF",
+      "ros_rank": 297.0
+    },
+    {
       "player_id": "00-0038976",
       "name": "Marvin Mims Jr.",
       "position": "WR",
       "team": "DEN",
       "ros_rank": 297.6
+    },
+    {
+      "player_id": "00-0041326",
+      "name": "CJ Donaldson",
+      "position": "RB",
+      "team": "NO",
+      "ros_rank": 298.0
     },
     {
       "player_id": "00-0041096",
@@ -1971,20 +1978,6 @@
       "ros_rank": 298.0
     },
     {
-      "player_id": "00-0041326",
-      "name": "CJ Donaldson",
-      "position": "RB",
-      "team": "NO",
-      "ros_rank": 298.0
-    },
-    {
-      "player_id": "00-0037157",
-      "name": "Bam Knight",
-      "position": "RB",
-      "team": "ARI",
-      "ros_rank": 300.0
-    },
-    {
       "player_id": "00-0037120",
       "name": "Tyler Goodson",
       "position": "RB",
@@ -1996,6 +1989,13 @@
       "name": "Corey Kiner",
       "position": "RB",
       "team": "NE",
+      "ros_rank": 300.0
+    },
+    {
+      "player_id": "00-0037157",
+      "name": "Bam Knight",
+      "position": "RB",
+      "team": "ARI",
       "ros_rank": 300.0
     },
     {
@@ -2027,17 +2027,17 @@
       "ros_rank": 305.2
     },
     {
-      "player_id": "00-0031503",
-      "name": "Jameis Winston",
-      "position": "QB",
-      "team": "NYG",
-      "ros_rank": 305.33
-    },
-    {
       "player_id": "00-0037197",
       "name": "Isiah Pacheco",
       "position": "RB",
       "team": "DET",
+      "ros_rank": 305.33
+    },
+    {
+      "player_id": "00-0031503",
+      "name": "Jameis Winston",
+      "position": "QB",
+      "team": "NYG",
       "ros_rank": 305.33
     },
     {
@@ -2118,6 +2118,13 @@
       "ros_rank": 313.4
     },
     {
+      "player_id": "00-0040894",
+      "name": "Malik Benson",
+      "position": "WR",
+      "team": "LV",
+      "ros_rank": 314.0
+    },
+    {
       "player_id": "00-0040021",
       "name": "Phil Mafah",
       "position": "RB",
@@ -2129,13 +2136,6 @@
       "name": "Mitchell Evans",
       "position": "TE",
       "team": "CAR",
-      "ros_rank": 314.0
-    },
-    {
-      "player_id": "00-0040894",
-      "name": "Malik Benson",
-      "position": "WR",
-      "team": "LV",
       "ros_rank": 314.0
     },
     {
@@ -2230,13 +2230,6 @@
       "ros_rank": 325.5
     },
     {
-      "player_id": "00-0041099",
-      "name": "Barion Brown",
-      "position": "WR",
-      "team": "NO",
-      "ros_rank": 326.0
-    },
-    {
       "player_id": "00-0040782",
       "name": "Isaiah Bond",
       "position": "WR",
@@ -2251,17 +2244,24 @@
       "ros_rank": 326.0
     },
     {
-      "player_id": "00-0038979",
-      "name": "Cedric Tillman",
+      "player_id": "00-0041099",
+      "name": "Barion Brown",
       "position": "WR",
       "team": "NO",
-      "ros_rank": 327.0
+      "ros_rank": 326.0
     },
     {
       "player_id": "00-0039405",
       "name": "Jawhar Jordan",
       "position": "RB",
       "team": "HOU",
+      "ros_rank": 327.0
+    },
+    {
+      "player_id": "00-0038979",
+      "name": "Cedric Tillman",
+      "position": "WR",
+      "team": "NO",
       "ros_rank": 327.0
     },
     {
@@ -2349,17 +2349,17 @@
       "ros_rank": 336.0
     },
     {
-      "player_id": "00-0041550",
-      "name": "Brenen Thompson",
-      "position": "WR",
-      "team": "LAC",
-      "ros_rank": 336.0
-    },
-    {
       "player_id": "00-0041399",
       "name": "CJ Daniels",
       "position": "WR",
       "team": "LA",
+      "ros_rank": 336.0
+    },
+    {
+      "player_id": "00-0041550",
+      "name": "Brenen Thompson",
+      "position": "WR",
+      "team": "LAC",
       "ros_rank": 336.0
     },
     {
