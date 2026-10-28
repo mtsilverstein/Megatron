@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 8,
   "data_through": "2026-wk7",
-  "generated_at": "2026-10-28T11:26:42+00:00",
-  "batch_id": "2026-10-28T11:26:42+00:00|2026-wk7|w8",
+  "generated_at": "2026-10-28T21:44:38+00:00",
+  "batch_id": "2026-10-28T21:44:38+00:00|2026-wk7|w8",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -1477,8 +1477,8 @@
       "position": "WR",
       "bye": 8,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -1513,8 +1513,8 @@
       "position": "QB",
       "bye": 10,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -2485,8 +2485,8 @@
       "position": "TE",
       "bye": 11,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -3013,8 +3013,8 @@
       "position": "RB",
       "bye": 11,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -4861,8 +4861,8 @@
       "position": "WR",
       "bye": 8,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -5317,8 +5317,8 @@
       "position": "RB",
       "bye": 14,
       "ecr": 306,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -6265,8 +6265,8 @@
       "position": "WR",
       "bye": 13,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -10405,8 +10405,8 @@
       "position": "TE",
       "bye": 11,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
