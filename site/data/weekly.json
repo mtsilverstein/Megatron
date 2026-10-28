@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-27T21:25:45+00:00",
+  "generated_at": "2026-10-28T11:26:42+00:00",
   "data_through": "2026-wk7",
   "season": 2026,
   "week": 8,
@@ -38737,93 +38737,6 @@
       }
     },
     {
-      "player_id": "00-0039631",
-      "name": "Cam Grandy",
-      "team": "MIN",
-      "opponent": "DET",
-      "position": "TE",
-      "is_home": false,
-      "points": {
-        "ppr": {
-          "p10": -0.08,
-          "p50": 0.87,
-          "p90": 5.23
-        },
-        "half_ppr": {
-          "p10": -0.13,
-          "p50": 0.58,
-          "p90": 4.25
-        },
-        "standard": {
-          "p10": -0.18,
-          "p50": 0.29,
-          "p90": 3.27
-        },
-        "league": {
-          "p10": -0.11,
-          "p50": 0.86,
-          "p90": 5.25
-        }
-      },
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.2176896105945855,
-          "passing_tds": -0.015697794797402388,
-          "passing_interceptions": -0.008893150121591416,
-          "carries": -0.02968969835132636,
-          "rushing_yards": -0.06251040111043976,
-          "rushing_tds": -0.010991611898902142,
-          "targets": 0.24190371096700192,
-          "receptions": 0.10235595188626306,
-          "receiving_yards": 0.6269912574317802,
-          "receiving_tds": -0.010041929745362846,
-          "fumbles_lost": -0.017347619631732425,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": -0.041389111429452896,
-          "passing_tds": -0.0026056140195578337,
-          "passing_interceptions": 0.0002258612512378022,
-          "carries": -0.004456834867596626,
-          "rushing_yards": -0.015800198540091515,
-          "rushing_tds": -0.000950076908338815,
-          "targets": 0.9280417561531067,
-          "receptions": 0.5775726437568665,
-          "receiving_yards": 2.99027943611145,
-          "receiving_tds": 0.0012039287248626351,
-          "fumbles_lost": -0.0026781344786286354,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.28996258972485034,
-          "passing_tds": 0.008325099816451825,
-          "passing_interceptions": 0.005096346668138324,
-          "carries": 0.04734310572431699,
-          "rushing_yards": 0.12328990117821048,
-          "rushing_tds": 0.01811155731981856,
-          "targets": 2.5865905305928294,
-          "receptions": 1.9593101568158104,
-          "receiving_yards": 19.200568499520102,
-          "receiving_tds": 0.18901252930929058,
-          "fumbles_lost": 0.01562963500523762,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "stats_p50": {
-        "passing_yards": -0.04,
-        "passing_tds": -0.0,
-        "passing_interceptions": 0.0,
-        "carries": -0.0,
-        "rushing_yards": -0.02,
-        "rushing_tds": -0.0,
-        "targets": 0.93,
-        "receptions": 0.58,
-        "receiving_yards": 2.99,
-        "receiving_tds": 0.0,
-        "fumbles_lost": -0.0
-      }
-    },
-    {
       "player_id": "00-0039737",
       "name": "Tip Reiman",
       "team": "ARI",
@@ -39082,6 +38995,93 @@
         "receiving_yards": 0.46,
         "receiving_tds": 0.0,
         "fumbles_lost": 0.0
+      }
+    },
+    {
+      "player_id": "00-0039631",
+      "name": "Cam Grandy",
+      "team": "CIN",
+      "opponent": "TEN",
+      "position": "TE",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -0.09,
+          "p50": 0.83,
+          "p90": 5.07
+        },
+        "half_ppr": {
+          "p10": -0.14,
+          "p50": 0.55,
+          "p90": 4.13
+        },
+        "standard": {
+          "p10": -0.19,
+          "p50": 0.27,
+          "p90": 3.18
+        },
+        "league": {
+          "p10": -0.13,
+          "p50": 0.82,
+          "p90": 5.09
+        }
+      },
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.23206278110801648,
+          "passing_tds": -0.01605234783991452,
+          "passing_interceptions": -0.008678748243306405,
+          "carries": -0.027804236061155264,
+          "rushing_yards": -0.06189233191248099,
+          "rushing_tds": -0.01120370678308165,
+          "targets": 0.22963896126608285,
+          "receptions": 0.09566570420298387,
+          "receiving_yards": 0.5781612322989562,
+          "receiving_tds": -0.009865600276962474,
+          "fumbles_lost": -0.016801440554165138,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": -0.0585101842880249,
+          "passing_tds": -0.002605905057862401,
+          "passing_interceptions": 0.0011362392688170075,
+          "carries": -0.003402554662898183,
+          "rushing_yards": -0.018233058974146843,
+          "rushing_tds": -0.0015287535497918725,
+          "targets": 0.8855981826782227,
+          "receptions": 0.5572247505187988,
+          "receiving_yards": 2.8446121215820312,
+          "receiving_tds": 0.0010382052278146148,
+          "fumbles_lost": -0.002334333723410964,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.2964870405022504,
+          "passing_tds": 0.00789416934131687,
+          "passing_interceptions": 0.005234737045679144,
+          "carries": 0.05130262327224333,
+          "rushing_yards": 0.13889707558499254,
+          "rushing_tds": 0.017429576805942648,
+          "targets": 2.476661549988755,
+          "receptions": 1.8923934036745251,
+          "receiving_yards": 18.393108128479923,
+          "receiving_tds": 0.1882823305248822,
+          "fumbles_lost": 0.015521484612080416,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.06,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.0,
+        "carries": -0.0,
+        "rushing_yards": -0.02,
+        "rushing_tds": -0.0,
+        "targets": 0.89,
+        "receptions": 0.56,
+        "receiving_yards": 2.84,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
       }
     },
     {
