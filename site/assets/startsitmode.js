@@ -9,9 +9,10 @@
    bundles are compared by identity, never by generation.
 
    Two timestamps, two jobs: snapshotAt = bundle.rostersRequestedAt
-   (PRE-request, so a kickoff during retrieval locks the slot) and the 60 s
-   UI expiry against bundle.rostersFetchedAt (POST-fetch). The 15 s tick only
-   re-renders; nothing here polls.
+   (PRE-request, so a kickoff during retrieval locks the slot) and the roster
+   age against bundle.rostersFetchedAt (POST-fetch): past 60 s the plan stays
+   on screen, marked stale, with its own refresh button. The engine's kickoff
+   gate is the hard stop. The 15 s tick only re-renders; nothing here polls.
 
    Best ball, an unknown starting slot: projections only, no plan. The views
    are published to onView listeners (the projection table's league lens)
@@ -23,7 +24,8 @@
   const BEST_BALL = "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.";
   const NO_EVIDENCE = "No measured evaluation for your league's scoring and this model.";
   const HEURISTIC = n => `${n}-point threshold in your league's points (a heuristic)`;
-  const EXPIRED = "Roster snapshot expired. Refresh from the league panel before using these decisions.";
+  const STALE_MS = 60000;   // rosters older than this (from the post-fetch time) are marked stale
+  const STALE_STATUS = " Rosters are over a minute old; use Refresh rosters above the plan before acting on it.";
   const SKILL = ["QB", "RB", "WR", "TE"];
 
   // ---- statics: once per document, a failure retries on the next call ----
@@ -55,10 +57,29 @@
     const $=id=>document.getElementById(id), el=(tag,text)=>{const e=document.createElement(tag);e.textContent=text;return e;};
     let snapshot=null, sequence=0, currentBundle, refreshing=false;
     const S=window.Session;
-    const status=text=>{$("ss-status").textContent=text;};
+    // Writes only on a change: rewriting identical text into the live region
+    // can re-announce it, and the 15 s tick re-renders every time.
+    const status=text=>{const e=$("ss-status");if(e.textContent!==text)e.textContent=text;};
     try { FC.inSeasonLeague(); } catch (e) { status(e.message); return; }
     const showExclusions=on=>{const d=$("ss-exclude-panel");if(d)d.hidden=!on;};
-    const clear=()=>{snapshot=null;$("ss-output").replaceChildren();$("ss-exclude").replaceChildren();showExclusions(false);};
+    // The stale notice (null = rosters fresh, or no plan to mark).
+    const staleText=age=>{
+      if(!(age>STALE_MS))return null;
+      const m=Math.floor(age/60000);
+      return `Rosters loaded ${m<60?`${m} min ago`:`${Math.floor(m/60)} h ago`} — they may have changed since. Refresh before acting on this plan; injury tags update only when you reload the page.`;
+    };
+    const showStale=text=>{
+      const n=$("ss-stale");if(!n)return;
+      n.hidden=!text;
+      if(text&&$("ss-stale-text").textContent!==text)$("ss-stale-text").textContent=text;
+    };
+    const clear=()=>{snapshot=null;$("ss-output").replaceChildren();$("ss-exclude").replaceChildren();showExclusions(false);showStale(null);};
+    const staleBtn=$("ss-stale-refresh");
+    if(staleBtn)staleBtn.addEventListener("click",()=>{
+      staleBtn.disabled=true;
+      // The chip's own refresh (rosters + state); it settles either way.
+      FC.chip.refresh().then(()=>{staleBtn.disabled=false;});
+    });
 
     // The close-call and calibration lines are claims about the CURRENT
     // output only when evidenceFor binds a record (spec §3.2); otherwise the
@@ -91,14 +112,15 @@
       $("ss-output").replaceChildren();
       if(!snapshot)return;
       const s=snapshot, out=$("ss-output");
-      if(s.note){status(`${who(s)}; ${stamps(s)}`);out.append(...context(s),el("p",s.note));return;}
-      if(Date.now()-s.bundle.rostersFetchedAt>60000){status(EXPIRED);return;}
+      if(s.note){showStale(null);status(`${who(s)}; ${stamps(s)}`);out.append(...context(s),el("p",s.note));return;}
+      const stale=staleText(Date.now()-s.bundle.rostersFetchedAt);
+      showStale(stale);
       out.append(...context(s));
       try {
         const excluded=s.world.role==="owner"?[...$("ss-exclude").querySelectorAll("input:checked")].map(e=>e.value):[];
         const r=StartSit.analyze({board:s.view.board,weekly:s.view.weekly,league:s.world.league,roster:s.roster,catalog:s.catalog,
           kickoffs:s.kickoffs,excludeIds:excluded,snapshotAt:s.snapshotAt});
-        status(`${who(s)}; ${stamps(s)}`);
+        status(`${who(s)}; ${stamps(s)}${stale?STALE_STATUS:""}`);
         out.append(el("p",r.label));
         for(const w of r.warnings)out.append(el("p",w));
         const table=document.createElement("table"), head=el("tr","");
@@ -128,7 +150,14 @@
     }
     async function load(bundle){
       const request=++sequence, analysing=!!bundle.analysisRoster;
-      clear();
+      // A new bundle for the SAME team (a refresh) keeps the plan on screen
+      // until the new one renders, and keeps the owner's exclusions (pruned to
+      // the roster below); any other team, role or league clears both at once.
+      const same=!!snapshot&&analysing&&snapshot.bundle.analysisRole===bundle.analysisRole
+        &&String(snapshot.bundle.league&&snapshot.bundle.league.league_id)===String(bundle.league&&bundle.league.league_id)
+        &&snapshot.bundle.analysisRoster&&snapshot.bundle.analysisRoster.roster_id===bundle.analysisRoster.roster_id;
+      const keepExcluded=same?[...$("ss-exclude").querySelectorAll("input:checked")].map(e=>e.value):[];
+      if(!same)clear();
       status(analysing?"Reading roster, scoring, projections and kickoff times…":gateMessage(bundle));
       try {
         const b=await batch();
@@ -152,8 +181,9 @@
         const roster=world.rosters.find(r=>r.roster_id===world.rosterId);
         // Conservative: the PRE-request time, so a kickoff during retrieval needs another read.
         snapshot={view,kickoffs:ko,world,roster,catalog,catalogTime,bundle,format,note,snapshotAt:bundle.rostersRequestedAt};
+        $("ss-exclude").replaceChildren();showExclusions(false);
         if(!note&&world.role==="owner"){
-          for(const id of roster.players||[]){if(!SKILL.includes(catalog[id]?.position))continue;const label=document.createElement("label"),box=document.createElement("input");box.type="checkbox";box.value=id;box.addEventListener("change",render);label.append(box,el("span",catalog[id].full_name||id));$("ss-exclude").append(label);}
+          for(const id of roster.players||[]){if(!SKILL.includes(catalog[id]?.position))continue;const label=document.createElement("label"),box=document.createElement("input");box.type="checkbox";box.value=id;box.checked=keepExcluded.includes(id);box.addEventListener("change",render);label.append(box,el("span",catalog[id].full_name||id));$("ss-exclude").append(label);}
           showExclusions(true);
         }
         render();

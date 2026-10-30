@@ -94,7 +94,8 @@ def participation(weekly, schedules, rosters) -> pd.DataFrame:
     # are all kept rather than arbitrarily broken.
     r = r.assign(_trail=_trailing_role_score(r, weekly))
     r["_rank"] = r.groupby(["season", "week", "position"])["_trail"].rank(method="min", ascending=False)
-    r["relevant"] = r["_rank"] <= r["position"].map(RELEVANT_N)
+    # float: on pandas 3.1 an EMPTY string column maps to an empty string column, and comparing it raises.
+    r["relevant"] = r["_rank"] <= r["position"].map(RELEVANT_N).astype("float64")
     r = r.merge(stats.assign(played=True), on=["season", "week", "player_id"], how="left")
     r["played"] = r["played"].fillna(False).astype(bool)
     return (r.drop(columns=["first_row", "_trail", "_rank"])

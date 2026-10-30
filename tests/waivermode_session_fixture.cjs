@@ -88,6 +88,10 @@ function waiversPage(main) {
 // leaguelens, leaguedata, liveworld, waivers + waiverintel (stubbed here),
 // waivermode.
 global.window = {};
+// The page listens for `storage` events (another tab saving protections); captured here to fire by hand.
+const windowListeners = {};
+window.addEventListener = (type, fn) => { (windowListeners[type] ||= []).push(fn); };
+const fireStorage = key => { for (const fn of windowListeners.storage || []) fn({ key }); };
 const Session = require("../site/assets/session.js");
 const FC = require("../site/assets/app.js");
 assert.equal(window.Session, Session); assert.equal(window.FC, FC);
@@ -581,7 +585,31 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     boxes[0].checked = true; boxes[0].dispatch("change");
     assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"]);
   }
-  const an6b = analyzeCalls.length - 1;   // section 6 counts engine runs from here (the clear-all block above added two)
+  // Another tab saves protections for this league and team: this tab adopts them (the `storage` event).
+  {
+    const key = `megatron.waivers.protected.v1|${L}|9`, an = analyzeCalls.length;
+    lsStore.delete(key); fireStorage(key);
+    assert.equal(analyzeCalls.length, an + 1);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, [], "another tab cleared them: adopted");
+    assert.equal($("waiver-protect-toggle").textContent, "Protected: 0 players");
+    lsStore.set(key, '["a"]'); fireStorage(key);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "another tab ticked A Back: adopted");
+    assert.ok($("waiver-roster").querySelectorAll("input")[0].checked, "and its box shows ticked");
+    fireStorage(`megatron.waivers.protected.v1|${L}|3`); fireStorage(null);
+    assert.equal(analyzeCalls.length, an + 2, "another team's key, or a whole-store clear, is ignored here");
+    // A tab on OLDER rosters must not destroy a protection a fresher tab added (Opus maint review P2):
+    // "zz" is on the other tab's roster (a fresh claim), not this one's.
+    lsStore.set(key, '["a","zz"]'); fireStorage(key);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "an id not on this tab's roster never reaches its engine");
+    assert.equal(lsStore.get(key), '["a","zz"]', "adopting never rewrites the saved set");
+    const boxes = $("waiver-roster").querySelectorAll("input");
+    boxes[1].checked = true; boxes[1].dispatch("change");
+    assert.deepEqual(JSON.parse(lsStore.get(key)).sort(), ["a", "k", "zz"], "a save keeps saved ids this tab cannot see");
+    boxes[1].checked = false; boxes[1].dispatch("change");
+    assert.deepEqual(JSON.parse(lsStore.get(key)).sort(), ["a", "zz"]);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"]);
+  }
+  const an6b = analyzeCalls.length - 1;   // section 6 counts engine runs from here (the blocks above added engine runs)
 
   // 6. Roster age reads rostersFetchedAt (the reserve change handler is the tick's recompute()).
   //    Past 60 s the desk STAYS on screen, marked stale, with its own refresh
@@ -658,6 +686,23 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "a week change keeps the protections");
     $("waiver-week").value = ""; $("waiver-week").dispatch("change");
     await until(() => analyzeCalls.length > an7 + 1, "back to the automatic week");
+  }
+  // A load on OLDER rosters never prunes the saved set (Opus maint re-review P2): a week change reuses the
+  // committed bundle, whose rosters may be older than another tab's ("zz" = that tab's fresh claim).
+  {
+    const key = `megatron.waivers.protected.v1|${L}|9`, fetchedAt = Session.bundle().rostersFetchedAt, saved = clock;
+    lsStore.set(key, '["a","zz"]');
+    clock = fetchedAt + 120000;
+    const an = analyzeCalls.length;
+    $("waiver-week").value = "3"; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > an, "the stale week-change reload");
+    assert.equal(lsStore.get(key), '["a","zz"]', "stale rosters: the saved set is left alone");
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "while this tab's engine sees only its own roster");
+    clock = fetchedAt + 30000;
+    $("waiver-week").value = ""; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > an + 1, "a fresh-rosters week-change reload");
+    assert.equal(lsStore.get(key), '["a"]', "fresh rosters: the saved set is pruned to the roster");
+    clock = saved;
   }
   if (realNavigator) Object.defineProperty(globalThis, "navigator", realNavigator); else delete globalThis.navigator;
   // An engine refusal (e.g. its kickoff gate) still withholds the desk.

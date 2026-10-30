@@ -105,11 +105,23 @@
   // the lineup size is fixed by the slots, so who enters and who leaves always
   // pair up. States deltas and lineup moves only -- no judging words.
   // ctx.ownLabel names the analysed side for a viewer ("Your lineup" otherwise).
+  // ctx.received[i] (optional) lists the ids side i receives and ctx.playerName
+  // names them: a received player who never starts in the compared weeks is
+  // named, because the totals count starters only and he adds 0 there.
   const fmt1 = x => { const r = Math.round(x * 10) / 10; return r === 0 ? "0.0" : `${r < 0 ? "−" : "+"}${Math.abs(r).toFixed(1)}`; };
   const andList = xs => xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
   function lineupSummary(result, ctx) {
     const span = `weeks ${ctx.firstWeek}–${ctx.endWeek}`;
     const label = i => (i === 0 ? (ctx.ownLabel || "Your lineup") : (ctx.names && ctx.names[result.sides[i].rosterId]) || `roster ${result.sides[i].rosterId}`);
+    const benchNote = i => {
+      const got = ((ctx.received && ctx.received[i]) || []).map(String);
+      if (!got.length) return "";
+      const started = new Set();
+      for (const w of result.weeks) for (const p of (w.sides[i].after.lineup || [])) started.add(String(p.id));
+      const idle = got.filter(id => !started.has(id)).map(id => (ctx.playerName ? ctx.playerName(id) : id));
+      if (!idle.length) return "";
+      return ` ${andList(idle)} ${idle.length === 1 ? "never starts" : "never start"} in ${span}, so ${idle.length === 1 ? "adds" : "add"} 0 pts here.`;
+    };
     const perSide = result.sides.map((s, i) => {
       const changes = [];
       for (const w of result.weeks) {
@@ -122,8 +134,11 @@
       }
       return { i, delta: s.delta, changes };
     });
-    if (perSide.every(s => !s.changes.length)) return [`No change to either starting lineup in ${span} under these assumptions.`];
-    return perSide.map(({ i, delta, changes }) => {
+    if (perSide.every(s => !s.changes.length)) {
+      const notes = perSide.map(({ i }) => [i, benchNote(i)]).filter(([, t]) => t).map(([i, t]) => `${label(i)}:${t}`);
+      return [`No change to either starting lineup in ${span} under these assumptions.`, ...notes];
+    }
+    const body = ({ i, delta, changes }) => {
       const head = `${label(i)}: ${fmt1(delta)} pts over ${span}.`;
       if (!changes.length) return `${head} No change to the starting lineup.`;
       if (changes.length === 1) return `${head} All of it is week ${changes[0].week}: ${changes[0].move}.`;
@@ -133,8 +148,13 @@
       const top = ranked.slice(0, 3), rest = ranked.slice(3);
       const restSum = rest.reduce((a, c) => a + c.delta, 0);
       return `${head} Lineup changes in ${ranked.length} weeks; the 3 largest: ${top.map(item).join("; ")}; and smaller changes in ${rest.length} other week${rest.length === 1 ? "" : "s"} (${fmt1(restSum)} pts combined).`;
-    });
+    };
+    return perSide.map(s => body(s) + benchNote(s.i));
   }
+  // What the totals leave out, stated once under the summary (owner question 2026-10-22: a backup's value).
+  // A bench player DOES count in weeks he starts (a bye, or a week marked out in "Out some weeks?"); what is
+  // missing is cover for injuries nobody has entered (Opus maint review P3).
+  const STARTERS_ONLY = "These totals count starting lineups only: a bench player adds points only in weeks he starts (a bye, or a week you marked a player out). Cover for injuries you have not entered is not counted.";
   function coverageText(error) {
     if (error && Array.isArray(error.coverageIssues)) {
       const players = new Set(error.coverageIssues.map(x => x.id)).size;
@@ -843,7 +863,10 @@
       // 0. plain-English summary: the bottom line before anything else
       const summary = el("div", null, "season-summary");
       const ownLabel = viewer() ? names[result.sides[0].rosterId] : undefined;
-      for (const line of lineupSummary(result, { names, ownLabel, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week })) summary.append(el("p", line));
+      const received = [receive.map(String), give.map(String)];   // side 0 is the analysed roster: it gets `receive`
+      const playerNameOf = id => playerNamesAll[String(id)] || String(id);
+      for (const line of lineupSummary(result, { names, ownLabel, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week, received, playerName: playerNameOf })) summary.append(el("p", line));
+      summary.append(el("p", STARTERS_ONLY, "season-summary-note"));
       out.append(summary);
       // Everything after the totals is collapsible detail; nothing is removed.
       const section = (title, open) => {
@@ -928,7 +951,7 @@
     sync();
   }
 
-  return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, coverageText,
+  return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, STARTERS_ONLY, coverageText,
     contextLines, evidenceLines, rosValueLines, COPY, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init, batch, _reset,
     gradeLabel, pickHorizon, stratumOf, lopsidedMeasure, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
 });

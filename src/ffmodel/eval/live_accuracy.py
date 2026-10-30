@@ -469,8 +469,11 @@ def equivalence(lv: sw.TableValidation, nv: sw.TableValidation) -> dict:
               "divergent": [], "max_abs_diff": None}
     if lids != nids or not lids:
         return {"ok": False, **detail}
-    both = lv.valid.set_index("player_id")[list(QUANTILES)].join(
-        nv.valid.set_index("player_id")[list(QUANTILES)], rsuffix="_n", how="inner")
+    # merge, not join(rsuffix=): pandas 3.1 deprecates join's l/rsuffix and its replacement `suffixes` is absent
+    # before 3.1; an index merge with suffixes is the same inner join on every supported pandas.
+    both = lv.valid.set_index("player_id")[list(QUANTILES)].merge(
+        nv.valid.set_index("player_id")[list(QUANTILES)], left_index=True, right_index=True, how="inner",
+        suffixes=("", "_n"))
     diffs = np.column_stack([(both[q] - both[f"{q}_n"]).abs().to_numpy(float) for q in QUANTILES])
     bad = ~np.isfinite(diffs) | (diffs > EQUIV_TOL)
     detail["divergent"] = sorted(both.index[bad.any(axis=1)])

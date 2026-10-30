@@ -3,3 +3,7 @@
 #ss-exclude label { display: flex; align-items: center; gap: .35rem; }
 #ss-output th, #ss-output td { padding: .5rem; text-align: left; }
 #ss-status { overflow-wrap: anywhere; }
+/* Stale rosters: the notice and its refresh button stay at the top of the viewport while the plan scrolls. */
+#ss-stale { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem;
+  margin: 0 0 .75rem; padding: .55rem .8rem; border-left: 3px solid var(--accent); background: var(--sunken); font-weight: 600; }
+#ss-stale[hidden] { display: none; }
