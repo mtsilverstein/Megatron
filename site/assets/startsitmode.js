@@ -25,7 +25,7 @@
   const NO_EVIDENCE = "No measured evaluation for your league's scoring and this model.";
   const HEURISTIC = n => `${n}-point threshold in your league's points (a heuristic)`;
   const STALE_MS = 60000;   // rosters older than this (from the post-fetch time) are marked stale
-  const STALE_STATUS = " Rosters are over a minute old; use Refresh rosters above the plan before changing your lineup.";
+  const STALE_STATUS = " Rosters are over a minute old; use Refresh rosters above the plan before acting on it.";
   const SKILL = ["QB", "RB", "WR", "TE"];
 
   // ---- statics: once per document, a failure retries on the next call ----
@@ -66,7 +66,7 @@
     const staleText=age=>{
       if(!(age>STALE_MS))return null;
       const m=Math.floor(age/60000);
-      return `Rosters loaded ${m<60?`${m} min ago`:`${Math.floor(m/60)} h ago`} — lineups or injuries may have changed since. Refresh before setting your lineup.`;
+      return `Rosters loaded ${m<60?`${m} min ago`:`${Math.floor(m/60)} h ago`} — they may have changed since. Refresh before acting on this plan; injury tags update only when you reload the page.`;
     };
     const showStale=text=>{
       const n=$("ss-stale");if(!n)return;

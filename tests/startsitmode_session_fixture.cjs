@@ -319,8 +319,8 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.ok($("ss-output").children.length > 0 && /Suggested starter/.test(outputText()), "past 60 s the plan stays on screen");
   assert.equal(analyzeCalls.length, an5 + 3, "stale: the engine still runs (its kickoff gate is the hard stop)");
   assert.equal($("ss-stale").hidden, false, "past 60 s the stale notice shows");
-  assert.equal($("ss-stale-text").textContent, "Rosters loaded 1 min ago — lineups or injuries may have changed since. Refresh before setting your lineup.");
-  assert.match(statusText(), /\. Rosters are over a minute old; use Refresh rosters above the plan before changing your lineup\.$/);
+  assert.equal($("ss-stale-text").textContent, "Rosters loaded 1 min ago — they may have changed since. Refresh before acting on this plan; injury tags update only when you reload the page.");
+  assert.match(statusText(), /\. Rosters are over a minute old; use Refresh rosters above the plan before acting on it\.$/);
   {
     // An unchanged status is never rewritten (a rewrite can re-announce the live region).
     const el = $("ss-status");
@@ -332,7 +332,7 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   }
   clock = b4.rostersFetchedAt + 2 * 3600000 + 5000;
   toggle();
-  assert.equal($("ss-stale-text").textContent, "Rosters loaded 2 h ago — lineups or injuries may have changed since. Refresh before setting your lineup.");
+  assert.equal($("ss-stale-text").textContent, "Rosters loaded 2 h ago — they may have changed since. Refresh before acting on this plan; injury tags update only when you reload the page.");
   // The kickoff gate: an engine refusal still withholds the plan.
   engineThrows = "A game started since the roster was loaded. Refresh to capture actual locked slots.";
   toggle();

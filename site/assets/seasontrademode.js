@@ -152,7 +152,9 @@
     return perSide.map(s => body(s) + benchNote(s.i));
   }
   // What the totals leave out, stated once under the summary (owner question 2026-10-22: a backup's value).
-  const STARTERS_ONLY = "These totals count starting lineups only: bench depth and injury cover (what a backup is worth if a starter gets hurt) are not counted.";
+  // A bench player DOES count in weeks he starts (a bye, or a week marked out in "Out some weeks?"); what is
+  // missing is cover for injuries nobody has entered (Opus maint review P3).
+  const STARTERS_ONLY = "These totals count starting lineups only: a bench player adds points only in weeks he starts (a bye, or a week you marked a player out). Cover for injuries you have not entered is not counted.";
   function coverageText(error) {
     if (error && Array.isArray(error.coverageIssues)) {
       const players = new Set(error.coverageIssues.map(x => x.id)).size;

@@ -152,7 +152,7 @@ check("lineupSummary: nothing changes -> one sentence, then each side's never-st
     "Your lineup: Ollie Gordon II never starts in weeks 4–17, so adds 0 pts here.",
     "Easy Breecey: Rome Odunze never starts in weeks 4–17, so adds 0 pts here.",
   ]);
-  assert.match(M.STARTERS_ONLY, /^These totals count starting lineups only: bench depth and injury cover/);
+  assert.match(M.STARTERS_ONLY, /^These totals count starting lineups only: a bench player adds points only in weeks he starts .* Cover for injuries you have not entered is not counted\.$/);
 });
 check("the v1 simulation gate is gone (spec §6.2): no evalView/gateOpen; the measured-method helpers stay pure", () => {
   assert.equal(M.evalView, undefined); assert.equal(M.gateOpen, undefined);

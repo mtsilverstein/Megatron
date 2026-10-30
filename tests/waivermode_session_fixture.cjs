@@ -597,6 +597,17 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.ok($("waiver-roster").querySelectorAll("input")[0].checked, "and its box shows ticked");
     fireStorage(`megatron.waivers.protected.v1|${L}|3`); fireStorage(null);
     assert.equal(analyzeCalls.length, an + 2, "another team's key, or a whole-store clear, is ignored here");
+    // A tab on OLDER rosters must not destroy a protection a fresher tab added (Opus maint review P2):
+    // "zz" is on the other tab's roster (a fresh claim), not this one's.
+    lsStore.set(key, '["a","zz"]'); fireStorage(key);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "an id not on this tab's roster never reaches its engine");
+    assert.equal(lsStore.get(key), '["a","zz"]', "adopting never rewrites the saved set");
+    const boxes = $("waiver-roster").querySelectorAll("input");
+    boxes[1].checked = true; boxes[1].dispatch("change");
+    assert.deepEqual(JSON.parse(lsStore.get(key)).sort(), ["a", "k", "zz"], "a save keeps saved ids this tab cannot see");
+    boxes[1].checked = false; boxes[1].dispatch("change");
+    assert.deepEqual(JSON.parse(lsStore.get(key)).sort(), ["a", "zz"]);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"]);
   }
   const an6b = analyzeCalls.length - 1;   // section 6 counts engine runs from here (the blocks above added engine runs)
 
