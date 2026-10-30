@@ -687,6 +687,23 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     $("waiver-week").value = ""; $("waiver-week").dispatch("change");
     await until(() => analyzeCalls.length > an7 + 1, "back to the automatic week");
   }
+  // A load on OLDER rosters never prunes the saved set (Opus maint re-review P2): a week change reuses the
+  // committed bundle, whose rosters may be older than another tab's ("zz" = that tab's fresh claim).
+  {
+    const key = `megatron.waivers.protected.v1|${L}|9`, fetchedAt = Session.bundle().rostersFetchedAt, saved = clock;
+    lsStore.set(key, '["a","zz"]');
+    clock = fetchedAt + 120000;
+    const an = analyzeCalls.length;
+    $("waiver-week").value = "3"; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > an, "the stale week-change reload");
+    assert.equal(lsStore.get(key), '["a","zz"]', "stale rosters: the saved set is left alone");
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "while this tab's engine sees only its own roster");
+    clock = fetchedAt + 30000;
+    $("waiver-week").value = ""; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > an + 1, "a fresh-rosters week-change reload");
+    assert.equal(lsStore.get(key), '["a"]', "fresh rosters: the saved set is pruned to the roster");
+    clock = saved;
+  }
   if (realNavigator) Object.defineProperty(globalThis, "navigator", realNavigator); else delete globalThis.navigator;
   // An engine refusal (e.g. its kickoff gate) still withholds the desk.
   {

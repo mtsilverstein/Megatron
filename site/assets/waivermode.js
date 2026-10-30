@@ -492,9 +492,11 @@
     // reload keeps this tab's set (so a browser that cannot save still keeps
     // it) plus anything another tab saved; a fresh load reads the saved set.
     // With `writeBack`, the saved copy is pruned to this roster too (a player
-    // who left and returns is not silently protected again) -- only loads do
-    // that: their rosters were just fetched.
-    function ownerProtections(world, own, keep, writeBack = true) {
+    // who left and returns is not silently protected again) -- only a load
+    // whose rosters are fresh (under STALE_MS old) does that: a week change or
+    // an account change reuses the committed rosters, which may be older than
+    // another tab's.
+    function ownerProtections(world, own, keep, writeBack) {
       const ids = onRoster(own), stored = storedProtections(world);
       const kept = new Set([...(keep || []), ...stored].filter(id => ids.has(id)));
       if (writeBack && (kept.size !== stored.length || stored.some(id => !kept.has(id)))) writeProtected(world, kept);
@@ -964,7 +966,7 @@
         const board = hydrateBoard(view.board, catalog, world.rosters, view);
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
         protectedIds = world.role === "viewer" ? new Set((own.starters || []).filter(id => id !== "0"))
-          : ownerProtections(world, own, sameTeam ? protectedIds : null);
+          : ownerProtections(world, own, sameTeam ? protectedIds : null, Date.now() - bundle.rostersFetchedAt <= STALE_MS);
         applyReserveDefault(world.league);
         // A copied shortlist describes the snapshot it came from: adopting a
         // new one (even for the same team) clears it and its status.
