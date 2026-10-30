@@ -161,9 +161,11 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
 (async () => {
   routes = baseRoutes();
   const main = dom(`https://example.test/Megatron/weekly.html?league=${L}`);
-  for (const [tag, id] of [["p", "ss-status"], ["div", "ss-exclude"], ["div", "ss-output"], ["p", "ss-evidence"], ["span", "band-evidence"]]) {
+  for (const [tag, id] of [["p", "ss-status"], ["div", "ss-exclude"], ["div", "ss-output"], ["p", "ss-evidence"], ["span", "band-evidence"],
+    ["p", "ss-stale"], ["span", "ss-stale-text"], ["button", "ss-stale-refresh"]]) {
     const e = element(tag); e.id = id; main.append(e);
   }
+  document.getElementById("ss-stale").hidden = true;   // as in weekly.html
   const $ = id => document.getElementById(id);
   const statusText = () => $("ss-status").textContent;
   const chipForm = () => all($("session-chip")).find(n => n.tagName === "form");
@@ -301,19 +303,61 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.equal(analyzeCalls[an5].snapshotAt, b4.rostersRequestedAt, "the engine gets the NEW pre-request time");
   assert.match(statusText(), new RegExp(`^Read-only roster 9; week 3; rosters requested ${new Date(b4.rostersRequestedAt).toISOString()}, received ${new Date(b4.rostersFetchedAt).toISOString()}\\.`));
 
-  // 6. The 60 s expiry reads rostersFetchedAt (POST-fetch), not the
-  //    pre-request time the engine gates on.
+  // 6. Roster age reads rostersFetchedAt (POST-fetch), not the pre-request
+  //    time the engine gates on. Past 60 s the plan STAYS on screen, marked
+  //    stale, with its own refresh button (the waiver page's rule, owner report
+  //    2026-10-13; here 2026-10-30). The hard stop is the engine's kickoff gate.
   const toggle = () => box().dispatch("change");
   clock = b4.rostersFetchedAt + 59000;
   toggle();
-  assert.ok($("ss-output").children.length > 0, "59 s after the FETCH the plan still renders");
+  assert.ok($("ss-output").children.length > 0, "59 s after the FETCH the plan renders");
+  assert.equal($("ss-stale").hidden, true, "fresh rosters: no stale notice");
   assert.equal(analyzeCalls.length, an5 + 2);
   assert.equal(analyzeCalls[an5 + 1].snapshotAt, b4.rostersRequestedAt);
   clock = b4.rostersFetchedAt + 61000;
   toggle();
-  assert.equal(statusText(), "Roster snapshot expired. Refresh from the league panel before using these decisions.");
-  assert.equal($("ss-output").children.length, 0, "an expired snapshot renders no plan");
-  assert.equal(analyzeCalls.length, an5 + 2, "expired: the engine is not run");
+  assert.ok($("ss-output").children.length > 0 && /Suggested starter/.test(outputText()), "past 60 s the plan stays on screen");
+  assert.equal(analyzeCalls.length, an5 + 3, "stale: the engine still runs (its kickoff gate is the hard stop)");
+  assert.equal($("ss-stale").hidden, false, "past 60 s the stale notice shows");
+  assert.equal($("ss-stale-text").textContent, "Rosters loaded 1 min ago — lineups or injuries may have changed since. Refresh before setting your lineup.");
+  assert.match(statusText(), /\. Rosters are over a minute old; use Refresh rosters above the plan before changing your lineup\.$/);
+  {
+    // An unchanged status is never rewritten (a rewrite can re-announce the live region).
+    const el = $("ss-status");
+    let text = el.textContent, writes = 0;
+    Object.defineProperty(el, "textContent", { configurable: true, get: () => text, set: v => { writes++; text = v; } });
+    toggle(); toggle();
+    assert.equal(writes, 0, "identical status text is not rewritten");
+    delete el.textContent; el.textContent = text;
+  }
+  clock = b4.rostersFetchedAt + 2 * 3600000 + 5000;
+  toggle();
+  assert.equal($("ss-stale-text").textContent, "Rosters loaded 2 h ago — lineups or injuries may have changed since. Refresh before setting your lineup.");
+  // The kickoff gate: an engine refusal still withholds the plan.
+  engineThrows = "A game started since the roster was loaded. Refresh to capture actual locked slots.";
+  toggle();
+  assert.equal(statusText(), "No safe full-lineup recommendation: A game started since the roster was loaded. Refresh to capture actual locked slots.");
+  assert.doesNotMatch(outputText(), /Suggested starter/, "no plan table after a refusal");
+  engineThrows = null;
+  // The notice's button refreshes like the chip. A same-team refresh keeps the
+  // plan on screen and the owner's exclusions; the notice clears.
+  box().checked = true; toggle();
+  {
+    const an6 = analyzeCalls.length, emptied = [];
+    const off = Session.onChange(() => emptied.push($("ss-output").children.length === 0));
+    $("ss-stale-refresh").dispatch("click");
+    assert.equal($("ss-stale-refresh").disabled, true, "disabled while the refresh runs");
+    await until(() => Session.bundle() !== b4 && analyzeCalls.length > an6, "the stale-notice refresh to be adopted", 5000);
+    if (typeof off === "function") off();
+    await until(() => !$("ss-stale-refresh").disabled, "the button to re-enable");
+    assert.ok(!emptied.includes(true) && $("ss-output").children.length > 0, "a same-team refresh never empties the plan");
+    assert.equal($("ss-stale").hidden, true, "fresh rosters again: the notice clears");
+    assert.equal(box().checked, true, "a same-team refresh keeps the owner's exclusions");
+    assert.deepEqual(analyzeCalls.at(-1).excludeIds, ["a"], "and the new plan honours them");
+    assert.match(statusText(), /^Read-only roster 9; week 3; /);
+    assert.doesNotMatch(statusText(), /over a minute old/);
+    box().checked = false; toggle();
+  }
 
   // 7. Viewer flow (Review Focus 5). Forget -> anonymous; choose Bo's team.
   clock = b4.rostersFetchedAt + 2000;   // back inside the 60 s window

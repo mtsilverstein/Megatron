@@ -37,8 +37,9 @@
     <p><a href="about.html">Historical results and their scope</a> are on the about page; they are not claims about your league's scoring.</p>
     </details>
     <p id="ss-status" role="status">The plan loads from the league panel above: enter your Sleeper username, or choose a team to view. The projections below remain independent of this plan.</p>
-    <details id="ss-exclude-panel" hidden><summary>Manually exclude unavailable players</summary><p>Use current injury information. Excluding someone is not a recommendation to drop them. Game-started slots cannot be changed. Refreshing clears exclusions; reload the page to refresh the cached injury catalog.</p><div id="ss-exclude"></div></details>
+    <details id="ss-exclude-panel" hidden><summary>Manually exclude unavailable players</summary><p>Use current injury information. Excluding someone is not a recommendation to drop them. Game-started slots cannot be changed. Exclusions are kept when you refresh this team's rosters; reload the page to clear them and refresh the cached injury catalog.</p><div id="ss-exclude"></div></details>
     <p id="ss-evidence">Close calls: No measured evaluation for your league's scoring and this model. Tiny differences are weak leans.</p>
+    <p id="ss-stale" hidden><span id="ss-stale-text"></span> <button type="button" id="ss-stale-refresh">Refresh rosters</button></p>
     <div id="ss-output" class="table-wrap"></div>
   </section>
   <h2>Player projections</h2>
@@ -86,7 +87,7 @@ about page.</footer>
 <script src="assets/liveworld.js?v=1"></script>
 <script src="assets/waivermode.js?v=minors1"></script>
 <script src="assets/startsit.js?v=kernel1"></script>
-<script src="assets/startsitmode.js?v=neutral1"></script>
+<script src="assets/startsitmode.js?v=stale1"></script>
 <script>StartSitMode.init();</script>
 <script>
 (async () => {
