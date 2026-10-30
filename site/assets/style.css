@@ -532,6 +532,7 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 .season-summary { margin: 0 0 .9rem; padding: .6rem .8rem; border-left: 3px solid var(--chalk-dim);
   background: var(--board-raised); }
 .season-summary p { margin: .15rem 0; font: 400 .95rem/1.45 "Source Sans 3", sans-serif; color: var(--chalk); }
+.season-summary p.season-summary-note { margin-top: .4rem; font-size: .86rem; color: var(--chalk-dim); }
 .season-detail { margin: .5rem 0; }
 .season-detail > summary { cursor: pointer; font: 600 .8rem/1.2 "Barlow Condensed", sans-serif;
   letter-spacing: .08em; text-transform: uppercase; color: var(--chalk-dim); }

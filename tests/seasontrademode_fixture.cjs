@@ -135,6 +135,25 @@ check("lineupSummary: many changed weeks -> the 3 largest named, the rest summar
   assert.equal(M.lineupSummary(manyWeeks, sumCtx)[0], "Your lineup: +9.0 pts over weeks 4–17. Lineup changes in 6 weeks; the 3 largest: week 9 (+5.0): Kyler Murray starts instead of Justin Herbert; week 6 (+4.0): Kyler Murray starts instead of Justin Herbert; week 7 (−3.5): Kyler Murray and Rome Odunze start instead of Justin Herbert and Chris Olave; and smaller changes in 3 other weeks (+3.5 pts combined).");
   assert.deepEqual(M.lineupSummary(mkResult({}), sumCtx), ["No change to either starting lineup in weeks 4–17 under these assumptions."]);
 });
+// Owner question 2026-10-22 (Parker Washington for Ollie Gordon II): a received
+// player who never starts adds 0 to these starter-only totals, and is named.
+const NAMES = { k: "Kyler Murray", h: "Justin Herbert", g: "Ollie Gordon II", x: "Rome Odunze" };
+const recvCtx = received => ({ ...sumCtx, received, playerName: id => NAMES[id] || id });
+check("lineupSummary: a received player who never starts is named, with 0 pts; one who starts is not", () => {
+  assert.deepEqual(M.lineupSummary(herbertForKyler, recvCtx([["k"], ["h"]])), M.lineupSummary(herbertForKyler, sumCtx), "both received players start: no note");
+  const lines = M.lineupSummary(herbertForKyler, recvCtx([["k", "g"], ["h"]]));
+  assert.equal(lines[0], "Your lineup: −6.1 pts over weeks 4–17. All of it is week 8: Kyler Murray starts instead of Justin Herbert. Ollie Gordon II never starts in weeks 4–17, so adds 0 pts here.");
+  assert.equal(lines[1], "Easy Breecey: +7.9 pts over weeks 4–17. All of it is week 5: Justin Herbert starts instead of Dak Prescott.");
+  assert.equal(M.lineupSummary(herbertForKyler, recvCtx([["g", "x"], []]))[0].split(". ").at(-1), "Ollie Gordon II and Rome Odunze never start in weeks 4–17, so add 0 pts here.", "plural");
+});
+check("lineupSummary: nothing changes -> one sentence, then each side's never-starting received players", () => {
+  assert.deepEqual(M.lineupSummary(mkResult({}), recvCtx([["g"], ["x"]])), [
+    "No change to either starting lineup in weeks 4–17 under these assumptions.",
+    "Your lineup: Ollie Gordon II never starts in weeks 4–17, so adds 0 pts here.",
+    "Easy Breecey: Rome Odunze never starts in weeks 4–17, so adds 0 pts here.",
+  ]);
+  assert.match(M.STARTERS_ONLY, /^These totals count starting lineups only: bench depth and injury cover/);
+});
 check("the v1 simulation gate is gone (spec §6.2): no evalView/gateOpen; the measured-method helpers stay pure", () => {
   assert.equal(M.evalView, undefined); assert.equal(M.gateOpen, undefined);
   for (const f of ["gradeLabel", "pickHorizon", "stratumOf", "lopsidedMeasure", "errorFor", "gradeText", "marketText", "startCounts"]) assert.equal(typeof M[f], "function", f);
@@ -420,6 +439,9 @@ async function ownerFlow() {
   });
   await sub("rendered result: summary first, no grade panel, evaluation fallback; never the old pick line", async () => {
     assert.equal(els.result.children[0].className, "season-summary");
+    const summaryLines = els.result.children[0].children;
+    assert.equal(summaryLines.at(-1).textContent, M.STARTERS_ONLY, "the starters-only caveat closes the summary");
+    assert.equal(summaryLines.at(-1).className, "season-summary-note");
     assert.ok(!els.result.children.some(x => x.className === "season-grade"));
     const details = els.result.children.filter(x => x.tagName === "details");
     assert.deepEqual(details.map(d => d.children[0].textContent), ["Week-by-week lineup totals", "Assumptions", "Engine notes", "Measured evaluation"]);
