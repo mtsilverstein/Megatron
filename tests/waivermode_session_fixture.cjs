@@ -88,6 +88,10 @@ function waiversPage(main) {
 // leaguelens, leaguedata, liveworld, waivers + waiverintel (stubbed here),
 // waivermode.
 global.window = {};
+// The page listens for `storage` events (another tab saving protections); captured here to fire by hand.
+const windowListeners = {};
+window.addEventListener = (type, fn) => { (windowListeners[type] ||= []).push(fn); };
+const fireStorage = key => { for (const fn of windowListeners.storage || []) fn({ key }); };
 const Session = require("../site/assets/session.js");
 const FC = require("../site/assets/app.js");
 assert.equal(window.Session, Session); assert.equal(window.FC, FC);
@@ -581,7 +585,20 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     boxes[0].checked = true; boxes[0].dispatch("change");
     assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"]);
   }
-  const an6b = analyzeCalls.length - 1;   // section 6 counts engine runs from here (the clear-all block above added two)
+  // Another tab saves protections for this league and team: this tab adopts them (the `storage` event).
+  {
+    const key = `megatron.waivers.protected.v1|${L}|9`, an = analyzeCalls.length;
+    lsStore.delete(key); fireStorage(key);
+    assert.equal(analyzeCalls.length, an + 1);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, [], "another tab cleared them: adopted");
+    assert.equal($("waiver-protect-toggle").textContent, "Protected: 0 players");
+    lsStore.set(key, '["a"]'); fireStorage(key);
+    assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "another tab ticked A Back: adopted");
+    assert.ok($("waiver-roster").querySelectorAll("input")[0].checked, "and its box shows ticked");
+    fireStorage(`megatron.waivers.protected.v1|${L}|3`); fireStorage(null);
+    assert.equal(analyzeCalls.length, an + 2, "another team's key, or a whole-store clear, is ignored here");
+  }
+  const an6b = analyzeCalls.length - 1;   // section 6 counts engine runs from here (the blocks above added engine runs)
 
   // 6. Roster age reads rostersFetchedAt (the reserve change handler is the tick's recompute()).
   //    Past 60 s the desk STAYS on screen, marked stale, with its own refresh

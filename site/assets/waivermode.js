@@ -481,6 +481,7 @@
     // and team in this browser so a refresh, a week change or a reload never
     // resets them. Nothing is sent anywhere. The viewer mode protects the
     // viewed team's starters (that owner's choice is not visible).
+    // The prefix is also session.js WAIVER_PROTECT_PREFIX: Session.forget() wipes these keys.
     const protectKey = world => `megatron.waivers.protected.v1|${world.league.league_id}|${world.rosterId}`;
     const onRoster = own => new Set((own.players || []).map(String));
     // The owner's protections for a load: the in-memory set for the same team
@@ -504,6 +505,17 @@
     }
     function saveProtected() {
       if (snap && !viewer()) writeProtected(snap.world, protectedIds);
+    }
+    // Another tab saved (or cleared) protections for this same league and
+    // team: adopt them, so two open tabs never silently overwrite each other.
+    // The browser fires `storage` only in the OTHER tabs, never the writer.
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("storage", e => {
+        if (!snap || viewer() || !e || e.key !== protectKey(snap.world)) return;
+        const own = snap.world.rosters.find(r => r.roster_id === snap.world.rosterId);
+        protectedIds = ownerProtections(snap.world, own, null);
+        renderRoster(); recompute();
+      });
     }
 
     function renderRoster() {

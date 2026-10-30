@@ -418,7 +418,8 @@ const sorted = a => a.slice().sort();
   });
 
   await check("13. forget deletes identity, legacy and every draft-restore record; keeps league data and unrelated keys", async () => {
-    const store = fakeStorage({ [LEGACY_KEY]: "old", "fc-draft-mode:gabagool": "{}", "fc-draft-mode:fam": "{}", "unrelated": "keep", "fc-draft-mode:zzz": "{}" });
+    const store = fakeStorage({ [LEGACY_KEY]: "old", "fc-draft-mode:gabagool": "{}", "fc-draft-mode:fam": "{}", "unrelated": "keep", "fc-draft-mode:zzz": "{}",
+      "megatron.waivers.protected.v1|900|9": "[\"a\"]" });
     Session._storage(store);
     const { get } = fakeGet(routes());
     Session._get(get);
@@ -435,6 +436,7 @@ const sorted = a => a.slice().sort();
     assert.equal(store.getItem("fc-draft-mode:gabagool"), null);
     assert.equal(store.getItem("fc-draft-mode:fam"), null);
     assert.equal(store.getItem("fc-draft-mode:zzz"), null, "every fc-draft-mode:* key goes, not just registry slugs");
+    assert.equal(store.getItem("megatron.waivers.protected.v1|900|9"), null, "the waiver desk's saved protections go too (which league and team this browser managed)");
     assert.equal(store.getItem("unrelated"), "keep");
     assert.equal(Session.identity(), null);
     assert.equal(Session.pendingUsername(), null, "forget also drops a migrated pending username");

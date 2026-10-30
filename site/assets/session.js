@@ -70,6 +70,9 @@
   const IDENTITY_KEY = "megatron:session:identity";
   const LEGACY_KEY = "megatron:sleeper-username";
   const DRAFT_RESTORE_PREFIX = "fc-draft-mode:";
+  // The waiver desk's saved drop protections (waivermode.js protectKey): which
+  // league and team this browser managed, so forget() wipes them too.
+  const WAIVER_PROTECT_PREFIX = "megatron.waivers.protected.v1|";
   const NOT_FOUND = "Sleeper username was not found.";
   const NO_UNIQUE_ROSTER = "Could not uniquely match this account to a roster in this league.";
   const ID_MISMATCH = "live league does not match this board; refusing to load advice";
@@ -265,7 +268,7 @@
     try {
       for (let i = store.length - 1; i >= 0; i--) {
         const k = store.key(i);
-        if (typeof k === "string" && k.startsWith(DRAFT_RESTORE_PREFIX)) doomed.add(k);
+        if (typeof k === "string" && (k.startsWith(DRAFT_RESTORE_PREFIX) || k.startsWith(WAIVER_PROTECT_PREFIX))) doomed.add(k);
       }
     } catch (_) {}
     // Storages without a working key() still lose the known slugs' records.
