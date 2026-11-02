@@ -1,0 +1,107 @@
+{
+ "as_of_date": "2026-10-28",
+ "caveats": [
+  "Projections = the bot pipeline's latest publication on main before K_N 00:00 UTC, proven by GitHub push records; Vercel deployment is not verified.",
+  "Players who recorded a stat line only; DNPs are outside the estimand.",
+  "Both expert sources are FantasyPros mirrors; small samples are descriptive, not tests.",
+  "Reference values are context: the historical population and fallback history differ."
+ ],
+ "kind": "live_accuracy",
+ "overall": {
+  "above_p90": 0.11349957007738606,
+  "below_p10": 0.0885640584694755,
+  "coverage_p10_p90": 0.7979363714531384,
+  "mae": 4.307403267411866,
+  "n": 2326,
+  "naive_mae": 4.626964746345657
+ },
+ "protocol_version": "live-accuracy-v1",
+ "provisional_weeks": [
+  7
+ ],
+ "run_at": "2026-10-28T19:09:00Z",
+ "schema_version": 1,
+ "scoring": "ppr",
+ "season": 2026,
+ "source": "models/diagnostics/live_2026_weekly.json",
+ "weeks": [
+  {
+   "above_p90": 0.13592233009708737,
+   "below_p10": 0.10032362459546926,
+   "coverage_p10_p90": 0.7637540453074434,
+   "last_game": "2026-09-14",
+   "mae": 4.809870550161813,
+   "n": 309,
+   "naive_mae": 5.0772330097087375,
+   "provisional": false,
+   "week": 1
+  },
+  {
+   "above_p90": 0.10285714285714286,
+   "below_p10": 0.10571428571428572,
+   "coverage_p10_p90": 0.7914285714285715,
+   "last_game": "2026-09-21",
+   "mae": 4.1434,
+   "n": 350,
+   "naive_mae": 4.9086428571428575,
+   "provisional": false,
+   "week": 2
+  },
+  {
+   "above_p90": 0.11898016997167139,
+   "below_p10": 0.07365439093484419,
+   "coverage_p10_p90": 0.8073654390934845,
+   "last_game": "2026-09-28",
+   "mae": 4.279773371104816,
+   "n": 353,
+   "naive_mae": 4.515547686496695,
+   "provisional": false,
+   "week": 3
+  },
+  {
+   "above_p90": 0.10704225352112676,
+   "below_p10": 0.07323943661971831,
+   "coverage_p10_p90": 0.819718309859155,
+   "last_game": "2026-10-05",
+   "mae": 4.258816901408451,
+   "n": 355,
+   "naive_mae": 4.243962441314554,
+   "provisional": false,
+   "week": 4
+  },
+  {
+   "above_p90": 0.11504424778761062,
+   "below_p10": 0.10029498525073746,
+   "coverage_p10_p90": 0.7846607669616519,
+   "last_game": "2026-10-12",
+   "mae": 4.48873156342183,
+   "n": 339,
+   "naive_mae": 4.830113077679449,
+   "provisional": false,
+   "week": 5
+  },
+  {
+   "above_p90": 0.10793650793650794,
+   "below_p10": 0.0761904761904762,
+   "coverage_p10_p90": 0.8158730158730159,
+   "last_game": "2026-10-19",
+   "mae": 3.984539682539683,
+   "n": 315,
+   "naive_mae": 4.362359788359789,
+   "provisional": false,
+   "week": 6
+  },
+  {
+   "above_p90": 0.10819672131147541,
+   "below_p10": 0.09180327868852459,
+   "coverage_p10_p90": 0.8,
+   "last_game": "2026-10-26",
+   "mae": 4.206983606557378,
+   "n": 305,
+   "naive_mae": 4.4697814207650275,
+   "provisional": true,
+   "week": 7
+  }
+ ],
+ "weeks_skipped": []
+}

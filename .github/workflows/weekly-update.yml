@@ -54,6 +54,11 @@ jobs:
         if: inputs.draft != true
         continue-on-error: true
         run: python -m ffmodel.site.ros_experts
+      - name: Refresh the live accuracy summary (a checked copy of the committed weekly scorecard)
+        id: live_accuracy
+        if: inputs.draft != true
+        continue-on-error: true
+        run: python -m ffmodel.site.live_accuracy_site
       - name: Surface optional refresh failures
         if: inputs.draft != true
         run: |
@@ -64,6 +69,10 @@ jobs:
           if [ "${{ steps.ros_experts.outcome }}" = "failure" ]; then
             echo "::warning::ROS consensus refresh (ros_experts) failed; site/data/ros-ecr.json is stale"
             echo "- ROS consensus refresh (ros_experts) failed; \`site/data/ros-ecr.json\` is stale" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ steps.live_accuracy.outcome }}" = "failure" ]; then
+            echo "::warning::Live accuracy summary (live_accuracy_site) failed; site/data/live-accuracy.json is stale"
+            echo "- Live accuracy summary (live_accuracy_site) failed; \`site/data/live-accuracy.json\` is stale" >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Commit refreshed data
         id: commit

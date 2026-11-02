@@ -634,3 +634,5 @@ tr.detail > td { background: var(--sunken); border-bottom: 1px solid var(--rule)
   text-transform: uppercase;
   color: var(--muted, #8a949c);
 }
+/* Live accuracy table (about page): numeric headers align right but keep the label font. */
+#live-table th.num { font-family: inherit; text-align: right; }
