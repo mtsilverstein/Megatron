@@ -58,7 +58,7 @@ jobs:
         id: live_accuracy
         if: inputs.draft != true
         continue-on-error: true
-        run: python -m ffmodel.site.live_accuracy_site
+        run: python -m ffmodel.site.live_accuracy_site --season "$SEASON"
       - name: Surface optional refresh failures
         if: inputs.draft != true
         run: |

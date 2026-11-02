@@ -84,3 +84,17 @@ def test_the_committed_scorecard_extracts():
     art = json.loads(Path("models/diagnostics/live_2026_weekly.json").read_text(encoding="utf-8"))
     out = extract(art)
     assert out["weeks"] and out["overall"]["n"] == sum(w["n"] for w in out["weeks"])
+
+
+def test_skipped_weeks_are_kept_as_week_and_reason_and_must_be_unscored():
+    art = _art()
+    art["weeks_skipped"] = [{"week": 4, "reason": "validation_failed", "detail": "schedule_dependency_failed"},
+                            {"week": 3, "reason": "incomplete_week"}]
+    assert extract(art)["weeks_skipped"] == [{"week": 3, "reason": "incomplete_week"},
+                                             {"week": 4, "reason": "validation_failed"}]
+    art["weeks_skipped"] = [{"week": 2, "reason": "incomplete_week"}]
+    with pytest.raises(ValueError, match="unscored week"):
+        extract(art)
+    art["weeks_skipped"] = [5]
+    with pytest.raises(ValueError, match="unscored week"):
+        extract(art)

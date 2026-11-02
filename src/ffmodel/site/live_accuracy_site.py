@@ -81,11 +81,19 @@ def extract(art: dict) -> dict:
     caveats = art.get("caveats") or []
     if not isinstance(caveats, list) or not all(isinstance(c, str) for c in caveats):
         raise ValueError("caveats must be a list of strings")
+    # Weeks the scorecard could not score are named on the page, never silently left out.
+    skipped = []
+    for s in art.get("weeks_skipped") or []:
+        w = s.get("week") if isinstance(s, dict) else None
+        reason = s.get("reason") if isinstance(s, dict) else None
+        if isinstance(w, bool) or not isinstance(w, int) or not isinstance(reason, str) or w in scored:
+            raise ValueError(f"weeks_skipped entry {s!r} is not a {{week, reason}} for an unscored week")
+        skipped.append({"week": w, "reason": reason})
     return {"schema_version": SCHEMA_VERSION, "kind": KIND, "protocol_version": PROTOCOL, "season": season,
             "scoring": "ppr", "as_of_date": as_of, "run_at": run_at,
             "source": f"models/diagnostics/live_{season}_weekly.json",
             "overall": overall, "weeks": weeks, "provisional_weeks": sorted(provisional),
-            "weeks_skipped": art.get("weeks_skipped") or [], "caveats": caveats}
+            "weeks_skipped": sorted(skipped, key=lambda s: s["week"]), "caveats": caveats}
 
 
 def serialise(summary: dict) -> str:

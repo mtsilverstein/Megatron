@@ -64,7 +64,8 @@ into the process:
 
 **Live 2026 results.** Through week 7, scored from the projections actually published before kickoff, the MAE was
 4.31 against 4.63 for the naive baseline (2,326 player-weeks), and 79.8% of outcomes landed inside the p10–p90 band,
-against a target of 80%. The model beat the baseline in six of the seven weeks. The site's
+against a target of 80% (as of 28 October; week 7 was still provisional, pending stat corrections). The model
+beat the baseline in six of the seven weeks. The site's
 [about page](https://megatron-ff.vercel.app/about.html) shows the week-by-week table, recomputed every week.
 
 **It does not beat expert consensus.**

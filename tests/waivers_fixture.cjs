@@ -263,10 +263,14 @@ check("exact scorer matches brute force on randomized lineup shapes, WRRB_FLEX a
 });
 
 // Wall-clock bounds trip on a busy machine: a run over the bound is retried (up to 3 runs) and the fastest
-// counts. A real regression is slow on every run.
+// counts. A real regression is slow on every run. A first (cold) run over twice the bound fails at once, so a
+// gross regression is never retried away; a marginal over-run is retried, since that is what load looks like.
+// Trade-off (Opus review P3): a small cold-only slowdown can pass on a warm retry.
 function fastest(fn, bound, runs = 3) {
-  let ms = Infinity, out;
-  for (let i = 0; i < runs && ms >= bound; i++) { const t0 = Date.now(); out = fn(); ms = Math.min(ms, Date.now() - t0); }
+  const t0 = Date.now(), out = fn();
+  let ms = Date.now() - t0;
+  if (ms >= 2 * bound) return { out, ms };
+  for (let i = 1; i < runs && ms >= bound; i++) { const t1 = Date.now(); fn(); ms = Math.min(ms, Date.now() - t1); }
   return { out, ms };
 }
 check("large board analysis stays bounded", () => {
