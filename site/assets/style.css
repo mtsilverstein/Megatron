@@ -634,3 +634,9 @@ tr.detail > td { background: var(--sunken); border-bottom: 1px solid var(--rule)
   text-transform: uppercase;
   color: var(--muted, #8a949c);
 }
+/* Live accuracy table (about page): numeric headers align right but keep the label font. */
+#live-table th.num { font-family: inherit; text-align: right; }
+#live-table tbody th { font-weight: 400; text-align: left; }
+#live-table tr.overall th, #live-table tr.overall td { font-weight: 600; }
+/* Screen-reader-only text (also in waivers.css, which the about page does not load). */
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

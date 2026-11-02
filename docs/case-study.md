@@ -62,8 +62,11 @@ into the process:
 | XGBoost | 4.45 |
 | **Quantile transformer** | **4.33** |
 
-**Live 2026 results.** In weeks 1–4, scored from the projections actually published before kickoff, the MAE was
-4.36 against 4.67 for the naive baseline. About 80% of outcomes landed inside the p10–p90 band, against a target of 80%.
+**Live 2026 results.** Through week 7, scored from the projections actually published before kickoff, the MAE was
+4.31 against 4.63 for the naive baseline (2,326 player-weeks), and 79.8% of outcomes landed inside the p10–p90 band,
+against a target of 80% (as of 28 October; week 7 was still provisional, pending stat corrections). The model
+beat the baseline in six of the seven weeks. The site's
+[about page](https://megatron-ff.vercel.app/about.html) shows the week-by-week table, recomputed every week.
 
 **It does not beat expert consensus.**
 - **Preseason ranking:** FantasyPros expert consensus wins every position-season. About 60% of that edge is

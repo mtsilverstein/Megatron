@@ -43,6 +43,15 @@
   <p class="eyebrow">Methodology, honestly</p>
   <h1>How these projections are made</h1>
 
+  <!-- This season, scored live: data/live-accuracy.json (copied from the weekly
+       scorecard by the site refresh). Hidden until that file loads and checks out. -->
+  <section class="evidence" id="live-accuracy" aria-labelledby="live-h" hidden>
+    <h2 id="live-h">This season, scored live</h2>
+    <p class="chart-lead" id="live-lead"></p>
+    <div class="table-wrap" id="live-table"></div>
+    <p class="chart-note" id="live-note"></p>
+  </section>
+
   <!-- The strongest evidence on the site leads the page. Both figures are
        drawn from data/about.json at load; nothing here is hardcoded. -->
   <section class="evidence" id="calibration" aria-labelledby="cal-h">
@@ -241,6 +250,7 @@ uncertainty. Built as an open portfolio project — data via nflverse.
 <script src="assets/session.js?v=4"></script>
 <script src="assets/app.js?v=league3"></script>
 <script src="assets/sleeper.js"></script>
+<script src="assets/liveaccuracy.js?v=1"></script>
 <script>
 /* The two evidence charts. Exposed as window.AboutCharts so the render path
    can be re-run against a mutated COPY of the payload (see the degradation
@@ -764,6 +774,8 @@ window.AboutScoped = (() => {
 <script>
 (async () => {
   FC.leagueNavigation();
+  const $id = id => document.getElementById(id);
+  LiveAccuracy.load({ section: $id("live-accuracy"), lead: $id("live-lead"), table: $id("live-table"), note: $id("live-note") }, FC.loadJSON);
   AboutScoped.load(document.getElementById("scoped-results"));
   const about = await FC.loadJSON("data/about.json");
   FC.stampHeader(about);

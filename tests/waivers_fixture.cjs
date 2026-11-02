@@ -262,10 +262,21 @@ check("exact scorer matches brute force on randomized lineup shapes, WRRB_FLEX a
   assert.ok(compared >= 10, `compared ${compared}`);
 });
 
+// Wall-clock bounds trip on a busy machine: a run over the bound is retried (up to 3 runs) and the fastest
+// counts. A real regression is slow on every run. A first (cold) run over twice the bound fails at once, so a
+// gross regression is never retried away; a marginal over-run is retried, since that is what load looks like.
+// Trade-off (Opus review P3): a small cold-only slowdown can pass on a warm retry.
+function fastest(fn, bound, runs = 3) {
+  const t0 = Date.now(), out = fn();
+  let ms = Date.now() - t0;
+  if (ms >= 2 * bound) return { out, ms };
+  for (let i = 1; i < runs && ms >= bound; i++) { const t1 = Date.now(); fn(); ms = Math.min(ms, Date.now() - t1); }
+  return { out, ms };
+}
 check("large board analysis stays bounded", () => {
   const many=board.players.concat(Array.from({length:600},(_,i)=>p(2000+i,["QB","RB","WR","TE"][i%4],5+(i%25))));
-  const start=Date.now(); W.analyze({...base,board:{players:many},weekly:freshWeekly(many)});
-  assert.ok(Date.now()-start<1000, `large-board analysis took ${Date.now()-start}ms`);
+  const { ms } = fastest(() => W.analyze({...base,board:{players:many},weekly:freshWeekly(many)}), 1000);
+  assert.ok(ms < 1000, `large-board analysis took ${ms}ms (fastest of up to 3 runs)`);
 });
 
 check("fresh-week unavailable owned players score zero", () => {
@@ -757,10 +768,9 @@ check("priced path stays inside the existing performance bound", () => {
   const mine = bigBoard.players.slice(0, 15).map(x => x.sleeper_id);
   const bigRosters = [{ roster_id:1, players:mine, starters:mine.slice(0, 8).concat(["0","0"]), reserve:[], taxi:[], settings:{ waiver_budget_used:0 } }, { roster_id:2, players:[], starters:[], reserve:[], taxi:[], settings:{ waiver_budget_used:0 } }];
   const remaining = remainingFor({}, { end_week: 17, players: bigBoard.players.map(x => ({ player_id:x.player_id, team:"A", weeks: Array.from({ length: 17 }, (_, i) => rosRow(i + 1, x.wk)) })) });
-  const t0 = Date.now();
-  const out = W.analyze({ ...base, board:bigBoard, league:big, rosters:bigRosters, weekly:freshWeekly(bigBoard.players), remaining, protectedIds:[] });
+  const { out, ms } = fastest(() => W.analyze({ ...base, board:bigBoard, league:big, rosters:bigRosters, weekly:freshWeekly(bigBoard.players), remaining, protectedIds:[] }), 4000);
   assert.ok(out.rows.length > 0 && out.rows.some(r => r.dropCost.status === "priced"));
-  assert.ok(Date.now() - t0 < 4000, `priced analysis took ${Date.now() - t0} ms`);
+  assert.ok(ms < 4000, `priced analysis took ${ms} ms (fastest of up to 3 runs)`);
 });
 
 // --- through the real league views and the controller's hydration (spec §3.4, Review Focus 1) ----

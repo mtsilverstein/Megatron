@@ -73,8 +73,10 @@ played after the scrape less accurately within position than FantasyPros
 consensus (0.597 vs 0.634; difference −0.037, 95% week-resampled interval
 [−0.047, −0.028], conditional on those seasons; dependence between weeks not
 modelled). Not a claim about this page's league-specific rankings — see the
-about page.</footer>
+about page.
+<span id="live-accuracy-line"></span></footer>
 <script src="assets/bands.js"></script>
+<script src="assets/liveaccuracy.js?v=1"></script>
 <script src="assets/weekly-experts.js?v=2"></script>
 <script src="assets/session.js?v=4"></script>
 <script src="assets/app.js?v=league3"></script>
@@ -89,6 +91,7 @@ about page.</footer>
 <script src="assets/startsit.js?v=kernel1"></script>
 <script src="assets/startsitmode.js?v=stale1"></script>
 <script>StartSitMode.init();</script>
+<script>LiveAccuracy.loadLine(document.getElementById("live-accuracy-line"), FC.loadJSON);</script>
 <script>
 (async () => {
   // Any Sleeper league by id (spec 5.1): the league panel + chip, then the
