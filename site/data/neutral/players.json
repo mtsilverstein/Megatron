@@ -1,9 +1,9 @@
 {
   "season": 2026,
-  "week": 8,
-  "data_through": "2026-wk7",
-  "generated_at": "2026-11-02T23:56:51+00:00",
-  "batch_id": "2026-11-02T23:56:51+00:00|2026-wk7|w8",
+  "week": 9,
+  "data_through": "2026-wk8",
+  "generated_at": "2026-11-03T12:53:41+00:00",
+  "batch_id": "2026-11-03T12:53:41+00:00|2026-wk8|w9",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -12,9 +12,9 @@
     "scoring": "PPR"
   },
   "crosswalk": {
-    "matched_gsis": 168,
-    "matched_name": 527,
-    "unmatched": 13
+    "matched_gsis": 172,
+    "matched_name": 534,
+    "unmatched": 14
   },
   "players": [
     {
@@ -123,6 +123,18 @@
       "ecr": null,
       "identity_only": false,
       "reason": null,
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0029263",
+      "sleeper_id": "1234",
+      "name": "Russell Wilson",
+      "team": "NYG",
+      "position": "QB",
+      "bye": 8,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -474,18 +486,6 @@
       "match": "gsis"
     },
     {
-      "player_id": "00-0032434",
-      "sleeper_id": "3357",
-      "name": "Brandon Allen",
-      "team": "TEN",
-      "position": "QB",
-      "bye": 9,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "gsis"
-    },
-    {
       "player_id": "00-0032464",
       "sleeper_id": "3634",
       "name": "Kalif Raymond",
@@ -735,6 +735,18 @@
       "ecr": null,
       "identity_only": false,
       "reason": null,
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0033357",
+      "sleeper_id": "4381",
+      "name": "Taysom Hill",
+      "team": "NO",
+      "position": "TE",
+      "bye": 8,
+      "ecr": 536,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -1194,6 +1206,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0034367",
+      "sleeper_id": "5347",
+      "name": "Nyheim Miller-Hines",
+      "team": "NO",
+      "position": "RB",
+      "bye": 8,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0034383",
       "sleeper_id": "5001",
       "name": "Dalton Schultz",
@@ -1347,6 +1371,18 @@
       "ecr": 285,
       "identity_only": false,
       "reason": null,
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0034791",
+      "sleeper_id": "4988",
+      "name": "Nick Chubb",
+      "team": "HOU",
+      "position": "RB",
+      "bye": 8,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -2130,6 +2166,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0035726",
+      "sleeper_id": "6202",
+      "name": "Jakob Johnson",
+      "team": "HOU",
+      "position": "RB",
+      "bye": 8,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0035876",
       "sleeper_id": "7233",
       "name": "Andre Baccellia",
@@ -2262,18 +2310,6 @@
       "match": "name"
     },
     {
-      "player_id": "00-0036176",
-      "sleeper_id": "7436",
-      "name": "Mason Kinsey",
-      "team": "TEN",
-      "position": "WR",
-      "bye": 9,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "name"
-    },
-    {
       "player_id": "00-0036182",
       "sleeper_id": "7496",
       "name": "Nick Westbrook-Ikhine",
@@ -2331,6 +2367,18 @@
       "ecr": 10,
       "identity_only": false,
       "reason": null,
+      "match": "name"
+    },
+    {
+      "player_id": "00-0036232",
+      "sleeper_id": "6850",
+      "name": "Harrison Bryant",
+      "team": "HOU",
+      "position": "TE",
+      "bye": 8,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -2719,15 +2767,15 @@
     },
     {
       "player_id": "00-0036510",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "7597",
+      "name": "Kenny Yeboah",
       "team": "ARI",
-      "position": null,
+      "position": "TE",
       "bye": 14,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0036527",
@@ -3979,15 +4027,15 @@
     },
     {
       "player_id": "00-0037382",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "8756",
+      "name": "Brandon Johnson",
       "team": "PIT",
-      "position": null,
+      "position": "WR",
       "bye": 9,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0037410",
@@ -5156,13 +5204,13 @@
     {
       "player_id": "00-0038614",
       "sleeper_id": null,
-      "name": null,
+      "name": "Scott Matlock",
       "team": "LAC",
-      "position": null,
+      "position": "RB",
       "bye": 7,
       "ecr": null,
       "identity_only": true,
-      "reason": "no_projection",
+      "reason": "no_catalog_match",
       "match": null
     },
     {
@@ -6751,15 +6799,15 @@
     },
     {
       "player_id": "00-0039703",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "11644",
+      "name": "Cody Schrader",
       "team": "DEN",
-      "position": null,
+      "position": "RB",
       "bye": 10,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0039710",
@@ -9751,15 +9799,15 @@
     },
     {
       "player_id": "00-0040959",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13419",
+      "name": "Jaydn Ott",
       "team": "KC",
-      "position": null,
+      "position": "RB",
       "bye": 5,
       "ecr": 490,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0040964",
@@ -9835,15 +9883,15 @@
     },
     {
       "player_id": "00-0040981",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13350",
+      "name": "Joe Fagnano",
       "team": "BAL",
-      "position": null,
+      "position": "QB",
       "bye": 13,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0040984",
@@ -10231,15 +10279,15 @@
     },
     {
       "player_id": "00-0041084",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13408",
+      "name": "Tanner Koziol",
       "team": "JAX",
-      "position": null,
+      "position": "TE",
       "bye": 7,
       "ecr": 485,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041087",
@@ -10339,15 +10387,15 @@
     },
     {
       "player_id": "00-0041116",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13282",
+      "name": "Jack Endries",
       "team": "CIN",
-      "position": null,
+      "position": "TE",
       "bye": 6,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041117",
