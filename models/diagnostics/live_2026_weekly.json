@@ -7,16 +7,16 @@
  ],
  "evaluator_version": {
   "dirty": false,
-  "id": "live-accuracy-v1+8388293000a12ac3e7ab2238c1ad52e4e042e0a8",
+  "id": "live-accuracy-v1+5735fca823fb843590ba6a3ece3b625ac41f2b21",
   "protocol_version": "live-accuracy-v1",
-  "src_ffmodel_tree": "8388293000a12ac3e7ab2238c1ad52e4e042e0a8"
+  "src_ffmodel_tree": "5735fca823fb843590ba6a3ece3b625ac41f2b21"
  },
  "inputs": {
   "actuals_by_season": {
    "2023": "c149053c931edfe3c7c8868d08afd1a7b59740f0e239ac1c9bb354fd8b729381",
    "2024": "c8c194e514591c602def6706467a7ee7afec131e45747a5b1cf4a8197ecd310f",
    "2025": "f49532b98cb865894d88d3db6a5ff9a7aebc31dd27279a36d7c336cbd68fba69",
-   "2026": "5465b5171c468fba24435be4466569fd6a9e3a653339eea428ee7922ce5b9ed8"
+   "2026": "13104b824b61e8fc0fc3ca2e3433495552082a2d45f3020ff79a5bf6c65ac93e"
   },
   "archive_blobs": {
    "2026-w04-2026-09-30-220d00155877a0a7.json": "220d00155877a0a71cf83e2cbdb7553065bf4d364753ffad271d9d3bafcb7b8e",
@@ -29,13 +29,17 @@
    "2026-w06-2026-10-14-e628b5d7578d4bc7.json": "e628b5d7578d4bc7aaea77b8fec50483b53c0a00120ea45c2494a1f6273f83b1",
    "2026-w07-2026-10-20-3126d73adf353f9c.json": "3126d73adf353f9c0ab115eebf45ac0f3978c3f0c73fd2b2440911e43e332402",
    "2026-w07-2026-10-21-916af146c017c6e0.json": "916af146c017c6e0a150e2258a3feb8474c16467dcbbbd4d535c9901fdd9a294",
-   "2026-w07-2026-10-21-9bc8dbc1c22df72f.json": "9bc8dbc1c22df72fcbc3ac179ba80dd3958ee0b126998858eb0d394810079f3b"
+   "2026-w07-2026-10-21-9bc8dbc1c22df72f.json": "9bc8dbc1c22df72fcbc3ac179ba80dd3958ee0b126998858eb0d394810079f3b",
+   "2026-w08-2026-10-27-15ac317e9bdb2563.json": "15ac317e9bdb2563c4b9810949e150b3c28976106cc6abb9895f8417b11f2700",
+   "2026-w08-2026-10-27-f3dc8857ce004dee.json": "f3dc8857ce004dee03b59dfcd248d4d98150e3185210fc6728f9f713ba4ea25d",
+   "2026-w08-2026-10-28-cd05b58470baef07.json": "cd05b58470baef0730e3c9b8fd60fe88edf4c3a35c9f637b592fb88a363555a7",
+   "2026-w08-2026-10-28-ddd61795b8843566.json": "ddd61795b8843566a42c74126c330ebae1aca9f0f8e47eb07d921c176ba41701"
   },
   "bakeoff": {
    "path": "models/backtests/bakeoff.json",
    "sha256": "25253e1a7ef3034b0eb24573efd73460c66f507812a583d9dff58fcb49a1cfc2"
   },
-  "crosswalk": "8f8e95a72c2bc86c67c4708922357852c4300f883f9695474f89e27c44df4407",
+  "crosswalk": "5fc70a471a13b91b8d2e9ea487ba6bc40a5acf41572928cf0e9855e2c266c471",
   "ledger": {
    "coverage": [
     [
@@ -69,71 +73,75 @@
     [
      "-inf",
      "2026-10-28T19:09:00Z"
+    ],
+    [
+     "-inf",
+     "2026-11-03T22:10:06Z"
     ]
    ],
-   "events": 308,
-   "sha256": "2758aa23f6009bfbaaf1b6c826ec4b6878c85d9c7e2edfb4680910299f3e8c18"
+   "events": 323,
+   "sha256": "053bc9fdc6f79b00bddc02f95157ff7d34cd446746b33827b19849e58059c442"
   },
-  "rankings_raw": "d92a4129f1ffd68b05f6213041f36d652dab9d15b770ed0a8229279b72f14d0e",
-  "schedules": "31397f90132d70ebd60969caeff9e2457e44538e921ef544fcc4b86be18c43b6"
+  "rankings_raw": "7dfc0d423bd1739311433d2504ec892f8c22ef6d69422ca5f2350e689046b321",
+  "schedules": "098ed14f8826e43ca43f3732345c3d3ad3f1b4c3413a7f2ac858956df0eb1d5d"
  },
  "points": {
   "by_position": {
    "QB": {
-    "above_p90": 0.09401709401709402,
-    "below_p10": 0.05555555555555555,
-    "coverage_p10_p90": 0.8504273504273504,
-    "mae": 6.0890598290598295,
-    "mean_resid": 1.870341880341881,
-    "median_resid": 1.2150000000000016,
-    "n": 234,
-    "naive_mae": 6.397122507122507,
-    "pinball_p10": 1.239645299145299,
-    "pinball_p50": 3.0445299145299147,
-    "pinball_p90": 1.3869145299145296,
-    "share_above_p50": 0.5641025641025641
+    "above_p90": 0.09328358208955224,
+    "below_p10": 0.06716417910447761,
+    "coverage_p10_p90": 0.8395522388059702,
+    "mae": 6.22634328358209,
+    "mean_resid": 1.6337313432835825,
+    "median_resid": 0.9900000000000002,
+    "n": 268,
+    "naive_mae": 6.593942786069652,
+    "pinball_p10": 1.2747388059701492,
+    "pinball_p50": 3.113171641791045,
+    "pinball_p90": 1.4536604477611936,
+    "share_above_p50": 0.5447761194029851
    },
    "RB": {
-    "above_p90": 0.10673234811165845,
-    "below_p10": 0.06896551724137931,
-    "coverage_p10_p90": 0.8243021346469622,
-    "mae": 4.371264367816092,
-    "mean_resid": 3.1114285714285717,
-    "median_resid": 0.9200000000000002,
-    "n": 609,
-    "naive_mae": 4.524425287356322,
-    "pinball_p10": 0.652512315270936,
-    "pinball_p50": 2.185632183908046,
-    "pinball_p90": 1.14095894909688,
-    "share_above_p50": 0.5829228243021346
+    "above_p90": 0.10434782608695652,
+    "below_p10": 0.07246376811594203,
+    "coverage_p10_p90": 0.8231884057971014,
+    "mae": 4.413550724637681,
+    "mean_resid": 3.1296956521739134,
+    "median_resid": 0.9150000000000001,
+    "n": 690,
+    "naive_mae": 4.5621618357487925,
+    "pinball_p10": 0.6586115942028986,
+    "pinball_p50": 2.2067753623188406,
+    "pinball_p90": 1.1679608695652173,
+    "share_above_p50": 0.5797101449275363
    },
    "TE": {
-    "above_p90": 0.12476007677543186,
-    "below_p10": 0.14395393474088292,
-    "coverage_p10_p90": 0.7312859884836852,
-    "mae": 3.772015355086373,
-    "mean_resid": 2.027101727447217,
-    "median_resid": 0.3000000000000007,
-    "n": 521,
-    "naive_mae": 4.193841970569418,
-    "pinball_p10": 0.5466046065259117,
-    "pinball_p50": 1.8860076775431864,
-    "pinball_p90": 1.132387715930902,
-    "share_above_p50": 0.525911708253359
+    "above_p90": 0.12457337883959044,
+    "below_p10": 0.13651877133105803,
+    "coverage_p10_p90": 0.7389078498293515,
+    "mae": 3.740836177474403,
+    "mean_resid": 2.041996587030717,
+    "median_resid": 0.27,
+    "n": 586,
+    "naive_mae": 4.142804323094426,
+    "pinball_p10": 0.5416382252559726,
+    "pinball_p50": 1.8704180887372015,
+    "pinball_p90": 1.1094726962457335,
+    "share_above_p50": 0.5204778156996587
    },
    "WR": {
-    "above_p90": 0.11642411642411643,
-    "below_p10": 0.079002079002079,
-    "coverage_p10_p90": 0.8045738045738046,
-    "mae": 4.123555093555093,
-    "mean_resid": 2.1971517671517673,
-    "median_resid": 0.01,
-    "n": 962,
-    "naive_mae": 4.495869715869716,
-    "pinball_p10": 0.6268617463617464,
-    "pinball_p50": 2.0617775467775465,
-    "pinball_p90": 1.2302713097713094,
-    "share_above_p50": 0.5041580041580042
+    "above_p90": 0.11336405529953918,
+    "below_p10": 0.08571428571428572,
+    "coverage_p10_p90": 0.8009216589861751,
+    "mae": 4.128552995391706,
+    "mean_resid": 2.196221198156682,
+    "median_resid": 0.02,
+    "n": 1085,
+    "naive_mae": 4.449844854070661,
+    "pinball_p10": 0.6358064516129034,
+    "pinball_p50": 2.064276497695853,
+    "pinball_p90": 1.2158258064516128,
+    "share_above_p50": 0.5087557603686635
    }
   },
   "by_week": {
@@ -241,73 +249,88 @@
     "pinball_p50": 2.103491803278689,
     "pinball_p90": 1.075983606557377,
     "share_above_p50": 0.5475409836065573
+   },
+   "8": {
+    "above_p90": 0.09570957095709572,
+    "below_p10": 0.11551155115511551,
+    "coverage_p10_p90": 0.7887788778877888,
+    "last_game": "2026-11-02",
+    "mae": 4.51023102310231,
+    "mean_resid": 2.2262046204620463,
+    "median_resid": 0.27,
+    "n": 303,
+    "naive_mae": 4.648558855885589,
+    "pinball_p10": 0.7526171617161717,
+    "pinball_p50": 2.255115511551155,
+    "pinball_p90": 1.2274554455445543,
+    "share_above_p50": 0.5181518151815182
    }
   },
   "overall": {
-   "above_p90": 0.11349957007738606,
-   "below_p10": 0.0885640584694755,
+   "above_p90": 0.11144922023583112,
+   "below_p10": 0.09166983643971091,
    "ci95_player": [
-    -0.43923279070519783,
-    -0.19976616143699177
+    -0.41302718863028853,
+    -0.1808706165276566
    ],
    "ci95_week_team": [
-    -0.4706692843589208,
-    -0.1682962417397418
+    -0.43983864945787676,
+    -0.15981804871038566
    ],
-   "coverage_p10_p90": 0.7979363714531384,
-   "delta_mae_model_minus_naive": -0.3195614789337919,
-   "mae": 4.307403267411866,
-   "mean_resid": 2.365563198624248,
-   "median_resid": 0.405,
-   "n": 2326,
-   "naive_mae": 4.626964746345657,
+   "coverage_p10_p90": 0.796880943324458,
+   "delta_mae_model_minus_naive": -0.29867376695828574,
+   "mae": 4.330779764168886,
+   "mean_resid": 2.349501711677444,
+   "median_resid": 0.3899999999999997,
+   "n": 2629,
+   "naive_mae": 4.629453531127171,
    "note": "conditional on the observed weeks",
-   "pinball_p10": 0.6772480653482373,
-   "pinball_p50": 2.153701633705933,
-   "pinball_p90": 1.2007209802235594,
-   "share_above_p50": 0.5356835769561479
+   "pinball_p10": 0.6859345758843667,
+   "pinball_p50": 2.165389882084443,
+   "pinball_p90": 1.2038022061620386,
+   "share_above_p50": 0.5336629897299353
   }
  },
  "protocol_version": "live-accuracy-v1",
  "ranking": {
   "primary": {
-   "D": -0.011766571228296406,
-   "cells": 16,
+   "D": -0.01424283931911013,
+   "cells": 20,
    "ci_week": [
-    -0.01918608618533063,
-    0.001683346153852367
+    -0.02178837270917649,
+    -0.0024782144276675622
    ],
    "per_position_D": {
-    "QB": -0.08767625853156084,
-    "RB": 0.033637735565758026,
-    "TE": -0.002962785868655962,
-    "WR": 0.009935023921273156
+    "QB": -0.07319127311479395,
+    "RB": 0.013489651573784189,
+    "TE": -0.010620135578078893,
+    "WR": 0.013350399842648141
    },
-   "sp_con": 0.6096163164599818,
-   "sp_ours": 0.5978497452316853
+   "sp_con": 0.5960598770323247,
+   "sp_ours": 0.5818170377132144
   },
   "secondary": {
-   "D": -0.0321510171121449,
-   "cells": 28,
+   "D": -0.03071977920666801,
+   "cells": 32,
    "ci_week": [
-    -0.04552986347174153,
-    -0.020739927735151244
+    -0.042998419543428236,
+    -0.02070581624865482
    ],
    "per_position_D": {
-    "QB": -0.08413290453877302,
-    "RB": -0.013170340520773973,
-    "TE": -0.016235047823655226,
-    "WR": -0.015065775565377375
+    "QB": -0.07789882762270559,
+    "RB": -0.014924100636777654,
+    "TE": -0.015300316463569455,
+    "WR": -0.014755872103619352
    },
-   "sp_con": 0.6329733176346581,
-   "sp_ours": 0.6008223005225132
+   "sp_con": 0.6344969587577276,
+   "sp_ours": 0.6037771795510596
   }
  },
  "ranking_coverage": {
   "2026": {
-   "accepted_rows": 3508,
+   "accepted_rows": 3937,
    "excluded_legacy_schema": 0,
-   "raw_rows": 3516,
+   "raw_rows": 3946,
    "scrape_dates": [
     {
      "date": "2026-09-11",
@@ -336,6 +359,10 @@
     {
      "date": "2026-10-23",
      "weekday": "Friday"
+    },
+    {
+     "date": "2026-10-30",
+     "weekday": "Friday"
     }
    ]
   }
@@ -355,12 +382,12 @@
   "transformer_mae_2023_25": 4.324723397524363
  },
  "run": {
-  "as_of_date": "2026-10-28",
-  "main_sha": "65caaaf482e9315078e31c6cbfdcbfe39bb226c0",
+  "as_of_date": "2026-11-03",
+  "main_sha": "79334268d4cf78c818abc5b0817cb12537975a79",
   "provisional_weeks": [
-   7
+   8
   ],
-  "run_at": "2026-10-28T19:09:00Z"
+  "run_at": "2026-11-03T22:10:06Z"
  },
  "season": 2026,
  "weeks": {
@@ -1992,6 +2019,271 @@
     "max_abs_diff": 0.00499936368685816,
     "source": "legacy"
    }
+  },
+  "8": {
+   "cutoff": "2026-10-29T00:00:00Z",
+   "expert_snapshot": {
+    "alternatives": [
+     {
+      "available_by": "2026-10-28T11:30:12Z",
+      "blob_sha256": "ddd61795b8843566a42c74126c330ebae1aca9f0f8e47eb07d921c176ba41701",
+      "name": "2026-w08-2026-10-28-ddd61795b8843566.json",
+      "status": "qualifies"
+     },
+     {
+      "available_by": "2026-10-27T21:27:41Z",
+      "blob_sha256": "f3dc8857ce004dee03b59dfcd248d4d98150e3185210fc6728f9f713ba4ea25d",
+      "name": "2026-w08-2026-10-27-f3dc8857ce004dee.json",
+      "status": "qualifies"
+     },
+     {
+      "available_by": "2026-10-27T10:45:41Z",
+      "blob_sha256": "15ac317e9bdb2563c4b9810949e150b3c28976106cc6abb9895f8417b11f2700",
+      "name": "2026-w08-2026-10-27-15ac317e9bdb2563.json",
+      "status": "qualifies"
+     }
+    ],
+    "available_by": "2026-10-28T21:48:11Z",
+    "blob_sha256": "cd05b58470baef0730e3c9b8fd60fe88edf4c3a35c9f637b592fb88a363555a7",
+    "commit": "5dc2629905259afc2b3a9ea3fcd66faa9b7f4b66",
+    "event_id": 48153812633,
+    "name": "2026-w08-2026-10-28-cd05b58470baef07.json",
+    "path": "data_snapshots/weekly_ecr/2026-w08-2026-10-28-cd05b58470baef07.json",
+    "status": "selected",
+    "tie_break": null,
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 298
+    }
+   },
+   "last_game": "2026-11-02",
+   "points": {
+    "above_p90": 0.09570957095709572,
+    "below_p10": 0.11551155115511551,
+    "coverage_p10_p90": 0.7887788778877888,
+    "mae": 4.51023102310231,
+    "mean_resid": 2.2262046204620463,
+    "median_resid": 0.27,
+    "n": 303,
+    "naive_mae": 4.648558855885589,
+    "pinball_p10": 0.7526171617161717,
+    "pinball_p50": 2.255115511551155,
+    "pinball_p90": 1.2274554455445543,
+    "share_above_p50": 0.5181518151815182
+   },
+   "primary": {
+    "cells": [
+     {
+      "delta": -0.01525133144772639,
+      "n": 32,
+      "position": "QB",
+      "sp_con": 0.4225093959638554,
+      "sp_ours": 0.407258064516129
+     },
+     {
+      "delta": -0.06710268439411116,
+      "n": 67,
+      "position": "RB",
+      "sp_con": 0.7212618116790509,
+      "sp_ours": 0.6541591272849397
+     },
+     {
+      "delta": 0.027011903528148085,
+      "n": 92,
+      "position": "WR",
+      "sp_con": 0.5296066517122031,
+      "sp_ours": 0.5566185552403512
+     },
+     {
+      "delta": -0.04124953441577062,
+      "n": 43,
+      "position": "TE",
+      "sp_con": 0.4939586179316727,
+      "sp_ours": 0.4527090835159021
+     }
+    ],
+    "degenerate": 0,
+    "pool": 234,
+    "pool_by_position": {
+     "QB": 32,
+     "RB": 67,
+     "TE": 43,
+     "WR": 92
+    },
+    "reason": null,
+    "status": "scored"
+   },
+   "publication": {
+    "available_by": "2026-10-28T21:48:11Z",
+    "commit": "5dc2629905259afc2b3a9ea3fcd66faa9b7f4b66",
+    "detail": null,
+    "event_id": 48153812633,
+    "status": "selected"
+   },
+   "secondary": {
+    "cells": [
+     {
+      "delta": -0.03426028921023355,
+      "n": 30,
+      "position": "QB",
+      "sp_con": 0.43670745272525024,
+      "sp_ours": 0.4024471635150167
+     },
+     {
+      "delta": -0.027200421448803414,
+      "n": 72,
+      "position": "RB",
+      "sp_con": 0.7614834707901361,
+      "sp_ours": 0.7342830493413327
+     },
+     {
+      "delta": -0.012586547871313192,
+      "n": 111,
+      "position": "WR",
+      "sp_con": 0.660689960259845,
+      "sp_ours": 0.6481034123885319
+     },
+     {
+      "delta": -0.008757196942969059,
+      "n": 59,
+      "position": "TE",
+      "sp_con": 0.7217689027016263,
+      "sp_ours": 0.7130117057586572
+     }
+    ],
+    "degenerate": 0,
+    "match": {
+     "gsis_collisions": 0,
+     "match_rate": 0.9976689976689976,
+     "matched_by_id": 427,
+     "matched_by_name": 1,
+     "matched_by_name_only": 1,
+     "matched_by_name_position": 0,
+     "ranked": 429,
+     "unmatched": 1
+    },
+    "reason": null,
+    "retention": {
+     "excluded_early_by_position": {
+      "QB": 2,
+      "RB": 6,
+      "TE": 4,
+      "WR": 11
+     },
+     "excluded_early_game": 23,
+     "match_rate": 0.9976689976689976,
+     "played": 303,
+     "pool": 272,
+     "pool_by_position": {
+      "QB": 30,
+      "RB": 72,
+      "TE": 59,
+      "WR": 111
+     }
+    },
+    "selection": {
+     "candidates": [
+      {
+       "date": "2026-10-30",
+       "has_later_game": true,
+       "pages": {
+        "QB": "bye_consistent",
+        "RB": "bye_consistent",
+        "TE": "bye_consistent",
+        "WR": "bye_consistent"
+       },
+       "state": "bye_consistent",
+       "unknown_team_codes": 0
+      }
+     ],
+     "label": null,
+     "pages": {
+      "QB": "bye_consistent",
+      "RB": "bye_consistent",
+      "TE": "bye_consistent",
+      "WR": "bye_consistent"
+     },
+     "scrape_date": "2026-10-30",
+     "state": "bye_consistent"
+    },
+    "status": "scored",
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 429
+    }
+   },
+   "status": "scored",
+   "unprojected": {
+    "by_position": {
+     "QB": {
+      "count": 1,
+      "mean_actual": -0.05999999999999983,
+      "share": 0.02857142857142857
+     },
+     "RB": {
+      "count": 3,
+      "mean_actual": 0.0,
+      "share": 0.03571428571428571
+     },
+     "TE": {
+      "count": 3,
+      "mean_actual": 2.966666666666667,
+      "share": 0.04411764705882353
+     },
+     "WR": {
+      "count": 1,
+      "mean_actual": 1.9,
+      "share": 0.008064516129032258
+     }
+    },
+    "count": 8,
+    "mean_actual": 1.3425,
+    "share": 0.02572347266881029
+   },
+   "validation": {
+    "actuals": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 311
+    },
+    "projections": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 614
+    },
+    "schedule": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 28
+    }
+   },
+   "values": {
+    "equivalence_checked": true,
+    "max_abs_diff": 0.004996819471668967,
+    "source": "legacy"
+   }
   }
  },
  "weeks_scored": [
@@ -2001,7 +2293,8 @@
   4,
   5,
   6,
-  7
+  7,
+  8
  ],
  "weeks_skipped": []
 }
