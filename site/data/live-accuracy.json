@@ -1,5 +1,5 @@
 {
- "as_of_date": "2026-11-03",
+ "as_of_date": "2026-11-04",
  "caveats": [
   "Projections = the bot pipeline's latest publication on main before K_N 00:00 UTC, proven by GitHub push records; Vercel deployment is not verified.",
   "Players who recorded a stat line only; DNPs are outside the estimand.",
@@ -19,7 +19,7 @@
  "provisional_weeks": [
   8
  ],
- "run_at": "2026-11-03T22:10:06Z",
+ "run_at": "2026-11-04T20:35:00Z",
  "schema_version": 1,
  "scoring": "ppr",
  "season": 2026,

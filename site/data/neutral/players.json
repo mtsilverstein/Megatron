@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 9,
   "data_through": "2026-wk8",
-  "generated_at": "2026-11-04T13:05:35+00:00",
-  "batch_id": "2026-11-04T13:05:35+00:00|2026-wk8|w9",
+  "generated_at": "2026-11-04T22:42:02+00:00",
+  "batch_id": "2026-11-04T22:42:02+00:00|2026-wk8|w9",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -1981,8 +1981,8 @@
       "position": "WR",
       "bye": 11,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -2264,7 +2264,7 @@
     {
       "player_id": "00-0036133",
       "sleeper_id": "6957",
-      "name": "James Proche",
+      "name": "James Proche II",
       "team": "CLE",
       "position": "WR",
       "bye": 11,
@@ -3997,8 +3997,8 @@
       "position": "TE",
       "bye": 8,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -8365,8 +8365,8 @@
       "position": "WR",
       "bye": 10,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
