@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   outcomes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # origin 5 ran on this image; ubuntu-latest moved to 26.04, which has no Python 3.12.10 build
     permissions: { contents: write }
     steps:
       - name: Refuse to run from any ref except main
