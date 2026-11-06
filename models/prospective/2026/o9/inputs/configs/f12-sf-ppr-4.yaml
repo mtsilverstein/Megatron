@@ -1,0 +1,29 @@
+# Format f12-sf-ppr-4: superflex, same scoring as f12-1qb-ppr-4.
+# Synthetic league for the roster-sim v2 prospective test (spec section 4.1).
+name: f12-sf-ppr-4
+league_id: "format"
+teams: 12
+roster: {QB: 1, RB: 2, WR: 3, TE: 1}
+flex: 1
+flex_positions: [QB, RB, WR, TE]
+rounds: 13
+roster_size: 13
+scoring: {reception: 1.0, pass_td: 4.0, interception: -2.0, pass_int_td: 0.0}
+# st_td / fum_rec_td are 6 (Gabagool's offensive weights; spec 4.1), matching the ScoringRules default.
+depth_cap: {QB: 2, RB: 6, WR: 6, TE: 2}
+sleeper_scoring:
+  pass_yd: 0.04
+  pass_td: 4.0
+  pass_int: -2.0
+  pass_int_td: 0.0
+  rush_yd: 0.1
+  rush_td: 6.0
+  rec: 1.0
+  rec_yd: 0.1
+  rec_td: 6.0
+  fum_lost: -2.0
+  pass_2pt: 2.0
+  rush_2pt: 2.0
+  rec_2pt: 2.0
+  st_td: 6.0
+  fum_rec_td: 6.0
