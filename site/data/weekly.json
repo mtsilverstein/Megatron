@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-06T13:02:52+00:00",
+  "generated_at": "2026-11-06T22:11:48+00:00",
   "data_through": "2026-wk8",
   "season": 2026,
   "week": 9,
@@ -36040,93 +36040,6 @@
       }
     },
     {
-      "player_id": "00-0038658",
-      "name": "Adrian Martinez",
-      "team": "SF",
-      "opponent": "LV",
-      "position": "QB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -2.91,
-          "p50": 1.48,
-          "p90": 10.1
-        },
-        "half_ppr": {
-          "p10": -2.89,
-          "p50": 1.47,
-          "p90": 10.0
-        },
-        "standard": {
-          "p10": -2.87,
-          "p50": 1.47,
-          "p90": 9.9
-        },
-        "league": {
-          "p10": -3.07,
-          "p50": 1.38,
-          "p90": 11.43
-        }
-      },
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": 4.776643939062296,
-          "passing_tds": -0.04063324326654416,
-          "passing_interceptions": -0.007700793582071097,
-          "carries": 0.5331408886274467,
-          "rushing_yards": -1.633036535832339,
-          "rushing_tds": -0.015478685146300464,
-          "targets": -0.08475536375426707,
-          "receptions": -0.03980552005632809,
-          "receiving_yards": -0.5560693073757221,
-          "receiving_tds": -0.0030319555148047295,
-          "fumbles_lost": -0.029083925841861924,
-          "passing_pick_sixes": 0.027028681693075766
-        },
-        "p50": {
-          "passing_yards": 38.33268356323242,
-          "passing_tds": -0.008206692524254322,
-          "passing_interceptions": 0.01270477194339037,
-          "carries": 1.5982202291488647,
-          "rushing_yards": 0.17899124324321747,
-          "rushing_tds": -0.002192339627072215,
-          "targets": -0.0016701295971870422,
-          "receptions": 0.0049878135323524475,
-          "receiving_yards": -0.13549883663654327,
-          "receiving_tds": 0.003806034103035927,
-          "fumbles_lost": 0.00864520575851202,
-          "passing_pick_sixes": 0.027028681693075766
-        },
-        "p90": {
-          "passing_yards": 120.87774750881363,
-          "passing_tds": 0.7095522103692282,
-          "passing_interceptions": 0.8716848632741687,
-          "carries": 3.423914930352396,
-          "rushing_yards": 10.047933515920562,
-          "rushing_tds": 0.12511596409532988,
-          "targets": 0.14421447431470824,
-          "receptions": 0.1970213254102653,
-          "receiving_yards": 0.7705915966830403,
-          "receiving_tds": 0.053248425433589874,
-          "fumbles_lost": 0.41286082735354945,
-          "passing_pick_sixes": 0.027028681693075766
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 38.33,
-        "passing_tds": -0.01,
-        "passing_interceptions": 0.01,
-        "carries": 1.6,
-        "rushing_yards": 0.18,
-        "rushing_tds": -0.0,
-        "targets": -0.0,
-        "receptions": 0.0,
-        "receiving_yards": -0.14,
-        "receiving_tds": 0.0,
-        "fumbles_lost": 0.01
-      }
-    },
-    {
       "player_id": "00-0040184",
       "name": "KeAndre Lambert-Smith",
       "team": "LAC",
@@ -37081,6 +36994,93 @@
         "receiving_yards": 5.97,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0038658",
+      "name": "Adrian Martinez",
+      "team": "SEA",
+      "opponent": "ARI",
+      "position": "QB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -2.97,
+          "p50": 1.43,
+          "p90": 10.18
+        },
+        "half_ppr": {
+          "p10": -2.94,
+          "p50": 1.43,
+          "p90": 10.1
+        },
+        "standard": {
+          "p10": -2.9,
+          "p50": 1.44,
+          "p90": 10.02
+        },
+        "league": {
+          "p10": -3.14,
+          "p50": 1.34,
+          "p90": 11.49
+        }
+      },
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": 3.82326233420315,
+          "passing_tds": -0.048544984669687485,
+          "passing_interceptions": -0.013107854801012064,
+          "carries": 0.536451639735219,
+          "rushing_yards": -1.6309904320573594,
+          "rushing_tds": -0.01603055244047802,
+          "targets": -0.09843274902835208,
+          "receptions": -0.06443387654646449,
+          "receiving_yards": -0.5420595402155239,
+          "receiving_tds": -0.003287821874097513,
+          "fumbles_lost": -0.02974086377025309,
+          "passing_pick_sixes": 0.026646154904344327
+        },
+        "p50": {
+          "passing_yards": 36.78092575073242,
+          "passing_tds": -0.005513681564480066,
+          "passing_interceptions": 0.0150606669485569,
+          "carries": 1.6721076965332031,
+          "rushing_yards": 0.3713752031326294,
+          "rushing_tds": -0.0022684161085635424,
+          "targets": -0.01313744019716978,
+          "receptions": -0.011809088289737701,
+          "receiving_yards": -0.06526237726211548,
+          "receiving_tds": 0.0031229823362082243,
+          "fumbles_lost": 0.00750519335269928,
+          "passing_pick_sixes": 0.026646154904344327
+        },
+        "p90": {
+          "passing_yards": 118.18474078188638,
+          "passing_tds": 0.694904368725485,
+          "passing_interceptions": 0.8581162632343471,
+          "carries": 3.769861946040649,
+          "rushing_yards": 11.580119699114618,
+          "rushing_tds": 0.13603517084586603,
+          "targets": 0.11988728173299013,
+          "receptions": 0.16334096530326292,
+          "receiving_yards": 0.6699801595355197,
+          "receiving_tds": 0.06447556720333814,
+          "fumbles_lost": 0.406168217131059,
+          "passing_pick_sixes": 0.026646154904344327
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 36.78,
+        "passing_tds": -0.01,
+        "passing_interceptions": 0.02,
+        "carries": 1.67,
+        "rushing_yards": 0.37,
+        "rushing_tds": -0.0,
+        "targets": -0.01,
+        "receptions": -0.01,
+        "receiving_yards": -0.07,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.01
       }
     },
     {
