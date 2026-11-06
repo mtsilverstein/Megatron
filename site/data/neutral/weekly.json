@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 9,
   "data_through": "2026-wk8",
-  "generated_at": "2026-11-05T22:43:53+00:00",
-  "batch_id": "2026-11-05T22:43:53+00:00|2026-wk8|w9",
+  "generated_at": "2026-11-06T13:02:52+00:00",
+  "batch_id": "2026-11-06T13:02:52+00:00|2026-wk8|w9",
   "schema_version": 1,
   "kind": "neutral_weekly",
   "model": "transformer",
@@ -34448,75 +34448,6 @@
       }
     },
     {
-      "player_id": "00-0036133",
-      "name": "James Proche",
-      "team": "CLE",
-      "opponent": "NO",
-      "position": "WR",
-      "is_home": false,
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.23556452806019035,
-          "passing_tds": -0.01748883922974037,
-          "passing_interceptions": -0.009761978089555867,
-          "carries": -0.03319268915178564,
-          "rushing_yards": -0.07024558681407389,
-          "rushing_tds": -0.01159581810727689,
-          "targets": 0.17236596683453165,
-          "receptions": 0.04010487333145196,
-          "receiving_yards": 0.4259526456125684,
-          "receiving_tds": -0.011930169282331093,
-          "fumbles_lost": -0.016984981587578885,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": -0.06508233398199081,
-          "passing_tds": -0.0027059849817305803,
-          "passing_interceptions": 0.0008338899351656437,
-          "carries": 0.0005669320817105472,
-          "rushing_yards": -0.013207487761974335,
-          "rushing_tds": -0.0010531669249758124,
-          "targets": 0.9046995043754578,
-          "receptions": 0.46869149804115295,
-          "receiving_yards": 3.173833131790161,
-          "receiving_tds": 0.0012093750992789865,
-          "fumbles_lost": -0.00267999735660851,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.22042683143387692,
-          "passing_tds": 0.00805923855297631,
-          "passing_interceptions": 0.005112543747351554,
-          "carries": 0.09682165923856402,
-          "rushing_yards": 0.21722691654199686,
-          "rushing_tds": 0.017241214655488994,
-          "targets": 2.7964225154327993,
-          "receptions": 1.937887278645766,
-          "receiving_yards": 22.245187638749968,
-          "receiving_tds": 0.1698765569919392,
-          "fumbles_lost": 0.016108595231593102,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "points": {
-        "ppr": {
-          "p10": -0.19,
-          "p50": 0.78,
-          "p90": 5.4
-        },
-        "half_ppr": {
-          "p10": -0.21,
-          "p50": 0.54,
-          "p90": 4.43
-        },
-        "standard": {
-          "p10": -0.23,
-          "p50": 0.31,
-          "p90": 3.46
-        }
-      }
-    },
-    {
       "player_id": "00-0033246",
       "name": "Johnny Mundt",
       "team": "PHI",
@@ -36307,6 +36238,75 @@
           "p10": -0.24,
           "p50": 0.21,
           "p90": 3.09
+        }
+      }
+    },
+    {
+      "player_id": "00-0036133",
+      "name": "James Proche",
+      "team": "ARI",
+      "opponent": "SEA",
+      "position": "WR",
+      "is_home": false,
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.23947270703014656,
+          "passing_tds": -0.017655510957515164,
+          "passing_interceptions": -0.009910855135445318,
+          "carries": -0.032700444028622044,
+          "rushing_yards": -0.07141454508894118,
+          "rushing_tds": -0.011784865550858503,
+          "targets": 0.13202953621080482,
+          "receptions": 0.029051880678431452,
+          "receiving_yards": 0.3208730673448912,
+          "receiving_tds": -0.011807857479823242,
+          "fumbles_lost": -0.01710406025775768,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": -0.06826997548341751,
+          "passing_tds": -0.002714830217882991,
+          "passing_interceptions": 0.0014771088026463985,
+          "carries": 0.001524185761809349,
+          "rushing_yards": -0.016569068655371666,
+          "rushing_tds": -0.0011925523867830634,
+          "targets": 0.7950989603996277,
+          "receptions": 0.40701091289520264,
+          "receiving_yards": 2.4842677116394043,
+          "receiving_tds": 0.0008832256426103413,
+          "fumbles_lost": -0.0025312143843621016,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.22343718498221488,
+          "passing_tds": 0.007995941199253818,
+          "passing_interceptions": 0.0051573517708067874,
+          "carries": 0.11564374375708594,
+          "rushing_yards": 0.2578034060670976,
+          "rushing_tds": 0.01692748979673935,
+          "targets": 2.590659388159101,
+          "receptions": 1.816240604752474,
+          "receiving_yards": 20.341891569975143,
+          "receiving_tds": 0.14795714955773484,
+          "fumbles_lost": 0.016089215049833672,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "points": {
+        "ppr": {
+          "p10": -0.21,
+          "p50": 0.64,
+          "p90": 4.96
+        },
+        "half_ppr": {
+          "p10": -0.22,
+          "p50": 0.44,
+          "p90": 4.05
+        },
+        "standard": {
+          "p10": -0.24,
+          "p50": 0.23,
+          "p90": 3.14
         }
       }
     },
@@ -40106,6 +40106,75 @@
       }
     },
     {
+      "player_id": "00-0037617",
+      "name": "Hassan Haskins",
+      "team": "CLE",
+      "opponent": "NO",
+      "position": "RB",
+      "is_home": false,
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.2085558781873488,
+          "passing_tds": -0.015194755904208433,
+          "passing_interceptions": -0.010872351279667826,
+          "carries": 0.04712075523296566,
+          "rushing_yards": -0.1770580051773305,
+          "rushing_tds": -0.013299318446351703,
+          "targets": 0.08717667718452904,
+          "receptions": 0.024108533820588057,
+          "receiving_yards": 0.033499394480491884,
+          "receiving_tds": -0.011655670967683194,
+          "fumbles_lost": -0.015808706837176455,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": -0.024174204096198082,
+          "passing_tds": -0.0012519092997536063,
+          "passing_interceptions": 0.003829598193988204,
+          "carries": 0.5499357581138611,
+          "rushing_yards": 1.1642111539840698,
+          "rushing_tds": -0.001399687142111361,
+          "targets": 0.25647249817848206,
+          "receptions": 0.15127182006835938,
+          "receiving_yards": 0.34023818373680115,
+          "receiving_tds": 0.00026252647512592375,
+          "fumbles_lost": 0.002841072855517268,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.40253600792833844,
+          "passing_tds": 0.013017855654970545,
+          "passing_interceptions": 0.008269708889639543,
+          "carries": 3.178684581125566,
+          "rushing_yards": 12.797315358676599,
+          "rushing_tds": 0.07450318811439693,
+          "targets": 1.2432886790663744,
+          "receptions": 1.0948062042385267,
+          "receiving_yards": 6.769812561632165,
+          "receiving_tds": 0.07390799650450064,
+          "fumbles_lost": 0.01985177167565577,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "points": {
+        "ppr": {
+          "p10": -0.27,
+          "p50": 0.28,
+          "p90": 4.06
+        },
+        "half_ppr": {
+          "p10": -0.28,
+          "p50": 0.2,
+          "p90": 3.52
+        },
+        "standard": {
+          "p10": -0.29,
+          "p50": 0.12,
+          "p90": 2.97
+        }
+      }
+    },
+    {
       "player_id": "00-0039518",
       "name": "Treyton Welch",
       "team": "NO",
@@ -42655,75 +42724,6 @@
           "p10": -0.29,
           "p50": 0.02,
           "p90": 2.14
-        }
-      }
-    },
-    {
-      "player_id": "00-0037617",
-      "name": "Hassan Haskins",
-      "team": "NE",
-      "opponent": "GB",
-      "position": "RB",
-      "is_home": true,
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.23037876744552727,
-          "passing_tds": -0.01512220618116416,
-          "passing_interceptions": -0.010059886877286562,
-          "carries": -0.04481050601020481,
-          "rushing_yards": -0.4109039991321669,
-          "rushing_tds": -0.012658339885682737,
-          "targets": 0.07383200582515767,
-          "receptions": 0.020404000324014807,
-          "receiving_yards": 0.0047639297165248395,
-          "receiving_tds": -0.011214298976274642,
-          "fumbles_lost": -0.015050753602046527,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": -0.048648905009031296,
-          "passing_tds": -0.0017582228174433112,
-          "passing_interceptions": 0.003423078218474984,
-          "carries": 0.2803824841976166,
-          "rushing_yards": 0.31243255734443665,
-          "rushing_tds": -0.0010595346102491021,
-          "targets": 0.22397220134735107,
-          "receptions": 0.13908816874027252,
-          "receiving_yards": 0.2686065137386322,
-          "receiving_tds": 0.00034477622830308974,
-          "fumbles_lost": 0.0021360828541219234,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.3751471811647349,
-          "passing_tds": 0.012306139247074244,
-          "passing_interceptions": 0.007651049726557696,
-          "carries": 2.435851345522238,
-          "rushing_yards": 9.411459320357892,
-          "rushing_tds": 0.0473290566195399,
-          "targets": 1.1553634794438672,
-          "receptions": 1.0326378745807538,
-          "receiving_yards": 6.2741671799699645,
-          "receiving_tds": 0.07325096664683883,
-          "fumbles_lost": 0.019273763846498315,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "points": {
-        "ppr": {
-          "p10": -0.29,
-          "p50": 0.17,
-          "p90": 3.44
-        },
-        "half_ppr": {
-          "p10": -0.3,
-          "p50": 0.1,
-          "p90": 2.92
-        },
-        "standard": {
-          "p10": -0.31,
-          "p50": 0.03,
-          "p90": 2.41
         }
       }
     },
