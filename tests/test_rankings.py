@@ -971,3 +971,61 @@ def test_ecr_position_key_disambiguates_two_IN_SCOPE_namesakes():
     assert stats["unmatched"] == 0
     got = dict(zip(m["pos"], m["player_id"]))
     assert got == {"WR": "00-WR", "TE": "00-TE"}
+
+
+def _season_pin_setup(monkeypatch, tmp_path, *, export_date, season, gameday):
+    """A pinned export dated `export_date`, a mirror stub, and a schedule."""
+    from ffmodel.data import rankings
+
+    rows = [(i, f"P{i}", "KC", f"WR{i}") for i in range(1, 11)]
+    snapshot = _ecr_export(tmp_path, rows, date=export_date)
+    mirrored = rankings.normalize_rankings(_raw_rankings([
+        {"id": str(i), "player": f"P{i}", "mergename": f"p{i}", "ecr": i}
+        for i in range(1, 11)
+    ]))
+    mirror_xwalk = _crosswalk([
+        {"fantasypros_id": str(i), "gsis_id": f"00-{i}",
+         "merge_name": f"p{i}", "pfr_id": f"pfr-{i}"}
+        for i in range(1, 11)
+    ])
+    monkeypatch.setattr(rankings, "ECR_SNAPSHOT_PATH", snapshot)
+    monkeypatch.setattr(rankings, "pull_rankings", lambda cache_dir: mirrored)
+    monkeypatch.setattr(rankings, "pull_player_ids",
+                        lambda cache_dir: mirror_xwalk)
+    monkeypatch.setattr(rankings, "normalize_ecr_snapshot",
+                        lambda snap, cw, draftable_ecr: (snap, {}))
+    picks = pd.DataFrame(columns=["pfr_player_id", "gsis_id"])
+    schedules = pd.DataFrame({"season": [season], "gameday": [gameday]})
+    return rankings, picks, schedules
+
+
+def test_consensus_ignores_a_snapshot_captured_for_another_season(
+        monkeypatch, tmp_path):
+    # The 2026 pin must not poison a 2024 backtest (it used to raise
+    # "captured 2026-09-08, on or after kickoff") nor rank a 2027 board.
+    rankings, picks, schedules = _season_pin_setup(
+        monkeypatch, tmp_path, export_date="2026-09-08",
+        season=2024, gameday="2024-09-05")
+    # The mirror's rankings are scraped before kickoff.
+    _, stats = rankings.consensus_for_season(
+        2024, schedules, tmp_path, draft_picks=picks, draftable_ecr=10)
+    assert stats["source"] == "nflverse_mirror"
+
+
+def test_consensus_uses_a_same_season_snapshot(monkeypatch, tmp_path):
+    rankings, picks, schedules = _season_pin_setup(
+        monkeypatch, tmp_path, export_date="2026-08-25",
+        season=2026, gameday="2026-09-09")
+    _, stats = rankings.consensus_for_season(
+        2026, schedules, tmp_path, draft_picks=picks, draftable_ecr=10)
+    assert stats["source"] == "ecr_snapshot"
+
+
+def test_consensus_still_refuses_a_same_season_post_kickoff_snapshot(
+        monkeypatch, tmp_path):
+    rankings, picks, schedules = _season_pin_setup(
+        monkeypatch, tmp_path, export_date="2026-09-08",
+        season=2026, gameday="2026-09-03")
+    with pytest.raises(ValueError, match="on or after kickoff"):
+        rankings.consensus_for_season(
+            2026, schedules, tmp_path, draft_picks=picks, draftable_ecr=10)

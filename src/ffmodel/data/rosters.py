@@ -28,6 +28,10 @@ roster feed keeps his last-known team. On the 2026 board that is 87 of 695
 players, every one of them at or below replacement (`vorp <= 0`), and only 5
 carry an ADP at all -- the deepest being 127. Guessing a team for an
 unrostered player would be worse than leaving the last one we actually saw.
+That holds for the PRESEASON board, which is unchanged. In-season the weekly
+slate does not project released (`CUT`), retired (`RET`) or unrostered players
+who have no game this season (`released_ids`, `in_season_exclusions`): a week-9
+slate otherwise carried a retired QB as the 22nd-ranked QB on his last team.
 """
 from __future__ import annotations
 
@@ -52,6 +56,10 @@ TEAM_ALIASES = {"AZ": "ARI"}
 _STATUS_ORDER = {"ACT": 0, "INA": 1, "RES": 2, "PUP": 2, "NFI": 2, "SUS": 2,
                  "DEV": 3}
 _UNKNOWN_STATUS = 9
+# `CUT` (released) and `RET` (retired) rows name the team a player has LEFT, so
+# they must never map him anywhere. A player with another row (re-signed, `ACT`)
+# still maps through that row. Handled explicitly, not via "unknown status".
+_RELEASED_STATUSES = frozenset({"CUT", "RET"})
 
 
 def normalize_current_teams(raw: pd.DataFrame) -> dict[str, str]:
@@ -59,10 +67,12 @@ def normalize_current_teams(raw: pd.DataFrame) -> dict[str, str]:
 
     Pure: no IO, so the mapping rules are testable without the network. Rows
     without a gsis id are dropped -- that is the join key into weekly data, and
-    a player we cannot join is a player we cannot override.
+    a player we cannot join is a player we cannot override. `CUT`/`RET` rows
+    are dropped too: see `_RELEASED_STATUSES`.
     """
     df = raw[raw["position"].isin(POSITIONS)].copy()
     df = df[df["gsis_id"].notna() & df["team"].notna()]
+    df = df[~df["status"].isin(_RELEASED_STATUSES)]
     if df.empty:
         return {}
     df["_rank"] = df["status"].map(_STATUS_ORDER).fillna(_UNKNOWN_STATUS)
@@ -141,16 +151,17 @@ def assert_roster_coverage(mapping: dict[str, str],
             f"(a new spelling needs an entry in TEAM_ALIASES)")
 
 
-def pull_current_teams(season: int, cache_dir: Path | None = None,
-                       scheduled_teams: set[str] | None = None
-                       ) -> dict[str, str]:
-    """{player_id: team} for `season`, from the season's roster feed.
+def _load_current_raw(season: int, cache_dir: Path | None = None,
+                      scheduled_teams: set[str] | None = None) -> pd.DataFrame:
+    """The validated, cached current-roster frame for `season`.
+
+    The single loader behind `pull_current_teams` and `pull_released_ids`, so
+    both read one cache file under one set of checks and cannot diverge.
 
     `scheduled_teams`, when given, makes the FULL coverage check run inside
     the loader -- before the refreshed frame is cached. Without it only the
     position check can run here, because team coverage is defined against the
-    season's schedule and this function has never seen one. Callers that have
-    a schedule should pass it; see the caching note in `load` below.
+    season's schedule and this function has never seen one.
     """
     def load() -> pd.DataFrame:
         import nflreadpy  # deferred: keep offline unit tests import-light
@@ -178,7 +189,55 @@ def pull_current_teams(season: int, cache_dir: Path | None = None,
     raw = _cached(cache_dir, _cache_name("rosters_current", [season]), load,
                   LIVE_MAX_AGE_HOURS)
     assert_positions_present(raw)
-    return normalize_current_teams(raw)
+    return raw
+
+
+def pull_current_teams(season: int, cache_dir: Path | None = None,
+                       scheduled_teams: set[str] | None = None
+                       ) -> dict[str, str]:
+    """{player_id: team} for `season`, from the season's roster feed.
+
+    Callers that have a schedule should pass `scheduled_teams` so the full
+    coverage check runs before caching; see `_load_current_raw`.
+    """
+    return normalize_current_teams(
+        _load_current_raw(season, cache_dir, scheduled_teams))
+
+
+def released_ids(raw: pd.DataFrame) -> set[str]:
+    """Skill-position gsis ids whose EVERY row in the feed is `CUT` or `RET`.
+
+    Pure. A player with any other row (e.g. re-signed, `ACT`) is not released.
+    """
+    df = raw[raw["position"].isin(POSITIONS) & raw["gsis_id"].notna()]
+    if df.empty:
+        return set()
+    gone = df["status"].isin(_RELEASED_STATUSES)
+    return set(df.loc[gone.groupby(df["gsis_id"]).transform("all"), "gsis_id"])
+
+
+def pull_released_ids(season: int, cache_dir: Path | None = None) -> set[str]:
+    """`released_ids` over the same cached roster frame as `pull_current_teams`.
+
+    Same loader, cache file and freshness rule; call it after
+    `pull_current_teams` and it reads that call's cache rather than
+    downloading again.
+    """
+    return released_ids(_load_current_raw(season, cache_dir))
+
+
+def in_season_exclusions(weekly: pd.DataFrame, current_teams: dict[str, str],
+                         released: set[str], season: int) -> set[str]:
+    """Players the in-season weekly slate must not project.
+
+    `released`, plus every player in `weekly` who is absent from
+    `current_teams` and has no `weekly` row in `season`. A player missing from
+    the feed who HAS played this season stays on his last team: a fresh signing
+    can lag the feed by a day, and dropping a playing player is the worse error.
+    """
+    played_now = set(weekly.loc[weekly["season"] == season, "player_id"])
+    unrostered = (set(weekly["player_id"]) - set(current_teams)) - played_now
+    return set(released) | unrostered
 
 
 def assert_positions_present(raw: pd.DataFrame) -> None:
@@ -195,7 +254,9 @@ def assert_positions_present(raw: pd.DataFrame) -> None:
     present with 16 apiece, and every wide receiver quietly keeps the team he
     last played for.
     """
-    # Count only rows that would SURVIVE normalize_current_teams. Counting raw
+    # Count rows that have a join key and a team, before normalize_current_teams
+    # drops CUT/RET rows (those still count here: the guard is about a position
+    # going missing from the feed, not about who is on a roster). Counting raw
     # rows lets a feed that populates gsis_id and position but blanks `team`
     # for one position clear this guard and then get dropped downstream --
     # every player at that position silently keeping his last-played team,

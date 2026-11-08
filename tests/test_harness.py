@@ -263,3 +263,28 @@ def test_run_backtest_rejects_unknown_point_arm():
     with pytest.raises(ValueError, match="point_arm"):
         run_backtest(features_fixture, [NaiveLast4()], test_seasons=[2023],
                      point_arm="Z")
+
+
+def test_run_backtest_return_rows_keeps_the_table_and_exposes_its_rows():
+    """A paired comparison needs per-row predictions on the identical rows;
+    asking for them must not change the table."""
+    features = _toy_features()
+    entrants = lambda: [_PointArmPredictor(features), NaiveLast4()]
+    table = run_backtest(features, entrants(), test_seasons=[2023])
+    table_again, rows = run_backtest(features, entrants(), test_seasons=[2023],
+                                     return_rows=True)
+    pd.testing.assert_frame_equal(table_again, table)
+
+    test = features[features["season"] == 2023]
+    assert len(rows) == 2 * len(test)
+    assert list(rows.columns[:5]) == ["model", "test_season", "player_id", "season", "week"]
+    for model, part in rows.groupby("model"):
+        # every row the table was scored from, keyed and in harness order
+        assert part["player_id"].tolist() == test["player_id"].tolist()
+        assert part["week"].tolist() == test["week"].tolist()
+        overall = table[(table["model"] == model) & (table["position"] == "OVERALL")]
+        assert (part["actual"] - part["pred"]).abs().mean() == pytest.approx(
+            overall["mae"].iloc[0])
+    quantile_rows = rows[rows["model"] == "pointarm"]
+    assert quantile_rows[["p10", "p90"]].notna().all().all()
+    assert rows.loc[rows["model"] == "naive_last4", "p10"].isna().all()

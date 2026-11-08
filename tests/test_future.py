@@ -225,3 +225,22 @@ def test_override_reaches_the_built_features_not_just_the_skeleton():
     assert (m["team"], m["opponent_team"]) == ("BBB", "AAA")
     # is_home is a live CTX feature and must flip with the move
     assert s["is_home"] != m["is_home"]
+
+
+def test_exclude_ids_drops_players_before_the_matchup_merge():
+    weekly = _history()
+    sk = future_skeleton(weekly, _sched_with_future(), season=2023, week=7,
+                         exclude_ids={"p1"})
+    assert set(sk["player_id"]) == {"p2"}
+    future = build_future_features(weekly, _sched_with_future(), season=2023,
+                                   week=7, exclude_ids={"p1"})
+    assert set(future["player_id"]) == {"p2"}
+
+
+def test_exclude_ids_none_or_empty_is_identical_to_before():
+    args = (_history(), _sched_with_future())
+    a = future_skeleton(*args, season=2023, week=7)
+    pd.testing.assert_frame_equal(
+        a, future_skeleton(*args, season=2023, week=7, exclude_ids=None))
+    pd.testing.assert_frame_equal(
+        a, future_skeleton(*args, season=2023, week=7, exclude_ids=set()))

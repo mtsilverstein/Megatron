@@ -1,0 +1,291 @@
+{
+  "created": "2026-11-08T17:21:01+00:00",
+  "seasons": [
+    2012,
+    2025
+  ],
+  "test_seasons": [
+    2023,
+    2024,
+    2025
+  ],
+  "scoring": "ppr",
+  "band_construction": "sign_coherent_v1",
+  "transformer_roots": [
+    "models/transformer/v1",
+    "models/transformer/v1_s43",
+    "models/transformer/v1_s44"
+  ],
+  "xgb_feature_set": "v1",
+  "xgb_seed": 0,
+  "xgb_entrants": [
+    {
+      "name": "xgboost",
+      "objective": "reg:squarederror",
+      "quantile_alpha": null,
+      "seeds": [
+        0
+      ],
+      "feature_set": "v1"
+    },
+    {
+      "name": "xgboost_median",
+      "objective": "reg:quantileerror",
+      "quantile_alpha": 0.5,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "feature_set": "v1"
+    }
+  ],
+  "data_vintage": {
+    "feature_rows": 80090,
+    "sources": [
+      {
+        "file": "weekly_v2_2012_2025.parquet",
+        "bytes": 812687,
+        "sha256": "11e485e1c9eba55c4fc2a9e6072753ebd8116c09d1a64529e64b2d3837e8c296"
+      },
+      {
+        "file": "snaps_2012_2025.parquet",
+        "bytes": 2444447,
+        "sha256": "651295768799b47ccfc17dcf6bb5bccca8a31ce6356caeeabbd2297f48ddc42a"
+      },
+      {
+        "file": "players.parquet",
+        "bytes": 3397226,
+        "sha256": "57c50e250a8051dfba52844f198d18d8f59fc9bf36b6d09a8d82a9d12b82b97d"
+      },
+      {
+        "file": "schedules_v3_2012_2025.parquet",
+        "bytes": 24439,
+        "sha256": "882e58be1e0bd255c30ac1eecb5ca6fb1e20983aea6602ede34da1b1a2b0623a"
+      }
+    ]
+  },
+  "bakeoff_report": {
+    "path": "models/backtests/xgb_median/bakeoff_xgb_median.json",
+    "sha256": "0289fc091c6f42339bc5dc4d0c5137368d2c94509d2229331bdb4193c065c000"
+  },
+  "difference": "MAE(challenger) - MAE(baseline) on identical harness rows; negative means the challenger is more accurate",
+  "bootstrap": {
+    "cluster": "season-week",
+    "weighting": "player-week (concatenate, then mean)",
+    "interval": "percentile, 2.5-97.5",
+    "n_boot": 10000,
+    "seed": 20261107
+  },
+  "rows_sha256": "fc2bc6a280aa787d82f3d6b4f2221bd5b25c2303f2a256b6f4250b08349beaea",
+  "comparisons": [
+    {
+      "challenger": "transformer",
+      "baseline": "xgboost_median",
+      "pooled": {
+        "n": 17908,
+        "n_clusters": 54,
+        "mae_challenger": 4.324723397524364,
+        "mae_baseline": 4.325750053038735,
+        "mean_diff": -0.0010266555143704711,
+        "ci95": [
+          -0.021341038018577823,
+          0.01888614342339384
+        ],
+        "excludes_zero": false
+      },
+      "by_season": {
+        "2023": {
+          "n": 5893,
+          "n_clusters": 18,
+          "mae_challenger": 4.340666848428458,
+          "mae_baseline": 4.321239654845846,
+          "mean_diff": 0.019427193582612256,
+          "ci95": [
+            -0.011531739037432119,
+            0.04817444857688912
+          ],
+          "excludes_zero": false
+        },
+        "2024": {
+          "n": 5920,
+          "n_clusters": 18,
+          "mae_challenger": 4.4039469863790135,
+          "mae_baseline": 4.430751747292642,
+          "mean_diff": -0.02680476091362938,
+          "ci95": [
+            -0.05877300070041732,
+            0.008252088258085174
+          ],
+          "excludes_zero": false
+        },
+        "2025": {
+          "n": 6095,
+          "n_clusters": 18,
+          "mae_challenger": 4.2323594266962505,
+          "mae_baseline": 4.228124088570737,
+          "mean_diff": 0.004235338125513616,
+          "ci95": [
+            -0.03462067150363527,
+            0.04125082564904317
+          ],
+          "excludes_zero": false
+        }
+      },
+      "by_position": {
+        "QB": {
+          "n": 1991,
+          "n_clusters": 54,
+          "mae_challenger": 6.238017485359341,
+          "mae_baseline": 6.290655093120961,
+          "mean_diff": -0.05263760776161894,
+          "ci95": [
+            -0.14949743822563333,
+            0.04474430373569741
+          ],
+          "excludes_zero": false
+        },
+        "RB": {
+          "n": 4826,
+          "n_clusters": 54,
+          "mae_challenger": 4.325312849784978,
+          "mae_baseline": 4.314208098955264,
+          "mean_diff": 0.0111047508297135,
+          "ci95": [
+            -0.032136518510655375,
+            0.054597746597564556
+          ],
+          "excludes_zero": false
+        },
+        "WR": {
+          "n": 7397,
+          "n_clusters": 54,
+          "mae_challenger": 4.245130936156985,
+          "mae_baseline": 4.258412948498137,
+          "mean_diff": -0.013282012341152024,
+          "ci95": [
+            -0.03540820283910757,
+            0.00918275351534186
+          ],
+          "excludes_zero": false
+        },
+        "TE": {
+          "n": 3694,
+          "n_clusters": 54,
+          "mae_challenger": 3.452100823416443,
+          "mae_baseline": 3.4166185148389285,
+          "mean_diff": 0.035482308577515186,
+          "ci95": [
+            0.0028941950726300977,
+            0.06866358240997131
+          ],
+          "excludes_zero": true
+        }
+      }
+    },
+    {
+      "challenger": "transformer",
+      "baseline": "xgboost",
+      "pooled": {
+        "n": 17908,
+        "n_clusters": 54,
+        "mae_challenger": 4.324723397524364,
+        "mae_baseline": 4.448012997190103,
+        "mean_diff": -0.1232895996657385,
+        "ci95": [
+          -0.17078618975612653,
+          -0.07605553759938075
+        ],
+        "excludes_zero": true
+      },
+      "by_season": {
+        "2023": {
+          "n": 5893,
+          "n_clusters": 18,
+          "mae_challenger": 4.340666848428458,
+          "mae_baseline": 4.429588588767548,
+          "mean_diff": -0.08892174033909062,
+          "ci95": [
+            -0.18047914851201605,
+            0.0011982053901675542
+          ],
+          "excludes_zero": false
+        },
+        "2024": {
+          "n": 5920,
+          "n_clusters": 18,
+          "mae_challenger": 4.4039469863790135,
+          "mae_baseline": 4.524011127888054,
+          "mean_diff": -0.12006414150904032,
+          "ci95": [
+            -0.21341628437055526,
+            -0.02493825342947406
+          ],
+          "excludes_zero": true
+        },
+        "2025": {
+          "n": 6095,
+          "n_clusters": 18,
+          "mae_challenger": 4.2323594266962505,
+          "mae_baseline": 4.392010717469388,
+          "mean_diff": -0.15965129077313625,
+          "ci95": [
+            -0.21786145982163946,
+            -0.10490467157018153
+          ],
+          "excludes_zero": true
+        }
+      },
+      "by_position": {
+        "QB": {
+          "n": 1991,
+          "n_clusters": 54,
+          "mae_challenger": 6.238017485359341,
+          "mae_baseline": 6.338658542270606,
+          "mean_diff": -0.1006410569112643,
+          "ci95": [
+            -0.22941197697718185,
+            0.02861300668083153
+          ],
+          "excludes_zero": false
+        },
+        "RB": {
+          "n": 4826,
+          "n_clusters": 54,
+          "mae_challenger": 4.325312849784978,
+          "mae_baseline": 4.329446416392255,
+          "mean_diff": -0.00413356660727726,
+          "ci95": [
+            -0.08382983608294327,
+            0.0773054540819476
+          ],
+          "excludes_zero": false
+        },
+        "WR": {
+          "n": 7397,
+          "n_clusters": 54,
+          "mae_challenger": 4.245130936156985,
+          "mae_baseline": 4.470926368686414,
+          "mean_diff": -0.2257954325294288,
+          "ci95": [
+            -0.2825836541394865,
+            -0.17172727276843097
+          ],
+          "excludes_zero": true
+        },
+        "TE": {
+          "n": 3694,
+          "n_clusters": 54,
+          "mae_challenger": 3.452100823416443,
+          "mae_baseline": 3.5380067247799554,
+          "mean_diff": -0.08590590136351191,
+          "ci95": [
+            -0.1807505529482006,
+            0.007087603808511639
+          ],
+          "excludes_zero": false
+        }
+      }
+    }
+  ]
+}

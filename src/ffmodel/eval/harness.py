@@ -41,7 +41,8 @@ def run_backtest(
     test_seasons: list[int],
     rules: ScoringRules = PPR,
     point_arm: str | None = None,
-) -> pd.DataFrame:
+    return_rows: bool = False,
+) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
     """`point_arm`: when None (the default) the point estimate is p50, exactly
     as before. When "A" or "B", any predictor exposing `predict_point` supplies
     the point line for that arm instead, and is handed the band's already-
@@ -49,10 +50,17 @@ def run_backtest(
     `predict_point` (the baselines) are unaffected -- the arm is a property of
     the mean-head model, not of the backtest, so a baseline must still score.
     Bands always come from predict_quantiles and are never arm-dependent.
+
+    `return_rows`: when True, also return the per-row frame every score was
+    computed from (model, test_season, player_id, season, week, position,
+    actual, pred, and p10/p90 for quantile entrants), as `(table, rows)`. A
+    paired comparison needs each entrant's error on the identical rows, which
+    the aggregated table cannot give. The table is the same either way.
     """
     if point_arm not in (None, "A", "B"):
         raise ValueError(f"unknown point_arm {point_arm!r} (known: None, 'A', 'B')")
     tables = []
+    row_frames = []
     for season, train_idx, test_idx in walk_forward_splits(features, test_seasons):
         train, test = features.loc[train_idx], features.loc[test_idx]
         # Actuals exclude SCORING_EXTRAS (2pt conversions, ST TDs): models are
@@ -97,4 +105,14 @@ def run_backtest(
             tables.append(
                 score_table(scored).assign(model=predictor.name, test_season=season)
             )
-    return pd.concat(tables, ignore_index=True)
+            if return_rows:
+                row_frames.append(pd.DataFrame({
+                    "model": predictor.name, "test_season": season,
+                    "player_id": test["player_id"].to_numpy(),
+                    "season": test["season"].to_numpy(),
+                    "week": test["week"].to_numpy(),
+                }).join(scored))
+    table = pd.concat(tables, ignore_index=True)
+    if return_rows:
+        return table, pd.concat(row_frames, ignore_index=True)
+    return table
