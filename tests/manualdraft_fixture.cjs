@@ -330,3 +330,40 @@ assert.match(revoked.els.saveNote.innerHTML, /session-only/);
 assert.strictEqual(mem.get(panelKey), beforeQuota);
 global.localStorage = workingStorage;
 console.log("manualdraft_fixture: atomic recovery undo, stale restore, storage failures, escaped bulk errors OK");
+
+/* ---- K/DST names in the late-slot banner (audit 2026-11-07 A6-8) ---------
+   DraftMode.lateSlotNeed returns its name lists as `K` and `DST`; the panel
+   read `need.k` / `need.dst`, so the names it promises never appeared. The
+   REAL lateSlotNeed (draftmode.js) and the real Optimizer trigger drive the
+   panel here, so the two modules' contract is what is tested. */
+{
+  const stubWindow = global.window;
+  global.window = { Sleeper: { get: async () => null } };
+  global.document = { addEventListener() {}, getElementById: () => null, querySelector: () => null, hidden: false };
+  global.window.Optimizer = require("../site/assets/optimizer.js");
+  require("../site/assets/draftmode.js");
+  const realDM = global.window.DraftMode, realOpt = global.window.Optimizer;
+  global.window = {
+    DraftMode: { ...stubWindow.DraftMode, shortlistBlocker: () => null,
+      planFromPicks: () => ({ next: 1, until: 0, future: [], used: [] }),
+      lateSlotNeed: realDM.lateSlotNeed, isFlatSlate: () => false, renderPick: () => "" },
+    Optimizer: { ...stubWindow.Optimizer, recommend: () => [], lateSlotTrigger: realOpt.lateSlotTrigger },
+  };
+  mem.clear();
+  const lateBoard = MD.prepareBoard({ season: 2026, league: { league_id: "100000000000000001", teams: 2, rounds: 3 },
+    players: [{ player_id: "1", name: "Alpha Runner", position: "RB" }],
+    late_slots: { K: [{ name: "Kicker Alpha" }, { name: "Kicker Beta" }], DST: [{ name: "Team Gamma D/ST" }] } });
+  const els = elements();
+  MD.initPanel({ board: lateBoard, els, onUpdate() {} });
+  els.seat.value = "2"; els.start.fire("click");
+  // Three rounds, no K or D/ST yet: the trigger fires and the banner lists the names.
+  assert.strictEqual(els.late.hidden, false);
+  assert.match(els.late.innerHTML, /^<strong>Draft K \+ D\/ST /);
+  assert.ok(els.late.innerHTML.includes(" · K: Kicker Alpha, Kicker Beta"), els.late.innerHTML);
+  assert.ok(els.late.innerHTML.includes(" · D/ST: Team Gamma D/ST"), els.late.innerHTML);
+  // Seat 1 takes Kicker Alpha (typed with + K): he leaves the list, matched by name.
+  els.name.value = "Kicker Alpha"; els.addK.fire("click");
+  assert.ok(els.late.innerHTML.includes(" · K: Kicker Beta") && !els.late.innerHTML.includes("Kicker Alpha"), els.late.innerHTML);
+  global.window = stubWindow;
+}
+console.log("manualdraft_fixture: late-slot banner lists the K/DST names (real DraftMode.lateSlotNeed) OK");

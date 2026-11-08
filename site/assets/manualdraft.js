@@ -345,8 +345,9 @@
           + "</strong>"
           + (need.slack ? " — you can still take " + need.slack + " more skill player"
                           + (need.slack === 1 ? "" : "s") + " first" : "")
-          + (need.k && need.k.length ? " · K: " + esc(need.k.join(", ")) : "")
-          + (need.dst && need.dst.length ? " · D/ST: " + esc(need.dst.join(", ")) : "")
+          // DraftMode.lateSlotNeed names its lists K and DST (uppercase).
+          + (need.K && need.K.length ? " · K: " + esc(need.K.join(", ")) : "")
+          + (need.DST && need.DST.length ? " · D/ST: " + esc(need.DST.join(", ")) : "")
         : null);
 
       if (!shortlist.length) {
