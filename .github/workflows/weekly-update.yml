@@ -20,13 +20,16 @@ concurrency:
 jobs:
   regenerate:
     runs-on: ubuntu-latest
-    permissions: { contents: write, actions: write }
+    permissions: { contents: write }
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: pip install -e .
       - name: Generate site JSON (fail-safe - any error stops the job, site keeps last data)
+        id: batch
         run: |
           set -e
           if [ "${{ inputs.draft }}" = "true" ]; then
@@ -41,17 +44,35 @@ jobs:
             # whole stage before copying. Any nonzero exit fails the job before
             # the commit step, which is the all-or-nothing boundary.
             STAGE="$RUNNER_TEMP/stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
+            # Exit 10 = season complete, 11 = completed games' stats not posted yet: clean
+            # states, nothing staged, nothing published. Any other nonzero exit fails the job.
+            set +e
             python -m ffmodel.site.batch --out "$STAGE" --model "$MODEL" --season "$SEASON" --week auto --leagues gabagool,fam --artifact-root "$ARTIFACT_ROOT"
-            python -m ffmodel.site.publish --stage "$STAGE" --out site/data
+            RC=$?
+            set -e
+            if [ "$RC" -eq 0 ]; then
+              python -m ffmodel.site.publish --stage "$STAGE" --out site/data
+              echo "state=published" >> "$GITHUB_OUTPUT"
+            elif [ "$RC" -eq 10 ]; then
+              echo "state=season_over" >> "$GITHUB_OUTPUT"
+              echo "::notice::Season complete: no slate published; the live accuracy summary still refreshes."
+              echo "- Season complete: no slate published; the live accuracy summary still refreshes." >> "$GITHUB_STEP_SUMMARY"
+            elif [ "$RC" -eq 11 ]; then
+              echo "state=stats_pending" >> "$GITHUB_OUTPUT"
+              echo "::notice::Stats for completed games are not posted yet: no slate published this run; the next run retries."
+              echo "- Stats for completed games are not posted yet: no slate published this run; the next run retries." >> "$GITHUB_STEP_SUMMARY"
+            else
+              exit "$RC"
+            fi
           fi
       - name: Refresh optional free weekly ECR (never external FPTS)
         id: live_experts
-        if: inputs.draft != true
+        if: inputs.draft != true && steps.batch.outputs.state == 'published'
         continue-on-error: true
         run: python -m ffmodel.site.live_experts
       - name: Refresh optional free ROS consensus (separate from weekly)
         id: ros_experts
-        if: inputs.draft != true
+        if: inputs.draft != true && steps.batch.outputs.state == 'published'
         continue-on-error: true
         run: python -m ffmodel.site.ros_experts
       - name: Refresh the live accuracy summary (a checked copy of the committed weekly scorecard)
@@ -76,7 +97,12 @@ jobs:
           fi
       - name: Commit refreshed data
         id: commit
+        env:
+          BOT_TOKEN: ${{ github.token }}
         run: |
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$BOT_TOKEN" | base64 -w0)"
+          echo "::add-mask::$AUTH"
+          gitp() { git -c "http.https://github.com/.extraheader=$AUTH" "$@"; }
           git config user.name "weekly-update-bot"
           git config user.email "actions@users.noreply.github.com"
           git add site/data
@@ -84,6 +110,8 @@ jobs:
           if [ -d data_snapshots/ros_ecr ]; then git add data_snapshots/ros_ecr; fi
           git diff --cached --quiet && echo "no changes" && exit 0
           git commit -m "data: weekly site refresh"
-          git push
-          echo "pushed=true" >> "$GITHUB_OUTPUT"
+          for i in 1 2 3; do
+            gitp pull --rebase origin main && gitp push origin HEAD:main && echo "pushed=true" >> "$GITHUB_OUTPUT" && exit 0
+          done
+          exit 1
       # Hosting is Vercel (Git integration): the data push above triggers the deploy.

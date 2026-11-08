@@ -14,27 +14,33 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: pip install -e .
       - name: Score published projections (infrastructure errors fail here, before any commit)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: python -m ffmodel.eval.live_accuracy --main-ref origin/main
       - name: Commit accuracy artifacts
+        env:
+          BOT_TOKEN: ${{ github.token }}
         run: |
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$BOT_TOKEN" | base64 -w0)"
+          echo "::add-mask::$AUTH"
+          gitp() { git -c "http.https://github.com/.extraheader=$AUTH" "$@"; }
           git config user.name "weekly-accuracy-bot"
           git config user.email "actions@users.noreply.github.com"
           git add models/diagnostics/live_*_weekly.json models/diagnostics/live_*_weekly.md models/diagnostics/main_push_ledger.json
           git diff --cached --quiet && echo "no changes" && exit 0
           git commit -m "data: weekly accuracy refresh"
           for i in 1 2 3; do
-            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            gitp pull --rebase origin main && gitp push origin HEAD:main && exit 0
           done
           exit 1
 
