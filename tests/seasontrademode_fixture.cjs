@@ -223,7 +223,7 @@ check("sources: no traded_picks, future picks, gate file or simulation in the co
   assert.deepEqual([...at].sort((a, b) => a - b), at, `trade.html: ${ORDER.join(" -> ")} in order`);
   assert.ok(srcs.indexOf("ros.js") < srcs.indexOf("seasontrade.js") && srcs.indexOf("rostersim.js") < srcs.indexOf("seasontrade.js"), "the frozen method's modules still load before the engine");
   assert.ok(!srcs.includes("waiverintel.js"), "the ROS market check left with the grade");
-  assert.ok(/seasontrademode\.js\?v=neutral1/.test(html) && /seasontrade\.js\?v=neutral1/.test(html), "cache keys bumped");
+  assert.ok(/seasontrademode\.js\?v=audit1/.test(html) && /seasontrade\.js\?v=audit1/.test(html) && /lineup\.js\?v=2/.test(html), "cache keys bumped");
   assert.ok(/id="season-context"/.test(html), "the context lines have a home on the page");
 });
 
@@ -557,12 +557,22 @@ async function reviewFocus1() {
   M.init({ els }); FC.setLeague(L);
   await Session.identify("max973");
   await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
+  // Audit A6-3: D Deep is not in the offer, so he counts as 0 and the comparison runs, naming him.
   tickPlayer(els.mine, "a"); tickPlayer(els.theirs, "c");
+  await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, "the comparison with an unprojected bench player");
+  assert.equal(analyzeErrors.length, 0);
+  assert.equal(els.status.textContent, "lineups compared for weeks 4–6");
+  const summary = els.result.children[0];
+  assert.equal(summary.className, "season-summary");
+  const notes = summary.children.filter(x => x.className === "season-summary-note").map(x => x.textContent);
+  assert.deepEqual(notes, ["No projection for D Deep in 3 week(s): counted as 0.", M.STARTERS_ONLY], "the caveat is visible in the summary, before the starters-only note");
+  // In the offer, he still blocks the comparison, by name.
+  tickPlayer(els.mine, "d");
   await clickCompare(els, () => !els.result.hidden && analyzeErrors.length === 1, "the blocked comparison");
   assert.equal(els.status.textContent, "comparison blocked");
   assert.match(text(els.result.children[0]), /^Comparison blocked: 1 player\(s\), 3 player-week\(s\) without a projection$/);
   assert.ok(text(els.result).includes("D Deep · week 4 · Missing projection or current-team mismatch: D Deep"));
-  assert.ok(/Nothing was scored/.test(text(els.result)), "never scored for his old team");
+  assert.ok(text(els.result).includes("Nothing was scored. No projection for D Deep in 3 week(s): a traded player cannot be counted as 0. Remove that player from the offer to compare the rest."), "never scored for his old team");
 }
 
 async function viewerFlow() {
@@ -800,7 +810,7 @@ async function pageRollover() {
 (async () => {
   await sub("owner flow under the real Session, LeagueData and LiveWorld", ownerFlow);
   await sub("over the roster limit: inline Drop buttons in the team's own column, no second roster list", dropFlow);
-  await sub("Review Focus 1: a player traded after the batch blocks the comparison by name", reviewFocus1);
+  await sub("Review Focus 1 / A6-3: a player traded after the batch counts as 0 off the offer (named caveat) and blocks the comparison by name in it", reviewFocus1);
   await sub("viewer flow: Viewing {team}, reworded columns, the viewer's comparison, then the owner identifies", viewerFlow);
   await sub("best ball: projections and rest-of-season values only, with the note", bestBall);
   await sub("an unknown starting slot: the note, no lineup comparison", unknownSlot);

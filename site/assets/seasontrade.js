@@ -5,6 +5,7 @@
   const eligible = {QB:["QB"],RB:["RB"],WR:["WR"],TE:["TE"],FLEX:["RB","WR","TE"],SUPER_FLEX:["QB","RB","WR","TE"],WRRB_FLEX:["RB","WR"],REC_FLEX:["WR","TE"]};
   const team = t => ({LAR:"LA",JAC:"JAX",WSH:"WAS"}[t] || t);
   const require = (ok,msg) => { if (!ok) throw Error(msg); };
+  const andList = xs => xs.length<2 ? xs.join("") : `${xs.slice(0,-1).join(", ")} and ${xs[xs.length-1]}`;
   // NB: this file's own `require` above is an assertion helper, not Node's
   // module loader (shadowed for the rest of this scope) -- resolve ros.js via
   // module.require, the loader function Node always attaches to `module`.
@@ -26,7 +27,11 @@
   // Identity, coverage and roster resolution shared by analyze (central lineup
   // scenario) and simulate (seeded season simulation): both must resolve the
   // same players the same way, so this is the one place it happens.
-  function resolveScenario({remaining,league,rosters,catalog,board,rosterIds,give=[],receive=[],drops={},excludeWeeks={},currentWeek,assumeAvailable,now=Date.now(),snapshotAt}) {
+  // `zeroGaps` (analyze only, audit A6-3): a projection gap of a player who is
+  // NOT a trade asset counts as 0 that week and is named in `gaps`; a traded
+  // player's gap still refuses, naming him. simulate and stratumInputs keep the
+  // strict rule (every gap refuses): their method is the backtest's.
+  function resolveScenario({remaining,league,rosters,catalog,board,rosterIds,give=[],receive=[],drops={},excludeWeeks={},currentWeek,assumeAvailable,now=Date.now(),snapshotAt},{zeroGaps=false}={}) {
     catalog=Object.fromEntries(Object.entries(catalog||{}).map(([id,c])=>[id,{...c,gsis_id:typeof c.gsis_id==="string"?c.gsis_id.trim():null}]));
     require(assumeAvailable===true,"Explicit conditional-availability assumption required");
     require(Number.isFinite(now)&&Number.isFinite(snapshotAt)&&now>=snapshotAt&&now-snapshotAt<=60000,"Roster snapshot stale or invalid; reload");
@@ -108,44 +113,67 @@
     for (const [id,ws] of Object.entries(excludeWeeks)) require(relevant.has(id)&&Array.isArray(ws)&&new Set(ws).size===ws.length&&ws.every(w=>Number.isInteger(w)&&w>=1&&w<=18),"Invalid excluded-week assumption");
     const first=Math.max(currentWeek,remaining.start_week)+1;
     require(first<=remaining.end_week,"No future weeks after current slate");
+    // A projection gap (no usable projection for the player that week) is
+    // tagged `gap`; anything else (no catalog entry, malformed week rows)
+    // always refuses.
+    const gap=(ok,msg)=>{ if (!ok) throw Object.assign(new Error(msg),{gap:true}); };
     const resolve=(id,week)=>{
       const c=catalog?.[id];require(c,"Catalog identity missing");
-      if (Lineup.UNMODELED_POSITIONS.includes(c.position)) return null;
-      require(skill.has(c.position),"Unknown roster player position");
+      // K/DEF/IDP, a fullback, any other catalog position: an unmodeled
+      // occupant, never a contributor and never a blocker (audit A6-4).
+      const position=Lineup.modeledPosition(c);
+      if (!position) return null;
       const gsis=boardGsis.get(String(id)),p=gsis===undefined?undefined:projections.get(gsis);
-      require(p&&team(p.team)&&team(p.team)===team(c.team),`Missing projection or current-team mismatch: ${c.full_name||id}`);
-      require(!p.position||p.position===c.position,"Projection position mismatch");
+      gap(p&&team(p.team)&&team(p.team)===team(c.team),`Missing projection or current-team mismatch: ${c.full_name||id}`);
+      gap(!p.position||p.position===c.position,"Projection position mismatch");
       require(Array.isArray(p.weeks),"Player week coverage missing");
-      const rows=p.weeks.filter(w=>w.week===week);require(rows.length===1,"Missing/duplicate projection week");
+      const rows=p.weeks.filter(w=>w.week===week);require(rows.length<=1,"Missing/duplicate projection week");gap(rows.length===1,"Missing/duplicate projection week");
       const row=rows[0],excluded=(excludeWeeks[id]||[]).includes(week);
       let points=0,status=excluded?"assumed_unavailable":row.status;
       if (!excluded&&row.status!=="bye") {
-        require(row.status==="conditional_projection"&&typeof row.points?.league?.p50==="number"&&Number.isFinite(row.points.league.p50),`Missing finite projection; unknown is not zero (${row.reason||row.status})`);
+        gap(row.status==="conditional_projection"&&typeof row.points?.league?.p50==="number"&&Number.isFinite(row.points.league.p50),`Missing finite projection; unknown is not zero (${row.reason||row.status})`);
         points=row.points.league.p50;
       }
-      return {id,name:c.full_name||id,position:c.position,points,status,reportedInjury:c.injury_status||null};
+      return {id,name:c.full_name||id,position,points,status,reportedInjury:c.injury_status||null};
     };
     // Audit the entire selected roster horizon before optimizing. Report every
-    // gap together; never drop an unknown bench player or turn it into zero.
-    const resolved=new Map(),coverageIssues=[];
+    // refusal together. Under zeroGaps a non-traded player's gap week scores 0
+    // (status "no_projection") and is counted for the caveat.
+    const resolved=new Map(),coverageIssues=[],gaps=new Map(),tradedGaps=new Map();
     for(let week=first;week<=remaining.end_week;week++) {
       const players=new Map();
       for(const id of relevant) {
         try { players.set(id,resolve(id,week)); }
-        catch(error) { coverageIssues.push({id,name:catalog[id]?.full_name||id,week,reason:error.message}); }
+        catch(error) {
+          const name=catalog[id]?.full_name||id;
+          if(zeroGaps&&error.gap) {
+            const into=assets.has(id)?tradedGaps:gaps;
+            into.set(id,{name,weeks:(into.get(id)?.weeks||0)+1});
+            if(!assets.has(id)) {
+              players.set(id,{id,name,position:Lineup.modeledPosition(catalog[id]),points:0,status:"no_projection",reportedInjury:catalog[id].injury_status||null});
+              continue;
+            }
+          }
+          coverageIssues.push({id,name,week,reason:error.message});
+        }
       }
       resolved.set(week,players);
     }
     if(coverageIssues.length) {
-      const error=new Error(`Projection coverage blocked: ${new Set(coverageIssues.map(x=>x.id)).size} players, ${coverageIssues.length} player-weeks. ${coverageIssues[0].reason}`);
+      const traded=[...tradedGaps.values()];
+      const onlyTraded=traded.length&&traded.reduce((n,g)=>n+g.weeks,0)===coverageIssues.length;
+      const error=new Error(onlyTraded
+        ? `No projection for ${andList(traded.map(g=>`${g.name} in ${g.weeks} week(s)`))}: a traded player cannot be counted as 0. Remove ${traded.length===1?"that player":"those players"} from the offer to compare the rest.`
+        : `Projection coverage blocked: ${new Set(coverageIssues.map(x=>x.id)).size} players, ${coverageIssues.length} player-weeks. ${coverageIssues[0].reason}`);
       error.name="ProjectionCoverageError";
       error.coverageIssues=coverageIssues;
+      if(onlyTraded) error.tradedWithoutProjection=traded.map(g=>g.name);
       throw error;
     }
-    return {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,projections,excludeWeeks,currentWeek,boardGsis};
+    return {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,projections,excludeWeeks,currentWeek,boardGsis,gaps};
   }
   function analyze(args) {
-    const {remaining,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,excludeWeeks,currentWeek}=resolveScenario(args);
+    const {remaining,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,excludeWeeks,currentWeek,gaps}=resolveScenario(args,{zeroGaps:true});
     const weeks=[];
     for(let week=first;week<=remaining.end_week;week++) {
       const sides=selected.map((rid,i)=>{
@@ -159,6 +187,8 @@
       weeks,sides:selected.map((r,i)=>({rosterId:rosterMap.get(r).roster_id,delta:weeks.reduce((n,w)=>n+w.sides[i].delta,0)})),
       assumptions:{assumeAvailable:true,excludeWeeks,currentWeekSkipped:currentWeek,scoringScope:remaining.scoring_scope||"Supported model stat subset only"},
       availabilityFlags:[...relevant].filter(id=>catalog[id]?.injury_status).map(id=>({id,name:catalog[id].full_name||id,status:catalog[id].injury_status,interpretation:"Reported catalog tag; no return-date inference"})),
+      // A rostered (non-traded) player's weeks without a projection, counted as 0 (audit A6-3).
+      caveats:[...gaps.values()].map(g=>`No projection for ${g.name} in ${g.weeks} week(s): counted as 0.`),
       warnings:["All non-excluded active players are assumed available, including reported injuries; availability is not predicted.","No keeper, future-pick, waiver-replacement, bench insurance or the other side's willingness to deal.","Sum of weekly lineup central scenarios, not a season median or calibrated uncertainty interval.","Current-week games are excluded. Verify processing time, platform eligibility and future roster constraints."]};
   }
   // Seeded season simulation of the same scenario analyze compares. Identity,
@@ -253,7 +283,7 @@
     const players={},simIds=new Set();
     for(const id of relevant) {
       const c=catalog[id];
-      if(!skill.has(c.position))continue;          // K/DEF carry no modeled points
+      if(!Lineup.modeledPosition(c))continue;      // K/DEF/IDP/FB carry no modeled points (resolve returned null)
       const p=projections.get(boardGsis.get(String(id))),forced=new Set(excludeWeeks[id]||[]),rows={};
       for(const w of weeks)rows[w]=rowFor(p,w,forced.has(w));
       players[id]={position:c.position,tag:c.injury_status||null,weeks:rows};

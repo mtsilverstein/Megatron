@@ -177,4 +177,17 @@ assert.deepStrictEqual([r.ok, r.total, r.assignment[0].empty, r.assignment[1].em
 assert.strictEqual(Lx.solve({ slots: ["RB"], candidates: [], fixed: { 0: { id: "Q", score: 1, position: "QB" } }, allowEmpty: true }).reason, "Locked player is in an incompatible slot.");
 assert.throws(() => Lx.solve({ slots: ["XYZ"], candidates: [], allowEmpty: true }), /Unsupported lineup slot/);
 
+// ---- modeledPosition (audit A6-4): granular catalog positions --------------------------
+const MP = Lx.modeledPosition;
+for (const [c, want] of [
+  [{ position: "QB", fantasy_positions: ["QB"] }, "QB"], [{ position: "TE" }, "TE"], [{ position: "WR", fantasy_positions: [] }, "WR"],
+  [{ position: "DE", fantasy_positions: ["DL"] }, null], [{ position: "DT", fantasy_positions: ["DL", "LB"] }, null],
+  [{ position: "CB", fantasy_positions: ["DB"] }, null], [{ position: "SS", fantasy_positions: ["DB"] }, null],
+  [{ position: "ILB", fantasy_positions: ["LB"] }, null], [{ position: "OL", fantasy_positions: ["OL"] }, null],
+  [{ position: "K", fantasy_positions: ["K"] }, null], [{ position: "DEF", fantasy_positions: ["DEF"] }, null], [{ position: "DL" }, null],
+  [{ position: "FB", fantasy_positions: ["RB"] }, null], [{ position: "FB" }, null],                    // fullback: never modeled
+  [{ position: "DB", fantasy_positions: ["DB", "WR"] }, "WR"],                                           // fantasy_positions decide
+  [{ position: "WR", fantasy_positions: ["RB", "WR"] }, "WR"],                                           // the catalog's skill position wins
+  [{ position: "TE", fantasy_positions: ["OL"] }, null], [{ position: null }, null], [null, null],
+]) assert.strictEqual(MP(c), want, JSON.stringify(c));
 console.log("lineup_fixture: ok");

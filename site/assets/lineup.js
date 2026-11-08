@@ -20,6 +20,21 @@
   const UNMODELED = Object.freeze(["K", "DEF", "DL", "LB", "DB", "IDP_FLEX"]);
   const NON_STARTING = Object.freeze(["BN", "IR", "TAXI"]);
   const UNMODELED_POSITIONS = Object.freeze(["K", "DEF", "DL", "LB", "DB"]);
+  const SKILL = Object.freeze(["QB", "RB", "WR", "TE"]);
+  // A rostered player's modeled position, or null for an unmodeled occupant
+  // (audit A6-4). Sleeper's catalog `position` is granular (DE, DT, CB, SS,
+  // ILB, FB, ...); `fantasy_positions` uses the coarse vocabulary, so it
+  // decides when present. A catalog FB is never modeled: the batch never prices
+  // him (players.json `position_disagrees`: catalog FB vs projected RB), and
+  // start/sit and waivers skip him as a non-skill position. The returned
+  // position is the catalog's when it is a skill position (what the board and
+  // projections key on), else the first skill position in fantasy_positions.
+  function modeledPosition(c) {
+    if (!c || c.position === "FB") return null;
+    const fp = Array.isArray(c.fantasy_positions) && c.fantasy_positions.length ? c.fantasy_positions.map(String) : [c.position];
+    if (!SKILL.some(s => fp.includes(s))) return null;
+    return SKILL.includes(c.position) ? c.position : SKILL.find(s => fp.includes(s));
+  }
 
   function decompose(x) {               // x = m * 2^e exactly, m a signed BigInt
     if (x === 0) return [0n, 0];
@@ -175,5 +190,5 @@
     if (!res) return -Infinity;
     return toNumber(-res.total, minE);                              // exact sum of the chosen scores, rounded once
   }
-  return Object.freeze({ MODELED, UNMODELED, NON_STARTING, UNMODELED_POSITIONS, solve, bestLineup, lineupScore });
+  return Object.freeze({ MODELED, UNMODELED, NON_STARTING, UNMODELED_POSITIONS, modeledPosition, solve, bestLineup, lineupScore });
 });

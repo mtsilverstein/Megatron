@@ -866,6 +866,8 @@
       const received = [receive.map(String), give.map(String)];   // side 0 is the analysed roster: it gets `receive`
       const playerNameOf = id => playerNamesAll[String(id)] || String(id);
       for (const line of lineupSummary(result, { names, ownLabel, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week, received, playerName: playerNameOf })) summary.append(el("p", line));
+      // Rostered players without a projection, counted as 0 (engine caveats, audit A6-3).
+      for (const c of result.caveats || []) summary.append(el("p", c, "season-summary-note"));
       summary.append(el("p", STARTERS_ONLY, "season-summary-note"));
       out.append(summary);
       // Everything after the totals is collapsible detail; nothing is removed.
@@ -928,9 +930,10 @@
       out.replaceChildren();
       const h = el("p", null, "season-headline"); h.append(el("strong", c.headline)); out.append(h);
       out.append(list(c.rows));
-      out.append(el("p", Array.isArray(error && error.coverageIssues)
-        ? "Nothing was scored. Unknown is not zero: a player-week without a projection blocks the whole comparison rather than counting as 0."
-        : "Nothing was scored.", "season-subline"));
+      // A traded player without a projection: the engine's message names him
+      // and says what to do. Other players' gaps never reach here (they count as 0).
+      out.append(el("p", Array.isArray(error && error.tradedWithoutProjection)
+        ? `Nothing was scored. ${error.message}` : "Nothing was scored.", "season-subline"));
       out.hidden = false;
     }
 
