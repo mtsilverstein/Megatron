@@ -75,7 +75,7 @@ const stalls = opts => new Promise((_, reject) => {
   assert.strictEqual(timers.length, 1, "deadline armed before awaiting fetch");
   assert.ok(!lastTimer().cleared, "deadline must stay armed while the request is in flight");
   lastTimer().fn();                       // fire the deadline
-  await assert.rejects(() => pending, /Abort/i, "a stalled fetch must reject");
+  await assert.rejects(() => pending, /within 4 seconds/, "a stalled fetch must reject");
   assert.ok(lastTimer().cleared, "an aborted request must still clear its deadline");
 
   // 3. A stalled BODY rejects at the same deadline. Headers arriving is not
@@ -92,7 +92,7 @@ const stalls = opts => new Promise((_, reject) => {
   // stalled body with no deadline at all.
   assert.ok(!lastTimer().cleared, "deadline must stay armed while the body is pending");
   lastTimer().fn();
-  await assert.rejects(() => pending, /Abort/i, "a stalled body must reject");
+  await assert.rejects(() => pending, /within 4 seconds/, "a stalled body must reject");
   assert.ok(lastTimer().cleared, "a body-stalled request must clear its deadline");
 
   // 4. The deadline is cleared on EVERY exit, not just the happy one. A leaked
@@ -109,6 +109,46 @@ const stalls = opts => new Promise((_, reject) => {
   });
   await assert.rejects(() => S.get("/bad-json"), /bad json/);
   assert.ok(lastTimer().cleared, "a JSON failure must clear its deadline");
+
+  // 5. Per-call deadline override, and a readable message for OUR abort.
+  assert.strictEqual(S.TIMEOUT_MS, 4000, "default deadline constant");
+  assert.strictEqual(S.CATALOG_TIMEOUT_MS, 60000, "catalog deadline constant");
+  assert.strictEqual(S.timeoutMessage(30),
+    "Sleeper did not respond within 1 second. Check your connection and try again.");
+  assert.strictEqual(S.timeoutMessage(4000),
+    "Sleeper did not respond within 4 seconds. Check your connection and try again.");
+  assert.strictEqual(S.timeoutMessage(60000),
+    "Sleeper did not respond within 60 seconds. Check your connection and try again.");
+  assert.strictEqual(S.timeoutMessage(1500), "Sleeper did not respond within 2 seconds. Check your connection and try again.");
+
+  timers = [];
+  global.fetch = (url, opts) => stalls(opts);
+  pending = S.get("/override", { timeoutMs: 30 });
+  assert.strictEqual(lastTimer().ms, 30, "override sets the deadline");
+  lastTimer().fn();
+  await assert.rejects(() => pending, e => e.message ===
+    "Sleeper did not respond within 1 second. Check your connection and try again.");
+  assert.ok(lastTimer().cleared);
+
+  // A default-deadline abort reads the same way (4 seconds).
+  timers = [];
+  pending = S.get("/default-abort");
+  assert.strictEqual(lastTimer().ms, 4000);
+  lastTimer().fn();
+  await assert.rejects(() => pending, /within 4 seconds/);
+
+  // Bad overrides fall back to the default rather than throwing.
+  for (const bad of [0, -5, NaN, Infinity, "60000", null]) {
+    timers = [];
+    global.fetch = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    await S.get("/bad-override", { timeoutMs: bad });
+    assert.strictEqual(lastTimer().ms, 4000, `override ${String(bad)} falls back to 4000`);
+  }
+
+  // A non-timeout error is not rewritten.
+  timers = [];
+  global.fetch = () => Promise.resolve({ ok: false, status: 500 });
+  await assert.rejects(() => S.get("/boom", { timeoutMs: 30 }), e => e.message === "HTTP 500");
 
   realTimers();
   console.log("sleeper_fixture: OK");

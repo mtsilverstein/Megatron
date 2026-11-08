@@ -546,7 +546,10 @@
     // array) is malformed and rejects. EVERY rejection -- the getter's or the
     // validation's -- releases the single-flight slot, so the next call
     // re-fetches instead of replaying a cached failure for the whole document.
-    const p = get("/players/nfl").then(players => {
+    // ~2.5 MB gzip: it gets its own long deadline, not the 4 s poll default.
+    const timeoutMs = typeof Sleeper !== "undefined" && Sleeper && Sleeper.CATALOG_TIMEOUT_MS
+      ? Sleeper.CATALOG_TIMEOUT_MS : 60000;
+    const p = get("/players/nfl", { timeoutMs }).then(players => {
       if (!players || typeof players !== "object" || Array.isArray(players)) throw new Error("Sleeper returned a malformed player catalog.");
       catalogAt = Date.now();
       return players;

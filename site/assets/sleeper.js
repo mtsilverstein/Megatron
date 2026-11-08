@@ -51,11 +51,29 @@
      line. */
   const TIMEOUT_MS = 4000;
 
-  async function get(path) {
+  /* The player catalog (/players/nfl) is ~2.5 MB gzip (14.7 MB raw), not a
+     small poll endpoint, so the 4 s deadline above does not apply to it: on
+     a "Fast 4G" profile the body alone outlasts 4 s and the abort fired
+     every time, and a retry re-downloaded the file and hit the same wall.
+     It is a one-shot load per document, not a poll loop, so a long bound is
+     safe; it still ends a true hang. Callers pass it as opts.timeoutMs. */
+  const CATALOG_TIMEOUT_MS = 60000;
+
+  function timeoutMessage(ms) {
+    const n = Math.max(1, Math.ceil(ms / 1000));
+    return `Sleeper did not respond within ${n} ${n === 1 ? "second" : "seconds"}. Check your connection and try again.`;
+  }
+
+  async function get(path, opts) {
+    const requested = opts && opts.timeoutMs;
+    const timeoutMs = typeof requested === "number" && Number.isFinite(requested) && requested > 0
+      ? requested : TIMEOUT_MS;
     const sep = path.includes("?") ? "&" : "?";
     const key = `${Date.now()}-${++seq}`;
     const ctl = new AbortController();
-    const deadline = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+    // Set only by OUR timer, so only our own abort is rewritten below.
+    let timedOut = false;
+    const deadline = setTimeout(() => { timedOut = true; ctl.abort(); }, timeoutMs);
     try {
       const res = await fetch(`${API}${path}${sep}_=${key}`,
                               { cache: "no-store", signal: ctl.signal });
@@ -65,10 +83,13 @@
       // panel; aborting terminates body consumption too. The worst it can
       // create is a retry, which is what we wanted anyway.
       return await res.json();
+    } catch (e) {
+      if (timedOut) throw new Error(timeoutMessage(timeoutMs));
+      throw e;
     } finally {
       clearTimeout(deadline);
     }
   }
 
-  return { get, API };
+  return { get, API, TIMEOUT_MS, CATALOG_TIMEOUT_MS, timeoutMessage };
 });

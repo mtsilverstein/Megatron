@@ -35,15 +35,17 @@ const boardFam = { league: { league_id: LF }, season: 2026 };
 // path -> canned value | Error (rejects) | function(path) -> value|promise.
 function fakeGet(routes) {
   const calls = [];
-  const get = path => {
+  const optsSeen = [];
+  const get = (path, opts) => {
     calls.push(path);
+    optsSeen.push(opts);
     const hit = routes[path];
     if (hit === undefined) return Promise.reject(new Error(`unrouted ${path}`));
     if (hit instanceof Error) return Promise.reject(hit);
     if (typeof hit === "function") return Promise.resolve().then(() => hit(path));
     return Promise.resolve(hit);
   };
-  return { get, calls, reset() { calls.length = 0; } };
+  return { get, calls, optsSeen, reset() { calls.length = 0; } };
 }
 const routesFor = (id, lg) => ({
   "/user/max973": user, "/user/max": user, [`/league/${id}`]: lg, [`/league/${id}/users`]: users,
@@ -329,9 +331,10 @@ const sorted = a => a.slice().sort();
   await check("10. catalog fetches /players/nfl once per document; a rejection propagates and the next call retries", async () => {
     Session._storage(fakeStorage());
     const r = { "/players/nfl": new Error("HTTP 502") };
-    const { get, calls } = fakeGet(r);
+    const { get, calls, optsSeen } = fakeGet(r);
     Session._get(get);
     await assert.rejects(Session.catalog(), /HTTP 502/);
+    assert.deepEqual(optsSeen[0], { timeoutMs: 60000 }, "the catalog asks for its own 60 s deadline");
     assert.equal(Session.catalogFetchedAt(), null);
     r["/players/nfl"] = { a: { position: "RB" } };
     const c1 = await Session.catalog();
