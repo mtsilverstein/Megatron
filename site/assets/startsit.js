@@ -4,7 +4,11 @@
    scoring of the published stat quantiles; a player the view excludes (e.g. a
    live position change) is absent from the board and therefore missing. The
    lineup is the exact kernel's (Lineup.solve); every per-player rule is
-   today's. Comparisons use raw (unrounded) medians (spec §3.3). */
+   today's, except (audit 2026-11-07, A6-2/A6-3) that one player never
+   refuses the plan: an available player with no NFL team or no current-team
+   projection is treated as unavailable and named in `notes`, and a slot no
+   available, projected player can fill is left empty (0 points) with a note
+   on that slot. Comparisons use raw (unrounded) medians (spec §3.3). */
 (function () {
   "use strict";
   const NODE = typeof module!=="undefined" && !!module.exports;
@@ -38,28 +42,36 @@
     const excluded = new Set(excludeIds.map(String));
     const byId = new Map(board.players.filter(p=>p.sleeper_id).map(p=>[String(p.sleeper_id),p]));
     const projections = new Map(weekly.players.map(p=>[p.player_id,p]));
-    const players = [], issues = [], warnings = [];
+    const players = [], unprojectedNames = [], warnings = [];
+    const scheduled = new Set(kickoffs.teams.map(team));
     for (const id of active) {
       if (lockedReserve.has(id)) continue;
       const b = byId.get(id), c = catalog[id];
       require(c,"Player catalog identity missing; reload.");
       if (!skill.has(c.position)) continue;
-      const t = team(c.team), kickoff = starts.get(t);
-      require(kickoffs.teams.map(team).includes(t),`Unknown team/schedule for ${c.full_name || id}.`);
-      const bye = kickoff === undefined, locked = !bye && now>=kickoff;
+      // No NFL team (a released player) is unavailable, not an error. A team
+      // the schedule does not know is broken coverage and refuses, unless the
+      // user excluded the player (exclusions apply first, audit A6-3).
+      const t = c.team ? team(c.team) : null, known = t !== null && scheduled.has(t);
+      require(known || t === null || excluded.has(id),`Unknown team/schedule for ${c.full_name || id}.`);
+      const kickoff = known ? starts.get(t) : undefined;
+      const bye = known && kickoff === undefined, locked = known && !bye && now>=kickoff;
       require(!locked || snapshotAt>=kickoff,"A game started since the roster was loaded. Refresh to capture actual locked slots.");
       const p = b && projections.get(b.player_id), pts=p?.points?.league;
       // A board entry whose scoring position is not the live one (a position
       // change the view would exclude) is missing, like a wrong-team projection.
-      const missing = !pts || !finite(pts.p50) || team(p.team)!==t || b.position!==c.position;
+      const missing = !known || !pts || !finite(pts.p50) || team(p.team)!==t || b.position!==c.position;
       const status = c.injury_status;
-      const eligible = !bye && !unavailable(status) && !excluded.has(id);
-      if (missing && eligible && !locked) issues.push(`${c.full_name || id}: missing current-team weekly projection`);
+      const available = !bye && !unavailable(status) && !excluded.has(id);
+      // An available, unlocked player with no NFL team or no current-team
+      // projection is treated as unavailable (not a candidate, 0 points) and
+      // named once in the notes; owner and viewer alike (audit A6-3).
+      const unprojected = missing && available && !locked;
+      if (unprojected) unprojectedNames.push(c.full_name || id);
       if (status) warnings.push(`${c.full_name || id}: ${status} — verify current report`);
       players.push({id,name:c.full_name || b?.name || id,position:c.position,team:t,points:missing?null:pts,
-        locked,bye,status,eligible,kickoff:bye?null:new Date(kickoff).toISOString(),currentSlot:starters.indexOf(id)});
+        locked,bye,status,eligible:available && !unprojected,unprojected,kickoff:kickoff===undefined?null:new Date(kickoff).toISOString(),currentSlot:starters.indexOf(id)});
     }
-    require(!issues.length,issues.join("; "));
     const lookup = new Map(players.map(p=>[p.id,p]));
     const eligibleFor = (p,s) => (eligibleSlots[s] || []).includes(p.position);
     // One exact kernel call (spec §7.1). Fixed: game-started players in their
@@ -73,14 +85,22 @@
       if (p?.locked) fixed[i]={id:p.id,position:p.position,score:p.points?p.points.p50:null};
     });
     const candidates = players.filter(p=>!p.locked&&p.eligible&&p.points).map(p=>({id:p.id,position:p.position,score:p.points.p50}));
-    const solved = Lineup.solve({slots,candidates,fixed,current:starters});
-    // Infeasible -> today's refusal; any other kernel refusal (a locked player
-    // in an incompatible slot, malformed occupancy) keeps the kernel's reason.
-    if (!solved.ok) throw Error(/^Cannot fill /.test(solved.reason)
-      ? `Cannot fill ${solved.slot} with available, projected players. Review injuries/exclusions.` : solved.reason);
+    // allowEmpty (audit A6-2): every slot that can be filled is planned; a slot
+    // no available, projected player can fill is left empty and scores 0. A
+    // kernel refusal (a locked player in an incompatible slot, malformed
+    // occupancy) keeps the kernel's reason.
+    const solved = Lineup.solve({slots,candidates,fixed,current:starters,allowEmpty:true});
+    if (!solved.ok) throw Error(solved.reason);
+    // Sleeper sends "0" for an empty starter slot: an empty K/DEF/IDP slot reads "Empty" (audit A6-7).
     const assigned = solved.assignment.map(a=>a.unmodeled
-      ? {id:starters[a.index],name:catalog[starters[a.index]]?.full_name||starters[a.index],unmodeled:true}
+      ? {id:starters[a.index],name:starters[a.index]==="0"?"Empty":catalog[starters[a.index]]?.full_name||starters[a.index],unmodeled:true}
+      : a.empty ? {id:null,name:"Empty",empty:true,points:null,note:`No available ${a.slot} this week — add one from waivers.`}
       : lookup.get(a.id));
+    const empty = assigned.filter(a=>a.empty).length;
+    const notes = [];
+    if (unprojectedNames.length) notes.push(`Not projected this week: ${unprojectedNames.join(", ")} — treated as unavailable.`);
+    // No lineup total is reported (spec §7.1); the note says what the plan's sum leaves out.
+    if (empty) notes.push(`${empty} empty slot${empty===1?" scores":"s score"} 0 in this plan.`);
     // Every slot occupant, unmodeled-slot occupants included (they are reserved there).
     const used = new Set(assigned.filter(p=>p && p.id && p.id!=="0").map(p=>p.id));
     const decisions = [];
@@ -93,7 +113,7 @@
         ? p.points.p90>=best.a.points.p10 && best.a.points.p90>=p.points.p10 : null;
       decisions.push({...p,alternative:best?.a.name||null,gap,overlap,close:gap!==null && gap<=3});
     }
-    return {lineup:assigned.map((p,i)=>({...p,slot:slots[i],changed:p.id!==starters[i]})),bench:decisions,warnings,
+    return {lineup:assigned.map((p,i)=>({...p,slot:slots[i],changed:p.empty?starters[i]!=="0":p.id!==starters[i]})),bench:decisions,warnings,notes,
       label:"Maximizes sum of marginal p50 projections, not proven expected score or win probability."};
   }
   const api={analyze}; if(typeof module!=="undefined"&&module.exports)module.exports=api;

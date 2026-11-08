@@ -117,4 +117,64 @@ for (const [name, scores, want] of [
   }
 }
 assert.strictEqual(Lx.lineupScore([{ sleeper_id: "a", position: "WR", s: 1.7976931348623157e308 }, { sleeper_id: "b", position: "WR", s: 1.7976931348623157e308 }], ["WR", "WR"], p => p.s), Infinity, "overflow rounds to Infinity");
+
+// ---- allowEmpty (audit A6-2): never infeasible; stage 0 = most filled slots ----------------
+// Oracle: every slot takes an eligible unused candidate or stays empty; maximise
+// (filled, exact total, keep), then the smallest id vector with empty after every id.
+const EMPTY_ID = "￿";
+function bruteEmpty({ slots, candidates, current = [], fixed = {} }) {
+  const fixedIds = new Set(Object.values(fixed).map(f => f.id));
+  const open = slots.map((s, i) => i).filter(i => !(i in fixed) && Lx.MODELED.includes(slots[i]));
+  const pool = candidates.filter(c => !fixedIds.has(c.id));
+  let best = null; const used = new Set(), pick = [];
+  (function rec(k) {
+    if (k === open.length) {
+      const filled = pick.filter(Boolean).length;
+      const total = pick.reduce((a, c) => a + (c ? exact(c.score) : 0n), 0n);
+      const keep = pick.filter((c, j) => c && current[open[j]] === c.id).length;
+      const ids = pick.map(c => (c ? c.id : EMPTY_ID));
+      const better = !best || filled > best.filled || (filled === best.filled && (total > best.total || (total === best.total && (keep > best.keep ||
+        (keep === best.keep && ids.join("\u0000") < best.ids.join("\u0000"))))));
+      if (better) best = { filled, total, keep, ids };
+      return;
+    }
+    pick.push(null); rec(k + 1); pick.pop();
+    for (const c of pool) {
+      if (used.has(c.id) || !ELIG[slots[open[k]]].includes(c.position)) continue;
+      used.add(c.id); pick.push(c); rec(k + 1); pick.pop(); used.delete(c.id);
+    }
+  })(0);
+  return { ...best, open };
+}
+for (let t = 0; t < 400; t++) {
+  const slots = Array.from({ length: 2 + Math.floor(rand() * 4) }, () => SLOTS[Math.floor(rand() * SLOTS.length)]);
+  const candidates = Array.from({ length: Math.floor(rand() * 5) }, (_, i) => ({
+    id: String(100 + Math.floor(rand() * 900)) + "_" + i, position: POS[Math.floor(rand() * 4)], score: scoreOf() }));
+  const current = slots.map(() => rand() < 0.5 && candidates.length ? candidates[Math.floor(rand() * candidates.length)].id : null);
+  const fixed = {};
+  slots.forEach((s, i) => { if (Lx.UNMODELED.includes(s) && rand() < 0.5) fixed[i] = { id: "u" + i, score: null }; });
+  const want = bruteEmpty({ slots, candidates, current, fixed });
+  const got = Lx.solve({ slots, candidates, current, fixed, allowEmpty: true });
+  assert.ok(got.ok, `allowEmpty trial ${t}: ${got.reason}`);
+  assert.deepStrictEqual(want.open.map(i => (got.assignment[i].empty ? EMPTY_ID : got.assignment[i].id)), want.ids, `allowEmpty trial ${t}`);
+  assert.ok(want.open.every(i => !!got.assignment[i].empty === (got.assignment[i].id === null)), `allowEmpty trial ${t}: empty <=> no id`);
+  const strict = Lx.solve({ slots, candidates, current, fixed });
+  if (strict.ok) {   // feasible: allowEmpty changes nothing
+    assert.deepStrictEqual(got.assignment.map(a => a.id), strict.assignment.map(a => a.id), `allowEmpty trial ${t}: feasible lineup unchanged`);
+    assert.strictEqual(got.total, strict.total);
+  }
+}
+// One more filled slot beats any score: a -5000 QB still starts over an empty QB slot.
+r = Lx.solve({ slots: ["QB", "TE"], candidates: [{ id: "Q", position: "QB", score: -5000 }], allowEmpty: true });
+assert.deepStrictEqual([r.ok, r.assignment[0].id, r.assignment[1].id, r.assignment[1].empty, r.total], [true, "Q", null, true, -5000]);
+// Dedicated before flex by slot order: one RB for RB + FLEX fills the RB slot.
+r = Lx.solve({ slots: ["RB", "FLEX"], candidates: [{ id: "R", position: "RB", score: 9 }], allowEmpty: true });
+assert.deepStrictEqual(r.assignment.map(a => [a.id, !!a.empty]), [["R", false], [null, true]]);
+// Nothing to place at all.
+r = Lx.solve({ slots: ["QB", "K"], candidates: [], allowEmpty: true });
+assert.deepStrictEqual([r.ok, r.total, r.assignment[0].empty, r.assignment[1].empty], [true, 0, true, undefined]);
+// Broken input still refuses or throws.
+assert.strictEqual(Lx.solve({ slots: ["RB"], candidates: [], fixed: { 0: { id: "Q", score: 1, position: "QB" } }, allowEmpty: true }).reason, "Locked player is in an incompatible slot.");
+assert.throws(() => Lx.solve({ slots: ["XYZ"], candidates: [], allowEmpty: true }), /Unsupported lineup slot/);
+
 console.log("lineup_fixture: ok");

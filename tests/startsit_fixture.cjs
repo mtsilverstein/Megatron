@@ -36,19 +36,44 @@ for (const tag of ['Out','IR','Suspended','PUP','Doubtful']) {
 }
 r=S.analyze({...base,catalog:{...catalog,11:{...catalog[11],injury_status:'Questionable'}}});
 assert.equal(r.lineup[0].id,'11');assert.ok(r.warnings.includes('P11: Questionable — verify current report'));
-// An unlocked, eligible player without a projection refuses the whole plan.
-assert.throws(()=>S.analyze({...base,weekly:{...weekly,players:weekly.players.filter(p=>p.player_id!=='g11')}}),/^Error: P11: missing current-team weekly projection$/);
-// ...even if the rest of the roster could fill every slot (the bench QB is not needed).
-assert.throws(()=>S.analyze({...base,weekly:{...weekly,players:weekly.players.filter(p=>p.player_id!=='g12')}}),/P12: missing current-team weekly projection/);
-// Excluded / unavailable / bye players without projections do not refuse.
-r=S.analyze({...base,weekly:{...weekly,players:weekly.players.filter(p=>p.player_id!=='g11')},excludeIds:['11']});assert.equal(r.lineup[0].id,'1');
-r=S.analyze({...base,weekly:{...weekly,players:weekly.players.filter(p=>p.player_id!=='g11')},catalog:{...catalog,11:{...catalog[11],injury_status:'IR'}}});assert.equal(r.lineup[0].id,'1');
-// Wrong-team projection (traded after the batch, Review Focus 1): counts as missing, same throw naming the player.
+// Audit A6-3: an unlocked, available player without a projection no longer
+// refuses the plan. He is treated as unavailable (not a candidate, 0 points)
+// and named in one note. The engine takes no role: a viewer passes no
+// exclusions (excludeIds []), so owner and viewer get the same plan.
+const UNPROJECTED = n => `Not projected this week: ${n} — treated as unavailable.`;
+const noG = (...pids) => ({...weekly,players:weekly.players.filter(p=>!pids.includes(p.player_id))});
+r=S.analyze({...base,weekly:noG('g11')});
+assert.equal(r.lineup[0].id,'1','the projected QB starts instead');
+assert.deepEqual(r.notes,[UNPROJECTED('P11')]);
+assert.deepEqual((({eligible,unprojected,points})=>({eligible,unprojected,points}))(r.bench.find(p=>p.id==='11')),{eligible:false,unprojected:true,points:null});
+// ...an unprojected BENCH player, unexcluded (the owner did not tick him; a
+// viewer cannot): same plan as with him projected, plus the note.
+// startsitmode_session_fixture pins that both roles render the notes.
+r=S.analyze({...base,weekly:noG('g12'),excludeIds:[]});
+assert.deepEqual(ids(r),ids(S.analyze(base)));
+assert.deepEqual(r.notes,[UNPROJECTED('P12')]);
+// Several are named once, in roster order.
+assert.deepEqual(S.analyze({...base,weekly:noG('g13','g12')}).notes,[UNPROJECTED('P12, P13')]);
+// Excluded / unavailable / bye players without projections are not news: no note.
+r=S.analyze({...base,weekly:noG('g11'),excludeIds:['11']});assert.equal(r.lineup[0].id,'1');assert.deepEqual(r.notes,[]);
+r=S.analyze({...base,weekly:noG('g11'),catalog:{...catalog,11:{...catalog[11],injury_status:'IR'}}});assert.equal(r.lineup[0].id,'1');assert.deepEqual(r.notes,[]);
+assert.deepEqual(S.analyze(base).notes,[],'a fully projected roster has no notes');
+// Wrong-team projection (traded after the batch, Review Focus 1): counts as missing -> unavailable, named; never scored for his old team.
 const traded={...base,catalog:{...catalog,11:{...catalog[11],team:'B'}}};
-assert.throws(()=>S.analyze(traded),/^Error: P11: missing current-team weekly projection$/);
-r=S.analyze({...traded,excludeIds:['11']});assert.ok(!ids(r).includes('11'));
+r=S.analyze(traded);assert.ok(!ids(r).includes('11'));assert.deepEqual(r.notes,[UNPROJECTED('P11')]);
+r=S.analyze({...traded,excludeIds:['11']});assert.ok(!ids(r).includes('11'));assert.deepEqual(r.notes,[]);
 // A position-changed board entry (catalog now says RB, projection is a QB's) counts as missing.
-assert.throws(()=>S.analyze({...base,catalog:{...catalog,11:{...catalog[11],position:'RB'}}}),/P11: missing current-team weekly projection/);
+r=S.analyze({...base,catalog:{...catalog,11:{...catalog[11],position:'RB'}}});assert.ok(!ids(r).includes('11'));assert.deepEqual(r.notes,[UNPROJECTED('P11')]);
+// No NFL team (a released player, catalog team null): unavailable and named, never "Unknown team/schedule" (A6-3).
+const teamless={...base,catalog:{...catalog,13:{...catalog[13],team:null}}};
+r=S.analyze(teamless);assert.ok(!ids(r).includes('13'));assert.deepEqual(r.notes,[UNPROJECTED('P13')]);
+assert.deepEqual((({bye,kickoff,eligible})=>({bye,kickoff,eligible}))(r.bench.find(p=>p.id==='13')),{bye:false,kickoff:null,eligible:false},'teamless is not a bye');
+// ...and ticking him as excluded clears the note too (exclusions apply before the team check).
+r=S.analyze({...teamless,excludeIds:['13']});assert.ok(!ids(r).includes('13'));assert.deepEqual(r.notes,[]);
+// A team the schedule does not know is broken coverage: still refused by name, unless the user excluded him.
+const offSchedule={...base,catalog:{...catalog,13:{...catalog[13],team:'Q'}}};
+assert.throws(()=>S.analyze(offSchedule),/^Error: Unknown team\/schedule for P13\.$/);
+r=S.analyze({...offSchedule,excludeIds:['13']});assert.ok(!ids(r).includes('13'));
 // No contract checks: a scoring the batch never saw and a weekly without `league` both pass (spec §8.7).
 r=S.analyze({...base,league:{...league,scoring_settings:{pass_td:4,rec:0.5,bonus_fd_wr:0.5}}});assert.equal(r.lineup[0].id,'11');
 // Season/week and age checks: verbatim.
@@ -74,8 +99,53 @@ assert.throws(()=>S.analyze({...mixed,roster:{...roster,starters:roster.starters
 // Equivalent WR slots must not suggest gratuitous changes.
 r=S.analyze({...base,roster:{...roster,starters:roster.starters.map((id,i)=>i===3?'5':i===4?'4':id)}});
 assert.equal(r.lineup[3].id,'5');assert.equal(r.lineup[4].id,'4');assert.equal(r.lineup[3].changed,false);
-// No eligible, projected player left for a slot -> today's refusal.
-assert.throws(()=>S.analyze({...base,excludeIds:['1','11']}),/^Error: Cannot fill QB with available, projected players\. Review injuries\/exclusions\.$/);
+// ---- audit A6-2: an unfillable slot is left empty; the rest of the plan stands ----------
+const EMPTY = slot => `No available ${slot} this week — add one from waivers.`;
+const emptySlot = (r,i) => (({id,name,empty,points,note})=>({id,name,empty,points,note}))(r.lineup[i]);
+// No eligible, projected player left for the QB slot (both excluded): QB empty, every other slot planned.
+r=S.analyze({...base,excludeIds:['1','11']});
+assert.deepEqual(emptySlot(r,0),{id:null,name:'Empty',empty:true,points:null,note:EMPTY('QB')});
+assert.equal(r.lineup[0].changed,true,'the current QB leaves the slot');
+assert.deepEqual(ids(r).slice(1),ids(S.analyze(base)).slice(1),'RB/WR/TE/FLEX advice is unchanged');
+assert.deepEqual(r.notes,['1 empty slot scores 0 in this plan.']);
+assert.ok(!('total' in r),'still no lineup total (spec §7.1)');
+// Sole QB tagged Out (the only QB on the roster).
+{
+  const players=roster.players.filter(id=>id!=='1'), starters=['11',...roster.starters.slice(1)];
+  r=S.analyze({...base,roster:{players,starters},catalog:{...catalog,11:{...catalog[11],injury_status:'Out'}}});
+  assert.deepEqual(emptySlot(r,0),{id:null,name:'Empty',empty:true,points:null,note:EMPTY('QB')});
+  assert.ok(r.lineup.slice(1,8).every(p=>!p.empty&&p.points),'every RB/WR/TE/FLEX slot is planned');
+  assert.equal(r.bench.find(p=>p.id==='11').eligible,false);
+  assert.deepEqual(r.notes,['1 empty slot scores 0 in this plan.']);
+}
+// Sole TE on bye (team C has no game): TE empty; the two FLEX slots are filled from the remaining RB/WR, as before.
+{
+  const players=roster.players.filter(id=>id!=='12');
+  const cat={...catalog,6:{...catalog[6],team:'C'}};
+  const ko={...kickoffs,teams:['A','B','C']};
+  r=S.analyze({...base,roster:{...roster,players},catalog:cat,kickoffs:ko});
+  assert.deepEqual(emptySlot(r,5),{id:null,name:'Empty',empty:true,points:null,note:EMPTY('TE')});
+  assert.deepEqual(r.lineup.slice(6,8).map(p=>[p.slot,p.empty||false,!!p.points]),[['FLEX',false,true],['FLEX',false,true]]);
+  assert.equal(r.bench.find(p=>p.id==='6').bye,true);
+  assert.deepEqual(r.notes,['1 empty slot scores 0 in this plan.']);
+  // The plan's sum: the empty slot contributes 0.
+  const sum=r.lineup.reduce((s,p)=>s+(p.points?.p50||0),0);
+  const solved=Lineup.solve({slots:positions,candidates:players.filter(id=>!['6','9','10'].includes(id)).map(id=>({id,position:catalog[id].position,score:values[Number(id)-1]})),
+    fixed:{8:{id:'9'},9:{id:'10'}},current:roster.starters,allowEmpty:true});
+  assert.equal(sum,solved.total);
+}
+// A FLEX goes empty only when NO eligible player remains: one RB, nothing else, for RB + FLEX -> the RB slot is filled, FLEX empty.
+{
+  const lg={...league,roster_positions:['RB','FLEX','BN']};
+  r=S.analyze({...base,league:lg,roster:{players:['2'],starters:['2','0']}});
+  assert.deepEqual(r.lineup.map(p=>[p.slot,p.id]),[['RB','2'],['FLEX',null]]);
+  assert.equal(r.lineup[1].note,EMPTY('FLEX'));assert.equal(r.lineup[1].changed,false,'an already-empty slot that stays empty is unchanged');
+  r=S.analyze({...base,league:lg,roster:{players:[],starters:['0','0']}});
+  assert.deepEqual(r.notes,['2 empty slots score 0 in this plan.']);
+}
+// ---- audit A6-7: an empty K/DEF starter slot ("0" from Sleeper) reads "Empty" ----------
+r=S.analyze({...base,roster:{...roster,starters:roster.starters.map((id,i)=>i===8?'0':id)}});
+assert.deepEqual([r.lineup[8].slot,r.lineup[8].id,r.lineup[8].name,r.lineup[8].unmodeled],['K','0','Empty',true]);
 
 // ---- projection-UI slots (spec §6.1) ----------------------------------------------
 assert.throws(()=>S.analyze({...base,league:{...league,roster_positions:['QB','XFLEX','BN']}}),/^Error: Unsupported lineup slot: XFLEX$/);
@@ -125,9 +195,13 @@ assert.throws(()=>S.analyze({...base,roster:{...roster,starters:roster.starters.
   // Same in an IDP slot: a WR worth 18 in a DB slot is never listed with a negative gap.
   r=S.analyze({...base,roster:{...roster,starters:['1','2','3','5','7','6','13','8','4','10']},league:{...league,roster_positions:['QB','RB','RB','WR','WR','TE','FLEX','FLEX','DB','DEF','BN','BN','BN']}});
   assert.ok(!r.bench.some(p=>p.id==='4'));assert.ok(r.bench.every(p=>p.gap===null||p.gap>=0));
-  // With no other WR-eligible player left, the plan refuses instead of double-placing him.
+  // With no other WR-eligible player left, the WR slots stay empty (A6-2) instead of double-placing him;
+  // the one remaining RB fills one FLEX, the other FLEX is empty too.
   const thin={...base,roster:{players:['1','2','3','4','6','8','9','10'],starters:['1','2','3','0','0','6','0','0','4','10']},league:{...league,roster_positions:['QB','RB','RB','WR','WR','TE','FLEX','FLEX','K','DEF']}};
-  assert.throws(()=>S.analyze(thin),/Cannot fill WR with available, projected players/);
+  r=S.analyze(thin);
+  assert.equal(ids(r).filter(id=>id==='4').length,1,'never placed in two slots');
+  assert.deepEqual(r.lineup.map(p=>p.empty?`${p.slot}:empty`:`${p.slot}:${p.id}`),['QB:1','RB:2','RB:3','WR:empty','WR:empty','TE:6','FLEX:8','FLEX:empty','K:4','DEF:10']);
+  assert.deepEqual(r.notes,['3 empty slots score 0 in this plan.']);
 }
 
 // ---- §8.2 raw comparisons -------------------------------------------------------------
@@ -156,12 +230,13 @@ assert.throws(()=>S.analyze({...base,roster:{...roster,starters:roster.starters.
   const run=c=>{const v=LD.views(batch,lg,{week:1,catalog:c});return S.analyze({board:v.board,weekly:v.weekly,league:lg,roster:ro,catalog:c,kickoffs,now});};
   r=run(cat);
   assert.deepEqual(ids(r),['v1','v2','v3']);assert.equal(r.lineup[1].points.p50,15);assert.equal(r.lineup[1].changed,true);
-  // Traded after the batch: the view keeps the projection team, start/sit refuses naming him.
-  assert.throws(()=>run({...cat,v2:{...cat.v2,team:'B'}}),/^Error: Nv2: missing current-team weekly projection$/);
-  // Position changed live (WR -> RB): excluded from the view, so missing -> refusal naming him.
+  // Traded after the batch: the view keeps the projection team, start/sit treats him as unavailable, naming him.
+  r=run({...cat,v2:{...cat.v2,team:'B'}});
+  assert.ok(!ids(r).includes('v2'),'never scored for his old team');assert.deepEqual(r.notes,['Not projected this week: Nv2 — treated as unavailable.']);
+  // Position changed live (WR -> RB): excluded from the view, so missing -> unavailable, named.
   const moved={...cat,v3:{...cat.v3,position:'RB'}};
   assert.equal(LD.views(batch,lg,{week:1,catalog:moved}).excluded[0].reason,'position_changed');
-  assert.throws(()=>run(moved),/^Error: Nv3: missing current-team weekly projection$/);
+  r=run(moved);assert.ok(!ids(r).includes('v3'));assert.deepEqual(r.notes,['Not projected this week: Nv3 — treated as unavailable.']);
   // ...unless he is locked: a game-started starter stays fixed whether or not he has a projection.
   const lockedK={...kickoffs,teams:['A','B','C','D'],games:[...kickoffs.games,{home:'C',away:'D',kickoff:new Date(now-1000).toISOString()}]};
   const v=LD.views(batch,lg,{week:1,catalog:{...moved,v3:{...moved.v3,team:'C'}}});
@@ -185,4 +260,4 @@ for(let trial=0;trial<30;trial++) {
  walk(0,new Set(),0);
  assert.ok(Math.abs(result.lineup.reduce((s,p)=>s+(p.points?.p50||0),0)-best)<1e-8);
 }
-console.log('startsit_fixture: kernel lineups (FLEX/SUPER_FLEX/WRRB_FLEX/REC_FLEX/IDP), unsupported slots, start/sit policies (injuries, exclusions, missing/wrong-team/position-changed projections, locks, kickoffs, 7-day limits), duplicate occupants and raw near ties OK');
+console.log('startsit_fixture: kernel lineups (FLEX/SUPER_FLEX/WRRB_FLEX/REC_FLEX/IDP), unsupported slots, start/sit policies (injuries, exclusions, unprojected/teamless/wrong-team/position-changed players as unavailable, empty slots, empty K, locks, kickoffs, 7-day limits), duplicate occupants and raw near ties OK');

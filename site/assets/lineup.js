@@ -3,7 +3,11 @@
    slots keeping their current starter, (3) the smallest id vector in slot
    order. Scores become exact BigInt integers at a common power-of-two scale;
    the keep count is folded in with a multiplier larger than any keep total,
-   so no epsilon is involved. rostersim.js keeps ROS.bestLineup (frozen). */
+   so no epsilon is involved. rostersim.js keeps ROS.bestLineup (frozen).
+   solve({allowEmpty: true}) (start/sit, audit A6-2) never refuses an
+   infeasible lineup: stage (0), before (1), fills as many open slots as
+   possible; an unfillable slot is left empty, scores 0, and sorts after every
+   player id in (3). Without it an infeasible lineup refuses, as before. */
 (function (root, factory) {
   const api = factory(root);
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -67,7 +71,7 @@
     return { col, total };
   }
   function fail(reason, slot) { return { ok: false, reason, slot }; }
-  function solve({ slots, candidates, fixed = {}, current = [] }) {
+  function solve({ slots, candidates, fixed = {}, current = [], allowEmpty = false }) {
     if (!Array.isArray(slots)) throw new Error("slots must be an array");
     for (const s of slots) if (!MODELED.includes(s) && !UNMODELED.includes(s)) throw new Error(`Unsupported lineup slot: ${s}`);
     const ids = new Set();
@@ -91,28 +95,42 @@
     const pool = (candidates || []).filter(c => !fixedIds.has(c.id));
     const unfillable = () => { const i = open.find(i => !pool.some(c => ELIG[slots[i]].includes(c.position))) ?? open[open.length - 1];
       return fail(`Cannot fill ${slots[i]} with available, projected players.`, slots[i]); };
-    if (pool.length < open.length) return unfillable();
+    if (!allowEmpty && pool.length < open.length) return unfillable();
     const parts = pool.map(c => decompose(c.score));
     const minE = Math.min(...parts.filter(([m]) => m !== 0n).map(([, e]) => e), 0);
     const ints = parts.map(([m, e]) => m << BigInt(e - minE));
     const K = BigInt(open.length + 1);
     const base = open.map(i => pool.map((c, j) => ELIG[slots[i]].includes(c.position)
       ? -(ints[j] * K + (current[i] === c.id ? 1n : 0n)) : null));
-    const best = hungarian(base, open.length, pool.length);
+    // allowEmpty: one "empty" column per open slot, usable by that slot only.
+    // Its cost D exceeds twice the largest possible scored part, so one more
+    // filled slot always beats any score difference (stage 0).
+    let width = pool.length;
+    if (allowEmpty) {
+      let A = 1n;
+      for (const row of base) for (const c of row) if (c !== null && (c < 0n ? -c : c) > A) A = c < 0n ? -c : c;
+      const D = 2n * BigInt(open.length) * A + 1n;
+      base.forEach((row, r) => { for (let e = 0; e < open.length; e++) row.push(e === r ? D : null); });
+      width += open.length;
+    }
+    const best = hungarian(base, open.length, width);
     if (!best) return unfillable();
+    const idOf = j => (j < pool.length ? pool[j].id : null);            // null = empty, after every id
+    const byId = (a, b) => { const x = idOf(a), y = idOf(b);
+      return x === null || y === null ? (x === null) - (y === null) : x < y ? -1 : x > y ? 1 : 0; };
     const cost = base.map(r => r.slice());
     for (let r = 0; r < open.length; r++) {
-      const order = pool.map((c, j) => j).filter(j => cost[r][j] !== null)
-        .sort((a, b) => (pool[a].id < pool[b].id ? -1 : pool[a].id > pool[b].id ? 1 : 0));
+      const order = cost[r].map((x, j) => j).filter(j => cost[r][j] !== null).sort(byId);
       for (const j of order) {
         const trial = cost.map((row, rr) => row.map((x, jj) => (rr === r ? (jj === j ? x : null) : (jj === j ? null : x))));
-        const res = hungarian(trial, open.length, pool.length);
+        const res = hungarian(trial, open.length, width);
         if (res && res.total === best.total) { for (let i = 0; i < cost.length; i++) cost[i] = trial[i]; break; }
       }
     }
-    const final = hungarian(cost, open.length, pool.length);
+    const final = hungarian(cost, open.length, width);
     let exactSum = 0n;
     open.forEach((slotIndex, r) => {
+      if (final.col[r] >= pool.length) { assignment[slotIndex].empty = true; return; }   // scores 0
       const c = pool[final.col[r]];
       Object.assign(assignment[slotIndex], { id: c.id, score: c.score });
       exactSum += ints[final.col[r]];

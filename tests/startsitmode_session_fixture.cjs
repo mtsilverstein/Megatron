@@ -82,8 +82,20 @@ function get(p) {
 window.Sleeper = { get };
 Session._get(get);
 const analyzeCalls = [];
-const ENGINE = { label: "Model lineup", warnings: ["w1"], lineup: [],
-  bench: [{ id: "b", name: "B Wide", alternative: "A Back", gap: 1.5, close: true, overlap: true, eligible: true, locked: false, bye: false }] };
+// The engine's audit-2026-11-07 shapes (A6-2/A6-3/A6-7): an empty modeled slot
+// with its note, an empty K slot, an unprojected bench player, the notes.
+const EMPTY_TE = "No available TE this week — add one from waivers.";
+const NOTES = ["Not projected this week: U Nprojected — treated as unavailable.", "1 empty slot scores 0 in this plan."];
+const ENGINE = { label: "Model lineup", warnings: ["w1"], notes: NOTES,
+  lineup: [{ slot: "TE", id: null, name: "Empty", empty: true, points: null, note: EMPTY_TE, changed: true },
+    { slot: "K", id: "0", name: "Empty", unmodeled: true, changed: false }],
+  bench: [{ id: "b", name: "B Wide", alternative: "A Back", gap: 1.5, close: true, overlap: true, eligible: true, locked: false, bye: false },
+    { id: "u", name: "U Nprojected", alternative: null, gap: null, close: false, overlap: null, eligible: false, unprojected: true, locked: false, bye: false }] };
+// Every rendered plan shows them, owner and viewer alike.
+const assertPlanNotes = (text, who) => {
+  for (const s of [`TE Empty 0.00 ${EMPTY_TE}`, "K Empty Not modeled Not projected; current starter kept", ...NOTES, "U Nprojected: not projected; treated as unavailable."])
+    assert.ok(text.includes(s), `${who}: ${s} in ${text}`);
+};
 let engineThrows = null;
 global.StartSit = window.StartSit = { analyze(args) { analyzeCalls.push(args); if (engineThrows) throw new Error(engineThrows); return ENGINE; } };
 require("../site/assets/startsitmode.js");
@@ -234,6 +246,7 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.ok(outputText().includes("Pick-sixes use an average rate, not a forecast."), "footnotes");
   assert.ok(outputText().includes(HEURISTIC), "heuristic label on the close-call note");
   assert.match(outputText(), /A Back projects 1\.50 points higher — close call/);
+  assertPlanNotes(outputText(), "owner");
   // The exclusion list offers the owner's QB/RB/WR/TE players only.
   assert.equal($("ss-exclude").children.length, 1);
   assert.match(excludeText(), /A Back/); assert.doesNotMatch(excludeText(), /Kicker/);
@@ -374,13 +387,15 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.match(statusText(), /^Viewing Bo's Bunch; week 3; rosters requested /);
   assert.doesNotMatch(statusText(), /Read-only roster|your roster/i);
   assert.equal($("ss-exclude").children.length, 0, "exclusion checkboxes are owner-only");
-  // A viewer cannot exclude: a missing-projection refusal says who can.
-  const MISSING = "B Wide: missing current-team weekly projection";
-  engineThrows = MISSING;
+  // A6-3: a viewer gets the same plan and notes as the owner (an unprojected player no longer refuses).
+  assertPlanNotes(outputText(), "viewer");
+  // The one refusal an exclusion still clears (a team the schedule does not know) says who can.
+  const OFF_SCHEDULE = "Unknown team/schedule for B Wide.";
+  engineThrows = OFF_SCHEDULE;
   const an7b = analyzeCalls.length;
   picker().value = "3"; picker().dispatch("change");
   await until(() => analyzeCalls.length === an7b + 1, "the viewer re-render", 5000);
-  assert.equal(statusText(), `No safe full-lineup recommendation: ${MISSING} Only the team's owner can exclude players here.`);
+  assert.equal(statusText(), `No safe full-lineup recommendation: ${OFF_SCHEDULE} Only the team's owner can exclude players here.`);
   engineThrows = null;
   // ...then identifies as the owner of ANOTHER roster: owner's plan, viewer label gone.
   $("session-user").value = "max973";
@@ -390,10 +405,10 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.equal(b7.analysisRole, "owner"); assert.equal(b7.viewedRosterId, null, "the viewed choice is dropped, not merged");
   assert.doesNotMatch(statusText(), /Viewing/); assert.doesNotMatch(outputText(), /Viewing/);
   assert.match(excludeText(), /A Back/, "the owner's exclusions are back");
-  // The owner's refusal copy is unchanged (exclusions are available to him).
-  engineThrows = "A Back: missing current-team weekly projection";
+  // The owner's refusal copy has no hint (exclusions are available to him).
+  engineThrows = "Unknown team/schedule for A Back.";
   box().dispatch("change");
-  assert.equal(statusText(), "No safe full-lineup recommendation: A Back: missing current-team weekly projection");
+  assert.equal(statusText(), "No safe full-lineup recommendation: Unknown team/schedule for A Back.");
   engineThrows = null;
   box().dispatch("change");
   assert.match(statusText(), /^Read-only roster 9;/);
