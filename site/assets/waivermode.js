@@ -38,6 +38,7 @@
     noEvidence: "No measured evaluation for your league's scoring and this model.",
     horizon: "through NFL week 17, regardless of your league's schedule",
     aggregation: "sum of weekly medians through NFL week 17, not a season median",
+    thisWeekOnly: "this week only",     // the final week: no future weeks, so no range (audit A6-6)
     heuristic: n => `${n}-point threshold in your league's points (a heuristic)`,
     ecr: "PPR reference ranking",
     ownerOnly: "Claim guidance is for the team's owner.",
@@ -151,9 +152,11 @@
     const bid = ownerOnly ? COPY.ownerOnly : r.bid ? (dollars ?? r.bid.status ?? "No bid suggested") : (withheld ? "No priority claim suggested" : "Set claim order in Sleeper");
     const bidNote = ownerOnly ? "" : r.bid ? r.bid.label : (withheld ? r.signal.guidance : result.waiver.guidance);
     const exportBid = ownerOnly ? COPY.ownerOnly : r.bid ? (dollars ? `heuristic bid ${dollars}` : bid) : r.signal.guidance;
-    const rosPart = priced ? ` this week · ROS ${sign(dc.rosDelta)}` : "";
+    // The final week has no future weeks: "this week only" replaces the ROS figure and its range.
+    const finalWeek = priced && dc.futureWeeks === 0;
+    const rosPart = finalWeek ? ` ${COPY.thisWeekOnly}` : priced ? ` this week · ROS ${sign(dc.rosDelta)}` : "";
     const tag = weak ? " · weak signal" : held ? " · drop cost unassessed" : negative ? " · drop costs more than the add returns" : "";
-    const exportRos = priced ? `; ROS ${sign(dc.rosDelta)} (wk ${(dc.endWeek - dc.futureWeeks) + 1}–${dc.endWeek})` : "";
+    const exportRos = finalWeek ? `; ${COPY.thisWeekOnly}` : priced ? `; ROS ${sign(dc.rosDelta)} (wk ${(dc.endWeek - dc.futureWeeks) + 1}–${dc.endWeek})` : "";
     const exportTag = weak ? "WEAK SIGNAL" : held ? "DROP COST UNASSESSED" : negative ? "DROP COSTS MORE THAN ADD RETURNS" : "modeled";
     // Compact forms for the grouped table and the best-move card: the same
     // values and the same withheld states, shorter words. Never dollars for
@@ -172,9 +175,9 @@
       why: `${r.bid && !ownerOnly ? `${r.bid.tier} · ` : ""}${r.valueEstimate.label}`,
       dropCostNote: held ? `${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : dc.status === "priced" ? dc.label : null,
       exportLine: `ADD ${r.add.name}; DROP ${r.drop?.name || "none"}; +${r.lineupGain.toFixed(2)} (${r.scoring.label})${exportRos}; ${exportTag}; ${exportBid}; ${r.rosterCost}${held ? `; ${dc.label}${dc.reason ? ` — ${dc.reason}` : ""}` : ""}`,
-      gainShort: `+${r.lineupGain.toFixed(2)} / ${priced ? sign(dc.rosDelta) : "ROS not priced"}`,
+      gainShort: `+${r.lineupGain.toFixed(2)} / ${finalWeek ? COPY.thisWeekOnly : priced ? sign(dc.rosDelta) : "ROS not priced"}`,
       tagText, claim,
-      rosShort: priced ? `ROS ${sign(dc.rosDelta)}` : "ROS not priced",
+      rosShort: finalWeek ? COPY.thisWeekOnly : priced ? `ROS ${sign(dc.rosDelta)}` : "ROS not priced",
       whyShort: Number.isFinite(value) ? `Add's ROS value ${value.toFixed(2)}` : "Add's ROS value unknown (not zero)",
       withheld,
       // The engine's actual reason a spend suggestion is withheld (affordability
@@ -340,7 +343,8 @@
     const label = `Rest-of-season values. Horizon: ${COPY.horizon}. Totals: ${COPY.aggregation}.`;
     if (!ros) return label;
     if (ros.fresh) {
-      return `Rest-of-season projections: weeks ${ros.endWeek - ros.futureWeeks + 1}–${ros.endWeek}; generated ${ros.generatedAt}, data through ${ros.dataThrough || "unknown"}; ${ros.pricedOwned}/${activeOwnedSkills} ${owner ? "roster" : "of this team's"} players priced.${ros.unmodeledOwned.length ? ` No rest-of-season projection: ${ros.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} ${label} Values assume participation; injuries and returns are not forecast.`;
+      const span = ros.futureWeeks === 0 ? `${COPY.thisWeekOnly}, no later weeks remain` : `weeks ${ros.endWeek - ros.futureWeeks + 1}–${ros.endWeek}`;
+      return `Rest-of-season projections: ${span}; generated ${ros.generatedAt}, data through ${ros.dataThrough || "unknown"}; ${ros.pricedOwned}/${activeOwnedSkills} ${owner ? "roster" : "of this team's"} players priced.${ros.unmodeledOwned.length ? ` No rest-of-season projection: ${ros.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} ${label} Values assume participation; injuries and returns are not forecast.`;
     }
     return `Rest-of-season projections unavailable${ros.reason ? ` (${ros.reason})` : ""}; drop costs are unassessed and spend guidance is limited to open-slot adds. ${label}`;
   }

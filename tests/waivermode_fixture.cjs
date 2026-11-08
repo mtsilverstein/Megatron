@@ -366,6 +366,13 @@ const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15
   const end = M.rosText({ fresh:false, reason:"no projected weeks remain" }, { remainingReason: LD.COPY.noWeeks });
   assert.equal(end, "No projected weeks remain. Rest-of-season values and drop-cost pricing are off.");
   assert.ok(end.startsWith("No projected weeks remain."), "the exact end-state copy");
+  // The final week (audit A6-6): no backwards "weeks 18–17" range.
+  const last = M.rosText({ ...fresh, futureWeeks:0, unmodeledOwned:[] }, { activeOwnedSkills:6 });
+  assert.equal(last, `Rest-of-season projections: this week only, no later weeks remain; generated 2026-09-16T00:00:00Z, data through 2026-wk2; 5/6 roster players priced. Rest-of-season values. Horizon: ${HOR}. Totals: ${AGG}. Values assume participation; injuries and returns are not forecast.`);
+  const row17 = M.rowText({ add:{ name:"A" }, drop:{ name:"B" }, lineupGain:3, signal:{ strength:"modeled", moveValue:3, guidance:"g" }, scoring:{ label:"week 17 projection" }, rosterCost:"rc",
+    valueEstimate:{ points:null, label:"v" }, dropCost:{ status:"priced", rosDelta:0, futureWeeks:0, endWeek:17, label:"L" }, bid:{ low:1, high:3, tier:"small", label:"l", canAfford:true } }, { waiver:{ guidance:"" } });
+  assert.equal(row17.exportLine, "ADD A; DROP B; +3.00 (week 17 projection); this week only; modeled; heuristic bid $1–$3; rc");
+  assert.deepEqual([row17.gain, row17.rosShort, row17.gainShort], ["+3.00 pts this week only", "this week only", "+3.00 / this week only"]);
 }
 
 // ---- evidence: a number only under the league's effective scoring + this model -------------

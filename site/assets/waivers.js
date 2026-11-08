@@ -187,6 +187,8 @@
   // computed as an integer ratio so a half-dollar never lands a hair under .5.
   // A typed "Budget to keep" overrides it. `lastWeek` is seasonEndWeek().
   const FIRST_WEEK = 1;
+  // What every range reads in the final week, when no future week remains (A6-6).
+  const THIS_WEEK_ONLY = "this week only";
   const RESERVE_HELD = 'Budget held in reserve. Lower "Budget to keep" to bid.';
   function defaultReserve(budget, week, lastWeek) {
     const b = finite(budget), w = finite(week), last = finite(lastWeek);
@@ -241,8 +243,10 @@
     const dropForfeits = withAdd - after, rosDelta = after - ros.baseline;
     if (![withAdd, after, ros.baseline].every(Number.isFinite))
       return { status:"unassessed", label:"drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered", reason:"roster cannot field a full lineup from modeled players in every future week" };
-    const weekSpan = ros.futureWeeks === 0 ? "no future weeks remain" : `weeks ${ros.firstWeek}–${ros.endWeek}`;
-    return { status:"priced", label:`priced: rest-of-season lineup change over ${weekSpan}, assuming participation`,
+    // The final week (no future weeks): "this week only", never a backwards range (A6-6).
+    const label = ros.futureWeeks === 0 ? `priced: ${THIS_WEEK_ONLY}, no rest-of-season weeks remain`
+      : `priced: rest-of-season lineup change over weeks ${ros.firstWeek}–${ros.endWeek}, assuming participation`;
+    return { status:"priced", label,
              addContributes, dropForfeits, rosDelta, futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
   }
   // `gain` is the per-week value the bands read (move value per week, or this
@@ -504,7 +508,8 @@
       const netNegative = dropCost.status === "priced" && moveValue <= 0;
       const weak = !netNegative && perWeekGain < WEAK_SIGNAL_PTS;
       const unassessed = dropCost.status === "unassessed";
-      const span = priced ? (dropCost.futureWeeks === 0 ? "no future weeks remain" : `weeks ${firstFuture}–${dropCost.endWeek}`) : null;
+      const finalWeek = priced && dropCost.futureWeeks === 0;
+      const span = priced && !finalWeek ? `weeks ${firstFuture}–${dropCost.endWeek}` : null;
       const signal = {
         strength: weak ? "weak" : "modeled", perWeekGain, thresholdPerWeek: WEAK_SIGNAL_PTS, moveValue, basis,
         label: weak
@@ -523,10 +528,12 @@
       };
       const rosterCost = drop
         ? (dropCost.status === "priced"
-            ? `dropping ${dropName} forfeits ${fmt(dropCost.dropForfeits)} projected lineup points over ${span}; ${addName} adds ${fmt(dropCost.addContributes)} in his place`
+            ? (finalWeek ? `dropping ${dropName}: ${THIS_WEEK_ONLY}, so no rest-of-season lineup points are at stake`
+                : `dropping ${dropName} forfeits ${fmt(dropCost.dropForfeits)} projected lineup points over ${span}; ${addName} adds ${fmt(dropCost.addContributes)} in his place`)
             : `dropping ${dropName} costs their rest-of-season value, which this desk does not price`)
         : (priced
-            ? `uses an open roster spot; ${addName} adds ${fmt(dropCost.addContributes)} over ${span}; roster flexibility is not priced`
+            ? (finalWeek ? `uses an open roster spot; ${THIS_WEEK_ONLY}, so no rest-of-season lineup points are at stake; roster flexibility is not priced`
+                : `uses an open roster spot; ${addName} adds ${fmt(dropCost.addContributes)} over ${span}; roster flexibility is not priced`)
             : `uses an open roster spot; ${addName}'s rest-of-season contribution is not priced; roster flexibility is not priced`);
       return {
         add: { id: id(playerId(add)), name: addName, position: position(add) },
@@ -572,6 +579,6 @@
     };
   }
   return Object.freeze({ analyze, defaultReserve, seasonEndWeek, __lineupScore: lineupScore,
-    COPY: Object.freeze({ aggregation: AGGREGATION, horizon: HORIZON, heuristic: heuristicLabel, guidance: WAIVER_GUIDANCE, reserveHeld: RESERVE_HELD }),
+    COPY: Object.freeze({ aggregation: AGGREGATION, horizon: HORIZON, heuristic: heuristicLabel, guidance: WAIVER_GUIDANCE, reserveHeld: RESERVE_HELD, thisWeekOnly: THIS_WEEK_ONLY }),
     WEAK_SIGNAL_PTS, MIN_GAIN });
 });

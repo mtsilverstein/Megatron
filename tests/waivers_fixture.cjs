@@ -658,12 +658,25 @@ check("week 16 and 17 horizons; week 18 end state", () => {
   assert.equal(row.dropCost.status, "priced"); assert.deepEqual([row.dropCost.futureWeeks, row.dropCost.endWeek], [1, 17]);
   assert.equal(row.rosterCost, "dropping WR8 forfeits 0.00 projected lineup points over weeks 17–17; RB7 adds 7.00 in his place");
   assert.ok(close(row.signal.perWeekGain, (11 + 7) / 2));
-  // Week 17: no future weeks; the price is this week alone.
+  // Week 17: no future weeks; the price is this week alone, and every range reads "this week only" (A6-6).
   out = atWeek(17, remainingFor(steadyFuture(), { end_week:17 }, 17));
   row = rowOf(out,"7","8");
-  assert.equal(row.dropCost.rosDelta, 0); assert.match(row.rosterCost, /no future weeks remain/);
+  assert.equal(row.dropCost.rosDelta, 0);
+  assert.equal(row.dropCost.label, "priced: this week only, no rest-of-season weeks remain");
+  assert.equal(row.rosterCost, "dropping WR8: this week only, so no rest-of-season lineup points are at stake");
   assert.equal(row.signal.perWeekGain, row.lineupGain);
   assert.equal(row.valueEstimate.points, null);
+  const t17 = M.rowText(row, out);
+  assert.equal(t17.gain, "+11.00 pts this week only");
+  assert.deepEqual([t17.rosShort, t17.gainShort, t17.dropCostNote], ["this week only", "+11.00 / this week only", "priced: this week only, no rest-of-season weeks remain"]);
+  assert.match(t17.exportLine, /^ADD RB7; DROP WR8; \+11\.00 \(week 17 projection\); this week only; modeled; /);
+  const ros17 = M.rosText(out.coverage.ros, { activeOwnedSkills: out.coverage.activeOwnedSkills });
+  assert.match(ros17, /^Rest-of-season projections: this week only, no later weeks remain; generated /);
+  for (const s of [row.dropCost.label, row.rosterCost, ...Object.values(t17).filter(v => typeof v === "string"), ros17])
+    assert.doesNotMatch(s, /18–17|wk 18|no future weeks remain|ROS [+−]/, s);
+  const open17 = rowOf(atWeek(17, remainingFor(steadyFuture(), { end_week:17 }, 17), { league:slotLeague, rosters:slotRosters, protectedIds:["1","2","3","4"] }), "7", null);
+  assert.equal(open17.rosterCost, "uses an open roster spot; this week only, so no rest-of-season lineup points are at stake; roster flexibility is not priced");
+  assert.equal(M.rowText(open17, out).gain, "+8.00 pts this week only");
   // Week 18: no remaining payload (status no_remaining_weeks), the reason is named.
   out = atWeek(18, null, { remainingReason:"no projected weeks remain" });
   row = rowOf(out,"7","8");
