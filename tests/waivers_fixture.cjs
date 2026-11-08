@@ -882,7 +882,54 @@ check("I1: a withheld ros_value (WaiverMode.gateRos) orders and explains exactly
   assert.throws(() => M.gateRos(b2), /needs the rest-of-season gate/);
 });
 
-check("M2: an omitted budgetReserve defaults to 20% of the league budget (spec §7.2)", () => {
+check("A6-5: the omitted reserve shrinks with the waiver weeks left to the season end; $0 in the final week", () => {
+  const { budgetReserve, ...noReserve } = base;
+  const at = (week, remaining) => W.analyze({ ...noReserve, week, weekly:freshWeekly(board.players, week), kickoffs:futureKickoffs(week), remaining }).budget;
+  assert.deepEqual(at(1, remainingFor(steadyFuture(), { end_week:17 }, 1)), { total:100, used:40, remaining:60, reserve:20, spendable:40 }, "week 1: the full 20%");
+  assert.deepEqual(at(9, remainingFor(steadyFuture(), { end_week:17 }, 9)), { total:100, used:40, remaining:60, reserve:10, spendable:50 }, "week 9: 8 of 16 weeks left");
+  assert.equal(at(10, remainingFor(steadyFuture(), { end_week:17 }, 10)).reserve, 9, "week 10: 8.75 rounds to 9");
+  assert.deepEqual(at(17, remainingFor(steadyFuture(), { end_week:17 }, 17)), { total:100, used:40, remaining:60, reserve:0, spendable:60 }, "final week: nothing held");
+  assert.equal(at(18, null).reserve, 0, "week 18 (no remaining payload)");
+  assert.equal(at(9, undefined).reserve, 10, "no payload: the published horizon (LeagueData.LAST_WEEK = 17)");
+  assert.equal(at(9, remainingFor(steadyFuture(), { end_week:13 }, 9)).reserve, 7, "the payload's own end week: 20 x 4/12");
+  // The pure helpers the page shares.
+  assert.deepEqual([W.defaultReserve(100, 1, 17), W.defaultReserve(100, 9, 17), W.defaultReserve(100, 17, 17), W.defaultReserve(100, 30, 17), W.defaultReserve(100, 0, 17)], [20, 10, 0, 0, 20]);
+  assert.deepEqual([W.seasonEndWeek({ end_week:17 }), W.seasonEndWeek({ end_week:13 }), W.seasonEndWeek(null), W.seasonEndWeek({ end_week:"x" })], [17, 13, LD.LAST_WEEK, LD.LAST_WEEK]);
+  assert.equal(W.analyze({ ...base, week:9, weekly:freshWeekly(board.players, 9), kickoffs:futureKickoffs(9), budgetReserve:20 }).budget.reserve, 20, "a typed reserve still overrides");
+});
+check("A6-5: spendable 0 with budget left -> no range and not suggested; the reserve message on the row, the card and the export", () => {
+  const MSG = 'Budget held in reserve. Lower "Budget to keep" to bid.';
+  assert.equal(W.COPY.reserveHeld, MSG);
+  const lg = min => ({ ...slotLeague, settings:{ waiver_type:2, waiver_budget:100, waiver_bid_min:min } });
+  const rs = used => [{ ...slotRosters[0], settings:{ waiver_budget_used:used } }, slotRosters[1]];
+  // Open-slot RB7 (60) over RB2 (10): +50, impact tier.
+  const run = (used, reserve, min = 0, g7 = 60) => W.analyze({ ...base, league:lg(min), rosters:rs(used), weekly:weekOf(board.players,{g7}), protectedIds:["1","2","3","4"], budgetReserve:reserve });
+  const out = run(85, 20);                                   // $15 left, $20 held
+  assert.deepEqual(out.budget, { total:100, used:85, remaining:15, reserve:20, spendable:0 });
+  const row = rowOf(out,"7",null);
+  assert.equal(row.signal.strength, "modeled");
+  assert.deepEqual([row.bid.low, row.bid.high, row.bid.tier, row.bid.canAfford, row.bid.reserveHeld, row.bid.status], [null, null, "impact", false, true, MSG]);
+  const t = M.rowText(row, out);
+  assert.deepEqual([t.suggested, t.claim, t.bid, t.withheldReason], [false, MSG, MSG, "budget held in reserve"]);
+  assert.match(t.exportLine, /; modeled; Budget held in reserve\. Lower "Budget to keep" to bid\.; uses an open roster spot/);
+  assert.doesNotMatch(t.claim + t.bid + t.exportLine, /\$/, "never a $0–$0 range");
+  const card = M.bestMove({ rows: out.rows, result: out });
+  assert.equal(card.claim, MSG);
+  assert.equal(card.text, "No spend guidance for the modeled options this week: each option is withheld (budget held in reserve). Closest option: add RB7 (RB) — +50.00 pts this week. No drop needed (open roster spot).");
+  assert.equal(rowOf(run(80, 20),"7",null).bid.reserveHeld, true, "remaining exactly equal to the reserve");
+  assert.equal(rowOf(run(85, 20, 1),"7",null).bid.status, MSG, "a $1 minimum: still the reserve, since lowering it frees a bid");
+  // Lowering the reserve brings the range back, with the same numbers as before.
+  const freed = rowOf(run(85, 0),"7",null);
+  assert.deepEqual([freed.bid.low, freed.bid.high, freed.bid.reserveHeld, freed.bid.status], [11, 15, undefined, null]);
+  // Remaining below the league minimum: lowering the reserve cannot help, so the affordability status stays.
+  assert.equal(rowOf(run(97, 20, 5),"7",null).bid.status, "minimum bid exceeds spendable budget");
+  // No budget left at all: the reserve holds nothing, and the legal $0 claim stays as it was.
+  const spent = rowOf(run(100, 20),"7",null);
+  assert.deepEqual([spent.bid.low, spent.bid.high, spent.bid.reserveHeld], [0, 0, undefined]);
+  // A row withheld for its own reason keeps that reason.
+  assert.equal(rowOf(run(85, 20, 0, 10.5),"7",null).bid.tier, "weak signal");
+});
+check("M2: an omitted budgetReserve defaults to 20% of the league budget in week 1 (spec §7.2)", () => {
   for (const [budget, want] of [[0, 0], [10, 2], [100, 20]]) {
     const lg = { ...league, settings: { ...league.settings, waiver_budget: budget, waiver_bid_min: 0 } };
     const rs = rosters.map(r => ({ ...r, settings: { waiver_budget_used: 0 } }));

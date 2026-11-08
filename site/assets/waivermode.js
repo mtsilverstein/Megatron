@@ -29,6 +29,8 @@
   const Sleeper = dep("Sleeper", "./sleeper.js");
   const LiveWorld = dep("LiveWorld", "./liveworld.js");
   const LeagueData = dep("LeagueData", "./leaguedata.js");
+  // The engine's pure reserve default (null on a page that does not load waivers.js).
+  const Waivers = dep("Waivers", "./waivers.js");
 
   const COPY = Object.freeze({
     simulationOff: "Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.",
@@ -119,14 +121,18 @@
     return { ...board, players };
   }
 
-  // FAAB reserve default (spec §7.2): 20% of the league's budget, whole
-  // dollars. null for rolling / reverse-standings leagues or a missing budget.
-  function defaultReserve(league) {
+  // FAAB reserve default (spec §7.2, audit A6-5): the engine's
+  // Waivers.defaultReserve -- 20% of the league's budget in week 1, shrinking
+  // with the waiver weeks left to the season end (the `remaining` payload's
+  // end_week, the one the engine's futureWeeks counts to), $0 in the final
+  // week, whole dollars. null for rolling / reverse-standings leagues or a
+  // missing budget.
+  function defaultReserve(league, week, remaining) {
     const s = league && league.settings;
     if (!s || Number(s.waiver_type) !== 2) return null;
     const budget = Number(s.waiver_budget);
     if (s.waiver_budget === null || s.waiver_budget === undefined || !Number.isFinite(budget) || budget < 0) return null;
-    return Math.round(0.2 * budget);
+    return Waivers.defaultReserve(budget, week, Waivers.seasonEndWeek(remaining));
   }
 
   // Pure row wording shared by the table and the text export so fixtures can pin
@@ -153,8 +159,11 @@
     // values and the same withheld states, shorter words. Never dollars for
     // a withheld bid; a viewer gets no bid or claim guidance at all.
     const tagText = weak ? "weak signal" : held ? "drop cost unassessed" : negative ? "drop costs more than the add returns" : "";
+    // The reserve holds the whole remaining budget (A6-5): the engine's status
+    // replaces the range; never a $0–$0 "suggestion".
+    const reserveHeld = !!(r.bid && r.bid.reserveHeld);
     const claim = ownerOnly ? "Owner's call"
-      : r.bid ? (dollars ? `${dollars} · ${r.bid.tier} tier` : r.bid.canAfford === false ? `None: minimum bid exceeds spendable budget (${r.bid.tier} tier, not suggested)` : `None suggested (${r.bid.tier})`)
+      : r.bid ? (dollars ? `${dollars} · ${r.bid.tier} tier` : reserveHeld ? r.bid.status : r.bid.canAfford === false ? `None: minimum bid exceeds spendable budget (${r.bid.tier} tier, not suggested)` : `None suggested (${r.bid.tier})`)
       : withheld ? `No priority claim (${tagText})` : "Claim: set order in Sleeper";
     const value = r.valueEstimate && r.valueEstimate.points;
     return {
@@ -171,7 +180,8 @@
       // The engine's actual reason a spend suggestion is withheld (affordability
       // first, as the engine ranks it), or "" when one is attached.
       // A viewer's reason is the signal state only (the budget is the owner's).
-      withheldReason: !ownerOnly && r.bid && r.bid.canAfford === false ? "minimum bid exceeds spendable budget" : tagText,
+      withheldReason: !ownerOnly && reserveHeld ? "budget held in reserve"
+        : !ownerOnly && r.bid && r.bid.canAfford === false ? "minimum bid exceeds spendable budget" : tagText,
       // The engine attached a spend suggestion to this row: a dollar range
       // (FAAB) or a priority claim (rolling / reverse standings).
       suggested: r.bid ? !!dollars && r.bid.canAfford !== false : !withheld,
@@ -277,6 +287,7 @@
       const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? `$${r.bid.low}–$${r.bid.high}` : null;
       if (new Set(g.texts.map(x => x.claim)).size > 1) claim = "Bid or claim depends on the drop option — see the claim table.";
       else if (r.bid) claim = dollars && r.bid.canAfford !== false ? `Bid: ${dollars} (${r.bid.tier} tier; ${r.bid.label}).`
+        : r.bid.reserveHeld ? r.bid.status
         : r.bid.canAfford === false ? `Bid: none — minimum bid exceeds spendable budget (${r.bid.tier} tier, not suggested).`
         : `Bid: none suggested (${r.bid.tier}).`;
       else claim = t.suggested ? "Claim: suggested — rank it by value and roster need when you set claim order in Sleeper." : `Claim: none suggested (${t.tagText}).`;
@@ -467,12 +478,13 @@
       link.textContent = `Open ${league.name || `league ${league.league_id}`} in Sleeper`;
     }
 
-    function applyReserveDefault(league) {
-      const key = `${league.league_id}|${league.settings?.waiver_budget}`;
+    // The default moves with the week (A6-5), so a new week resets an untyped box too.
+    function applyReserveDefault(league, week, remaining) {
+      const key = `${league.league_id}|${league.settings?.waiver_budget}|${week}|${remaining?.end_week}`;
       if (key === reserveKey) return;
       reserveKey = key;
       if (userTyped) return;
-      const d = defaultReserve(league);
+      const d = defaultReserve(league, week, remaining);
       $("waiver-reserve").value = d === null ? "" : String(d);
     }
 
@@ -802,10 +814,10 @@
           if (!isViewer && !$("waiver-reserve").value.trim()) {
           // An emptied box hands control back to the default.
           userTyped = false;
-          const d = defaultReserve(league);
+          const d = defaultReserve(league, s.week, s.view.remaining);
           if (d !== null) $("waiver-reserve").value = String(d);
         }
-        const raw = isViewer ? String(defaultReserve(league) ?? "") : $("waiver-reserve").value;
+        const raw = isViewer ? String(defaultReserve(league, s.week, s.view.remaining) ?? "") : $("waiver-reserve").value;
           reserve = Number(raw);
           if (!String(raw).trim() || !Number.isInteger(reserve) || reserve < 0) throw new Error("Budget reserve must be a nonnegative whole dollar amount.");
         }
@@ -971,7 +983,7 @@
         const own = world.rosters.find(r => r.roster_id === world.rosterId);
         protectedIds = world.role === "viewer" ? new Set((own.starters || []).filter(id => id !== "0"))
           : ownerProtections(world, own, sameTeam ? protectedIds : null, Date.now() - bundle.rostersFetchedAt <= STALE_MS);
-        applyReserveDefault(world.league);
+        applyReserveDefault(world.league, week, view.remaining);
         // A copied shortlist describes the snapshot it came from: adopting a
         // new one (even for the same team) clears it and its status.
         $("waiver-copy-status").textContent = ""; $("waiver-backup").value = ""; $("waiver-backup-wrap").hidden = true;

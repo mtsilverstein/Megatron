@@ -40,18 +40,34 @@ assert.ok(!("validateContract" in M), "no published league contract any more (sp
   assert.ok(hydrated.players.slice(1).every(p => p.ros_value === undefined && p.points === undefined), "identity-only rows never invent scores");
 }
 
-// ---- FAAB reserve default: 20% of the league budget, whole dollars ------------------------
+// ---- FAAB reserve default (audit A6-5): 20% of the league budget in week 1, shrinking with --------
+// the waiver weeks left to the season end, whole dollars: round(0.2 x budget x (end - week) / (end - 1)).
 const faab = budget => ({ league_id:"X", settings:{ waiver_type:2, waiver_budget:budget } });
-assert.equal(M.defaultReserve(faab(0)), 0);
-assert.equal(M.defaultReserve(faab(10)), 2);
-assert.equal(M.defaultReserve(faab(100)), 20, "a $100 league keeps today's $20");
-assert.equal(M.defaultReserve(faab(1000)), 200);
-assert.equal(M.defaultReserve(faab(13)), 3, "rounded to whole dollars");
-assert.equal(M.defaultReserve({ settings:{ waiver_type:0, waiver_budget:100 } }), null, "rolling: no dollars");
-assert.equal(M.defaultReserve({ settings:{ waiver_type:1, waiver_budget:100 } }), null, "reverse standings: no dollars");
-assert.equal(M.defaultReserve({ settings:{ waiver_type:2 } }), null, "missing budget is never assumed");
+const R17 = { end_week:17 };            // the remaining payload's horizon end (what futureWeeks counts to)
+// Week 1: the full 20%, today's numbers.
+assert.equal(M.defaultReserve(faab(0), 1, R17), 0);
+assert.equal(M.defaultReserve(faab(10), 1, R17), 2);
+assert.equal(M.defaultReserve(faab(100), 1, R17), 20, "a $100 league keeps $20 in week 1");
+assert.equal(M.defaultReserve(faab(1000), 1, R17), 200);
+assert.equal(M.defaultReserve(faab(13), 1, R17), 3, "rounded to whole dollars");
+// Mid-season.
+assert.equal(M.defaultReserve(faab(100), 9, R17), 10, "week 9: 8 of 16 weeks left");
+assert.equal(M.defaultReserve(faab(100), 10, R17), 9, "week 10: 8.75 rounds to 9");
+assert.equal(M.defaultReserve(faab(100), 15, R17), 3, "week 15: 2.5 rounds up to 3");
+assert.equal(M.defaultReserve(faab(1000), 12, R17), 63, "week 12: 62.5 rounds up to 63");
+// The final week and after: no later waiver week to protect.
+assert.equal(M.defaultReserve(faab(100), 16, R17), 1, "week 16: 1.25");
+assert.equal(M.defaultReserve(faab(100), 17, R17), 0, "final week: $0");
+assert.equal(M.defaultReserve(faab(100), 18, null), 0, "week 18 (no remaining payload): $0");
+// The season end is the remaining payload's end_week; without a payload, the published horizon (NFL week 17).
+assert.equal(LD.LAST_WEEK, 17);
+assert.equal(M.defaultReserve(faab(100), 9, null), 10, "no payload: LeagueData.LAST_WEEK");
+assert.equal(M.defaultReserve(faab(100), 9, { end_week:13 }), 7, "a payload ending at week 13: 20 x 4/12 = 6.67");
+assert.equal(M.defaultReserve({ settings:{ waiver_type:0, waiver_budget:100 } }, 1, R17), null, "rolling: no dollars");
+assert.equal(M.defaultReserve({ settings:{ waiver_type:1, waiver_budget:100 } }, 1, R17), null, "reverse standings: no dollars");
+assert.equal(M.defaultReserve({ settings:{ waiver_type:2 } }, 1, R17), null, "missing budget is never assumed");
 // Exhausted budget: the default is still budget-relative; remaining/spendable clamp in the engine (waivers_fixture).
-assert.equal(M.defaultReserve(faab(100)), 20);
+assert.equal(M.defaultReserve(faab(100), 1, R17), 20);
 
 // ---- rowText: a withheld bid (low/high null) never prints dollars --------------------------
 const LABEL = "rest-of-season value 40.00 (sum of weekly medians through NFL week 17, not a season median); not a FAAB price";

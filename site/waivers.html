@@ -30,7 +30,7 @@
   <p id="waiver-summary" class="waiver-summary" hidden><span id="waiver-summary-league"></span><span id="waiver-budget"></span><span id="waiver-summary-data"></span><a id="waiver-warning-link" class="waiver-warning-link" href="#waiver-warnings-heading" hidden></a></p>
   <div id="waiver-controls" class="waiver-controls" aria-label="Waiver settings" role="group">
     <label>Week <input id="waiver-week" type="number" min="1" max="18" placeholder="Auto" title="Automatically follows the current NFL week. Enter a number to override; clear to restore automatic selection."></label>
-    <label>Budget to keep ($) <input id="waiver-reserve" type="number" min="0" step="1" required aria-describedby="reserve-hint waiver-spendable"><span id="reserve-hint" class="field-hint">Defaults to 20% of your league budget</span><span id="waiver-spendable" class="field-hint"></span></label>
+    <label>Budget to keep ($) <input id="waiver-reserve" type="number" min="0" step="1" required aria-describedby="reserve-hint waiver-spendable"><span id="reserve-hint" class="field-hint">Defaults to 20% of your league budget in week 1, falling to $0 by the final week</span><span id="waiver-spendable" class="field-hint"></span></label>
     <label>Position <select id="waiver-position"><option value="ALL">All skill positions</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option></select></label>
     <button type="button" id="waiver-protect-toggle" class="waiver-protect-toggle" aria-expanded="false" aria-controls="waiver-protect" hidden>Protected: 0 players</button>
   </div>

@@ -17,6 +17,8 @@
   const NODE = typeof module !== "undefined" && !!module.exports;
   const Lineup = NODE ? require("./lineup.js") : window.Lineup;
   const Formats = NODE ? require("./formats.js") : window.Formats;
+  // Resolved at call time (only the reserve default's season-end fallback reads it).
+  const LeagueData = () => (NODE ? require("./leaguedata.js") : window.LeagueData);
 
   const SKILL = new Set(["QB", "RB", "WR", "TE"]);
   // Projection-UI eligibility for the modeled slots (spec §6.1), from the
@@ -178,6 +180,30 @@
   const HORIZON = "through NFL week 17, regardless of your league's schedule";
   const heuristicLabel = n => `${n}-point threshold in your league's points (a heuristic)`;
   const fmt = x => x.toFixed(2);
+  // FAAB reserve default (spec §7.2, audit A6-5): 20% of the league budget
+  // in week 1, shrinking with the waiver weeks left after the current one,
+  // $0 in the final week:
+  //   round(0.20 × budget × futureWeeks / (lastWeek − FIRST_WEEK)),
+  // computed as an integer ratio so a half-dollar never lands a hair under .5.
+  // A typed "Budget to keep" overrides it. `lastWeek` is seasonEndWeek().
+  const FIRST_WEEK = 1;
+  const RESERVE_HELD = 'Budget held in reserve. Lower "Budget to keep" to bid.';
+  function defaultReserve(budget, week, lastWeek) {
+    const b = finite(budget), w = finite(week), last = finite(lastWeek);
+    if (b === null || b < 0 || w === null || last === null) return null;
+    const span = last - FIRST_WEEK;
+    if (span <= 0) return 0;
+    const futureWeeks = Math.min(span, Math.max(0, last - w));
+    return Math.round((b * futureWeeks) / (5 * span));
+  }
+  // The season end the desk's rest of season runs to: the remaining payload's
+  // end_week (what `futureWeeks` counts to), else the published horizon
+  // (LeagueData.LAST_WEEK, NFL week 17). Sleeper's league settings are not
+  // read: there is no league-specific clipping (spec §3.3).
+  function seasonEndWeek(remaining) {
+    const end = finite(remaining && remaining.end_week);
+    return end !== null && Number.isInteger(end) && end >= FIRST_WEEK ? end : LeagueData().LAST_WEEK;
+  }
   const WAIVER_GUIDANCE = Object.freeze({
     faab: "Bid ranges are budgeting heuristics, not claim-success probabilities.",
     rolling: "Order claims by value and roster need; current priority is context, not a claim-success probability.",
@@ -221,14 +247,18 @@
   }
   // `gain` is the per-week value the bands read (move value per week, or this
   // week's gain under the fallback). Precedence, first match wins: affordability,
-  // net-negative (priced only), weak, unassessed, bands.
+  // net-negative (priced only), weak, unassessed, reserve held, bands.
   function bidGuide(gain, total, remaining, reserve, minBid, weak, dropCost, move) {
     let pct = [0, 0], tier = "no bid";
     if (gain > 0 && gain < 2) { pct = [0.01, 0.03]; tier = "small"; }
     else if (gain >= 2 && gain < 5) { pct = [0.04, 0.10]; tier = "useful"; }
     else if (gain >= 5) { pct = [0.11, 0.20]; tier = "impact"; }
     const affordable = Math.max(0, remaining - reserve);
-    if ((move ? move.lineupGain : gain) > 0 && affordable < minBid) {
+    // The reserve holds all of the remaining budget, and lowering it would
+    // free at least the league minimum (audit A6-5): no range is shown, not
+    // even $0–$0. Rows withheld for their own reason keep that reason.
+    const reserveHeld = remaining > 0 && remaining - reserve <= 0 && remaining >= minBid;
+    if (!reserveHeld && (move ? move.lineupGain : gain) > 0 && affordable < minBid) {
       return { low: null, high: null, tier, affordable, canAfford: false, status: "minimum bid exceeds spendable budget", label: BID_LABEL };
     }
     if (dropCost && dropCost.status === "priced" && move && move.moveValue <= 0) {
@@ -241,6 +271,7 @@
     if (dropCost && dropCost.status === "unassessed") {
       return { low: null, high: null, tier: "drop cost unassessed", affordable, canAfford: true, status: `no bid suggested: drop cost unassessed — ${dropCost.reason}`, label: BID_LABEL };
     }
+    if (reserveHeld) return { low: null, high: null, tier, affordable, canAfford: false, reserveHeld: true, status: RESERVE_HELD, label: BID_LABEL };
     let low = Math.min(affordable, Math.ceil(total * pct[0]));
     let high = Math.min(affordable, Math.ceil(total * pct[1]));
     if (gain > 0) { low = Math.max(minBid, low); high = Math.max(low, high); }
@@ -276,7 +307,8 @@
     const used = rolling ? null : finite(mine.settings && mine.settings.waiver_budget_used);
     if (!rolling && (used === null || used < 0)) fail("roster waiver_budget_used is missing or invalid");
     const remaining = rolling ? null : Math.max(0, budgetTotal - used);
-    const reserve = rolling ? null : finite(args.budgetReserve === undefined ? Math.round(0.2 * budgetTotal) : args.budgetReserve);
+    const reserve = rolling ? null : finite(args.budgetReserve === undefined
+      ? defaultReserve(budgetTotal, finite(args.week) || FIRST_WEEK, seasonEndWeek(args.remaining)) : args.budgetReserve);
     if (!rolling && (reserve === null || reserve < 0)) fail("budgetReserve must be non-negative");
     const minBid = rolling ? null : Math.max(0, finite(league.settings && league.settings.waiver_bid_min) || 0);
     const protectedIds = validateIds(args.protectedIds || [], "protectedIds");
@@ -539,7 +571,7 @@
                evaluation: rosMap.evaluation } }
     };
   }
-  return Object.freeze({ analyze, __lineupScore: lineupScore,
-    COPY: Object.freeze({ aggregation: AGGREGATION, horizon: HORIZON, heuristic: heuristicLabel, guidance: WAIVER_GUIDANCE }),
+  return Object.freeze({ analyze, defaultReserve, seasonEndWeek, __lineupScore: lineupScore,
+    COPY: Object.freeze({ aggregation: AGGREGATION, horizon: HORIZON, heuristic: heuristicLabel, guidance: WAIVER_GUIDANCE, reserveHeld: RESERVE_HELD }),
     WEAK_SIGNAL_PTS, MIN_GAIN });
 });

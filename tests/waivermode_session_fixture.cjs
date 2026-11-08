@@ -291,8 +291,9 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.notEqual(c0.snapshotAt, b1.rostersFetchedAt);
   assert.match($("waiver-source").textContent, new RegExp(`requested ${new Date(b1.rostersRequestedAt).toISOString()} \\(kickoff gate\\), received ${new Date(b1.rostersFetchedAt).toISOString()} \\(marked stale after 60 s\\)`));
   assert.match($("waiver-source").textContent, /League settings read /, "the settings stamp sits with the data timestamps");
-  // Reserve default: 20% of a $100 budget.
-  assert.equal($("waiver-reserve").value, "20"); assert.equal(c0.budgetReserve, 20);
+  // Reserve default (A6-5): 20% of a $100 budget, scaled by the 14 of 16 waiver weeks left after
+  // week 3 (no remaining payload here: the season end is NFL week 17) -> round(17.5) = 18.
+  assert.equal($("waiver-reserve").value, "18"); assert.equal(c0.budgetReserve, 18);
   assert.equal($("waiver-reserve").closest("label").hidden, false);
   // Format line, footnotes, heuristics, simulation note.
   const ctx = text("waiver-context");
@@ -461,7 +462,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal($("waiver-summary-league").textContent, "Synthetic League · Week 3");
   assert.equal($("waiver-budget").textContent, "$100 FAAB remaining · tie priority 4");
   assert.match($("waiver-summary-data").textContent, /^rosters as of .+ · Your team: /);
-  assert.equal($("waiver-spendable").textContent, "Keep in reserve $20 · spendable ceiling $80");
+  assert.equal($("waiver-spendable").textContent, "Keep in reserve $18 · spendable ceiling $82");
   assert.equal($("waiver-status").className, "visually-hidden", "the loaded status stays in the live region, shown by the summary line");
   assert.equal($("waiver-data").hidden, false, "the method fold's data part follows the results");
   assert.equal($("waiver-protect-toggle").hidden, false);
@@ -721,7 +722,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   // 7. FAAB reserve: the default follows a budget change; a typed value is kept; an emptied box hands back.
   league = { ...baseLeague, settings: { ...baseLeague.settings, waiver_budget: 10 } };
   await refresh("the $10 budget");
-  assert.equal($("waiver-reserve").value, "2", "budget change resets the default (20% of $10)");
+  assert.equal($("waiver-reserve").value, "2", "budget change resets the default (20% of $10 x 14/16 = 1.75)");
   assert.equal(analyzeCalls.at(-1).budgetReserve, 2);
   $("waiver-reserve").value = "7"; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
   assert.equal(analyzeCalls.at(-1).budgetReserve, 7);
@@ -732,23 +733,48 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   $("waiver-reserve").value = ""; $("waiver-reserve").dispatch("input");
   league = { ...baseLeague, settings: { ...baseLeague.settings, waiver_budget: 50 } };
   await refresh("the $50 budget");
-  assert.equal($("waiver-reserve").value, "10", "an emptied box hands control back to the default");
+  assert.equal($("waiver-reserve").value, "9", "an emptied box hands control back to the default (20% of $50 x 14/16 = 8.75)");
   league = { ...baseLeague, settings: { ...baseLeague.settings, waiver_budget: 50 } };
   $("waiver-reserve").value = "12";   // set without typing (e.g. an earlier default) -- same budget keeps it
   await refresh("the same budget");
   assert.equal($("waiver-reserve").value, "12", "no budget change: no reset");
   league = baseLeague;
   await refresh("back to $100");
-  assert.equal($("waiver-reserve").value, "20");
+  assert.equal($("waiver-reserve").value, "18");
+  // A6-5: the default follows the week as well; an untyped box resets, the final week keeps nothing.
+  routes[`/league/${L}/transactions/9`] = []; routes[`/league/${L}/transactions/17`] = [];
+  for (const [week, want] of [["9", "10"], ["17", "0"]]) {
+    const an = analyzeCalls.length;
+    $("waiver-week").value = week; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > an && analyzeCalls.at(-1).week === Number(week), `the week-${week} desk`);
+    assert.equal($("waiver-reserve").value, want, `week ${week}: round(0.2 x $100 x ${17 - Number(week)}/16)`);
+    assert.equal(analyzeCalls.at(-1).budgetReserve, Number(want));
+  }
+  {
+    const an = analyzeCalls.length;
+    $("waiver-week").value = ""; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > an && analyzeCalls.at(-1).week === 3, "back to the automatic week");
+    assert.equal($("waiver-reserve").value, "18");
+  }
   // Emptying the box (change, no budget change) refills the default and keeps the results visible.
   $("waiver-reserve").value = ""; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
-  assert.equal($("waiver-reserve").value, "20", "emptied box refills the league default");
+  assert.equal($("waiver-reserve").value, "18", "emptied box refills the league default");
   assert.ok(!$("waiver-results").hidden, "results stay visible");
-  assert.equal(analyzeCalls.at(-1).budgetReserve, 20);
+  assert.equal(analyzeCalls.at(-1).budgetReserve, 18);
   $("waiver-reserve").value = "9"; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
   assert.equal(analyzeCalls.at(-1).budgetReserve, 9, "a typed value still persists");
   assert.equal($("waiver-reserve").value, "9");
-  $("waiver-reserve").value = "20"; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
+  // A typed value survives a week change, exactly as it survives a budget change.
+  {
+    const an = analyzeCalls.length;
+    $("waiver-week").value = "9"; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > an && analyzeCalls.at(-1).week === 9, "the week-9 desk, typed reserve");
+    assert.equal($("waiver-reserve").value, "9"); assert.equal(analyzeCalls.at(-1).budgetReserve, 9);
+    const back = analyzeCalls.length;
+    $("waiver-week").value = ""; $("waiver-week").dispatch("change");
+    await until(() => analyzeCalls.length > back && analyzeCalls.at(-1).week === 3, "back to the automatic week, typed reserve");
+  }
+  $("waiver-reserve").value = "18"; $("waiver-reserve").dispatch("input"); $("waiver-reserve").dispatch("change");
   // The weak-signal sentence (now in the method fold) carries a single parenthetical.
   assert.ok(!/\([^)]*\([^)]*\)/.test($("waiver-count-detail").textContent), "no nested parentheses in the count line");
   assert.match($("waiver-count-detail").textContent, /^3 independent add\/drop alternatives\. .* 1 are weak signals: the move's value averages under 1 point per week through NFL week 17 \(this week's gain plus the priced rest-of-season change; this week's gain alone where the rest of season is not priced\)/);
@@ -781,7 +807,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal($("waiver-protect-toggle").textContent, "Protected: 1 starter (owner's choice)");
   assert.doesNotMatch(text("waiver-table"), /\$4–\$10/, "no bids for viewers");
   assert.equal($("waiver-reserve").closest("label").hidden, true, "the reserve is the owner's choice");
-  assert.equal(analyzeCalls.at(-1).budgetReserve, 20, "the viewer's engine run uses the league default");
+  assert.equal(analyzeCalls.at(-1).budgetReserve, 18, "the viewer's engine run uses the league default");
   assert.ok(!text("waiver-budget").includes("Keep in reserve"));
   // ...then identifies as the owner of ANOTHER roster: the owner's desk, the viewer label gone.
   $("session-user").value = "max973";
@@ -990,7 +1016,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.ok(html.includes("Budget to keep ($)"));
   assert.match(html, /aria-describedby="reserve-hint[ "]/);
   assert.ok(html.includes('id="reserve-hint"'));
-  assert.ok(html.includes("Defaults to 20% of your league budget"));
+  assert.ok(html.includes("Defaults to 20% of your league budget in week 1, falling to $0 by the final week"));
   assert.ok(html.includes('id="waiver-context"'));
 
   Date.now = realNow;

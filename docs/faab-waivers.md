@@ -6,7 +6,7 @@ Open `waivers.html?league=gabagool` or `waivers.html?league=fam`, enter your Sle
 
 - Reads every live roster, including IR/taxi, and matches your owner/co-owner account uniquely.
 - Checks the live scoring, roster, season, league size, and FAAB contract against the Gabagool board.
-- Reads remaining FAAB, subtracts a user-selected reserve (default $20, not an optimized amount), and caps each independent bid alternative.
+- Reads remaining FAAB, subtracts a user-selected reserve, and caps each independent bid alternative. The default reserve (not an optimized amount) shrinks with the waiver weeks left after the current one: round(0.20 × budget × weeks left ÷ (last week − 1)), where the last week is the remaining-season horizon (NFL week 17). A $100 budget keeps $20 in week 1, $10 in week 9 and $0 in the final week; a typed "Budget to keep" overrides it. When the reserve holds all of the remaining budget, no range is shown, only "Budget held in reserve. Lower "Budget to keep" to bid." (audit 2026-11-07 A6-5).
 - Protects nothing initially for the owner (since 2026-10-22; protections are the owner's ticks, saved per league and team in the browser), protects the current starters in viewer mode, and always excludes IR/taxi and unmapped players from drops.
 - Compares legal skill-position lineups before and after individual add/drop swaps. K/DST are outside this model.
 - Uses weekly projections only when their league/scoring, season, week, and timestamp match. Missing player projections are excluded, never replaced with season totals in the same comparison.
