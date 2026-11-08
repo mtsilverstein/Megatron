@@ -281,6 +281,10 @@ def _write_full_precision(path: Path, full: dict) -> None:
     print(f"full-precision neutral remaining written to {path} (not published)")
 
 
+EXIT_SEASON_OVER = 10
+EXIT_STATS_PENDING = 11
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
     if not _stage_is_empty(args.out):
@@ -288,12 +292,21 @@ def main(argv=None) -> int:
               f"files only", file=sys.stderr)
         return 2
     from ffmodel.site import weekly as weekly_mod
+    from ffmodel.site.generate import SeasonOver, StatsPending
 
     # set_league_rules mutates a process-global; restore it whatever happens.
     saved_rules = weekly_mod.RULESETS["league"]
     try:
         payloads, ctx, full_precision = build_batch(args)
         write_stage(args.out, payloads, ctx)
+    except SeasonOver:
+        # Raised at resolve_week inside build_batch, before any payload exists: the stage stays empty.
+        print(f"batch: season {args.season} is complete; no slate to publish")
+        return EXIT_SEASON_OVER
+    except StatsPending as exc:
+        print(f"batch: stats for completed games are not posted yet ({exc}); "
+              f"no slate published this run")
+        return EXIT_STATS_PENDING
     except Exception:  # noqa: BLE001 - any failure: nonzero exit, no manifest
         traceback.print_exc()
         print("batch FAILED: no manifest written; publish will refuse this stage", file=sys.stderr)

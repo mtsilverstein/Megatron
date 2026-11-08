@@ -174,8 +174,10 @@ def test_week_auto_errors_when_season_complete():
     weekly = make_weekly([{"week": w, "player_id": f"{t}{w}", "team": t}
                           for w in (1, 2, 3, 4) for t in ("AAA", "BBB")])
     sched = _sched_with_scores(4, season=2023, completed_rows={i:(10,7) for i in range(4)})
-    with pytest.raises(RuntimeError, match="2023"):
+    with pytest.raises(RuntimeError, match="2023") as exc:
         resolve_week("auto", weekly, sched, season=2023)
+    from ffmodel.site.generate import SeasonOver
+    assert isinstance(exc.value, SeasonOver)
 
 
 def _sched_with_scores(weeks=4, season=2026, completed_rows=None):
@@ -202,6 +204,66 @@ def test_auto_keeps_partial_week_and_rejects_incomplete_stats():
         resolve_week("auto", weekly.iloc[:1], sched, 2023)
     with pytest.raises(RuntimeError, match="final scores"):
         resolve_week("auto", weekly, sched.drop(columns="home_score"), 2023)
+
+
+def _pending_case(gamedays, drop_gameday=False):
+    """Two completed week-1 games (AAA-BBB, CCC-DDD); weekly stats exist for no team."""
+    import datetime as dt
+    sched = _sched_with_scores(2, season=2023, completed_rows={0: (10, 7), 1: (10, 7)})
+    sched.loc[1, "week"] = 1
+    sched.loc[1, "home_team"] = "CCC"
+    sched.loc[1, "away_team"] = "DDD"
+    sched.loc[0, "gameday"], sched.loc[1, "gameday"] = gamedays
+    if drop_gameday:
+        sched = sched.drop(columns="gameday")
+    weekly = make_weekly([{"team": "ZZZ"}])
+    return weekly, sched, dt.date(2023, 9, 20)
+
+
+def test_missing_stats_for_recent_game_is_stats_pending():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-19", "2023-09-19"))
+    with pytest.raises(StatsPending, match="completed team-games"):
+        validate_completed_games(weekly, sched, 2023, today=today)
+
+
+def test_missing_stats_for_old_game_stays_a_plain_runtime_error():
+    from ffmodel.site.generate import StatsPending, resolve_week
+    weekly, sched, today = _pending_case(("2023-09-17", "2023-09-17"))
+    with pytest.raises(RuntimeError) as exc:
+        resolve_week("auto", weekly, sched, 2023, today=today)
+    assert not isinstance(exc.value, StatsPending)
+
+
+def test_stats_pending_boundary_is_two_days():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-18", "2023-09-18"))
+    with pytest.raises(StatsPending):
+        validate_completed_games(weekly, sched, 2023, today=today)
+
+
+def test_missing_stats_without_gameday_fails_closed():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-19", "2023-09-19"), drop_gameday=True)
+    with pytest.raises(RuntimeError) as exc:
+        validate_completed_games(weekly, sched, 2023, today=today)
+    assert not isinstance(exc.value, StatsPending)
+
+
+def test_missing_stats_mixed_recent_and_old_is_a_plain_runtime_error():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-19", "2023-09-10"))
+    with pytest.raises(RuntimeError) as exc:
+        validate_completed_games(weekly, sched, 2023, today=today)
+    assert not isinstance(exc.value, StatsPending)
+
+
+def test_missing_stats_with_unparseable_gameday_fails_closed():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-19", None))
+    with pytest.raises(RuntimeError) as exc:
+        validate_completed_games(weekly, sched, 2023, today=today)
+    assert not isinstance(exc.value, StatsPending)
 
 
 def test_small_current_season_allowed_only_with_complete_team_coverage():

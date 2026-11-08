@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -115,8 +116,36 @@ def parse_and_validate(argv=None) -> argparse.Namespace:
     return args
 
 
-def validate_completed_games(weekly, schedules, season):
-    """Reject successful but incomplete pulls of completed team-games."""
+class SeasonOver(RuntimeError):
+    """Every regular-season game has a final score: there is no slate left to build."""
+
+
+class StatsPending(RuntimeError):
+    """Only games finished within the last 2 days lack weekly stats: nflverse has not posted them yet."""
+
+
+def _only_recent_games_missing(complete, missing, today) -> bool:
+    """True when every missing (week, team) sits in a game played at most 2 days before today."""
+    if "gameday" not in complete:
+        return False
+    missing_set = set(missing)
+    for row in complete.itertuples():
+        if not any((int(row.week), team) in missing_set for team in (row.home_team, row.away_team)):
+            continue
+        try:
+            played = datetime.strptime(str(row.gameday), "%Y-%m-%d").date()
+        except ValueError:
+            return False
+        if (today - played).days > 2:
+            return False
+    return True
+
+
+def validate_completed_games(weekly, schedules, season, *, today=None):
+    """Reject successful but incomplete pulls of completed team-games.
+
+    Raises StatsPending (a RuntimeError) instead when every gap is a game from the last 2 days.
+    """
     games = schedules[schedules["season"] == season]
     if "game_type" in games:
         games = games[games["game_type"] == "REG"]
@@ -133,20 +162,26 @@ def validate_completed_games(weekly, schedules, season):
                for team in (row.home_team, row.away_team)
                if (row.week, team) not in observed]
     if missing:
-        raise RuntimeError(f"completed team-games missing weekly stats: {missing}")
+        message = f"completed team-games missing weekly stats: {missing}"
+        if today is None:
+            today = datetime.now(timezone.utc).date()
+        if _only_recent_games_missing(complete, missing, today):
+            raise StatsPending(message)
+        raise RuntimeError(message)
 
 
-def resolve_week(week, weekly: pd.DataFrame, schedules: pd.DataFrame, season: int) -> int:
+def resolve_week(week, weekly: pd.DataFrame, schedules: pd.DataFrame, season: int, *,
+                 today=None) -> int:
     if week != "auto":
         return int(week)
-    validate_completed_games(weekly, schedules, season)
+    validate_completed_games(weekly, schedules, season, today=today)
     games = schedules[schedules["season"] == season]
     if "game_type" in games:
         games = games[games["game_type"] == "REG"]
     remaining = [w for w, group in games.groupby("week", sort=True)
                  if not (group.home_score.notna() & group.away_score.notna()).all()]
     if not remaining:
-        raise RuntimeError(f"season {season} has no unplayed scheduled weeks left")
+        raise SeasonOver(f"season {season} has no unplayed scheduled weeks left")
     return int(remaining[0])
 
 

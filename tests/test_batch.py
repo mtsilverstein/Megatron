@@ -420,3 +420,22 @@ def test_rejects_unsupported_leagues_and_models(world, tmp_path):
         batch.main(["--out", str(tmp_path / "b"), "--model", "xgboost", "--season", "2026",
                     "--week", "auto", "--leagues", "gabagool,fam"])
     assert world["predictors"] == []
+
+
+@pytest.mark.parametrize("exc_name,code,line", [
+    ("SeasonOver", batch.EXIT_SEASON_OVER, "batch: season 2026 is complete; no slate to publish"),
+    ("StatsPending", batch.EXIT_STATS_PENDING, "batch: stats for completed games are not posted yet (x)"),
+])
+def test_batch_main_exits_cleanly_for_season_over_and_stats_pending(
+        tmp_path, monkeypatch, capsys, exc_name, code, line):
+    from ffmodel.site import generate as gen_mod
+    from ffmodel.site import weekly as weekly_mod
+
+    def boom(args):
+        raise getattr(gen_mod, exc_name)("x")
+    monkeypatch.setattr(batch, "build_batch", boom)
+    monkeypatch.setitem(weekly_mod.RULESETS, "league", weekly_mod.RULESETS["league"])
+    out = tmp_path / "stage"
+    assert run_batch(out) == code
+    assert line in capsys.readouterr().out
+    assert not out.exists() or not any(out.iterdir())
