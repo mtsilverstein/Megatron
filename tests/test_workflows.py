@@ -34,6 +34,10 @@ def test_weekly_update_commit_step_retries_with_injected_token():
     assert "extraheader" in step["run"] and "::add-mask::" in step["run"]
     assert "${{" not in step["run"]
     assert "${{ github.token }}" in step["env"].values()
+    # A dispatch from a branch pushes that branch, never main (the checkout is not pinned to main).
+    assert step["env"]["BRANCH"] == "${{ github.ref_name }}"
+    assert 'gitp push origin "HEAD:$BRANCH"' in step["run"] and "HEAD:main" not in step["run"]
+    assert "git rebase --abort" in step["run"]
 
 
 def test_weekly_update_optional_refreshes_gated_on_published_batch():
@@ -41,7 +45,11 @@ def test_weekly_update_optional_refreshes_gated_on_published_batch():
     for sid in ("live_experts", "ros_experts"):
         cond = _step(doc, "regenerate", "id", sid)["if"]
         assert "steps.batch.outputs.state == 'published'" in cond
-    assert _step(doc, "regenerate", "id", "batch")["run"].count("10") >= 1
+    batch = _step(doc, "regenerate", "id", "batch")["run"]
+    assert "set +e" in batch and 'RC=$?' in batch
+    for code, state in (("0", "published"), ("10", "season_over"), ("11", "stats_pending")):
+        assert f'"$RC" -eq {code} ]' in batch and f"state={state}" in batch
+    assert 'exit "$RC"' in batch
     assert _step(doc, "regenerate", "id", "live_accuracy")["if"] == "inputs.draft != true"
 
 

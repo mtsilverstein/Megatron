@@ -41,6 +41,7 @@ jobs:
           git commit -m "data: weekly accuracy refresh"
           for i in 1 2 3; do
             gitp pull --rebase origin main && gitp push origin HEAD:main && exit 0
+            git rebase --abort 2>/dev/null || true   # a failed rebase must not poison the next attempt
           done
           exit 1
 
