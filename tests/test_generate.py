@@ -1126,3 +1126,22 @@ def test_weekly_workflow_publishes_one_validated_batch_for_both_leagues():
     assert "--remaining" not in text
     assert "for LEAGUE in fam gabagool; do" in text           # draft branch unchanged
     assert "for LEAGUE in gabagool fam; do" not in text
+
+
+def test_load_adp_skips_a_snapshot_from_another_season(monkeypatch, tmp_path):
+    from ffmodel.site import generate
+    import ffmodel.data.adp as adp_mod
+
+    snap = tmp_path / "fantasypros_adp_2026-07-27.csv"
+    snap.write_text("unused\n", encoding="utf-8")
+    monkeypatch.setattr(adp_mod, "SNAPSHOT_PATH", snap)
+    monkeypatch.setattr(adp_mod, "pull_adp",
+                        lambda season, cache_dir=None, teams=12:
+                        pd.DataFrame({"player_id": ["00-1"], "adp": [3.0]}))
+
+    adp_df, source = generate._load_adp(2027, tmp_path)
+    assert list(adp_df["player_id"]) == ["00-1"]
+    assert source == {
+        "source": "ffcalculator",
+        "snapshot_skipped": ("fantasypros_adp_2026-07-27.csv is for season "
+                             "2026, board season 2027")}

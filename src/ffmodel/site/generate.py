@@ -365,10 +365,19 @@ def _load_adp(season, data_dir, draft_picks=None, *, teams: int = 12,
     """
     from ffmodel.data.adp import (DRAFTABLE_ADP, SNAPSHOT_PATH, load_snapshot_adp,
                                   pull_adp, snapshot_date)
-    from ffmodel.data.pull import assert_snapshot_is_newest
+    from ffmodel.data.pull import assert_snapshot_is_newest, current_nfl_season
     from ffmodel.data.rankings import _backfill_draft_gsis, pull_player_ids
 
+    skipped = None
     if SNAPSHOT_PATH.exists():
+        snap_season = current_nfl_season(
+            datetime.strptime(snapshot_date(SNAPSHOT_PATH), "%Y-%m-%d").date())
+        if snap_season != season:
+            # A pinned export describes the season it was captured for; using
+            # it for another board would rank on a stale population silently.
+            skipped = (f"{SNAPSHOT_PATH.name} is for season {snap_season}, "
+                       f"board season {season}")
+    if SNAPSHOT_PATH.exists() and skipped is None:
         # Loud if a fresher export was dropped in without bumping the pin --
         # otherwise the board rebuilds off stale ADP and reports success.
         assert_snapshot_is_newest(SNAPSHOT_PATH)
@@ -390,7 +399,10 @@ def _load_adp(season, data_dir, draft_picks=None, *, teams: int = 12,
         # block so it actually reaches the published draft.json.
         source.update(_bounded_stats(stats))
         return adp_df, source
-    return pull_adp(season, cache_dir=data_dir, teams=teams), {"source": "ffcalculator"}
+    source = {"source": "ffcalculator"}
+    if skipped is not None:
+        source["snapshot_skipped"] = skipped
+    return pull_adp(season, cache_dir=data_dir, teams=teams), source
 
 
 # League sizes FFCalculator will serve. Any other value returns HTTP 400 --
