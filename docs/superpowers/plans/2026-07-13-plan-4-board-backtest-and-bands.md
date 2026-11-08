@@ -1,6 +1,6 @@
 # Plan 4: Draft-board backtest + honest season bands
 
-**Date:** 2026-07-13 · **Phase B revised 2026-07-16** (Fable, per `done.by.opus.md` Session 4 — the original Phase B predated the Sessions 2–3c findings and was measured stale on five gates)
+**Date:** 2026-07-13 · **Phase B revised 2026-07-16** (Fable, per `docs/history/done.by.opus.md` Session 4 — the original Phase B predated the Sessions 2–3c findings and was measured stale on five gates)
 **Status:** Phase A COMPLETE (baseline committed + audited). Phase B: revised and ready to execute.
 **Motivation:** The walk-forward harness scores *weekly* predictions with real rolling features; the draft board (frozen end-of-prior-season seeds rolled over 18 weeks) has never been evaluated — board quality is currently judged by eyeball. Separately, season bands are sums of weekly quantiles (assumes perfect cross-week correlation → 700+ point ceilings) and weekly coverage sits at ~0.897 vs the 0.80 target *(pre-B0 construction; B0 changes the base numbers — see the re-baseline step)*.
 
@@ -35,7 +35,7 @@ All Phase B work happens on one working branch (`feat/plan-4b-bands`, off curren
 0.80 target), and the weekly Actions cron regenerates the site from whatever `main` holds —
 so the construction change and its calibration must land atomically.
 
-Evidence base: `done.by.opus.md` Sessions 2–3c (findings) and Session 4 (audit verdicts +
+Evidence base: `docs/history/done.by.opus.md` Sessions 2–3c (findings) and Session 4 (audit verdicts +
 gates). Two facts shape everything below: (1) miscalibration is position-specific and
 tail-asymmetric (pre-B0: QB 0.814 near-target by a fragile three-effect cancellation, RB
 0.938 wide; post-B0: QB floor misses 0.2% below vs 10% nominal), so calibration is
@@ -220,7 +220,7 @@ draft.py thin).
 
 ## Out of scope (next plans, measured against this harness)
 - Usage-share / team-pie constraints: **gate CLOSED** — Plan 5 built and measured it
-  NEGATIVE on this harness (every mode worse or tied; `done.by.opus.md` Sessions 2 & 4);
+  NEGATIVE on this harness (every mode worse or tied; `docs/history/done.by.opus.md` Sessions 2 & 4);
   do not revive without new evidence. The branch `feat/plan-5-team-pie` stays unmerged as
   the record.
 - Roster-aware redistribution, injury/news signals (spec §11 still binding). NOTE: B2's

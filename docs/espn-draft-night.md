@@ -1,5 +1,7 @@
 # Two drafts at once
 
+_Historical record (dated 2026-09-08); not maintained._
+
 Keep two Megatron tabs open:
 
 - Gabagool: `index.html?league=gabagool` — the existing live Sleeper overlay.

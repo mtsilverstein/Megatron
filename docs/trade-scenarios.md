@@ -5,12 +5,10 @@
 `trade.html?league=gabagool` and `?league=fam` switch to an in-season branch when the
 Sleeper league is `in_season`. Enter your username, pick a partner, tick the players
 on each side, mark any weeks a player should be assumed unavailable (your assumption —
-the page never fills one in from an injury tag), acknowledge that everyone else is
-assumed to play, add explicit drops when a side would exceed roster capacity, and
+the page never fills one in from an injury tag), add explicit drops when a side would exceed roster capacity, and
 press "Compare lineups". The result is both sides' week-by-week and remaining-season
 starting-lineup change from the model's remaining-season projections, labeled
-"Conditional lineup scenario — not a trade verdict." Picks in the offer are listed as
-not valued; keeper value is not modeled; the current week is excluded because trades
+"Conditional lineup scenario — not a trade verdict." Keeper value is not modeled; the current week is excluded because trades
 may process after games start. No suggestions, no league scan, no grade: those are
 gated behind the roster-level promotion test recorded in
 `docs/superpowers/specs/2026-09-17-inseason-trade-scenario-design.md` §8. The pre-draft

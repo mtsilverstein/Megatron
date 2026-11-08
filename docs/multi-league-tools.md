@@ -45,7 +45,7 @@ results.
 Newly generated weekly payloads include full-precision `stat_quantiles` with
 nullable outer bands and an explicit schema. Pick-six expectations, when
 available, are included. Existing rounded points and `stats_p50` stay unchanged.
-The pure `league-scoring.js` foundation scores supported linear categories,
+The legacy `league-scoring.js` (no page loads it; the live scorer is `leaguelens.js`) scored supported linear categories,
 including pick-six penalties, from these components. Missing stats, nonfinite
 weights and unknown nonzero categories fail closed. It is not yet wired into
 arbitrary-league lineup advice; K/DST, bonuses and unmodeled scoring cannot be
