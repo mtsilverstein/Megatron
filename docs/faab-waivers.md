@@ -11,7 +11,7 @@ Open `waivers.html?league=gabagool` or `waivers.html?league=fam`, enter your Sle
 - Compares legal skill-position lineups before and after individual add/drop swaps. K/DST are outside this model.
 - Uses weekly projections only when their league/scoring, season, week, and timestamp match. Missing player projections are excluded, never replaced with season totals in the same comparison.
 - In-season stale, missing or misaligned weekly data withholds lineup gains and bid recommendations. Research/watchlists remain available. The pure engine retains a labeled preseason proxy outside in-season mode; the live desk requires an in-season league.
-- An unprojected owned player who could contribute to an unstarted lineup blocks comparisons, even when other players can fill every slot. Protecting that player from drops alone would not make an incomplete baseline reliable.
+- An owned skill player with no NFL team or no current-team weekly projection (an unprojected rookie, a cut player, a player traded after the batch) counts as 0 this week and in every remaining week, the way a bye is scored, and stays protected from drops. He is named in one caveat on the desk ("Not projected: … They count as 0, so if one of them starts for you, gains are overstated."), and recommendations are computed as normal (audit 2026-11-07 A6-3). A player whose non-null team is missing from the kickoff schedule still refuses the desk, by name.
 - Lists available preseason-ECR players separately for stash review. Ownership is live at refresh time; waiver eligibility and claim deadlines must still be checked in Sleeper.
 - Exports a copyable shortlist. Alternatives can reuse a drop or collectively overspend: they are not a combined claim queue.
 

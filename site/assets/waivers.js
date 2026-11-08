@@ -31,6 +31,9 @@
   const fail = msg => { throw new TypeError(`Waivers.analyze: ${msg}`); };
 
   function playerId(p) { return p && (p.sleeper_id ?? p.id); }
+  function nameOf(p) { return p.name || p.full_name || id(playerId(p)); }
+  // The one caveat for owned players counted as 0 (audit A6-3).
+  const notProjectedCaveat = names => `Not projected: ${names.join(", ")}. They count as 0, so if one of them starts for you, gains are overstated.`;
   function position(p) {
     const v = String(p && (p.position || p.pos) || "").toUpperCase();
     return v === "DST" ? "DEF" : v;
@@ -327,7 +330,7 @@
       unmappedOwnedIds: [...unknownOwned]
     };
     const blocked = reason => ({
-      recommendationBlock: reason, rows: [], warnings: [...warnings, reason],
+      recommendationBlock: reason, rows: [], warnings: [...warnings, reason], caveats: [],
       waiver: { type: waiverKind, priority, guidance: "Research only; immediate claim recommendations withheld." },
       budget: rolling ? null : { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },
       roster: { rosterId, playerIds: [...validateIds(mine.players || [], "roster players")], protectedIds: [...protectedIds], lockedReserveTaxiIds: [...ownLocked], unknownOwnedIds: unknownOwned },
@@ -341,13 +344,18 @@
     const kickoffs = weekly.fresh ? kickoffMap(args.kickoffs, league, args.week, now) : { fresh:false, starts:new Map(), covered:new Set(), reason:null };
     if (weekly.fresh && !kickoffs.fresh) fail(`${kickoffs.reason}; refresh required`);
     if (weekly.fresh && unknownOwned.length) fail(`${unknownOwned.length} owned player(s) missing from board; refresh player data`);
-    if (weekly.fresh && ownActive.some(p => SKILL.has(position(p)) && (!playerTeam(p) || !kickoffs.covered.has(playerTeam(p))))) fail("unknown team/schedule for owned player; refresh player data");
-    if (weekly.fresh && ownActive.some(p => SKILL.has(position(p)) && weekly.invalidTeamIds.has(id(playerId(p))))) fail("owned player projection team does not match current team; refresh projections");
+    // An owned skill player with NO NFL team, or whose projection is for
+    // another team, has no current-team projection: he is counted as 0 below
+    // (audit A6-3), never refused. A non-null team the kickoff file does not
+    // list is broken schedule coverage and still refuses, by name.
+    const offSchedule = weekly.fresh ? ownActive.find(p => SKILL.has(position(p)) && playerTeam(p) && !kickoffs.covered.has(playerTeam(p))) : null;
+    if (offSchedule) fail(`unknown team/schedule for owned player ${nameOf(offSchedule)}: ${playerTeam(offSchedule)} is not on this week's kickoff schedule`);
     if (unknownOwned.length) warnings.push(`${unknownOwned.length} owned player(s) missing from board; excluded from drops and lineup analysis may be incomplete`);
     const missingWeekly = [...boardById.values()].filter(p => SKILL.has(position(p)) && !weekly.map.has(id(playerId(p)))).length;
     if (weekly.fresh && missingWeekly) warnings.push(`${missingWeekly} skill player(s) lack a current weekly projection and are excluded from weekly comparisons`);
     const unavailable = p => UNAVAILABLE.has(String(p.injury_status || p.status || "").toUpperCase());
-    const score = p => {
+    // This week's score: 0 when unavailable or on a bye, null when unknown.
+    const weeklyScore = p => {
       const pid = id(playerId(p));
       if (weekly.fresh) {
         if (unavailable(p)) return 0;
@@ -365,7 +373,8 @@
       if (realStarters.some(pid => !validateIds(mine.players || [], "roster players").has(pid) || ownLocked.has(pid))) fail("current starters must be owned active non-reserve players");
       ownActive.filter(p => SKILL.has(position(p))).forEach(p => {
         const pid = id(playerId(p)), t = playerTeam(p);
-        if (!t || !kickoffs.covered.has(t)) fail(`unknown team/schedule for owned player ${p.name || pid}`);
+        if (!t) return; // no NFL team: no game, nothing to lock
+        if (!kickoffs.covered.has(t)) fail(`unknown team/schedule for owned player ${p.name || pid}`);
         const at = kickoffs.starts.get(t);
         if (at === undefined || now < at) return; // no game is a covered bye
         if (snapshotAt < at) fail("a game started since the roster was loaded; refresh required");
@@ -384,8 +393,15 @@
     }
     const remainingStarterSlots = starterSlots.filter((s, i) => !lockedModeledSlots.has(i));
     const availableOwn = ownActive.filter(p => !startedBench.has(id(playerId(p))) && !lockedStarterIds.has(id(playerId(p))));
-    const unknownContributors = weekly.fresh ? availableOwn.filter(p => SKILL.has(position(p)) && score(p) === null) : [];
-    if (unknownContributors.length) return blocked(`Owned players lack a current weekly projection: ${unknownContributors.map(p => p.name || playerId(p)).join(", ")}. They are protected from drops; lineup gains withheld because their contribution is unknown.`);
+    // Audit A6-3: an owned skill player who could start this week but has no
+    // NFL team or no current-team projection is a non-contributor: 0 this
+    // week and in every rest-of-season week (scored like a bye), still
+    // protected from drops, and named once in `caveats`. The desk is
+    // computed as normal instead of being withheld.
+    const notProjected = weekly.fresh ? availableOwn.filter(p => SKILL.has(position(p)) && weeklyScore(p) === null) : [];
+    const notProjectedIds = new Set(notProjected.map(p => id(playerId(p))));
+    const score = p => (notProjectedIds.has(id(playerId(p))) ? 0 : weeklyScore(p));
+    const caveats = notProjected.length ? [notProjectedCaveat(notProjected.map(nameOf))] : [];
     const baseline = lineupScore(availableOwn, remainingStarterSlots, score);
     if (!Number.isFinite(baseline)) fail("owned roster cannot fill every required starting position with known finite scores");
     const mapped = p => playerId(p) !== null && playerId(p) !== undefined;
@@ -400,22 +416,27 @@
       return !!t && kickoffs.covered.has(t) && at !== undefined && now < at;
     });
     if (weekly.fresh && injuredFreeAgents.length) warnings.push(`${injuredFreeAgents.length} unavailable free agent(s) excluded from immediate weekly recommendations; review separately for stash value`);
-    const missingDropScores = ownActive.filter(p => SKILL.has(position(p)) && score(p) === null);
+    // Drops read the projection itself: a player counted as 0 is never priced as a drop.
+    const missingDropScores = ownActive.filter(p => SKILL.has(position(p)) && weeklyScore(p) === null);
     if (weekly.fresh && missingDropScores.length) warnings.push(`${missingDropScores.length} owned player(s) lack a current weekly projection and are protected from drops`);
-    const droppable = ownActive.filter(p => SKILL.has(position(p)) && score(p) !== null && !started.has(id(playerId(p))) && !protectedIds.has(id(playerId(p))) && !ownLocked.has(id(playerId(p))));
+    const droppable = ownActive.filter(p => SKILL.has(position(p)) && weeklyScore(p) !== null && !started.has(id(playerId(p))) && !protectedIds.has(id(playerId(p))) && !ownLocked.has(id(playerId(p))));
     const hasOpenSlot = ownActiveCount < activeRosterCapacity(league);
     // Rest-of-season context. Future weeks have no locked starters, so the
     // future roster is every active skill player; a roster player unmodeled
     // in some week is excluded from that week's lineup (never zeroed) and
-    // reported, not silently absorbed.
+    // reported, not silently absorbed. The one exception is a this-week
+    // non-contributor (A6-3): 0 in every future week, named in `caveats`.
     const rosMap = remainingMap(args.remaining, league, args.week, boardByGsis, now, args.remainingReason);
     const futureRoster = ownActive.filter(p => SKILL.has(position(p)));
     const firstFuture = (finite(args.week) || 1) + 1;
-    const pointsAt = (p, w) => { const rows = rosMap.at.get(id(playerId(p))); return rows && rows.has(w) ? rows.get(w) : null; };
+    const pointsAt = (p, w) => {
+      if (notProjectedIds.has(id(playerId(p)))) return 0;
+      const rows = rosMap.at.get(id(playerId(p))); return rows && rows.has(w) ? rows.get(w) : null;
+    };
     const rosValue = players => { let total = 0; for (let w = firstFuture; w <= rosMap.endWeek; w++) total += lineupScore(players, starterSlots, p => pointsAt(p, w)); return total; };
     // A player absent from the payload is unmodeled exactly like one whose
     // week rows are null: no entry, no price.
-    const rosUnmodeled = p => rosMap.unmodeled.has(id(playerId(p))) || !rosMap.at.has(id(playerId(p)));
+    const rosUnmodeled = p => !notProjectedIds.has(id(playerId(p))) && (rosMap.unmodeled.has(id(playerId(p))) || !rosMap.at.has(id(playerId(p))));
     const ros = rosMap.fresh ? { fresh:true, reason:null, roster:futureRoster, value:rosValue, baseline:rosValue(futureRoster), isUnmodeled:rosUnmodeled,
                                  firstWeek:firstFuture, endWeek:rosMap.endWeek, futureWeeks:rosMap.endWeek - (finite(args.week) || 1) } : { fresh:false, reason:rosMap.reason };
     const rosUnmodeledOwned = rosMap.fresh ? futureRoster.filter(rosUnmodeled).map(p => ({ id:id(playerId(p)), name:p.name || p.full_name || id(playerId(p)) })) : [];
@@ -507,12 +528,13 @@
     return {
       waiver: { type: waiverKind, priority, guidance: WAIVER_GUIDANCE[waiverKind] },
       budget: rolling ? null : { total: budgetTotal, used, remaining, reserve, spendable: Math.max(0, remaining - reserve) },
-      warnings, rows,
+      warnings, rows, caveats,
       roster: { rosterId, playerIds: [...validateIds(mine.players || [], "roster players")], protectedIds: [...protectedIds], lockedReserveTaxiIds: [...ownLocked], unknownOwnedIds: unknownOwned },
       coverage: { ...ownedCoverage, boardPlayers: board.players.length, ownedPlayers: owned.size, freeAgentsScored: freeAgents.length, dropCandidates: droppable.length, weeklyFresh: weekly.fresh, weeklyMatched: weekly.map.size, scoringLabel: "fresh weekly projection",
         ros: { fresh: !!ros.fresh, reason: ros.fresh ? null : ros.reason, endWeek: ros.fresh ? ros.endWeek : null, futureWeeks: ros.fresh ? ros.futureWeeks : null,
                generatedAt: rosMap.generatedAt, dataThrough: rosMap.dataThrough,
-               pricedOwned: ros.fresh ? futureRoster.length - rosUnmodeledOwned.length : null, unmodeledOwned: rosUnmodeledOwned,
+               // A player counted as 0 is neither priced nor "excluded from future lineups".
+               pricedOwned: ros.fresh ? futureRoster.length - rosUnmodeledOwned.length - notProjected.length : null, unmodeledOwned: rosUnmodeledOwned,
                pricedFreeAgents: ros.fresh ? freeAgents.filter(p => !rosUnmodeled(p)).length : null,
                evaluation: rosMap.evaluation } }
     };

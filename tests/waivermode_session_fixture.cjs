@@ -134,11 +134,12 @@ const ROW_E = { ...ROW, add: { id: "e", name: "E Spare", position: "TE" }, drop:
   valueEstimate: { points: 12, label: "rest-of-season value 12.00 (sum of weekly medians through NFL week 17, not a season median); not a FAAB price" },
   bid: { low: null, high: null, tier: "weak signal", affordable: 80, canAfford: true, status: "no bid suggested: the move's value (this week's gain plus the priced rest-of-season change, averaged per week through NFL week 17; this week's gain alone where the rest of season is not priced) is under 1.0 pt/week", label: BID_LABEL } };
 let engineRows = null;                  // a scenario's override of the engine's rows
+let engineCaveats = [];                 // a scenario's engine caveats (audit A6-3)
 const ENGINE_RESULT = args => {
   const wt = args.league.settings.waiver_type;
   const rows = engineRows || [ROW, ROW_C2, ROW_E];
   return {
-    rows: rows.map(r => ({ ...r, bid: wt === 2 ? r.bid : null })), warnings: ["engine warning"], recommendationBlock: null,
+    rows: rows.map(r => ({ ...r, bid: wt === 2 ? r.bid : null })), warnings: ["engine warning"], recommendationBlock: null, caveats: engineCaveats,
     budget: wt === 2 ? { total: args.league.settings.waiver_budget, used: 0, remaining: args.league.settings.waiver_budget, reserve: args.budgetReserve, spendable: Math.max(0, args.league.settings.waiver_budget - args.budgetReserve) } : null,
     waiver: { type: wt === 2 ? "faab" : wt === 1 ? "reverse_standings" : "rolling", priority: wt === 0 ? 4 : null, guidance: require("../site/assets/waivers.js").COPY.guidance[wt === 2 ? "faab" : wt === 1 ? "reverse_standings" : "rolling"] },
     coverage: { scoringLabel: "fresh weekly projection", weeklyFresh: true, projectedOwnedSkills: 1, activeOwnedSkills: 1,
@@ -854,6 +855,25 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.equal($("waiver-best-text").textContent, "No spend guidance for the modeled options this week: each option is withheld (minimum bid exceeds spendable budget). Closest option: add C Free (WR) — +2.50 pts this week. No drop needed (open roster spot).");
     assert.doesNotMatch(text("waiver-table") + $("waiver-best-claim").textContent, /\$\d/, "no dollars");
   }
+  // A6-3: owned players the engine counts as 0 -> one visible caveat beside the top option, also in the export.
+  assert.equal($("waiver-caveat").hidden, true, "no caveat when every owned player is projected");
+  const CAVEAT = "Not projected: A Back. They count as 0, so if one of them starts for you, gains are overstated.";
+  engineRows = null; engineCaveats = [CAVEAT];
+  await refresh("a roster with an unprojected player");
+  {
+    assert.equal($("waiver-caveat").hidden, false);
+    assert.equal($("waiver-caveat").textContent, CAVEAT);
+    assert.equal($("waiver-caveat").parent, $("waiver-best"), "on the desk, not in the method fold");
+    assert.equal(all(main).map(n => n.textContent).join(" ").split(CAVEAT).length - 1, 1, "stated once on the page");
+    const savedNav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    Object.defineProperty(globalThis, "navigator", { value: {}, configurable: true, writable: true });
+    $("waiver-copy").dispatch("click"); await new Promise(r => setImmediate(r));
+    assert.ok($("waiver-backup").value.split("\n").includes(CAVEAT), "the copied shortlist carries the caveat");
+    if (savedNav) Object.defineProperty(globalThis, "navigator", savedNav); else delete globalThis.navigator;
+  }
+  engineCaveats = [];
+  await refresh("every owned player projected again");
+  assert.equal($("waiver-caveat").hidden, true);
   // Fix 1 in the controller: 17 adds (two drops each), only the last carrying a bid.
   // The table shows the top 15 adds plus the card's add, each with BOTH drops, and says so.
   engineRows = Array.from({ length: 17 }, (_, i) => [0, 1].map(j => ({ ...ROW_E, add: { id: `m${i}`, name: `M Add${i}`, position: "WR" },

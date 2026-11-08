@@ -286,19 +286,66 @@ check("fresh-week unavailable owned players score zero", () => {
   assert.ok(upgrade && upgrade.lineupGain>=18, `unavailable owned player retained healthy points: ${upgrade&&upgrade.lineupGain}`);
 });
 
-check("weekly unknown contributor: blocked, protected from drops, gains withheld (caller policy)", () => {
+const NOT_PROJECTED = names => `Not projected: ${names}. They count as 0, so if one of them starts for you, gains are overstated.`;
+check("A6-3: an owned player with no weekly projection counts 0, stays protected from drops, is named once; the desk is computed", () => {
+  // WR8 (the FLEX starter) has no weekly row. Baseline QB20 RB10 WR11 TE8 FLEX WR8=0 -> 49.
   const fresh=freshWeekly(board.players.filter(x=>x.sleeper_id!=="8"));
-  const blocked=W.analyze({...base,weekly:fresh});
-  assert.equal(blocked.rows.length,0);
-  assert.equal(blocked.recommendationBlock,"Owned players lack a current weekly projection: WR8. They are protected from drops; lineup gains withheld because their contribution is unknown.");
-  assert.equal(blocked.coverage.activeOwnedSkills,5);
-  assert.equal(blocked.coverage.projectedOwnedSkills,4);
-  assert.deepEqual(blocked.coverage.missingOwnedWeekly,[{id:"8",name:"WR8"}]);
+  const out=W.analyze({...base,weekly:fresh});
+  assert.equal(out.recommendationBlock,undefined,"never withheld over one player");
+  assert.deepEqual(out.caveats,[NOT_PROJECTED("WR8")]);
+  assert.deepEqual(out.rows.map(r=>[r.add.id,r.drop.id,r.lineupGain]),[["7","2",8],["7","3",7]],"RB7 over RB2 (+8); over WR3 with WR8 at 0 in WR (+7)");
+  assert.ok(out.rows.every(r=>r.drop.id!=="8"),"a player counted as 0 is never a priced drop");
+  assert.match(out.warnings.join(" "),/1 owned player\(s\) lack a current weekly projection and are protected from drops/);
+  assert.ok(!out.warnings.some(w=>/Not projected/.test(w)),"the caveat is stated once, not repeated as a warning");
+  assert.equal(out.coverage.activeOwnedSkills,5);
+  assert.equal(out.coverage.projectedOwnedSkills,4);
+  assert.deepEqual(out.coverage.missingOwnedWeekly,[{id:"8",name:"WR8"}]);
+  // A bench player counted as 0 never displaces a projected starter: the RB7-for-RB2 gain is the projected one.
   const roomyLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN"]};
   const roomyRosters=[{...rosters[0],starters:["1","2","3","4","5","6"]},rosters[1]];
-  const out=W.analyze({...base,rosters:roomyRosters,league:roomyLeague,weekly:fresh});
-  assert.equal(out.rows.length,0,"unknown bench value must not inflate an apparent upgrade");
-  assert.match(out.recommendationBlock,/contribution is unknown/);
+  const roomy=W.analyze({...base,rosters:roomyRosters,league:roomyLeague,weekly:fresh});
+  assert.deepEqual(roomy.rows.map(r=>[r.add.id,r.drop.id,r.lineupGain]),[["7","2",8]]);
+  assert.deepEqual(roomy.caveats,[NOT_PROJECTED("WR8")]);
+  // No unprojected player: no caveat, and every number is the one the fully projected roster gets.
+  const full=W.analyze(base);
+  assert.deepEqual(full.caveats,[]);
+  assert.equal(W.analyze({...base,weekly:null}).caveats.length,0,"a blocked desk carries an empty caveat list");
+});
+check("A6-3: an owned teamless bench player counts 0 and is named; the desk never refuses or says refresh", () => {
+  // Bench RB12 was cut (no NFL team): no team, so no game and no projection.
+  const b2={players:board.players.concat([p(12,"RB",15,{current_team:null})])};
+  const lg={...league,roster_positions:["QB","RB","WR","TE","FLEX","K","DEF","BN","BN","IR","TAXI"]};
+  const rs=[{...rosters[0],players:[...rosters[0].players,"12"]},rosters[1]];
+  const out=W.analyze({...base,board:b2,weekly:freshWeekly(b2.players),league:lg,rosters:rs});
+  assert.deepEqual(out.caveats,[NOT_PROJECTED("RB12")]);
+  assert.ok(out.rows.every(r=>r.drop.id!=="12"),"a teamless player is never a priced drop");
+  // His stale 15 is never used: the lineup and its gains are the ones without him.
+  const without=W.analyze({...base,board:b2,weekly:freshWeekly(b2.players.filter(x=>x.sleeper_id!=="12")),league:lg,rosters:rs});
+  assert.deepEqual(out.rows.map(r=>[r.add.id,r.drop.id,r.lineupGain]),without.rows.map(r=>[r.add.id,r.drop.id,r.lineupGain]));
+  assert.equal(rowOf(out,"7","8").lineupGain,11,"RB7 (18) over WR8 (7) in FLEX, exactly as with no RB12");
+  // A non-null team the kickoff file does not list is broken coverage: refused, by name, with no "refresh".
+  const off={players:b2.players.map(x=>x.sleeper_id==="12"?{...x,current_team:"ZZ"}:x)};
+  assert.throws(()=>W.analyze({...base,board:off,weekly:freshWeekly(off.players),league:lg,rosters:rs}),
+    e=>e.message==="Waivers.analyze: unknown team/schedule for owned player RB12: ZZ is not on this week's kickoff schedule");
+});
+check("A6-3: an owned unprojected rookie (on a team, in no payload) counts 0 now and in every rest-of-season week", () => {
+  // TE20 is the only TE: on team A, absent from the weekly and remaining payloads.
+  const b2={players:[p(1,"QB",20),p(2,"RB",10),p(3,"WR",11),p(20,"TE",null),p(8,"WR",7),p(5,"K",7),p(6,"DEF",6),p(30,"TE",9),p(7,"RB",18),p(9,"QB",25)]};
+  const rs=[{roster_id:1,players:["1","2","3","20","8","5","6"],starters:["1","2","3","20","8","5","6"],reserve:[],taxi:[],settings:{waiver_budget_used:40}},{roster_id:2,players:["9"],starters:["9"],reserve:[],taxi:[],settings:{waiver_budget_used:0}}];
+  const lg={...league,roster_positions:["QB","RB","WR","TE","FLEX","K","DEF","BN"]};
+  const remaining=remainingFor({ g1:[20,20], g2:[10,10], g3:[11,11], g8:[5,5], g30:[9,9], g7:[12,12], g9:[25,25] });
+  const out=W.analyze({...base,board:b2,weekly:freshWeekly(b2.players),league:lg,rosters:rs,remaining});
+  assert.deepEqual(out.caveats,[NOT_PROJECTED("TE20")]);
+  // He fills TE at 0 (as a bye TE would), so the open-slot TE add gains his full 9 this week
+  // and 9 a week over weeks 2-3 (were he left out of the future lineups, no TE could fill them).
+  const te=rowOf(out,"30",null);
+  assert.equal(te.lineupGain,9);
+  assert.deepEqual([te.dropCost.status,te.dropCost.addContributes,te.dropCost.rosDelta],["open_slot",18,18]);
+  assert.equal(rowOf(out,"7",null).lineupGain,11,"RB7 (18) takes FLEX from WR8 (7)");
+  // Counted as 0 in the future roster: neither "excluded from future lineups" nor "priced".
+  assert.deepEqual(out.coverage.ros.unmodeledOwned,[]);
+  assert.equal(out.coverage.ros.pricedOwned,4);
+  assert.ok(!out.warnings.some(w=>/no rest-of-season projection/.test(w)));
 });
 
 check("in-season stale or missing weekly data is research-only, never preseason bids", () => {
@@ -501,14 +548,17 @@ check("started bench players and free agents cannot enter weekly transactions", 
   assert.ok(out.rows.every(r=>r.drop?.id!=="11"),"started bench player was droppable");
 });
 
-check("Review Focus 1: an owned player traded after the batch -> today's throw, never scored for the old team", () => {
+check("Review Focus 1 (A6-3): an owned player traded after the batch counts 0, never scored for the old team", () => {
   const traded=freshWeekly(); traded.players.find(x=>x.player_id==="g2").team="B";
-  assert.throws(()=>W.analyze({...base,weekly:traded}),/^TypeError: Waivers\.analyze: owned player projection team does not match current team; refresh projections$/);
+  const out=W.analyze({...base,weekly:traded});
+  assert.deepEqual(out.caveats,[NOT_PROJECTED("RB2")]);
+  assert.equal(rowOf(out,"7","2"),undefined,"his old-team 10 never makes him a priced drop");
+  assert.equal(rowOf(out,"7","8").lineupGain,11);
   // A traded FREE AGENT is excluded, not thrown on.
   const tradedFa=freshWeekly(); tradedFa.players.find(x=>x.player_id==="g7").team="B";
   assert.ok(W.analyze({...base,weekly:tradedFa}).rows.every(r=>r.add.id!=="7"),"stale prior-team projection was used");
   const unknownOwn={players:board.players.map(x=>x.sleeper_id==="8"?{...x,current_team:null}:{...x,current_team:"A"})};
-  assert.throws(()=>W.analyze({...base,board:unknownOwn,weekly:freshWeekly(unknownOwn.players)}),/unknown team\/schedule/);
+  assert.deepEqual(W.analyze({...base,board:unknownOwn,weekly:freshWeekly(unknownOwn.players)}).caveats,[NOT_PROJECTED("WR8")]);
 });
 
 check("invalid kickoff contracts fail closed for otherwise-fresh weekly scoring", () => {
@@ -774,7 +824,7 @@ check("priced path stays inside the existing performance bound", () => {
 });
 
 // --- through the real league views and the controller's hydration (spec §3.4, Review Focus 1) ----
-check("through LeagueData.views + WaiverMode.hydrateBoard: traded owned player throws; position-changed owned player is identity-only and blocks", () => {
+check("through LeagueData.views + WaiverMode.hydrateBoard: traded and position-changed owned players count 0 and are named (A6-3)", () => {
   const HDR = { season:2026, week:1, data_through:"2026-wk00", generated_at:new Date(TEST_NOW).toISOString(), batch_id:"b" };
   const sq = yds => { const o = f => Object.fromEntries(LL.STATS.map(s => [s, s === "receiving_yards" ? yds * f : 0])); return { p10:o(0.5), p50:o(1), p90:o(1.5) }; };
   const people = [["v1","00-0000101","QB",200],["v2","00-0000102","WR",150],["v3","00-0000103","WR",120],["v4","00-0000104","RB",90],["v5","00-0000105","TE",60],["v6","00-0000106","WR",170]];
@@ -790,18 +840,23 @@ check("through LeagueData.views + WaiverMode.hydrateBoard: traded owned player t
   const top = rowOf(ok, "v6", "v5") || ok.rows[0];
   assert.ok(ok.rows.length > 0 && top, "the K occupant is hydrated as identity: no 'missing from board' refusal");
   assert.ok(close(rowOf(ok, "v6", "v4").lineupGain, 17 - 12), "WR v6 (17) takes FLEX from WR v3 (12)");
-  // Traded after the batch: the view keeps the projection team; today's throw.
-  assert.throws(() => run({ ...cat, v2:{ ...cat.v2, team:"B" } }), /owned player projection team does not match current team; refresh projections/);
-  // Position changed live (WR -> RB): excluded from the view, hydrated as identity-only, so his
-  // weekly contribution is unknown -> blocked, naming him.
+  // Traded after the batch: the view keeps the projection team, so he has no current-team
+  // projection: counted 0 (never his old-team 15) and named. WR v6 (17) over WR v3 (12) in WR, v3 to FLEX over RB v4 (9).
+  const traded = run({ ...cat, v2:{ ...cat.v2, team:"B" } });
+  assert.deepEqual(traded.caveats, ["Not projected: Nv2. They count as 0, so if one of them starts for you, gains are overstated."]);
+  assert.ok(close(rowOf(traded, "v6", "v4").lineupGain, 17 + 12 - 12 - 9));
+  assert.ok(traded.rows.every(r => r.drop.id !== "v2"));
+  // Position changed live (WR -> RB): excluded from the view, hydrated as identity-only, so he has
+  // no weekly projection: counted 0 at his new position and named.
   const moved = { ...cat, v3:{ ...cat.v3, position:"RB" } };
   const v = LD.views(batch, lg, { week:1, catalog:moved });
   assert.equal(v.excluded[0].reason, "position_changed");
   const hydrated = M.hydrateBoard(v.board, moved, rs, v).players.find(x => x.sleeper_id === "v3");
   assert.deepEqual([hydrated.position, hydrated.identity_only, hydrated.reason], ["RB", true, "position_changed"]);
-  const blocked = run(moved);
-  assert.equal(blocked.rows.length, 0);
-  assert.match(blocked.recommendationBlock, /^Owned players lack a current weekly projection: Nv3\./);
+  const counted = run(moved);
+  assert.equal(counted.recommendationBlock, undefined);
+  assert.ok(counted.rows.length > 0);
+  assert.deepEqual(counted.caveats, ["Not projected: Nv3. They count as 0, so if one of them starts for you, gains are overstated."]);
 });
 
 check("I1: a withheld ros_value (WaiverMode.gateRos) orders and explains exactly like an unknown one", () => {

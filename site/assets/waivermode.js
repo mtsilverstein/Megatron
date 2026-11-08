@@ -832,6 +832,10 @@
         $("waiver-warning-link").hidden = !nWarn;
         $("waiver-warning-link").textContent = nWarn ? `${nWarn} data warning${nWarn === 1 ? "" : "s"} — see How this works` : "";
         $("waiver-spendable").textContent = faab && b && !isViewer ? `Keep in reserve $${b.reserve} · spendable ceiling $${b.spendable}` : "";
+        // Owned players counted as 0 (audit A6-3): one visible caveat beside the top option.
+        const caveats = result?.caveats || [];
+        $("waiver-caveat").textContent = caveats.join(" ");
+        $("waiver-caveat").hidden = !caveats.length;
         const warnings = [...(result ? result.warnings : []), "League eligibility and claim processing time must be checked in Sleeper. Pending bids are not visible through the public API.", `Injury tags are a session-cached catalog snapshot (${s.catalogTime || "unknown time"}), not live news. Verify current availability separately.`];
         $("waiver-warnings").replaceChildren(); const ul = node("ul");
         for (const warning of warnings) ul.append(node("li", warning));
@@ -1045,6 +1049,7 @@
       return [`${league.name || `League ${league.league_id}`} waiver shortlist — independent alternatives, not submitted claims`, $("waiver-source").textContent,
         ...(stale ? [`STALE: ${stale}`] : []),
         budgetLine,
+        ...(result?.caveats || []),
         ...(!snap.note && lastView && lastView.hiddenAdds ? [`Showing the top ${MAX_ADDS} of ${lastView.totalAdds} adds; ${lastView.hiddenAdds} more not included — use Show all adds on the page.`] : []),
         ...(snap.note ? [snap.note] : shownRows.map(r => rowText(r, result, { ownerOnly: isViewer }).exportLine)),
         "RESEARCH ONLY — not an add/drop plan or bid recommendation",
