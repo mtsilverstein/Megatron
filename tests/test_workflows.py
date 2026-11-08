@@ -33,8 +33,7 @@ def test_weekly_update_commit_step_retries_with_injected_token():
     assert "pull --rebase" in step["run"]
     assert "extraheader" in step["run"] and "::add-mask::" in step["run"]
     assert "${{" not in step["run"]
-    assert step["env"]["GITHUB_TOKEN_VALUE"] == "${{ github.token }}" or \
-        "${{ github.token }}" in step["env"].values()
+    assert "${{ github.token }}" in step["env"].values()
 
 
 def test_weekly_update_optional_refreshes_gated_on_published_batch():

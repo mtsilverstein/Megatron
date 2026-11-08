@@ -23,14 +23,14 @@ def test_public_job_contract():
     assert "workflow_dispatch" in on
     assert wf["concurrency"] == {"group": "weekly-site-refresh", "cancel-in-progress": False}
     job = wf["jobs"]["accuracy"]
-    assert job["permissions"] == {"contents": "write"} and job["env"]["GH_TOKEN"] == "${{ github.token }}"
-    assert job["steps"][0]["with"] == {"ref": "main", "fetch-depth": 0}   # a dispatch from a branch must not push it
+    assert job["permissions"] == {"contents": "write"} and "GH_TOKEN" not in job.get("env", {})
+    assert job["steps"][0]["with"] == {"ref": "main", "fetch-depth": 0, "persist-credentials": False}   # a dispatch from a branch must not push it
     assert "for i in 1 2 3; do" in _run_text(job) and _run_text(job).rstrip().endswith("exit 1")
     run = _run_text(job)
     assert 'git config user.name "weekly-accuracy-bot"' in run and "python -m ffmodel.eval.live_accuracy" in run
     assert ("git add models/diagnostics/live_*_weekly.json models/diagnostics/live_*_weekly.md "
             "models/diagnostics/main_push_ledger.json") in run
-    assert "git pull --rebase origin main && git push origin HEAD:main" in run          # rebase, then push
+    assert "gitp pull --rebase origin main && gitp push origin HEAD:main" in run          # rebase, then push
     assert "--force" not in run and " -f " not in run
 
 
