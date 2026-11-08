@@ -170,12 +170,13 @@ def test_mixed_entrant_records_serialize_to_valid_json():
     assert parsed["results"][1]["pinball_p10"] == 1.2
 
 
-def _run_main_with_stubs(monkeypatch, tmp_path, extra_argv):
+def _run_main_with_stubs(monkeypatch, tmp_path, extra_argv, backtest=None):
     """Run the eval CLI end-to-end with the data pipeline and predictors
     stubbed out, returning the parsed report JSON it writes.
 
     --data-dir points at an empty tmp dir unless the caller overrides it, so
-    the vintage hashing never touches (or depends on) a real data/raw."""
+    the vintage hashing never touches (or depends on) a real data/raw.
+    `backtest` replaces the stubbed run_backtest (default: return `results`)."""
     import sys
 
     import ffmodel.eval.run as run_mod
@@ -188,7 +189,8 @@ def _run_main_with_stubs(monkeypatch, tmp_path, extra_argv):
     monkeypatch.setattr(run_mod, "pull_weekly", lambda *a, **k: dummy)
     monkeypatch.setattr(run_mod, "pull_schedules", lambda *a, **k: dummy)
     monkeypatch.setattr(run_mod, "build_features", lambda *a, **k: dummy)
-    monkeypatch.setattr(run_mod, "run_backtest", lambda *a, **k: results)
+    monkeypatch.setattr(run_mod, "run_backtest",
+                        backtest or (lambda *a, **k: results))
     import ffmodel.model.predictor as pred_mod
     monkeypatch.setattr(pred_mod, "TransformerPredictor",
                         lambda roots, features: object())
@@ -298,3 +300,92 @@ def test_report_records_data_vintage_and_feature_set(monkeypatch, tmp_path):
     # the xgboost entrant's resolved feature set -- exactly what used to be
     # invisible when feature resolution was implicit-on-presence
     assert report["xgb_feature_set"] == "v1"
+
+
+# --- median-objective XGBoost entrant + paired comparison (audit A2-1) ---------
+
+SQUARED_ERROR_ENTRANT = {"name": "xgboost", "objective": "reg:squarederror",
+                         "quantile_alpha": None, "seeds": [0], "feature_set": "v1"}
+
+
+def test_report_records_the_xgboost_objective_by_default(monkeypatch, tmp_path):
+    """The `xgboost` rows are a mean predictor; the record must say so."""
+    report = _run_main_with_stubs(monkeypatch, tmp_path, [])
+    assert report["xgb_entrants"] == [SQUARED_ERROR_ENTRANT]
+    assert report["xgb_seed"] == 0
+
+
+def test_xgb_median_flag_adds_the_median_entrant_with_its_seeds(monkeypatch, tmp_path):
+    seen = {}
+
+    def backtest(features, predictors, **kwargs):
+        seen["names"] = [p.name for p in predictors]
+        seen["kwargs"] = kwargs
+        return pd.DataFrame({"model": ["xgboost_median"], "test_season": [2023],
+                             "position": ["OVERALL"], "mae": [4.3], "rmse": [6.0],
+                             "n": [10]})
+
+    report = _run_main_with_stubs(monkeypatch, tmp_path, [
+        "--xgb-median", "--xgb-median-seeds", "0", "1", "2"], backtest=backtest)
+    # the committed entrant still runs, unchanged, beside the new one
+    assert seen["names"] == ["naive_last4", "xgboost", "xgboost_median"]
+    assert "return_rows" not in seen["kwargs"]
+    assert report["xgb_entrants"] == [
+        SQUARED_ERROR_ENTRANT,
+        {"name": "xgboost_median", "objective": "reg:quantileerror",
+         "quantile_alpha": 0.5, "seeds": [0, 1, 2], "feature_set": "v1"},
+    ]
+    assert report["xgb_seed"] == 0
+
+
+def _paired_rows():
+    recs = []
+    for week in (1, 2, 3):
+        for i, pos in enumerate(["QB", "RB", "WR", "TE"]):
+            key = {"test_season": 2023, "player_id": f"p{i}", "season": 2023,
+                   "week": week, "position": pos, "actual": 10.0}
+            recs += [{"model": "transformer", **key, "pred": 11.0},
+                     {"model": "xgboost_median", **key, "pred": 11.5},
+                     {"model": "xgboost", **key, "pred": 13.0},
+                     {"model": "naive_last4", **key, "pred": 14.0}]
+    return pd.DataFrame(recs)
+
+
+def test_paired_out_writes_the_comparison_with_provenance(monkeypatch, tmp_path):
+    import hashlib
+    import json
+
+    table = pd.DataFrame({"model": ["transformer"], "test_season": [2023],
+                          "position": ["OVERALL"], "mae": [1.0], "rmse": [1.0],
+                          "n": [12]})
+
+    def backtest(features, predictors, **kwargs):
+        assert kwargs.get("return_rows") is True
+        return table, _paired_rows()
+
+    paired_path = tmp_path / "paired.json"
+    report = _run_main_with_stubs(monkeypatch, tmp_path, [
+        "--transformer-root", "models/transformer/v1", "--xgb-median",
+        "--paired-out", str(paired_path)], backtest=backtest)
+    paired = json.loads(paired_path.read_text())
+
+    # headline first: transformer vs the median entrant, then the mean one
+    assert [(c["challenger"], c["baseline"]) for c in paired["comparisons"]] == [
+        ("transformer", "xgboost_median"), ("transformer", "xgboost")]
+    assert paired["comparisons"][0]["pooled"]["mean_diff"] == pytest.approx(-0.5)
+    assert paired["comparisons"][1]["pooled"]["mean_diff"] == pytest.approx(-2.0)
+    # the same provenance as the bake-off it was computed alongside
+    for key in ("created", "seasons", "test_seasons", "transformer_roots",
+                "xgb_entrants", "xgb_seed", "data_vintage"):
+        assert paired[key] == report[key], key
+    out = tmp_path / "report.json"
+    # LF text (what git stores), so the hash holds on any checkout
+    assert paired["bakeoff_report"]["sha256"] == hashlib.sha256(
+        out.read_text().encode("utf-8")).hexdigest()
+    assert "results" not in paired
+
+
+def test_paired_out_requires_the_transformer(monkeypatch, tmp_path):
+    with pytest.raises(SystemExit):
+        _run_main_with_stubs(monkeypatch, tmp_path, [
+            "--xgb-median", "--paired-out", str(tmp_path / "paired.json")])
