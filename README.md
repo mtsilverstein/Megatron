@@ -5,12 +5,16 @@ free Kaggle T4) versus classical baselines, evaluated honestly with
 walk-forward backtests, published as a static site that updates itself weekly
 during the season.
 
-The site is four pages, no backend and no framework: a **draft board** with a
-pick-time optimizer that reads a live Sleeper draft, a **trade calculator**,
-**weekly projections** with p10/p50/p90 bands, and an **about** page carrying
-the backtest numbers. Models predict raw stat lines; fantasy points are
-computed from those by pure scoring functions, so PPR, half-PPR, standard and
-this league's custom rules all derive from one set of predictions.
+The site is six static pages, no backend and no framework: **weekly
+projections** with p10/p50/p90 bands and start/sit advice, a **waivers** desk,
+a **trade calculator**, a **connect** page that finds a visitor's Sleeper
+leagues, the 2026 **draft board** with its pick-time optimizer (kept as an
+archived record once the season began), and an **about** page carrying the
+backtest and live-accuracy numbers. No page defaults to a particular league:
+the in-season pages work for any Sleeper league a visitor connects. Models
+predict raw stat lines; fantasy points are computed from those by pure scoring
+functions, so PPR, half-PPR, standard and any league's custom rules all derive
+from one set of predictions.
 
 **Start here:** [`docs/case-study.md`](docs/case-study.md), a two-page overview of what was built, how the numbers
 are kept honest and what they say. The full record is [`docs/methodology.md`](docs/methodology.md).
@@ -31,31 +35,28 @@ python -m ffmodel.data.pull     # cache 2012-2025 data to data/raw/
 python -m ffmodel.eval.run      # walk-forward backtest -> models/backtests/baselines.json
 ```
 
-## Draft-night boards
+## Draft board (2026, archived)
 
-- [FAM FOOTBALL](https://megatron-ff.vercel.app/index.html?league=fam):
-  10 teams, 2 FLEX, 15 rounds.
-- [Gabagool Fools](https://megatron-ff.vercel.app/index.html?league=gabagool):
-  12 teams, 2 FLEX, 15 rounds.
-
-The live contracts were checked on 2026-09-07. Both leagues use full PPR,
-6-point passing TDs, -2 per interception, and an additional -3 for a pick-six
-thrown. The YAML files in `configs/leagues/` record **every nonzero Sleeper
-scoring category**, including the leagues' different kicking and long-TD rules.
-The board displays its league and scoring; navigation preserves the choice
-per tab. The in-season pages (Weekly, FAAB & waivers, Trade) are not
-tied to these two leagues: they read any Sleeper league's own settings from the
+The 2026 draft boards were built per registered league, each from its YAML
+file in `configs/leagues/`. The Sleeper leagues' files record **every nonzero
+Sleeper scoring category**, checked against the live leagues on 2026-09-07.
+Once the season began
+the board became an archived record of what the model projected before it.
+Building the board per scoring format, with keeper rules read from the league
+a visitor connects, is a 2027 item (`docs/2027-offseason-plan.md` §4.4). The
+in-season pages (Weekly, Waivers, Trade) are not tied to any registered league:
+they read the connected league's own settings and apply them to the
 league-neutral data (see `docs/remaining-season-projections.md`).
 
-Before either draft, run this read-only check from the repository root:
+Before a draft, run this read-only check from the repository root:
 
 ```powershell
 .\.venv\Scripts\python.exe tools/check_draft_readiness.py
 ```
 
-It compares both boards with their configs and live Sleeper league/draft
-settings, then runs the production JavaScript contract and optimizer checks.
-The live panel also rechecks settings during the draft and refuses a known
+It compares each registered board with its config and the live Sleeper league
+and draft settings, then runs the production JavaScript contract and optimizer
+checks. The live panel also rechecks settings during the draft and refuses a known
 scoring or roster mismatch. Standalone mocks must be set up to match the league;
 Sleeper's mock defaults can differ, and mock scoring cannot be verified through
 a league ID.
@@ -73,10 +74,12 @@ interception penalty plus the extra penalty; missing actual counts remain zero.
 50+ yard TD bonuses, two-point conversions, and return/recovery TDs remain
 unprojected. K/DST reminders use ADP, not model point projections.
 
-The manual draft refresh workflow rebuilds **both** leagues. Weekly refreshes
-build Gabagool only; `--league fam --week ...` is refused before any output is
-written. To regenerate a draft locally, use `ffmodel.site.generate --draft`
-with `--league fam` or `--league gabagool` and the normal model/artifact arguments.
+The manual draft refresh workflow rebuilds the registered Sleeper leagues'
+boards. The scheduled refresh writes the league-neutral batch the in-season
+pages read, plus a legacy weekly file for each registered Sleeper league (the
+2026 live scorecard reads one of them). To regenerate a board locally, use
+`ffmodel.site.generate --draft --league <slug>`, where `<slug>` names a file in
+`configs/leagues/`, with the normal model/artifact arguments.
 
 ## Training (Kaggle)
 
@@ -112,10 +115,12 @@ The main workflows in `.github/workflows/`:
 - **`ci.yml`** runs the Python suite (`pytest -W error`) and every Node fixture on each push to `main` and on every
   pull request.
 - **`weekly-update.yml`** regenerates the site JSON in season. It runs twice daily (`23 5,17 * 9-12,1 *`, September
-  through January) so that 72-hour consumers stay fresh, and it can also be triggered manually. The site is
-  served from `site/` by Vercel, which redeploys on every push to `main`.
-- **`weekly-accuracy.yml`** scores the projections the site actually published before kickoff against what happened,
-  every Tuesday and Wednesday. It publishes the scorecard in `models/diagnostics/live_<season>_weekly.json`.
+  through January) so that 72-hour consumers stay fresh, and it can also be triggered manually; once every
+  regular-season game is final it exits cleanly without publishing a slate. The site is served from `site/` by
+  Vercel, which redeploys on every push to `main`.
+- **`weekly-accuracy.yml`** scores the projections committed before each week's first kickoff (proven by GitHub push
+  records) against what happened, for players who recorded a stat line, every Tuesday and Wednesday. It publishes the
+  scorecard in `models/diagnostics/live_<season>_weekly.json`.
 - **`market-snapshots.yml`** runs after each site update. It archives third-party market data (projections, game
   lines, player props) into a **private** repository, for future pre-registered tests. Nothing it captures is
   committed here.
@@ -147,19 +152,29 @@ the season starts (cron or plain dispatch, which use `--week auto`).
 Walk-forward only: train on seasons ≤ S, test on S+1, held-out years
 2023-2025. There are no random splits anywhere — rolling features make them
 leak the future into the past. Weekly PPR points, pooled over the three
-held-out seasons (`models/backtests/bakeoff.json`, n = 17,908 player-weeks):
+held-out seasons (`models/backtests/bakeoff.json`; the median-objective entrant
+is in `models/backtests/xgb_median/bakeoff_xgb_median.json`; n = 17,908
+player-weeks):
 
 | model | MAE | QB | RB | WR | TE |
 |---|---|---|---|---|---|
 | naive last-4 average | 4.612 | 6.57 | 4.44 | 4.62 | 3.75 |
-| XGBoost | 4.448 | 6.34 | 4.33 | 4.47 | 3.54 |
-| **transformer** (3-seed ensemble) | **4.325** | **6.24** | **4.33** | **4.25** | **3.45** |
+| XGBoost, squared error (a mean predictor) | 4.448 | 6.34 | 4.33 | 4.47 | 3.54 |
+| XGBoost, median objective (3-seed ensemble) | 4.326 | 6.29 | 4.31 | 4.26 | 3.42 |
+| transformer (3-seed ensemble) | 4.325 | 6.24 | 4.33 | 4.25 | 3.45 |
 
-The transformer is ahead everywhere, but read the size before the ranking:
-0.12 points per player-week overall, and RB is 4.3253 against 4.3294 — a win
-in the fourth decimal, which is a tie. WR and QB are where the gap is real.
-The baselines run through the identical eval harness, and the deployed model
-is whichever one actually won.
+The committed XGBoost baseline uses XGBoost's default squared-error
+objective: it predicts means and is scored on MAE, which rewards a median, so
+nearly all of its 0.12-point deficit is the objective. Given the transformer's
+median objective (pinball loss at 0.5) and nothing else changed, XGBoost ties
+it: a paired difference of −0.001 points per player-week, 95% interval
+[−0.021, +0.019] (season-week cluster bootstrap,
+`models/backtests/xgb_median/paired_xgb_median.json`). No held-out season
+separates them. By position only TE does, and it favours XGBoost
+(+0.035, [+0.003, +0.069]), one of seven uncorrected sub-group cells. What the
+transformer adds is a calibrated p10–p90 band; XGBoost publishes none. The
+baselines run through the identical eval harness, and the site deploys the
+transformer for its bands, not for point accuracy.
 
 Two later experiments were pre-registered, and neither was promoted. Both
 verdicts are committed under `models/diagnostics/` next to the criteria, which
@@ -173,7 +188,9 @@ difference is the point:
   17,908 identical held-out rows puts the gain inside noise, the sign flips
   across seasons, and QB regresses significantly (+0.082 MAE, CI excluding
   zero). Passing the letter of a gate is not the same as having an effect.
-- **conditional-mean head** — 9 walk-forward folds, 40 Kaggle runs. This one
+- **conditional-mean head** — 9 walk-forward folds × 3 seeds, 40 Kaggle runs
+  in all (27 mean-head fits, 9 baseline fits that completed the v1 folds and 4
+  λ-selection runs; the two arms are two read-outs of the same fits). This one
   **failed its pre-registered primary** outright: within-position weekly
   Spearman pooled over RB/WR/TE — the registered population, with QB held out
   as a separate guard — delta −0.0005, 95% CI [−0.0015, +0.0004], plus a
@@ -187,13 +204,16 @@ recorded is worth more than a promotion that would not have replicated.
 - [x] Plan 1: data pipeline, scoring, features, eval harness, baselines
 - [x] Plan 2: quantile transformer trained (Kaggle T4), 3-seed walk-forward
       ensemble deployed as the site model
-- [x] Plan 3: draft board + weekly site, GitHub Actions automation, Pages live
+- [x] Plan 3: draft board + weekly site, GitHub Actions automation, site live
+      (first on GitHub Pages, now on Vercel)
 - [x] Draft tool: pick-time optimizer, live Sleeper draft mode, keeper
       handling, trade calculator
 - [x] In season: automated twice-daily refresh, any-Sleeper-league weekly, waiver and trade tools
 - [x] Live accuracy scorecard and a pre-registered same-week re-measurement against expert consensus (model behind;
       see the methodology)
-- [x] Betting-lines feature screen, run once, pre-registered: fail / inconclusive (gain 0.039 against a 0.05 bar)
+- [x] Betting-lines feature screen, run once, pre-registered: fail / inconclusive (gain 0.039 against a 0.05 bar),
+      on the squared-error XGBoost baseline; not re-run with the median objective
+- [x] Median-objective XGBoost bake-off: ties the transformer on point MAE (difference −0.001, [−0.021, +0.019])
 - [ ] Season end: the private blend comparison is read once after week 18
 
 Scope guards (v1), deliberately: QB/RB/WR/TE only — no K/DST/IDP projections,
