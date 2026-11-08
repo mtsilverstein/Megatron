@@ -65,3 +65,6 @@ models/diagnostics/trade_sim_eval_fam_waiver.json
 # (design spec §11 amendment, 2026-10-07).
 /private-data/
 /data_snapshots/sleeper_projections/
+
+# Manual upper-case FantasyPros exports are never committed (design spec §11 note, 2026-11-07).
+data_snapshots/FantasyPros_*

@@ -1,5 +1,9 @@
 # Weekly ECR reference contract
 
+Amended 2026-10-07: external projections are still never an input or a displayed reference. Since that date one
+private, owner-only diagnostic benchmark exists (spec 2026-10-06 §4.8). Its values never enter this repository, its
+logs or the site.
+
 External projected FPTS is not an input, displayed reference, or diagnostic
 benchmark. Our model owns league-scored points. Weekly ECR is an independent
 reference; ROS is a separate horizon, not a weekly substitute or additive
