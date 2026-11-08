@@ -144,6 +144,16 @@ function bruteEmpty({ slots, candidates, current = [], fixed = {} }) {
       used.add(c.id); pick.push(c); rec(k + 1); pick.pop(); used.delete(c.id);
     }
   })(0);
+  // Post-rule (review fix): a fillable dedicated slot is not left empty when a
+  // flex-type slot holds an eligible player; he moves in and the flex empties.
+  const posById = new Map(pool.map(c => [c.id, c.position]));
+  best.open = open;
+  for (let i = 0; i < open.length; i++) {
+    if (best.ids[i] !== EMPTY_ID) continue;
+    const j = open.findIndex((_, jj) => best.ids[jj] !== EMPTY_ID && ELIG[slots[open[i]]].length < ELIG[slots[open[jj]]].length
+      && ELIG[slots[open[i]]].includes(posById.get(best.ids[jj])));
+    if (j >= 0) { best.ids[i] = best.ids[j]; best.ids[j] = EMPTY_ID; }
+  }
   return { ...best, open };
 }
 for (let t = 0; t < 400; t++) {
@@ -186,8 +196,22 @@ for (const [c, want] of [
   [{ position: "ILB", fantasy_positions: ["LB"] }, null], [{ position: "OL", fantasy_positions: ["OL"] }, null],
   [{ position: "K", fantasy_positions: ["K"] }, null], [{ position: "DEF", fantasy_positions: ["DEF"] }, null], [{ position: "DL" }, null],
   [{ position: "FB", fantasy_positions: ["RB"] }, null], [{ position: "FB" }, null],                    // fullback: never modeled
-  [{ position: "DB", fantasy_positions: ["DB", "WR"] }, "WR"],                                           // fantasy_positions decide
+  [{ position: "DB", fantasy_positions: ["DB", "WR"] }, null],                                           // catalog position only: fantasy_positions is not consulted
   [{ position: "WR", fantasy_positions: ["RB", "WR"] }, "WR"],                                           // the catalog's skill position wins
-  [{ position: "TE", fantasy_positions: ["OL"] }, null], [{ position: null }, null], [null, null],
+  [{ position: "TE", fantasy_positions: ["OL"] }, "TE"], [{ position: null }, null], [null, null],
 ]) assert.strictEqual(MP(c), want, JSON.stringify(c));
+
+// ---- no fillable dedicated slot is left empty by the keep tie-break (review fix) ----------
+{
+  const pick = r => r.assignment.map(a => (a.empty ? "-" : a.id)).join(",");
+  let r = Lx.solve({ slots: ["RB", "FLEX"], candidates: [{ id: "R", position: "RB", score: 9 }], current: [null, "R"], allowEmpty: true });
+  assert.strictEqual(pick(r), "R,-"); assert.strictEqual(r.total, 9);
+  assert.ok(!r.assignment[0].empty && r.assignment[1].empty && r.assignment[1].id === null);
+  r = Lx.solve({ slots: ["TE", "FLEX"], candidates: [{ id: "T", position: "TE", score: 4 }], current: [null, "T"], allowEmpty: true });
+  assert.strictEqual(pick(r), "T,-"); assert.strictEqual(r.total, 4);
+  r = Lx.solve({ slots: ["RB", "FLEX"], candidates: [{ id: "R", position: "RB", score: 9 }, { id: "S", position: "RB", score: 5 }], current: [null, "R"], allowEmpty: true });
+  assert.ok(!r.assignment[0].empty && !r.assignment[1].empty); assert.strictEqual(r.total, 14);
+  r = Lx.solve({ slots: ["RB", "FLEX"], candidates: [], fixed: { 1: { id: "L", score: 3, position: "RB" } }, allowEmpty: true });
+  assert.ok(r.assignment[0].empty && r.assignment[1].id === "L");
+}
 console.log("lineup_fixture: ok");

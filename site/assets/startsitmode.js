@@ -127,7 +127,7 @@
         for(const h of ["Slot","Suggested starter","Projection","State"])head.append(el("th",h));
         table.append(head);
         // An empty slot (no available, projected player) scores 0 and carries its own note (audit A6-2).
-        for(const p of r.lineup){const tr=document.createElement("tr");for(const t of [p.slot,p.name,p.empty?"0.00":p.points?.p50?.toFixed(2)??"Not modeled",p.empty?p.note:p.unmodeled?"Not projected; current starter kept":p.locked?"Game started — locked":p.changed?"Model lean — review close calls":"Keep"] )tr.append(el("td",t));table.append(tr);}
+        for(const p of r.lineup){const tr=document.createElement("tr");for(const t of [p.slot,p.name,p.empty?"0.00":p.points?.p50?.toFixed(2)??"Not modeled",p.empty?p.note:p.unmodeled?(p.id==="0"?"Empty slot":"Not projected; current starter kept"):p.locked?"Game started — locked":p.changed?"Model lean — review close calls":"Keep"] )tr.append(el("td",t));table.append(tr);}
         // Under the plan: unprojected players (owner and viewer alike) and the empty-slot count.
         out.append(table,...(r.notes||[]).map(n=>el("p",n)),el("h3","Bench and close calls"),el("p",`Close call: ${HEURISTIC(3)}; not a confidence estimate.`));
         for(const p of r.bench)out.append(el("p",`${p.name}: ${p.locked?"game started; cannot enter lineup":p.bye?"bye":p.unprojected?"not projected; treated as unavailable":!p.eligible?"excluded / unavailable":p.alternative?`${p.alternative} projects ${p.gap.toFixed(2)} points higher${p.close?" — close call":""}${p.overlap?"; uncertainty bands overlap":""}`:"no modeled swap"}.`));

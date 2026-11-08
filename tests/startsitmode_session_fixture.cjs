@@ -93,7 +93,7 @@ const ENGINE = { label: "Model lineup", warnings: ["w1"], notes: NOTES,
     { id: "u", name: "U Nprojected", alternative: null, gap: null, close: false, overlap: null, eligible: false, unprojected: true, locked: false, bye: false }] };
 // Every rendered plan shows them, owner and viewer alike.
 const assertPlanNotes = (text, who) => {
-  for (const s of [`TE Empty 0.00 ${EMPTY_TE}`, "K Empty Not modeled Not projected; current starter kept", ...NOTES, "U Nprojected: not projected; treated as unavailable."])
+  for (const s of [`TE Empty 0.00 ${EMPTY_TE}`, "K Empty Not modeled Empty slot", ...NOTES, "U Nprojected: not projected; treated as unavailable."])
     assert.ok(text.includes(s), `${who}: ${s} in ${text}`);
 };
 let engineThrows = null;

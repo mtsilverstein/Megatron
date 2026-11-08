@@ -86,7 +86,7 @@
     require(assets.size===outgoing.length+incoming.length,"Overlapping trade assets");
     [outgoing,incoming].forEach((list,i)=>list.forEach(id=>{
       require(active.get(selected[i]).includes(id),"Trade asset must be owned active non-reserve player");
-      require(skill.has(catalog?.[id]?.position),"Only skill-player trades supported; no picks or K/DEF values");
+      require(Lineup.modeledPosition(catalog?.[id])!==null,`Only skill-player trades supported; no picks or K/DEF values: ${catalog?.[id]?.full_name||id}`);
     }));
     require(Object.keys(drops).every(r=>selected.includes(r)),"Drop roster outside scenario");
     const before=selected.map(r=>active.get(r));

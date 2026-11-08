@@ -80,6 +80,21 @@ group('A6-4: Sleeper\'s granular catalog positions (DE, CB, FB) are unmodeled oc
   // They still occupy roster spots.
   assert.throws(()=>analyze({...idp,league:{...idp.league,roster_positions:['RB','DL','DB']}}),/capacity/,'roster 1 holds four with a three-spot capacity');
 });
+group('one classifier by catalog position: offer assets and lineups agree; fantasy_positions is not consulted',()=>{
+  // A catalog RB whose fantasy_positions lists no skill position is still an RB: traded, he is priced normally.
+  const fp={...base,catalog:{...catalog,c:{...catalog.c,fantasy_positions:['OL']}}};
+  assert.deepEqual(deltas(fp),[20,-20],'catalog RB with fantasy_positions [OL] is priced by his catalog position');
+  // ...and without a projection he is refused by name, never priced at 0 silently.
+  const noProj={...fp,remaining:{...remaining,players:remaining.players.filter(p=>p.player_id!=='gc')},board:{...identityBoard,players:identityBoard.players.filter(p=>p.sleeper_id!=='c')}};
+  assert.throws(()=>analyze(noProj),/No projection for c/);
+  // A catalog DE in the offer is refused by name (granular IDP code: not a skill player).
+  const de=withPos(base,{c:'DE'});de.catalog.c.fantasy_positions=['DL'];
+  assert.throws(()=>analyze(de),/Only skill-player trades supported.*: c/);
+  // A catalog DB with ["DB","WR"] is an unmodeled occupant on a roster (as start/sit and waivers treat him), and refused in an offer.
+  const db=withPos(base,{d:'DB'});db.catalog.d.fantasy_positions=['DB','WR'];
+  assert.deepEqual(deltas(db),[20,-20]);assert.deepEqual(analyze(db).caveats,[]);
+  assert.throws(()=>analyze({...db,give:['a'],receive:['d']}),/Only skill-player trades supported.*: d/);
+});
 group('an unknown starting slot refuses: Unsupported roster slots',()=>{
   for(const slot of ['OL','XFLEX','BN_FLEX']) assert.throws(()=>analyze({...base,league:{...league,roster_positions:['RB',slot,'BN']}}),{message:'Unsupported roster slots'},slot);
   for(const slots of [['RB','K','DEF','BN','IR','TAXI'],['RB','DL','LB','DB','IDP_FLEX','BN']]) assert.deepEqual(deltas({...base,league:{...league,roster_positions:slots}}),[20,-20],slots.join());

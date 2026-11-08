@@ -22,18 +22,12 @@
   const UNMODELED_POSITIONS = Object.freeze(["K", "DEF", "DL", "LB", "DB"]);
   const SKILL = Object.freeze(["QB", "RB", "WR", "TE"]);
   // A rostered player's modeled position, or null for an unmodeled occupant
-  // (audit A6-4). Sleeper's catalog `position` is granular (DE, DT, CB, SS,
-  // ILB, FB, ...); `fantasy_positions` uses the coarse vocabulary, so it
-  // decides when present. A catalog FB is never modeled: the batch never prices
-  // him (players.json `position_disagrees`: catalog FB vs projected RB), and
-  // start/sit and waivers skip him as a non-skill position. The returned
-  // position is the catalog's when it is a skill position (what the board and
-  // projections key on), else the first skill position in fantasy_positions.
+  // (audit A6-4). One classifier by Sleeper's catalog `position`, the same rule
+  // start/sit and waivers use: QB/RB/WR/TE are modeled; FB, K, DEF and every
+  // granular IDP code (DE, DT, CB, SS, ILB, ...) are not. `fantasy_positions`
+  // is deliberately not consulted, so all three pages agree on who is modeled.
   function modeledPosition(c) {
-    if (!c || c.position === "FB") return null;
-    const fp = Array.isArray(c.fantasy_positions) && c.fantasy_positions.length ? c.fantasy_positions.map(String) : [c.position];
-    if (!SKILL.some(s => fp.includes(s))) return null;
-    return SKILL.includes(c.position) ? c.position : SKILL.find(s => fp.includes(s));
+    return c && SKILL.includes(c.position) ? c.position : null;
   }
 
   function decompose(x) {               // x = m * 2^e exactly, m a signed BigInt
@@ -150,6 +144,20 @@
       Object.assign(assignment[slotIndex], { id: c.id, score: c.score });
       exactSum += ints[final.col[r]];
     });
+    // A fillable dedicated slot is never left empty: if a flex-type slot holds a
+    // player who also fits an empty, narrower slot, swap him in (same points).
+    if (allowEmpty) {
+      const posOf = new Map(pool.map(c => [c.id, c.position]));
+      for (const i of open) {
+        if (!assignment[i].empty) continue;
+        const j = open.find(j => assignment[j].id !== null && !assignment[j].fixed && ELIG[slots[i]].length < ELIG[slots[j]].length
+          && ELIG[slots[i]].includes(posOf.get(assignment[j].id)));
+        if (j === undefined) continue;
+        Object.assign(assignment[i], { id: assignment[j].id, score: assignment[j].score });
+        delete assignment[i].empty;
+        Object.assign(assignment[j], { id: null, score: null, empty: true });
+      }
+    }
     return { ok: true, total: toNumber(exactSum, minE), assignment };
   }
   const pid = p => String(p.sleeper_id ?? p.id);
