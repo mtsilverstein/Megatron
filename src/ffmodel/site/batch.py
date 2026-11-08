@@ -185,8 +185,9 @@ def build_batch(args) -> tuple[dict, object, dict | None]:
                  else f"rate {priors[cfg.slug]['rate']:.4%}"))
 
     # ---- every current-week build, before any remaining-season build ----
+    exclude_ids = gen.in_season_exclusions(weekly, current_teams, season, args.data_dir)
     combined, future = combined_future_features(projection_history, schedules, season, week,
-                                                current_teams)
+                                                current_teams, exclude_ids=exclude_ids)
 
     def current_week(prior):
         if hasattr(predictor, "attach_features"):

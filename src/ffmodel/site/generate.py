@@ -185,6 +185,19 @@ def resolve_week(week, weekly: pd.DataFrame, schedules: pd.DataFrame, season: in
     return int(remaining[0])
 
 
+def in_season_exclusions(weekly, current_teams, season, cache_dir):
+    """Ids the in-season weekly slate drops, with a counts-only log line.
+
+    Reads the roster frame `pull_current_teams` just cached, so no second download."""
+    from ffmodel.data import rosters
+
+    released = rosters.pull_released_ids(season, cache_dir=cache_dir)
+    excluded = rosters.in_season_exclusions(weekly, current_teams, released, season)
+    print(f"in-season exclusions - released/retired: {len(released & excluded)}, "
+          f"not on a roster: {len(excluded - released)}")
+    return excluded
+
+
 def history_before_week(weekly, season, week):
     """Freeze weekly features before the slate, including during partial weeks."""
     history = weekly[(weekly.season < season) |
@@ -731,9 +744,12 @@ def main() -> None:
               f"({pick_six_prior['first_season']}–{pick_six_prior['through_season']})")
     if week is not None:
         projection_history, projection_through = history_before_week(weekly, args.season, week)
+        exclude_ids = in_season_exclusions(weekly, current_teams, args.season,
+                                           args.data_dir)
         combined, future = combined_future_features(projection_history, schedules,
                                                     args.season, week,
-                                                    current_teams)
+                                                    current_teams,
+                                                    exclude_ids=exclude_ids)
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)
         payloads[cfg.weekly_file] = build_weekly_projections(

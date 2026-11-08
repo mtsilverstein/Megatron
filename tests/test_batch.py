@@ -156,6 +156,7 @@ def world(monkeypatch):
     monkeypatch.setattr(pull_mod, "pull_schedules", pull_schedules)
     monkeypatch.setattr(pull_mod, "pull_draft_picks", lambda *a, **k: pd.DataFrame())
     monkeypatch.setattr(rosters_mod, "pull_current_teams", lambda *a, **k: dict(CURRENT_TEAMS))
+    monkeypatch.setattr(rosters_mod, "pull_released_ids", lambda *a, **k: set())
     monkeypatch.setattr(rosters_mod, "assert_roster_coverage", lambda *a, **k: None)
     monkeypatch.setattr(features_mod, "build_features", lambda weekly, schedules: weekly)
     monkeypatch.setattr(future_mod, "combined_future_features", fake_combined)

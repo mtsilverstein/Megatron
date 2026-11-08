@@ -416,6 +416,7 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
         capture["scheduled_teams"] = k.get("scheduled_teams")
         return PLAUSIBLE_TEAMS if current_teams is None else current_teams
     monkeypatch.setattr(rosters_mod, "pull_current_teams", fake_current_teams)
+    monkeypatch.setattr(rosters_mod, "pull_released_ids", lambda *a, **k: set())
     monkeypatch.setattr(features_mod, "build_features", lambda *a, **k: weekly)
 
     if pull_draft_picks is None:
@@ -934,7 +935,7 @@ def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
 
     seen = {}
 
-    def fake_combined(weekly, schedules, season, week, current_teams=None):
+    def fake_combined(weekly, schedules, season, week, current_teams=None, **kw):
         seen["current_teams"] = current_teams
         return (None, None)
     monkeypatch.setattr(future_mod, "combined_future_features", fake_combined)
