@@ -416,7 +416,8 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
         capture["scheduled_teams"] = k.get("scheduled_teams")
         return PLAUSIBLE_TEAMS if current_teams is None else current_teams
     monkeypatch.setattr(rosters_mod, "pull_current_teams", fake_current_teams)
-    monkeypatch.setattr(rosters_mod, "pull_released_ids", lambda *a, **k: set())
+    monkeypatch.setattr(rosters_mod, "pull_released_ids",
+                        lambda *a, **k: set(capture.get("released", ())))
     monkeypatch.setattr(features_mod, "build_features", lambda *a, **k: weekly)
 
     if pull_draft_picks is None:
@@ -937,6 +938,7 @@ def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
 
     def fake_combined(weekly, schedules, season, week, current_teams=None, **kw):
         seen["current_teams"] = current_teams
+        seen["exclude_ids"] = kw.get("exclude_ids")
         return (None, None)
     monkeypatch.setattr(future_mod, "combined_future_features", fake_combined)
     monkeypatch.setattr(weekly_mod, "build_weekly_projections",
@@ -944,10 +946,12 @@ def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
 
     def boom_draft_picks(*a, **k):
         raise AssertionError("weekly-only run must not pull draft picks")
-    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], {},
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"],
+                             {"released": {"ZZ-RELEASED"}},
                              pull_draft_picks=boom_draft_picks)
 
     assert seen["current_teams"] == PLAUSIBLE_TEAMS
+    assert "ZZ-RELEASED" in seen["exclude_ids"]
 
 
 @pytest.mark.parametrize("argv", [["--week", "6"], ["--draft"]])

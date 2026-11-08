@@ -139,7 +139,7 @@ def world(monkeypatch):
     import ffmodel.site.weekly as weekly_mod
 
     state = {"completed_through": 5, "predictors": [], "sleeper_calls": [],
-             "ecr": ecr_rows}
+             "ecr": ecr_rows, "released": {"ZZ-RELEASED"}, "exclude_ids": []}
 
     def frames():
         return make_world(state["completed_through"])
@@ -156,10 +156,15 @@ def world(monkeypatch):
     monkeypatch.setattr(pull_mod, "pull_schedules", pull_schedules)
     monkeypatch.setattr(pull_mod, "pull_draft_picks", lambda *a, **k: pd.DataFrame())
     monkeypatch.setattr(rosters_mod, "pull_current_teams", lambda *a, **k: dict(CURRENT_TEAMS))
-    monkeypatch.setattr(rosters_mod, "pull_released_ids", lambda *a, **k: set())
+    monkeypatch.setattr(rosters_mod, "pull_released_ids",
+                        lambda *a, **k: set(state["released"]))
     monkeypatch.setattr(rosters_mod, "assert_roster_coverage", lambda *a, **k: None)
     monkeypatch.setattr(features_mod, "build_features", lambda weekly, schedules: weekly)
-    monkeypatch.setattr(future_mod, "combined_future_features", fake_combined)
+    def recording_combined(*a, **k):
+        state["exclude_ids"].append(k.get("exclude_ids"))
+        return fake_combined(*a, **k)
+    monkeypatch.setattr(future_mod, "combined_future_features", recording_combined)
+    # Only batch.py's own call site passes exclude_ids; remaining.py's does not.
     monkeypatch.setattr(remaining_mod, "combined_future_features", fake_combined)
     monkeypatch.setattr(kickoffs_mod, "pull_kickoffs", lambda season, week: {
         "season": season, "week": week, "generated_at": "x", "teams": TEAMS, "games": []})
@@ -233,6 +238,13 @@ def test_writes_every_required_file_and_a_manifest_with_one_batch_id(world, tmp_
     # Pulled once, fit once, the catalog with the 24-hour bound.
     assert len(world["predictors"]) == 1
     assert world["sleeper_calls"] == [24]
+
+
+def test_released_ids_reach_the_future_feature_builder(world, tmp_path):
+    assert run_batch(tmp_path / "out") == 0
+    assert world["exclude_ids"], "combined_future_features was never called"
+    for seen in world["exclude_ids"]:
+        assert seen is not None and "ZZ-RELEASED" in seen
 
 
 def test_neutral_documents_are_built_from_the_batch(world, tmp_path):

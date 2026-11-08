@@ -151,16 +151,17 @@ def assert_roster_coverage(mapping: dict[str, str],
             f"(a new spelling needs an entry in TEAM_ALIASES)")
 
 
-def pull_current_teams(season: int, cache_dir: Path | None = None,
-                       scheduled_teams: set[str] | None = None
-                       ) -> dict[str, str]:
-    """{player_id: team} for `season`, from the season's roster feed.
+def _load_current_raw(season: int, cache_dir: Path | None = None,
+                      scheduled_teams: set[str] | None = None) -> pd.DataFrame:
+    """The validated, cached current-roster frame for `season`.
+
+    The single loader behind `pull_current_teams` and `pull_released_ids`, so
+    both read one cache file under one set of checks and cannot diverge.
 
     `scheduled_teams`, when given, makes the FULL coverage check run inside
     the loader -- before the refreshed frame is cached. Without it only the
     position check can run here, because team coverage is defined against the
-    season's schedule and this function has never seen one. Callers that have
-    a schedule should pass it; see the caching note in `load` below.
+    season's schedule and this function has never seen one.
     """
     def load() -> pd.DataFrame:
         import nflreadpy  # deferred: keep offline unit tests import-light
@@ -188,7 +189,19 @@ def pull_current_teams(season: int, cache_dir: Path | None = None,
     raw = _cached(cache_dir, _cache_name("rosters_current", [season]), load,
                   LIVE_MAX_AGE_HOURS)
     assert_positions_present(raw)
-    return normalize_current_teams(raw)
+    return raw
+
+
+def pull_current_teams(season: int, cache_dir: Path | None = None,
+                       scheduled_teams: set[str] | None = None
+                       ) -> dict[str, str]:
+    """{player_id: team} for `season`, from the season's roster feed.
+
+    Callers that have a schedule should pass `scheduled_teams` so the full
+    coverage check runs before caching; see `_load_current_raw`.
+    """
+    return normalize_current_teams(
+        _load_current_raw(season, cache_dir, scheduled_teams))
 
 
 def released_ids(raw: pd.DataFrame) -> set[str]:
@@ -206,20 +219,11 @@ def released_ids(raw: pd.DataFrame) -> set[str]:
 def pull_released_ids(season: int, cache_dir: Path | None = None) -> set[str]:
     """`released_ids` over the same cached roster frame as `pull_current_teams`.
 
-    Same cache file and freshness rule; call it after `pull_current_teams` and
-    it reads that call's cache rather than downloading again.
+    Same loader, cache file and freshness rule; call it after
+    `pull_current_teams` and it reads that call's cache rather than
+    downloading again.
     """
-    def load() -> pd.DataFrame:
-        import nflreadpy  # deferred: keep offline unit tests import-light
-
-        raw = nflreadpy.load_rosters([season]).to_pandas()
-        assert_positions_present(raw)     # never cache a frame we would refuse
-        return raw
-
-    raw = _cached(cache_dir, _cache_name("rosters_current", [season]), load,
-                  LIVE_MAX_AGE_HOURS)
-    assert_positions_present(raw)
-    return released_ids(raw)
+    return released_ids(_load_current_raw(season, cache_dir))
 
 
 def in_season_exclusions(weekly: pd.DataFrame, current_teams: dict[str, str],
@@ -250,7 +254,9 @@ def assert_positions_present(raw: pd.DataFrame) -> None:
     present with 16 apiece, and every wide receiver quietly keeps the team he
     last played for.
     """
-    # Count only rows that would SURVIVE normalize_current_teams. Counting raw
+    # Count rows that have a join key and a team, before normalize_current_teams
+    # drops CUT/RET rows (those still count here: the guard is about a position
+    # going missing from the feed, not about who is on a roster). Counting raw
     # rows lets a feed that populates gsis_id and position but blanks `team`
     # for one position clear this guard and then get dropped downstream --
     # every player at that position silently keeping his last-played team,
