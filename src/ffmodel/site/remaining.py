@@ -137,6 +137,9 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
     schedule = schedules[schedules.season == season].copy()
     if "game_type" in schedule:
         schedule = schedule[schedule.game_type == "REG"]
+    # `schedule` is one REG season (coverage/bye checks); the feature builder needs every
+    # season up to this one, as the weekly path gets, or prior-season rows lose their context.
+    feature_schedule = schedules[schedules.season <= season]
     teams = set(schedule.home_team) | set(schedule.away_team)
     if not teams or any(t not in teams for t in current_teams.values()):
         raise ValueError("current team outside schedule coverage")
@@ -157,7 +160,8 @@ def build_remaining(weekly, schedules, predictor, season, start_week, *,
             raise ValueError(f"missing or duplicate team schedule in week {week}")
         # Build each horizon independently. Never feed predicted stats back as
         # observations or append earlier unplayed skeletons to model history.
-        combined, future = combined_future_features(history, schedule, season, week, current_teams)
+        combined, future = combined_future_features(history, feature_schedule, season, week,
+                                                 current_teams)
         future = future[future.player_id.isin(current_teams)].copy()
         if future.player_id.duplicated().any():
             raise ValueError("duplicate future player identity")
