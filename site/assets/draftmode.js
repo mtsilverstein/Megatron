@@ -48,6 +48,7 @@ window.DraftMode = (() => {
   let lastPickSig = null;
   let roundsNote = "";   // set at connect; see the shape check there
   let scoringNote = "";  // standalone drafts cannot prove a league scoring contract
+  let tradedNote = "";   // traded picks that could not be loaded or placed; see updateOwnership
   let pollSeq = 0;       // generation token: bumped to silently retire stale poll chains
   let statusChecks = 0;     // periodically revalidate commissioner-editable settings
   // Freshness, shown in the status line. A tool that says "live" has to be able
@@ -309,6 +310,35 @@ window.DraftMode = (() => {
       : "";
   }
 
+  /* The draft's traded picks, or null when they could not be read. Fetched
+     beside the draft object and on its cadence (connect, then every tenth
+     poll), never on every pick poll: they change rarely, and the pick log is
+     what has to stay fast. Never throws -- a missing list degrades pick
+     ownership to each seat's own column, under a warning (updateOwnership),
+     and must not cost the connect or the poll. Same `r || []` convention as
+     trademode.js's league-level read. */
+  async function loadTradedPicks(draftId) {
+    try {
+      const r = (await api(`/draft/${draftId}/traded_picks`)) || [];
+      return Array.isArray(r) ? r : null;
+    } catch (_) { return null; }
+  }
+
+  /* `traded` is this load's list, or null when it failed. A failed REFRESH
+     keeps the list that last loaded: traded picks rarely change mid-draft, so
+     it is still the best knowledge there is, and column ownership would be
+     strictly worse. Only a session that never loaded the list falls back to
+     column ownership -- and says so. */
+  function updateOwnership(draft, traded) {
+    if (Array.isArray(traded)) session.traded = traded;
+    session.ownership = pickOwnership(draft, session.traded);
+    tradedNote = session.traded == null
+      ? "Could not load traded picks; pick ownership may be wrong."
+      : (!session.ownership && session.traded.length
+        ? "Traded picks are not applied: this draft does not say which roster holds each seat, so pick ownership may be wrong."
+        : "");
+  }
+
   // `attempt` is beginConnect()'s token. Callers that have already awaited
   // something (connectById) pass theirs so the whole attempt is covered; the
   // direct callers -- a draft button, the localStorage restore -- let this
@@ -317,7 +347,8 @@ window.DraftMode = (() => {
     if (attempt == null) attempt = beginConnect();
     try {
       setStatus("connecting…");
-      const draft = await api(`/draft/${draftId}`);
+      const [draft, traded] = await Promise.all([
+        api(`/draft/${draftId}`), loadTradedPicks(draftId)]);
       if (attempt !== pollSeq) return;        // superseded mid-fetch
       if (!draft || !draft.draft_id) throw new Error("draft not found");
       const lg = cfg.board && cfg.board.league;
@@ -334,8 +365,10 @@ window.DraftMode = (() => {
       }
       session = { username, userId, draftId,
                   totalPicks: 0, slot: null, teams: 0, rounds: 0,
-                  reversalRound: 0, type: "snake" };
+                  reversalRound: 0, type: "snake",
+                  traded: null, ownership: null };   // see updateOwnership
       updateDraftSettings(draft);
+      updateOwnership(draft, traded);
       resetPickFingerprint();
       lastPicks = null;
       statusChecks = 0;
@@ -395,6 +428,7 @@ window.DraftMode = (() => {
     lastSyncAt = 0;
     syncNote = "";
     scoringNote = "";
+    tradedNote = "";
     setStatus("— off");
     emit();
   }
@@ -424,7 +458,8 @@ window.DraftMode = (() => {
       // Commissioners can edit settings/order without changing the pick log.
       if (++statusChecks % 10 === 0
           || (session.totalPicks && picks.length >= session.totalPicks)) {
-        const d = await api(`/draft/${session.draftId}`);
+        const [d, traded] = await Promise.all([
+          api(`/draft/${session.draftId}`), loadTradedPicks(session.draftId)]);
         if (seq !== pollSeq || !session) return;
         if (!d || !d.draft_id) throw new Error("draft settings unavailable");
         const lg = cfg.board && cfg.board.league;
@@ -436,8 +471,9 @@ window.DraftMode = (() => {
           return;
         }
         updateDraftSettings(d);
+        updateOwnership(d, traded);
         unmatchedNote();
-        resetPickFingerprint(); // re-render even if only rounds/order changed
+        resetPickFingerprint(); // re-render even if only rounds/order/ownership changed
         if (d.status === "complete") {
           applyPicks(picks);
           return finish(picks.length);
@@ -490,24 +526,99 @@ window.DraftMode = (() => {
      autodrafter made it. picked_by stays as the fallback for a draft that
      publishes no order -- some mocks -- where it is the only signal there is.
 
+     A seat is not a roster once picks are traded, though. A traded pick keeps
+     its ORIGINAL column in draft_slot, and the roster that made it is in the
+     pick's roster_id -- so with `ownership` (pickOwnership) the seat is mapped
+     to its roster and a pick is yours when YOUR ROSTER made it, whatever
+     column it sits in. Without it (a mock that publishes no seat-to-roster
+     map, or the manual-draft path) this is column ownership, as before.
+
      Pure and exported so the autodraft case is testable; the render path
      around it needs a DOM and a live session. */
-  function myPicks(picks, slot, userId) {
+  function myPicks(picks, slot, userId, ownership) {
     const list = Array.isArray(picks) ? picks : [];
     if (Number.isInteger(slot) && slot > 0) {
+      const rosterId = rosterForSlot(ownership, slot);
+      if (rosterId != null) return list.filter(p => p && pickMadeBy(ownership, p) === rosterId);
       return list.filter(p => p && p.draft_slot === slot);
     }
     if (!userId) return [];
     return list.filter(p => p && p.picked_by === userId);
   }
 
+  /* Who holds which pick, from the draft object and its traded_picks list.
+     null when the draft publishes no seat-to-roster map (slot_to_roster_id):
+     nothing can be placed, and every caller falls back to column ownership.
+     `tradedPicks` null means the list could not be loaded; each seat then
+     holds its own column (the fallback updateOwnership warns about).
+
+     Only this draft's season counts -- a row for next year's draft must not
+     move this year's pick. draft_id is NOT checked: Sleeper publishes it on
+     these rows as a JSON number past 2^53, so it does not survive parsing
+     intact, and the endpoint is per-draft anyway. */
+  function pickOwnership(draft, tradedPicks) {
+    const map = draft && draft.slot_to_roster_id;
+    if (!map || typeof map !== "object") return null;
+    const slotToRoster = new Map();
+    for (const [slot, rosterId] of Object.entries(map)) {
+      const s = draftNumber(slot), r = draftNumber(rosterId);
+      if (s > 0 && r > 0) slotToRoster.set(s, r);
+    }
+    if (!slotToRoster.size) return null;
+    let traded = null;
+    if (Array.isArray(tradedPicks)) {
+      traded = new Map();
+      const season = draft.season != null ? String(draft.season) : null;
+      for (const t of tradedPicks) {
+        if (!t || (season && t.season != null && String(t.season) !== season)) continue;
+        const round = draftNumber(t.round), from = draftNumber(t.roster_id),
+              to = draftNumber(t.owner_id);
+        if (round > 0 && from > 0 && to > 0) traded.set(`${round}:${from}`, to);
+      }
+    }
+    return { slotToRoster, traded };
+  }
+
+  // The roster holding (round, seat) now: its traded_picks owner if it was
+  // traded, else the seat's own roster. null for a seat the draft lacks.
+  function pickOwner(ownership, round, slot) {
+    const orig = ownership ? ownership.slotToRoster.get(slot) : undefined;
+    if (orig == null) return null;
+    const moved = ownership.traded && ownership.traded.get(`${round}:${orig}`);
+    return moved != null ? moved : orig;
+  }
+
+  const rosterForSlot = (ownership, slot) => {
+    const r = ownership ? ownership.slotToRoster.get(slot) : undefined;
+    return r != null ? r : null;
+  };
+
+  // A made pick names the roster that made it. A row without one is placed
+  // by who held that (round, seat).
+  function pickMadeBy(ownership, p) {
+    const r = draftNumber(p.roster_id);
+    return r > 0 ? r : pickOwner(ownership, draftNumber(p.round), draftNumber(p.draft_slot));
+  }
+
+  // Every (round, seat) `rosterId` holds in a `rounds`-round draft, made or not.
+  function heldPicks(ownership, rosterId, rounds) {
+    const out = [];
+    if (!ownership || !Number.isInteger(rounds)) return out;
+    for (let round = 1; round <= rounds; round++) {
+      for (const slot of ownership.slotToRoster.keys()) {
+        if (pickOwner(ownership, round, slot) === rosterId) out.push({ round, slot });
+      }
+    }
+    return out;
+  }
+
   /* Everything the panel needs about who holds what, from the pick log alone.
      Pure for the same reason planFromPicks is: applyPicks writes to the DOM,
      so anything left inside it is unreachable from a test -- and that is
      exactly where the picked_by bug sat, unnoticed. */
-  function rosterStateFromPicks(picks, slot, userId) {
+  function rosterStateFromPicks(picks, slot, userId, ownership) {
     const list = Array.isArray(picks) ? picks : [];
-    const mine = myPicks(list, slot, userId);
+    const mine = myPicks(list, slot, userId, ownership);
     const counts = { QB: 0, RB: 0, WR: 0, TE: 0, other: 0 };
     for (const p of mine) {
       const pos = p.metadata && p.metadata.position;
@@ -525,7 +636,8 @@ window.DraftMode = (() => {
     // back through a poll before the lookup has answered.
     const masked = identityPending;
     const rs = masked ? rosterStateFromPicks(picks, null, null)
-                      : rosterStateFromPicks(picks, mySeat(picks).slot, session.userId);
+                      : rosterStateFromPicks(picks, mySeat(picks).slot, session.userId,
+                                             session.ownership);
     state.drafted = rs.drafted;
     state.mine = rs.mine;
     cfg.els.picksCount.textContent = `${picks.length} picks in`;
@@ -602,7 +714,7 @@ window.DraftMode = (() => {
     const seat = mySeat(picks);
     const blocked = shortlistBlocker(seat, picks);
     if (blocked) { showBlocked(v, blocked); return; }
-    const plan = planFromPicks(picks, seat, session.type);
+    const plan = planFromPicks(picks, seat, session.type, session.ownership);
     if (plan === null) {
       showBlocked(v, "No pick left in this draft — the shortlist is done.");
       return;
@@ -633,7 +745,7 @@ window.DraftMode = (() => {
     const flat = isFlatSlate(shortlist, INDIFFERENT_POINTS);
     // The K/DST need goes ABOVE the recommendations, not beside them.
     const lateNeed = lateSlotNeed(picks, seat.slot, session.rounds,
-                                  session.userId, cfg.board.late_slots);
+                                  session.userId, cfg.board.late_slots, session.ownership);
     v.innerHTML = (lateNeed ? renderLateNeed(lateNeed) : "")
       + `<strong>${esc(head)}</strong>`
       + `<ol class="draft-shortlist">${shortlist.map(renderPick).join("")}</ol>`
@@ -737,9 +849,22 @@ window.DraftMode = (() => {
     return spread < threshold;
   }
 
-  function planFromPicks(picks, seat, type) {
+  /* With `ownership` (pickOwnership) your picks are every (round, seat) your
+     ROSTER holds -- your own column minus what you traded away, plus what you
+     acquired -- through the same pickForRoundSlot snake/reversal math, and
+     with the same `used` and cursor gates as nextPickNumber. Without it, your
+     seat's own column, as before (the manual-draft path, a standalone mock). */
+  function planFromPicks(picks, seat, type, ownership) {
     const used = usedPickNumbers(picks);
     const cursor = pickCursor(picks);
+    const rosterId = rosterForSlot(ownership, seat.slot);
+    if (rosterId != null) {
+      const left = heldPickNumbers(ownership, rosterId, seat, type)
+        .filter(p => p > cursor && !used.has(p));
+      if (!left.length) return null;
+      return { used, cursor, next: left[0],
+               until: openPicksBetween(cursor, left[0], used), future: left.slice(1) };
+    }
     const next = nextPickNumber(seat.slot, seat.teams, seat.rounds,
                                 seat.reversalRound, cursor, type, used);
     if (next === null) return null;
@@ -817,12 +942,16 @@ window.DraftMode = (() => {
     });
   }
 
-  function lateSlotNeed(picks, slot, rounds, userId, lateSlots) {
+  function lateSlotNeed(picks, slot, rounds, userId, lateSlots, ownership) {
     if (!Number.isFinite(rounds) || !window.Optimizer) return null;
-    const mine = myPicks(picks, slot, userId);
+    const mine = myPicks(picks, slot, userId, ownership);
     const has = pos => mine.some(p => p.metadata && p.metadata.position === pos);
     const haveK = has("K"), haveDst = has("DEF");
-    const roundsLeft = rounds - mine.length;
+    // Picks you HOLD, less those made. With traded picks that is not `rounds`:
+    // trade one away and you have one fewer to fill these slots with.
+    const rosterId = rosterForSlot(ownership, slot);
+    const held = rosterId != null ? heldPicks(ownership, rosterId, rounds).length : rounds;
+    const roundsLeft = held - mine.length;
     if (!window.Optimizer.lateSlotTrigger(roundsLeft, haveK, haveDst)) return null;
     const late = lateSlots || {};
     const taken = lateSlotTaken(picks);
@@ -875,7 +1004,7 @@ window.DraftMode = (() => {
   function renderLateSlots(picks, l) {
     if (!l || !session || !session.rounds) return;
     const need = lateSlotNeed(picks, mySeat(picks).slot, session.rounds,
-                              session.userId, cfg.board.late_slots);
+                              session.userId, cfg.board.late_slots, session.ownership);
     if (!need) return;
     const lists = [need.K.length ? `K: ${need.K.map(esc).join(" · ")}` : null,
                    need.DST.length ? `D/ST: ${need.DST.map(esc).join(" · ")}` : null]
@@ -897,6 +1026,7 @@ window.DraftMode = (() => {
     // the crosswalk advisory, which is the one that explains missing strikes.
     if (roundsNote) lines.push(roundsNote);
     if (scoringNote) lines.push(scoringNote);
+    if (tradedNote) lines.push(tradedNote);
     cfg.els.note.hidden = !lines.length;
     cfg.els.note.textContent = lines.join(" · ");
   }
@@ -1002,6 +1132,20 @@ window.DraftMode = (() => {
       if (p > picksMade && !(used && used.has(p))) return p;
     }
     return null;                       // this slot has no pick left
+  }
+
+  // Overall numbers of every pick `rosterId` holds, ascending, made or not.
+  // nextPickNumber's shape guards, so a draft it refuses plans nothing here.
+  function heldPickNumbers(ownership, rosterId, seat, type) {
+    const { slot, teams, rounds } = seat, reversalRound = seat.reversalRound || 0;
+    if (!Number.isInteger(slot) || !Number.isInteger(teams) || !Number.isInteger(rounds)
+        || slot < 1 || teams < 1 || rounds < 1 || slot > teams
+        || !Number.isInteger(reversalRound) || reversalRound < 0) return [];
+    if (type !== "snake" && type !== "linear") return [];
+    return heldPicks(ownership, rosterId, rounds)
+      .filter(c => c.slot <= teams)
+      .map(c => pickForRoundSlot(c.round, c.slot, teams, reversalRound, type))
+      .sort((a, b) => a - b);
   }
 
   // Picks between the selection currently on the clock and your NEXT pick.
@@ -1224,6 +1368,7 @@ window.DraftMode = (() => {
 
   return { init, disable, nextPickNumber, gapToNextPick, seatFromPicks,
            pickCursor, usedPickNumbers, planFromPicks, myPicks,
+           pickOwnership, pickOwner,
            lateSlotNeed, isFlatSlate, lateSlotTaken, lateSlotAvailable,
            pickSignature, renderPick,
            rosterStateFromPicks,

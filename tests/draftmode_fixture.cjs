@@ -14,6 +14,12 @@ const O = global.window.Optimizer;
 const SLEEPER = { picks: [], draft: null, league: null, user: null, calls: [] };
 global.window.Sleeper = { get: async (path) => {
   SLEEPER.calls.push(path);
+  // Its own branch, ahead of /^\/draft\// below: the draft gate, error and
+  // fetch counter model the DRAFT object, and must not count this read.
+  if (/\/traded_picks$/.test(path)) {
+    if (SLEEPER.tradedError) throw new Error(SLEEPER.tradedError);
+    return SLEEPER.traded || [];
+  }
   if (/\/picks$/.test(path)) return SLEEPER.picks;
   // `userGate`: holds Session.identify() in its `identifying` state so a
   // fixture can look at the board DURING the lookup, not only after it.
@@ -358,6 +364,97 @@ assert.strictEqual(rsK.counts.other, 1);
 assert.deepStrictEqual([...D.rosterStateFromPicks(MINE_LOG, null, "u1").mine].sort(),
                        ["b", "c"]);
 assert.deepStrictEqual([...D.rosterStateFromPicks(null, 10, "u1").mine], []);
+
+// --- traded picks -------------------------------------------------------------
+// Sleeper keeps a traded pick in its ORIGINAL column (`draft_slot`) and names
+// the roster that made it in `roster_id`; /draft/<id>/traded_picks says who
+// holds each traded (round, original roster). The overlay used to take every
+// pick in your column as yours. In a real 12-team draft with 9 traded picks
+// that built 6 of the 12 seats' shortlists on the wrong roster and the wrong
+// pick schedule. Synthetic 4-team, 4-round snake; the rosters are deliberately
+// NOT numbered like the seats, so a slot/roster mix-up cannot pass by luck.
+//            seat 1  seat 2  seat 3  seat 4
+//   roster     3       1       4       2       you are U1: seat 2, roster 1
+//   R1        #1      #2      #3      #4
+//   R2        #8      #7      #6      #5
+//   R3        #9     #10     #11     #12
+//   R4       #16     #15     #14     #13
+const TP_DRAFT = { draft_id: "7000001", type: "snake", status: "in_progress",
+  season: "2026", draft_order: { U1: 2, U2: 4, U3: 1, U4: 3 },
+  slot_to_roster_id: { 1: 3, 2: 1, 3: 4, 4: 2 },
+  settings: { teams: 4, rounds: 4, reversal_round: 0 } };
+const TP_TRADED = [
+  { season: "2026", round: 2, roster_id: 1, owner_id: 4, previous_owner_id: 1 }, // you traded #7 away
+  { season: "2026", round: 3, roster_id: 2, owner_id: 1, previous_owner_id: 2 }, // you acquired #12
+  { season: "2026", round: 4, roster_id: 3, owner_id: 2, previous_owner_id: 3 }, // #16, between two others
+  { season: "2027", round: 1, roster_id: 3, owner_id: 1, previous_owner_id: 3 }, // next year's draft
+];
+const tpPos = id => ["RB", "WR", "QB", "TE"][(Number(id) - 9001) % 4];
+const tpPick = (pick_no, round, draft_slot, roster_id, extra) => Object.assign(
+  { pick_no, round, draft_slot, roster_id, player_id: String(9000 + pick_no),
+    picked_by: null, metadata: { position: tpPos(9000 + pick_no) } }, extra);
+// Your keeper sits at your own R4 (#15) before the draft opens.
+const TP_A = [tpPick(1, 1, 1, 3), tpPick(2, 1, 2, 1), tpPick(15, 4, 2, 1, { is_keeper: true })];
+const TP_B = TP_A.concat([tpPick(3, 1, 3, 4), tpPick(4, 1, 4, 2), tpPick(5, 2, 4, 2),
+  tpPick(6, 2, 3, 4),
+  tpPick(7, 2, 2, 4),           // made by roster 4 at YOUR seat, in the round you traded away
+  tpPick(8, 2, 1, 3)]);
+const TP_C = TP_B.concat([tpPick(9, 3, 1, 3), tpPick(10, 3, 2, 1), tpPick(11, 3, 3, 4),
+  tpPick(12, 3, 4, 1)]);        // made by you, at seat 4's slot
+const TP_OWN = D.pickOwnership(TP_DRAFT, TP_TRADED);
+const TP_ME = { slot: 2, teams: 4, rounds: 4, reversalRound: 0, userId: "U1" };
+
+// Who holds each (round, seat).
+assert.strictEqual(D.pickOwner(TP_OWN, 1, 2), 1, "your own R1 is yours");
+assert.strictEqual(D.pickOwner(TP_OWN, 2, 2), 4, "the R2 you traded away is still yours");
+assert.strictEqual(D.pickOwner(TP_OWN, 3, 4), 1, "the R3 you acquired is not yours");
+assert.strictEqual(D.pickOwner(TP_OWN, 4, 1), 2, "a trade between two other teams was lost");
+assert.strictEqual(D.pickOwner(TP_OWN, 1, 1), 3, "a 2027 trade moved a 2026 pick");
+assert.strictEqual(D.pickOwner(TP_OWN, 1, 9), null, "a seat the draft does not have");
+// No slot_to_roster_id (a standalone mock): nothing to map, column ownership.
+assert.strictEqual(D.pickOwnership({ ...TP_DRAFT, slot_to_roster_id: null }, TP_TRADED), null);
+// The traded_picks fetch failed: each seat keeps its own column.
+const TP_COLUMN = D.pickOwnership(TP_DRAFT, null);
+assert.strictEqual(D.pickOwner(TP_COLUMN, 2, 2), 1);
+assert.strictEqual(D.pickOwner(TP_COLUMN, 3, 4), 2);
+
+// Your schedule at the open (#1, #2 made; your keeper holds #15): your next
+// pick is #10, not the #7 you traded away, and the #12 you acquired follows it.
+const tpPlanA = D.planFromPicks(TP_A, TP_ME, "snake", TP_OWN);
+assert.strictEqual(tpPlanA.next, 10, "planned #7, the pick you traded away");
+assert.strictEqual(tpPlanA.until + 1, 8, "your turn in N counted toward the wrong pick");
+assert.deepStrictEqual(tpPlanA.future, [12], "missed the acquired #12 or planned the keeper's #15");
+// Column ownership is exactly the old schedule -- the failed-fetch fallback.
+const tpColA = D.planFromPicks(TP_A, TP_ME, "snake", TP_COLUMN);
+assert.deepStrictEqual([tpColA.next, ...tpColA.future], [7, 10]);
+assert.deepStrictEqual(D.planFromPicks(TP_A, TP_ME, "snake"), tpColA,
+  "a caller with no ownership (manual draft) must keep column ownership");
+// Another seat: seat 4 lost #12 to you and gained #16 from seat 1.
+const tpPlan4 = D.planFromPicks(TP_A, { ...TP_ME, slot: 4, userId: "U2" }, "snake", TP_OWN);
+assert.deepStrictEqual([tpPlan4.next, ...tpPlan4.future], [4, 5, 13, 16]);
+// Mid-draft, the pick at your traded slot made: one selection (#9) before #10.
+const tpPlanB = D.planFromPicks(TP_B, TP_ME, "snake", TP_OWN);
+assert.deepStrictEqual([tpPlanB.next, tpPlanB.until, ...tpPlanB.future], [10, 1, 12]);
+
+// Your roster follows the roster that MADE the pick, not the column it sits in.
+const tpRsB = D.rosterStateFromPicks(TP_B, 2, "U1", TP_OWN);
+assert.ok(!tpRsB.mine.has("9007"),
+  "the player taken at your seat in the round you traded away is on your roster");
+assert.deepStrictEqual([...tpRsB.mine].sort(), ["9002", "9015"]);
+assert.deepStrictEqual([tpRsB.counts.QB, tpRsB.counts.RB, tpRsB.counts.WR, tpRsB.counts.TE],
+                       [1, 0, 1, 0]);
+const tpRsC = D.rosterStateFromPicks(TP_C, 2, "U1", TP_OWN);
+assert.deepStrictEqual([...tpRsC.mine].sort(), ["9002", "9010", "9012", "9015"],
+  "the player from your acquired pick is missing from your roster");
+assert.strictEqual(tpRsC.counts.TE, 1);
+assert.strictEqual(D.planFromPicks(TP_C, TP_ME, "snake", TP_OWN), null, "every pick you hold is made");
+// A pick row without roster_id falls back to who holds that (round, seat).
+assert.deepStrictEqual(D.myPicks([{ pick_no: 12, round: 3, draft_slot: 4, player_id: "x" }],
+                                 2, "U1", TP_OWN).map(p => p.player_id), ["x"]);
+// The K/DST deadline counts the picks you HOLD: at TP_B you hold 4 and have
+// made 2 (#2 and the keeper), so 2 are left -- not 4 - 3 by your column.
+assert.strictEqual(D.lateSlotNeed(TP_B, 2, 4, "U1", null, TP_OWN).roundsLeft, 2);
+assert.strictEqual(D.lateSlotNeed(TP_B, 2, 4, "U1", null).roundsLeft, 1, "column fallback unchanged");
 
 // --- the K/DST slots the board cannot fill ----------------------------------
 // This league starts 1 K and 1 D/ST, and the board models neither, so the
@@ -1347,7 +1444,7 @@ const until = async (pred, what, ms = 2000) => {
    old seat live. A failed read is "no restore record"; failed writes and
    removals leave the in-memory draft usable. Nothing here may throw. */
 {
-  (async () => {
+  var storageFixtureDone = (async () => {
     await restoreFixtureDone;
     SLEEPER.calls.length = 0;
     const boom = () => { throw new Error("SecurityError: storage disabled"); };
@@ -1419,7 +1516,132 @@ const until = async (pred, what, ms = 2000) => {
     assert.strictEqual(last.connected, false);
     assert.strictEqual(last.drafted.size, 0);
     assert.strictEqual(els.status.textContent, "— off");
+  })();
+  storageFixtureDone.catch(e => { console.error(e.stack || e.message); process.exit(1); });
+}
 
+/* --- the live panel follows traded picks ---------------------------------
+   The pure functions above are only half of it: the controller has to fetch
+   /draft/<id>/traded_picks, hand the ownership to every seat-derived number,
+   refresh it with the draft object (not every pick poll), and -- when the
+   fetch fails -- say so and fall back to column ownership, never silently.
+   Same synthetic draft as the pure tests above (TP_*). */
+{
+  (async () => {
+    await storageFixtureDone;
+    const store = fakeStore();
+    global.localStorage = store;
+    Session._storage(store);
+    SLEEPER.user = { user_id: "U1" };
+    await Session.identify("me");                 // before init: no reconcile to wait on
+    SLEEPER.league = null;
+    SLEEPER.draft = { ...TP_DRAFT };
+    SLEEPER.traded = TP_TRADED;
+    SLEEPER.picks = TP_A;
+    SLEEPER.calls.length = 0;
+    const el = () => ({
+      value: "", textContent: "", innerHTML: "", hidden: false, checked: false,
+      open: false, className: "", children: [],
+      addEventListener() {}, querySelectorAll: () => [],
+      appendChild(n) { this.children.push(n); },
+    });
+    const els = {
+      connect: el(), connectId: el(), disconnect: el(), find: el(), hide: el(),
+      idInput: el(), late: el(), list: el(), live: el(), note: el(),
+      picksCount: el(), roster: el(), shortlist: el(), status: el(), ticker: el(),
+    };
+    const handlers = {};
+    for (const [name, node] of Object.entries(els)) {
+      node.addEventListener = (ev, fn) => { if (ev === "click") handlers[name] = fn; };
+    }
+    // Every player in the log, plus enough undrafted ones for a shortlist.
+    const players = [];
+    for (let i = 0; i < 28; i++) {
+      const id = String(9001 + i);
+      players.push({ player_id: `p${id}`, sleeper_id: id, name: `Player ${i + 1}`,
+        position: tpPos(id), adp: i + 1, bye: 5 + (i % 8), value_points: 300 - 5 * i,
+        vorp: 90 - 3 * i, position_rank: Math.floor(i / 4) + 1 });
+    }
+    let last = null;
+    D.init({ board: { players }, els, onUpdate: st => { last = st; } });
+    const tradedCalls = () => SLEEPER.calls.filter(p => p === "/draft/7000001/traded_picks").length;
+    const head = () => (els.shortlist.innerHTML.match(/<strong>((?:pick #|ON THE CLOCK)[^<]*)<\/strong>/) || [])[1];
+    const WARN = "Could not load traded picks; pick ownership may be wrong.";
+    const realSetTimeout = global.setTimeout;
+    let pendingPoll;
+    global.setTimeout = fn => { pendingPoll = fn; return 0; };
+    try {
+      els.idInput.value = "D7000001";
+      await handlers.connectId();
+      await until(() => pendingPoll && last && last.connected && /your turn|ON THE CLOCK/.test(els.shortlist.innerHTML),
+                  "the traded-pick draft to connect and render a shortlist");
+      assert.strictEqual(tradedCalls(), 1, "traded_picks was not fetched with the draft");
+      assert.strictEqual(head(), "pick #10 · your turn in 8", "scheduled the pick you traded away");
+      assert.ok(els.note.hidden || !els.note.textContent.includes(WARN), "warned although traded picks loaded");
+
+      // The pick at your traded slot is made by its new owner: not yours.
+      SLEEPER.picks = TP_B;
+      await pendingPoll();
+      assert.ok(!last.mine.has("9007"), "the player taken with the pick you traded away is on your roster");
+      assert.deepStrictEqual([...last.mine].sort(), ["9002", "9015"]);
+      assert.match(els.roster.innerHTML, /Your roster: QB 1 · RB 0 · WR 1 · TE 0/);
+      assert.strictEqual(head(), "pick #10 · your turn in 2");
+
+      // Refreshed with the draft object (every tenth poll), not on every poll.
+      // A trade made during the draft -- your #10 to seat 1 -- lands then.
+      SLEEPER.traded = TP_TRADED.concat([{ season: "2026", round: 3, roster_id: 1, owner_id: 3 }]);
+      for (let i = 0; i < 7; i++) await pendingPoll();      // polls 3..9
+      assert.strictEqual(tradedCalls(), 1, "traded_picks was refetched on an ordinary pick poll");
+      assert.strictEqual(head(), "pick #10 · your turn in 2");
+      await pendingPoll();                                   // poll 10: the draft refresh
+      assert.strictEqual(tradedCalls(), 2, "traded_picks was not refreshed with the draft object");
+      assert.strictEqual(head(), "pick #12 · your turn in 4",
+        "a pick traded away mid-draft was still scheduled");
+
+      // A failed REFRESH keeps the list that last loaded: it is the best
+      // knowledge there is, and column ownership would be worse.
+      SLEEPER.tradedError = "sleeper 503";
+      for (let i = 0; i < 10; i++) await pendingPoll();
+      assert.strictEqual(tradedCalls(), 3);
+      assert.strictEqual(head(), "pick #12 · your turn in 4");
+      assert.ok(!els.note.textContent.includes(WARN), "a failed refresh discarded the traded picks that loaded");
+      handlers.disconnect();
+
+      // The fetch fails at connect: a visible warning, and column ownership.
+      SLEEPER.traded = TP_TRADED;
+      SLEEPER.picks = TP_A;
+      pendingPoll = null;
+      await handlers.connectId();
+      await until(() => pendingPoll && last.connected && /your turn|ON THE CLOCK/.test(els.shortlist.innerHTML),
+                  "a draft whose traded picks failed to load to connect");
+      assert.ok(!els.note.hidden, "the traded-picks warning is hidden");
+      assert.ok(els.note.textContent.includes(WARN), `no traded-picks warning: ${els.note.textContent}`);
+      assert.strictEqual(head(), "pick #7 · your turn in 5", "the fallback is not column ownership");
+      // A MADE pick still names its roster, so the roster stays right without
+      // traded_picks; only the schedule of picks still to come falls back.
+      SLEEPER.picks = TP_B;
+      await pendingPoll();
+      assert.ok(!last.mine.has("9007"));
+      // The next draft refresh that loads clears the warning.
+      delete SLEEPER.tradedError;
+      for (let i = 0; i < 8; i++) await pendingPoll();      // polls 3..10
+      assert.ok(!els.note.textContent.includes(WARN), "the warning outlived a successful refresh");
+      handlers.disconnect();
+
+      // A draft that publishes no seat-to-roster map cannot place its traded
+      // picks either; that is said too, not absorbed.
+      SLEEPER.draft = { ...TP_DRAFT, slot_to_roster_id: null };
+      SLEEPER.picks = TP_A;
+      pendingPoll = null;
+      await handlers.connectId();
+      await until(() => pendingPoll && last.connected, "a draft with no seat-to-roster map to connect");
+      assert.match(els.note.textContent, /traded picks are not applied/i);
+      assert.strictEqual(head(), "pick #7 · your turn in 5");
+    } finally {
+      delete SLEEPER.tradedError;
+      handlers.disconnect();
+      global.setTimeout = realSetTimeout;
+    }
     console.log("draftmode_fixture: OK");
   })().catch(e => { console.error(e.stack || e.message); process.exit(1); });
 }
