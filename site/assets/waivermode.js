@@ -433,6 +433,17 @@
       status(error.message);
       return;
     }
+    // No league open (owner decision 2026-11-07: no league is a default):
+    // the connect prompt takes the desk's place -- no error, nothing loaded.
+    if (!leagueRef) {
+      $("waiver-controls").hidden = true;
+      $("waiver-results").hidden = true;
+      $("waiver-status").hidden = true;
+      const prompt = $("connect-prompt");
+      if (prompt) prompt.hidden = false;
+      if (typeof window !== "undefined" && window.LeagueConnect && typeof window.LeagueConnect.initPrompt === "function") window.LeagueConnect.initPrompt();
+      return;
+    }
     $("waiver-warning-link").addEventListener("click", () => { $("waiver-method").open = true; });
     $("waiver-show-all").addEventListener("click", () => { showAll = !showAll; if (snap && !$("waiver-results").hidden) renderRows(); });
     $("waiver-protect-clear").addEventListener("click", () => {

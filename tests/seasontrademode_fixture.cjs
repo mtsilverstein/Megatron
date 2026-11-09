@@ -729,7 +729,6 @@ async function pageNoLeague() {
   }
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
   assert.match(html, /<p id="connect-prompt-lead">See trade scenarios for your team: enter your Sleeper username or paste a league link\.<\/p>/);
-  assert.ok(!/Gabagool|\bFAM\b/i.test(html), "trade.html names no league");
 }
 async function pageInSeason() {
   fresh(); statics = makeStatics(); routes = { ...baseRoutes(), ...leagueRoutes(B, () => ({ ...baseLeague, league_id: B })) };

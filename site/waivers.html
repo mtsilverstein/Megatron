@@ -27,6 +27,13 @@
   <p class="eyebrow">Improve your roster</p>
   <h1>Waivers</h1>
   <p class="waiver-intro">Who to claim this week, in your league's scoring: who to add and what to bid or whether to claim — and compare drop options. Nothing is submitted for you.</p>
+  <div id="connect-prompt" class="tool-card connect-prompt" hidden>
+    <p id="connect-prompt-lead">See waiver advice for your team: enter your Sleeper username or paste a league link.</p>
+    <form id="connect-prompt-form"><label for="connect-prompt-input">Sleeper username or league link</label> <input id="connect-prompt-input" autocomplete="off" spellcheck="false" placeholder="username or https://sleeper.com/leagues/…"> <button type="submit">Connect</button></form>
+    <p id="connect-prompt-status" role="status"></p>
+    <ul id="connect-prompt-results"></ul>
+    <p><a href="connect.html">More ways to connect</a></p>
+  </div>
   <p id="waiver-summary" class="waiver-summary" hidden><span id="waiver-summary-league"></span><span id="waiver-budget"></span><span id="waiver-summary-data"></span><a id="waiver-warning-link" class="waiver-warning-link" href="#waiver-warnings-heading" hidden></a></p>
   <div id="waiver-controls" class="waiver-controls" aria-label="Waiver settings" role="group">
     <label>Week <input id="waiver-week" type="number" min="1" max="18" placeholder="Auto" title="Automatically follows the current NFL week. Enter a number to override; clear to restore automatic selection."></label>
@@ -127,6 +134,7 @@
 <script src="assets/session.js?v=5"></script>
 <script src="assets/app.js?v=league3"></script>
 <script src="assets/sleeper.js?v=2"></script>
+<script src="assets/connect.js?v=7"></script>
 <script src="assets/formats.js?v=1"></script>
 <script src="assets/lineup.js?v=3"></script>
 <script src="assets/leaguelens.js?v=1"></script>

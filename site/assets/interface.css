@@ -53,6 +53,12 @@ main #league-context > label { grid-column: 1; grid-row: 1; flex-direction: row;
 .connect-options form { display: flex; flex-direction: column; align-items: start; gap: .7rem; }
 .connect-options input { width: 100%; }
 .connect-options button { background: var(--chalk); color: var(--board); border: 1px solid var(--chalk); padding: .6rem 1rem; }
+/* The in-season pages' connect prompt (no league open) and the archived-board note. */
+.connect-prompt form { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.connect-prompt input { flex: 1 1 16rem; max-width: 28rem; }
+.connect-prompt button { background: var(--chalk); color: var(--board); border: 1px solid var(--chalk); padding: .6rem 1rem; }
+.connect-prompt ul { padding-left: 1.2rem; }
+.archived { background: var(--sunken); color: var(--chalk); border-bottom: 1px solid var(--rule); padding: .55rem 1.25rem; line-height: 1.4; }
 main > .connection-account { margin: 0 0 2rem; }
 .connection-account #league-context { padding: 1rem 0 0; margin: 0; border: 0; background: none; }
 details, #waiver-app details { border: 1px solid var(--rule); border-radius: .6rem; padding: .85rem 1rem; margin: 1rem 0; background: var(--sunken); }

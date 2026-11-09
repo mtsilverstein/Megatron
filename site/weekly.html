@@ -36,6 +36,13 @@
     <p>The selected Sleeper league's QB/RB/WR/TE/FLEX slots only; K, DST and IDP slots are not projected and keep their current starter. This maximizes projected medians in your league's scoring—not proven expected points or matchup win probability. Verify final injury reports and platform locks in Sleeper. Kickoffs use a dated schedule snapshot; postponements require refreshed data.</p>
     <p><a href="about.html">Historical results and their scope</a> are on the about page; they are not claims about your league's scoring.</p>
     </details>
+    <div id="connect-prompt" class="connect-prompt" hidden>
+      <p id="connect-prompt-lead">See start/sit advice for your team: enter your Sleeper username or paste a league link.</p>
+      <form id="connect-prompt-form"><label for="connect-prompt-input">Sleeper username or league link</label> <input id="connect-prompt-input" autocomplete="off" spellcheck="false" placeholder="username or https://sleeper.com/leagues/…"> <button type="submit">Connect</button></form>
+      <p id="connect-prompt-status" role="status"></p>
+      <ul id="connect-prompt-results"></ul>
+      <p><a href="connect.html">More ways to connect</a></p>
+    </div>
     <p id="ss-status" role="status">The plan loads from the league panel above: enter your Sleeper username, or choose a team to view. The projections below remain independent of this plan.</p>
     <details id="ss-exclude-panel" hidden><summary>Manually exclude unavailable players</summary><p>Use current injury information. Excluding someone is not a recommendation to drop them. Game-started slots cannot be changed. Exclusions are kept when you refresh this team's rosters; reload the page to clear them and refresh the cached injury catalog.</p><div id="ss-exclude"></div></details>
     <p id="ss-evidence">Close calls: No measured evaluation for your league's scoring and this model. Tiny differences are weak leans.</p>
@@ -81,6 +88,7 @@ about page.
 <script src="assets/session.js?v=5"></script>
 <script src="assets/app.js?v=league3"></script>
 <script src="assets/sleeper.js?v=2"></script>
+<script src="assets/connect.js?v=7"></script>
 <script src="assets/ros.js?v=1"></script>
 <script src="assets/formats.js?v=1"></script>
 <script src="assets/lineup.js?v=3"></script>
@@ -95,9 +103,13 @@ about page.
 <script>
 (async () => {
   // Any Sleeper league by id (spec 5.1): the league panel + chip, then the
-  // live league -- loaded at once, identity optional.
+  // live league -- loaded at once, identity optional. No league open (no
+  // ?league= and none remembered, or an old link's league name): the table
+  // below still renders from the league-neutral batch, in the reference
+  // lenses only, and StartSitMode shows the connect prompt.
   FC.leagueNavigation();
-  FC.setLeague(FC.inSeasonLeague().leagueId);
+  const open = FC.inSeasonLeague();
+  if (open) FC.setLeague(open.leagueId);
   // The league-neutral batch, shared with the start/sit controller.
   const batch = await StartSitMode.batch();
   const payload = batch.weekly;
@@ -211,6 +223,7 @@ about page.
   // The live league's views (StartSitMode computes them per committed
   // bundle, so a settings change on refresh rescores the table too).
   const lensStatus = document.getElementById("lens-status");
+  if (!open) lensStatus.textContent = "PPR, half-PPR and standard scoring. Connect your Sleeper league above to add your league's own scoring.";
   // A cleared view (a new or absent league bundle, spec §5.2) drops the
   // title and the "Your league" lens until a replacement view is valid.
   const titleEl = document.getElementById("weekly-title"), defaultTitle = titleEl.textContent, defaultLensStatus = lensStatus.textContent;

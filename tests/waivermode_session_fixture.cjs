@@ -189,7 +189,7 @@ const fetched = [];
 global.fetch = async p => { fetched.push(p); return statics[p] ? { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(statics[p])) } : { ok: false, status: 404, json: async () => ({}) }; };
 
 const ROSTERS_STEP = 5000;              // the rosters request "takes" 5 s: requestedAt and fetchedAt differ
-const users = [{ user_id: "u1", display_name: "Max973" }, { user_id: "u2", display_name: "Bo", metadata: { team_name: "Bo's Bunch" } }];
+const users = [{ user_id: "u1", display_name: "User A" }, { user_id: "u2", display_name: "Bo", metadata: { team_name: "Bo's Bunch" } }];
 const rosters = [
   { roster_id: 9, owner_id: "u1", players: ["a", "k"], starters: ["a", "k"], reserve: [], taxi: [], settings: { waiver_position: 4, waiver_budget_used: 0 } },
   { roster_id: 3, owner_id: "u2", players: ["b"], starters: ["b"], reserve: [], taxi: [], settings: { waiver_position: 1, waiver_budget_used: 0 } },
@@ -207,7 +207,7 @@ const catalog = {
 };
 function baseRoutes() {
   return {
-    "/user/max973": { user_id: "u1", username: "max973", display_name: "Max973" },
+    "/user/user_a": { user_id: "u1", username: "user_a", display_name: "User A" },
     "/user/bo": { user_id: "u2", username: "bo", display_name: "Bo" },
     [`/league/${L}`]: () => league, [`/league/${L}/users`]: users,
     [`/league/${L}/rosters`]: () => { clock += ROSTERS_STEP; return rosters; },
@@ -236,6 +236,28 @@ const AGG = "sum of weekly medians through NFL week 17, not a season median";
 const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactions/3`).length;
 
 (async () => {
+  // 0. Owner decision 2026-11-07: no ?league= (and nothing remembered) is NO
+  //    league. The desk shows the connect prompt in its place -- no error
+  //    styling, no Sleeper call, nothing loaded for a substituted league.
+  {
+    routes = baseRoutes();
+    const m0 = dom("https://example.test/Megatron/waivers.html");
+    waiversPage(m0);
+    const $0 = id => document.getElementById(id);
+    assert.equal($0("connect-prompt").hidden, true, "the prompt starts hidden in the markup");
+    let prompted = 0;
+    window.LeagueConnect = { initPrompt() { prompted++; } };
+    WaiverMode.init();
+    assert.equal($0("connect-prompt").hidden, false, "no league: the connect prompt is shown");
+    assert.equal(prompted, 1, "the prompt's form is wired");
+    for (const id of ["waiver-controls", "waiver-results", "waiver-status"]) assert.equal($0(id).hidden, true, `no league: #${id} hidden`);
+    assert.equal($0("waiver-status").className, "", "not an error: no error styling");
+    assert.ok($0("session-chip"), "the league panel (and its chip) still mounts, league-free");
+    await new Promise(r => setTimeout(r, 5));
+    assert.deepEqual(calls, [], "no league: no Sleeper call");
+    assert.equal(Session.bundle(), null);
+    delete window.LeagueConnect;
+  }
   routes = baseRoutes();
   const main = dom(`https://example.test/Megatron/waivers.html?league=${L}`);
   waiversPage(main);
@@ -260,8 +282,8 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
 
   // 2. Owner flow: identify through the chip's own form.
   let release;
-  routes["/user/max973"] = () => new Promise(r => { release = () => r({ user_id: "u1", username: "max973", display_name: "Max973" }); });
-  $("session-user").value = "max973";
+  routes["/user/user_a"] = () => new Promise(r => { release = () => r({ user_id: "u1", username: "user_a", display_name: "User A" }); });
+  $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   assert.equal(Session.state(), "identifying");
   assert.ok($("waiver-results").hidden, "identifying: no results");
@@ -525,10 +547,10 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   $("session-forget").dispatch("click");
   assert.ok($("waiver-results").hidden, "forget hides the results synchronously");
   assert.equal(statusText(), GATE);
-  routes["/user/max973"] = baseRoutes()["/user/max973"];
+  routes["/user/user_a"] = baseRoutes()["/user/user_a"];
   // A saved id no longer on the roster (and junk types) is pruned on a fresh load, in storage too.
   lsStore.set(`megatron.waivers.protected.v1|${L}|9`, '["a","gone"]');
-  $("session-user").value = "max973";
+  $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   await until(() => !$("waiver-results").hidden && /roster 9/.test(statusText()), "roster 9 back after re-identify", 5000);
   const b3 = Session.bundle();
@@ -810,7 +832,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal(analyzeCalls.at(-1).budgetReserve, 18, "the viewer's engine run uses the league default");
   assert.ok(!text("waiver-budget").includes("Keep in reserve"));
   // ...then identifies as the owner of ANOTHER roster: the owner's desk, the viewer label gone.
-  $("session-user").value = "max973";
+  $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   await until(() => /^Connected read-only · roster 9/.test(statusText()) && analyzeCalls.at(-1).rosterId === 9 && !$("waiver-results").hidden, "the owner's own desk", 5000);
   assert.equal(Session.bundle().viewedRosterId, null, "the viewed choice is dropped, not merged");

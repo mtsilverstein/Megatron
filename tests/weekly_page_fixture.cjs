@@ -105,5 +105,29 @@ const DEFAULT_STATUS = ids["lens-status"].textContent;
   assert.equal(pressed(), "PPR");
   handler(leagueView("League D", 40));
   assert.equal(pressed(), "YOUR LEAGUE", "an explicit 'Your league' pick returns with the replacement");
-  console.log("weekly_page_fixture: cleared view drops title and league lens; replacement restores; picks survive OK");
+
+  // Owner decision 2026-11-07: no league open. The table still renders from
+  // the league-neutral batch in the PPR / half-PPR / standard lenses, no
+  // league is loaded, and the lens line says how to add a league's scoring.
+  {
+    let setLeagueCalls = 0, onViewCalls = 0;
+    for (const id of Object.keys(ids)) ids[id].children = [];
+    ids["lens-status"].textContent = DEFAULT_STATUS; ids["weekly-title"].textContent = "This week's slate";
+    const ctx2 = vm.createContext({
+      document, console, Map, Set, Promise, Object, Array, String, Number,
+      FC: { ...ctx.FC, setLeague() { setLeagueCalls++; }, inSeasonLeague: () => null },
+      Bands: ctx.Bands, WeeklyExperts: ctx.WeeklyExperts,
+      StartSitMode: { batch: async () => ({ weekly }), onView() { onViewCalls++; return () => {}; } },
+    });
+    await vm.runInContext(source, ctx2);
+    assert.equal(setLeagueCalls, 0, "no league: nothing is loaded");
+    assert.deepEqual(buttons(), ["PPR", "HALF-PPR", "STANDARD"], "the reference lenses only, no 'Your league'");
+    assert.equal(pressed(), "PPR");
+    assert.equal(ids["lens-status"].textContent, "PPR, half-PPR and standard scoring. Connect your Sleeper league above to add your league's own scoring.");
+    assert.equal(title(), "This week's slate");
+    assert.equal(ids["week-eyebrow"].textContent, "Week 3 · 2026 · transformer");
+  }
+  // The prompt's copy is the page's own markup.
+  assert.match(html, /<p id="connect-prompt-lead">See start\/sit advice for your team: enter your Sleeper username or paste a league link\.<\/p>/);
+  console.log("weekly_page_fixture: cleared view drops title and league lens; replacement restores; picks survive; no league renders the neutral table OK");
 })().catch(e => { console.error(e); process.exit(1); });

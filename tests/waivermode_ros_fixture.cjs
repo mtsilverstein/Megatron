@@ -93,7 +93,7 @@ const statics = {
 };
 global.fetch = async p => statics[p] ? { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(statics[p])) } : { ok: false, status: 404, json: async () => ({}) };
 
-const users = [{ user_id: "u1", display_name: "Max973" }, { user_id: "u2", display_name: "Bo" }];
+const users = [{ user_id: "u1", display_name: "User A" }, { user_id: "u2", display_name: "Bo" }];
 const rosters = [
   { roster_id: 9, owner_id: "u1", players: ["a", "k"], starters: ["a", "k"], reserve: [], taxi: [], settings: { waiver_position: 4, waiver_budget_used: 0 } },
   { roster_id: 3, owner_id: "u2", players: ["b"], starters: ["b"], reserve: [], taxi: [], settings: { waiver_position: 1, waiver_budget_used: 0 } },
@@ -110,7 +110,7 @@ const catalog = {
   k: { position: "K", full_name: "Kicker", team: "X" },
 };
 routes = {
-  "/user/max973": { user_id: "u1", username: "max973", display_name: "Max973" },
+  "/user/user_a": { user_id: "u1", username: "user_a", display_name: "User A" },
   [`/league/${L}`]: () => league, [`/league/${L}/users`]: users, [`/league/${L}/rosters`]: () => rosters,
   "/state/nfl": { season: "2026", season_type: "regular", week: 3 }, [`/league/${L}/transactions/3`]: [],
   "/players/nfl": catalog,
@@ -137,7 +137,7 @@ const until = async (pred, what, ms = 4000) => {
   const cLine = () => watch().find(l => l.startsWith("C Free"));
 
   WaiverMode.init();
-  $("session-user").value = "max973";
+  $("session-user").value = "user_a";
   all($("session-chip")).find(n => n.tagName === "form").dispatch("submit");
   await until(() => !$("waiver-results").hidden && analyzeCalls.length === 1, "the owner's desk");
   // Control: fresh, current team -> the number shows and reaches the engine.

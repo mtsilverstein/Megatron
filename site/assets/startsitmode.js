@@ -60,7 +60,18 @@
     // Writes only on a change: rewriting identical text into the live region
     // can re-announce it, and the 15 s tick re-renders every time.
     const status=text=>{const e=$("ss-status");if(e.textContent!==text)e.textContent=text;};
-    try { FC.inSeasonLeague(); } catch (e) { status(e.message); return; }
+    // No league open (owner decision 2026-11-07: no league is a default):
+    // the connect prompt takes the plan's place. The projection table is
+    // league-neutral and renders without this controller.
+    let open;
+    try { open = FC.inSeasonLeague(); } catch (e) { status(e.message); return; }
+    if (!open) {
+      for (const id of ["ss-status", "ss-evidence", "ss-exclude-panel", "ss-stale", "ss-output"]) { const n = $(id); if (n) n.hidden = true; }
+      const prompt = $("connect-prompt");
+      if (prompt) prompt.hidden = false;
+      if (typeof window !== "undefined" && window.LeagueConnect && typeof window.LeagueConnect.initPrompt === "function") window.LeagueConnect.initPrompt();
+      return;
+    }
     const showExclusions=on=>{const d=$("ss-exclude-panel");if(d)d.hidden=!on;};
     // The stale notice (null = rosters fresh, or no plan to mark).
     const staleText=age=>{

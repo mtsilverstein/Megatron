@@ -130,7 +130,7 @@ const realNow = Date.now;
 let clock = realNow();
 Date.now = () => clock;
 const ROSTERS_STEP = 5000;
-const users = [{ user_id: "u1", display_name: "Max973" }, { user_id: "u2", display_name: "Bo", metadata: { team_name: "Bo's Bunch" } }];
+const users = [{ user_id: "u1", display_name: "User A" }, { user_id: "u2", display_name: "Bo", metadata: { team_name: "Bo's Bunch" } }];
 const rosters = [
   { roster_id: 9, owner_id: "u1", players: ["a", "k"], starters: ["a", "k"], reserve: [], taxi: [] },
   { roster_id: 3, owner_id: "u2", players: ["b"], starters: ["b"], reserve: [], taxi: [] },
@@ -147,7 +147,7 @@ const catalog = {
 };
 function baseRoutes() {
   return {
-    "/user/max973": { user_id: "u1", username: "max973", display_name: "Max973" },
+    "/user/user_a": { user_id: "u1", username: "user_a", display_name: "User A" },
     "/user/bo": { user_id: "u2", username: "bo", display_name: "Bo" },
     [`/league/${L}`]: () => league, [`/league/${L}/users`]: users,
     [`/league/${L}/rosters`]: () => { clock += ROSTERS_STEP; return rosters; },
@@ -171,6 +171,32 @@ const HEURISTIC = "3-point threshold in your league's points (a heuristic)";
 const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format test (results January 2027)";
 
 (async () => {
+  // 0. Owner decision 2026-11-07: no ?league= (and nothing remembered) is NO
+  //    league. The controller shows the connect prompt where the plan would
+  //    be, makes no Sleeper call and loads no league; nothing is a default.
+  {
+    routes = baseRoutes();
+    const m0 = dom("https://example.test/Megatron/weekly.html");
+    for (const [tag, id, hidden] of [["p", "ss-status"], ["div", "ss-exclude-panel", true], ["div", "ss-output"], ["p", "ss-evidence"],
+      ["p", "ss-stale", true], ["div", "connect-prompt", true], ["form", "connect-prompt-form"], ["input", "connect-prompt-input"],
+      ["p", "connect-prompt-status"], ["ul", "connect-prompt-results"]]) {
+      const e = element(tag); e.id = id; e.hidden = !!hidden; m0.append(e);
+    }
+    let prompted = 0;
+    window.LeagueConnect = { initPrompt() { prompted++; } };
+    StartSitMode.init();
+    const $0 = id => document.getElementById(id);
+    assert.equal($0("connect-prompt").hidden, false, "no league: the connect prompt is shown");
+    for (const id of ["ss-status", "ss-evidence", "ss-output", "ss-stale", "ss-exclude-panel"]) assert.equal($0(id).hidden, true, `no league: #${id} hidden`);
+    assert.equal(prompted, 1, "the prompt's form is wired");
+    FC.leagueNavigation();
+    assert.equal(FC.inSeasonLeague(), null);
+    await new Promise(r => setTimeout(r, 5));
+    assert.deepEqual(calls, [], "no league: no Sleeper call");
+    assert.equal(Session.bundle(), null, "no league is loaded");
+    assert.ok(!fetched.some(p => /draft|weekly\.json/.test(p) && !/neutral/.test(p)), "no league data file is read");
+    delete window.LeagueConnect;
+  }
   routes = baseRoutes();
   const main = dom(`https://example.test/Megatron/weekly.html?league=${L}`);
   for (const [tag, id] of [["p", "ss-status"], ["div", "ss-exclude"], ["div", "ss-output"], ["p", "ss-evidence"], ["span", "band-evidence"],
@@ -215,8 +241,8 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   // 2. Owner flow: identify through the chip's form. The plan renders from
   //    the committed bundle; the engine is handed the PRE-request time.
   let release;
-  routes["/user/max973"] = () => new Promise(r => { release = () => r({ user_id: "u1", username: "max973", display_name: "Max973" }); });
-  $("session-user").value = "max973";
+  routes["/user/user_a"] = () => new Promise(r => { release = () => r({ user_id: "u1", username: "user_a", display_name: "User A" }); });
+  $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   assert.equal(Session.state(), "identifying");
   assert.equal(statusText(), GATE);
@@ -275,8 +301,8 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   $("session-forget").dispatch("click");
   assert.equal($("ss-output").children.length, 0); assert.equal($("ss-exclude").children.length, 0);
   assert.equal(statusText(), GATE);
-  routes["/user/max973"] = baseRoutes()["/user/max973"];
-  $("session-user").value = "max973";
+  routes["/user/user_a"] = baseRoutes()["/user/user_a"];
+  $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   await until(() => /^Read-only roster 9;/.test(statusText()), "roster 9 back", 5000);
   const b3 = Session.bundle();
@@ -398,7 +424,7 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.equal(statusText(), `No safe full-lineup recommendation: ${OFF_SCHEDULE} Only the team's owner can exclude players here.`);
   engineThrows = null;
   // ...then identifies as the owner of ANOTHER roster: owner's plan, viewer label gone.
-  $("session-user").value = "max973";
+  $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   await until(() => /^Read-only roster 9;/.test(statusText()) && analyzeCalls.at(-1).roster.roster_id === 9 && $("ss-output").children.length > 0, "the owner's own plan", 5000);
   const b7 = Session.bundle();
