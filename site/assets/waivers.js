@@ -189,6 +189,8 @@
   const FIRST_WEEK = 1;
   // What every range reads in the final week, when no future week remains (A6-6).
   const THIS_WEEK_ONLY = "this week only";
+  const BUDGET_SPENT = "Your FAAB budget is spent; $0 claims are allowed in this league.";
+  const BUDGET_ZERO = "This league's FAAB budget is $0; claims are $0.";
   const RESERVE_HELD = 'Budget held in reserve. Lower "Budget to keep" to bid.';
   function defaultReserve(budget, week, lastWeek) {
     const b = finite(budget), w = finite(week), last = finite(lastWeek);
@@ -274,6 +276,11 @@
     }
     if (dropCost && dropCost.status === "unassessed") {
       return { low: null, high: null, tier: "drop cost unassessed", affordable, canAfford: true, status: `no bid suggested: drop cost unassessed — ${dropCost.reason}`, label: BID_LABEL };
+    }
+    // Nothing left to spend and a $0 claim is legal: say so plainly (a single
+    // $0, not a heuristic tier), rather than a "small tier" range.
+    if (remaining <= 0 && minBid <= 0) {
+      return { low: 0, high: 0, tier: "no budget", affordable, canAfford: true, spent: true, status: total === 0 ? BUDGET_ZERO : BUDGET_SPENT, label: total === 0 ? BUDGET_ZERO : BUDGET_SPENT };
     }
     if (reserveHeld) return { low: null, high: null, tier, affordable, canAfford: false, reserveHeld: true, status: RESERVE_HELD, label: BID_LABEL };
     let low = Math.min(affordable, Math.ceil(total * pct[0]));
@@ -379,7 +386,10 @@
       return blocked(`${weekly.reason}; fresh aligned weekly data required for in-season recommendations. No preseason-based bids or lineup gains supplied.`);
     const kickoffs = weekly.fresh ? kickoffMap(args.kickoffs, league, args.week, now) : { fresh:false, starts:new Map(), covered:new Set(), reason:null };
     if (weekly.fresh && !kickoffs.fresh) fail(`${kickoffs.reason}; refresh required`);
-    if (weekly.fresh && unknownOwned.length) fail(`${unknownOwned.length} owned player(s) missing from board; refresh player data`);
+    if (weekly.fresh && unknownOwned.length) {
+      const names = args.catalogNames || {};
+      fail(`${unknownOwned.length} owned player(s) missing from board: ${unknownOwned.map(x => names[x] || x).join(", ")}. Reload the page to fetch the latest player data.`);
+    }
     // An owned skill player with NO NFL team, or whose projection is for
     // another team, has no current-team projection: he is counted as 0 below
     // (audit A6-3), never refused. A non-null team the kickoff file does not
@@ -579,6 +589,6 @@
     };
   }
   return Object.freeze({ analyze, defaultReserve, seasonEndWeek, __lineupScore: lineupScore,
-    COPY: Object.freeze({ aggregation: AGGREGATION, horizon: HORIZON, heuristic: heuristicLabel, guidance: WAIVER_GUIDANCE, reserveHeld: RESERVE_HELD, thisWeekOnly: THIS_WEEK_ONLY }),
+    COPY: Object.freeze({ budgetSpent: BUDGET_SPENT, budgetZero: BUDGET_ZERO, aggregation: AGGREGATION, horizon: HORIZON, heuristic: heuristicLabel, guidance: WAIVER_GUIDANCE, reserveHeld: RESERVE_HELD, thisWeekOnly: THIS_WEEK_ONLY }),
     WEAK_SIGNAL_PTS, MIN_GAIN });
 });

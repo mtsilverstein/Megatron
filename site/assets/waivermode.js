@@ -147,11 +147,11 @@
     const negative = dc.status === "priced" && Number.isFinite(r.signal.moveValue) && r.signal.moveValue <= 0;
     const held = !weak && !negative && dc.status === "unassessed";
     const sign = x => `${x < 0 ? "−" : "+"}${Math.abs(x).toFixed(2)}`;
-    const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? `$${r.bid.low}–$${r.bid.high}` : null;
+    const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? (r.bid.spent ? "$0" : `$${r.bid.low}–$${r.bid.high}`) : null;
     const withheld = weak || held || negative;
     const bid = ownerOnly ? COPY.ownerOnly : r.bid ? (dollars ?? r.bid.status ?? "No bid suggested") : (withheld ? "No priority claim suggested" : "Set claim order in Sleeper");
     const bidNote = ownerOnly ? "" : r.bid ? r.bid.label : (withheld ? r.signal.guidance : result.waiver.guidance);
-    const exportBid = ownerOnly ? COPY.ownerOnly : r.bid ? (dollars ? `heuristic bid ${dollars}` : bid) : r.signal.guidance;
+    const exportBid = ownerOnly ? COPY.ownerOnly : r.bid ? (dollars ? (r.bid.spent ? `bid ${dollars}; ${r.bid.status}` : `heuristic bid ${dollars}`) : bid) : r.signal.guidance;
     // The final week has no future weeks: "this week only" replaces the ROS figure and its range.
     const finalWeek = priced && dc.futureWeeks === 0;
     const rosPart = finalWeek ? ` ${COPY.thisWeekOnly}` : priced ? ` this week · ROS ${sign(dc.rosDelta)}` : "";
@@ -166,7 +166,7 @@
     // replaces the range; never a $0–$0 "suggestion".
     const reserveHeld = !!(r.bid && r.bid.reserveHeld);
     const claim = ownerOnly ? "Owner's call"
-      : r.bid ? (dollars ? `${dollars} · ${r.bid.tier} tier` : reserveHeld ? r.bid.status : r.bid.canAfford === false ? `None: minimum bid exceeds spendable budget (${r.bid.tier} tier, not suggested)` : `None suggested (${r.bid.tier})`)
+      : r.bid ? (dollars ? (r.bid.spent ? `${dollars} · ${r.bid.status}` : `${dollars} · ${r.bid.tier} tier`) : reserveHeld ? r.bid.status : r.bid.canAfford === false ? `None: minimum bid exceeds spendable budget (${r.bid.tier} tier, not suggested)` : `None suggested (${r.bid.tier})`)
       : withheld ? `No priority claim (${tagText})` : "Claim: set order in Sleeper";
     const value = r.valueEstimate && r.valueEstimate.points;
     return {
@@ -183,11 +183,12 @@
       // The engine's actual reason a spend suggestion is withheld (affordability
       // first, as the engine ranks it), or "" when one is attached.
       // A viewer's reason is the signal state only (the budget is the owner's).
-      withheldReason: !ownerOnly && reserveHeld ? "budget held in reserve"
+      withheldReason: !ownerOnly && r.bid && r.bid.spent ? "FAAB budget spent"
+        : !ownerOnly && reserveHeld ? "budget held in reserve"
         : !ownerOnly && r.bid && r.bid.canAfford === false ? "minimum bid exceeds spendable budget" : tagText,
       // The engine attached a spend suggestion to this row: a dollar range
       // (FAAB) or a priority claim (rolling / reverse standings).
-      suggested: r.bid ? !!dollars && r.bid.canAfford !== false : !withheld,
+      suggested: r.bid ? !!dollars && r.bid.canAfford !== false && !r.bid.spent : !withheld,
     };
   }
 
@@ -287,9 +288,10 @@
     if (ownerOnly) claim = COPY.ownerOnly;
     else {
       const r = g.options[0], t = g.texts[0];
-      const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? `$${r.bid.low}–$${r.bid.high}` : null;
+      const dollars = r.bid && Number.isFinite(r.bid.low) && Number.isFinite(r.bid.high) ? (r.bid.spent ? "$0" : `$${r.bid.low}–$${r.bid.high}`) : null;
       if (new Set(g.texts.map(x => x.claim)).size > 1) claim = "Bid or claim depends on the drop option — see the claim table.";
-      else if (r.bid) claim = dollars && r.bid.canAfford !== false ? `Bid: ${dollars} (${r.bid.tier} tier; ${r.bid.label}).`
+      else if (r.bid) claim = dollars && r.bid.spent ? `Bid: ${dollars}. ${r.bid.status}`
+        : dollars && r.bid.canAfford !== false ? `Bid: ${dollars} (${r.bid.tier} tier; ${r.bid.label}).`
         : r.bid.reserveHeld ? r.bid.status
         : r.bid.canAfford === false ? `Bid: none — minimum bid exceeds spendable budget (${r.bid.tier} tier, not suggested).`
         : `Bid: none suggested (${r.bid.tier}).`;
@@ -829,7 +831,8 @@
         renderContext(s);
         const remainingReason = s.view.remainingReason === LeagueData.COPY.noWeeks ? "no projected weeks remain" : s.view.remainingReason;
         result = s.note ? null : W.analyze({ board: rosBoard(s), ...s.world, weekly: s.view.weekly, kickoffs: s.kickoffs, snapshotAt: s.bundle.rostersRequestedAt,
-          remaining: s.view.remaining, remainingReason, week: s.week, protectedIds: [...protectedIds], budgetReserve: reserve });
+          remaining: s.view.remaining, remainingReason, week: s.week, protectedIds: [...protectedIds], budgetReserve: reserve,
+          catalogNames: Object.fromEntries(Object.entries(s.catalog || {}).map(([k, v]) => [k, v && v.full_name]).filter(e => e[1])) });
         intel = I.analyze({ board: s.board, ...s.world, catalog: s.catalog, signals: s.signals, roles: s.roles, ros: s.rosEcr, week: s.week });
         const mine = s.world.rosters.find(r => r.roster_id === s.world.rosterId);
         // The summary line: league · week · budget or priority · data as of · whose team.

@@ -204,7 +204,8 @@ check("injured adds are not immediate weekly recommendations", () => {
   assert.ok(out.rows.every(r => r.add.id !== "7")); assert.match(out.warnings.join(" "), /stash value/);
 });
 check("an owned player missing from the board refuses by count (catalog-unknown ids are never hydrated)", () => {
-  assert.throws(() => W.analyze({...base, rosters:[{...rosters[0], players:[...rosters[0].players, "404"]}, rosters[1]]}), /1 owned player\(s\) missing from board; refresh player data/);
+  assert.throws(() => W.analyze({...base, rosters:[{...rosters[0], players:[...rosters[0].players, "404"]}, rosters[1]]}), /Waivers\.analyze: 1 owned player\(s\) missing from board: 404\. Reload the page to fetch the latest player data./);
+  assert.throws(() => W.analyze({...base, catalogNames:{"404":"Test Player"}, rosters:[{...rosters[0], players:[...rosters[0].players, "404"]}, rosters[1]]}), /board: Test Player\. Reload the page to fetch the latest player data\./);
 });
 check("real board ids, unmapped rows, weekly gaps, IR and byes stay honest", () => {
   const realBoard = {players: board.players.concat([{player_id:"gX",sleeper_id:null,name:"Unmapped",position:"RB",wk:999},p(12,"RB",16)]).map(x => x.sleeper_id === "7" ? {...x,bye:1} : x)};
@@ -218,14 +219,14 @@ check("real board ids, unmapped rows, weekly gaps, IR and byes stay honest", () 
 check("zero budgets and no improvements remain honest", () => {
   const zeroLeague = {...league,settings:{waiver_type:2,waiver_budget:0,waiver_bid_min:0}};
   let out = W.analyze({...base,league:zeroLeague,rosters:[{...rosters[0],settings:{waiver_budget_used:0}},rosters[1]]});
-  assert.strictEqual(out.budget.spendable,0); assert.ok(out.rows.every(r => r.bid.high === 0 || (r.bid.high === null && (r.signal.strength === "weak" || r.dropCost.status === "unassessed"))));
+  assert.strictEqual(out.budget.spendable,0); assert.ok(out.rows.every(r => r.bid.spent || (r.bid.high === null && (r.signal.strength === "weak" || r.dropCost.status === "unassessed"))));
   const weakBoard = {...board,players:board.players.map(x => x.sleeper_id === "7" ? {...x,wk:1} : x)};
   out = W.analyze({...base,board:weakBoard,weekly:freshWeekly(weakBoard.players)}); assert.strictEqual(out.rows.length,0); assert.match(out.warnings.join(" "), /no positive/);
 });
 check("exhausted budget: remaining and spendable clamp at zero", () => {
   const out = W.analyze({...base, rosters:[{...rosters[0], settings:{waiver_budget_used:100}}, rosters[1]]});
   assert.deepStrictEqual(out.budget, { total:100, used:100, remaining:0, reserve:20, spendable:0 });
-  assert.ok(out.rows.every(r => r.bid.low === null || r.bid.high === 0));
+  assert.ok(out.rows.every(r => r.bid.low === null && !r.bid.spent), "a $1 minimum with nothing left: the affordability refusal, no bid");
   const over = W.analyze({...base, rosters:[{...rosters[0], settings:{waiver_budget_used:130}}, rosters[1]]});
   assert.equal(over.budget.remaining, 0); assert.equal(over.budget.spendable, 0);
 });
@@ -937,8 +938,23 @@ check("A6-5: spendable 0 with budget left -> no range and not suggested; the res
   // Remaining below the league minimum: lowering the reserve cannot help, so the affordability status stays.
   assert.equal(rowOf(run(97, 20, 5),"7",null).bid.status, "minimum bid exceeds spendable budget");
   // No budget left at all: the reserve holds nothing, and the legal $0 claim stays as it was.
-  const spent = rowOf(run(100, 20),"7",null);
-  assert.deepEqual([spent.bid.low, spent.bid.high, spent.bid.reserveHeld], [0, 0, undefined]);
+  // No budget left at all and a $0 claim is legal: a single $0 with honest copy, not a heuristic tier.
+  const SPENT = "Your FAAB budget is spent; $0 claims are allowed in this league.";
+  assert.equal(W.COPY.budgetSpent, SPENT);
+  const spentOut = run(100, 20);
+  const spent = rowOf(spentOut,"7",null);
+  assert.deepEqual([spent.bid.low, spent.bid.high, spent.bid.reserveHeld, spent.bid.spent, spent.bid.status], [0, 0, undefined, true, SPENT]);
+  const st = M.rowText(spent, spentOut);
+  assert.deepEqual([st.bid, st.suggested, st.withheldReason], ["$0", false, "FAAB budget spent"]);
+  assert.equal(st.claim, `$0 · ${SPENT}`);
+  assert.doesNotMatch(st.claim + st.bid + st.exportLine, /\$0.\$0|tier|heuristic/);
+  assert.ok(st.exportLine.includes(`; bid $0; ${SPENT}; uses an open roster spot`));
+  assert.equal(M.bestMove({ rows: spentOut.rows, result: spentOut }).claim.startsWith(`Bid: $0. ${SPENT}`), true);
+  // A $0-budget league.
+  const zl = { ...slotLeague, settings:{ waiver_type:2, waiver_budget:0, waiver_bid_min:0 } };
+  const zOut = W.analyze({ ...base, league:zl, rosters:rs(0), weekly:weekOf(board.players,{g7:60}), protectedIds:["1","2","3","4"], budgetReserve:0 });
+  assert.equal(rowOf(zOut,"7",null).bid.status, "This league's FAAB budget is $0; claims are $0.");
+  assert.equal(M.rowText(rowOf(zOut,"7",null), zOut).claim, "$0 · This league's FAAB budget is $0; claims are $0.");
   // A row withheld for its own reason keeps that reason.
   assert.equal(rowOf(run(85, 20, 0, 10.5),"7",null).bid.tier, "weak signal");
 });
