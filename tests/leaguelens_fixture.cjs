@@ -1,7 +1,7 @@
 const assert = require("assert");
 const L = require("../site/assets/leaguelens.js");
 const owner = require("./fixtures/owner_league_settings.json");
-const gab = owner.gabagool.scoring_settings;
+const gab = Object.values(owner).find(l => l.total_rosters === 12).scoring_settings;   // the 12-team owner settings
 assert.strictEqual(L.plain(0.04), "0.04");
 assert.strictEqual(L.plain(0.0400001), "0.0400001");
 assert.strictEqual(L.plain(6), "6");

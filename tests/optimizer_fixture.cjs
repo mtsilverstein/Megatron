@@ -836,26 +836,26 @@ check("openPicksBetween rejects a non-Set `used` instead of degrading", () => {
 
 /* --- league configuration -------------------------------------------------
    configure() exists so one optimizer serves more than one league. Two
-   properties matter and are asserted separately: configuring with Gabagool's
-   OWN values must be a no-op (this is what makes the change safe for the
+   properties matter and are asserted separately: configuring with the 12-team
+   league's OWN values must be a no-op (this is what makes the change safe for the
    2026-09-08 draft), and configuring with a different shape must actually
    change the lineup arithmetic. */
 {
-  const GABAGOOL = {
-    slug: "gabagool", teams: 12, roster: { QB: 1, RB: 2, WR: 2, TE: 1 },
+  const LEAGUE_12 = {
+    slug: "leaguea", teams: 12, roster: { QB: 1, RB: 2, WR: 2, TE: 1 },
     flex: 2, flex_positions: ["RB", "WR", "TE"], rounds: 15, starters: 8,
     total_picks: 180, depth_cap: { QB: 2, RB: 6, WR: 6, TE: 2 },
-    keeper_rules: "gabagool",
+    keeper_rules: "ladder",
   };
-  const FAM = {
-    slug: "fam", teams: 10, roster: { QB: 1, RB: 2, WR: 2, TE: 1 },
+  const LEAGUE_10 = {
+    slug: "leagueb", teams: 10, roster: { QB: 1, RB: 2, WR: 2, TE: 1 },
     flex: 1, flex_positions: ["RB", "WR", "TE"], rounds: 14, starters: 7,
     total_picks: 140, depth_cap: { QB: 2, RB: 5, WR: 5, TE: 2 },
   };
   const roster = (pos) => pos.map((p, i) => (
     { player_id: `x${i}`, position: p, value_points: 200 - i, vorp: 50 - i }));
 
-  // A lineup with 2 RB + 2 WR + 1 QB + 1 TE fills both Gabagool flex slots
+  // A lineup with 2 RB + 2 WR + 1 QB + 1 TE fills both 12-team flex slots
   // only if two more flex-eligible players are present.
   const held = roster(["QB", "RB", "RB", "WR", "WR", "TE"]);
 
@@ -866,34 +866,34 @@ check("openPicksBetween rejects a non-Set `used` instead of degrading", () => {
   assert.deepStrictEqual(beforeDefault, ["FLEX", "FLEX"],
     "default build no longer starts 2 FLEX -- the module defaults moved");
 
-  O.configure(GABAGOOL);
+  O.configure(LEAGUE_12);
   assert.deepStrictEqual(O.openSlots(held), beforeDefault,
-    "configure() with Gabagool's own values changed behaviour -- it must be a no-op");
+    "configure() with the 12-team league's own values changed behaviour -- it must be a no-op");
   assert.strictEqual(O.leagueConfig().ROLLOUT_PICKS, 8);
   assert.deepStrictEqual(O.recommend(recommendCtx), beforeRecommendations,
-    "configuring Gabagool must preserve complete recommendation outputs");
+    "configuring the 12-team league must preserve complete recommendation outputs");
 
-  O.configure(FAM);
+  O.configure(LEAGUE_10);
   assert.deepStrictEqual(O.openSlots(held), ["FLEX"],
     "a 1-flex league still reported 2 open flex slots");
   assert.strictEqual(O.leagueConfig().ROLLOUT_PICKS, 7,
-    "ROLLOUT_PICKS is documented as the starter count; FAM starts 7");
+    "ROLLOUT_PICKS is documented as the starter count; the 10-team league starts 7");
   assert.strictEqual(O.leagueConfig().DEPTH_CAP.RB, 5);
 
   check("public configuration follows league switches", () => {
     assert.strictEqual(O.FLEX_SLOTS, 1);
     assert.strictEqual(O.ROLLOUT_PICKS, 7);
     assert.strictEqual(O.DEPTH_CAP.RB, 5);
-    assert.deepStrictEqual(O.DEDICATED, FAM.roster);
-    assert.deepStrictEqual(O.FLEX_POS, FAM.flex_positions);
-    O.configure(GABAGOOL);
+    assert.deepStrictEqual(O.DEDICATED, LEAGUE_10.roster);
+    assert.deepStrictEqual(O.FLEX_POS, LEAGUE_10.flex_positions);
+    O.configure(LEAGUE_12);
     assert.strictEqual(O.FLEX_SLOTS, 2);
     assert.strictEqual(O.ROLLOUT_PICKS, 8);
     assert.strictEqual(O.DEPTH_CAP.RB, 6);
   });
 
   check("public roster, flex eligibility and caps cannot mutate the optimizer", () => {
-    O.configure({ ...FAM, roster: { ...FAM.roster, QB: 2 },
+    O.configure({ ...LEAGUE_10, roster: { ...LEAGUE_10.roster, QB: 2 },
                   flex_positions: ["WR"], starters: 8 });
     assert.strictEqual(O.DEDICATED.QB, 2);
     assert.deepStrictEqual(O.FLEX_POS, ["WR"]);
@@ -905,7 +905,7 @@ check("openPicksBetween rejects a non-Set `used` instead of degrading", () => {
     assert.deepStrictEqual(O.openSlots(held), ["QB2", "FLEX"]);
   });
 
-  O.configure(GABAGOOL);   // restore for any test that follows
+  O.configure(LEAGUE_12);   // restore for any test that follows
   assert.deepStrictEqual(O.openSlots(held), beforeDefault);
   assert.deepStrictEqual(O.recommend(recommendCtx), beforeRecommendations);
 }

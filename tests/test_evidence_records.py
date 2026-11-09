@@ -7,8 +7,12 @@ CTX = BatchContext(2026, 5, "2026-wk4", "2026-10-06T00:00:00+00:00", "x")
 def recs():
     return {r["id"]: r for r in build_evaluation(CTX)["records"]}
 
+def ros_record():
+    """The rest-of-season record, found by its metric (its id is the pipeline's)."""
+    return next(r for r in recs().values() if r["metric"] == "rest_of_season_points_mae")
+
 def test_ros_record_excludes_pick_six():
-    ros = recs()["ros_mae_gabagool"]
+    ros = ros_record()
     assert {"key": "pass_int_td", "reason": "pick-six actuals unavailable"} in ros["omitted"]
     assert '"passing_pick_sixes"' not in ros["effective_scoring"]
     assert ros["source"]["path"].startswith("models/diagnostics/") and len(ros["source"]["sha256"]) == 64
@@ -181,14 +185,15 @@ def test_records_carry_full_shape_and_never_claim_current_method():
         assert set(r["source_settings"]) == {"league", "scoring"}
         assert r["method"] is None  # no committed source records a complete current-shape method
     # No band-calibration record: its scoring is recorded only as a ruleset name.
-    assert {r["id"] for r in out["records"]} == {"ros_mae_gabagool", "start_sit_close_calls"}
+    assert {r["metric"] for r in out["records"]} == {"rest_of_season_points_mae", "close_start_sit_choice_accuracy"}
+    assert "start_sit_close_calls" in {r["id"] for r in out["records"]} and len(out["records"]) == 2
 
 
-def test_ros_scoring_is_gabagool_without_pick_six_on_both_sides():
-    ros = recs()["ros_mae_gabagool"]
-    gabagool = {"pass_yd": 0.04, "pass_td": 6, "pass_int": -2, "rush_yd": 0.1, "rush_td": 6, "rec": 1,
+def test_ros_scoring_is_the_12_team_league_without_pick_six_on_both_sides():
+    ros = ros_record()
+    league_12 = {"pass_yd": 0.04, "pass_td": 6, "pass_int": -2, "rush_yd": 0.1, "rush_td": 6, "rec": 1,
                 "rec_yd": 0.1, "rec_td": 6, "fum_lost": -2}
-    assert ros["effective_scoring"] == evidence_identity(effective_weights(gabagool))
+    assert ros["effective_scoring"] == evidence_identity(effective_weights(league_12))
     assert ros["prediction_scoring"] == ros["effective_scoring"]
     assert ros["horizon"]["weeks_ahead"] == [1, 2, 4, 8]
     assert len(ros["values"]) == 20

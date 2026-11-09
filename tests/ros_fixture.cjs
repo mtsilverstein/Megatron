@@ -60,13 +60,13 @@ check("evaluationText builds from the payload block and never throws on null fie
   assert.deepEqual(ROS.evaluationText(null), ["no measured evaluation for this league's scoring"]);
   const block = { source: "x", baseline: "mean league-scored production in the last four recorded pre-origin games", seasons: [2023, 2024, 2025], origins: [5, 9],
     horizons: [{ horizon: 1, model_mae: 4.612, baseline_mae: 4.815, paired_forecasts: 1817, forecast_players: 3701, missing_actuals: 1857 },
-               { horizon: 8, model_mae: null, baseline_mae: 4.987, paired_forecasts: 1834 }], limitation: "Dependent windows.", scoring_scope: "evaluated under gabagool scoring, which matches this league" };
+               { horizon: 8, model_mae: null, baseline_mae: 4.987, paired_forecasts: 1834 }], limitation: "Dependent windows.", scoring_scope: "evaluated under League A scoring, which matches this league" };
   const lines = ROS.evaluationText(block);
   assert.equal(lines[0], "Measured on 2023–2025 (origins week 5 and 9) against mean league-scored production in the last four recorded pre-origin games:");
   assert.equal(lines[1], "1 week ahead: model MAE 4.61 vs baseline 4.82 (1,817 paired forecasts)");
   assert.match(lines[2], /^8 weeks ahead: model MAE n\/a vs baseline 4\.99/);
   assert.match(lines[3], /^Horizons beyond 8 weeks are not measured; errors are over players who recorded a game \(1,817 of 3,701 forecasts at 1 week ahead had an outcome\)\.$/);
-  assert.equal(lines[4], "evaluated under gabagool scoring, which matches this league");
+  assert.equal(lines[4], "evaluated under League A scoring, which matches this league");
   assert.equal(lines[5], "Dependent windows.");
 });
 

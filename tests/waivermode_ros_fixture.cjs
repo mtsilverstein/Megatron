@@ -98,7 +98,7 @@ const rosters = [
   { roster_id: 9, owner_id: "u1", players: ["a", "k"], starters: ["a", "k"], reserve: [], taxi: [], settings: { waiver_position: 4, waiver_budget_used: 0 } },
   { roster_id: 3, owner_id: "u2", players: ["b"], starters: ["b"], reserve: [], taxi: [], settings: { waiver_position: 1, waiver_budget_used: 0 } },
 ];
-const OWNER = require("./fixtures/owner_league_settings.json").gabagool;
+const OWNER = Object.values(require("./fixtures/owner_league_settings.json")).find(l => l.total_rosters === 12);   // the 12-team owner settings
 const L = "900000000000000889";
 const baseLeague = { league_id: L, name: "Synthetic League", season: "2026", status: "in_season", total_rosters: OWNER.total_rosters,
   settings: { type: 0, waiver_type: 2, waiver_budget: 100, best_ball: 0 }, scoring_settings: { ...OWNER.scoring_settings }, roster_positions: OWNER.roster_positions.slice() };

@@ -363,8 +363,8 @@ check("n_horizons_and_slim_schema", () => {
   // E = the simulation's MAE in the stratum: |0 - real| = 1 for every row.
   close(hz[0].strata.same_position.E, 1, "E"); assert.equal(hz[0].strata.same_position.n, 20);
   assert.equal(hz[0].strata.lopsided.n, 2); close(hz[0].lopsided_cutoff, 9.1, "cutoff in horizon");
-  const league = { league: "gabagool", slots: SLOTS, verdict: "pass", waiver_verdict: "pass", horizons: hz, excluded_cells: 0 };
-  const sec = { league: "fam", slots: SLOTS, verdict: "fail", waiver_verdict: "not_evaluated", horizons: hz, excluded_cells: 2 };
+  const league = { league: "leaguea", slots: SLOTS, verdict: "pass", waiver_verdict: "pass", horizons: hz, excluded_cells: 0 };
+  const sec = { league: "leagueb", slots: SLOTS, verdict: "fail", waiver_verdict: "not_evaluated", horizons: hz, excluded_cells: 2 };
   const slim = T.buildSlim(league, sec, { seasons: [2023], origins: [5, 9] }, "2026-09-28T00:00:00Z");
   assert.deepEqual(Object.keys(slim), ["schema_version", "league", "slots", "verdict", "waiver_verdict", "k", "horizons", "seasons", "origins", "excluded_cells", "generated_at", "secondary"]);
   assert.equal(slim.schema_version, 2); assert.equal(slim.k, 2);

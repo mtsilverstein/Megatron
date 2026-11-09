@@ -15,7 +15,7 @@ const LEAGUE = { league_id: "L", name: "toy league", season: "2026", total_roste
 const DRAFT = { draft_id: "D", draft_order: { u1: 10, u2: 3 },
                 settings: { teams: 12, rounds: 15, reversal_round: 0 },
                 start_time: 123 };
-const USERS = [{ user_id: "u1", display_name: "Max973" },
+const USERS = [{ user_id: "u1", display_name: "User A" },
                { user_id: "u2", display_name: "someone" }];
 const BOARD = [{ player_id: "00-1", name: "Real Guy", position: "TE", sleeper_id: "111" },
                { player_id: "00-2", name: "Other Guy", position: "RB", sleeper_id: "222" }];
@@ -41,7 +41,7 @@ check("the keeper is attributed to the team that actually holds the slot", () =>
   // keeper to the wrong roster and the error would be invisible in aggregate.
   const snap = build([keep(10, "111"), keep(3, "222")]);
   const bySlot = Object.fromEntries(snap.keepers.map(k => [k.slot, k.team]));
-  assert.strictEqual(bySlot[10], "Max973");
+  assert.strictEqual(bySlot[10], "User A");
   assert.strictEqual(bySlot[3], "someone");
 });
 

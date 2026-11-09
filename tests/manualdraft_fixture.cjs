@@ -147,13 +147,13 @@ assert.notStrictEqual(kicker[0].player_id, kicker[1].player_id,
 console.log("manualdraft_fixture: unnameable picks retain name and position OK");
 
 /* ---- ESPN identities and save validation ----------------------------- */
-const prepared = MD.prepareBoard({ season: 2026, league: { league_id: "69827905" }, players: [
+const prepared = MD.prepareBoard({ season: 2026, league: { league_id: "100000000000000003" }, players: [
   { player_id: "espn-7", name: "Mapped Only Locally" },
   { player_id: "espn-8", sleeper_id: "sleep-8", name: "Already Mapped" },
 ] });
 assert.strictEqual(prepared.players[0].sleeper_id, "board:espn-7");
 assert.strictEqual(prepared.players[1].sleeper_id, "sleep-8");
-assert.strictEqual(MD.storageKey(prepared), "megatron:manualdraft:69827905:2026");
+assert.strictEqual(MD.storageKey(prepared), "megatron:manualdraft:100000000000000003:2026");
 assert.strictEqual(MD.parseSave("not json", 13, 195).status, "corrupt");
 
 /* ---- panel persistence, edit, bulk, and conflict --------------------- */
@@ -184,7 +184,7 @@ global.window = {
   },
   Optimizer: { withValuePoints: x => x, seasonValue: () => 1, openSlots: () => [] },
 };
-const panelBoard = MD.prepareBoard({ season: 2026, league: { league_id: "69827905", teams: 2, rounds: 3 }, players: [
+const panelBoard = MD.prepareBoard({ season: 2026, league: { league_id: "100000000000000003", teams: 2, rounds: 3 }, players: [
   { player_id: "1", name: "Alpha Runner", position: "RB" },
   { player_id: "2", name: "Beta Catcher", position: "WR" },
   { player_id: "3", name: "Gamma Thrower", position: "QB" },
@@ -229,7 +229,7 @@ assert.strictEqual(mem.get(MD.storageKey(panelBoard)), JSON.stringify(external))
 assert.match(e1.saveNote.innerHTML, /another tab|Reload/i);
 
 // Corrupt storage is preserved byte-for-byte instead of being silently reset.
-const corruptBoard = MD.prepareBoard({ season: 2027, league: { league_id: "69827905", teams: 2, rounds: 2 }, players: [] });
+const corruptBoard = MD.prepareBoard({ season: 2027, league: { league_id: "100000000000000003", teams: 2, rounds: 2 }, players: [] });
 const corruptKey = MD.storageKey(corruptBoard); mem.set(corruptKey, "{broken");
 const ec = elements(); MD.initPanel({ board: corruptBoard, els: ec, onUpdate() {} });
 ec.seat.value = "1"; ec.start.fire("click");

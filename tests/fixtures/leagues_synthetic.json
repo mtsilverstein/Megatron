@@ -1,6 +1,6 @@
 {
   "_note": "Synthetic Sleeper /league/<id> payloads: fictional ids and names. Scoring tables are copied from tests/fixtures/owner_league_settings.json and varied per case.",
-  "gabagool_like": {
+  "owner12_like": {
     "league_id": "990000000000000001",
     "name": "Synthetic Keeper Twelve",
     "sport": "nfl",
@@ -93,7 +93,7 @@
       "leg": 5
     }
   },
-  "fam_like": {
+  "owner10_like": {
     "league_id": "990000000000000002",
     "name": "Synthetic Rolling Ten",
     "sport": "nfl",

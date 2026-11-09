@@ -13,7 +13,9 @@ const PY = process.env.PYTHON
 const FIX = require("./fixtures/owner_league_settings.json");
 const LABELS = ["f12-1qb-ppr-6", "f10-1qb-ppr-6", "f12-1qb-ppr-4", "f12-sf-ppr-4", "f12-1qb-half-4"];
 const clone = o => JSON.parse(JSON.stringify(o));
-const live = slug => clone(FIX[slug]);
+// The owner settings fixture, by team count (the fixture's keys are not repeated here).
+const ownerKey = teams => Object.keys(FIX).find(k => FIX[k].total_rosters === teams);
+const live = teams => clone(FIX[ownerKey(teams)]);
 
 function py(code) {
   return JSON.parse(execFileSync(PY, ["-c", code], { cwd: ROOT, encoding: "utf8", env: { ...process.env, PYTHONPATH: path.join(ROOT, "src") } }));
@@ -63,17 +65,17 @@ print(json.dumps(out))
   assert.strictEqual(new Set(table.map(t => t.format_key)).size, 5);
 
   // Both owner leagues: parity and match.
-  for (const [slug, label] of [["gabagool", "f12-1qb-ppr-6"], ["fam", "f10-1qb-ppr-6"]]) {
-    const got = await F.fromSleeper(live(slug));
-    assert.strictEqual(got.format_key, P.owners[slug].key);
-    assert.deepStrictEqual(got.compat, P.owners[slug].compat);
-    assert.strictEqual(await F.match(live(slug), table), label);
+  for (const [teams, label] of [[12, "f12-1qb-ppr-6"], [10, "f10-1qb-ppr-6"]]) {
+    const got = await F.fromSleeper(live(teams));
+    assert.strictEqual(got.format_key, P.owners[ownerKey(teams)].key);
+    assert.deepStrictEqual(got.compat, P.owners[ownerKey(teams)].compat);
+    assert.strictEqual(await F.match(live(teams), table), label);
   }
 
   // Same key, different compat -> no match.
-  const base = await F.fromSleeper(live("gabagool"));
+  const base = await F.fromSleeper(live(12));
   for (const edit of [{ pass_int_td: 0 }, { pass_td_50p: 0 }, { bonus_rec_te: 0.5 }]) {
-    const lg = live("gabagool");
+    const lg = live(12);
     Object.assign(lg.scoring_settings, edit);
     const got = await F.fromSleeper(lg);
     assert.strictEqual(got.format_key, base.format_key);
@@ -82,24 +84,24 @@ print(json.dumps(out))
   }
 
   // Unknown nonzero offensive key fails closed; zero is omitted.
-  let lg = live("gabagool");
+  let lg = live(12);
   lg.scoring_settings.mystery_off_bonus = 1;
   assert.strictEqual(await F.match(lg, table), null);
   lg.scoring_settings.mystery_off_bonus = 0;
   assert.strictEqual(await F.match(lg, table), "f12-1qb-ppr-6");
 
   // Unknown roster slot fails closed.
-  lg = live("gabagool");
+  lg = live(12);
   lg.roster_positions.push("IDP_FLEX");
   assert.strictEqual(await F.match(lg, table), null);
 
   // K/DEF/IDP changes move nothing.
-  lg = live("fam");
+  lg = live(10);
   Object.assign(lg.scoring_settings, { fgm_40_49: 9, xpm: 3, sack: 5, int: 4, pts_allow_0: 1, def_td: 1, idp_pass_def_3p: 2, tkl: 1 });
-  assert.deepStrictEqual(await F.fromSleeper(lg), await F.fromSleeper(live("fam")));
+  assert.deepStrictEqual(await F.fromSleeper(lg), await F.fromSleeper(live(10)));
 
   // IR/TAXI change nothing; BN changes roster_size (and so the key).
-  lg = live("gabagool");
+  lg = live(12);
   lg.roster_positions.push("IR", "IR", "TAXI");
   assert.strictEqual((await F.fromSleeper(lg)).format_key, base.format_key);
   lg.roster_positions.push("BN");
@@ -115,17 +117,17 @@ print(json.dumps(out))
 
   // Null / undefined / non-finite / blank required weights fail closed (never read as 0).
   for (const bad of [null, undefined, NaN, Infinity, "", "abc"]) {
-    lg = live("gabagool");
+    lg = live(12);
     lg.scoring_settings.pass_td = bad;
     assert.strictEqual(await F.match(lg, table), null, "pass_td=" + String(bad));
-    lg = live("gabagool");
+    lg = live(12);
     lg.scoring_settings.mystery_off_bonus = bad;
     assert.strictEqual(await F.match(lg, table), null, "unknown=" + String(bad));
   }
 
   // Offensive-looking keys that begin with a defensive/K prefix are NOT ignored.
   for (const key of ["xp_bonus_rec", "sack_bonus_qb", "def_rec_bonus", "tkl_rec_bonus", "fgm_rush_bonus"]) {
-    lg = live("gabagool");
+    lg = live(12);
     lg.scoring_settings[key] = 0.5;
     assert.strictEqual(await F.match(lg, table), null, key);
   }

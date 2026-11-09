@@ -337,7 +337,7 @@ function makeStatics({ week = 3, noWeeks = false, lastWeek = 6 } = {}) {
     "data/neutral/evaluation.json": { ...require("./fixtures/neutral_evaluation.json"), ...HDR },
   };
 }
-const OWNER = require("./fixtures/owner_league_settings.json").gabagool;
+const OWNER = Object.values(require("./fixtures/owner_league_settings.json")).find(l => l.total_rosters === 12);   // the 12-team owner settings
 const L = "900000000000000777";                          // not in the registry
 const users = [{ user_id: "u1", display_name: "User A" }, { user_id: "u2", display_name: "Bo", metadata: { team_name: "Bo's Bunch" } }];
 const rosters = [

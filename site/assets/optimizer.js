@@ -77,7 +77,7 @@
   if (typeof module !== "undefined" && module.exports) module.exports = O;
 })(this, function () {
   // --- league contract -------------------------------------------------------
-  // DEFAULTS are Gabagool Fools', the league this board was built for, so any
+  // DEFAULTS are those of the 12-team league this board was first built for, so any
   // consumer that never calls configure() -- trade.js, draft_sim.cjs,
   // replay_draft.cjs, the fixtures -- behaves exactly as it always has.
   let DEDICATED = { QB: 1, RB: 2, WR: 2, TE: 1 };
@@ -620,13 +620,13 @@
 
        Attempt 2, measured properly (control and treatment on IDENTICAL code,
        paired on season/seed/slot/window, 2021-25 realized weekly points):
-         Gabagool  full -12.9 pts/draft, 3 of 5 seasons negative, 468/480
+         12-team   full -12.9 pts/draft, 3 of 5 seasons negative, 468/480
                    drafts changed, season-level 95% CI [-34.4, +8.5]
-         FAM       full -19.2 pts/draft, 4 of 5 seasons negative, 386/400
+         10-team   full -19.2 pts/draft, 4 of 5 seasons negative, 386/400
                    drafts changed, season-level 95% CI [-56.9, +18.5]
        Neither is significant. Both point the wrong way and rewrite ~97% of
        drafts, which is the disqualifying combination: enormous churn bought
-       with no measured gain. Artifacts: rawcost_{gab,fam}_{CONTROL,TREAT}*.json.
+       with no measured gain. Artifacts: the rawcost_*_{CONTROL,TREAT}*.json pair per league.
 
        WHY VORP KEEPS WINNING, most likely. Rosters are scored on the best
        legal lineup RE-PICKED FROM ACTUAL WEEKLY POINTS. `points` optimizes the
@@ -660,19 +660,19 @@
        complaint stated as precisely as it can be: "an empty starting slot
        should be filled." It fixes pick 34 and leaves picks 94 and 147 alone.
 
-         Gabagool  full -14.5 pts/draft, 5 of 5 seasons negative, 175/480
+         12-team   full -14.5 pts/draft, 5 of 5 seasons negative, 175/480
                    drafts changed, season-level 95% CI [-33.7, +4.7]
-         FAM       full -17.0 pts/draft, 5 of 5 seasons negative, 166/400
+         10-team   full -17.0 pts/draft, 5 of 5 seasons negative, 166/400
                    drafts changed, season-level 95% CI [-24.4, -9.7]
 
-       FAM's interval EXCLUDES ZERO -- the only significant result in this
+       The 10-team interval EXCLUDES ZERO -- the only significant result in this
        whole line of work, and it says the rule is harmful. Every one of the
        ten league-season cells is negative. The median draft is unchanged
        (+0.0), which is why the signal is clean rather than despite it: the
        ~60% of drafts the rule never touches contribute no variance, so the
        seasons agree instead of drowning each other out. Narrowing the rule did
        not rescue it; it sharpened the evidence against it.
-       Artifacts: narrow_{gab,fam}_TREAT_narrow.json against the same controls.
+       Artifacts: the narrow_*_TREAT_narrow.json pair against the same controls.
 
        THE CONCLUSION, after three attempts from three directions: do not
        re-rank band-tied candidates by how well they fit the PROJECTED lineup.
@@ -771,7 +771,7 @@
      This mutates module state, which is a smell. It was chosen over threading
      a config through every signature in this file because that is a large
      diff on the code path a live draft depends on. Every consumer that does
-     not call this keeps the Gabagool defaults above. */
+     not call this keeps the 12-team defaults above. */
   function configure(league) {
     if (!league || typeof league !== "object") {
       throw new TypeError("Optimizer.configure: expected the board's `league` block");

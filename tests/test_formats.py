@@ -13,13 +13,14 @@ PRIMARY = LABELS[:4]
 FIX = json.loads((Path(__file__).parent / "fixtures" / "owner_league_settings.json").read_text())
 
 
-def live(slug):
-    return copy.deepcopy(FIX[slug])
+def live(teams):
+    """The owner settings fixture by team count (its keys are not repeated here)."""
+    return copy.deepcopy(next(v for v in FIX.values() if v["total_rosters"] == teams))
 
 
 def test_owner_leagues_match_their_formats():
-    assert F.match(live("gabagool"), LABELS) == "f12-1qb-ppr-6"
-    assert F.match(live("fam"), LABELS) == "f10-1qb-ppr-6"
+    assert F.match(live(12), LABELS) == "f12-1qb-ppr-6"
+    assert F.match(live(10), LABELS) == "f10-1qb-ppr-6"
 
 
 def test_roster_size_from_live_positions():
@@ -37,10 +38,10 @@ def test_five_keys_distinct():
 
 
 def test_same_key_different_compat_does_not_match():
-    base = live("gabagool")
+    base = live(12)
     key0, compat0 = F.from_sleeper(base)
     for edit in ({"pass_int_td": 0.0}, {"pass_td_50p": 0.0}, {"bonus_rec_te": 0.5}):
-        lg = live("gabagool")
+        lg = live(12)
         lg["scoring_settings"].update(edit)
         key, cmp_ = F.from_sleeper(lg)
         assert key == key0 and cmp_ != compat0
@@ -48,7 +49,7 @@ def test_same_key_different_compat_does_not_match():
 
 
 def test_unknown_nonzero_offensive_key_fails_closed():
-    lg = live("gabagool")
+    lg = live(12)
     lg["scoring_settings"]["mystery_off_bonus"] = 1.0
     assert F.match(lg, LABELS) is None
     lg["scoring_settings"]["mystery_off_bonus"] = 0.0     # zero is omitted
@@ -56,14 +57,14 @@ def test_unknown_nonzero_offensive_key_fails_closed():
 
 
 def test_unknown_roster_slot_fails_closed():
-    lg = live("gabagool")
+    lg = live(12)
     lg["roster_positions"].append("IDP_FLEX")
     assert F.match(lg, LABELS) is None
 
 
 def test_k_def_idp_changes_do_not_move_either_part():
-    base = F.from_sleeper(live("fam"))
-    lg = live("fam")
+    base = F.from_sleeper(live(10))
+    lg = live(10)
     lg["scoring_settings"].update({"fgm_40_49": 9.0, "xpm": 3.0, "sack": 5.0, "int": 4.0,
                                   "pts_allow_0": 1.0, "def_td": 1.0, "idp_pass_def_3p": 2.0,
                                   "st_ff": 3.0, "ff": 2.0, "tkl": 1.0})
@@ -71,18 +72,18 @@ def test_k_def_idp_changes_do_not_move_either_part():
 
 
 def test_ir_taxi_ignored_bn_counts():
-    base_desc, base_compat = F.describe_sleeper(live("gabagool"))
-    lg = live("gabagool")
+    base_desc, base_compat = F.describe_sleeper(live(12))
+    lg = live(12)
     lg["roster_positions"] += ["IR", "IR", "TAXI"]
     assert F.describe_sleeper(lg) == (base_desc, base_compat)
     lg["roster_positions"].append("BN")
     desc, _ = F.describe_sleeper(lg)
     assert desc["roster_size"] == base_desc["roster_size"] + 1
-    assert F.from_sleeper(lg)[0] != F.from_sleeper(live("gabagool"))[0]
+    assert F.from_sleeper(lg)[0] != F.from_sleeper(live(12))[0]
 
 
 def test_flex_variants_and_superflex_map():
-    lg = live("gabagool")
+    lg = live(12)
     lg["roster_positions"] = ["QB", "RB", "WR", "TE", "SUPER_FLEX", "REC_FLEX", "WRRB_FLEX", "BN"]
     desc, _ = F.describe_sleeper(lg)
     assert ["SUPER_FLEX", ["QB", "RB", "TE", "WR"]] in desc["slots"]
@@ -107,17 +108,17 @@ def test_canonical_small_magnitudes_are_fixed_point():
 
 def test_null_or_nonfinite_weight_fails_closed():
     for bad in (None, float("nan"), float("inf"), "", "abc"):
-        lg = live("gabagool")
+        lg = live(12)
         lg["scoring_settings"]["pass_td"] = bad
         assert F.match(lg, LABELS) is None
-        lg = live("gabagool")
+        lg = live(12)
         lg["scoring_settings"]["mystery_off_bonus"] = bad
         assert F.match(lg, LABELS) is None
 
 
 def test_offensive_looking_keys_with_defensive_prefixes_not_ignored():
     for key in ("xp_bonus_rec", "sack_bonus_qb", "def_rec_bonus", "tkl_rec_bonus", "fgm_rush_bonus"):
-        lg = live("gabagool")
+        lg = live(12)
         lg["scoring_settings"][key] = 0.5
         assert F.match(lg, LABELS) is None, key
 
@@ -125,7 +126,7 @@ def test_offensive_looking_keys_with_defensive_prefixes_not_ignored():
 def test_format_dir_is_repo_relative(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     assert F.load_format("f12-1qb-ppr-4").slug == "f12-1qb-ppr-4"
-    assert F.match(live("gabagool"), LABELS) == "f12-1qb-ppr-6"
+    assert F.match(live(12), LABELS) == "f12-1qb-ppr-6"
 
 
 def test_four_point_formats_match_default_sleeper_st_fum_return_tds():

@@ -296,7 +296,7 @@ check("a pick with no recommendation still counts against the total", () => {
   assert.strictEqual(s.vorp_left_on_table, -4);
 });
 
-check("saved FAM logs use the board's schedule from the first pick", () => {
+check("saved 10-team logs use the board's schedule from the first pick", () => {
   const args = R.parseArgs(["node", "replay", "--picks", "saved.json", "--slot", "1"]);
   const settings = R.replaySettings(args, { teams: 10, rounds: 14 });
   const real = O.recommend;

@@ -26,13 +26,13 @@ def test_fam_derives_a_ten_team_contract():
     assert cfg.rules.pass_td == 6.0
     assert cfg.rules.interception == -2.0
     assert cfg.rules.pass_int_td == -3.0
-    assert cfg.keeper_rules is None   # FAM's keeper rule is not implemented
+    assert cfg.keeper_rules is None   # this league's keeper rule is not implemented
 
 
 def test_espnfam_matches_september_8_live_settings_refresh():
     cfg = load_league("espnfam")
     assert cfg.platform == "espn"
-    assert cfg.league_id == "69827905"
+    assert cfg.league_id.isdigit()   # the id itself lives in the config, not repeated here
     assert cfg.teams == 13
     assert cfg.roster == {"QB": 1, "RB": 2, "WR": 2, "TE": 1}
     assert cfg.flex == 2

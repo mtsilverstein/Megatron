@@ -34,7 +34,8 @@ def test_identity_byte_equal_to_js():
     assert _node(script, json.dumps(cases)) == [L.evidence_identity(L.effective_weights(c)) for c in cases]
 
 def test_classify_owner_league():
-    gab = json.loads(Path("tests/fixtures/owner_league_settings.json").read_text())["gabagool"]["scoring_settings"]
+    owners = json.loads(Path("tests/fixtures/owner_league_settings.json").read_text())
+    gab = next(v for v in owners.values() if v["total_rosters"] == 12)["scoring_settings"]   # the 12-team owner settings
     c = L.classify(gab)
     assert c["recurring"] == [] and "pass_int_td" in c["approx"] and not c["refused"]
 

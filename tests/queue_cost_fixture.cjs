@@ -37,10 +37,10 @@ function run(league, overrides = []) {
   return JSON.parse(output.split(/\r?\n/).find(line => line.startsWith("FIXTURE ")).slice(8));
 }
 
-const fam = { teams: 10, rounds: 14, roster: { QB: 1, RB: 2, WR: 2, TE: 1 },
+const tenTeam = { teams: 10, rounds: 14, roster: { QB: 1, RB: 2, WR: 2, TE: 1 },
   flex: 1, flex_positions: ["RB", "WR", "TE"], starters: 7,
   depth_cap: { QB: 2, RB: 5, WR: 5, TE: 2 } };
-const configured = run(fam);
+const configured = run(tenTeam);
 assert.strictEqual(configured.config.FLEX_SLOTS, 1);
 assert.strictEqual(configured.config.ROLLOUT_PICKS, 7);
 assert.strictEqual(configured.config.DEPTH_CAP.RB, 5);
@@ -54,7 +54,7 @@ assert.strictEqual(legacy.config.DEPTH_CAP.RB, 6);
 assert.strictEqual(legacy.turns.length, 15);
 assert.strictEqual(legacy.turns[0].future[0], 24);
 
-const overridden = run(fam, ["--teams", "8", "--rounds", "3"]);
+const overridden = run(tenTeam, ["--teams", "8", "--rounds", "3"]);
 assert.strictEqual(overridden.config.FLEX_SLOTS, 1);
 assert.strictEqual(overridden.turns.length, 3);
 assert.strictEqual(overridden.turns[0].future[0], 16);

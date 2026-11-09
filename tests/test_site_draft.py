@@ -827,18 +827,18 @@ def test_finalize_board_embeds_the_league_block_only_when_given():
         "an unconfigured caller must produce the payload it produces today")
     assert default["players"][0]["adp_round"] == 1
 
-    block = {"slug": "fam", "teams": 10, "total_picks": 140}
-    fam = _finalize_board(players.copy(), league=block, teams=10, **kwargs)
-    assert fam["league"] == block
-    assert fam["players"][0]["adp_round"] == 2
-    json.dumps(fam, allow_nan=False)
+    block = {"slug": "leagueb", "teams": 10, "total_picks": 140}
+    small = _finalize_board(players.copy(), league=block, teams=10, **kwargs)
+    assert small["league"] == block
+    assert small["players"][0]["adp_round"] == 2
+    json.dumps(small, allow_nan=False)
 
 
 def test_build_draft_board_forwards_the_league_contract():
     # The kwarg crosses build_draft_board -> _finalize_board; a board built
     # for a league must SAY which league, on the artifact itself.
     weekly = _history()
-    block = {"slug": "fam", "teams": 10, "total_picks": 140}
+    block = {"slug": "leagueb", "teams": 10, "total_picks": 140}
     board = build_draft_board(weekly, _sched_with_future(), _QuantileStub(),
                               2023, "2023-10-15", weeks=range(7, 9),
                               league=block, teams=10)

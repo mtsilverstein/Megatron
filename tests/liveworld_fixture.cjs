@@ -74,7 +74,7 @@ for (const type of [9, 3, undefined, "0"])
 
 // 5. No registry, board, scoring, waiver-type or team-count checks.
 assert.equal(LiveWorld.resolve({ bundle: bundleOf({ registry: null }), week: 5 }).rosterId, 1, "an unregistered id works without a registry");
-assert.equal(LiveWorld.resolve({ bundle: bundleOf({ registry: { slug: "gabagool", platform: "sleeper", leagueId: "1" } }), week: 5 }).rosterId, 1, "a registry row for another league is not consulted");
+assert.equal(LiveWorld.resolve({ bundle: bundleOf({ registry: { slug: "leaguea", platform: "sleeper", leagueId: "1" } }), week: 5 }).rosterId, 1, "a registry row for another league is not consulted");
 assert.equal(LiveWorld.resolve({ bundle: withLeague({ total_rosters: 3, scoring_settings: { bonus_rec_te: 1, idp_tkl: 2 } }), week: 5 }).rosterId, 1);
 assert.equal(LiveWorld.resolve({ bundle: withLeague({ settings: { waiver_type: 3 } }), week: 5 }).rosterId, 1, "resolve accepts waiver_type 3");
 

@@ -929,7 +929,7 @@ def test_roster_override_provenance_counts_the_unmapped_tail():
 # --- league configuration ---------------------------------------------------
 # The board is VALUED under one league's contract. These pin the two halves of
 # that wiring: the scoring lens the setter swaps, and the slug the parser
-# defaults to (Gabagool, so every existing invocation is unchanged).
+# defaults to (the 12-team league, so every existing invocation is unchanged).
 def test_set_league_rules_swaps_only_the_league_lens():
     from dataclasses import replace
     from ffmodel.league import load_league
@@ -960,7 +960,7 @@ def test_generate_parser_defaults_to_gabagool():
 
 def test_draft_run_passes_the_default_leagues_contract_into_the_board(
         monkeypatch, tmp_path):
-    """The default run must carry Gabagool's own contract -- the same shape
+    """The default run must carry the 12-team league's own contract -- the same shape
     `LEAGUE_DEDICATED`/`LEAGUE_FLEX_SLOTS` hardcode -- and write the same
     `draft.json` it has always written."""
     import ffmodel.site.sleeper as sleeper_mod
@@ -983,8 +983,8 @@ def test_draft_run_passes_the_default_leagues_contract_into_the_board(
 
 
 def test_a_non_default_league_builds_its_own_board_file(monkeypatch, tmp_path):
-    """`--league fam` must value the board on FAM's scoring, size it to 10
-    teams, and land in FAM's own file -- never overwriting Gabagool's."""
+    """The 10-team `--league` must value the board on its own scoring, size it
+    to 10 teams, and land in its own file -- never overwriting the 12-team board."""
     import ffmodel.site.sleeper as sleeper_mod
     from ffmodel.site import weekly as weekly_mod
 
@@ -996,7 +996,7 @@ def test_a_non_default_league_builds_its_own_board_file(monkeypatch, tmp_path):
     try:
         _run_generate_with_stubs(monkeypatch, tmp_path,
                                  ["--draft", "--league", "fam"], capture)
-        # the "league" lens now MEANS FAM's scoring; the key never moves
+        # the "league" lens now MEANS the 10-team league's scoring; the key never moves
         assert weekly_mod.RULESETS["league"].pass_td == 6.0
         assert weekly_mod.RULESETS["league"].pass_int_td == -3.0
     finally:
@@ -1006,7 +1006,7 @@ def test_a_non_default_league_builds_its_own_board_file(monkeypatch, tmp_path):
     assert capture["league"]["slug"] == "fam"
     assert capture["league"]["total_picks"] == 150
     assert capture["draftable_ecr"] == 150
-    # 10 dedicated QBs league-wide + 1 -- NOT Gabagool's 13
+    # 10 dedicated QBs league-wide + 1 -- NOT the 12-team league's 13
     assert capture["replacement_rank"]["QB"] == 11
     assert (tmp_path / "out" / "draft-fam.json").exists()
     assert not (tmp_path / "out" / "draft.json").exists()

@@ -282,7 +282,7 @@ footer { max-width: 1080px; margin: 2rem auto 0; padding: 1rem 1.25rem 2rem;
   /* Compact masthead. At 390px the five links wrapped onto three lines and,
      with the stamp and the flex row-gaps, the header alone consumed ~260px
      before the league panel. Nothing is hidden here -- every link, its
-     "· Gabagool only" / "· not connected" suffix, the active-page rule and
+     label, the active-page rule and
      the stamp stay visible -- the rows are just tighter and the type a step
      smaller so the nav settles onto two lines instead of three. */
   .masthead { gap: .5rem .9rem; padding: .8rem .9rem .6rem; }

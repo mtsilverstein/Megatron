@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Find my leagues — Megatron</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%3E%3Crect%20width%3D%2716%27%20height%3D%2716%27%20rx%3D%273%27%20fill%3D%27%231B2127%27%2F%3E%3Cpath%20d%3D%27M1%2013%20Q2.5%2013%203.2%209.4%20Q4.2%203.2%205.8%203.2%20Q7.4%203.2%208.8%207.4%20Q11%2012.1%2015%2012.7%20L15%2013%20Z%27%20fill%3D%27%23E8A33D%27%2F%3E%3Crect%20x%3D%271%27%20y%3D%2713%27%20width%3D%2714%27%20height%3D%271%27%20fill%3D%27%239AA3AB%27%2F%3E%3C%2Fsvg%3E">
-<link rel="stylesheet" href="assets/style.css?v=league1">
-<link rel="stylesheet" href="assets/interface.css?v=1">
+<link rel="stylesheet" href="assets/style.css?v=nodefault1">
+<link rel="stylesheet" href="assets/interface.css?v=nodefault1">
 </head>
 <body>
 <a class="skip-link" href="#main-content">Skip to content</a>
@@ -34,17 +34,17 @@
   <section class="tool-card" aria-labelledby="connect-user-heading">
     <h2 id="connect-user-heading">Find by username</h2>
     <form id="connect-form"><label for="connect-user">Sleeper username</label> <input id="connect-user" required autocomplete="off" spellcheck="false"> <button type="submit">Find / refresh leagues</button></form>
-    <p id="connect-status" role="status">Gabagool and FAM use the same account: Max973.</p>
+    <p id="connect-status" role="status">Load leagues for this username.</p>
     <div id="connect-results"></div>
   </section>
 </div>
 <h2>What is supported?</h2>
-<p>Every current-season Sleeper league opens in the weekly/start-sit, waiver and in-season trade pages by its league id; those pages read the league's live settings each time they load. The draft board is only built for registered leagues (Gabagool and FAM on Sleeper, plus the ESPN family board), and the pre-draft trade grader is Gabagool only. ESPN in-season tools are not connected.</p>
+<p>Every current-season Sleeper league opens in the weekly/start-sit, waiver and in-season trade pages by its league id; those pages read the league's live settings each time they load, and the last league you opened is remembered on this device until you choose forget. The 2026 draft board is archived: it stays as a record of the preseason projections. ESPN in-season tools are not connected.</p>
 </main>
-<script src="assets/session.js?v=5"></script>
-<script src="assets/app.js?v=league3"></script>
+<script src="assets/session.js?v=nodefault1"></script>
+<script src="assets/app.js?v=nodefault1"></script>
 <script src="assets/sleeper.js?v=2"></script>
-<script src="assets/connect.js?v=6"></script>
+<script src="assets/connect.js?v=nodefault1"></script>
 <script>
 // Set up the shared masthead/league-context nav first so a bad ?league=
 // value fails safely into the discovery form instead of blocking it.
