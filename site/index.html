@@ -19,8 +19,8 @@
     <a href="weekly.html">Weekly</a>
     <a href="waivers.html">Waivers</a>
     <a href="trade.html">Trade</a>
-    <a href="index.html" aria-current="page">Draft</a>
     <a href="about.html">About</a>
+    <a href="index.html" aria-current="page">2026 draft board (archived)</a>
   </nav>
   <p class="stamp">loading…</p>
 </header>
@@ -72,7 +72,7 @@
       number is what "your turn in N" is built from, so a pick left out shifts
       every recommendation after it. Use <em>+ K</em>, <em>+ D/ST</em> or
       <em>+ other</em> for a pick this board cannot name, and <em>Undo</em> to
-      take back your last change. Keep Gabagool in its own tab; this manual log
+      take back your last change. Keep each league in its own tab; this manual log
       is saved separately in this browser. No picks are sent to ESPN.</p>
       <p class="draft-note" id="manual-save-note" role="status" aria-live="polite"></p>
       <div class="draft-row">
@@ -186,26 +186,36 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/keepers.js?v=session1"></script>
 <script>
 (async () => {
-  // ?league=<slug> selects the board. No parameter -- and "gabagool" -- keep
-  // the existing filename, so every published link to this page is unchanged.
-  const slug = FC.leagueNavigation();
-  let board = await FC.loadJSON(
-    slug === "gabagool" ? "data/draft.json" : `data/draft-${slug}.json`);
-  if (!board.league || board.league.slug !== slug) {
-    throw new Error("This board does not match the selected league. Reload before drafting.");
-  }
+  // No parameter is the default board; ?league=<name> (an old link) is that
+  // board's own file, so every published link to this page still opens the
+  // board it meant. A Sleeper league id is refused by name (leagueNavigation):
+  // the board is not built per league.
+  const name = FC.leagueNavigation();
+  let board = await FC.loadBoard(name);
   if (!board.league.sleeper_scoring) {
     throw new Error("This board lacks the locked scoring settings. Regenerate it before drafting.");
   }
-  // The identity chip loads your roster against THIS board's league id.
-  FC.setBoard(board);
+  // ARCHIVED once the season it was built for is under way (the neutral
+  // weekly batch is for the board's season): a record of what the model
+  // projected before the season. Live draft mode, manual draft and the keeper
+  // panel need a registered league and are hidden; the table stays fully
+  // viewable and sortable. A failed weekly load is not archived: the board
+  // fails open to its usual page, never to an error.
+  const archived = await FC.boardArchived(board);
+  const format = FC.boardFormatLabel(board.league);
+  if (!archived) {
+    // The identity chip loads your roster against THIS board's league id.
+    FC.setBoard(board);
+    FC.mountLeagueContext(board.league.slug);
+  }
   // Manual-only identity bridge: never alter a Sleeper board's live IDs.
   if (board.league.platform === "espn" && window.ManualDraft) {
     board = ManualDraft.prepareBoard(board);
   }
   const weights = board.league.sleeper_scoring;
-  document.getElementById("board-title").textContent = `${board.league.name} draft board`;
-  document.title = `${board.league.name} draft board — Megatron`;
+  // Named by its scoring format, never by a league name.
+  document.getElementById("board-title").textContent = `${board.season} draft board · ${format}`;
+  document.title = `${board.season} draft board${archived ? " (archived)" : ""} — Megatron`;
   document.getElementById("board-contract").textContent =
     `${board.season} season · ${board.league.teams} teams · ${board.league.flex} FLEX · ${board.league.rounds} rounds · ${weights.pass_td} pts/pass TD · ${weights.pass_int}/INT`;
   document.getElementById("league-scoring").textContent =
@@ -229,7 +239,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
   // first would use another league's shape. The board carries the contract it
   // was VALUED under, so the two can never disagree.
   if (board.league && window.Optimizer) Optimizer.configure(board.league);
-  FC.stampHeader(board);
+  FC.stampHeader(board, archived ? { archived: FC.archivedText(board) } : undefined);
   // Default to the league's own scoring: it is what VORP, the tiers and the
   // draft order on this page are computed from, so showing PPR points beside a
   // league-valued ranking would put two different rulesets in one table.
@@ -628,7 +638,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
       // cleared -- a blank board with no message, and the page's .catch only
       // covers the initial load, not a click.
       // This league's own draft length. Was Keepers.TEAMS * Keepers.DRAFT_ROUNDS,
-      // which is Gabagool's 180 wherever it is read: on a 10-team, 14-round
+      // which is one league's 180 wherever it is read: on a 10-team, 14-round
       // board that invented "reach about N picks" language about 40 picks the
       // league never makes. keepers.js stays the fallback for a board built
       // before the league block existed.
@@ -750,20 +760,24 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     document.fonts.ready.then(() => render(rows)).catch(() => {});
   }
 
-  // keepers.js implements GABAGOOL's ladder -- original round, decaying one
-  // round per year kept, R12 for a waiver pickup. Running it for a league with
-  // different keeper rules would price keepers against a rule that league does
-  // not have, so it is SKIPPED, not merely hidden: none of its logic runs and
-  // none of its constants reach a board they were not written for.
+  // keepers.js implements ONE keeper ladder -- original round, decaying one
+  // round per year kept, R12 for a waiver pickup -- the only `keeper_rules`
+  // any published board carries. A board without keeper rules SKIPS it, not
+  // merely hides it: none of its logic runs and none of its constants reach a
+  // board they were not written for. An archived board has no keeper panel.
   const keeperPanel = document.getElementById("keepers");
-  if (window.Keepers && board.league && board.league.keeper_rules === "gabagool") {
+  const entry = FC.boardEntry(board);
+  if (!archived && window.Keepers && entry && entry.tools.keepers) {
     Keepers.init({ players: board.players, panel: keeperPanel,
                    currentSeason: board.season });
   } else if (keeperPanel) {
     keeperPanel.hidden = true;
   }
 
-  if (window.DraftMode) {
+  if (archived) {
+    // The drafts are over: no live draft mode, no manual draft.
+    document.getElementById("draft-panel").hidden = true;
+  } else if (window.DraftMode) {
     // Live draft mode reads Sleeper's API and nothing else: there is no ESPN
     // client, no ESPN player-id crosswalk and no ESPN draft-contract check.
     // Offering the connect box on a non-Sleeper board would invite pointing it
@@ -774,7 +788,7 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     const platform = (board.league && board.league.platform) || "sleeper";
     if (platform !== "sleeper") {
       DraftMode.disable(
-        `— unavailable: ${board.league.name} is on ${platform.toUpperCase()}, `
+        `— unavailable: this board's league is on ${platform.toUpperCase()}, `
         + "and live draft mode reads Sleeper only. Use Manual draft below.");
       // The optimizer needs the pick log, not the API that usually supplies it.
       // Typing the picks reaches exactly the same shortlist.

@@ -11,7 +11,8 @@ const pages = [
   ["about.html", "about.html"],
   ["connect.html", null],
 ];
-const expectedNav = ["weekly.html", "waivers.html", "trade.html", "index.html", "about.html"];
+// Weekly first (it is the landing page); the archived 2026 board last.
+const expectedNav = ["weekly.html", "waivers.html", "trade.html", "about.html", "index.html"];
 
 function readPage(name) {
   return fs.readFileSync(path.join(root, "site", name), "utf8");
@@ -34,6 +35,9 @@ for (const [page, current] of pages) {
   const currentLinks = links.filter((link) => /aria-current=["']page["']/i.test(link[0]));
   assert.equal(currentLinks.length, current ? 1 : 0, `${page} keeps its current-page marker`);
   if (current) assert.equal(currentLinks[0][2], current, `${page} marks its own destination current`);
+  const board = [...nav[2].matchAll(/<a\s[^>]*href=["']index\.html["'][^>]*>([^<]*)<\/a>/gi)];
+  assert.equal(board.length, 1);
+  assert.equal(board[0][1], "2026 draft board (archived)", `${page} labels the board as the archived 2026 board`);
 }
 
 // Every text-entry control needs an accessible name that survives typing. A
