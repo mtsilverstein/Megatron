@@ -20,8 +20,10 @@
      anonymous; nothing here ever throws because of storage.
 
    Two ways in (any-league spec 5.1). ready({slug, board}) is the draft
-   pages' registry path, unchanged: a registry entry and a static board whose
-   league id the live league must match. ready({leagueId}) is the in-season
+   pages' registry path: a registry entry and a static board whose league id
+   the live league must match. The registry is filled at runtime from the
+   board a page loaded (FC.setBoard); the site's code names no league.
+   ready({leagueId}) is the in-season
    path for ANY Sleeper league: a synthetic entry {slug: null, platform:
    "sleeper", leagueId, tools: {startsit, waivers, trade}}, no board, no
    identity required (an anonymous visitor may load any league read-only). It
@@ -73,6 +75,9 @@
   // The waiver desk's saved drop protections (waivermode.js protectKey): which
   // league and team this browser managed, so forget() wipes them too.
   const WAIVER_PROTECT_PREFIX = "megatron.waivers.protected.v1|";
+  // The league id this browser opened last (app.js rememberedLeague): forget()
+  // removes it with the identity.
+  const LAST_LEAGUE_KEY = "megatron:lastLeague";
   const NOT_FOUND = "Sleeper username was not found.";
   const NO_UNIQUE_ROSTER = "Could not uniquely match this account to a roster in this league.";
   const ID_MISMATCH = "live league does not match this board; refusing to load advice";
@@ -264,14 +269,14 @@
   function deleteKeys() {
     const store = storage();
     if (!store) return;
-    const doomed = new Set([IDENTITY_KEY, LEGACY_KEY]);
+    const doomed = new Set([IDENTITY_KEY, LEGACY_KEY, LAST_LEAGUE_KEY]);
     try {
       for (let i = store.length - 1; i >= 0; i--) {
         const k = store.key(i);
         if (typeof k === "string" && (k.startsWith(DRAFT_RESTORE_PREFIX) || k.startsWith(WAIVER_PROTECT_PREFIX))) doomed.add(k);
       }
     } catch (_) {}
-    // Storages without a working key() still lose the known slugs' records.
+    // Storages without a working key() still lose the registered boards' records.
     try { for (const r of registryTable()) doomed.add(DRAFT_RESTORE_PREFIX + r.slug); } catch (_) {}
     for (const k of doomed) { try { store.removeItem(k); } catch (_) {} }
   }

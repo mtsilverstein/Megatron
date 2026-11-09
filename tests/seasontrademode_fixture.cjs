@@ -110,7 +110,7 @@ function mkResult(changes, first = 4, last = 17) {
   }
   return { weeks, sides: [0, 1].map(i => ({ rosterId: i + 1, delta: weeks.reduce((s, wk) => s + wk.sides[i].delta, 0) })) };
 }
-const sumCtx = { names: { 1: "Bake God", 2: "Easy Breecey" }, firstWeek: 4, endWeek: 17 };
+const sumCtx = { names: { 1: "Team 1", 2: "Team 2" }, firstWeek: 4, endWeek: 17 };
 const herbertForKyler = mkResult({
   5: [null, { after: swap(BASE1, "d", HERBERT), delta: 7.87 }],
   8: [{ after: swap(BASE0, "h", KYLER), delta: -6.06 }, null],
@@ -118,12 +118,12 @@ const herbertForKyler = mkResult({
 check("lineupSummary: a one-week change on each side names who enters and leaves", () => {
   assert.deepEqual(M.lineupSummary(herbertForKyler, sumCtx), [
     "Your lineup: −6.1 pts over weeks 4–17. All of it is week 8: Kyler Murray starts instead of Justin Herbert.",
-    "Easy Breecey: +7.9 pts over weeks 4–17. All of it is week 5: Justin Herbert starts instead of Dak Prescott.",
+    "Team 2: +7.9 pts over weeks 4–17. All of it is week 5: Justin Herbert starts instead of Dak Prescott.",
   ]);
 });
 check("lineupSummary: a viewer's side is named by its team, never 'Your lineup'", () => {
-  const lines = M.lineupSummary(herbertForKyler, { ...sumCtx, ownLabel: "Bake God" });
-  assert.equal(lines[0], "Bake God: −6.1 pts over weeks 4–17. All of it is week 8: Kyler Murray starts instead of Justin Herbert.");
+  const lines = M.lineupSummary(herbertForKyler, { ...sumCtx, ownLabel: "Team 1" });
+  assert.equal(lines[0], "Team 1: −6.1 pts over weeks 4–17. All of it is week 8: Kyler Murray starts instead of Justin Herbert.");
   assert.ok(!lines.join(" ").includes("Your lineup"));
 });
 check("lineupSummary: many changed weeks -> the 3 largest named, the rest summarised; nothing changes -> one sentence", () => {
@@ -143,14 +143,14 @@ check("lineupSummary: a received player who never starts is named, with 0 pts; o
   assert.deepEqual(M.lineupSummary(herbertForKyler, recvCtx([["k"], ["h"]])), M.lineupSummary(herbertForKyler, sumCtx), "both received players start: no note");
   const lines = M.lineupSummary(herbertForKyler, recvCtx([["k", "g"], ["h"]]));
   assert.equal(lines[0], "Your lineup: −6.1 pts over weeks 4–17. All of it is week 8: Kyler Murray starts instead of Justin Herbert. Ollie Gordon II never starts in weeks 4–17, so adds 0 pts here.");
-  assert.equal(lines[1], "Easy Breecey: +7.9 pts over weeks 4–17. All of it is week 5: Justin Herbert starts instead of Dak Prescott.");
+  assert.equal(lines[1], "Team 2: +7.9 pts over weeks 4–17. All of it is week 5: Justin Herbert starts instead of Dak Prescott.");
   assert.equal(M.lineupSummary(herbertForKyler, recvCtx([["g", "x"], []]))[0].split(". ").at(-1), "Ollie Gordon II and Rome Odunze never start in weeks 4–17, so add 0 pts here.", "plural");
 });
 check("lineupSummary: nothing changes -> one sentence, then each side's never-starting received players", () => {
   assert.deepEqual(M.lineupSummary(mkResult({}), recvCtx([["g"], ["x"]])), [
     "No change to either starting lineup in weeks 4–17 under these assumptions.",
     "Your lineup: Ollie Gordon II never starts in weeks 4–17, so adds 0 pts here.",
-    "Easy Breecey: Rome Odunze never starts in weeks 4–17, so adds 0 pts here.",
+    "Team 2: Rome Odunze never starts in weeks 4–17, so adds 0 pts here.",
   ]);
   assert.match(M.STARTERS_ONLY, /^These totals count starting lineups only: a bench player adds points only in weeks he starts .* Cover for injuries you have not entered is not counted\.$/);
 });
@@ -339,7 +339,7 @@ function makeStatics({ week = 3, noWeeks = false, lastWeek = 6 } = {}) {
 }
 const OWNER = require("./fixtures/owner_league_settings.json").gabagool;
 const L = "900000000000000777";                          // not in the registry
-const users = [{ user_id: "u1", display_name: "Max973" }, { user_id: "u2", display_name: "Bo", metadata: { team_name: "Bo's Bunch" } }];
+const users = [{ user_id: "u1", display_name: "User A" }, { user_id: "u2", display_name: "Bo", metadata: { team_name: "Bo's Bunch" } }];
 const rosters = [
   { roster_id: 9, owner_id: "u1", players: ["a", "d", "e", "k"], starters: ["a", "d", "e", "k"], reserve: [], taxi: [] },
   { roster_id: 3, owner_id: "u2", players: ["b", "c", "f"], starters: ["b", "c", "f"], reserve: [], taxi: [] },
@@ -358,7 +358,7 @@ function leagueRoutes(id, lg) {
 }
 function baseRoutes() {
   return {
-    "/user/max973": { user_id: "u1", username: "max973", display_name: "Max973" },
+    "/user/user_a": { user_id: "u1", username: "user_a", display_name: "User A" },
     ...leagueRoutes(L, () => league), "/state/nfl": () => state, "/players/nfl": () => catalog,
   };
 }
@@ -389,9 +389,9 @@ async function ownerFlow() {
   await until(() => els.status.textContent === GATE, "the anonymous gate");
   assert.equal(els.cols.hidden, true); assert.equal(els.controls.hidden, true);
 
-  await Session.identify("max973");
+  await Session.identify("user_a");
   await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
-  assert.equal(els.status.textContent, "2 teams loaded — you are Max973");
+  assert.equal(els.status.textContent, "2 teams loaded — you are User A");
   assert.equal(els.cols.hidden, false); assert.equal(els.controls.hidden, false);
   await sub("statics are the neutral batch only: no draft, legacy remaining, gate or simulation file; no traded_picks request", async () => {
     assert.deepEqual([...new Set(fetched)].sort(), NEUTRAL);
@@ -404,7 +404,7 @@ async function ownerFlow() {
     }
     const k = els.mine.children.find(li => li.dataset.id === "k");
     assert.ok(k && /season-disabled/.test(k.className) && /no modeled points/.test(text(k)));
-    assert.match(els.mine.parent.children[0].textContent, /^You give — Max973$/);
+    assert.match(els.mine.parent.children[0].textContent, /^You give — User A$/);
     assert.match(els.theirs.parent.children[0].textContent, /^You get — Bo's Bunch$/);
   });
   await sub("rendered context: format line, footnotes, aggregation label, simulation note; evidence fallback; settings stamp", async () => {
@@ -491,12 +491,12 @@ async function ownerFlow() {
 // Over the roster limit: drops are marked inline in that team's own column; the roster is never listed twice.
 async function dropFlow() {
   fresh(); statics = makeStatics(); routes = baseRoutes(); state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
-  league = { ...baseLeague, roster_positions: ["RB", "WR", "FLEX", "K"] };       // capacity 4: Max973's 4 players fill it
+  league = { ...baseLeague, roster_positions: ["RB", "WR", "FLEX", "K"] };       // capacity 4: User A's 4 players fill it
   const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
   const els = els$($);
   M.init({ els });
   FC.setLeague(L);
-  await Session.identify("max973");
+  await Session.identify("user_a");
   await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
   const dropBtn = (ul, id) => ul.children.find(li => li.dataset.id === id).children.find(x => x.className === "season-drop-btn");
   for (const id of ["a", "d", "e", "k"]) assert.equal(dropBtn(els.mine, id).hidden, true, `no Drop on ${id} before any trade`);
@@ -505,7 +505,7 @@ async function dropFlow() {
   tickPlayer(els.theirs, "b");                                                  // get 1, give 0: one over
   assert.equal(els.mineDrops.hidden, false);
   assert.deepEqual(els.mineDrops.children.map(x => x.className), ["season-drop-prompt"], "a prompt line only, no second roster list");
-  assert.equal(els.mineDrops.children[0].textContent, "Max973 would be 1 over the roster limit — mark one player to drop below (0 of 1 marked)");
+  assert.equal(els.mineDrops.children[0].textContent, "User A would be 1 over the roster limit — mark one player to drop below (0 of 1 marked)");
   for (const id of ["a", "d", "e", "k"]) assert.equal(dropBtn(els.mine, id).hidden, false, `Drop offered on ${id}, kicker included`);
   for (const id of ["b", "c", "f"]) assert.equal(dropBtn(els.theirs, id).hidden, true, "the other side is not over");
   assert.equal(els.compare.disabled, true, "compare waits for the drop");
@@ -555,7 +555,7 @@ async function reviewFocus1() {
   const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
   const els = els$($);
   M.init({ els }); FC.setLeague(L);
-  await Session.identify("max973");
+  await Session.identify("user_a");
   await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
   // Audit A6-3: D Deep is not in the offer, so he counts as 0 and the comparison runs, naming him.
   tickPlayer(els.mine, "a"); tickPlayer(els.theirs, "c");
@@ -585,15 +585,15 @@ async function viewerFlow() {
   await until(() => /teams loaded/.test(els.status.textContent), "the viewed team's columns");
   assert.equal(els.status.textContent, "2 teams loaded — Viewing Bo's Bunch");
   assert.equal(els.mine.parent.children[0].textContent, "Bo's Bunch gives");
-  assert.equal(els.theirs.parent.children[0].textContent, "Bo's Bunch gets — from Max973");
+  assert.equal(els.theirs.parent.children[0].textContent, "Bo's Bunch gets — from User A");
   tickPlayer(els.mine, "b"); tickPlayer(els.theirs, "d");
   await clickCompare(els, () => analyzeCalls.length === 1 && !els.result.hidden, "the viewer's comparison");
   assert.deepEqual(analyzeCalls[0].rosterIds, [3, 9]);
   const summary = els.result.children[0].children.map(x => x.textContent);
   assert.ok(summary.every(l => !/^Your lineup/.test(l)), summary.join(" | "));
   // The owner identifies: the analysis switches to the owner's roster; the viewed team is dropped.
-  await Session.identify("max973");
-  await until(() => els.status.textContent === "2 teams loaded — you are Max973", "the owner's roster after identifying");
+  await Session.identify("user_a");
+  await until(() => els.status.textContent === "2 teams loaded — you are User A", "the owner's roster after identifying");
   assert.equal(els.result.hidden, true);
 }
 
@@ -603,7 +603,7 @@ async function bestBall() {
   const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
   const els = els$($);
   M.init({ els }); FC.setLeague(L);
-  await Session.identify("max973");
+  await Session.identify("user_a");
   await until(() => !els.result.hidden, "the best-ball note");
   assert.equal(els.cols.hidden, true); assert.equal(els.controls.hidden, true);
   const lines = els.result.children.map(x => x.textContent);
@@ -613,7 +613,7 @@ async function bestBall() {
   assert.ok(els.context.children.some(x => x.textContent === "Best ball — not eligible for the format test"));
   assert.ok(els.context.children.some(x => x.textContent === SIM_OFF));
   assert.equal(analyzeCalls.length, 0, "no lineup comparison for best ball");
-  assert.equal(els.status.textContent, "2 teams loaded — you are Max973");
+  assert.equal(els.status.textContent, "2 teams loaded — you are User A");
 }
 
 async function unknownSlot() {
@@ -622,7 +622,7 @@ async function unknownSlot() {
   const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
   const els = els$($);
   M.init({ els }); FC.setLeague(L);
-  await Session.identify("max973");
+  await Session.identify("user_a");
   await until(() => !els.result.hidden, "the unsupported-slot note");
   assert.equal(els.result.children[0].textContent, "Unsupported lineup slot: XFLEX — no trade lineup comparison for this league; the rest-of-season values below still apply.");
   assert.equal(els.cols.hidden, true);
@@ -651,12 +651,12 @@ async function rosValidity() {
     const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
     const els = els$($);
     M.init({ els }); FC.setLeague(L);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     await until(() => !els.result.hidden, `${mode} / ${kind}`);
     const lines = els.result.children.map(x => x.textContent), what = `${mode} / ${kind}: ${lines.join(" | ")}`;
     assert.equal(lines[0], note, what);
     assert.equal(analyzeCalls.length, 0, "no lineup analyzer on this path");
-    assert.equal(els.status.textContent, "2 teams loaded — you are Max973", "roster identity kept");
+    assert.equal(els.status.textContent, "2 teams loaded — you are User A", "roster identity kept");
     const player = name => lines.find(l => l.startsWith(name));
     for (const name of ["A Back · RB", "D Deep · WR", "E Slot · WR"]) assert.ok(player(name), `${what}: ${name} listed`);
     if (kind === "fresh") {
@@ -681,7 +681,7 @@ async function week18() {
   const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
   const els = els$($);
   M.init({ els }); FC.setLeague(L);
-  await Session.identify("max973");
+  await Session.identify("user_a");
   await until(() => els.status.textContent === "No projected weeks remain.", "the week-18 end state");
   assert.equal(els.cols.hidden, true); assert.equal(els.controls.hidden, true);
   assert.equal(analyzeCalls.length, 0);
@@ -690,7 +690,11 @@ async function week18() {
 // ============================ Part 3: trade.html's mode resolution ============================
 const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
 const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x => x[1]).find(s => /leagueNavigation/.test(s));
-const GAB = FC.REGISTRY.find(r => r.slug === "gabagool").leagueId, FAMID = FC.REGISTRY.find(r => r.slug === "fam").leagueId;
+// Synthetic league ids: A is the published board's own league (its league
+// block names it), B any other Sleeper league. The site's code names neither.
+const A = "100000000000000001", B = "100000000000000002";
+const boardFor = (over = {}) => ({ season: 2026, league: { slug: "leaguea", name: "League A", league_id: A, platform: "sleeper", keeper_rules: "ladder",
+  teams: 12, sleeper_scoring: { rec: 1, pass_td: 6 }, ...over }, data_through: "2025-wk18", generated_at: new Date().toISOString(), model: "transformer", players: [] });
 async function runPage(href) {
   const dom = tradeDom(href);
   global.FC = FC; global.Session = Session; global.SeasonTradeMode = M; global.TradeMode = window.TradeMode; global.Sleeper = window.Sleeper;
@@ -700,53 +704,91 @@ async function runPage(href) {
 }
 const linkParams = dom => Object.fromEntries(dom.navLinks.map(a => { const u = new URL(a.href); return [u.pathname.split("/").pop(), u.searchParams.get("league")]; }));
 const draftFetches = () => fetched.filter(p => /draft/.test(p));
+const PRE_DRAFT_BLOCKS = ["trade-eyebrow", "trade-note", "trade-connect", "trade-controls", "trade-warn", "trade-cols", "trade-grade", "trade-suggestions"];
+// Owner decision 2026-11-07: no ?league= (and nothing remembered) is NO
+// league -- the connect prompt takes the tool's place and nothing is loaded.
+// An old link's league name is the same, plus the old-name notice; it is
+// never resolved to a league.
+async function pageNoLeague() {
+  for (const href of ["trade.html", "trade.html?league=leaguea"]) {
+    fresh(); statics = makeStatics(); routes = baseRoutes();
+    FC.setLeague(null);                       // a fresh document: the chip has no league from an earlier page
+    const d = await runPage(`https://example.test/Megatron/${href}`);
+    assert.equal(d.$("connect-prompt").hidden, false, `${href}: the connect prompt is shown`);
+    for (const id of PRE_DRAFT_BLOCKS) assert.equal(d.$(id).hidden, true, `${href}: ${id} hidden`);
+    assert.equal(d.$("season-trade").hidden, true, `${href}: no in-season tool without a league`);
+    assert.deepEqual(calls, [], `${href}: no Sleeper call`);
+    assert.deepEqual(fetched, [], `${href}: no data read`);
+    assert.equal(window.TradeMode.calls.length, 0);
+    assert.equal(Session.bundle(), null);
+    assert.equal(d.stamp.textContent, "Read-only Sleeper connection · no trades are submitted", "a plain stamp, no error");
+    assert.deepEqual(Object.values(linkParams(d)), [null, null, null, null, null], `${href}: no masthead link names a league`);
+    const notice = d.main.children.find(n => n.id === "league-recovery");
+    if (href.includes("league=")) assert.ok(notice && /old league name/.test(notice.children[0].textContent), "the old-name notice");
+    else assert.ok(!notice, "no notice when there is simply no league");
+  }
+  const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
+  assert.match(html, /<p id="connect-prompt-lead">See trade scenarios for your team: enter your Sleeper username or paste a league link\.<\/p>/);
+  assert.ok(!/Gabagool|\bFAM\b/i.test(html), "trade.html names no league");
+}
 async function pageInSeason() {
-  fresh(); statics = makeStatics(); routes = { ...baseRoutes(), ...leagueRoutes(FAMID, () => ({ ...baseLeague, league_id: FAMID })) };
+  fresh(); statics = makeStatics(); routes = { ...baseRoutes(), ...leagueRoutes(B, () => ({ ...baseLeague, league_id: B })) };
   league = baseLeague; state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
-  const dom = await runPage(`https://example.test/Megatron/trade.html?league=fam`);
+  const dom = await runPage(`https://example.test/Megatron/trade.html?league=${B}`);
   await until(() => dom.$("season-status").textContent === GATE, "the in-season controller's gate");
   await until(() => /^data through /.test(dom.stamp.textContent), "the masthead stamp from the batch");
   assert.equal(dom.$("season-trade").hidden, false);
   for (const id of ["trade-eyebrow", "trade-note", "trade-connect", "trade-controls", "trade-cols"]) assert.equal(dom.$(id).hidden, true, id);
+  assert.equal(dom.$("connect-prompt").hidden, true, "a league is open: no connect prompt");
   assert.deepEqual(draftFetches(), [], "the in-season page never requests draft.json");
   assert.ok(!calls.some(c => /traded_picks/.test(c)));
   assert.equal(window.TradeMode.calls.length, 0);
-  // Task 9: in-season trade is an id context -- its in-season links carry the league id.
-  assert.deepEqual(linkParams(dom), { "index.html": "fam", "trade.html": FAMID, "weekly.html": FAMID, "about.html": "fam", "waivers.html": FAMID });
-  // An unregistered league in season: the id everywhere, still no draft data.
+  // In-season trade is an id context: every in-season and neutral link carries the id; the archived board's link none.
+  assert.deepEqual(linkParams(dom), { "index.html": null, "trade.html": B, "weekly.html": B, "about.html": B, "waivers.html": B });
+  // Another league in season: its id everywhere, still no draft data.
   fresh(); routes = baseRoutes();
   const dx = await runPage(`https://example.test/Megatron/trade.html?league=${L}`);
-  await until(() => dx.$("season-status").textContent === GATE, "the gate for an unregistered league");
+  await until(() => dx.$("season-status").textContent === GATE, "the gate for another league");
   assert.equal(dx.$("season-trade").hidden, false);
   assert.deepEqual(draftFetches(), []);
-  assert.deepEqual(Object.values(linkParams(dx)), [L, L, L, L, L]);
+  assert.deepEqual(Object.values(linkParams(dx)), [null, L, L, L, L]);
 }
 async function pagePreDraft() {
-  // Gabagool pre-draft: the mode is read from the live league FIRST, then the board loads and TradeMode runs as today.
+  // The board's own league pre-draft: the mode is read from the live league FIRST, then the board loads and TradeMode runs.
   fresh(); state = { season: "2026", season_type: "pre", week: 0 }; catalog = baseCatalog();
-  const gabLeague = { ...baseLeague, league_id: GAB, name: "Gabagool (synthetic)", status: "pre_draft" };
-  routes = { ...baseRoutes(), ...leagueRoutes(GAB, () => gabLeague) };
-  const board = { league: { league_id: GAB, name: "Gabagool (synthetic)" }, data_through: "2025-wk18", generated_at: new Date().toISOString(), model: "transformer", players: [] };
-  statics = { "data/draft.json": board };
-  const dom = await runPage(`https://example.test/Megatron/trade.html`);
-  assert.equal(window.TradeMode.calls.length, 1, "TradeMode runs for the registered Gabagool league");
+  const leagueA = { ...baseLeague, league_id: A, name: "League A", status: "pre_draft" };
+  routes = { ...baseRoutes(), ...leagueRoutes(A, () => leagueA) };
+  const board = boardFor();
+  statics = { "data/draft.json": board };   // no neutral weekly batch: the board is not archived
+  const dom = await runPage(`https://example.test/Megatron/trade.html?league=${A}`);
+  assert.equal(window.TradeMode.calls.length, 1, "TradeMode runs for the board's own league");
   assert.deepEqual(window.TradeMode.calls[0].board, board);
   assert.deepEqual(draftFetches(), ["data/draft.json"]);
-  assert.ok(events.indexOf(`sleeper /league/${GAB}`) >= 0 && events.indexOf(`sleeper /league/${GAB}`) < events.indexOf("fetch data/draft.json"), events.join(" | "));
+  assert.ok(events.indexOf(`sleeper /league/${A}`) >= 0 && events.indexOf(`sleeper /league/${A}`) < events.indexOf("fetch data/draft.json"), events.join(" | "));
   assert.equal(dom.$("season-trade").hidden, true);
   assert.match(dom.stamp.textContent, /^data through 2025-wk18/);
-  // FAM pre-draft keeps today's message; an unregistered pre-draft league is the draft boundary; neither fetches draft data.
-  for (const [href, id, expected] of [
-    ["trade.html?league=fam", FAMID, "Trade advice is not available for this league yet. No Gabagool values are being loaded."],
-    [`trade.html?league=${L}`, L, "The draft board is only built for registered leagues."],
+  // The board archived (its season is under way): pre-draft trade is not offered, even for its own league.
+  fresh(); state = { season: "2026", season_type: "pre", week: 0 };
+  routes = { ...baseRoutes(), ...leagueRoutes(A, () => leagueA) };
+  statics = { "data/draft.json": boardFor(), "data/neutral/weekly.json": { season: 2026, week: 9 } };
+  const da = await runPage(`https://example.test/Megatron/trade.html?league=${A}`);
+  assert.equal(da.stamp.textContent, "Pre-draft trade values are not offered: the 2026 draft board is archived. In-season trade scenarios open when this league's season starts.");
+  assert.equal(window.TradeMode.calls.length, 0, "no pre-draft grader while archived");
+  assert.equal(da.$("trade-connect").hidden, true);
+  // Another league pre-draft is the draft boundary; the board's league without keeper rules has no grader.
+  for (const [id, over, expected] of [
+    [B, {}, "The draft board is only built for registered leagues."],
+    [A, { keeper_rules: undefined }, "Trade advice is not available for this league yet."],
+    [A, { platform: "espn" }, "Trade advice is not available for this league yet."],
   ]) {
     fresh(); state = { season: "2026", season_type: "pre", week: 0 };
     routes = { ...baseRoutes(), ...leagueRoutes(id, () => ({ ...baseLeague, league_id: id, status: "pre_draft" })) };
-    const d = await runPage(`https://example.test/Megatron/${href}`);
-    assert.equal(d.stamp.textContent, expected, href);
-    assert.deepEqual(draftFetches(), [], href);
-    assert.equal(window.TradeMode.calls.length, 0, href);
+    statics = { "data/draft.json": boardFor(over) };
+    const d = await runPage(`https://example.test/Megatron/trade.html?league=${id}`);
+    assert.equal(d.stamp.textContent, expected, `${id} ${JSON.stringify(over)}`);
+    assert.equal(window.TradeMode.calls.length, 0);
     assert.equal(d.$("trade-connect").hidden, true);
+    assert.equal(Session.bundle().registry.slug, null, "no board was registered for the chip");
   }
   // Any other state keeps today's message.
   fresh(); state = { season: "2026", season_type: "post", week: 18 };
@@ -770,33 +812,34 @@ async function pageRollover() {
     new Function(`return ${inline.trim().replace(/;\s*$/, "")}`)();
     return d;
   };
-  // The registered Gabagool league reaches TradeMode exactly as before.
+  // The board's own league, next season and pre-draft, reaches TradeMode when the board is not archived.
   fresh(); state = ROLL; catalog = baseCatalog();
-  const gab27 = { ...baseLeague, league_id: GAB, name: "Gabagool (synthetic)", season: "2027", status: "pre_draft" };
-  routes = { ...baseRoutes(), ...leagueRoutes(GAB, () => gab27) };
-  const board = { league: { league_id: GAB, name: "Gabagool (synthetic)" }, data_through: "2026-wk18", generated_at: new Date().toISOString(), model: "transformer", players: [] };
+  const a27 = { ...baseLeague, league_id: A, name: "League A", season: "2027", status: "pre_draft" };
+  routes = { ...baseRoutes(), ...leagueRoutes(A, () => a27) };
+  const board = { ...boardFor(), data_through: "2026-wk18" };
   statics = { "data/draft.json": board };
-  const dom = startPage(`https://example.test/Megatron/trade.html`);
+  const dom = startPage(`https://example.test/Megatron/trade.html?league=${A}`);
   await until(() => window.TradeMode.calls.length === 1 || Session.error(), "the pre-draft mode");
   assert.equal(Session.error(), null);
-  assert.equal(window.TradeMode.calls.length, 1, "the 2027 pre-draft Gabagool league reaches TradeMode under 2026 NFL state");
+  assert.equal(window.TradeMode.calls.length, 1, "the 2027 pre-draft league reaches TradeMode under 2026 NFL state");
   assert.deepEqual(window.TradeMode.calls[0].board, board);
   assert.deepEqual(draftFetches(), ["data/draft.json"]);
   assert.equal(dom.$("season-trade").hidden, true);
   assert.doesNotMatch(dom.stamp.textContent, /season; projections are for/);
-  // An unregistered pre-draft league keeps today's draft-boundary message.
+  // Another pre-draft league is the draft boundary.
   fresh(); state = ROLL;
   routes = { ...baseRoutes(), ...leagueRoutes(L, () => ({ ...baseLeague, season: "2027", status: "pre_draft" })) };
+  statics = { "data/draft.json": boardFor() };
   const du = startPage(`https://example.test/Megatron/trade.html?league=${L}`);
   await until(() => du.stamp.textContent !== "", "the draft-boundary message");
   assert.equal(du.stamp.textContent, "The draft board is only built for registered leagues.");
-  assert.deepEqual(draftFetches(), []); assert.equal(window.TradeMode.calls.length, 0);
+  assert.equal(window.TradeMode.calls.length, 0);
   // The same league IN SEASON with a mismatched season is still refused by
   // name; the page never reaches either mode (it waits for the chip's retry).
   for (const [season, current] of [["2027", "2026"], ["2025", "2026"]]) {
     fresh(); state = { season: current, season_type: "regular", week: 3 };
-    routes = { ...baseRoutes(), ...leagueRoutes(GAB, () => ({ ...gab27, season, status: "in_season" })) };
-    const d = startPage(`https://example.test/Megatron/trade.html`);
+    routes = { ...baseRoutes(), ...leagueRoutes(A, () => ({ ...a27, season, status: "in_season" })) };
+    const d = startPage(`https://example.test/Megatron/trade.html?league=${A}`);
     const msg = `This league is from the ${season} season; projections are for ${current}.`;
     await until(() => d.stamp.textContent === msg, `the ${season} in-season refusal`);
     assert.equal(Session.bundle(), null);
@@ -816,8 +859,9 @@ async function pageRollover() {
   await sub("an unknown starting slot: the note, no lineup comparison", unknownSlot);
   await sub("I1: best ball / unknown slot rest-of-season values pass the 72 h, future-date and current-team checks or are withheld", rosValidity);
   await sub("week 18: No projected weeks remain.", week18);
+  await sub("trade.html with no league: the connect prompt, nothing loaded; an old league name: the same, never a substitute", pageNoLeague);
   await sub("trade.html in season: mode first, never draft.json, in-season links by id", pageInSeason);
-  await sub("trade.html pre-draft: Gabagool loads draft.json after the mode; others keep today's messages", pagePreDraft);
+  await sub("trade.html pre-draft: the board's own league reaches TradeMode after the mode; archived, other leagues and no keeper rules are refused", pagePreDraft);
   await sub("I2 rollover: a next-season pre-draft league reaches TradeMode; in season, another season is still refused", pageRollover);
   if (failed.length) { console.log(`FAILED (${failed.length}):\n  ` + failed.join("\n  ")); process.exit(1); }
   console.log(`seasontrademode_fixture: ${n} groups OK`);

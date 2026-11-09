@@ -1,265 +1,238 @@
-// The selected board must survive full-page navigation without a shared
-// localStorage preference that could cross two simultaneously open drafts.
+// League selection and return paths (owner decision 2026-11-07: no league is
+// the default; the site works for anyone on Sleeper). The page's league is the
+// URL's id, else the id this browser remembered, else none -- and an old
+// link's league name names none. The site's code carries no league: every id
+// and name here is synthetic.
 const assert = require("assert");
 global.window = {};
 require("../site/assets/app.js");
 const FC = window.FC;
 
+const NAMES = ["Weekly", "FAAB & waivers", "Trade calculator", "About the model", "2026 draft board (archived)"];
+const PAGES = ["weekly.html", "waivers.html", "trade.html", "about.html", "index.html"];
+// A Map-backed localStorage and a history stub that, like the browser's,
+// moves location on replaceState.
+const lsMap = new Map();
+const store = { getItem: k => (lsMap.has(k) ? lsMap.get(k) : null), setItem: (k, v) => { lsMap.set(k, String(v)); }, removeItem: k => { lsMap.delete(k); } };
+const replaced = [];
+global.history = { state: null, replaceState(_s, _t, url) { replaced.push(url); global.location = new URL(url); } };
 function page(href) {
-  const names = ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"];
-  const links = ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"].map((path, i) => ({
-    href: path, textContent: names[i], getAttribute() { return this.href; },
-    // Still-enabled links must not be marked aria-disabled -- catches a link
-    // that reads as clickable but is silently inert to assistive tech.
-    setAttribute(name) { if (name === "aria-disabled") this.disabledAttrSet = true; },
-  }));
+  const links = PAGES.map((p, i) => ({ href: p, textContent: NAMES[i], getAttribute() { return this.href; } }));
   global.location = new URL(href);
-  // The shared league selector is a <select>, not a list of <a> chips, so
-  // leagueNavigation has nothing else to query -- mountLeagueContext itself
-  // no-ops here because this fake `document` has no createElement.
-  global.document = { querySelectorAll: selector =>
-    selector === ".masthead nav a" ? links : [] };
+  // No createElement: the league panels no-op, only the masthead is rewritten.
+  global.document = { querySelectorAll: selector => selector === ".masthead nav a" ? links : [] };
   return { slug: FC.leagueNavigation(), links };
 }
-
+const params = p => Object.fromEntries(p.links.map(l => {
+  const u = new URL(l.href);
+  return [u.pathname.split("/").pop(), u.searchParams.get("league")];
+}));
 const base = "https://example.test/Megatron/";
-const fam = page(`${base}index.html?league=fam`);
-assert.strictEqual(fam.slug, "fam");
-assert.strictEqual(fam.links[0].href, `${base}index.html?league=fam`,
-  "clicking the current draft tab must not switch leagues");
-// FAM has the in-season trade page (conditional lineup scenarios), so its
-// trade link carries NO restriction suffix -- neither the retired "Gabagool
-// only" nor "not connected".
-assert.doesNotMatch(fam.links[1].textContent, /Gabagool/,
-  "FAM's trade link must not claim the tool is Gabagool-only any more");
-assert.doesNotMatch(fam.links[1].textContent, /not connected/);
-assert.doesNotMatch(fam.links[2].textContent, /Gabagool/);
-// The trade href must still carry FAM, not silently jump to Gabagool -- the
-// URL never switches leagues for you.
-assert.strictEqual(fam.links[1].href, `${base}trade.html?league=fam`,
-  "trade's href must not switch leagues");
-assert.strictEqual(fam.links[1].textContent, "Trade calculator");
-assert.ok(!fam.links[1].disabledAttrSet,
-  "trade must stay a real, enabled link -- not one dressed up as disabled");
-for (const link of fam.links.slice(1)) {
-  const otherPage = page(link.href);
-  assert.strictEqual(otherPage.links[0].href, `${base}index.html?league=fam`,
-    "returning from another page must restore the FAM board");
-}
-const gab = page(`${base}index.html`);
-assert.strictEqual(gab.slug, "gabagool");
-assert.strictEqual(gab.links[0].href, `${base}index.html?league=gabagool`);
-assert.strictEqual(page(fam.links[0].href).slug, "fam",
-  "opening Gabagool in another tab must not alter FAM's URL");
+const X = "100000000000000001", Y = "100000000000000002";
+const KEY = "megatron:lastLeague";
+assert.strictEqual(FC.LAST_LEAGUE_KEY, KEY);
+assert.strictEqual(FC.REGISTRY.length, 0, "the site's code registers no league");
 
-// The ESPN league is a third board with no live draft path. It must select
-// and round-trip like any other, and -- because no live Sleeper tool is
-// connected for it -- its trade link carries the same " · not connected"
-// suffix its weekly/waivers links do. The label rule keys on "is ESPN", not
-// on "not Gabagool": FAM is a Sleeper league and gets no suffix.
-const espn = page(`${base}index.html?league=espnfam`);
-assert.strictEqual(espn.slug, "espnfam");
-assert.strictEqual(espn.links[0].href, `${base}index.html?league=espnfam`,
-  "clicking the current draft tab must not switch leagues");
-assert.doesNotMatch(espn.links[1].textContent, /Gabagool/,
-  "ESPN's trade label must not imply a click opens Gabagool");
-assert.strictEqual(espn.links[1].textContent, "Trade calculator · not connected",
-  "trade.html is not connected for ESPN and must say so");
-assert.strictEqual(espn.links[1].href, `${base}trade.html?league=espnfam`,
-  "the trade link must still carry the ESPN league, not switch it");
-assert.doesNotMatch(espn.links[2].textContent, /Gabagool/);
-assert.doesNotMatch(espn.links[4].textContent, /Gabagool/);
-// ESPN's live weekly/waivers aren't connected -- say so plainly, and don't
-// claim they'd open Gabagool (they wouldn't; nothing is connected for ESPN).
-assert.strictEqual(espn.links[2].textContent, "Weekly · not connected");
-assert.strictEqual(espn.links[4].textContent, "FAAB & waivers · not connected");
-assert.strictEqual(espn.links[2].href, `${base}weekly.html?league=espnfam`,
-  "the link must still carry the ESPN league, not switch it");
-for (const link of espn.links.slice(1)) {
-  const otherPage = page(link.href);
-  assert.strictEqual(otherPage.links[0].href, `${base}index.html?league=espnfam`,
-    "returning from another page must restore the ESPN board");
-}
-// The Gabagool board must NOT pick up any restriction label.
-const gabLabels = page(`${base}index.html?league=gabagool`);
-assert.doesNotMatch(gabLabels.links[1].textContent, /Gabagool/,
-  "Gabagool's own trade tab must not be labelled with its own name");
-assert.strictEqual(gabLabels.links[1].textContent, "Trade calculator");
-assert.doesNotMatch(gabLabels.links[2].textContent, /Gabagool/);
-
-// Invalid URLs remain hard failures so no advice can accidentally be loaded
-// for the default league, but they also render explicit recovery links for the
-// same page. The fake DOM records enough structure to exercise that panel.
+// 1. No ?league= and nothing remembered: NO league -- not a default one.
+global.localStorage = store;
 {
-  function element(tagName) {
-    return {
-      tagName, children: [], textContent: "", className: "", id: "",
-      append(...nodes) { this.children.push(...nodes); },
-      prepend(...nodes) { this.children.unshift(...nodes); },
-    };
+  const w = page(`${base}weekly.html`);
+  assert.strictEqual(FC.inSeasonLeague(), null, "no parameter and nothing remembered is no league");
+  assert.strictEqual(w.slug, null);
+  assert.deepStrictEqual(params(w), Object.fromEntries(PAGES.map(p => [p, null])), "no masthead link names a league");
+  assert.deepStrictEqual(w.links.map(l => l.textContent), NAMES, "labels are left alone");
+  assert.deepStrictEqual(replaced, [], "nothing to write into the URL");
+  for (const p of ["waivers.html", "trade.html", "about.html", "connect.html"]) {
+    page(`${base}${p}`);
+    assert.strictEqual(FC.inSeasonLeague(), null, `${p}: no league`);
   }
-  const main = element("main");
-  global.location = new URL(`${base}weekly.html?league=unknown&week=2`);
-  global.document = {
-    createElement: element,
-    querySelector(selector) { return selector === "main" ? main : null; },
-    querySelectorAll() { return []; },
-    getElementById(id) {
-      const find = node => node.id === id ? node : node.children.map(find).find(Boolean);
-      return find(main);
-    },
-  };
-  assert.throws(() => FC.leagueNavigation(), /Unknown league/,
-    "unknown league must still block page initialization");
-  assert.throws(() => FC.leagueDataPath("weekly"), /Unknown league/,
-    "unknown league must not resolve to Gabagool's advice data");
-  assert.strictEqual(main.children.length, 1, "recovery panel must be visible in the page main area");
-  const recovery = main.children[0];
-  assert.strictEqual(recovery.id, "league-recovery");
-  assert.match(recovery.children[1].textContent, /No league data was loaded/);
-  const links = recovery.children[2].children.map(item => item.children[0]);
-  assert.deepStrictEqual(links.map(link => link.href), [
-    `${base}weekly.html?league=gabagool&week=2`,
-    `${base}weekly.html?league=fam&week=2`,
-    `${base}weekly.html?league=espnfam&week=2`,
-  ], "recovery links must preserve this page and its other query parameters");
-  assert.deepStrictEqual(links.map(link => link.textContent), [
-    "Gabagool · Sleeper", "FAM · Sleeper", "ESPN family · draft board only",
-  ]);
-  assert.throws(() => FC.leagueNavigation(), /Unknown league/);
-  assert.strictEqual(main.children.length, 1, "repeated init must not duplicate recovery panels");
-}
-page(`${base}weekly.html?league=fam`);
-assert.equal(FC.leagueDataPath("weekly"),"data/weekly-fam.json");
-assert.equal(FC.leagueDataPath("draft"),"data/draft-fam.json");
-assert.equal(FC.leagueDataPath("remaining"),"data/remaining-fam.json");
-page(`${base}weekly.html?league=gabagool`);
-assert.equal(FC.leagueDataPath("weekly"),"data/weekly.json");
-assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
-
-// leagueNavigation running twice against the SAME <a> elements (a defensive
-// re-init) must not stack suffixes -- "· not connected · not connected" would
-// be the tell that the label mutation isn't idempotent. A link that arrives
-// already carrying the retired "· Gabagool only" label must lose it.
-{
-  const names = ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"];
-  const repeatedLinks = ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"]
-    .map((path, i) => ({ href: path, textContent: names[i], getAttribute() { return this.href; } }));
-  repeatedLinks[1].textContent += " · Gabagool only";
-  global.location = new URL(`${base}index.html?league=espnfam`);
-  global.document = { querySelectorAll: selector =>
-    selector === ".masthead nav a" ? repeatedLinks : [] };
-  FC.leagueNavigation();
-  FC.leagueNavigation();
-  assert.strictEqual(repeatedLinks[1].textContent, "Trade calculator · not connected",
-    "repeated init must not stack the not-connected suffix, and must strip the retired Gabagool-only label");
-  assert.strictEqual(repeatedLinks[2].textContent, "Weekly · not connected",
-    "repeated init must not stack the not-connected suffix");
-  assert.strictEqual(repeatedLinks[1].href, `${base}trade.html?league=espnfam`,
-    "repeated init must keep preserving the URL's league context");
 }
 
-// League selection by Sleeper id (any-league spec 5.1, 5.4). Between in-season
-// pages the canonical parameter is the league id; a draft destination gets
-// the registry slug for a registered id and otherwise keeps the id, where the
-// draft page refuses it by name -- never a substituted league. ESPN keeps its
-// registry route.
+// 2. A league id in the URL is THE league; its id rides every in-season link
+//    and the neutral pages, never the archived board's link.
 {
-  const GAB = "1376245373244301312", FAMID = "1389736745205002240", X = "700000000000000001";
-  const DRAFT_ONLY = "The draft board is only built for registered leagues.";
-  const params = p => Object.fromEntries(p.links.map(l => {
-    const u = new URL(l.href);
-    return [u.pathname.split("/").pop(), u.searchParams.get("league")];
-  }));
-  const famIn = { "index.html": "fam", "trade.html": FAMID, "weekly.html": FAMID, "about.html": "fam", "waivers.html": FAMID };
+  const w = page(`${base}waivers.html?league=${X}&week=2`);
+  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: X });
+  assert.deepStrictEqual(params(w), { "weekly.html": X, "waivers.html": X, "trade.html": X, "about.html": X, "index.html": null });
+  assert.strictEqual(new URL(w.links[0].href).pathname, "/Megatron/weekly.html");
+  // Returning from a neutral page keeps the league in-season.
+  assert.deepStrictEqual(params(page(w.links[3].href))["weekly.html"], X);
+  assert.strictEqual(lsMap.size, 0, "reading a URL stores nothing (a league is remembered only once it loads)");
+}
 
-  // An in-season page reached by its legacy slug writes the id into in-season links.
-  const wf = page(`${base}weekly.html?league=fam`);
-  assert.strictEqual(wf.slug, "fam", "a registered league still returns its slug");
-  assert.deepStrictEqual(params(wf), famIn);
-  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: FAMID, legacySlug: "fam" });
-  // The same league by id: same links, same legacy data paths.
-  const wi = page(`${base}waivers.html?league=${FAMID}`);
-  assert.strictEqual(wi.slug, "fam");
-  assert.deepStrictEqual(params(wi), famIn);
-  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: FAMID, legacySlug: "fam" });
-  assert.strictEqual(FC.leagueDataPath("weekly"), "data/weekly-fam.json");
-  assert.strictEqual(FC.leagueDataPath("draft"), "data/draft-fam.json");
-  // Trade reached by id stays in the id world; the draft page by a registered id maps to its slug.
-  assert.deepStrictEqual(params(page(`${base}trade.html?league=${FAMID}`)), famIn);
-  const di = page(`${base}index.html?league=${FAMID}`);
-  assert.strictEqual(di.slug, "fam", "a registered id on a draft page is that league's board");
-  assert.strictEqual(params(di)["index.html"], "fam");
-  // Gabagool: no parameter and the slug both name Gabagool's id.
+// 3. The remembered id: used only when there is NO parameter, on an in-season
+//    page, and written into the URL with replaceState so the page is
+//    shareable and reloads identically.
+{
+  lsMap.set(KEY, Y);
+  const w = page(`${base}weekly.html?week=4`);
+  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: Y }, "the remembered id opens the league");
+  assert.deepStrictEqual(replaced, [`${base}weekly.html?week=4&league=${Y}`], "the URL now names the league, other parameters kept");
+  assert.strictEqual(new URL(global.location.href).searchParams.get("league"), Y);
+  assert.deepStrictEqual(params(w), { "weekly.html": Y, "waivers.html": Y, "trade.html": Y, "about.html": Y, "index.html": null });
+  // The URL already carries it: a second read does not rewrite again.
+  FC.inSeasonLeague();
+  assert.strictEqual(replaced.length, 1);
+  // An explicit id wins over the remembered one.
+  page(`${base}trade.html?league=${X}`);
+  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: X });
+  assert.strictEqual(replaced.length, 1);
+  // A neutral page never picks the remembered league up on its own.
+  const a = page(`${base}about.html`);
+  assert.strictEqual(FC.inSeasonLeague(), null);
+  assert.strictEqual(params(a)["weekly.html"], null, "about's links leave the in-season pages to resolve their own league");
+  assert.strictEqual(replaced.length, 1);
+  // A remembered value that is not an id is no league.
+  lsMap.set(KEY, "not-an-id");
   page(`${base}weekly.html`);
-  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: GAB, legacySlug: "gabagool" });
-  assert.strictEqual(params(page(`${base}weekly.html?league=gabagool`))["waivers.html"], GAB);
-
-  // An unregistered id on an in-season page: the id goes everywhere (the draft
-  // link included -- the draft page refuses it), no "not connected" labels.
-  const wx = page(`${base}weekly.html?league=${X}`);
-  assert.strictEqual(wx.slug, null, "an unregistered league has no slug");
-  assert.deepStrictEqual(params(wx), { "index.html": X, "trade.html": X, "weekly.html": X, "about.html": X, "waivers.html": X });
-  assert.deepStrictEqual(wx.links.map(l => l.textContent), ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"]);
-  assert.deepStrictEqual(FC.inSeasonLeague(), { leagueId: X, legacySlug: null });
-  assert.throws(() => FC.leagueDataPath("draft"), { message: DRAFT_ONLY });
-  assert.throws(() => FC.leagueDataPath("weekly"), /Unknown league/);
-  // Neutral pages accept it too.
-  assert.strictEqual(page(`${base}about.html?league=${X}`).slug, null);
-  // The draft board's league link from a draft page with a slug is unchanged (slug everywhere).
-  assert.deepStrictEqual(params(page(`${base}index.html?league=fam`)),
-    { "index.html": "fam", "trade.html": "fam", "weekly.html": "fam", "about.html": "fam", "waivers.html": "fam" });
-
-  // ESPN keeps its registry route, and has no in-season Sleeper league.
-  const we = page(`${base}weekly.html?league=espnfam`);
-  assert.deepStrictEqual(Object.values(params(we)), ["espnfam", "espnfam", "espnfam", "espnfam", "espnfam"]);
-  assert.strictEqual(we.links[2].textContent, "Weekly · not connected");
-  assert.throws(() => FC.inSeasonLeague(), /ESPN/);
-  global.location = new URL(`${base}weekly.html?league=nope`);
-  assert.throws(() => FC.inSeasonLeague(), /Unknown league/);
+  assert.strictEqual(FC.inSeasonLeague(), null);
+  // A blocked store is no league, and nothing throws.
+  lsMap.set(KEY, Y);
+  global.localStorage = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } };
+  page(`${base}weekly.html`);
+  assert.strictEqual(FC.inSeasonLeague(), null, "a blocked store means no league");
+  global.localStorage = undefined;
+  page(`${base}weekly.html`);
+  assert.strictEqual(FC.inSeasonLeague(), null, "no store at all means no league");
+  global.localStorage = store;
+  replaced.length = 0;
 }
 
-// A draft page given an unregistered id refuses by name and loads nothing.
+// 4. An old link's league name on an in-season page: no league, the
+//    old-name message with a way to connect -- and the remembered league is
+//    NOT substituted for it.
 {
   function element(tagName) {
     return {
-      tagName, children: [], textContent: "", className: "", id: "", href: "",
+      tagName, children: [], textContent: "", className: "", id: "", href: "", value: "", attrs: {}, listeners: {},
       append(...nodes) { this.children.push(...nodes); },
       prepend(...nodes) { this.children.unshift(...nodes); },
+      replaceChildren(...nodes) { this.children = nodes; },
+      setAttribute(k, v) { this.attrs[k] = v; },
+      addEventListener(t, fn) { (this.listeners[t] ||= []).push(fn); },
     };
   }
   const all = node => [node, ...node.children.flatMap(all)];
-  const main = element("main");
-  const X = "700000000000000001";
-  global.location = new URL(`${base}index.html?league=${X}`);
-  const names = ["Draft board", "Trade calculator", "Weekly", "About the model", "FAAB & waivers"];
-  const navLinks = ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"]
-    .map((path, i) => ({ href: path, textContent: names[i], getAttribute() { return this.href; } }));
-  global.document = {
-    createElement: element,
-    querySelector(selector) { return selector === "main" ? main : null; },
-    querySelectorAll(selector) { return selector === ".masthead nav a" ? navLinks : []; },
-    getElementById(id) { return all(main).find(n => n.id === id) || null; },
-  };
-  assert.throws(() => FC.leagueNavigation(), { message: "The draft board is only built for registered leagues." });
-  // The masthead is rewritten BEFORE the refusal: a bare href would resolve
-  // to the default league (Gabagool) -- a substitution spec 5.4 forbids.
-  assert.deepStrictEqual(navLinks.map(l => new URL(l.href).searchParams.get("league")), [X, X, X, X, X],
-    "every masthead link keeps this league's id, the draft link included");
-  assert.deepStrictEqual(navLinks.map(l => new URL(l.href).pathname.split("/").pop()),
-    ["index.html", "trade.html", "weekly.html", "about.html", "waivers.html"]);
-  assert.deepStrictEqual(navLinks.map(l => l.textContent), names, "no not-connected labels for an in-season league");
-  assert.strictEqual(main.children.length, 1);
-  const panel = main.children[0];
-  assert.strictEqual(panel.id, "draft-boundary");
-  assert.ok(all(panel).some(n => n.textContent === "The draft board is only built for registered leagues."));
-  const hrefs = all(panel).filter(n => n.tagName === "a").map(a => a.href);
-  assert.deepStrictEqual(hrefs, [`${base}weekly.html?league=${X}`, `${base}waivers.html?league=${X}`, `${base}trade.html?league=${X}`],
-    "the way forward is this league's in-season pages, never another league's board");
-  assert.ok(!all(main).some(n => n.id === "league-context"), "no league panel (and no chip) for a board that does not exist");
-  assert.throws(() => FC.leagueNavigation(), /only built for registered leagues/);
-  assert.strictEqual(main.children.length, 1, "repeated init must not duplicate the panel");
+  function domPage(href) {
+    const main = element("main");
+    const links = PAGES.map((p, i) => ({ href: p, textContent: NAMES[i], getAttribute() { return this.href; } }));
+    global.location = new URL(href);
+    global.document = {
+      createElement: element,
+      querySelector(selector) { return selector === "main" ? main : null; },
+      querySelectorAll(selector) { return selector === ".masthead nav a" ? links : []; },
+      getElementById(id) { return all(main).find(n => n.id === id) || null; },
+    };
+    return { main, links };
+  }
+  lsMap.set(KEY, Y);
+  for (const name of ["leaguea", "oldname"]) {
+    const { main, links } = domPage(`${base}weekly.html?league=${name}`);
+    assert.strictEqual(FC.leagueNavigation(), null, "an old name loads no league and does not throw");
+    assert.strictEqual(FC.inSeasonLeague(), null, `${name}: no league, and never the remembered one`);
+    assert.deepStrictEqual(replaced, [], "the old link's URL is not rewritten to another league");
+    const notice = all(main).find(n => n.id === "league-recovery");
+    assert.ok(notice, "the old-name notice is shown");
+    assert.ok(all(notice).some(n => n.textContent === "This link uses an old league name. Connect your Sleeper league to continue."));
+    const connect = all(notice).find(n => n.tagName === "a");
+    assert.strictEqual(connect.href, `${base}connect.html`, "the notice links to the connect page");
+    assert.strictEqual(main.children[0], notice, "the notice sits above the league panel");
+    assert.ok(all(main).some(n => n.id === "league-context"), "the league panel still mounts, league-free");
+    assert.deepStrictEqual(links.map(l => new URL(l.href).searchParams.get("league")), [null, null, null, null, null],
+      "no masthead link carries the old name onward");
+    FC.leagueNavigation();
+    assert.strictEqual(main.children.filter(n => n.id === "league-recovery").length, 1, "repeated init does not duplicate the notice");
+  }
+  // Not even name-shaped: says what it is, same way forward.
+  {
+    const { main } = domPage(`${base}trade.html?league=12ab!`);
+    FC.leagueNavigation();
+    assert.strictEqual(FC.inSeasonLeague(), null);
+    assert.ok(all(main).some(n => n.textContent === `"12ab!" is not a Sleeper league id. Connect your Sleeper league to continue.`));
+  }
+  // A neutral page ignores an old name quietly (nothing there needs a league).
+  {
+    const { main } = domPage(`${base}about.html?league=leaguea`);
+    FC.leagueNavigation();
+    assert.ok(!all(main).some(n => n.id === "league-recovery"));
+  }
+  // A registered board's slug is still an old name on an in-season page: no
+  // board is loaded there, and no league is substituted for it.
+  FC._registry([{ slug: "leaguea", platform: "sleeper", leagueId: X, label: "12-team PPR, 6-pt pass TD", tools: {} }]);
+  domPage(`${base}waivers.html?league=leaguea`);
+  FC.leagueNavigation();
+  assert.strictEqual(FC.inSeasonLeague(), null, "a board slug never resolves to its league id on an in-season page");
+  FC._registry([]);
+
+  // 5. The board page: no name is the default board; a name is that board's
+  //    file (old links keep working); its own link keeps it, every other link
+  //    is league-free. An id is refused by name and loads nothing.
+  {
+    const { links } = domPage(`${base}index.html?league=leagueb`);
+    assert.strictEqual(FC.leagueNavigation(), "leagueb", "the board page returns the board's name from its URL");
+    assert.deepStrictEqual(links.map(l => new URL(l.href).searchParams.get("league")), [null, null, null, null, "leagueb"]);
+    const d = domPage(`${base}index.html`);
+    assert.strictEqual(FC.leagueNavigation(), null, "no parameter: the default board");
+    assert.ok(!all(d.main).some(n => n.id === "league-context"), "the board page mounts its league panel itself");
+    assert.throws(() => { domPage(`${base}index.html?league=bad!`); FC.leagueNavigation(); }, /names no published draft board/);
+  }
+  {
+    const { main, links } = domPage(`${base}index.html?league=${X}`);
+    assert.throws(() => FC.leagueNavigation(), { message: "The draft board is only built for registered leagues." });
+    assert.deepStrictEqual(links.map(l => new URL(l.href).searchParams.get("league")), [X, X, X, X, null],
+      "the masthead is rewritten BEFORE the refusal: this league's pages keep its id, the board link names none");
+    const panel = main.children[0];
+    assert.strictEqual(panel.id, "draft-boundary");
+    assert.deepStrictEqual(all(panel).filter(n => n.tagName === "a").map(a => a.href),
+      [`${base}weekly.html?league=${X}`, `${base}waivers.html?league=${X}`, `${base}trade.html?league=${X}`],
+      "the way forward is this league's in-season pages, never another league's board");
+    assert.ok(!all(main).some(n => n.id === "league-context"), "no league panel for a board that does not exist");
+    assert.throws(() => FC.leagueNavigation(), /only built for registered leagues/);
+    assert.strictEqual(main.children.length, 1, "repeated init must not duplicate the panel");
+  }
+  lsMap.clear();
 }
+
+// 6. The archived board: format labels from a board's own league block,
+//    the archive rule, and the board file a name selects.
+{
+  assert.strictEqual(FC.boardFormatLabel({ teams: 12, sleeper_scoring: { rec: 1, pass_td: 6 }, name: "League A" }), "12-team PPR, 6-pt pass TD");
+  assert.strictEqual(FC.boardFormatLabel({ teams: 10, sleeper_scoring: { rec: 0.5, pass_td: 4 } }), "10-team half-PPR, 4-pt pass TD");
+  assert.strictEqual(FC.boardFormatLabel({ teams: 8, sleeper_scoring: { pass_td: 4 } }), "8-team standard, 4-pt pass TD");
+  assert.strictEqual(FC.boardFormatLabel({ teams: 14, sleeper_scoring: { rec: 0.25, pass_td: 6 } }), "14-team 0.25-pt PPR, 6-pt pass TD");
+  assert.strictEqual(FC.boardFormatLabel({ sleeper_scoring: { rec: 1 } }), "PPR");
+  assert.strictEqual(FC.boardFormatLabel(null), "Standard");
+  const espn = FC.boardEntry({ league: { slug: "leaguec", name: "League C", platform: "espn", league_id: "100000000000000003", teams: 13, sleeper_scoring: { rec: 1, pass_td: 6 } } });
+  assert.strictEqual(espn.label, "13-team PPR, 6-pt pass TD · ESPN draft board only");
+  assert.strictEqual(espn.tools.startsit, false);
+  assert.strictEqual(FC.boardEntry({ league: { name: "no slug" } }), null);
+}
+
+(async () => {
+  const board = { season: 2026, generated_at: "2026-09-08T17:50:14+00:00", league: { slug: "leaguea" } };
+  const loader = files => async path => {
+    if (files[path] instanceof Error) throw files[path];
+    if (!(path in files)) throw new Error(`${path}: HTTP 404`);
+    return files[path];
+  };
+  assert.strictEqual(await FC.boardArchived(board, loader({ "data/neutral/weekly.json": { season: 2026, week: 9 } })), true,
+    "the season the board was built for is under way: archived");
+  assert.strictEqual(await FC.boardArchived(board, loader({ "data/neutral/weekly.json": { season: 2025, week: 18 } })), false,
+    "a weekly batch for another season: not archived");
+  assert.strictEqual(await FC.boardArchived(board, loader({})), false, "weekly.json missing: fail open to the board");
+  assert.strictEqual(await FC.boardArchived(board, loader({ "data/neutral/weekly.json": new Error("network down") })), false,
+    "weekly.json failing to load: fail open to the board");
+  assert.strictEqual(await FC.boardArchived(board, loader({ "data/neutral/weekly.json": null })), false);
+  assert.strictEqual(await FC.boardArchived({ ...board, season: undefined }, loader({ "data/neutral/weekly.json": { season: 2026 } })), false);
+  assert.strictEqual(FC.archivedText(board),
+    "Archived: the 2026 preseason board as published on September 8, 2026. The drafts are over; it stays as a record of what the model projected before the season.");
+  const files = { "data/draft.json": board, "data/draft-leagueb.json": { season: 2026, league: { slug: "leagueb" } } };
+  assert.strictEqual(await FC.loadBoard(null, loader(files)), board, "no name: the default board");
+  assert.strictEqual((await FC.loadBoard("leagueb", loader(files))).league.slug, "leagueb", "a name: that board's file");
+  assert.strictEqual(await FC.loadBoard("leaguea", loader(files)), board, "the default board answers to its own name from its bare file");
+  await assert.rejects(FC.loadBoard("leaguez", loader(files)), /names no published draft board/, "a name no board has is refused, never substituted");
+  await assert.rejects(FC.loadBoard("leagueb", loader({ "data/draft-leagueb.json": new Error("data/draft-leagueb.json: HTTP 500") })), /HTTP 500/);
+})().catch(e => { console.error(e); process.exit(1); });
 
 // One identity input for the whole site (spec §6/§8): the chip's #session-user
 // and the connect page's #connect-user are the only username inputs left.
@@ -345,12 +318,20 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
   }
   const Session = require("../site/assets/session.js");
   const REMEMBERED = "Remembered on this device until you choose forget.";
+  const A = "100000000000000001", C = "100000000000000003";
+  // A board page registers its board's own league block (FC.setBoard); the
+  // hook stands in for that here with synthetic rows.
+  FC._registry([
+    { slug: "leaguea", platform: "sleeper", leagueId: A, label: "12-team PPR, 6-pt pass TD", tools: { draft: true, keepers: true, trade: true, waivers: true, startsit: true } },
+    { slug: "leaguec", platform: "espn", leagueId: C, label: "13-team PPR, 6-pt pass TD · ESPN draft board only", tools: { draft: true, keepers: false, trade: false, waivers: false, startsit: false } },
+  ]);
 
-  // Anonymous, on a page without a board: the chip mounts inside the panel,
-  // offers the username input + button and the remembered sentence.
-  const A = stubSession(); FC._session(A);
-  const anonMain = dom(`${base}about.html?league=fam`);
-  FC.mountLeagueContext("fam");
+  // Anonymous, on a page with no league open: the chip mounts inside the
+  // panel, offers the username input + button and the remembered sentence;
+  // the league picker has nothing to offer yet, so it is hidden.
+  const AN = stubSession(); FC._session(AN);
+  const anonMain = dom(`${base}about.html`);
+  FC.mountLeagueContext(null);
   const anonPanel = anonMain.children[0];
   assert.strictEqual(anonPanel.id, "league-context");
   const chipEl = byId(anonPanel, "session-chip");
@@ -360,29 +341,34 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
   assert.strictEqual(byId(anonPanel, "session-text").textContent, REMEMBERED,
     "anonymous state carries the remembered-on-this-device sentence");
   assert.strictEqual(all(chipEl).filter(n => n.textContent === REMEMBERED).length, 1, "the sentence appears once");
-  assert.strictEqual(A.calls.length, 0, "anonymous mount makes no Session calls");
+  assert.strictEqual(AN.calls.length, 0, "anonymous mount makes no Session calls");
+  const anonSelect = all(anonPanel).find(n => n.tagName === "select");
+  assert.deepStrictEqual(anonSelect.children, [], "no hard-coded leagues: an anonymous visitor's picker is empty");
+  assert.strictEqual(all(anonPanel).find(n => n.tagName === "label" && n.children.includes(anonSelect)).hidden, true, "an empty picker is hidden");
+  assert.ok(anonPanel.children.some(n => /^No league is open\./.test(n.textContent)), "the panel says no league is open");
+  assert.strictEqual(all(anonPanel).find(n => n.tagName === "a").href, `${base}connect.html`, "the connect link names no league");
   // Submitting the form identifies once; the stub's superseded rejection must
   // not be rendered (checked after the microtask settles, below).
-  byId(anonPanel, "session-user").value = "Max973";
+  byId(anonPanel, "session-user").value = "user_a";
   all(chipEl).find(n => n.tagName === "form").dispatch("submit");
-  assert.deepStrictEqual(A.calls, [["identify", "Max973"]]);
+  assert.deepStrictEqual(AN.calls, [["identify", "user_a"]]);
 
   // A ready bundle renders exactly chipText's line plus refresh/change/forget.
   const R = stubSession(); FC._session(R);
   const rostersFetchedAt = Date.now() - 14000;
   const bundle = {
-    registry: FC.registryFor("gabagool"), identity: { username: "Max973", userId: "1", displayName: "Max973" },
-    league: { name: "Gabagool Fools", league_id: "1376245373244301312" }, users: [], rosters: [], state: {},
+    registry: FC.registryFor("leaguea"), identity: { username: "user_a", userId: "1", displayName: "User A" },
+    league: { name: "League A", league_id: A }, users: [], rosters: [], state: {},
     rostersRequestedAt: rostersFetchedAt - 5, rostersFetchedAt,
     myRoster: { roster_id: 9 }, myRosterStatus: "found", warnings: [], extra: null, generation: 1,
   };
-  const readyMain = dom(`${base}index.html?league=gabagool`);
-  FC.mountLeagueContext("gabagool");
+  const readyMain = dom(`${base}index.html?league=leaguea`);
+  FC.mountLeagueContext("leaguea");
   const panel = readyMain.children[0];
   R.set({ st: "ready", id: bundle.identity, bundle });
   const text = byId(panel, "session-text").textContent;
   assert.strictEqual(text, Session.chipText(bundle, "ready", Date.now()));
-  assert.match(text, /^Max973 · Gabagool Fools · your roster: 9 · rosters 1[45] s ago$/);
+  assert.match(text, /^User A · League A · your roster: 9 · rosters 1[45] s ago$/);
   assert.ok(byId(panel, "session-refresh") && byId(panel, "session-change") && byId(panel, "session-forget"),
     "ready state offers refresh, change and forget");
   assert.ok(!byId(panel, "session-user"), "ready state shows no username input");
@@ -410,12 +396,12 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
     changeNode.dispatch("click");
     const input = byId(panel, "session-user");
     assert.ok(input, "change shows the username input");
-    assert.strictEqual(input.value, "Max973", "the input is prefilled with the current username");
+    assert.strictEqual(input.value, "user_a", "the input is prefilled with the current username");
     input.value = "newname-typed";
     FC.chip.render();
     assert.strictEqual(byId(panel, "session-user"), input, "a tick must not rebuild the username input");
     assert.strictEqual(byId(panel, "session-user").value, "newname-typed", "a tick must not revert what was typed");
-    assert.match(byId(panel, "session-text").textContent, /^Max973 · Gabagool Fools · your roster: 9 · rosters 1[45] s ago$/,
+    assert.match(byId(panel, "session-text").textContent, /^User A · League A · your roster: 9 · rosters 1[45] s ago$/,
       "the line still updates on a tick");
     byId(panel, "session-cancel").dispatch("click");
     assert.ok(byId(panel, "session-refresh") && !byId(panel, "session-user"), "cancel returns to the ready controls");
@@ -452,18 +438,19 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
   assert.ok(byId(panel, "session-retry"), "cancel returns to the error controls");
   // A board set while identified triggers ready for THIS slug, once.
   R.set({ st: "identified", err: null, id: bundle.identity, bundle: null });
-  FC.setBoard({ league: { league_id: "1376245373244301312" } });
+  FC.setBoard({ league: { league_id: A } });
   FC.setBoard(null);
 
   // ESPN: identity only -- the name and registry label, no refresh button,
   // and no ready() even when a board is set.
   const E = stubSession(); FC._session(E);
-  const espnMain = dom(`${base}index.html?league=espnfam`);
-  FC.mountLeagueContext("espnfam");
+  const espnMain = dom(`${base}index.html?league=leaguec`);
+  FC.mountLeagueContext("leaguec");
   const espnPanel = espnMain.children[0];
-  E.set({ st: "identified", id: { username: "Max973", userId: "1", displayName: "Max973" } });
-  FC.setBoard({ league: { league_id: "69827905" } });
-  assert.strictEqual(byId(espnPanel, "session-text").textContent, "Max973 · ESPN family · draft board only");
+  E.set({ st: "identified", id: { username: "user_a", userId: "1", displayName: "User A" } });
+  FC.setBoard({ league: { league_id: C } });
+  assert.strictEqual(byId(espnPanel, "session-text").textContent, "User A · 13-team PPR, 6-pt pass TD · ESPN draft board only",
+    "the ESPN line names the board by its format, never by a league name");
   assert.ok(!byId(espnPanel, "session-refresh"), "ESPN has nothing to refresh");
   assert.ok(byId(espnPanel, "session-change") && byId(espnPanel, "session-forget"));
   assert.ok(espnPanel.children.some(n => /not connected yet/.test(n.textContent)), "the ESPN note stays");
@@ -471,16 +458,16 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
 
   // Legacy username (spec §7): prefilled, never auto-identified.
   const L = stubSession(); L.pendingUsername = () => "OldName"; FC._session(L);
-  const legacyMain = dom(`${base}weekly.html?league=fam`);
-  FC.mountLeagueContext("fam");
+  const legacyMain = dom(`${base}weekly.html?league=${A}`);
+  FC.mountLeagueContext(A);
   assert.strictEqual(byId(legacyMain.children[0], "session-user").value, "OldName");
   assert.strictEqual(L.calls.length, 0, "a migrated username is offered, not auto-identified");
 
   // Every page mounts the chip, with or without a board.
   for (const pageName of ["index", "weekly", "waivers", "trade", "about", "connect"]) {
     FC._session(stubSession());
-    const m = dom(`${base}${pageName}.html?league=gabagool`);
-    FC.mountLeagueContext("gabagool");
+    const m = dom(`${base}${pageName}.html`);
+    FC.mountLeagueContext(null);
     assert.ok(byId(m.children[0], "session-chip"), `${pageName}: chip present in #league-context`);
   }
 
@@ -488,6 +475,7 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
   // the league at once -- identity optional -- and a non-owner chooses a team
   // to VIEW from the league's own team names.
   const X = "700000000000000001";
+  let pickerChecks = null;
   const V = stubSession(); FC._session(V);
   V.view = rosterId => {
     V.calls.push(["view", rosterId]);
@@ -502,7 +490,9 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
   const leagueSelect = all(idPanel).find(n => n.tagName === "select" && n.attrs["aria-label"] === "Selected league");
   assert.strictEqual(leagueSelect.value, X, "the panel's league select names this league by id");
   assert.ok(leagueSelect.children.some(o => o.value === X && o.textContent === `Sleeper league ${X}`));
-  assert.ok(idPanel.children.some(n => n.textContent === "In-season tools read this league's live Sleeper settings. The draft board is only built for registered leagues."));
+  assert.ok(idPanel.children.some(n => n.textContent === "In-season tools read this league's live Sleeper settings. No password needed."));
+  assert.deepStrictEqual(leagueSelect.children.map(o => [o.value, o.textContent]), [[X, `Sleeper league ${X}`]],
+    "anonymous: the picker offers only the league that is open");
   FC.setLeague(X);
   const usersX = [{ user_id: "s1", display_name: "Alpha", metadata: { team_name: "Alpha Squad" } }, { user_id: "s2", display_name: "Beta" }, { user_id: "s3", display_name: "Gamma", metadata: { team_name: "Gamma Rays" } }];
   const rostersX = [{ roster_id: 1, owner_id: "s1" }, { roster_id: 2, owner_id: "s2" }, { roster_id: 3, owner_id: "s3" }];
@@ -551,6 +541,59 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
   const idCalls = V.calls;
   FC.setLeague(null);
 
+  // The league picker lists ONLY the visitor's own current-season leagues
+  // (Session.leaguesFor, as connect.js does) plus the league that is open --
+  // never a hard-coded list. Choosing one opens it on this in-season page, or
+  // on Weekly from a page that is not an in-season tool.
+  const Y = "100000000000000002", Z = "100000000000000009";
+  async function pickerOn(href, open) {
+    const P = stubSession(); FC._session(P);
+    const seasons = [];
+    P.leaguesFor = async opts => { seasons.push(opts.season); return [
+      { league_id: Y, name: "League B" }, { league_id: X, name: "League X" }, { league_id: Y, name: "League B" }, { league_id: "../x", name: "bad" }] };
+    P.set({ st: "identified", id: { username: "user_a", userId: "ua", displayName: "User A" },
+      bundle: open ? { ...vb, identity: null, league: { name: "Synthetic Six", league_id: open }, state: { season: "2026" } } : null });
+    const main = dom(href);
+    const assigned = [];
+    global.location.assign = url => assigned.push(url);
+    FC.mountLeagueContext(open);
+    await new Promise(r => setTimeout(r, 0));
+    const sel = all(main.children[0]).find(n => n.tagName === "select" && n.attrs["aria-label"] === "Selected league");
+    return { sel, assigned, seasons, P };
+  }
+  pickerChecks = (async () => {
+    const w = await pickerOn(`${base}waivers.html?league=${X}&week=2`, X);
+    assert.deepStrictEqual(w.seasons, ["2026"], "the season comes from the live state");
+    assert.deepStrictEqual(w.sel.children.map(o => [o.value, o.textContent]), [[X, "League X"], [Y, "League B"]],
+      "the open league first (by its name), then the account's other leagues, deduplicated, malformed ids dropped");
+    assert.strictEqual(w.sel.value, X);
+    w.sel.value = Y; w.sel.dispatch("change");
+    assert.deepStrictEqual(w.assigned, [`${base}waivers.html?league=${Y}&week=2`], "choosing a league opens it on this page");
+    // A page with no league open: the season is read from /state/nfl, then a
+    // prompt option and the account's leagues; choosing opens Weekly.
+    const stateCalls = [];
+    window.Sleeper = { get: async path => { stateCalls.push(path); return { season: "2026" }; } };
+    const a = await pickerOn(`${base}about.html`, null);
+    delete window.Sleeper;
+    assert.deepStrictEqual(stateCalls, ["/state/nfl"]);
+    assert.deepStrictEqual(a.seasons, ["2026"]);
+    assert.deepStrictEqual(a.sel.children.map(o => [o.value, o.textContent]), [["", "Choose one of your leagues"], [Y, "League B"], [X, "League X"]]);
+    a.sel.value = X; a.sel.dispatch("change");
+    assert.deepStrictEqual(a.assigned, [`${base}weekly.html?league=${X}`], "from a neutral page the choice opens Weekly");
+    // The identity going away clears the account's leagues from the picker.
+    a.P.set({ st: "anonymous", id: null });
+    assert.deepStrictEqual(a.sel.children, [], "forget leaves no account leagues behind");
+    // A failed lookup leaves the open league only.
+    const f = stubSession(); FC._session(f);
+    f.leaguesFor = async () => { throw new Error("HTTP 503"); };
+    f.set({ st: "identified", id: { username: "user_a", userId: "ub", displayName: "User A" }, bundle: { ...vb, state: { season: "2026" } } });
+    const fm = dom(`${base}weekly.html?league=${Z}`);
+    FC.mountLeagueContext(Z);
+    await new Promise(r => setTimeout(r, 0));
+    const fs = all(fm.children[0]).find(n => n.tagName === "select");
+    assert.deepStrictEqual(fs.children.map(o => o.value), [Z]);
+  })();
+
   setTimeout(() => {
     // Async settlements: the superseded identify rejection left the anonymous
     // chip untouched (no error text, input still offered) and the identified
@@ -558,11 +601,14 @@ assert.equal(FC.leagueDataPath("remaining"),"data/remaining-gabagool.json");
     assert.strictEqual(byId(anonPanel, "session-text").textContent, REMEMBERED,
       "a superseded rejection must never be rendered");
     assert.ok(byId(anonPanel, "session-user"));
-    assert.deepStrictEqual(R.calls, [["refresh", "rosters", false], ["refresh", "league", true], ["refresh", "rosters", false], ["forget"], ["ready", "gabagool"]], "identified + board loads the league once");
+    assert.deepStrictEqual(R.calls, [["refresh", "rosters", false], ["refresh", "league", true], ["refresh", "rosters", false], ["forget"], ["ready", "leaguea"]], "identified + board loads the league once");
     assert.strictEqual(E.calls.length, 0, "ESPN never calls ready()");
     assert.deepStrictEqual(idCalls.filter(c => c[0] === "ready"), [["ready", { leagueId: X }], ["ready", { leagueId: X }]],
       "setLeague loads by id without an identity, and retry re-runs that load");
-    FC._session(null);
-    console.log("navigation_fixture: league selection, return paths and identity chip OK");
+    pickerChecks.then(() => {
+      FC._session(null);
+      FC._registry([]);
+      console.log("navigation_fixture: no default league, remembered league, old names, archived board, league picker and identity chip OK");
+    }).catch(e => { console.error(e); process.exit(1); });
   }, 0);
 }

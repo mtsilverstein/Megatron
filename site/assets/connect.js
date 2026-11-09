@@ -4,14 +4,12 @@
   // Browser globals when present, node requires otherwise (waivermode.js pattern).
   const dep = (name, path) => typeof window !== "undefined" && window[name]
     ? window[name] : typeof require === "function" ? require(path) : null;
-  const FC = dep("FC", "./app.js");
   const SharedSession = dep("Session", "./session.js");
   const IDLE = "Load leagues for this username.";
-  const DRAFT_ONLY = "The draft board is only built for registered leagues.";
   // Every current-season league opens in the in-season pages BY ITS SLEEPER
-  // ID (any-league spec 5.4); only a registered league also has a draft board,
-  // linked by its registry slug.
+  // ID (any-league spec 5.4). No league is singled out: the site names none.
   const BAD_LEAGUE = "Enter a Sleeper league id or a sleeper.com league link.";
+  const PROMPT_EMPTY = "Enter your Sleeper username or paste a sleeper.com league link.";
   // Spec 5.1, anonymous path: bare digits, or a sleeper.com URL containing
   // /leagues/<digits> (any trailing path or query), gives the league id;
   // anything else is null. The host must be sleeper.com or a subdomain of it.
@@ -26,14 +24,6 @@
     return m ? m[1] : null;
   }
   const IN_SEASON_LINKS = [["weekly", "Weekly / start-sit"], ["waivers", "Waiver research"], ["trade", "In-season trade scenarios"]];
-
-  // Configured-league detection reads FC.REGISTRY, the single source of league
-  // capabilities (spec §3): a Sleeper entry whose live id equals the league's.
-  function slugForLeague(leagueId) {
-    const table = FC && Array.isArray(FC.REGISTRY) ? FC.REGISTRY : [];
-    const entry = table.find(r => r && r.platform === "sleeper" && r.leagueId === leagueId);
-    return entry ? entry.slug : null;
-  }
 
   // Identity goes through the shared session (which persists it); the season
   // comes from live state because this page has no board, so no bundle.
@@ -53,7 +43,7 @@
       if (!/^\d+$/.test(id) || String(league.season) !== season || seen.has(id))
         throw Error("Sleeper returned invalid, duplicate or wrong-season league data. Refresh to retry.");
       seen.add(id);
-      return {league, slug: slugForLeague(id)};
+      return {league};
     });
     return {identity, season, rows};
   }
@@ -108,7 +98,7 @@
         if (request !== generation) return;
         if (currentUserId() !== result.identity.userId) { $("connect-status").textContent = IDLE; return; }
         $("connect-status").textContent = `${result.rows.length} leagues for ${result.identity.displayName || username} · ${result.season}. Read-only; no lineup changes or claims submitted.`;
-        for (const {league, slug} of result.rows) {
+        for (const {league} of result.rows) {
           const section = node("section", "");
           section.append(node("h2", league.name || `League ${league.league_id}`));
           const type = league.settings?.waiver_type;
@@ -118,15 +108,8 @@
           const details = node("details", ""); details.append(node("summary", "Live scoring settings"));
           details.append(node("pre", JSON.stringify(league.scoring_settings || {}, null, 2))); section.append(details);
           const id = String(league.league_id);
-          const links = [];
-          if (slug) {
-            section.append(node("p", "Registered league: draft board and in-season tools. Each in-season tool reads this league's live settings when it loads; discovery alone does not confirm data freshness."));
-            links.push(["index", "Draft board", slug]);
-          } else {
-            section.append(node("p", "Each in-season tool reads this league's live settings when it loads; discovery alone does not confirm data freshness."));
-            section.append(node("p", DRAFT_ONLY));
-          }
-          for (const [page, label] of IN_SEASON_LINKS) links.push([page, label, id]);
+          section.append(node("p", "Each in-season tool reads this league's live settings when it loads; discovery alone does not confirm data freshness."));
+          const links = IN_SEASON_LINKS.map(([page, label]) => [page, label, id]);
           for (const [page, label, value] of links) {
             const link = node("a", label); link.href = `${page}.html?league=${encodeURIComponent(value)}`;
             const p = node("p", ""); p.append(link); section.append(p);
@@ -142,6 +125,51 @@
       }
     });
   }
-  if (typeof module !== "undefined" && module.exports) module.exports = {discover, slugForLeague, parseLeagueInput};
-  if (typeof window !== "undefined") window.LeagueConnect = {discover, slugForLeague, parseLeagueInput, init};
+  // The connect prompt an in-season page shows when no league is open (owner
+  // decision 2026-11-07): the connect page's two ways in, in one field -- a
+  // pasted league link or id opens that league; a username lists the
+  // account's current-season leagues (identifying through the shared
+  // session, so the league panel follows) -- and the choice opens on THIS
+  // page. The page's own markup carries the copy and the ids.
+  function initPrompt() {
+    const $ = id => document.getElementById(id);
+    const form = $("connect-prompt-form"), input = $("connect-prompt-input");
+    const status = $("connect-prompt-status"), results = $("connect-prompt-results");
+    if (!form || !input || !status || !results) return;
+    const Session = SharedSession;
+    const open = id => `${new URL(location.href).pathname.split("/").pop() || "weekly.html"}?league=${encodeURIComponent(id)}`;
+    let generation = 0;
+    try { const who = Session && Session.identity(); if (who && !input.value) input.value = who.username; } catch (_) {}
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const request = ++generation, text = String(input.value || "").trim();
+      results.replaceChildren();
+      const id = parseLeagueInput(text);
+      if (id) { status.textContent = ""; location.assign(open(id)); return; }
+      if (!text) { status.textContent = PROMPT_EMPTY; return; }
+      // Something link-shaped that is not a sleeper.com league link is
+      // refused, never looked up as a username.
+      if (/[/.:]/.test(text)) { status.textContent = BAD_LEAGUE; return; }
+      status.textContent = "Loading current-season Sleeper leagues…";
+      try {
+        const result = await discover(text, path => window.Sleeper.get(path), Session);
+        if (request !== generation) return;
+        const who = result.identity.displayName || text;
+        if (!result.rows.length) { status.textContent = `No ${result.season} Sleeper leagues for ${who}.`; return; }
+        status.textContent = `${result.rows.length === 1 ? "1 league" : `${result.rows.length} leagues`} for ${who} · ${result.season}. Choose one:`;
+        for (const {league} of result.rows) {
+          const item = document.createElement("li"), link = document.createElement("a");
+          link.href = open(String(league.league_id));
+          link.textContent = league.name || `League ${league.league_id}`;
+          item.append(link);
+          results.append(item);
+        }
+      } catch (error) {
+        if (request !== generation) return;
+        status.textContent = error && error.superseded ? "" : `Unable to load leagues: ${error.message}`;
+      }
+    });
+  }
+  if (typeof module !== "undefined" && module.exports) module.exports = {discover, parseLeagueInput, initPrompt};
+  if (typeof window !== "undefined") window.LeagueConnect = {discover, parseLeagueInput, init, initPrompt};
 })();

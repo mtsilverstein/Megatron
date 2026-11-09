@@ -25,8 +25,15 @@
   <p class="stamp">loading…</p>
 </header>
 <main id="main-content">
-  <p class="eyebrow" id="trade-eyebrow">Gabagool Fools only · 2026 pre-draft · players and picks</p>
+  <p class="eyebrow" id="trade-eyebrow">2026 pre-draft · players and picks</p>
   <h1>Trade calculator</h1>
+  <section id="connect-prompt" class="connect-prompt" aria-labelledby="connect-prompt-lead" hidden>
+    <p id="connect-prompt-lead">See trade scenarios for your team: enter your Sleeper username or paste a league link.</p>
+    <form id="connect-prompt-form"><label for="connect-prompt-input">Sleeper username or league link</label> <input id="connect-prompt-input" autocomplete="off" spellcheck="false" placeholder="username or https://sleeper.com/leagues/…"> <button type="submit">Connect</button></form>
+    <p id="connect-prompt-status" role="status"></p>
+    <ul id="connect-prompt-results"></ul>
+    <p><a href="connect.html">More ways to connect</a></p>
+  </section>
   <p class="draft-note" id="trade-note">Every number is season points in your best STARTING
   LINEUP, measured by playing the rest of your draft out from the post-trade
   roster. Keepers are worked out for both sides — a player you acquire competes
@@ -86,6 +93,7 @@
 <script src="assets/session.js?v=5"></script>
 <script src="assets/app.js?v=league3"></script>
 <script src="assets/sleeper.js?v=2"></script>
+<script src="assets/connect.js?v=7"></script>
 <script src="assets/optimizer.js"></script>
 <script src="assets/keepers.js?v=session1"></script>
 <script src="assets/trade.js"></script>
@@ -101,12 +109,24 @@
 <script src="assets/seasontrademode.js?v=audit1"></script>
 <script>
 (async () => {
-  const slug = FC.leagueNavigation();
+  FC.leagueNavigation();
   const $ = id => document.getElementById(id);
   const stamp = t => { document.querySelector(".stamp").textContent = t; };
   const hide = ids => { for (const id of ids) { const n = $(id); if (n) n.hidden = true; } };
-  const NOT_AVAILABLE = "Trade advice is not available for this league yet. No Gabagool values are being loaded.";
-  if (slug === "espnfam") { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
+  const NOT_AVAILABLE = "Trade advice is not available for this league yet.";
+  const PRE_DRAFT_BLOCKS = ["trade-eyebrow", "trade-note", "trade-connect", "trade-controls",
+                            "trade-warn", "trade-cols", "trade-grade", "trade-suggestions"];
+  // No league open (no ?league= and none remembered, or an old link's league
+  // name): the connect prompt takes the tool's place -- never a substituted
+  // league, and nothing is loaded for one.
+  const open = FC.inSeasonLeague();
+  if (!open) {
+    hide(PRE_DRAFT_BLOCKS);
+    $("connect-prompt").hidden = false;
+    if (window.LeagueConnect) LeagueConnect.initPrompt();
+    stamp("Read-only Sleeper connection · no trades are submitted");
+    return;
+  }
   // Mode first (any-league spec 5.4): the LIVE league's status decides
   // pre-draft vs in-season before any draft data is fetched. The chip loads
   // the league by id (FC.setLeague -> Session.ready({leagueId}), identity
@@ -116,7 +136,7 @@
   // header): during the rollover it is next season's league, and the
   // registered pre-draft route validates its own board/league below. Every
   // other status -- in_season included -- is still refused for another season.
-  const { leagueId } = FC.inSeasonLeague();
+  const { leagueId } = open;
   const league = await new Promise(resolve => {
     const off = Session.onChange(() => {
       const b = Session.bundle();
@@ -127,13 +147,22 @@
     FC.setLeague(leagueId, { preDraftAnySeason: true });
   });
   if (league.status === "pre_draft") {
-    // The pre-draft grader prices keepers and a simulated draft; only Gabagool
-    // has that model. FAM pre-draft keeps today's message; any other league
-    // has no board. Only now is the draft board read. FC.setBoard moves the
-    // chip to the board's registry path (as before); TradeMode reads its
-    // roster from the session bundle and no username of its own.
-    if (slug !== "gabagool") { hide(["trade-connect"]); stamp(slug === null ? FC.DRAFT_ONLY : NOT_AVAILABLE); return; }
-    const board = await FC.loadJSON(FC.leagueDataPath("draft"));
+    // The pre-draft grader prices keepers and a simulated draft, and exists
+    // only for the published board's OWN league (its league block names the
+    // league id and keeper rules; the site's code names no league). Only now,
+    // after the mode, is the board read. It is not offered while the board is
+    // archived (the season it was built for is under way). FC.setBoard moves
+    // the chip to the board's registry path; TradeMode reads its roster from
+    // the session bundle and no username of its own.
+    const board = await FC.loadJSON("data/draft.json");
+    if (await FC.boardArchived(board)) {
+      hide(["trade-connect"]);
+      stamp(`Pre-draft trade values are not offered: the ${board.season} draft board is archived. In-season trade scenarios open when this league's season starts.`);
+      return;
+    }
+    const entry = FC.boardEntry(board);
+    if (!entry || entry.leagueId !== leagueId) { hide(["trade-connect"]); stamp(FC.DRAFT_ONLY); return; }
+    if (!entry.tools.trade) { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
     FC.setBoard(board);
     FC.stampHeader(board);
     TradeMode.init({
@@ -159,11 +188,9 @@
   if (league.status === "in_season") {
     // In season the pre-draft engine is never called (spec §6.6) and no draft
     // data is read: its blocks are hidden and the conditional lineup scenario
-    // takes the page, for any Sleeper league. In-season links carry the
-    // league id from here on (an id context, like weekly/waivers).
-    FC.leagueNavigation({ inSeason: true });
-    hide(["trade-eyebrow", "trade-note", "trade-connect", "trade-controls",
-          "trade-warn", "trade-cols", "trade-grade", "trade-suggestions"]);
+    // takes the page, for any Sleeper league (its masthead links already
+    // carry the league id, like weekly/waivers).
+    hide(PRE_DRAFT_BLOCKS);
     $("season-trade").hidden = false;
     SeasonTradeMode.batch().then(b => FC.stampHeader(b.remaining || b.weekly))
       .catch(() => { stamp("remaining-season projections not published yet"); });

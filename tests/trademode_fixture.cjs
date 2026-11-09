@@ -385,7 +385,11 @@ acheck("scanProgressText reports team position and per-team scoring", async () =
 // two matching rosters block (the exact matcher's wording) and build no
 // world; losing the roster hides everything again.
 const Session = require("../site/assets/session.js");
-const LID = "1376245373244301312";   // gabagool's registry id -- ready() checks it against the board
+const LID = "100000000000000001";   // League A's synthetic registry id -- ready() checks it against the board
+// The site's code names no league; a board page registers its board's own
+// league block. The hook stands in for that with a synthetic row.
+require("../site/assets/app.js")._registry([{ slug: "leaguea", platform: "sleeper", leagueId: LID, label: "12-team PPR, 6-pt pass TD",
+  tools: { draft: true, keepers: true, trade: true, waivers: true, startsit: true } }]);
 function stubDom() {
   const mk = () => {
     const node = { hidden: false, textContent: "", innerHTML: "", value: "", checked: false, disabled: false, id: "", listeners: {}, children: [] };
@@ -404,7 +408,7 @@ const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r =>
 
 acheck("init never looks up a user or lists leagues; my team is the bundle's roster", async () => {
   const b = board();
-  b.league = { league_id: LID, name: "Gabagool Fools" };
+  b.league = { league_id: LID, name: "League A" };
   const p1 = b.players[0], p2 = b.players[1];
   // Rosters: I (u1) own 1; roster 2 lists me as CO-OWNER; roster 3 is someone else's.
   const rosters = [
@@ -413,7 +417,7 @@ acheck("init never looks up a user or lists leagues; my team is the bundle's ros
     { roster_id: 3, owner_id: "u3", co_owners: null, players: [] },
   ];
   const users = [{ user_id: "u1", display_name: "me" }, { user_id: "u2", display_name: "them", metadata: { team_name: "Co-Owned" } }, { user_id: "u3", display_name: "other" }];
-  const live = { league_id: LID, name: "Gabagool Fools", season: "2026", status: "pre_draft", previous_league_id: null };
+  const live = { league_id: LID, name: "League A", season: "2026", status: "pre_draft", previous_league_id: null };
   // Two matches first (owner of 1, co-owner of 2): the session says ambiguous.
   league({ id: LID, rosters, users });
   routes[`/league/${LID}`] = live;
@@ -435,7 +439,7 @@ acheck("init never looks up a user or lists leagues; my team is the bundle's ros
     // 2. identify + ready: the bundle is ambiguous (two matching rosters) -> blocked, no world.
     await Session.identify("max");
     calls.length = 0;
-    await Session.ready({ slug: "gabagool", board: b });
+    await Session.ready({ slug: "leaguea", board: b });
     await settle();
     assert.strictEqual(els.cols.hidden, true, "two matching rosters build no columns");
     assert.strictEqual(els.status.textContent, "Could not uniquely match this account to a roster in this league.");

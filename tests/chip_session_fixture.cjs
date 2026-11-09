@@ -39,15 +39,19 @@ function dom(href) {
 }
 
 // ---- fake Sleeper + storage ---------------------------------------------------
-const L = "1376245373244301312";   // gabagool's registry id
-const user = { user_id: "u1", username: "max973", display_name: "Max973" };
-const league = { league_id: L, name: "Gabagool Fools", season: "2026", status: "in_season" };
-const users = [{ user_id: "u1", display_name: "Max973" }, { user_id: "u2", display_name: "Bo" }];
+const L = "100000000000000001";   // League A's synthetic registry id
+// A board page registers its board's own league block; the hook stands in for it.
+FC._registry([{ slug: "leaguea", platform: "sleeper", leagueId: L, label: "12-team PPR, 6-pt pass TD",
+  tools: { draft: true, keepers: true, trade: true, waivers: true, startsit: true } }]);
+const user = { user_id: "u1", username: "user_a", display_name: "User A" };
+const league = { league_id: L, name: "League A", season: "2026", status: "in_season" };
+const users = [{ user_id: "u1", display_name: "User A" }, { user_id: "u2", display_name: "Bo" }];
 const rosters = [{ roster_id: 9, owner_id: "u1", players: ["a"] }, { roster_id: 3, owner_id: "u2", players: ["b"] }];
 const state = { season: "2026", season_type: "regular", week: 3 };
 const routes = {
-  "/user/max973": user, [`/league/${L}`]: league, [`/league/${L}/users`]: users,
+  "/user/user_a": user, [`/league/${L}`]: league, [`/league/${L}/users`]: users,
   [`/league/${L}/rosters`]: rosters, "/state/nfl": state,
+  "/user/u1/leagues/nfl/2026": [league],
 };
 const calls = [];
 Session._get(path => {
@@ -80,9 +84,9 @@ async function realTick(panel) {
 
 (async () => {
   // 1. Anonymous mount on the draft board: the form, the sentence, no calls.
-  const main = dom("https://example.test/Megatron/index.html?league=gabagool");
+  const main = dom("https://example.test/Megatron/index.html?league=leaguea");
   FC._session(null);                                   // the chip must find window.Session itself
-  FC.mountLeagueContext("gabagool");
+  FC.mountLeagueContext("leaguea");
   const panel = main.children[0];
   assert.equal(panel.id, "league-context");
   assert.ok(byId(panel, "session-user"), "anonymous: username input offered");
@@ -97,17 +101,17 @@ async function realTick(panel) {
   assert.deepEqual(calls, [], "a board with no identity must not load the league");
 
   // 3. Identify through the chip's own form -> Session.identify -> ready().
-  byId(panel, "session-user").value = " max973 ";
+  byId(panel, "session-user").value = " user_a ";
   all(panel).find(n => n.tagName === "form").dispatch("submit");
   assert.equal(Session.state(), "identifying");
   assert.equal(byId(panel, "session-text").textContent, "Looking up Sleeper account…", "identifying is rendered synchronously");
   await until(() => Session.state() === "ready", "the league to load after identify");
-  assert.deepEqual(calls.slice().sort(), ["/user/max973", `/league/${L}`, `/league/${L}/users`, `/league/${L}/rosters`, "/state/nfl"].sort(),
+  assert.deepEqual(calls.slice().sort(), ["/user/user_a", `/league/${L}`, `/league/${L}/users`, `/league/${L}/rosters`, "/state/nfl"].sort(),
     "identify + one league load, nothing else");
   const b1 = Session.bundle();
   assert.equal(b1.myRoster.roster_id, 9);
   assert.equal(JSON.parse(m.get(IDENTITY_KEY)).userId, "u1", "the identity is persisted");
-  assert.match(byId(panel, "session-text").textContent, /^Max973 · Gabagool Fools · your roster: 9 · rosters 0 s ago$/);
+  assert.match(byId(panel, "session-text").textContent, /^User A · League A · your roster: 9 · rosters 0 s ago$/);
   const refreshBtn = byId(panel, "session-refresh"), changeBtn = byId(panel, "session-change"), forgetBtn = byId(panel, "session-forget");
   assert.ok(refreshBtn && changeBtn && forgetBtn, "ready: refresh, change, forget");
   assert.ok(!byId(panel, "session-user"), "ready: no username input");
@@ -123,7 +127,7 @@ async function realTick(panel) {
   //    the typed name survives in the same input node; cancel restores ready.
   changeBtn.dispatch("click");
   const input = byId(panel, "session-user");
-  assert.ok(input && input.value === "max973", "change: input prefilled with the current username");
+  assert.ok(input && input.value === "user_a", "change: input prefilled with the current username");
   assert.ok(byId(panel, "session-cancel"), "change from ready offers cancel");
   input.value = "newname-typed";
   FC.chip.render();
@@ -131,7 +135,7 @@ async function realTick(panel) {
   await realTick(panel);
   assert.equal(byId(panel, "session-user"), input, "a real tick must not rebuild the input");
   assert.equal(input.value, "newname-typed", "a real tick must not revert the typed name");
-  assert.match(byId(panel, "session-text").textContent, /^Max973 · Gabagool Fools · your roster: 9 · rosters [2-6] s ago$/,
+  assert.match(byId(panel, "session-text").textContent, /^User A · League A · your roster: 9 · rosters [2-6] s ago$/,
     "the line kept the account and kept ticking behind the form");
   byId(panel, "session-cancel").dispatch("click");
   assert.ok(byId(panel, "session-refresh") && !byId(panel, "session-user"), "cancel returns to the ready controls");
@@ -163,12 +167,20 @@ async function realTick(panel) {
   //    refetch (spec §4), so the retained bundle is re-derived for the new
   //    account -- one /user call, no league load, the seat back, the age
   //    still counting from the ORIGINAL fetch.
-  anonInput.value = "max973";
+  anonInput.value = "user_a";
   all(panel).find(n => n.tagName === "form").dispatch("submit");
   await until(() => Session.state() === "ready" && Session.bundle().myRoster, "re-identify to re-derive the seat");
-  assert.deepEqual(calls.slice(callsBefore), ["/user/max973"], "re-identify looks the user up and loads nothing else");
+  assert.deepEqual(calls.slice(callsBefore), ["/user/user_a", "/user/u1/leagues/nfl/2026"],
+    "re-identify looks the user up and the league picker reads the account's own leagues (the bundle's season); no league load");
+  {
+    // The board page's picker: the open board (by its format label, never a
+    // league name), then the account's own current-season leagues.
+    const select = all(panel).find(n => n.tagName === "select");
+    await until(() => select.children.length === 2, "the picker to list the account's league");
+    assert.deepEqual(select.children.map(o => [o.value, o.textContent]), [["leaguea", "12-team PPR, 6-pt pass TD"], [L, "League A"]]);
+  }
   assert.equal(Session.bundle().rostersFetchedAt, b1.rostersFetchedAt);
-  assert.match(byId(panel, "session-text").textContent, /^Max973 · Gabagool Fools · your roster: 9 · rosters [3-9] s ago$/);
+  assert.match(byId(panel, "session-text").textContent, /^User A · League A · your roster: 9 · rosters [3-9] s ago$/);
   assert.ok(byId(panel, "session-refresh") && byId(panel, "session-forget") && !byId(panel, "session-user"));
 
   // 8. An in-season page by Sleeper id (any-league spec 5.1, 5.2), real
@@ -185,6 +197,7 @@ async function realTick(panel) {
     [`/league/${X}/rosters`]: [{ roster_id: 1, owner_id: "s1", players: ["p1"] }, { roster_id: 2, owner_id: "s2", players: ["p2"] }, { roster_id: 3, owner_id: "s3", players: ["p3"] }],
     "/user/gamma": { user_id: "s3", username: "gamma", display_name: "Gamma" },
   });
+  global.localStorage = store;                         // the page's own storage, the same one Session uses
   const idMain = dom(`https://example.test/Megatron/weekly.html?league=${X}`);
   FC.mountLeagueContext(X);
   const idPanel = idMain.children[0];
@@ -195,6 +208,8 @@ async function realTick(panel) {
     "identity is optional: the league loads without one");
   const v0 = Session.bundle();
   assert.equal(v0.registry.leagueId, X); assert.equal(v0.registry.slug, null); assert.equal(v0.identity, null);
+  // The league opened by id is the one this browser remembers (only the id).
+  await until(() => m.get("megatron:lastLeague") === X, "the opened league to be remembered");
   assert.equal(byId(idPanel, "session-text").textContent, "Synthetic Six · choose a team to view, or enter your Sleeper username",
     "an anonymous visitor with a league loaded is told what to do, not about storage");
   assert.equal(byId(idPanel, "session-settings").textContent, Session.settingsText(v0));
@@ -228,17 +243,19 @@ async function realTick(panel) {
   FC.setLeague(null);
 
   FC.setBoard(null);
-  const connectMain = dom("https://example.test/Megatron/connect.html?league=gabagool");
-  FC.mountLeagueContext("gabagool");
+  const connectMain = dom("https://example.test/Megatron/connect.html");
+  FC.mountLeagueContext(null);
   const account = connectMain.children[0];
   assert.equal(account.tagName, "details", "discovery keeps secondary account controls in a disclosure");
   assert.ok(!account.open, "the second account form is collapsed initially");
   assert.equal(account.children[0].tagName, "summary");
   assert.ok(byId(account, "session-forget"), "saved identity can still be forgotten on discovery");
+  assert.equal(m.get("megatron:lastLeague"), X);
   byId(account, "session-forget").dispatch("click");
   assert.equal(Session.identity(), null);
+  assert.equal(m.has("megatron:lastLeague"), false, "forget removes the remembered league");
   assert.ok(byId(account, "session-user"), "account controls remain usable after forgetting");
-  FC.mountLeagueContext("gabagool");
+  FC.mountLeagueContext(null);
   assert.equal(connectMain.children.length, 1, "reinitializing does not duplicate the panel");
   console.log("chip_session_fixture: real chip + real Session (mount, identify, tick, change, forget; by-id viewer then owner) OK");
   process.exit(0);

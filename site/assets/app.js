@@ -8,64 +8,88 @@
   if (root) root.FC = api;
 })(typeof window !== "undefined" ? window : null, () => {
   const POS_CLASS = { QB: "pos-qb", RB: "pos-rb", WR: "pos-wr", TE: "pos-te" };
-  // The ONE supported-league table (design spec §3). Slugs, platform, live
-  // league id, select label and which live tools each league connects to.
-  // session.js, the nav-label rule and the league select all read from here;
-  // an unknown slug never defaults (see leagueNavigation).
-  const REGISTRY = Object.freeze([
-    { slug: "gabagool", platform: "sleeper", leagueId: "1376245373244301312", label: "Gabagool · Sleeper",
-      tools: { draft: true, keepers: true, trade: true, waivers: true, startsit: true } },
-    { slug: "fam",      platform: "sleeper", leagueId: "1389736745205002240", label: "FAM · Sleeper",
-      tools: { draft: true, keepers: false, trade: true, waivers: true, startsit: true } },
-    { slug: "espnfam",  platform: "espn",    leagueId: "69827905",            label: "ESPN family · draft board only",
-      tools: { draft: true, keepers: false, trade: false, waivers: false, startsit: false } },
-  ].map(entry => Object.freeze({ ...entry, tools: Object.freeze(entry.tools) })));
-  const LEAGUES = REGISTRY.map(r => [r.slug, r.label]);
-  const LEAGUE_SLUGS = REGISTRY.map(r => r.slug);
+  // The supported-league table (design spec §3), filled at RUNTIME only (owner
+  // decision 2026-11-07: no visitor is given anyone's league by default). A
+  // page that loads a draft board registers that board's own league block
+  // (FC.setBoard): slug, platform, live league id, a scoring-format label --
+  // never a league name -- and which tools it connects. So no league id or
+  // league name lives in the site's code, and the table is empty on every
+  // page that has not loaded a board. session.js reads the same live array.
+  const REGISTRY = [];
   const registryFor = slug => REGISTRY.find(r => r.slug === slug) || null;
-  // Which registry tool a nav destination needs. Pages absent here (index,
-  // about, connect) are always connected.
-  const TOOL_FOR_PAGE = { "trade.html": "trade", "weekly.html": "startsit", "waivers.html": "waivers" };
 
   // ---- league selection by Sleeper id (any-league spec 5.1, 5.4) ----------
-  // In-season pages take ANY Sleeper league id; the registry slugs gabagool /
-  // fam are legacy aliases of their ids. Draft-side pages (the board, its
-  // keeper panel, pre-draft trade) stay registry-only: a registered id maps to
-  // its slug, any other id is refused by name -- never a substituted league.
-  // ESPN keeps its registry route.
+  // In-season pages take ANY Sleeper league id. Draft-side pages (the board,
+  // its keeper panel, pre-draft trade) read only a published board: an id
+  // there is refused by name -- never a substituted league.
   const DRAFT_ONLY = "The draft board is only built for registered leagues.";
-  const ESPN_IN_SEASON = "ESPN in-season tools are not connected yet; use its draft board only.";
-  const ID_TOOLS = Object.freeze({ startsit: true, waivers: true, trade: true });
+  const OLD_NAME = "This link uses an old league name. Connect your Sleeper league to continue.";
+  const NOT_AN_ID = raw => `"${raw}" is not a Sleeper league id. Connect your Sleeper league to continue.`;
+  const LAST_LEAGUE_KEY = "megatron:lastLeague";
   // Destinations whose league parameter is the id between in-season pages.
   const IN_SEASON_DEST = new Set(["weekly.html", "waivers.html", "trade.html"]);
-  // Pages that are in-season whatever the parameter's spelling.
-  const IN_SEASON_HOME = new Set(["weekly.html", "waivers.html"]);
-  // Pages that exist only for a registered board.
+  // Pages that resolve a league for their tools: the URL's id, else the
+  // remembered one, else none (pageLeague).
+  const LEAGUE_PAGES = IN_SEASON_DEST;
+  // Pages that exist only for a published board.
   const DRAFT_HOME = new Set(["index.html", ""]);
   const isLeagueId = v => typeof v === "string" && /^\d+$/.test(v);
-  const sleeperEntryForId = id => REGISTRY.find(r => r.platform === "sleeper" && r.leagueId === id) || null;
+  // A name-shaped value: what the site's old links put in ?league= (the
+  // league's short name), and what a board file is named by.
+  const isName = v => typeof v === "string" && /^[a-z][a-z0-9_-]{0,39}$/i.test(v);
   const pageOf = href => new URL(href, "https://x.invalid/").pathname.split("/").pop();
-  // The ONE reading of ?league= for every page. No parameter is Gabagool, as
-  // before; a slug is its registry row; a numeric id is a Sleeper league,
-  // registered or not; anything else is invalid and never defaults.
+  // The ONE reading of ?league= (or of `value`). No parameter names no league;
+  // a registered board's slug is its registry row; a numeric id is a Sleeper
+  // league; a name-shaped value is an old link's league name (`legacy`);
+  // anything else is `invalid`. Nothing here ever defaults to a league.
   function leagueParam(value) {
     const raw = value === undefined ? new URLSearchParams(location.search).get("league") : value;
-    const v = raw === null || raw === undefined || raw === "" ? "gabagool" : String(raw);
+    const base = { raw: "", none: false, slug: null, entry: null, leagueId: null, isId: false, legacy: false, invalid: false };
+    if (raw === null || raw === undefined || raw === "") return { ...base, none: true };
+    const v = String(raw);
     const bySlug = registryFor(v);
-    if (bySlug) return { raw: v, slug: v, entry: bySlug, leagueId: bySlug.platform === "sleeper" ? bySlug.leagueId : null, isId: false, invalid: false };
-    if (isLeagueId(v)) {
-      const e = sleeperEntryForId(v);
-      return { raw: v, slug: e ? e.slug : null, entry: e, leagueId: v, isId: true, invalid: false };
-    }
-    return { raw: v, slug: null, entry: null, leagueId: null, isId: false, invalid: true };
+    if (bySlug) return { ...base, raw: v, slug: v, entry: bySlug, leagueId: bySlug.platform === "sleeper" ? bySlug.leagueId : null };
+    if (isLeagueId(v)) return { ...base, raw: v, leagueId: v, isId: true };
+    return { ...base, raw: v, legacy: isName(v), invalid: !isName(v) };
   }
-  // The in-season pages' league: the Sleeper id, and the registry slug when
-  // the league is registered (null otherwise) for the legacy data files.
-  function inSeasonLeague() {
+
+  // The league this browser opened last (per-browser convenience; forget()
+  // removes it). Only the id is stored. A missing or blocked store, or a
+  // value that is not an id, is "no league"; nothing here throws.
+  function rememberedLeague() {
+    try {
+      const v = typeof localStorage !== "undefined" && localStorage ? localStorage.getItem(LAST_LEAGUE_KEY) : null;
+      return isLeagueId(v) ? v : null;
+    } catch (_) { return null; }
+  }
+  function rememberLeague(id) {
+    try { if (isLeagueId(id) && typeof localStorage !== "undefined" && localStorage) localStorage.setItem(LAST_LEAGUE_KEY, id); } catch (_) {}
+  }
+  // The in-season pages' league, in order: the URL's ?league=<id>; else, with
+  // NO parameter at all, the id this browser remembered -- written into the
+  // URL with replaceState so the page is shareable and reloads identically;
+  // else no league. An old link's league name (or any non-id) names no
+  // league, and the remembered id is NOT used for it: that would substitute
+  // a league for the one the link meant. Other pages read the URL only.
+  function pageLeague() {
     const p = leagueParam();
-    if (p.invalid) throw new Error(`Unknown league "${p.raw}".`);
-    if (!p.leagueId) throw new Error(ESPN_IN_SEASON);
-    return { leagueId: p.leagueId, legacySlug: p.slug };
+    if (!LEAGUE_PAGES.has(pageOf(location.href))) return p;
+    // On an in-season page a board slug is an old name too: no board is registered here.
+    if (p.entry) return { ...p, slug: null, entry: null, leagueId: null, legacy: true };
+    if (!p.none) return p;
+    const id = rememberedLeague();
+    if (!id) return p;
+    try {
+      const url = new URL(location.href);
+      url.searchParams.set("league", id);
+      if (typeof history !== "undefined" && history && typeof history.replaceState === "function") history.replaceState(history.state === undefined ? null : history.state, "", url.href);
+    } catch (_) { /* the page still opens the league; only the URL is not rewritten */ }
+    return { ...leagueParam(id), remembered: true };
+  }
+  // The in-season pages' league id, or null: no league (league-free pages).
+  function inSeasonLeague() {
+    const p = pageLeague();
+    return p.isId ? { leagueId: p.leagueId } : null;
   }
 
   async function loadJSON(path) {
@@ -74,18 +98,72 @@
     return res.json();
   }
 
-  function leagueDataPath(kind) {
-    const p = leagueParam();
-    if (p.invalid) throw Error("Unknown league");
-    if (!["draft", "weekly", "remaining"].includes(kind)) throw Error("Unknown league data kind");
-    // Per-league files exist only for registered leagues (a registered id
-    // reads its slug's files); an unregistered id has no board to read.
-    if (p.slug === null) throw Error(kind === "draft" ? DRAFT_ONLY : "Unknown league");
-    const slug = p.slug;
-    // remaining-<slug>.json is named per league for every league, including
-    // Gabagool; the bare-name convention applies to draft/weekly only.
-    if (kind === "remaining") return `data/remaining-${slug}.json`;
-    return `data/${kind}${slug === "gabagool" ? "" : `-${slug}`}.json`;
+  // ---- published draft boards (the archive) ---------------------------------
+  // A board's scoring-format label from its OWN league block, never its name:
+  // "12-team PPR, 6-pt pass TD".
+  function boardFormatLabel(league) {
+    const lg = league && typeof league === "object" ? league : {};
+    const w = lg.sleeper_scoring && typeof lg.sleeper_scoring === "object" ? lg.sleeper_scoring : {};
+    const num = v => typeof v === "number" && Number.isFinite(v) ? v : null;
+    const rec = num(w.rec), td = num(w.pass_td);
+    const ppr = rec === null || rec === 0 ? "standard" : rec === 1 ? "PPR" : rec === 0.5 ? "half-PPR" : `${rec}-pt PPR`;
+    const text = `${Number.isInteger(lg.teams) && lg.teams > 0 ? `${lg.teams}-team ` : ""}${ppr}${td === null ? "" : `, ${td}-pt pass TD`}`;
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+  // The registry row a published board stands for, built from the board
+  // itself. A board built before `platform` existed is a Sleeper board.
+  function boardEntry(board) {
+    const lg = board && board.league;
+    if (!lg || !isName(lg.slug)) return null;
+    const platform = lg.platform || "sleeper", sleeper = platform === "sleeper";
+    const keepers = typeof lg.keeper_rules === "string" && lg.keeper_rules !== "";
+    const label = sleeper ? boardFormatLabel(lg) : `${boardFormatLabel(lg)} · ${String(platform).toUpperCase()} draft board only`;
+    return Object.freeze({
+      slug: lg.slug, platform, leagueId: lg.league_id === undefined || lg.league_id === null ? null : String(lg.league_id), label,
+      tools: Object.freeze({ draft: true, keepers, trade: keepers && sleeper, waivers: sleeper, startsit: sleeper }),
+    });
+  }
+  function registerBoard(board) {
+    const e = boardEntry(board);
+    if (!e) return null;
+    const i = REGISTRY.findIndex(r => r.slug === e.slug);
+    if (i >= 0) REGISTRY.splice(i, 1, e); else REGISTRY.push(e);
+    return e;
+  }
+  // The board a draft-side page shows: no name is the default file; a name
+  // (an old link's league name) is that board's file -- the default board
+  // keeps its bare file name, so a name it answers to is found there too.
+  const DEFAULT_BOARD = "data/draft.json";
+  async function loadBoard(name, load) {
+    load = load || loadJSON;
+    if (name === null || name === undefined || name === "") return load(DEFAULT_BOARD);
+    if (!isName(name)) throw new Error("This link names no published draft board.");
+    let board;
+    try { board = await load(`data/draft-${name}.json`); }
+    catch (e) {
+      if (!/HTTP 404/.test(String(e && e.message))) throw e;
+      board = await load(DEFAULT_BOARD);
+    }
+    if (!board || !board.league || board.league.slug !== name) throw new Error("This link names no published draft board.");
+    return board;
+  }
+  // The board is ARCHIVED once the season it was built for is under way: the
+  // league-neutral weekly batch loads and is for the board's season. A failed
+  // or malformed weekly load is "not archived" -- the board fails open to its
+  // usual page, never to an error.
+  async function boardArchived(board, load) {
+    try {
+      const weekly = await (load || loadJSON)("data/neutral/weekly.json");
+      const season = Number(board && board.season);
+      return Number.isFinite(season) && !!weekly && Number(weekly.season) === season;
+    } catch (_) { return false; }
+  }
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  function archivedText(board) {
+    const t = Date.parse(board && board.generated_at);
+    const d = new Date(t);
+    const date = Number.isFinite(t) ? `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}` : String(board && board.generated_at);
+    return `Archived: the ${board && board.season} preseason board as published on ${date}. The drafts are over; it stays as a record of what the model projected before the season.`;
   }
 
   // ---- identity chip (design spec §6) -------------------------------------
@@ -123,7 +201,13 @@
       if (S.bundle() && chip.readyFor === chip.leagueId) return;
       const leagueId = chip.leagueId, extra = chip.leagueOpts || {};
       chip.readyFor = leagueId;
-      Promise.resolve().then(() => S.ready({ ...extra, leagueId })).catch(swallow);
+      // A league that loaded under the in-season season contract is the one
+      // this browser remembers (pageLeague). A next-season pre-draft league
+      // (trade.html's exempt mode resolution) is not: the in-season pages
+      // would refuse it.
+      Promise.resolve().then(() => S.ready({ ...extra, leagueId })).then(b => {
+        if (b && b.league && b.state && String(b.league.league_id) === leagueId && String(b.league.season) === String(b.state.season)) rememberLeague(leagueId);
+      }).catch(swallow);
       return;
     }
     if (!chip.slug || !chip.board || isEspn()) return;
@@ -133,7 +217,12 @@
     const slug = chip.slug, board = chip.board;   // captured now: a later mount must not retarget this load
     Promise.resolve().then(() => S.ready({ slug, board })).catch(swallow);
   }
+  // A board page (and trade.html's pre-draft mode) hands the chip its board:
+  // the board's own league block is registered (registerBoard) and becomes
+  // the chip's league, so the registry path loads THIS board's league.
   function setBoard(board) {
+    const entry = board ? registerBoard(board) : null;
+    if (entry) chip.slug = entry.slug;
     chip.board = board || null;
     chip.leagueId = null;            // a board page is the registry path
     chip.leagueOpts = null;
@@ -392,43 +481,106 @@
       if (!had && pending) prefill = pending;
     } catch (_) {}
     chip.prefill = prefill;
-    chip.unsub = S.onChange(() => renderChip());
+    chip.unsub = S.onChange(() => { renderChip(); pickerSync(); });
     renderChip();
     startTicker();
     maybeReady();
   }
 
-  // `league` is a registry slug or a Sleeper league id (leagueNavigation
-  // passes the slug for a registered league, the id otherwise).
+  // ---- the league picker (owner decision 2026-11-07) -------------------------
+  // It lists ONLY the leagues found for the visitor's own Sleeper identity
+  // (Session.leaguesFor, the connect page's lookup) plus the league currently
+  // open -- never a hard-coded list. Choosing one opens it on this page when
+  // this page is an in-season tool, otherwise on Weekly. Rebuilt only when
+  // its options change, so an open dropdown survives unrelated updates.
+  const picker = { select: null, label: null, current: null, currentText: "", forUser: null, rows: null, gen: 0, sig: null };
+  function sleeperGet() {
+    const Sl = typeof Sleeper !== "undefined" && Sleeper ? Sleeper : (typeof window !== "undefined" && window && window.Sleeper) || null;
+    return Sl && typeof Sl.get === "function" ? path => Sl.get(path) : null;
+  }
+  function renderPicker() {
+    const { select, label } = picker;
+    if (!select) return;
+    const S = session(), b = S && S.bundle ? S.bundle() : null;
+    const rows = picker.rows || [];
+    const mine = rows.find(r => r[0] === picker.current);
+    const loaded = picker.current && b && b.league && String(b.league.league_id) === picker.current && b.league.name ? b.league.name : null;
+    const opts = [];
+    if (picker.current) opts.push([picker.current, (mine && mine[1]) || loaded || picker.currentText]);
+    for (const r of rows) if (r[0] !== picker.current) opts.push(r);
+    if (!picker.current && opts.length) opts.unshift(["", "Choose one of your leagues"]);
+    const sig = JSON.stringify(opts);
+    if (sig === picker.sig) return;
+    picker.sig = sig;
+    select.replaceChildren(...opts.map(([value, text]) => {
+      const o = document.createElement("option"); o.value = value; o.textContent = text; return o;
+    }));
+    select.value = picker.current || "";
+    label.hidden = opts.length === 0;
+  }
+  // The visitor's current-season leagues, re-read when the identity moves.
+  // The season is the committed bundle's live state, else /state/nfl. Any
+  // failure leaves the picker with the open league only.
+  function pickerLeagues() {
+    const S = session(), id = S && S.identity ? S.identity() : null, uid = id ? id.userId : null;
+    if (uid === picker.forUser) return;
+    picker.forUser = uid; picker.rows = null;
+    const gen = ++picker.gen;
+    renderPicker();
+    if (!uid || typeof S.leaguesFor !== "function") return;
+    const get = sleeperGet(), b = S.bundle ? S.bundle() : null;
+    const known = b && b.state && b.state.season !== undefined && b.state.season !== null ? String(b.state.season) : "";
+    const seasonP = known ? Promise.resolve(known) : get ? get("/state/nfl").then(s => String((s && s.season) || "")) : Promise.resolve("");
+    seasonP.then(season => season ? S.leaguesFor(get ? { season, get } : { season }) : null).then(list => {
+      if (gen !== picker.gen || !Array.isArray(list)) return;
+      const seen = new Set();
+      picker.rows = list.filter(l => {
+        const lid = l && l.league_id !== undefined && l.league_id !== null ? String(l.league_id) : "";
+        if (!isLeagueId(lid) || seen.has(lid)) return false;
+        seen.add(lid); return true;
+      }).map(l => [String(l.league_id), l.name || `League ${l.league_id}`]);
+      renderPicker();
+    }).catch(() => {});
+  }
+  function pickerSync() { pickerLeagues(); renderPicker(); }
+
+  // `league` is the open league: a Sleeper league id, a registered board's
+  // slug (the board page), or nothing (a page with no league open).
   function mountLeagueContext(league) {
     if (!document.createElement || document.getElementById("league-context")) return;
-    const p = leagueParam(league);
-    const slug = p.slug, current = slug !== null ? slug : p.raw;
+    const p = leagueParam(league === null || league === undefined ? "" : league);
+    const entry = p.entry, current = entry ? entry.slug : p.isId ? p.leagueId : null;
     const panel=document.createElement("section"), label=document.createElement("label"), select=document.createElement("select");
     panel.id="league-context"; panel.className="league-links";
     label.textContent="League "; select.setAttribute("aria-label","Selected league");
-    for(const [value,name] of LEAGUES) {
-      const option=document.createElement("option"); option.value=value; option.textContent=name; select.append(option);
-    }
-    // An unregistered Sleeper league is offered by its id beside the registry.
-    if (slug === null && p.leagueId) {
-      const option=document.createElement("option"); option.value=p.leagueId; option.textContent=`Sleeper league ${p.leagueId}`; select.append(option);
-    }
-    select.value=current;
-    select.addEventListener("change",()=>{const url=new URL(location.href);url.searchParams.set("league",select.value);location.assign(url.href);});
+    Object.assign(picker, { select, label, current, currentText: entry ? entry.label : current ? `Sleeper league ${current}` : "",
+      forUser: undefined, rows: null, sig: null });
+    picker.gen++;
+    select.addEventListener("change", () => {
+      const v = select.value;
+      if (!v || v === picker.current) return;
+      const url = LEAGUE_PAGES.has(pageOf(location.href)) ? new URL(location.href) : new URL("weekly.html", location.href);
+      url.searchParams.set("league", v);
+      location.assign(url.href);
+    });
     label.append(select);panel.append(label);
+    renderPicker();
     mountChip(panel, current);
+    pickerSync();
     const note=document.createElement("p");
-    note.textContent=slug==="espnfam"?"ESPN: draft board supported; live in-season tools are not connected yet."
-      :slug===null?`In-season tools read this league's live Sleeper settings. ${DRAFT_ONLY}`
-      :"Draft board, weekly/start-sit, waiver research and in-season trade scenarios use this league. Pre-draft trade values remain Gabagool only. No password needed.";
+    note.textContent = entry
+      ? (entry.platform !== "sleeper"
+        ? `${String(entry.platform).toUpperCase()}: draft board supported; live in-season tools are not connected yet.`
+        : "This draft board's league. Live draft mode and keepers read your roster through your Sleeper username. No password needed.")
+      : p.isId ? "In-season tools read this league's live Sleeper settings. No password needed."
+      : "No league is open. Enter your Sleeper username to choose one of your leagues, or open one by its link on the connect page. No password needed.";
     panel.append(note);
     // The connect page already IS "Find my Sleeper leagues" -- a link back to
     // itself from its own league panel would be a dead, redundant nav entry.
     if (!/\/connect\.html$/.test(location.pathname)) {
       const connect=document.createElement("a");
       const connectUrl=new URL("connect.html", location.href);
-      connectUrl.searchParams.set("league", current);
+      if (p.isId) connectUrl.searchParams.set("league", p.leagueId);
       connect.href=connectUrl.href; connect.textContent="Find my Sleeper leagues";
       panel.append(connect);
     }
@@ -446,32 +598,22 @@
     }
   }
 
-  // An invalid URL must never be treated as a request for the default league:
-  // callers still get an error below and therefore cannot load league advice.
-  // This panel only gives the visitor an explicit, safe way back to a supported
-  // league while retaining the page (and any non-league query parameters).
-  function mountInvalidLeagueRecovery(slug) {
+  // An old link's league name (or any other non-id) on an in-season page
+  // names no league: never a substituted one. The page opens with no league
+  // (its connect prompt), and this note says why, with the way to connect.
+  function mountLeagueNotice(p) {
     if (!document.createElement || document.getElementById("league-recovery")) return;
     const panel = document.createElement("section");
-    const heading = document.createElement("h2");
     const note = document.createElement("p");
-    const list = document.createElement("ul");
+    const more = document.createElement("p");
+    const link = document.createElement("a");
     panel.id = "league-recovery";
     panel.className = "league-links";
-    heading.textContent = "Choose a supported league";
-    note.textContent = `"${slug}" is not a supported league. No league data was loaded.`;
-    panel.append(heading, note);
-    for (const [value, name] of LEAGUES) {
-      const item = document.createElement("li");
-      const link = document.createElement("a");
-      const url = new URL(location.href);
-      url.searchParams.set("league", value);
-      link.href = url.href;
-      link.textContent = name;
-      item.append(link);
-      list.append(item);
-    }
-    panel.append(list);
+    note.textContent = p.legacy ? OLD_NAME : NOT_AN_ID(p.raw);
+    link.href = new URL("connect.html", location.href).href;
+    link.textContent = "Go to the connect page";
+    more.append(link);
+    panel.append(note, more);
     const main = document.querySelector("main");
     if (main?.prepend) main.prepend(panel);
     else document.body?.append(panel);
@@ -504,74 +646,66 @@
     else document.body?.append(panel);
   }
 
-  // `opts.inSeason`: the page has resolved itself to in-season mode (trade.html
-  // decides its mode from the live league, so it is not in IN_SEASON_HOME);
-  // its in-season links then carry the league id like weekly/waivers. Calling
-  // again only rewrites the masthead: the league panel mounts once.
-  function leagueNavigation(opts) {
-    // Keep the choice in each tab's URL, including the trip back from another
-    // page. A shared stored preference would let one league change the other.
-    const p = leagueParam();
-    if (p.invalid) {
-      mountInvalidLeagueRecovery(p.raw);
-      throw new Error(`Unknown league "${p.raw}". Choose gabagool, fam or espnfam.`);
-    }
+  // Every page's league wiring: resolves the page's league (pageLeague),
+  // rewrites the masthead, and mounts the league panel. Calling again only
+  // rewrites the masthead: the panels mount once. Returns the registry slug
+  // (null for a Sleeper id or no league) -- except on the board page, which
+  // gets the board's name from the URL (null: the default board) and mounts
+  // its league panel itself, once it knows whether the board is archived.
+  function leagueNavigation() {
     const here = pageOf(location.href);
-    // Between in-season pages the canonical parameter is the league id: on
-    // an in-season page, or wherever the URL already names the league by id.
-    // Draft and neutral destinations keep the registry slug when there is one.
-    const idContext = p.leagueId !== null && (p.isId || IN_SEASON_HOME.has(here) || !!(opts && opts.inSeason));
-    const slug = p.slug;
-    // The masthead is rewritten FIRST, even on a page about to refuse: a
-    // bare href would resolve to the default league -- a substitution.
-    rewriteMasthead(p, idContext);
-    // The draft board exists only for registered leagues (spec 5.4).
-    if (slug === null && DRAFT_HOME.has(here)) {
-      mountDraftBoundary(p.leagueId);
-      throw new Error(DRAFT_ONLY);
+    const p = pageLeague();
+    const onBoard = DRAFT_HOME.has(here);
+    // The masthead is rewritten FIRST, even on a page about to refuse.
+    rewriteMasthead(p, onBoard);
+    if (onBoard) {
+      // The board is not built per Sleeper league: an id is refused by name.
+      if (p.isId) {
+        mountDraftBoundary(p.leagueId);
+        throw new Error(DRAFT_ONLY);
+      }
+      if (p.invalid) throw new Error("This link names no published draft board.");
+      return p.entry ? p.slug : p.legacy ? p.raw : null;
     }
-    mountLeagueContext(slug !== null ? slug : p.leagueId);
-    // The registry slug for a registered league (a registered id included),
-    // null for any other Sleeper league.
-    return slug;
+    mountLeagueContext(p.isId ? p.leagueId : null);
+    if (LEAGUE_PAGES.has(here) && (p.legacy || p.invalid)) mountLeagueNotice(p);
+    return p.slug;
   }
 
-  function rewriteMasthead(p, idContext) {
-    const slug = p.slug;
-    // Suffixes are stripped before recompute so a second call against the
-    // SAME <a> elements (repeated init) stays deterministic instead of
-    // stacking " · not connected · not connected". " · Gabagool only" is the
-    // retired trade label, still stripped so stale markup cannot keep it.
-    const SUFFIXES = [" · Gabagool only", " · not connected"];
-    const tools = p.entry ? p.entry.tools : ID_TOOLS;
+  // Masthead links keep THIS tab's league id between its pages, and name no
+  // other: a page with no league links to pages with no league (each in-season
+  // page then resolves its own: the remembered id, else none). The archived
+  // board is not per league, so its link never carries an id -- only its own
+  // link on the board page keeps the board shown there.
+  function rewriteMasthead(p, onBoard) {
+    const boardName = onBoard ? (p.entry ? p.slug : p.legacy ? p.raw : null) : null;
     document.querySelectorAll(".masthead nav a").forEach(link => {
       const url = new URL(link.getAttribute("href"), location.href);
-      const dest = url.pathname.split("/").pop();
-      // The URL keeps THIS tab's league -- clicking trade or an ESPN
-      // weekly/waivers link must never silently switch you to another
-      // league just because that's the only one the destination supports.
-      // An unregistered id keeps its id even toward the draft board, which
-      // then refuses it by name.
-      url.searchParams.set("league", IN_SEASON_DEST.has(dest) && idContext ? p.leagueId : slug !== null ? slug : p.leagueId);
+      const dest = pageOf(url.href);
+      url.searchParams.delete("league");
+      if (DRAFT_HOME.has(dest)) { if (boardName) url.searchParams.set("league", boardName); }
+      else if (p.isId) url.searchParams.set("league", p.leagueId);
       link.href = url.href;
-      let label = link.textContent;
-      for (const suf of SUFFIXES) if (label.endsWith(suf)) label = label.slice(0, -suf.length);
-      // Trade, weekly and waivers are live Sleeper tools; the registry says
-      // which league connects which (today: Gabagool and FAM both, ESPN
-      // none). The href above still points at THIS league, so the label says
-      // the tool is not connected rather than implying a click will switch
-      // leagues.
-      const tool = TOOL_FOR_PAGE[dest];
-      if (tool && !tools[tool]) label += " · not connected";
-      link.textContent = label;
     });
   }
 
-  function stampHeader(payload) {
+  // `opts.archived`: the archived-board text, shown INSTEAD of the generic
+  // stale banner (a finished preseason board is a record, not stale data).
+  function stampHeader(payload, opts) {
     const el = document.querySelector(".stamp");
     if (el) el.textContent =
       `data through ${payload.data_through} · generated ${payload.generated_at} · model: ${payload.model || payload.site_model || "—"}`;
-    staleBanner(payload.generated_at);
+    if (opts && opts.archived) archivedBanner(opts.archived);
+    else staleBanner(payload.generated_at);
+  }
+
+  function archivedBanner(text) {
+    if (document.getElementById && document.getElementById("archived-banner")) return;
+    const div = document.createElement("div");
+    div.className = "archived";
+    div.id = "archived-banner";
+    div.textContent = text;
+    document.body.insertBefore(div, document.querySelector("main"));
   }
 
   function staleBanner(generatedAt) {
@@ -711,9 +845,17 @@
     });
   }
 
-  return { POS_CLASS, REGISTRY, registryFor, loadJSON, leagueDataPath, leagueNavigation, stampHeader, staleBanner,
+  // Test hook only (like _session): replace the runtime registry with
+  // synthetic rows. No page calls it; pages register a board via setBoard.
+  function _registry(entries) {
+    REGISTRY.splice(0, REGISTRY.length,
+      ...(entries || []).map(e => Object.freeze({ ...e, tools: Object.freeze({ ...(e.tools || {}) }) })));
+  }
+
+  return { POS_CLASS, REGISTRY, registryFor, loadJSON, leagueNavigation, stampHeader, staleBanner,
            fmt, makeSortable, posFilter, esc, scoringFilter, LENS_LABEL,
-           setBoard, setLeague, inSeasonLeague, mountLeagueContext, mountDraftBoundary, DRAFT_ONLY,
+           setBoard, setLeague, inSeasonLeague, mountLeagueContext, mountDraftBoundary, DRAFT_ONLY, OLD_NAME, LAST_LEAGUE_KEY,
+           boardFormatLabel, boardEntry, loadBoard, boardArchived, archivedText,
            chip: { refresh: chipRefresh, onRefresh, render: renderChip },
-           _session: stub => { sessionOverride = stub || null; } };
+           _session: stub => { sessionOverride = stub || null; }, _registry };
 });

@@ -1,17 +1,19 @@
 // tests/connect_fixture.cjs — run with: node tests/connect_fixture.cjs
 //
 // The connect page identifies through the shared session and lists the
-// account's current-season leagues. Configured-league detection reads
-// FC.REGISTRY; a change or forget in the session clears the rendered list.
+// account's current-season leagues, each opening the in-season pages by its
+// id -- no league is singled out (the site names none). A change or forget in
+// the session clears the rendered list. The in-season pages' connect prompt
+// (initPrompt) reuses the same flow in one field. All ids and names are synthetic.
 const assert = require('node:assert/strict');
 global.window = {};
 const Session = require('../site/assets/session.js');
-const {discover, slugForLeague, parseLeagueInput} = require('../site/assets/connect.js');
+const {discover, parseLeagueInput, initPrompt} = require('../site/assets/connect.js');
 const {init} = window.LeagueConnect;
 
 const IDLE = 'Load leagues for this username.';
-const GABAGOOL = '1376245373244301312';
-const FAM = '1389736745205002240';
+const LA = '100000000000000001';
+const LB = '100000000000000002';
 
 // Map-backed storage so the session never reaches for localStorage here.
 function fakeStorage() {
@@ -54,7 +56,7 @@ function mountPage() {
   ids['connect-user'].value = '';
   ids['connect-league'].value = '';
   ids['connect-league-status'].textContent = '';
-  ids['connect-status'].textContent = 'Gabagool and FAM use the same account: Max973.';
+  ids['connect-status'].textContent = IDLE;   // connect.html's own idle line
   global.document = {getElementById: id => ids[id], createElement: () => makeEl()};
   return ids;
 }
@@ -62,60 +64,59 @@ const submit = ids => ids['connect-form']._listeners.submit({preventDefault() {}
 const sleeperFor = routes => ({get: async path => routes(path)});
 const maxRoutes = path => {
   if (path === '/state/nfl') return {season: '2026'};
-  if (path === '/user/max973') return {user_id: '123', username: 'Max973', display_name: 'Max'};
+  if (path === '/user/user_a') return {user_id: '123', username: 'User_A', display_name: 'User A'};
   if (path === '/user/other') return {user_id: '456', username: 'Other', display_name: 'Other'};
-  if (path === '/user/123/leagues/nfl/2026') return [{league_id: GABAGOOL, season: '2026', name: 'Gabagool'}];
-  if (path === '/user/456/leagues/nfl/2026') return [{league_id: FAM, season: '2026', name: 'FAM'}];
+  if (path === '/user/123/leagues/nfl/2026') return [{league_id: LA, season: '2026', name: 'League A'}];
+  if (path === '/user/456/leagues/nfl/2026') return [{league_id: LB, season: '2026', name: 'League B'}];
   throw new Error(`unrouted ${path}`);
 };
 
-async function configuredLeagueCardsLinkDraftWeeklyWaivers() {
+async function leagueCardsLinkTheInSeasonPagesById() {
   reset();
   const ids = mountPage();
   window.Sleeper = sleeperFor(maxRoutes);
   init();
   assert.equal(ids['connect-user'].value, '', 'anonymous session leaves the form empty (the chip shows any migrated prefill)');
-  ids['connect-user'].value = 'max973';
+  ids['connect-user'].value = 'user_a';
   await submit(ids);
   const hrefs = collectAnchors(ids['connect-results']).map(a => a.href);
   assert.deepEqual(hrefs, [
-    'index.html?league=gabagool',
-    `weekly.html?league=${GABAGOOL}`,
-    `waivers.html?league=${GABAGOOL}`,
-    `trade.html?league=${GABAGOOL}`,
-  ], 'a registered league card links its draft board by slug and its in-season pages by league id, without touching other tabs');
-  assert.match(ids['connect-status'].textContent, /^1 leagues for Max · 2026\./);
+    `weekly.html?league=${LA}`,
+    `waivers.html?league=${LA}`,
+    `trade.html?league=${LA}`,
+  ], 'a league card links the in-season pages by league id, without touching other tabs -- and no draft board');
+  assert.match(ids['connect-status'].textContent, /^1 leagues for User A · 2026\./);
   assert.equal(Session.identity()?.userId, '123', 'the form identifies through the shared session');
   assert.equal(Session.state(), 'identified');
-  assert.equal(ids['connect-user'].value, 'Max973', 'the form reflects the canonical username the session resolved');
+  assert.equal(ids['connect-user'].value, 'User_A', 'the form reflects the canonical username the session resolved');
   return ids;
 }
 
 // Every current-season league gets in-season links by its Sleeper id (any-
-// league spec 5.4); only a registered league also gets a draft board link.
-async function unregisteredLeaguesGetInSeasonLinks() {
+// league spec 5.4), and the same card: no league is "registered" any more.
+async function everyLeagueGetsTheSameInSeasonLinks() {
   reset();
   const ids = mountPage();
   const X = '700000000000000001';
   window.Sleeper = sleeperFor(path => path === '/user/123/leagues/nfl/2026'
-    ? [{league_id: X, season: '2026', name: 'Synthetic Six', status: 'in_season'}, {league_id: GABAGOOL, season: '2026', name: 'Gabagool'}]
+    ? [{league_id: X, season: '2026', name: 'Synthetic Six', status: 'in_season'}, {league_id: LA, season: '2026', name: 'League A'}]
     : maxRoutes(path));
   init();
-  ids['connect-user'].value = 'max973';
+  ids['connect-user'].value = 'user_a';
   await submit(ids);
   const [first, second] = ids['connect-results'].children;
   assert.deepEqual(collectAnchors(first).map(a => [a.href, a.textContent]), [
     [`weekly.html?league=${X}`, 'Weekly / start-sit'],
     [`waivers.html?league=${X}`, 'Waiver research'],
     [`trade.html?league=${X}`, 'In-season trade scenarios'],
-  ], 'an unregistered league links the in-season pages by id and no draft board');
+  ], 'a league links the in-season pages by id and no draft board');
   const texts = node => [node.textContent, ...node.children.flatMap(texts)];
-  assert.ok(texts(first).includes('The draft board is only built for registered leagues.'));
+  assert.ok(!texts(first).some(t => /draft board|registered/i.test(t || '')), 'no card mentions a registered league or a draft board');
   assert.ok(!texts(first).some(t => /not supported yet/.test(t || '')), 'discovery no longer refuses unregistered leagues');
   assert.deepEqual(collectAnchors(second).map(a => a.href), [
-    'index.html?league=gabagool', `weekly.html?league=${GABAGOOL}`, `waivers.html?league=${GABAGOOL}`, `trade.html?league=${GABAGOOL}`,
-  ]);
-  assert.match(ids['connect-status'].textContent, /^2 leagues for Max · 2026\./);
+    `weekly.html?league=${LA}`, `waivers.html?league=${LA}`, `trade.html?league=${LA}`,
+  ], 'every league gets the same links');
+  assert.match(ids['connect-status'].textContent, /^2 leagues for User A · 2026\./);
 }
 
 // Spec 5.1: without a username, a pasted league link or id loads the league
@@ -128,7 +129,7 @@ async function pastedLeagueLinkOpensTheLeagueWithoutIdentity() {
   global.location = {assign: url => navigated.push(url)};
   window.Sleeper = sleeperFor(() => { throw new Error('opening a pasted league must make no Sleeper call here'); });
   init();
-  const X = '1376245373244301312';
+  const X = LA;
   const open = value => { ids['connect-league'].value = value; ids['connect-league-form']._listeners.submit({preventDefault() {}}); };
   const MSG = 'Enter a Sleeper league id or a sleeper.com league link.';
   open(` ${X} `);
@@ -137,7 +138,7 @@ async function pastedLeagueLinkOpensTheLeagueWithoutIdentity() {
   open(`sleeper.com/leagues/700000000000000001/matchup?week=3`);
   assert.deepEqual(navigated, [`weekly.html?league=${X}`, `weekly.html?league=${X}`, `weekly.html?league=${X}`, 'weekly.html?league=700000000000000001']);
   assert.equal(ids['connect-league-status'].textContent, '', 'a good link leaves no error');
-  for (const bad of ['gabagool', '', '   ', 'https://example.com/leagues/123', 'https://sleeper.com/leagues/abc/team', '12a3', 'https://sleeper.com/users/123']) {
+  for (const bad of ['leaguea', '', '   ', 'https://example.com/leagues/123', 'https://sleeper.com/leagues/abc/team', '12a3', 'https://sleeper.com/users/123']) {
     ids['connect-league-status'].textContent = '';
     open(bad);
     assert.equal(ids['connect-league-status'].textContent, MSG, `${JSON.stringify(bad)} must be refused`);
@@ -160,9 +161,9 @@ async function forgetClearsRenderedResults(ids) {
 }
 
 async function chipIdentityChangeClearsResultsAndReflectsUser(ids) {
-  ids['connect-user'].value = 'max973';
+  ids['connect-user'].value = 'user_a';
   await submit(ids);
-  assert.equal(collectAnchors(ids['connect-results']).length, 4, 'results rendered again for max973');
+  assert.equal(collectAnchors(ids['connect-results']).length, 3, 'results rendered again for user_a');
   // The chip identifies another account: results clear BEFORE the lookup
   // resolves, and the form shows the new account without auto-discovering.
   const pending = Session.identify('other', {get: maxRoutes});
@@ -177,12 +178,12 @@ async function inFlightDiscoveryForOldAccountNeverRenders(ids) {
   // Identify resolves, then the league fetch stalls; forget lands in between.
   const leagues = deferred();
   window.Sleeper = sleeperFor(path => path === '/user/123/leagues/nfl/2026' ? leagues.promise : maxRoutes(path));
-  ids['connect-user'].value = 'max973';
+  ids['connect-user'].value = 'user_a';
   const run = submit(ids);
   await new Promise(r => setTimeout(r, 0));
   assert.equal(Session.identity()?.userId, '123');
   Session.forget();
-  leagues.resolve([{league_id: GABAGOOL, season: '2026', name: 'Gabagool'}]);
+  leagues.resolve([{league_id: LA, season: '2026', name: 'League A'}]);
   await run;
   assert.deepEqual(ids['connect-results'].children, [], 'a discovery for a forgotten account must not render');
   assert.equal(ids['connect-status'].textContent, IDLE);
@@ -191,11 +192,11 @@ async function inFlightDiscoveryForOldAccountNeverRenders(ids) {
   // The chip supersedes the form's own identify mid-flight: the form drops
   // its request silently and idles instead of showing a superseded error.
   const user = deferred();
-  window.Sleeper = sleeperFor(path => path === '/user/max973' ? user.promise : maxRoutes(path));
-  ids['connect-user'].value = 'max973';
+  window.Sleeper = sleeperFor(path => path === '/user/user_a' ? user.promise : maxRoutes(path));
+  ids['connect-user'].value = 'user_a';
   const run2 = submit(ids);
   await Session.identify('other', {get: maxRoutes});
-  user.resolve({user_id: '123', username: 'Max973', display_name: 'Max'});
+  user.resolve({user_id: '123', username: 'User_A', display_name: 'User A'});
   await run2;
   assert.deepEqual(ids['connect-results'].children, []);
   assert.equal(ids['connect-status'].textContent, IDLE, 'a superseded lookup is never displayed as an error');
@@ -257,33 +258,80 @@ async function unknownUsernameSurfacesTheSessionError() {
 async function identifiedSessionPrefillsTheForm() {
   reset();
   Session._get(maxRoutes);
-  await Session.identify('max973');
+  await Session.identify('user_a');
   const ids = mountPage();
   window.Sleeper = sleeperFor(maxRoutes);
   init();
-  assert.equal(ids['connect-user'].value, 'Max973', 'a remembered identity prefills the form');
+  assert.equal(ids['connect-user'].value, 'User_A', 'a remembered identity prefills the form');
+}
+
+// The in-season pages' connect prompt: one field, the connect page's two ways
+// in, and the choice opens on THIS page (no league is ever substituted).
+async function connectPromptOpensTheChoiceOnThisPage() {
+  reset();
+  const ids = {};
+  for (const id of ['connect-prompt-form', 'connect-prompt-input', 'connect-prompt-status', 'connect-prompt-results']) ids[id] = makeEl();
+  ids['connect-prompt-input'].value = '';
+  ids['connect-prompt-status'].textContent = '';
+  global.document = {getElementById: id => ids[id] || null, createElement: tag => Object.assign(makeEl(), {tagName: tag})};
+  const navigated = [];
+  global.location = {href: 'https://example.test/Megatron/waivers.html', assign: url => navigated.push(url)};
+  window.Sleeper = sleeperFor(maxRoutes);
+  initPrompt();
+  const send = async value => { ids['connect-prompt-input'].value = value; await ids['connect-prompt-form']._listeners.submit({preventDefault() {}}); };
+  // A pasted league link (or id) opens that league here, with no lookup and no identity.
+  await send(`https://sleeper.com/leagues/${LB}/team`);
+  assert.deepEqual(navigated, [`waivers.html?league=${LB}`], 'a league link opens that league on this page');
+  assert.equal(Session.identity(), null, 'no identity was needed or created');
+  // A link that is not a sleeper.com league link is refused, never looked up as a username.
+  await send('https://example.com/leagues/12');
+  assert.equal(ids['connect-prompt-status'].textContent, 'Enter a Sleeper league id or a sleeper.com league link.');
+  await send('   ');
+  assert.equal(ids['connect-prompt-status'].textContent, 'Enter your Sleeper username or paste a sleeper.com league link.');
+  assert.equal(navigated.length, 1);
+  // A username lists the account's current-season leagues as links to this page.
+  await send('user_a');
+  assert.equal(Session.identity()?.userId, '123', 'the prompt identifies through the shared session (the league panel follows)');
+  assert.equal(ids['connect-prompt-status'].textContent, '1 league for User A · 2026. Choose one:');
+  assert.deepEqual(collectAnchors(ids['connect-prompt-results']).map(a => [a.href, a.textContent]), [[`waivers.html?league=${LA}`, 'League A']]);
+  // An account with no current-season league says so.
+  window.Sleeper = sleeperFor(path => path === '/user/123/leagues/nfl/2026' ? [] : maxRoutes(path));
+  await send('user_a');
+  assert.equal(ids['connect-prompt-status'].textContent, 'No 2026 Sleeper leagues for User A.');
+  assert.deepEqual(ids['connect-prompt-results'].children, []);
+  // An unknown username names the session's error.
+  window.Sleeper = sleeperFor(path => path === '/state/nfl' ? {season: '2026'} : null);
+  await send('nobody');
+  assert.equal(ids['connect-prompt-status'].textContent, 'Unable to load leagues: Sleeper username was not found.');
+  // A remembered identity prefills the field.
+  reset();
+  Session._get(maxRoutes);
+  await Session.identify('user_a');
+  ids['connect-prompt-input'].value = '';
+  initPrompt();
+  assert.equal(ids['connect-prompt-input'].value, 'User_A');
+  // A page without the prompt's markup is left alone.
+  global.document = {getElementById: () => null};
+  initPrompt();
+  delete global.location;
 }
 
 (async () => {
-  const ids = await configuredLeagueCardsLinkDraftWeeklyWaivers();
+  const ids = await leagueCardsLinkTheInSeasonPagesById();
   await forgetClearsRenderedResults(ids);
   await chipIdentityChangeClearsResultsAndReflectsUser(ids);
   await inFlightDiscoveryForOldAccountNeverRenders(ids);
   await typingDuringAPendingLookupKeepsTheTypedName();
   await unknownUsernameSurfacesTheSessionError();
   await identifiedSessionPrefillsTheForm();
-  await unregisteredLeaguesGetInSeasonLinks();
+  await everyLeagueGetsTheSameInSeasonLinks();
   await pastedLeagueLinkOpensTheLeagueWithoutIdentity();
 
-  // Configured-league detection comes from FC.REGISTRY, never a local map.
-  assert.equal(slugForLeague(GABAGOOL), 'gabagool');
-  assert.equal(slugForLeague(FAM), 'fam');
-  assert.equal(slugForLeague('69827905'), null, 'the ESPN entry is not a Sleeper league');
-  assert.equal(slugForLeague('999'), null);
+  await connectPromptOpensTheChoiceOnThisPage();
 
   reset();
   const paths = [];
-  const league = {league_id: GABAGOOL, season: '2026'};
+  const league = {league_id: LA, season: '2026'};
   const get = async path => {
     paths.push(path);
     if (path === '/state/nfl') return {season: '2026'};
@@ -291,8 +339,8 @@ async function identifiedSessionPrefillsTheForm() {
     return [league, {league_id: '999', season: '2026', name: '<script>bad</script>'}];
   };
   const result = await discover(' a/b ', get, Session);
-  assert.equal(result.rows[0].slug, 'gabagool');
-  assert.equal(result.rows[1].slug, null);
+  assert.deepEqual(result.rows.map(r => Object.keys(r)), [['league'], ['league']], 'a row is the league alone: no registry slug');
+  assert.equal(result.rows[0].league.league_id, LA);
   assert.equal(result.identity.userId, '123');
   assert(paths.includes('/user/a%2Fb'));
   assert(paths.includes('/user/123/leagues/nfl/2026'));
@@ -305,7 +353,7 @@ async function identifiedSessionPrefillsTheForm() {
   await assert.rejects(discover('x', async path => path === '/state/nfl' ? {} : {user_id: '123'}, Session), /season/);
   // The session is the default when no session argument is given.
   const viaDefault = await discover('a/b', get);
-  assert.equal(viaDefault.rows[0].slug, 'gabagool');
+  assert.equal(viaDefault.rows[0].league.league_id, LA);
   Session._storage(undefined);
   console.log('Sleeper league discovery fixture passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

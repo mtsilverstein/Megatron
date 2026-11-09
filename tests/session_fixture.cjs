@@ -8,6 +8,18 @@
 const assert = require("node:assert/strict");
 const Session = require("../site/assets/session.js");
 const FC = require("../site/assets/app.js");
+// The site's code names no league: the registry is empty until a page loads a
+// board. These checks drive the registry (draft) path with synthetic rows
+// through the test hook.
+const EMPTY_AT_LOAD = FC.REGISTRY.length;
+FC._registry([
+  { slug: "leaguea", platform: "sleeper", leagueId: "100000000000000001", label: "League A · Sleeper",
+    tools: { draft: true, keepers: true, trade: true, waivers: true, startsit: true } },
+  { slug: "leagueb", platform: "sleeper", leagueId: "100000000000000002", label: "League B · Sleeper",
+    tools: { draft: true, keepers: false, trade: true, waivers: true, startsit: true } },
+  { slug: "leaguec", platform: "espn", leagueId: "100000000000000003", label: "League C · draft board only",
+    tools: { draft: true, keepers: false, trade: false, waivers: false, startsit: false } },
+]);
 
 let n = 0;
 async function check(name, fn) {
@@ -21,12 +33,12 @@ function deferred() {
 }
 
 // ---- fakes -----------------------------------------------------------------
-const L = "1376245373244301312"; // gabagool's registry id
-const LF = "1389736745205002240"; // fam's
-const user = { user_id: "u1", username: "max973", display_name: "Max973" };
-const league = { league_id: L, name: "Gabagool Fools", season: "2026", status: "in_season", roster_positions: ["QB", "RB", "BN"] };
-const leagueFam = { league_id: LF, name: "FAM FOOTBALL", season: "2026", status: "in_season" };
-const users = [{ user_id: "u1", display_name: "Max973", metadata: { team_name: "Meat Sweats" } }, { user_id: "u2", display_name: "Bo" }];
+const L = "100000000000000001"; // League A's synthetic registry id
+const LF = "100000000000000002"; // League B's
+const user = { user_id: "u1", username: "user_a", display_name: "User A" };
+const league = { league_id: L, name: "League A", season: "2026", status: "in_season", roster_positions: ["QB", "RB", "BN"] };
+const leagueFam = { league_id: LF, name: "League B", season: "2026", status: "in_season" };
+const users = [{ user_id: "u1", display_name: "User A", metadata: { team_name: "Meat Sweats" } }, { user_id: "u2", display_name: "Bo" }];
 const rosters = [{ roster_id: 9, owner_id: "u1", co_owners: null, players: ["a"] }, { roster_id: 3, owner_id: "u2", co_owners: ["u5"], players: ["b"] }];
 const state = { season: "2026", season_type: "regular", week: 3 };
 const board = { league: { league_id: L }, season: 2026 };
@@ -48,7 +60,7 @@ function fakeGet(routes) {
   return { get, calls, optsSeen, reset() { calls.length = 0; } };
 }
 const routesFor = (id, lg) => ({
-  "/user/max973": user, "/user/max": user, [`/league/${id}`]: lg, [`/league/${id}/users`]: users,
+  "/user/user_a": user, "/user/max": user, [`/league/${id}`]: lg, [`/league/${id}/users`]: users,
   [`/league/${id}/rosters`]: rosters, "/state/nfl": state,
 });
 const routes = () => routesFor(L, league);
@@ -81,12 +93,12 @@ const sorted = a => a.slice().sort();
     Session._get(get);
     assert.equal(Session.state(), "anonymous");
     const id = await Session.identify("max");
-    assert.deepEqual(id, { username: "max973", userId: "u1", displayName: "Max973" });
+    assert.deepEqual(id, { username: "user_a", userId: "u1", displayName: "User A" });
     assert.deepEqual(Session.identity(), id);
     assert.deepEqual(calls, ["/user/max"]);
     assert.equal(Session.state(), "identified");
     const persisted = JSON.parse(store.getItem(IDENTITY_KEY));
-    assert.equal(persisted.userId, "u1"); assert.equal(persisted.username, "max973");
+    assert.equal(persisted.userId, "u1"); assert.equal(persisted.username, "user_a");
     assert.ok(typeof persisted.storedAt === "string" && persisted.storedAt.length > 0);
 
     // A miss: Sleeper answers with a body that carries no user_id.
@@ -104,12 +116,12 @@ const sorted = a => a.slice().sort();
     Session._storage(fakeStorage());
     const { get, calls } = fakeGet(routes());
     Session._get(get);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     calls.length = 0;
-    const b = await Session.ready({ slug: "gabagool", board });
+    const b = await Session.ready({ slug: "leaguea", board });
     assert.deepEqual(sorted(calls), sorted([`/league/${L}`, `/league/${L}/users`, `/league/${L}/rosters`, "/state/nfl"]));
     assert.equal(b.registry.leagueId, L);
-    assert.equal(b.registry.slug, "gabagool");
+    assert.equal(b.registry.slug, "leaguea");
     assert.equal(b.myRosterStatus, "found");
     assert.equal(b.myRoster.roster_id, 9);
     assert.equal(b.identity.userId, "u1");
@@ -128,7 +140,7 @@ const sorted = a => a.slice().sort();
   await check("3. ready without identity resolves anonymous with no roster", async () => {
     Session._storage(fakeStorage());
     const { get } = fakeGet(routes());
-    const b = await Session.ready({ slug: "gabagool", board, get });
+    const b = await Session.ready({ slug: "leaguea", board, get });
     assert.equal(b.identity, null);
     assert.equal(b.myRosterStatus, "anonymous");
     assert.equal(b.myRoster, null);
@@ -137,13 +149,13 @@ const sorted = a => a.slice().sort();
     // commits (league data is usable) but says so, and the chip refuses.
     Session._get(fakeGet({ ...routes(), "/user/ghost": { user_id: "u9", username: "ghost", display_name: "Ghost" } }).get);
     await Session.identify("ghost");
-    const none = await Session.ready({ slug: "gabagool", board });
+    const none = await Session.ready({ slug: "leaguea", board });
     assert.equal(none.myRosterStatus, "none"); assert.equal(none.myRoster, null);
     assert.equal(Session.chipText(none, "ready", Date.now()), "Could not uniquely match this account to a roster in this league.");
     const r = routes(); r[`/league/${L}/rosters`] = rosters.concat([{ roster_id: 4, owner_id: "u1" }]);
     Session._get(fakeGet(r).get);
-    await Session.identify("max973");
-    const two = await Session.ready({ slug: "gabagool", board });
+    await Session.identify("user_a");
+    const two = await Session.ready({ slug: "leaguea", board });
     assert.equal(two.myRosterStatus, "ambiguous"); assert.equal(two.myRoster, null);
     assert.equal(Session.chipText(two, "ready", Date.now()), "Could not uniquely match this account to a roster in this league.");
   });
@@ -152,27 +164,27 @@ const sorted = a => a.slice().sort();
     Session._storage(fakeStorage());
     const { get } = fakeGet(routes());
     Session._get(get);
-    await Session.ready({ slug: "gabagool", board }); // a prior good bundle...
+    await Session.ready({ slug: "leaguea", board }); // a prior good bundle...
     assert.ok(Session.bundle());
-    await assert.rejects(Session.ready({ slug: "gabagool", board: { league: { league_id: "999" } } }), /does not match this board/);
+    await assert.rejects(Session.ready({ slug: "leaguea", board: { league: { league_id: "999" } } }), /does not match this board/);
     assert.equal(Session.bundle(), null, "...must not remain usable after a failed load");
     assert.equal(Session.state(), "error");
     assert.match(Session.error(), /does not match this board/);
     // A board with no league id at all is unverifiable too, but that is an
     // integration fault, not a mismatch -- it gets its own message.
-    await assert.rejects(Session.ready({ slug: "gabagool", board: {} }), { message: "No static board is loaded for this page." });
+    await assert.rejects(Session.ready({ slug: "leaguea", board: {} }), { message: "No static board is loaded for this page." });
     assert.equal(Session.bundle(), null);
     assert.equal(Session.state(), "error");
     assert.equal(Session.error(), "No static board is loaded for this page.");
-    await assert.rejects(Session.ready({ slug: "gabagool" }), { message: "No static board is loaded for this page." });
-    await assert.rejects(Session.ready({ slug: "gabagool", board: { league: { league_id: null } } }), { message: "No static board is loaded for this page." });
+    await assert.rejects(Session.ready({ slug: "leaguea" }), { message: "No static board is loaded for this page." });
+    await assert.rejects(Session.ready({ slug: "leaguea", board: { league: { league_id: null } } }), { message: "No static board is loaded for this page." });
     // Malformed live data and a failed required fetch fail ready() the same way.
     const r = routes(); r[`/league/${L}/users`] = { not: "an array" };
     Session._get(fakeGet(r).get);
-    await assert.rejects(Session.ready({ slug: "gabagool", board }), /malformed/i);
+    await assert.rejects(Session.ready({ slug: "leaguea", board }), /malformed/i);
     assert.equal(Session.bundle(), null);
     r[`/league/${L}/users`] = users; r["/state/nfl"] = new Error("HTTP 504");
-    await assert.rejects(Session.ready({ slug: "gabagool", board }), /HTTP 504/);
+    await assert.rejects(Session.ready({ slug: "leaguea", board }), /HTTP 504/);
     assert.equal(Session.bundle(), null);
     assert.equal(Session.state(), "error");
   });
@@ -193,8 +205,8 @@ const sorted = a => a.slice().sort();
     Session._storage(fakeStorage());
     const { get, calls } = fakeGet(routes());
     Session._get(get);
-    await Session.identify("max973");
-    const b1 = await Session.ready({ slug: "gabagool", board });
+    await Session.identify("user_a");
+    const b1 = await Session.ready({ slug: "leaguea", board });
     await pause(5);
     calls.length = 0;
     const b2 = await Session.refresh({ scope: "rosters" });
@@ -226,8 +238,8 @@ const sorted = a => a.slice().sort();
     const r = routes();
     const { get } = fakeGet(r);
     Session._get(get);
-    await Session.identify("max973");
-    const b1 = await Session.ready({ slug: "gabagool", board });
+    await Session.identify("user_a");
+    const b1 = await Session.ready({ slug: "leaguea", board });
     await pause(5);
     r[`/league/${L}/rosters`] = new Error("HTTP 503");
     await assert.rejects(Session.refresh({ scope: "rosters" }), /HTTP 503/);
@@ -254,20 +266,20 @@ const sorted = a => a.slice().sort();
     r[`/league/${LF}/rosters`] = () => dB.promise;
     const { get } = fakeGet(r);
     Session._get(get);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     const fired = [];
     const off = Session.onChange(() => fired.push({ state: Session.state(), slug: Session.bundle() && Session.bundle().registry.slug }));
-    const pA = Session.ready({ slug: "gabagool", board });
-    const pB = Session.ready({ slug: "fam", board: boardFam });
+    const pA = Session.ready({ slug: "leaguea", board });
+    const pB = Session.ready({ slug: "leagueb", board: boardFam });
     dB.resolve(rosters);
     const bB = await pB;
-    assert.equal(bB.registry.slug, "fam");
+    assert.equal(bB.registry.slug, "leagueb");
     const firedBeforeA = fired.length;
-    assert.ok(fired.some(f => f.state === "ready" && f.slug === "fam"), "B's commit fired onChange");
+    assert.ok(fired.some(f => f.state === "ready" && f.slug === "leagueb"), "B's commit fired onChange");
     dA.resolve(rosters);
     await assert.rejects(pA, e => e.superseded === true && /superseded/i.test(e.message));
     await pause(2);
-    assert.equal(Session.bundle().registry.slug, "fam", "the stale A result must not overwrite B");
+    assert.equal(Session.bundle().registry.slug, "leagueb", "the stale A result must not overwrite B");
     assert.equal(Session.bundle(), bB);
     assert.equal(fired.length, firedBeforeA, "A's late result fired nothing");
     assert.equal(Session.state(), "ready");
@@ -278,7 +290,7 @@ const sorted = a => a.slice().sort();
     r[`/league/${LF}/rosters`] = () => dR.promise;
     const pR = Session.refresh();
     r[`/league/${LF}/rosters`] = rosters;
-    const bNew = await Session.ready({ slug: "fam", board: boardFam });
+    const bNew = await Session.ready({ slug: "leagueb", board: boardFam });
     dR.resolve(rosters);
     await assert.rejects(pR, e => e.superseded === true);
     await pause(2);
@@ -287,7 +299,7 @@ const sorted = a => a.slice().sort();
     const dI = deferred();
     r["/user/slow"] = () => dI.promise;
     const pI = Session.identify("slow");
-    await Session.identify("max973");
+    await Session.identify("user_a");
     dI.resolve({ user_id: "u2", username: "slow", display_name: "Slow" });
     await assert.rejects(pI, e => e.superseded === true);
     await pause(2);
@@ -300,8 +312,8 @@ const sorted = a => a.slice().sort();
     const r = routes(); r["/user/other"] = () => d.promise;
     const { get } = fakeGet(r);
     Session._get(get);
-    await Session.identify("max973");
-    const b1 = await Session.ready({ slug: "gabagool", board });
+    await Session.identify("user_a");
+    const b1 = await Session.ready({ slug: "leaguea", board });
     assert.equal(b1.myRoster.roster_id, 9);
     const seen = [];
     const off = Session.onChange(() => seen.push({ state: Session.state(), myRoster: Session.bundle().myRoster, status: Session.bundle().myRosterStatus }));
@@ -319,8 +331,8 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.identity(), null);
     assert.equal(Session.bundle().myRoster, null);
     // Success re-derives my roster on the committed bundle.
-    r["/user/max973"] = user;
-    const id = await Session.identify("max973");
+    r["/user/user_a"] = user;
+    const id = await Session.identify("user_a");
     assert.equal(id.userId, "u1");
     assert.equal(Session.bundle().myRoster.roster_id, 9);
     assert.equal(Session.bundle().myRosterStatus, "found");
@@ -369,9 +381,9 @@ const sorted = a => a.slice().sort();
     Session._storage(fakeStorage());
     const { get, calls } = fakeGet(routes());
     Session._get(get);
-    const b = await Session.ready({ slug: "espnfam", board: { league: { league_id: "69827905" } } });
+    const b = await Session.ready({ slug: "leaguec", board: { league: { league_id: "100000000000000003" } } });
     assert.equal(b.registry.platform, "espn");
-    assert.equal(b.registry.slug, "espnfam");
+    assert.equal(b.registry.slug, "leaguec");
     assert.equal(b.league, null); assert.equal(b.users, null); assert.equal(b.rosters, null); assert.equal(b.state, null);
     assert.equal(b.myRoster, null);
     assert.equal(b.myRosterStatus, "anonymous");
@@ -391,8 +403,8 @@ const sorted = a => a.slice().sort();
     Session._storage(fakeStorage({ [IDENTITY_KEY]: JSON.stringify({ username: "x" }) }));
     assert.equal(Session.identity(), null);
     // A well-formed record is restored on first use.
-    Session._storage(fakeStorage({ [IDENTITY_KEY]: JSON.stringify({ username: "max973", userId: "u1", displayName: "Max973", storedAt: "2026-09-18T00:00:00Z" }) }));
-    assert.deepEqual(Session.identity(), { username: "max973", userId: "u1", displayName: "Max973" });
+    Session._storage(fakeStorage({ [IDENTITY_KEY]: JSON.stringify({ username: "user_a", userId: "u1", displayName: "User A", storedAt: "2026-09-18T00:00:00Z" }) }));
+    assert.deepEqual(Session.identity(), { username: "user_a", userId: "u1", displayName: "User A" });
     assert.equal(Session.state(), "identified");
     // Pure reader never throws.
     assert.equal(Session.readIdentity(fakeStorage({ [IDENTITY_KEY]: "[1,2" })), null);
@@ -401,34 +413,34 @@ const sorted = a => a.slice().sort();
     // Throwing storage: identify still resolves, state identified, identity in memory.
     Session._storage(throwingStorage());
     Session._get(fakeGet(routes()).get);
-    const id = await Session.identify("max973");
+    const id = await Session.identify("user_a");
     assert.equal(id.userId, "u1");
     assert.equal(Session.state(), "identified");
     assert.deepEqual(Session.identity(), id);
     assert.doesNotThrow(() => Session.forget());
     assert.equal(Session.identity(), null);
     // Legacy migration: the old username key becomes a pending username and is deleted.
-    const legacy = fakeStorage({ [LEGACY_KEY]: " max973 " });
-    assert.equal(Session.migrateLegacy(legacy), "max973");
+    const legacy = fakeStorage({ [LEGACY_KEY]: " user_a " });
+    assert.equal(Session.migrateLegacy(legacy), "user_a");
     assert.equal(legacy.getItem(LEGACY_KEY), null, "the legacy key is deleted once read");
     assert.equal(Session.migrateLegacy(legacy), null, "a second migration finds nothing");
     assert.equal(Session.migrateLegacy(throwingStorage()), null);
-    const legacy2 = fakeStorage({ [LEGACY_KEY]: "max973" });
+    const legacy2 = fakeStorage({ [LEGACY_KEY]: "user_a" });
     Session._storage(legacy2);
-    assert.equal(Session.pendingUsername(), "max973", "the session surfaces the migrated username for the chip");
+    assert.equal(Session.pendingUsername(), "user_a", "the session surfaces the migrated username for the chip");
     assert.equal(Session.identity(), null, "a username alone is not an identity (no user id yet)");
     assert.equal(legacy2.getItem(LEGACY_KEY), null);
   });
 
-  await check("13. forget deletes identity, legacy and every draft-restore record; keeps league data and unrelated keys", async () => {
-    const store = fakeStorage({ [LEGACY_KEY]: "old", "fc-draft-mode:gabagool": "{}", "fc-draft-mode:fam": "{}", "unrelated": "keep", "fc-draft-mode:zzz": "{}",
-      "megatron.waivers.protected.v1|900|9": "[\"a\"]" });
+  await check("13. forget deletes identity, legacy, the remembered league and every draft-restore record; keeps league data and unrelated keys", async () => {
+    const store = fakeStorage({ [LEGACY_KEY]: "old", "fc-draft-mode:leaguea": "{}", "fc-draft-mode:leagueb": "{}", "unrelated": "keep", "fc-draft-mode:zzz": "{}",
+      "megatron.waivers.protected.v1|900|9": "[\"a\"]", "megatron:lastLeague": "100000000000000001" });
     Session._storage(store);
     const { get } = fakeGet(routes());
     Session._get(get);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     assert.ok(store.getItem(IDENTITY_KEY));
-    const b1 = await Session.ready({ slug: "gabagool", board });
+    const b1 = await Session.ready({ slug: "leaguea", board });
     assert.equal(b1.myRoster.roster_id, 9);
     const seen = [];
     const off = Session.onChange(() => seen.push(Session.state()));
@@ -436,10 +448,11 @@ const sorted = a => a.slice().sort();
     assert.deepEqual(seen, ["anonymous"], "forget fires onChange synchronously");
     assert.equal(store.getItem(IDENTITY_KEY), null);
     assert.equal(store.getItem(LEGACY_KEY), null);
-    assert.equal(store.getItem("fc-draft-mode:gabagool"), null);
-    assert.equal(store.getItem("fc-draft-mode:fam"), null);
+    assert.equal(store.getItem("fc-draft-mode:leaguea"), null);
+    assert.equal(store.getItem("fc-draft-mode:leagueb"), null);
     assert.equal(store.getItem("fc-draft-mode:zzz"), null, "every fc-draft-mode:* key goes, not just registry slugs");
     assert.equal(store.getItem("megatron.waivers.protected.v1|900|9"), null, "the waiver desk's saved protections go too (which league and team this browser managed)");
+    assert.equal(store.getItem("megatron:lastLeague"), null, "forget removes the remembered league id too");
     assert.equal(store.getItem("unrelated"), "keep");
     assert.equal(Session.identity(), null);
     assert.equal(Session.pendingUsername(), null, "forget also drops a migrated pending username");
@@ -456,19 +469,19 @@ const sorted = a => a.slice().sort();
 
   await check("14. chipText: the exact strings for every chip state", () => {
     const t0 = 1_700_000_000_000;
-    const ready = { registry: FC.registryFor("gabagool"), identity: { username: "max973", userId: "u1", displayName: "Max973" }, league, users, rosters, state, rostersRequestedAt: t0 - 100, rostersFetchedAt: t0, myRoster: rosters[0], myRosterStatus: "found", warnings: [], generation: 1 };
+    const ready = { registry: FC.registryFor("leaguea"), identity: { username: "user_a", userId: "u1", displayName: "User A" }, league, users, rosters, state, rostersRequestedAt: t0 - 100, rostersFetchedAt: t0, myRoster: rosters[0], myRosterStatus: "found", warnings: [], generation: 1 };
     assert.equal(Session.chipText(null, "anonymous"), "Remembered on this device until you choose forget.");
-    assert.equal(Session.chipText(ready, "ready", t0 + 14000), "Max973 · Gabagool Fools · your roster: 9 · rosters 14 s ago");
-    assert.equal(Session.chipText(ready, "ready", t0 + 125000), "Max973 · Gabagool Fools · your roster: 9 · rosters 2 min ago");
-    assert.equal(Session.chipText(ready, "refreshing", t0 + 14000), "Max973 · Gabagool Fools · your roster: 9 · rosters 14 s ago · refreshing…");
+    assert.equal(Session.chipText(ready, "ready", t0 + 14000), "User A · League A · your roster: 9 · rosters 14 s ago");
+    assert.equal(Session.chipText(ready, "ready", t0 + 125000), "User A · League A · your roster: 9 · rosters 2 min ago");
+    assert.equal(Session.chipText(ready, "refreshing", t0 + 14000), "User A · League A · your roster: 9 · rosters 14 s ago · refreshing…");
     const none = { ...ready, myRoster: null, myRosterStatus: "none" };
     const ambiguous = { ...ready, myRoster: null, myRosterStatus: "ambiguous" };
     assert.equal(Session.chipText(none, "ready", t0), "Could not uniquely match this account to a roster in this league.");
     assert.equal(Session.chipText(ambiguous, "ready", t0), "Could not uniquely match this account to a roster in this league.");
     assert.equal(Session.chipText(ready, "error", t0, "Sleeper username was not found."), "Sleeper username was not found.");
     assert.equal(Session.chipText(null, "error", t0, "HTTP 503"), "HTTP 503");
-    const espn = { registry: FC.registryFor("espnfam"), identity: ready.identity, league: null, users: null, rosters: null, state: null, rostersRequestedAt: null, rostersFetchedAt: null, myRoster: null, myRosterStatus: "anonymous", warnings: [], generation: 1 };
-    assert.equal(Session.chipText(espn, "ready", t0), "Max973 · ESPN family · draft board only");
+    const espn = { registry: FC.registryFor("leaguec"), identity: ready.identity, league: null, users: null, rosters: null, state: null, rostersRequestedAt: null, rostersFetchedAt: null, myRoster: null, myRosterStatus: "anonymous", warnings: [], generation: 1 };
+    assert.equal(Session.chipText(espn, "ready", t0), "User A · League C · draft board only");
     assert.equal(Session.chipText({ ...espn, identity: null }, "ready", t0), "Remembered on this device until you choose forget.");
     // An anonymous bundle (no identity) in the ready state still asks for a name.
     assert.equal(Session.chipText({ ...ready, identity: null, myRoster: null, myRosterStatus: "anonymous" }, "ready", t0), "Remembered on this device until you choose forget.");
@@ -486,7 +499,7 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.bundle(), null);
     assert.equal(Session.state(), "error");
     assert.equal(FC.registryFor("nope"), null);
-    assert.equal(FC.registryFor("fam").leagueId, LF);
+    assert.equal(FC.registryFor("leagueb").leagueId, LF);
   });
 
   await check("16. leaguesFor needs a committed bundle and asks for the bundle's season", async () => {
@@ -494,9 +507,9 @@ const sorted = a => a.slice().sort();
     const r = routes(); r["/user/u1/leagues/nfl/2026"] = [{ league_id: L }, { league_id: LF }];
     const { get, calls } = fakeGet(r);
     Session._get(get);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     await assert.rejects(Session.leaguesFor(), /league/i);
-    await Session.ready({ slug: "gabagool", board });
+    await Session.ready({ slug: "leaguea", board });
     calls.length = 0;
     const leagues = await Session.leaguesFor();
     assert.deepEqual(calls, ["/user/u1/leagues/nfl/2026"]);
@@ -511,8 +524,8 @@ const sorted = a => a.slice().sort();
     const r = routes();
     const { get, calls } = fakeGet(r);
     Session._get(get);
-    await Session.identify("max973");
-    const b1 = await Session.ready({ slug: "gabagool", board });
+    await Session.identify("user_a");
+    const b1 = await Session.ready({ slug: "leaguea", board });
     assert.equal(b1.extra, null, "no hook, no extra");
     await pause(5);
     // Rejecting hook: the old bundle stays BY REFERENCE, timestamps included,
@@ -546,7 +559,7 @@ const sorted = a => a.slice().sort();
     const pStale = Session.refresh({ also: () => dHook.promise });
     const fired = [];
     const off = Session.onChange(() => fired.push(Session.state()));
-    const bFresh = await Session.ready({ slug: "gabagool", board });
+    const bFresh = await Session.ready({ slug: "leaguea", board });
     const firedAfterReady = fired.length;
     dHook.resolve({ should: "never land" });
     await assert.rejects(pStale, e => e.superseded === true);
@@ -557,7 +570,7 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.state(), "ready");
     off();
     // A hook on an ESPN bundle never runs (no Sleeper session to extend).
-    await Session.ready({ slug: "espnfam", board: { league: { league_id: "69827905" } } });
+    await Session.ready({ slug: "leaguec", board: { league: { league_id: "100000000000000003" } } });
     let ran = false;
     const e = await Session.refresh({ also: () => { ran = true; } });
     assert.equal(ran, false); assert.equal(e.registry.platform, "espn");
@@ -569,24 +582,24 @@ const sorted = a => a.slice().sort();
     const r = routes(); r[`/league/${L}/rosters`] = () => d.promise; r["/user/bad"] = null;
     const { get } = fakeGet(r);
     Session._get(get);
-    const pReady = Session.ready({ slug: "gabagool", board });
+    const pReady = Session.ready({ slug: "leaguea", board });
     await assert.rejects(Session.identify("bad"), /was not found/);
     assert.equal(Session.state(), "error");
     d.resolve(rosters);
     const b = await pReady;
-    assert.ok(b && b.registry.slug === "gabagool", "the league load itself succeeds");
+    assert.ok(b && b.registry.slug === "leaguea", "the league load itself succeeds");
     assert.equal(Session.bundle(), b);
     assert.equal(Session.error(), "Sleeper username was not found.", "ready() clears only the league error");
     assert.equal(Session.state(), "error", "the chip keeps showing the identity error until the user acts");
     assert.equal(b.myRosterStatus, "anonymous");
     // A successful identify clears it; state falls through to the league flow.
-    await Session.identify("max973");
+    await Session.identify("user_a");
     assert.equal(Session.error(), null);
     assert.equal(Session.state(), "ready");
     // A league error alongside a good identity: identify() does not clear it.
-    await assert.rejects(Session.ready({ slug: "gabagool", board: { league: { league_id: "999" } } }), /does not match/);
+    await assert.rejects(Session.ready({ slug: "leaguea", board: { league: { league_id: "999" } } }), /does not match/);
     assert.match(Session.error(), /does not match/);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     assert.match(Session.error(), /does not match/, "identify() clears only the identity error");
     assert.equal(Session.state(), "error");
     // Both set: identity error is reported first; forget clears both.
@@ -597,7 +610,7 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.state(), "anonymous");
     // A failed refresh is not an error state: the committed bundle stays valid.
     const r2 = routes(); const g2 = fakeGet(r2).get; Session._get(g2);
-    await Session.ready({ slug: "gabagool", board });
+    await Session.ready({ slug: "leaguea", board });
     r2[`/league/${L}/rosters`] = new Error("HTTP 503");
     await assert.rejects(Session.refresh(), /503/);
     assert.equal(Session.error(), null);
@@ -610,7 +623,7 @@ const sorted = a => a.slice().sort();
     const { get, calls } = fakeGet(r);
     Session._get(get);
     await assert.rejects(Session.leaguesFor({ season: "2026" }), /username/i);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     assert.equal(Session.bundle(), null);
     calls.length = 0;
     const leagues = await Session.leaguesFor({ season: 2026 });
@@ -624,11 +637,11 @@ const sorted = a => a.slice().sort();
     Session._storage(fakeStorage());
     Session._get(null);
     const { get, calls } = fakeGet(routes());
-    await Session.ready({ slug: "gabagool", board, get });
+    await Session.ready({ slug: "leaguea", board, get });
     calls.length = 0;
     await assert.rejects(Session.refresh(), /Sleeper client unavailable/, "a getter passed to ready() must not become the document's getter");
     assert.deepEqual(calls, []);
-    assert.equal(Session.bundle() && Session.bundle().registry.slug, "gabagool", "a failed refresh keeps the bundle");
+    assert.equal(Session.bundle() && Session.bundle().registry.slug, "leaguea", "a failed refresh keeps the bundle");
     Session._get(get);
     await assert.rejects(Session.identify("   "), { message: "Enter a Sleeper username." });
     assert.equal(Session.error(), "Enter a Sleeper username.");
@@ -650,10 +663,10 @@ const sorted = a => a.slice().sort();
     Session._get(get);
     // No identity: rejects before any fetch.
     await assert.rejects(Session.previousLeagueRoster(), /username/i);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     // Identity but no bundle: rejects before any fetch.
     await assert.rejects(Session.previousLeagueRoster(), /league is loaded/i);
-    await Session.ready({ slug: "gabagool", board });
+    await Session.ready({ slug: "leaguea", board });
     calls.length = 0;
     // Happy path: owner match, one call to the PREVIOUS league's rosters.
     const out = await Session.previousLeagueRoster();
@@ -693,8 +706,8 @@ const sorted = a => a.slice().sort();
     Session._storage(fakeStorage());
     const { get: g3, calls: c3 } = fakeGet(routes());   // `league` has no previous_league_id
     Session._get(g3);
-    await Session.identify("max973");
-    await Session.ready({ slug: "gabagool", board });
+    await Session.identify("user_a");
+    await Session.ready({ slug: "leaguea", board });
     c3.length = 0;
     await assert.rejects(Session.previousLeagueRoster(), { message: "no prior season found — enter keepers manually" });
     assert.deepEqual(c3, []);
@@ -702,7 +715,7 @@ const sorted = a => a.slice().sort();
     const r4 = routesFor(L, withPrev);
     r4[`/league/${PREV}/rosters`] = [prevRosters[0]];
     Session._get(fakeGet(r4).get);
-    await Session.ready({ slug: "gabagool", board });
+    await Session.ready({ slug: "leaguea", board });
     const own = fakeGet({ [`/league/${PREV}/rosters`]: [prevRosters[1]] });
     const viaOwn = await Session.previousLeagueRoster({ get: own.get });
     assert.deepEqual(own.calls, [`/league/${PREV}/rosters`]);
@@ -713,7 +726,7 @@ const sorted = a => a.slice().sort();
     const store = fakeStorage();
     Session._storage(store);
     Session._get(fakeGet(routes()).get);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     assert.equal(JSON.parse(store.getItem(IDENTITY_KEY)).userId, "u1", "account A is stored");
     // The change to B fails (not found). Memory is cleared and in error...
     Session._get(fakeGet({ "/user/nobody": null }).get);
@@ -728,12 +741,12 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.state(), "anonymous");
     // The same for a network failure mid-change, and for a storage that throws on delete.
     Session._get(fakeGet(routes()).get);
-    await Session.identify("max973");
+    await Session.identify("user_a");
     assert.ok(store.getItem(IDENTITY_KEY));
     Session._get(fakeGet({ "/user/max": new Error("HTTP 504") }).get);
     await assert.rejects(Session.identify("max"), /HTTP 504/);
     assert.equal(store.getItem(IDENTITY_KEY), null);
-    const flaky = fakeStorage({ [IDENTITY_KEY]: JSON.stringify({ username: "max973", userId: "u1" }) });
+    const flaky = fakeStorage({ [IDENTITY_KEY]: JSON.stringify({ username: "user_a", userId: "u1" }) });
     flaky.removeItem = () => { throw new Error("SecurityError"); };
     Session._storage(flaky);
     Session._get(fakeGet({ "/user/nobody": null }).get);
@@ -800,11 +813,11 @@ const sorted = a => a.slice().sort();
     assert.equal(out.analysisRoster, null); assert.equal(out.analysisRole, null);
     // The registry board path still works, and its bundles carry the same new fields.
     Session._get(fakeGet(routes()).get);
-    const reg = await Session.ready({ slug: "gabagool", board });
-    assert.equal(reg.registry.slug, "gabagool");
+    const reg = await Session.ready({ slug: "leaguea", board });
+    assert.equal(reg.registry.slug, "leaguea");
     assert.ok(Number.isFinite(reg.leagueFetchedAt));
     assert.equal(reg.viewedRosterId, null); assert.equal(reg.analysisRole, null);
-    const esp = await Session.ready({ slug: "espnfam", board: { league: { league_id: "69827905" } } });
+    const esp = await Session.ready({ slug: "leaguec", board: { league: { league_id: "100000000000000003" } } });
     assert.equal(esp.leagueFetchedAt, null); assert.equal(esp.analysisRoster, null); assert.equal(esp.analysisRole, null); assert.equal(esp.viewedRosterId, null);
   });
 
@@ -1044,15 +1057,26 @@ const sorted = a => a.slice().sort();
   await check("registry and module hygiene", () => {
     assert.equal(typeof global.window, "undefined", "session.js must not create a global window in node");
     assert.ok(Object.isFrozen(Session));
-    assert.deepEqual(FC.REGISTRY.map(r => r.slug), ["gabagool", "fam", "espnfam"]);
+    // Owner decision 2026-11-07: no league is built into the site. The
+    // registry starts EMPTY and holds only rows a page (here: the hook) put there.
+    assert.equal(EMPTY_AT_LOAD, 0, "app.js ships no registered league");
+    assert.deepEqual(FC.REGISTRY.map(r => r.slug), ["leaguea", "leagueb", "leaguec"]);
     assert.deepEqual(FC.REGISTRY.map(r => r.platform), ["sleeper", "sleeper", "espn"]);
-    assert.deepEqual(FC.REGISTRY.map(r => r.leagueId), [L, LF, "69827905"]);
-    assert.deepEqual(FC.REGISTRY.map(r => r.label), ["Gabagool · Sleeper", "FAM · Sleeper", "ESPN family · draft board only"]);
-    assert.deepEqual(FC.registryFor("gabagool").tools, { draft: true, keepers: true, trade: true, waivers: true, startsit: true });
-    assert.deepEqual(FC.registryFor("fam").tools, { draft: true, keepers: false, trade: true, waivers: true, startsit: true });
-    assert.deepEqual(FC.registryFor("espnfam").tools, { draft: true, keepers: false, trade: false, waivers: false, startsit: false });
-    assert.ok(Object.isFrozen(FC.REGISTRY));
+    assert.deepEqual(FC.REGISTRY.map(r => r.leagueId), [L, LF, "100000000000000003"]);
+    assert.ok(FC.REGISTRY.every(r => Object.isFrozen(r) && Object.isFrozen(r.tools)), "registry rows are frozen");
     assert.equal(Session.REGISTRY, undefined, "the registry has one home: FC");
+    // A board registers its OWN league block: slug, platform and id from the
+    // board, a scoring-format label -- the board's name never reaches the row.
+    FC._registry([]);
+    const synthetic = { season: 2026, league: { slug: "leagued", name: "League D", league_id: "100000000000000004", teams: 10,
+      keeper_rules: "ladder", sleeper_scoring: { rec: 0.5, pass_td: 4 } } };
+    FC.setBoard(synthetic);
+    const row = FC.registryFor("leagued");
+    assert.deepEqual({ ...row, tools: { ...row.tools } }, { slug: "leagued", platform: "sleeper", leagueId: "100000000000000004",
+      label: "10-team half-PPR, 4-pt pass TD", tools: { draft: true, keepers: true, trade: true, waivers: true, startsit: true } });
+    assert.ok(!JSON.stringify(row).includes("League D"), "the board's league name is not in its registry row");
+    FC.setBoard(null);
+    FC._registry([]);
   });
 
   console.log(`session_fixture: ${n} groups OK`);

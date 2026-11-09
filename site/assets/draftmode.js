@@ -12,7 +12,8 @@ window.DraftMode = (() => {
   const currentIdentity = () => { const S = sess(); return S ? S.identity() : null; };
   // Was the bare "fc-draft-mode". One key across every league meant connecting
   // to one league's draft left the OTHER league's page auto-restoring it on
-  // load -- a FAM draft resurrected on the Gabagool board on draft night.
+  // load -- one league's draft resurrected on the other league's board on
+  // draft night.
   const STORE_KEY_BASE = "fc-draft-mode";
   const storeKey = () => `${STORE_KEY_BASE}:${(cfg && cfg.board && cfg.board.league
                                                 && cfg.board.league.slug) || "default"}`;
@@ -188,12 +189,12 @@ window.DraftMode = (() => {
     // have no league_id and remain usable when their published shape matches.
     if (draft.league_id != null && lg.league_id != null
         && String(draft.league_id) !== String(lg.league_id)) {
-      return `that draft belongs to a different league; this board is built for ${lg.name} — open that league's board instead`;
+      return "that draft belongs to a different league than the one this board is built for — open that league's board instead";
     }
     const teams = draftNumber(s.teams);
     if (teams != null && teams !== 0 && teams !== Number(lg.teams)) {
-      return `that draft is ${s.teams} teams; this board is built for `
-        + `${lg.name} (${lg.teams} teams, ${lg.rounds} rounds) — open that league's board instead`;
+      return `that draft is ${s.teams} teams; this board is built for a `
+        + `${lg.teams}-team, ${lg.rounds}-round league — open that league's board instead`;
     }
     const expected = { slots_flex: lg.flex,
       // Both shipped leagues require these; lateSlotNeed assumes one of each.
@@ -217,7 +218,7 @@ window.DraftMode = (() => {
       if (count != null && count !== 0) wrong.push(`${key} ${value} (unsupported)`);
     }
     return wrong.length
-      ? `that draft starts a different lineup (${wrong.join(", ")}) than ${lg.name}'s board was built for — this board will not drive it`
+      ? `that draft starts a different lineup (${wrong.join(", ")}) than this board was built for — this board will not drive it`
       : null;
   }
 
@@ -966,7 +967,7 @@ window.DraftMode = (() => {
       roundsLeft,
       // How many MORE picks can still go to skill players. The trigger fires
       // with LATE_SLACK to spare, so "now" was overstating it by exactly that
-      // much: a real FAM mock spent picks 114 and 127 on K and D/ST when the
+      // much: a real 10-team mock spent picks 114 and 127 on K and D/ST when the
       // deadline was 134 and 147, and finished with Jakobi Meyers and Woody
       // Marks (vorp -17, -18) where waiting would have taken Wan'Dale Robinson
       // and Rachaad White (-4, -6). Same trigger, honest deadline.

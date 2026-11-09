@@ -52,6 +52,10 @@ const D = global.window.DraftMode;
 // so installing it after the require is fine). Its Sleeper calls go through
 // the same stub, so `/user/<name>` resolves to SLEEPER.user.
 const Session = require("../site/assets/session.js");
+// The site's code names no league; the registry (draft) path reads a row a
+// board page registered. The hook stands in for that with a synthetic row.
+require("../site/assets/app.js")._registry([{ slug: "leaguea", platform: "sleeper", leagueId: "100000000000000001",
+  label: "12-team PPR, 6-pt pass TD", tools: { draft: true, keepers: true, trade: true, waivers: true, startsit: true } }]);
 global.window.Session = Session;
 Session._get(global.window.Sleeper.get);
 // One storage object shared by the controller (global.localStorage) and the
@@ -83,7 +87,11 @@ assert.match(D.leagueScoringError(null, SCORING), /scoring_settings.*invalid/);
 // Use both shipped board contracts, with the settings their real drafts
 // publish. No network dependency: missing fields and standalone mocks are
 // deliberate compatibility cases, not fabricated defaults.
-for (const file of ["draft.json", "draft-fam.json"]) {
+const boardFiles = require("fs").readdirSync(require("path").join(__dirname, "..", "site", "data"))
+  .filter(f => /^draft(-[a-z0-9]+)?\.json$/.test(f))
+  .filter(f => (require(`../site/data/${f}`).league.platform || "sleeper") === "sleeper");
+assert.ok(boardFiles.length >= 2, "both published Sleeper boards are checked");
+for (const file of boardFiles) {
   const lg = require(`../site/data/${file}`).league;
   const settings = { teams: lg.teams, rounds: lg.rounds, slots_qb: 1,
     slots_rb: 2, slots_wr: 2, slots_te: 1, slots_flex: lg.flex,
@@ -480,7 +488,7 @@ assert.strictEqual(D.lateSlotNeed(roster(10), 10, 15, "u1", LATE), null);
 /* `slack` is how many MORE picks can go to skill players before the remaining
    slots have to be filled. The banner fires with LATE_SLACK to spare, so it
    used to say "draft K + D/ST now" two picks before that was true: in a real
-   FAM mock that spent picks 114 and 127 on K and D/ST and left Jakobi Meyers
+   10-team mock that spent picks 114 and 127 on K and D/ST and left Jakobi Meyers
    and Woody Marks (vorp -17, -18) as the last two picks, where waiting would
    have taken Wan'Dale Robinson and Rachaad White (-4, -6) instead. Same
    trigger, honest deadline. */
@@ -869,14 +877,14 @@ const until = async (pred, what, ms = 2000) => {
     Session.forget();
     await until(() => last.mine.size === 0 && JSON.parse(store.get(KEY)).userId === null,
                 "an anonymous session before the identify-then-ready flow");
-    SLEEPER.league = { league_id: "1376245373244301312", name: "Gabagool Fools", season: "2026" };
+    SLEEPER.league = { league_id: "100000000000000001", name: "League A", season: "2026" };
     SLEEPER.rosters = [{ roster_id: 2, owner_id: "U1", players: [] }];
     SLEEPER.users = [{ user_id: "U1", display_name: "me" }];
     SLEEPER.draftFetches = 0; SLEEPER.draftFailAfter = 1;   // only ONE draft fetch may succeed
     SLEEPER.draftGate = new Promise(r => { release = r; });
     const beforeReady = SLEEPER.calls.length;
-    const gabBoard = { league: { league_id: "1376245373244301312" } };
-    const readyDone = Session.identify("me").then(() => Session.ready({ slug: "gabagool", board: gabBoard }));
+    const boardA = { league: { league_id: "100000000000000001" } };
+    const readyDone = Session.identify("me").then(() => Session.ready({ slug: "leaguea", board: boardA }));
     await until(() => Session.state() === "ready", "the league load to commit while the draft connect is in flight");
     assert.strictEqual(Session.bundle().myRosterStatus, "found");
     release();
@@ -954,7 +962,7 @@ const until = async (pred, what, ms = 2000) => {
 /* --- one browser, two leagues --------------------------------------------
    The stored session lived under a single global key with no league in it, so
    connecting to one league's draft left the OTHER league's page auto-restoring
-   it on load -- a FAM draft resurrected on the Gabagool board on draft night.
+   it on load -- one league's draft resurrected on the other's board on draft night.
    And a draft id pasted into the wrong board was accepted silently, optimizing
    a 10-team draft against 12-team VORP with nothing on screen to say so. */
 {
@@ -967,11 +975,11 @@ const until = async (pred, what, ms = 2000) => {
     const store = fakeStore();
     global.localStorage = store;
     Session._storage(store);          // cold session again; the old init's listener is gone
-    const GAB = { slug: "gabagool", name: "Gabagool Fools", league_id: "1376245373244301312", teams: 12, rounds: 15,
+    const LEAGUE_A = { slug: "leaguea", name: "League A", league_id: "100000000000000001", teams: 12, rounds: 15,
                   roster: { QB: 1, RB: 2, WR: 2, TE: 1 }, flex: 2,
                   flex_positions: ["RB", "WR", "TE"], starters: 8,
                   total_picks: 180, depth_cap: { QB: 2, RB: 6, WR: 6, TE: 2 },
-                  keeper_rules: "gabagool", sleeper_scoring: SCORING };
+                  keeper_rules: "ladder", sleeper_scoring: SCORING };
 
     const el = () => ({
       value: "", textContent: "", innerHTML: "", hidden: false, checked: false,
@@ -988,7 +996,7 @@ const until = async (pred, what, ms = 2000) => {
       node.addEventListener = (ev, fn) => { if (ev === "click") handlers[name] = fn; };
     }
     const board = {
-      league: GAB,
+      league: LEAGUE_A,
       players: [
         { player_id: "a", sleeper_id: "9509", name: "P1", position: "RB", adp: 1,
           bye: 5, value_points: 300, vorp: 90, position_rank: 1 },
@@ -1000,7 +1008,7 @@ const until = async (pred, what, ms = 2000) => {
     D.init({ board, els, onUpdate: (st) => { last = st; } });
 
     // A session belonging to the OTHER league, already in storage.
-    store.set("fc-draft-mode:fam", JSON.stringify({ draftId: "FAM1" }));
+    store.set("fc-draft-mode:leagueb", JSON.stringify({ draftId: "LB1" }));
 
     SLEEPER.picks = [
       { pick_no: 1, draft_slot: 1, player_id: "9509", picked_by: "them" },
@@ -1017,8 +1025,9 @@ const until = async (pred, what, ms = 2000) => {
                 "the mismatched draft to be refused by name");
     assert.strictEqual(last && last.connected, false,
       "a 10-team draft was accepted on a 12-team board");
-    assert.ok(/Gabagool Fools/.test(els.status.textContent),
-      "the refusal did not name the board's own league");
+    assert.ok(/a 12-team, 15-round league/.test(els.status.textContent),
+      "the refusal did not describe the board's own league");
+    assert.ok(!/League A/.test(els.status.textContent), "the refusal names no league (the board's name stays off the page)");
 
     // 1a. A different STARTING LINEUP is refused even when the team count
     //     matches. A standalone Sleeper mock takes defaults rather than a
@@ -1066,14 +1075,14 @@ const until = async (pred, what, ms = 2000) => {
                       draft_order: {} };
     await handlers.connectId();
     await until(() => last && last.drafted.size === 2, "the matching draft to connect");
-    assert.ok(store.has("fc-draft-mode:gabagool"),
+    assert.ok(store.has("fc-draft-mode:leaguea"),
       "the session was not stored under a league-scoped key");
     assert.ok(!store.has("fc-draft-mode"),
       "still writing the un-scoped global session key");
     // Anonymous pasted-id mode, exactly as before the shared session: no
     // identity, no user lookup, userId null in the record, nothing "mine".
     assert.strictEqual(Session.identity(), null);
-    assert.strictEqual(JSON.parse(store.get("fc-draft-mode:gabagool")).userId, null,
+    assert.strictEqual(JSON.parse(store.get("fc-draft-mode:leaguea")).userId, null,
       "an anonymous connect recorded a userId");
     assert.strictEqual(last.mine.size, 0, "anonymous connect highlighted a seat");
     assert.ok(!SLEEPER.calls.some(p => /^\/user\//.test(p)),
@@ -1081,12 +1090,12 @@ const until = async (pred, what, ms = 2000) => {
 
     // 3. The other league's stored session is untouched, and would not be
     //    restored onto this board.
-    assert.strictEqual(JSON.parse(store.get("fc-draft-mode:fam")).draftId, "FAM1",
+    assert.strictEqual(JSON.parse(store.get("fc-draft-mode:leagueb")).draftId, "LB1",
       "connecting on one board clobbered the other league's saved session");
 
     handlers.disconnect();
-    assert.ok(!store.has("fc-draft-mode:gabagool"), "disconnect left the session stored");
-    assert.ok(store.has("fc-draft-mode:fam"),
+    assert.ok(!store.has("fc-draft-mode:leaguea"), "disconnect left the session stored");
+    assert.ok(store.has("fc-draft-mode:leagueb"),
       "disconnecting one league removed the OTHER league's session");
 
     // Advance the actual poll chain deterministically, without a 30s wait.
@@ -1095,11 +1104,11 @@ const until = async (pred, what, ms = 2000) => {
     let pendingPoll;
     global.setTimeout = fn => { pendingPoll = fn; return 0; };
     try {
-      SLEEPER.league = { league_id: GAB.league_id,
+      SLEEPER.league = { league_id: LEAGUE_A.league_id,
                          scoring_settings: { ...SCORING } };
       SLEEPER.calls.length = 0;
       SLEEPER.draft = { draft_id: "D1", type: "snake", status: "in_progress",
-        league_id: GAB.league_id, draft_order: { U1: "2" },
+        league_id: LEAGUE_A.league_id, draft_order: { U1: "2" },
         settings: { teams: "12", rounds: "15", reversal_round: "0", slots_flex: "2" } };
       SLEEPER.user = { user_id: "U1" };
       await Session.identify("me");    // not connected: identifying here connects nothing
@@ -1111,7 +1120,7 @@ const until = async (pred, what, ms = 2000) => {
         "numeric-string settings passed the guard but broke pick timing");
       assert.match(els.roster.innerHTML, /still need/,
         "the live panel must show unfilled starting slots");
-      assert.ok(SLEEPER.calls.includes(`/league/${GAB.league_id}`),
+      assert.ok(SLEEPER.calls.includes(`/league/${LEAGUE_A.league_id}`),
         "a league-backed draft did not verify its scoring snapshot");
 
       SLEEPER.draft.settings.rounds = "16";
@@ -1140,7 +1149,7 @@ const until = async (pred, what, ms = 2000) => {
       assert.strictEqual(last.connected, false, "incompatible commissioner edit kept driving the draft");
       assert.match(els.status.textContent, /draft settings changed.*slots_super_flex/);
       assert.ok(els.shortlist.hidden, "incompatible settings left recommendations visible");
-      assert.ok(!store.has("fc-draft-mode:gabagool"), "invalidated draft kept auto-restore state");
+      assert.ok(!store.has("fc-draft-mode:leaguea"), "invalidated draft kept auto-restore state");
 
       // Rejecting a second connection must retire the original heartbeat and
       // visible recommendations, rather than reverting to a misleading live label.
@@ -1263,7 +1272,7 @@ const until = async (pred, what, ms = 2000) => {
       { pick_no: 2, draft_slot: 2, player_id: "4034", picked_by: "U1" },
     ];
     SLEEPER.user = { user_id: "U1", display_name: "Me" };
-    const KEY = "fc-draft-mode:gabagool";
+    const KEY = `fc-draft-mode:${league.slug}`;   // the published board's own slug
     const connects = () => SLEEPER.calls.filter(p => p === "/draft/D1").length;
     const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
 
