@@ -427,8 +427,14 @@ assert.deepStrictEqual(tpPlanA.future, [12], "missed the acquired #12 or planned
 // Column ownership is exactly the old schedule -- the failed-fetch fallback.
 const tpColA = D.planFromPicks(TP_A, TP_ME, "snake", TP_COLUMN);
 assert.deepStrictEqual([tpColA.next, ...tpColA.future], [7, 10]);
+// The manual (ESPN) draft passes null; offline tools pass nothing. Both keep
+// column ownership, roster included.
+assert.deepStrictEqual(D.planFromPicks(TP_A, TP_ME, "snake", null), tpColA,
+  "the manual draft's explicit null ownership must keep column ownership");
 assert.deepStrictEqual(D.planFromPicks(TP_A, TP_ME, "snake"), tpColA,
-  "a caller with no ownership (manual draft) must keep column ownership");
+  "a caller with no ownership must keep column ownership");
+assert.deepStrictEqual([...D.rosterStateFromPicks(TP_B, 2, "U1", null).mine].sort(),
+                       ["9002", "9007", "9015"]);
 // Another seat: seat 4 lost #12 to you and gained #16 from seat 1.
 const tpPlan4 = D.planFromPicks(TP_A, { ...TP_ME, slot: 4, userId: "U2" }, "snake", TP_OWN);
 assert.deepStrictEqual([tpPlan4.next, ...tpPlan4.future], [4, 5, 13, 16]);

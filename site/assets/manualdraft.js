@@ -213,6 +213,10 @@
 
   const ME = "manual-user";          // the only "user id" this path ever needs
   const INDIFFERENT_POINTS = 1.0;    // matches draftmode.js
+  // Column ownership, on purpose: a typed log has no roster_id and no traded
+  // picks, so every pick in your seat's column is yours. This fills the
+  // ownership argument the live Sleeper path builds from traded_picks.
+  const COLUMN_OWNERSHIP = null;
 
   function initPanel(cfg) {
     const DM = (typeof window === "object" && window.DraftMode) || null;
@@ -298,7 +302,7 @@
 
     function render() {
       const picks = synthPicks(log.entries, { teams, type, mySlot, userId: ME });
-      const rs = DM.rosterStateFromPicks(picks, mySlot, ME);
+      const rs = DM.rosterStateFromPicks(picks, mySlot, ME, COLUMN_OWNERSHIP);
       cfg.onUpdate({ connected: true, drafted: rs.drafted, mine: rs.mine });
       history();
 
@@ -323,7 +327,7 @@
         say(els.shortlist, "<p class=\"draft-blocked\">" + esc(blocked) + "</p>");
         return;
       }
-      const plan = DM.planFromPicks(picks, seat, type);
+      const plan = DM.planFromPicks(picks, seat, type, COLUMN_OWNERSHIP);
       if (plan === null) {
         say(els.shortlist, "<p class=\"draft-blocked\">No pick left in this draft "
           + "— the shortlist is done.</p>");
@@ -338,7 +342,8 @@
         futurePicks: plan.future, usedPicks: plan.used,
       });
 
-      const need = DM.lateSlotNeed(picks, mySlot, rounds, ME, cfg.board.late_slots);
+      const need = DM.lateSlotNeed(picks, mySlot, rounds, ME, cfg.board.late_slots,
+                                   COLUMN_OWNERSHIP);
       say(els.late, need
         ? "<strong>Draft " + esc(need.need.join(" + ")) + " "
           + (need.slack === 0 ? "now" : "within your next " + need.roundsLeft + " picks")
