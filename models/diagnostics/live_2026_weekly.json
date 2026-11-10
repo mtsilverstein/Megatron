@@ -16,7 +16,7 @@
    "2023": "c149053c931edfe3c7c8868d08afd1a7b59740f0e239ac1c9bb354fd8b729381",
    "2024": "c8c194e514591c602def6706467a7ee7afec131e45747a5b1cf4a8197ecd310f",
    "2025": "f49532b98cb865894d88d3db6a5ff9a7aebc31dd27279a36d7c336cbd68fba69",
-   "2026": "226d103fd426d38374c1de69e117357662f333efa53976cbc404895b4a607b45"
+   "2026": "f674d727cf300ea618526c250ed7125ea52e03f7fc3ceb9fbd5b9053fa92b677"
   },
   "archive_blobs": {
    "2026-w04-2026-09-30-220d00155877a0a7.json": "220d00155877a0a71cf83e2cbdb7553065bf4d364753ffad271d9d3bafcb7b8e",
@@ -33,13 +33,17 @@
    "2026-w08-2026-10-27-15ac317e9bdb2563.json": "15ac317e9bdb2563c4b9810949e150b3c28976106cc6abb9895f8417b11f2700",
    "2026-w08-2026-10-27-f3dc8857ce004dee.json": "f3dc8857ce004dee03b59dfcd248d4d98150e3185210fc6728f9f713ba4ea25d",
    "2026-w08-2026-10-28-cd05b58470baef07.json": "cd05b58470baef0730e3c9b8fd60fe88edf4c3a35c9f637b592fb88a363555a7",
-   "2026-w08-2026-10-28-ddd61795b8843566.json": "ddd61795b8843566a42c74126c330ebae1aca9f0f8e47eb07d921c176ba41701"
+   "2026-w08-2026-10-28-ddd61795b8843566.json": "ddd61795b8843566a42c74126c330ebae1aca9f0f8e47eb07d921c176ba41701",
+   "2026-w09-2026-11-03-2a395971bc09c7ef.json": "2a395971bc09c7ef361090c2875936ea8f0ac2c12b06413fa923687693c98738",
+   "2026-w09-2026-11-03-5dff6d2b73760d45.json": "5dff6d2b73760d45cfb4f0edf52783d0973dffdf0ded97289f6ee4e071b92f61",
+   "2026-w09-2026-11-04-0aaab302c107d206.json": "0aaab302c107d206a6af5306aa09f47f97c22a298221e3f3cf06b1d2c6763304",
+   "2026-w09-2026-11-04-a76e29753c256291.json": "a76e29753c25629188547c5ea4e58e01dc92db14cc1343654aa3609f3fa6f5c5"
   },
   "bakeoff": {
    "path": "models/backtests/bakeoff.json",
    "sha256": "25253e1a7ef3034b0eb24573efd73460c66f507812a583d9dff58fcb49a1cfc2"
   },
-  "crosswalk": "5fc70a471a13b91b8d2e9ea487ba6bc40a5acf41572928cf0e9855e2c266c471",
+  "crosswalk": "9bbb3b2103e4fbac04e30b804645e70c6b1dadaed6337ad87c3843f5fa4fe5fd",
   "ledger": {
    "coverage": [
     [
@@ -81,71 +85,75 @@
     [
      "-inf",
      "2026-11-04T20:35:00Z"
+    ],
+    [
+     "-inf",
+     "2026-11-10T22:00:42Z"
     ]
    ],
-   "events": 326,
-   "sha256": "21fcd9cf841477e60ae668931595e3fb5318a848ced33fcbd9b39c4e4304f8d3"
+   "events": 340,
+   "sha256": "fec9207158393e8082b8ed8852bb965449f8b27dfb09e6074f3f551d39bbdf86"
   },
-  "rankings_raw": "7dfc0d423bd1739311433d2504ec892f8c22ef6d69422ca5f2350e689046b321",
-  "schedules": "098ed14f8826e43ca43f3732345c3d3ad3f1b4c3413a7f2ac858956df0eb1d5d"
+  "rankings_raw": "919cad5dae48a440fe5a95e3693219f2ac871ac317cf221217e16eb1300cb565",
+  "schedules": "0de64705b40a3888d3005961453ced09ddbf2c8f5ac6b8fc63b23ad73c05472b"
  },
  "points": {
   "by_position": {
    "QB": {
-    "above_p90": 0.09328358208955224,
-    "below_p10": 0.06716417910447761,
-    "coverage_p10_p90": 0.8395522388059702,
-    "mae": 6.22634328358209,
-    "mean_resid": 1.6337313432835825,
-    "median_resid": 0.9900000000000002,
-    "n": 268,
-    "naive_mae": 6.593942786069652,
-    "pinball_p10": 1.2747388059701492,
-    "pinball_p50": 3.113171641791045,
-    "pinball_p90": 1.4536604477611936,
-    "share_above_p50": 0.5447761194029851
+    "above_p90": 0.09508196721311475,
+    "below_p10": 0.06885245901639345,
+    "coverage_p10_p90": 0.8360655737704918,
+    "mae": 6.179245901639344,
+    "mean_resid": 1.5126885245901642,
+    "median_resid": 0.8300000000000001,
+    "n": 305,
+    "naive_mae": 6.556939890710383,
+    "pinball_p10": 1.2752295081967215,
+    "pinball_p50": 3.089622950819672,
+    "pinball_p90": 1.5221999999999998,
+    "share_above_p50": 0.5344262295081967
    },
    "RB": {
-    "above_p90": 0.10434782608695652,
-    "below_p10": 0.07246376811594203,
-    "coverage_p10_p90": 0.8231884057971014,
-    "mae": 4.413550724637681,
-    "mean_resid": 3.1296956521739134,
-    "median_resid": 0.9150000000000001,
-    "n": 690,
-    "naive_mae": 4.5621618357487925,
-    "pinball_p10": 0.6586115942028986,
-    "pinball_p50": 2.2067753623188406,
-    "pinball_p90": 1.1679608695652173,
-    "share_above_p50": 0.5797101449275363
+    "above_p90": 0.10064516129032258,
+    "below_p10": 0.07612903225806451,
+    "coverage_p10_p90": 0.8232258064516129,
+    "mae": 4.330735483870968,
+    "mean_resid": 3.0248000000000004,
+    "median_resid": 0.9200000000000002,
+    "n": 775,
+    "naive_mae": 4.53385376344086,
+    "pinball_p10": 0.6526916129032259,
+    "pinball_p50": 2.165367741935484,
+    "pinball_p90": 1.1564967741935481,
+    "share_above_p50": 0.5754838709677419
    },
    "TE": {
-    "above_p90": 0.12457337883959044,
-    "below_p10": 0.13651877133105803,
-    "coverage_p10_p90": 0.7389078498293515,
-    "mae": 3.740836177474403,
-    "mean_resid": 2.041996587030717,
+    "above_p90": 0.11666666666666667,
+    "below_p10": 0.1303030303030303,
+    "coverage_p10_p90": 0.753030303030303,
+    "mae": 3.6229696969696974,
+    "mean_resid": 1.9816060606060608,
     "median_resid": 0.27,
-    "n": 586,
-    "naive_mae": 4.142804323094426,
-    "pinball_p10": 0.5416382252559726,
-    "pinball_p50": 1.8704180887372015,
-    "pinball_p90": 1.1094726962457335,
-    "share_above_p50": 0.5204778156996587
+    "n": 660,
+    "naive_mae": 4.1016035353535365,
+    "pinball_p10": 0.5304151515151515,
+    "pinball_p50": 1.8114848484848487,
+    "pinball_p90": 1.0789469696969696,
+    "share_above_p50": 0.5212121212121212
    },
    "WR": {
-    "above_p90": 0.11336405529953918,
-    "below_p10": 0.08571428571428572,
-    "coverage_p10_p90": 0.8009216589861751,
-    "mae": 4.128552995391706,
-    "mean_resid": 2.196221198156682,
-    "median_resid": 0.02,
-    "n": 1085,
-    "naive_mae": 4.449844854070661,
-    "pinball_p10": 0.6358064516129034,
-    "pinball_p50": 2.064276497695853,
-    "pinball_p90": 1.2158258064516128,
-    "share_above_p50": 0.5087557603686635
+    "above_p90": 0.11320754716981132,
+    "below_p10": 0.0844954881050041,
+    "coverage_p10_p90": 0.8022969647251845,
+    "mae": 4.126415094339623,
+    "mean_resid": 2.242887612797375,
+    "median_resid": 0.029999999999999805,
+    "n": 1219,
+    "naive_mae": 4.4114793546622915,
+    "pinball_p10": 0.6348892534864644,
+    "pinball_p50": 2.0632075471698115,
+    "pinball_p90": 1.2236210008203445,
+    "share_above_p50": 0.5110746513535686
    }
   },
   "by_week": {
@@ -268,73 +276,88 @@
     "pinball_p50": 2.255115511551155,
     "pinball_p90": 1.2274554455445543,
     "share_above_p50": 0.5181518151815182
+   },
+   "9": {
+    "above_p90": 0.08787878787878788,
+    "below_p10": 0.08484848484848485,
+    "coverage_p10_p90": 0.8272727272727273,
+    "last_game": "2026-11-09",
+    "mae": 3.868575757575758,
+    "mean_resid": 2.0323939393939394,
+    "median_resid": 0.3849999999999999,
+    "n": 330,
+    "naive_mae": 4.3255202020202015,
+    "pinball_p10": 0.6529181818181818,
+    "pinball_p50": 1.934287878787879,
+    "pinball_p90": 1.210481818181818,
+    "share_above_p50": 0.5242424242424243
    }
   },
   "overall": {
-   "above_p90": 0.11144922023583112,
-   "below_p10": 0.09166983643971091,
+   "above_p90": 0.10882054748225752,
+   "below_p10": 0.09090909090909091,
    "ci95_player": [
-    -0.41302718863028853,
-    -0.1808706165276566
+    -0.4287612037000786,
+    -0.20416426057240294
    ],
    "ci95_week_team": [
-    -0.43983864945787676,
-    -0.15981804871038566
+    -0.4493452158158121,
+    -0.18366624538118276
    ],
-   "coverage_p10_p90": 0.796880943324458,
-   "delta_mae_model_minus_naive": -0.29867376695828574,
-   "mae": 4.330779764168886,
-   "mean_resid": 2.349501711677444,
+   "coverage_p10_p90": 0.8002703616086516,
+   "delta_mae_model_minus_naive": -0.3163247718823926,
+   "mae": 4.279232848935451,
+   "mean_resid": 2.3141365326123693,
    "median_resid": 0.3899999999999997,
-   "n": 2629,
-   "naive_mae": 4.629453531127171,
+   "n": 2959,
+   "naive_mae": 4.595557620817844,
    "note": "conditional on the observed weeks",
-   "pinball_p10": 0.6859345758843667,
-   "pinball_p50": 2.165389882084443,
-   "pinball_p90": 1.2038022061620386,
-   "share_above_p50": 0.5336629897299353
+   "pinball_p10": 0.6822524501520785,
+   "pinball_p50": 2.1396164244677256,
+   "pinball_p90": 1.2045471443055082,
+   "share_above_p50": 0.5326123690435958
   }
  },
  "protocol_version": "live-accuracy-v1",
  "ranking": {
   "primary": {
-   "D": -0.01424283931911013,
-   "cells": 20,
+   "D": -0.011119526378241401,
+   "cells": 24,
    "ci_week": [
-    -0.02178837270917649,
-    -0.0024782144276675622
+    -0.020533160829691692,
+    -0.00115649563268917
    ],
    "per_position_D": {
-    "QB": -0.07319127311479395,
-    "RB": 0.013489651573784189,
-    "TE": -0.010620135578078893,
-    "WR": 0.013350399842648141
+    "QB": -0.06318564443219295,
+    "RB": 0.01463903359592448,
+    "TE": -0.009815933293556373,
+    "WR": 0.01388443861685923
    },
-   "sp_con": 0.5960598770323247,
-   "sp_ours": 0.5818170377132144
+   "sp_con": 0.6004898847431773,
+   "sp_ours": 0.5893703583649358
   },
   "secondary": {
-   "D": -0.03071977920666801,
-   "cells": 32,
+   "D": -0.027431755341007603,
+   "cells": 36,
    "ci_week": [
-    -0.042998419543428236,
-    -0.02070581624865482
+    -0.040019418068167105,
+    -0.01676023137030429
    ],
    "per_position_D": {
-    "QB": -0.07789882762270559,
-    "RB": -0.014924100636777654,
-    "TE": -0.015300316463569455,
-    "WR": -0.014755872103619352
+    "QB": -0.0744512496629492,
+    "RB": -0.010188025276685017,
+    "TE": -0.014778407151935716,
+    "WR": -0.010309339272460472
    },
-   "sp_con": 0.6344969587577276,
-   "sp_ours": 0.6037771795510596
+   "sp_con": 0.6391490692800752,
+   "sp_ours": 0.6117173139390677
   }
  },
  "ranking_coverage": {
   "2026": {
-   "accepted_rows": 3937,
+   "accepted_rows": 4407,
    "excluded_legacy_schema": 0,
-   "raw_rows": 3946,
+   "raw_rows": 4417,
    "scrape_dates": [
     {
      "date": "2026-09-11",
@@ -367,6 +390,10 @@
     {
      "date": "2026-10-30",
      "weekday": "Friday"
+    },
+    {
+     "date": "2026-11-06",
+     "weekday": "Friday"
     }
    ]
   }
@@ -386,12 +413,12 @@
   "transformer_mae_2023_25": 4.324723397524363
  },
  "run": {
-  "as_of_date": "2026-11-04",
-  "main_sha": "79678dd4e991a5c1861fa227e25bff93e082c4a3",
+  "as_of_date": "2026-11-10",
+  "main_sha": "da71642588c2fe5910f0efe03e528528e175b486",
   "provisional_weeks": [
-   8
+   9
   ],
-  "run_at": "2026-11-04T20:35:00Z"
+  "run_at": "2026-11-10T22:00:42Z"
  },
  "season": 2026,
  "weeks": {
@@ -471,10 +498,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9703125,
-     "matched_by_id": 614,
-     "matched_by_name": 7,
+     "matched_by_id": 613,
+     "matched_by_name": 8,
      "matched_by_name_only": 2,
-     "matched_by_name_position": 5,
+     "matched_by_name_position": 6,
      "ranked": 640,
      "unmatched": 19
     },
@@ -671,10 +698,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9927272727272727,
-     "matched_by_id": 542,
-     "matched_by_name": 4,
+     "matched_by_id": 541,
+     "matched_by_name": 5,
      "matched_by_name_only": 2,
-     "matched_by_name_position": 2,
+     "matched_by_name_position": 3,
      "ranked": 550,
      "unmatched": 4
     },
@@ -871,10 +898,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9957894736842106,
-     "matched_by_id": 470,
-     "matched_by_name": 3,
+     "matched_by_id": 469,
+     "matched_by_name": 4,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 2,
+     "matched_by_name_position": 3,
      "ranked": 475,
      "unmatched": 2
     },
@@ -1123,10 +1150,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9959266802443992,
-     "matched_by_id": 486,
-     "matched_by_name": 3,
+     "matched_by_id": 485,
+     "matched_by_name": 4,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 2,
+     "matched_by_name_position": 3,
      "ranked": 491,
      "unmatched": 2
     },
@@ -1381,10 +1408,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9956616052060737,
-     "matched_by_id": 456,
-     "matched_by_name": 3,
+     "matched_by_id": 455,
+     "matched_by_name": 4,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 2,
+     "matched_by_name_position": 3,
      "ranked": 461,
      "unmatched": 2
     },
@@ -1640,10 +1667,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9954441913439636,
-     "matched_by_id": 436,
-     "matched_by_name": 1,
+     "matched_by_id": 435,
+     "matched_by_name": 2,
      "matched_by_name_only": 0,
-     "matched_by_name_position": 1,
+     "matched_by_name_position": 2,
      "ranked": 439,
      "unmatched": 2
     },
@@ -1899,10 +1926,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9977876106194691,
-     "matched_by_id": 449,
-     "matched_by_name": 2,
+     "matched_by_id": 448,
+     "matched_by_name": 3,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 1,
+     "matched_by_name_position": 2,
      "ranked": 452,
      "unmatched": 1
     },
@@ -2164,10 +2191,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9976689976689976,
-     "matched_by_id": 427,
-     "matched_by_name": 1,
+     "matched_by_id": 426,
+     "matched_by_name": 2,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 0,
+     "matched_by_name_position": 1,
      "ranked": 429,
      "unmatched": 1
     },
@@ -2288,6 +2315,271 @@
     "max_abs_diff": 0.004996819471668967,
     "source": "legacy"
    }
+  },
+  "9": {
+   "cutoff": "2026-11-05T00:00:00Z",
+   "expert_snapshot": {
+    "alternatives": [
+     {
+      "available_by": "2026-11-04T13:07:13Z",
+      "blob_sha256": "a76e29753c25629188547c5ea4e58e01dc92db14cc1343654aa3609f3fa6f5c5",
+      "name": "2026-w09-2026-11-04-a76e29753c256291.json",
+      "status": "qualifies"
+     },
+     {
+      "available_by": "2026-11-03T22:24:46Z",
+      "blob_sha256": "2a395971bc09c7ef361090c2875936ea8f0ac2c12b06413fa923687693c98738",
+      "name": "2026-w09-2026-11-03-2a395971bc09c7ef.json",
+      "status": "qualifies"
+     },
+     {
+      "available_by": "2026-11-03T12:56:57Z",
+      "blob_sha256": "5dff6d2b73760d45cfb4f0edf52783d0973dffdf0ded97289f6ee4e071b92f61",
+      "name": "2026-w09-2026-11-03-5dff6d2b73760d45.json",
+      "status": "qualifies"
+     }
+    ],
+    "available_by": "2026-11-04T22:45:14Z",
+    "blob_sha256": "0aaab302c107d206a6af5306aa09f47f97c22a298221e3f3cf06b1d2c6763304",
+    "commit": "c4376adddfc5db08e2583821e6fdd94c1e5c513b",
+    "event_id": 49033153559,
+    "name": "2026-w09-2026-11-04-0aaab302c107d206.json",
+    "path": "data_snapshots/weekly_ecr/2026-w09-2026-11-04-0aaab302c107d206.json",
+    "status": "selected",
+    "tie_break": null,
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 365
+    }
+   },
+   "last_game": "2026-11-09",
+   "points": {
+    "above_p90": 0.08787878787878788,
+    "below_p10": 0.08484848484848485,
+    "coverage_p10_p90": 0.8272727272727273,
+    "mae": 3.868575757575758,
+    "mean_resid": 2.0323939393939394,
+    "median_resid": 0.3849999999999999,
+    "n": 330,
+    "naive_mae": 4.3255202020202015,
+    "pinball_p10": 0.6529181818181818,
+    "pinball_p50": 1.934287878787879,
+    "pinball_p90": 1.210481818181818,
+    "share_above_p50": 0.5242424242424243
+   },
+   "primary": {
+    "cells": [
+     {
+      "delta": -0.01315750101918789,
+      "n": 33,
+      "position": "QB",
+      "sp_con": 0.5573660920270435,
+      "sp_ours": 0.5442085910078556
+     },
+     {
+      "delta": 0.020385943706625942,
+      "n": 77,
+      "position": "RB",
+      "sp_con": 0.6928331776304537,
+      "sp_ours": 0.7132191213370797
+     },
+     {
+      "delta": 0.016554632487914667,
+      "n": 107,
+      "position": "WR",
+      "sp_con": 0.6861405946666985,
+      "sp_ours": 0.7026952271546132
+     },
+     {
+      "delta": -0.00579492187094377,
+      "n": 53,
+      "position": "TE",
+      "sp_con": 0.5542198288655665,
+      "sp_ours": 0.5484249069946228
+     }
+    ],
+    "degenerate": 0,
+    "pool": 270,
+    "pool_by_position": {
+     "QB": 33,
+     "RB": 77,
+     "TE": 53,
+     "WR": 107
+    },
+    "reason": null,
+    "status": "scored"
+   },
+   "publication": {
+    "available_by": "2026-11-04T22:45:14Z",
+    "commit": "c4376adddfc5db08e2583821e6fdd94c1e5c513b",
+    "detail": null,
+    "event_id": 49033153559,
+    "status": "selected"
+   },
+   "secondary": {
+    "cells": [
+     {
+      "delta": -0.04687062598489822,
+      "n": 32,
+      "position": "QB",
+      "sp_con": 0.5945747800586509,
+      "sp_ours": 0.5477041540737527
+     },
+     {
+      "delta": 0.027700577604056087,
+      "n": 74,
+      "position": "RB",
+      "sp_con": 0.6902611968942785,
+      "sp_ours": 0.7179617744983345
+     },
+     {
+      "delta": 0.025262923376810575,
+      "n": 124,
+      "position": "WR",
+      "sp_con": 0.6771208837976175,
+      "sp_ours": 0.702383807174428
+     },
+     {
+      "delta": -0.01060313265886581,
+      "n": 67,
+      "position": "TE",
+      "sp_con": 0.7435069530848801,
+      "sp_ours": 0.7329038204260143
+     }
+    ],
+    "degenerate": 0,
+    "match": {
+     "gsis_collisions": 0,
+     "match_rate": 0.9936170212765958,
+     "matched_by_id": 465,
+     "matched_by_name": 2,
+     "matched_by_name_only": 1,
+     "matched_by_name_position": 1,
+     "ranked": 470,
+     "unmatched": 3
+    },
+    "reason": null,
+    "retention": {
+     "excluded_early_by_position": {
+      "QB": 2,
+      "RB": 7,
+      "TE": 7,
+      "WR": 7
+     },
+     "excluded_early_game": 23,
+     "match_rate": 0.9936170212765958,
+     "played": 330,
+     "pool": 297,
+     "pool_by_position": {
+      "QB": 32,
+      "RB": 74,
+      "TE": 67,
+      "WR": 124
+     }
+    },
+    "selection": {
+     "candidates": [
+      {
+       "date": "2026-11-06",
+       "has_later_game": true,
+       "pages": {
+        "QB": "bye_consistent",
+        "RB": "bye_consistent",
+        "TE": "bye_consistent",
+        "WR": "bye_consistent"
+       },
+       "state": "bye_consistent",
+       "unknown_team_codes": 0
+      }
+     ],
+     "label": null,
+     "pages": {
+      "QB": "bye_consistent",
+      "RB": "bye_consistent",
+      "TE": "bye_consistent",
+      "WR": "bye_consistent"
+     },
+     "scrape_date": "2026-11-06",
+     "state": "bye_consistent"
+    },
+    "status": "scored",
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 470
+    }
+   },
+   "status": "scored",
+   "unprojected": {
+    "by_position": {
+     "QB": {
+      "count": 1,
+      "mean_actual": 4.96,
+      "share": 0.02631578947368421
+     },
+     "RB": {
+      "count": 4,
+      "mean_actual": 1.575,
+      "share": 0.0449438202247191
+     },
+     "TE": {
+      "count": 1,
+      "mean_actual": 0.0,
+      "share": 0.013333333333333334
+     },
+     "WR": {
+      "count": 4,
+      "mean_actual": 1.8,
+      "share": 0.028985507246376812
+     }
+    },
+    "count": 10,
+    "mean_actual": 1.846,
+    "share": 0.029411764705882353
+   },
+   "validation": {
+    "actuals": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 340
+    },
+    "projections": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 680
+    },
+    "schedule": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 30
+    }
+   },
+   "values": {
+    "equivalence_checked": true,
+    "max_abs_diff": 0.004999524060041338,
+    "source": "legacy"
+   }
   }
  },
  "weeks_scored": [
@@ -2298,7 +2590,8 @@
   5,
   6,
   7,
-  8
+  8,
+  9
  ],
  "weeks_skipped": []
 }
