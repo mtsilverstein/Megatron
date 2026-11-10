@@ -310,6 +310,20 @@ Phase 1 adds one kernel module, used by start/sit, waivers and in-season trade. 
     missing projection coverage refuses.
 - Phase-1 pages make **no simulation calls**.
 
+*Amendment 2026-11-07 (audit A6-2, A6-3, A6-4):* the start/sit, waivers-this-week and trade caller policies above
+now deviate from "preserved exactly", on purpose, for every league. **Start/sit** no longer refuses over one player
+or one slot: an available, unlocked player with no NFL team or no current-team projection is treated as unavailable
+(0 points, not a candidate) and named in a note, and a slot no available, projected player can fill is left empty
+(0 points) and named (a FLEX only once no eligible player is left); there is still no lineup total. A player whose
+non-null team is missing from the kickoff file still refuses unless excluded. **Waivers** count an owned skill player
+with no NFL team or no current-team projection as 0, this week and in every remaining week, name him in one caveat
+and compute recommendations as normal. **In-season trade** counts a non-traded rostered player's missing projection
+weeks as 0 with a named caveat, and still refuses when a traded player has no projection. Only start/sit leaves a
+slot empty; waivers and trade keep the kernel's infeasible-lineup refusal. **Positions:** a roster player is modeled
+iff his Sleeper catalog `position` is QB, RB, WR or TE; any other catalog position (FB, K, DEF, granular IDP codes)
+is an unmodeled occupant that keeps its roster capacity. For the cases named here this supersedes §3.4's "Players
+with no projection stay 'unknown', never 0".
+
 ### 7.2 Per page
 
 | Page | Behavior |
@@ -324,6 +338,16 @@ note "best-ball scoring picks your top scorers after the games; lineup advice do
 
 Point thresholds (start/sit 3-pt close call; waivers 1-pt weak signal, 2/5-pt FAAB bands) stay, labeled as
 heuristics in the league's own points. Weekly and ROS ECR stay labeled as PPR reference rankings on every league.
+
+*Amendment 2026-11-07 (audit A6-5):* the FAAB reserve default in the table above is superseded. It now decays with
+the weeks left: round(0.20 × budget × future weeks ÷ (last week − 1)), where future weeks = last week − current week
+(clamped to 0 … last week − 1) and the last week is the remaining-season payload's `end_week` (NFL week 17 when no
+payload is published). A $100 budget defaults to $20 in week 1, $10 in week 9 and $0 in the final week. An untyped
+reserve follows the selected week; a typed value still overrides it. When the reserve holds the whole remaining
+budget, no dollar range is shown, only 'Budget held in reserve. Lower "Budget to keep" to bid.' A spent budget in a
+league whose minimum bid is $0 shows a single $0 claim with its own copy ("Your FAAB budget is spent; $0 claims are
+allowed in this league.", or "This league's FAAB budget is $0; claims are $0." for a $0-budget league), not a
+suggested bid.
 
 ## 8. Behavior changes for Gabagool and FAM (intentional, enumerated)
 
@@ -357,6 +381,10 @@ differently: astra's counterexamples, review §B4). Caller policies (§7.1) are 
 12. Malformed roster occupancy (duplicate occupants, a fixed player in an ineligible slot) now refuses (§7.1)
     where today's start/sit could place one player in two slots.
 13. In week 18 the rest-of-season state is the explicit empty payload (§3.3) instead of attempting a week-18 legacy payload (`end_week = max(week, 17)`, failures skipped).
+
+*Amendment 2026-11-07 (audit A6-2 to A6-5):* item 11 is superseded by the decaying default in the §7.2 amendment.
+The caller-policy changes recorded in the §7.1 amendment are deliberate deviations from §7.1's "preserved exactly".
+Both apply to every league.
 
 ## 9. Testing (acceptance criteria)
 
