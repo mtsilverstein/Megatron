@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 10,
   "data_through": "2026-wk9",
-  "generated_at": "2026-11-10T13:36:39+00:00",
-  "batch_id": "2026-11-10T13:36:39+00:00|2026-wk9|w10",
+  "generated_at": "2026-11-10T22:26:42+00:00",
+  "batch_id": "2026-11-10T22:26:42+00:00|2026-wk9|w10",
   "schema_version": 1,
   "kind": "neutral_weekly",
   "model": "transformer",
@@ -2156,75 +2156,6 @@
       }
     },
     {
-      "player_id": "00-0033119",
-      "name": "Jacoby Brissett",
-      "team": "ARI",
-      "opponent": "LA",
-      "position": "QB",
-      "is_home": true,
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": 155.13191764974385,
-          "passing_tds": 0.43257732053117337,
-          "passing_interceptions": 0.25113267474323386,
-          "carries": 1.3068351591907685,
-          "rushing_yards": 2.727618662541971,
-          "rushing_tds": -0.04454300195092187,
-          "targets": -0.07971997007931508,
-          "receptions": -0.04062762457400909,
-          "receiving_yards": -0.37117408367490157,
-          "receiving_tds": -0.011939552825211447,
-          "fumbles_lost": -0.03005129813641305,
-          "passing_pick_sixes": 0.07344199603766229
-        },
-        "p50": {
-          "passing_yards": 217.6746368408203,
-          "passing_tds": 1.1680115461349487,
-          "passing_interceptions": 0.721087634563446,
-          "carries": 2.6310946941375732,
-          "rushing_yards": 8.105667114257812,
-          "rushing_tds": -0.003132173093035817,
-          "targets": -0.04057789221405983,
-          "receptions": -0.022077133879065514,
-          "receiving_yards": -0.18655700981616974,
-          "receiving_tds": -0.0033638039603829384,
-          "fumbles_lost": 0.005779681261628866,
-          "passing_pick_sixes": 0.07344199603766229
-        },
-        "p90": {
-          "passing_yards": 286.2114532868695,
-          "passing_tds": 2.2047402807814045,
-          "passing_interceptions": 1.511844619207828,
-          "carries": 4.495885416186759,
-          "rushing_yards": 21.5272710979325,
-          "rushing_tds": 0.3016437411123567,
-          "targets": 0.04957811061818784,
-          "receptions": 0.08646887773017253,
-          "receiving_yards": 0.20907170542512077,
-          "receiving_tds": 0.04626087311954641,
-          "fumbles_lost": 0.6435420473790572,
-          "passing_pick_sixes": 0.07344199603766229
-        }
-      },
-      "points": {
-        "ppr": {
-          "p10": 3.48,
-          "p50": 12.66,
-          "p90": 24.17
-        },
-        "half_ppr": {
-          "p10": 3.5,
-          "p50": 12.67,
-          "p90": 24.13
-        },
-        "standard": {
-          "p10": 3.52,
-          "p50": 12.68,
-          "p90": 24.09
-        }
-      }
-    },
-    {
       "player_id": "00-0038134",
       "name": "Kenneth Walker III",
       "team": "KC",
@@ -2359,6 +2290,75 @@
           "p10": 3.36,
           "p50": 12.54,
           "p90": 25.59
+        }
+      }
+    },
+    {
+      "player_id": "00-0033119",
+      "name": "Jacoby Brissett",
+      "team": "BAL",
+      "opponent": "LAC",
+      "position": "QB",
+      "is_home": true,
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": 152.55431974661292,
+          "passing_tds": 0.42441070658112423,
+          "passing_interceptions": 0.2477204929821344,
+          "carries": 1.2571546206538642,
+          "rushing_yards": 2.4951363784428793,
+          "rushing_tds": -0.04407738937446193,
+          "targets": -0.08046357988039832,
+          "receptions": -0.03715719369561843,
+          "receiving_yards": -0.36346059190778846,
+          "receiving_tds": -0.011604644347343013,
+          "fumbles_lost": -0.030066612153965222,
+          "passing_pick_sixes": 0.07304475493488484
+        },
+        "p50": {
+          "passing_yards": 215.0550537109375,
+          "passing_tds": 1.146215558052063,
+          "passing_interceptions": 0.7094426155090332,
+          "carries": 2.5487568378448486,
+          "rushing_yards": 7.667399883270264,
+          "rushing_tds": -0.0032953459303826094,
+          "targets": -0.035377610474824905,
+          "receptions": -0.02212335914373398,
+          "receiving_yards": -0.1839936524629593,
+          "receiving_tds": -0.0028995657339692116,
+          "fumbles_lost": 0.005947623401880264,
+          "passing_pick_sixes": 0.07304475493488484
+        },
+        "p90": {
+          "passing_yards": 284.987718121326,
+          "passing_tds": 2.187806943118577,
+          "passing_interceptions": 1.512666646377884,
+          "carries": 4.365817425767496,
+          "rushing_yards": 20.75315709078916,
+          "rushing_tds": 0.2929016732475178,
+          "targets": 0.0625333468130731,
+          "receptions": 0.09282054815135243,
+          "receiving_yards": 0.24538292437122244,
+          "receiving_tds": 0.0435299398700264,
+          "fumbles_lost": 0.6450989438497139,
+          "passing_pick_sixes": 0.07304475493488484
+        }
+      },
+      "points": {
+        "ppr": {
+          "p10": 3.33,
+          "p50": 12.45,
+          "p90": 23.93
+        },
+        "half_ppr": {
+          "p10": 3.34,
+          "p50": 12.46,
+          "p90": 23.88
+        },
+        "standard": {
+          "p10": 3.36,
+          "p50": 12.47,
+          "p90": 23.83
         }
       }
     },
