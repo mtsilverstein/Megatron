@@ -2,7 +2,7 @@
 
 ## The page (2026-09-17)
 
-`trade.html?league=gabagool` and `?league=fam` switch to an in-season branch when the
+`trade.html?league=<league id>` switches to an in-season branch when the
 Sleeper league is `in_season`. Enter your username, pick a partner, tick the players
 on each side, mark any weeks a player should be assumed unavailable (your assumption —
 the page never fills one in from an injury tag), add explicit drops when a side would exceed roster capacity, and
@@ -53,23 +53,34 @@ remain blocking rather than being guessed away.
 for example `{"1234": [3, 4]}`. Every other active player is explicitly
 assumed available, even if an injury tag exists. This is a user-defined
 scenario, not an injury or return-date prediction. IR/taxi players cannot
-be traded by this first version. Missing projections block scoring rather
-than counting as zero. A bye or deliberately excluded week is labeled zero.
+be traded by this first version. A bye or deliberately excluded week is
+labeled zero.
 
-Coverage failures produce a nonzero exit and a JSON report on stderr containing
-every affected player and future week (`coverageIssues`), not a partial score.
-New remaining-season artifacts distinguish no observed NFL history, history
-outside the recent-season window, and missing model output. These reasons use
-only observations before the forecast origin. Older artifacts still work but
-may report only `unmodeled`. Rookies are not assigned arbitrary points, and
-unknown bench players are not silently removed to force a comparison through.
-Do not use availability exclusions merely to suppress coverage errors: an
-exclusion is an explicit scenario assumption that the player cannot contribute.
+Missing projections (audit 2026-11-07, A6-3): a rostered player who is not in
+the offer and has no usable projection in a future week (no projection, a
+projection for another team or position, or no row for that week) counts as 0
+in that week, like a bye, and is named in the result's `caveats` ("No
+projection for <name> in N week(s): counted as 0."). The page shows that caveat
+in its summary. A traded player with no projection still refuses ("a traded
+player cannot be counted as 0. Remove that player from the offer to compare the
+rest."), and so does malformed data for any player (a player missing from the
+catalog, duplicate week rows). Either way the CLI exits nonzero with a JSON
+report on stderr containing every affected player and future week
+(`coverageIssues`), not a partial score. New remaining-season artifacts
+distinguish no observed NFL history, history outside the recent-season window,
+and missing model output. These reasons use only observations before the
+forecast origin. Older artifacts still work but may report only `unmodeled`.
+An unprojected rookie or bench player is never assigned invented points: off
+the offer he counts as 0 and is named, never silently removed. Do not use
+availability exclusions merely to suppress coverage errors: an exclusion is an
+explicit scenario assumption that the player cannot contribute.
 
 Uneven trades require explicit legal drops if roster capacity would be
 exceeded. Dropped players remain in the baseline but leave the changed roster,
-so losing their lineup contribution counts against the trade.
-K/DEF occupy roster spaces but have no modeled points. Missing starting
+so losing their lineup contribution counts against the trade. A player is
+modeled only when his Sleeper catalog position is QB, RB, WR or TE (audit
+A6-4); K, DEF, a fullback and every IDP position occupy roster spaces but have
+no modeled points, and only modeled players can be traded. Missing starting
 positions fail instead of inventing replacement production. Supported skill
 slots include dedicated positions, FLEX and SUPER_FLEX.
 

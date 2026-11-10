@@ -85,7 +85,7 @@ entrant is in `models/backtests/xgb_median/bakeoff_xgb_median.json`):
 | model | weekly PPR MAE |
 |---|---|
 | naive last-4 average | 4.612 |
-| XGBoost, squared-error objective (a mean predictor) | 4.448 |
+| XGBoost, squared-error objective (a mean predictor, single seed) | 4.448 |
 | XGBoost, median objective (3-seed ensemble) | 4.326 |
 | quantile transformer (3-seed ensemble) | 4.325 |
 
@@ -97,9 +97,14 @@ loss at 0.5) and nothing else changed — same frozen features, same
 hyperparameters, identical rows, seeds 0–2 averaged row by row — XGBoost ties
 the transformer: a paired difference of −0.0010 points per player-week, 95%
 interval [−0.0213, +0.0189] (season-week cluster bootstrap,
-`models/backtests/xgb_median/paired_xgb_median.json`). By season the
-transformer is behind in 2023 (+0.019) and 2025 (+0.004) and ahead in 2024
-(−0.027), and no season's interval excludes zero. By position, QB (−0.053) and
+`models/backtests/xgb_median/paired_xgb_median.json`). The squared-error
+entrant is a single seed (seed 0) and the median entrant a 3-seed ensemble,
+but the ensemble is not what closes the gap: a single-seed median XGBoost run
+in the audit also ties the transformer (MAE 4.329 against 4.325, paired
+difference −0.004, 95% interval [−0.025, +0.016]; audit A2-1, 2026-11-07).
+Against the 3-seed entrant, by season the transformer is behind in 2023
+(+0.019) and 2025 (+0.004) and ahead in 2024 (−0.027), and no season's
+interval excludes zero. By position, QB (−0.053) and
 WR (−0.013) lean to the transformer and RB (+0.011) to XGBoost, all inside
 noise. TE is the one cell whose interval excludes zero, and it favours XGBoost
 (+0.035, [+0.003, +0.069]); it is one of seven sub-group cells, with no
@@ -148,13 +153,15 @@ played at least 8 games narrows it mainly at running back, and because that cut
 selects on the outcome, it says nothing causal about availability. What the
 evidence does support is narrower. Among players who played, consensus is
 nearly as far ahead on points per game as on total points (Spearman advantage
-0.127 vs 0.152, averaged over position-seasons; audit A3-1, 2026-11-07), so the
-experts' edge is not mainly about who plays. And two other estimators on the
-same box-score inputs did no better: a median-objective XGBoost ties the
-transformer on point accuracy (above), and a conditional-mean head improved
-points but not ranking (§7). That is consistent with the gap being information
-the model never sees — depth charts, role and scheme changes — rather than the
-estimator, but it has not been tested directly.
+0.127 vs 0.152, averaged over position-seasons; audit A3-1, 2026-11-07), so
+this comparison does not show the edge is mainly about who plays. Changing the
+estimator on the same box-score inputs has not moved ranking: a
+conditional-mean head improved points but not within-position ranking (§7).
+The median-objective XGBoost above is a separate, narrower result: it ties the
+transformer on point MAE, and it was not ranked against consensus. That is
+consistent with the gap being information the model never sees — depth charts,
+role and scheme changes — rather than the estimator, but it has not been
+tested directly.
 
 ### Weekly: behind same-week expert consensus
 

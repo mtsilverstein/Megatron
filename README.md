@@ -8,13 +8,13 @@ during the season.
 The site is six static pages, no backend and no framework: **weekly
 projections** with p10/p50/p90 bands and start/sit advice, a **waivers** desk,
 a **trade calculator**, a **connect** page that finds a visitor's Sleeper
-leagues, the 2026 **draft board** with its pick-time optimizer (kept as an
-archived record once the season began), and an **about** page carrying the
-backtest and live-accuracy numbers. No page defaults to a particular league:
-the in-season pages work for any Sleeper league a visitor connects. Models
-predict raw stat lines; fantasy points are computed from those by pure scoring
-functions, so PPR, half-PPR, standard and any league's custom rules all derive
-from one set of predictions.
+leagues, the 2026 **draft board** (kept as an archived record once the season
+began, with its pick-time optimizer and keeper tools hidden), and an **about**
+page carrying the backtest and live-accuracy numbers. No page defaults to a
+particular league: the in-season pages work for any Sleeper league a visitor
+connects. Models predict raw stat lines; fantasy points are computed from
+those by pure scoring functions, so PPR, half-PPR, standard and any league's
+custom rules all derive from one set of predictions.
 
 **Start here:** [`docs/case-study.md`](docs/case-study.md), a two-page overview of what was built, how the numbers
 are kept honest and what they say. The full record is [`docs/methodology.md`](docs/methodology.md).
@@ -159,7 +159,7 @@ player-weeks):
 | model | MAE | QB | RB | WR | TE |
 |---|---|---|---|---|---|
 | naive last-4 average | 4.612 | 6.57 | 4.44 | 4.62 | 3.75 |
-| XGBoost, squared error (a mean predictor) | 4.448 | 6.34 | 4.33 | 4.47 | 3.54 |
+| XGBoost, squared error (a mean predictor, single seed) | 4.448 | 6.34 | 4.33 | 4.47 | 3.54 |
 | XGBoost, median objective (3-seed ensemble) | 4.326 | 6.29 | 4.31 | 4.26 | 3.42 |
 | transformer (3-seed ensemble) | 4.325 | 6.24 | 4.33 | 4.25 | 3.45 |
 
@@ -169,12 +169,13 @@ nearly all of its 0.12-point deficit is the objective. Given the transformer's
 median objective (pinball loss at 0.5) and nothing else changed, XGBoost ties
 it: a paired difference of −0.001 points per player-week, 95% interval
 [−0.021, +0.019] (season-week cluster bootstrap,
-`models/backtests/xgb_median/paired_xgb_median.json`). No held-out season
+`models/backtests/xgb_median/paired_xgb_median.json`). The squared-error row is
+a single seed and the median row a 3-seed ensemble; a single-seed median
+entrant also ties (see the methodology, §3). No held-out season
 separates them. By position only TE does, and it favours XGBoost
-(+0.035, [+0.003, +0.069]), one of seven uncorrected sub-group cells. What the
-transformer adds is a calibrated p10–p90 band; XGBoost publishes none. The
-baselines run through the identical eval harness, and the site deploys the
-transformer for its bands, not for point accuracy.
+(+0.035, [+0.003, +0.069]), one of seven uncorrected sub-group cells. The
+baselines run through the identical eval harness. The transformer's distinct
+contribution is the calibrated p10–p90 band, which XGBoost does not publish.
 
 Two later experiments were pre-registered, and neither was promoted. Both
 verdicts are committed under `models/diagnostics/` next to the criteria, which

@@ -13,7 +13,8 @@ Megatron is an NFL fantasy-football projection system I built end to end on free
   and redeploys a static site twice a day during the season.
 - **Site:** weekly projections with start/sit advice, a waiver tool and a trade calculator that work with any Sleeper
   league a visitor connects, scored with that league's own settings. No page defaults to a particular league. The 2026
-  draft board, with its live pick-time optimizer, stays up as an archived record.
+  draft board, which carried a live pick-time optimizer during the draft, stays up as an archived record with its
+  draft tools hidden.
 - **Evaluation:** model results are measured walk-forward on seasons the model never trained on. Experiments that could
   change the product get a pass/fail rule written down before the result is known; diagnostics, which change
   nothing, are labelled as diagnostics. Work is reviewed by an independent model whose job is to break the claim.
@@ -64,7 +65,7 @@ over 2023–25 (17,908 player-weeks):
 | Model | MAE |
 |---|---|
 | Naive last-4 average | 4.612 |
-| XGBoost, squared-error objective (a mean predictor) | 4.448 |
+| XGBoost, squared-error objective (a mean predictor, single seed) | 4.448 |
 | XGBoost, median objective (3-seed ensemble) | 4.326 |
 | Quantile transformer (3-seed ensemble) | 4.325 |
 
@@ -115,9 +116,9 @@ who did not play and players who played without recording a stat; the methodolog
 - **Most "improvements" are noise.** With three held-out seasons, the standard error on a season-level accuracy change
   is about 0.03. Writing the bar down before looking killed several ideas that would otherwise have shipped.
 - **Architecture was not the lever.** A median-objective XGBoost ties the transformer on point accuracy, and a
-  conditional-mean head improved points but not ranking. The experts' edge holds among players who played, so it is
-  not mainly about who plays. My working hypothesis is that it is information the model never sees (depth charts,
-  role changes). The 2027 plan's first step, an ADP benchmark, measures how much preseason context is worth before
+  conditional-mean head improved points but not ranking. The experts' edge holds among players who played, so the
+  evidence does not show the edge is mainly about who plays. My working hypothesis is that it is information the
+  model never sees (depth charts, role changes). The 2027 plan's first step, an ADP benchmark, measures how much preseason context is worth before
   anything is built for it.
 - **Infrastructure constraints shape design.** Free GPU sessions that end without warning mean every training loop
   checkpoints every epoch. No scheduled jobs on the training platform means all recurring work lives in GitHub Actions.

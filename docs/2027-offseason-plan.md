@@ -61,8 +61,8 @@ Outcome: _(fill in per format after the evaluation)_
 
 1. When nflverse publishes final 2026 weekly stats, pull and cache them.
 2. Walk-forward evaluation gains a fold: train ≤ 2025, test 2026. Report it next to 2023–25 for the transformer, XGBoost
-   and the naive baseline, through the same harness. The live 2026 scorecard is a separate measurement (published
-   projections, played players) and is not substituted for this fold.
+   and the naive baseline, through the same harness. The live 2026 scorecard is a separate measurement (projections
+   committed before kickoff, players who recorded a stat line) and is not substituted for this fold.
 3. Train the three production seeds `through2026` on Kaggle (T4 x2, not P100), with each run seeded and
    config-driven, checkpointing every epoch.
 4. Commit the artifacts with their YAML configs and eval metrics, as for `through2016`–`through2025`.
@@ -72,9 +72,11 @@ No architecture change rides along with the retrain. A new architecture is a sep
 
 ## 4. What to try in 2027
 
-The 2026 evidence points one way: the gap to expert consensus is information that is not in the box score, not the
-model. Feature pack v2, the conditional-mean head and the lines screen all failed or fell short, and the
-availability work did not move the board. The plan therefore spends effort on measurement before building.
+The 2026 evidence is consistent with one reading, which has not been tested directly: the gap to expert consensus
+is information the model never sees (depth charts, role and scheme changes) rather than the estimator. A
+median-objective XGBoost ties the transformer on point error, the conditional-mean head improved points but not
+ranking, feature pack v2 and the lines screen fell short, and the availability work did not move the board. The plan
+therefore spends effort on measurement before building.
 
 1. **ADP benchmark (cheap, first).** The preseason board has never been scored against ADP. Score the 2026 board
    against end-of-season results for ADP and expert consensus, by position, with the same tools used for consensus.

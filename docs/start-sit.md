@@ -19,10 +19,17 @@ Suspended players are excluded, as are reserve/taxi and bye-week players.
 Manual exclusions are temporary and reset on refresh.
 
 Live roster and scoring settings are read from the connected league, and the NFL
-season/week must match the published data. Missing eligible projections, unknown teams, unsupported slots or
-stale schedule/projection data block the full recommendation. The schedule
+season/week must match the published data. Unsupported slots, stale schedule/projection data, or a player whose
+NFL team is missing from the kickoff schedule (unless he is excluded) block the full recommendation. The schedule
 snapshot expires after seven days. Kickoff generation reads nflverse's Eastern
 game times and converts them to UTC; it runs with weekly site generation.
+
+One player or one slot no longer blocks the plan (audit 2026-11-07, A6-2 and A6-3). An available player with no
+NFL team or no current-team projection is treated as unavailable: he scores 0, is not a candidate, and is named in
+one note ("Not projected this week: … — treated as unavailable."). A slot that no available, projected player can
+fill is left empty, scores 0 and says so ("No available TE this week — add one from waivers."); a FLEX goes empty
+only when no eligible player is left, and the plan states how many empty slots score 0. There is still no lineup
+total.
 
 Started-game starters stay in their exact slots; started-game bench players
 cannot enter. A kickoff crossing after roster retrieval requires another
