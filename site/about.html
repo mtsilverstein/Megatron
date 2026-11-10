@@ -67,6 +67,14 @@
     <div class="chart-legend" id="bo-legend"></div>
     <div class="chart" id="bo-chart"></div>
     <p class="chart-note" id="bo-note"></p>
+    <p class="chart-note">The XGBoost in this chart and in the tables below is trained
+    with squared error and a single seed, so it predicts means, and mean absolute
+    error rewards a median. Given the transformer&rsquo;s median objective and
+    nothing else changed, a 3-seed XGBoost ensemble ties the transformer: mean
+    absolute error 4.326 against 4.325 over the 17,908 held-out player-weeks, a
+    paired difference of &minus;0.001 points (95% interval &minus;0.021 to
+    +0.019). Numbers in models/backtests/xgb_median/paired_xgb_median.json. What
+    the transformer adds is the calibrated band; XGBoost publishes none.</p>
   </section>
 
   <div class="prose">
@@ -76,7 +84,10 @@
     half-PPR and standard all come from one prediction.</p>
     <p>The headline model is a small quantile transformer (PyTorch) that reads each
     player's recent game log and the matchup, and predicts a <strong>floor (p10),
-    median (p50) and ceiling (p90)</strong> for every stat. The range bands you see
+    median (p50) and ceiling (p90)</strong> for every stat. A player&rsquo;s points
+    p50 is the score of those per-stat medians, which is not the median of his
+    points: for players projected at 8 or more points, about 60% of live 2026
+    outcomes through week 8 landed above it (audit A4-4, 7 November 2026). The range bands you see
     on the draft board and the weekly page start from those raw quantiles. In
     the 2023&ndash;2025 bake-off the weekly bands were calibrated per position
     &mdash; widened or narrowed so measured coverage tracks the 0.80 target
@@ -93,20 +104,23 @@
     bake-off table below scores exactly that ensemble. Classical baselines (a
     naive last-four-games average and XGBoost) run through the exact same
     evaluation harness, and the tables below report whichever model wins,
-    exactly as it lands.</p>
+    exactly as it lands. On point accuracy the transformer ties an XGBoost given
+    the same median objective; its distinct contribution is the band.</p>
     <p>Evaluation is <strong>walk-forward only</strong>: train on seasons up to S,
     test on season S+1, held out across 2023–2025. No random splits — rolling
     features would leak the future into the past.</p>
     <p>The draft board is <strong>consensus-anchored within each position</strong>: at
     every position players are ordered by FantasyPros expert-consensus ranking, because
-    in walk-forward tests the model's own season-long ranking lost to both expert
-    consensus and ADP. Across positions the board is ordered by VORP — value over
+    in walk-forward tests on 2023&ndash;2025 the model's own season-long ranking lost
+    to expert consensus in every position-season (it has not been scored against
+    ADP). Across positions the board is ordered by VORP — value over
     replacement — which is what prices positional scarcity, so a tight end can sit
     above a receiver with a better raw consensus rank. The model earns its place with
     floor/ceiling bands (historical coverage is reported below, with its scope)
     and that value curve — the parts ADP and ECR don't give you.</p>
     <p class="lim"><strong>Known limitations:</strong> undrafted rookies are not projected; drafted rookies get a draft-capital prior on the board (see Rookies below), and rookies enter weekly projections only once they have NFL games; players who changed teams keep their personal history with
-    updated matchup context; retired players may appear until rosters are pruned;
+    updated matchup context; the in-season pages no longer project released or
+    retired players, but the archived preseason board may still list some;
     season projections seed every week from end-of-prior-season form, so a short
     late-season role spike (an injury fill-in) can be over-extrapolated across a
     full year while a star's slow finish under-ranks them — expect the board to
@@ -131,73 +145,32 @@
   of &minus;0.037, 95% interval &minus;0.047 to &minus;0.028. It is behind in
   all three seasons and in every leave-one-season-out estimate, and the
   separate 2020&ndash;2022 seasons show the same (0.556 vs 0.601). It is behind
-  at every position, running back included, so the running-back edge described
-  below is retracted. Scope: players matched to the consensus who recorded a
+  at every position, running back included, so the earlier running-back edge
+  is retracted. Scope: players matched to the consensus who recorded a
   stat line and had not yet played when the rankings were scraped. The interval
   resamples weeks within these seasons and does not model dependence between
   weeks of a season. This is a reanalysis of seasons we had already examined,
   not an untouched replication. Numbers in
   models/diagnostics/weekly_consensus_sameweek.json.</p>
   <p id="expert-correction"><strong>Why the earlier numbers were wrong.</strong>
-  The expert comparisons below used the wrong week&rsquo;s rankings. The
+  The earlier expert comparisons used the wrong week&rsquo;s rankings. The
   expert feed is scraped on Fridays, so the last ranking before a Thursday
   kickoff is the previous week&rsquo;s list, made before that week&rsquo;s
   Sunday games and injuries. Of the 38 weeks in 2020&ndash;2025 where the bye
   schedule can tell weeks apart, the old comparison&rsquo;s rankings
   contradicted the week they were scored against in 36; one was consistent with
   the right week and one week had no ranking. With the Friday scrape dates, that
-  supports the explanation that the experts were scored a week behind. The tie
-  and running-back edge below are invalidated by the corrected analysis; the
-  original write-up stays as the record and is superseded by the result
-  above.</p>
-  <p class="lim">Historical results: measured on past seasons by the
-  diagnostics named below, not a claim about the current output or about any
-  league&rsquo;s own scoring.</p>
-  <p>Season-long draft ranking loses to expert consensus, as stated above.
-  Weekly ranking is measured separately, and overall it's close: across all
-  four positions on <strong>2023&ndash;2025</strong>, the model's weekly
-  within-position rank correlation with actual outcomes is a
-  <strong>statistical tie</strong> with weekly expert consensus (Spearman
-  0.5940 vs 0.5958; delta &minus;0.0018, paired 95% interval
-  [&minus;0.0123, +0.0083], which includes zero). That's parity, not a win,
-  and the draft board still defers to consensus for the reason given
-  above.</p>
-  <p class="lim">Scope of that number: 172 position-weeks and 12,182
-  player-weeks, covering <strong>weeks 3&ndash;17 in 2023 and 2025, and
-  weeks 5&ndash;17 in 2024</strong>. Eleven of 54 season-weeks are missing
-  because the expert feed carries no ranking scraped in the seven days
-  before kickoff, and we will not reach past kickoff to fill a gap. So the
-  tie is a tie on the middle of the season, not on a full one. Numbers in
-  models/diagnostics/weekly_consensus.json.</p>
-  <p>One position breaks the tie. At running back, weekly within-position
-  ranking beat weekly consensus on the 2023–2025 seasons where the effect
-  was found (Spearman 0.7215 vs 0.6958, won 3 of 3 seasons, p=0.002). Finding
-  an edge on the seasons used to build a model is the easy part; the test
-  that matters is whether it holds on seasons the model never touched.</p>
-  <p>It did. Before evaluating, we pre-registered the pass/fail rule — RB
-  ranking has to beat consensus in at least 2 of 3 seasons, with a positive
-  pooled advantage — then ran it on 2020–2022, seasons disjoint from the ones
-  that found the effect and untouched by any of the model folds involved. RB
-  ranking held: Spearman 0.6658 vs 0.6415, won all three seasons (2020
-  +0.0298, 2021 +0.0274, 2022 +0.0170), pooled delta <strong>+0.0243</strong>,
-  paired bootstrap 95% CI <strong>[+0.0066, +0.0437]</strong> — excluding
-  zero.</p>
-  <p class="lim">This is one position out of four, and it should be read that
-  way. Run the identical test on the others and QB <em>loses</em> to weekly
-  consensus in both samples — −0.0631 on the 2020–2022 replication and
-  −0.0404 on 2023–2025, the latter with an interval excluding zero. TE is
-  flat (−0.0144 then −0.0013) and WR a shade positive (+0.0027 then
-  +0.0088); on 2023–2025 neither is separable from zero. RB is the only
-  position positive in both samples, and the only one we have measured an
-  interval for in each. The 2020–2022 per-position figures other than RB
-  are point estimates without intervals, so their signs replicate but their
-  significance is not established. The
-  effect concentrates on the position most driven by workload — carries,
-  targets, snap share — which the model's usage features encode directly;
-  that specificity is why we treat it as a real signal rather than a scoring
-  artifact. It does not generalize past RB, and it does not change how the
-  draft board is built. Full numbers in
-  models/diagnostics/rb_oos_weekly.json.</p>
+  supports the explanation that the experts were scored a week behind. The
+  earlier tie and running-back edge are invalidated by the corrected
+  analysis.</p>
+  <p class="lim" id="expert-superseded"><strong>Superseded record.</strong>
+  Before this correction, this page reported two weekly results, both measured
+  against the previous week&rsquo;s rankings and both withdrawn in October 2026:
+  a statistical tie with weekly expert consensus on 2023&ndash;2025, and a
+  running-back edge that appeared to replicate on 2020&ndash;2022. Their
+  records, models/diagnostics/weekly_consensus.json and
+  models/diagnostics/rb_oos_weekly.json, are kept as history only. The current
+  weekly result is the one above: behind consensus at every position.</p>
   </div>
   <h2>Trade and waiver simulation</h2>
   <div class="prose">
@@ -218,12 +191,13 @@
   played a snap. That zero-games outcome is kept in the math, which is why
   rookie floors are low and rookie bands are wide.</p>
   <p class="lim">This makes rookie ranks look conservative next to draft-hype
-  ADP — historically, that conservatism has been the accurate call on
-  average, and the p90 ceiling still shows the upside case. Limitations we
+  ADP. Whether that conservatism is right on average has not been measured;
+  the p90 ceiling still shows the upside case. In the walk-forward rookie
+  backtest (2023&ndash;2025 classes, 243 rookies), rookie season bands covered
+  70&ndash;78% of outcomes by position, short of the 80% target. Limitations we
   accept and label: games played and per-game quality are treated as
   independent within a cohort, and undrafted rookies aren't projected at
-  all. The walk-forward rookie backtest behind this lives in
-  models/diagnostics/.</p>
+  all. The backtest is models/diagnostics/rookie_backtest.json.</p>
   </div>
   <h2 id="scoped-h">Measured results and their scope</h2>
   <div class="prose">
@@ -238,7 +212,8 @@
   <div id="scoped-results" aria-live="polite"><p class="chart-none">Loading scoped results&hellip;</p></div>
   <h2>Backtest results (historical)</h2>
   <p class="prose lim">Historical walk-forward mean absolute error in PPR points per
-  player-week, by position, from the 2023&ndash;2025 bake-off. Lower is better. Quantile columns appear for models
+  player-week, by position, from the 2023&ndash;2025 bake-off. Lower is better. The xgboost rows are the
+  squared-error (mean) XGBoost, single seed; the median-objective entrant is described under the bake-off chart. Quantile columns appear for models
   that predict bands; coverage is the share of outcomes that landed inside the
   p10–p90 band (ideal: 0.80).</p>
   <div id="reports"></div>
@@ -250,7 +225,7 @@ uncertainty. Built as an open portfolio project — data via nflverse.
 <script src="assets/session.js?v=nodefault1"></script>
 <script src="assets/app.js?v=nodefault2"></script>
 <script src="assets/sleeper.js?v=2"></script>
-<script src="assets/liveaccuracy.js?v=1"></script>
+<script src="assets/liveaccuracy.js?v=2"></script>
 <script>
 /* The two evidence charts. Exposed as window.AboutCharts so the render path
    can be re-run against a mutated COPY of the payload (see the degradation
@@ -275,7 +250,7 @@ window.AboutCharts = (() => {
   const MODELS = ["transformer", "xgboost", "naive_last4"];
   const MODEL_LABEL = {
     transformer: "Transformer (ensemble)",
-    xgboost: "XGBoost",
+    xgboost: "XGBoost, squared error",
     naive_last4: "Naive last-4"
   };
 

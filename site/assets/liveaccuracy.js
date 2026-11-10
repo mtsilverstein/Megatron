@@ -19,7 +19,9 @@
   // The scorecard proves the projections were committed to the repository before the cutoff (GitHub push records);
   // it does not verify the Vercel deployment, so the copy says "committed", not "shown on this site".
   const NOTE = "Scored in PPR from the projections committed to this site's repository before each week's first "
-    + "game (proven by GitHub push records), for players who recorded a stat line. Lower error is better; the naive "
+    + "game (proven by GitHub push records), for players who recorded a stat line. Players who did not play, and "
+    + "players who played without recording a stat, are not scored; the band describes a player who plays. "
+    + "Lower error is better; the naive "
     + "baseline is each player's average over their last four games (fewer if they have played fewer; a position "
     + "average for a debut). Provisional weeks can still move as stat corrections land. Recomputed every Tuesday "
     + "and Wednesday.";
@@ -58,7 +60,8 @@
   function lead(d) {
     const o = d.overall;
     return `${d.season} season, ${span(d)}${provisional(d)}: mean absolute error ${f2(o.mae)} PPR points per `
-      + `player-week, against ${f2(o.naive_mae)} for the naive last-four-games average, over `
+      + `player-week for players who recorded a stat line, against ${f2(o.naive_mae)} for the naive `
+      + `last-four-games average, over `
       + `${o.n.toLocaleString("en-US")} player-weeks. ${pct(o.coverage_p10_p90)} of outcomes landed inside the `
       + `floor–ceiling (p10–p90) band; the target is 80%.${skippedText(d)}`;
   }

@@ -2,8 +2,8 @@
 //
 // The about page's "This season, scored live" section and the weekly footer line
 // (site/assets/liveaccuracy.js) over site/data/live-accuracy.json: the text says
-// exactly what the scorecard measured (PPR, played players, published-before
-// projections), provisional weeks are marked, and a missing or unexpected file
+// exactly what the scorecard measured (PPR, players who recorded a stat line,
+// projections committed before kickoff), provisional weeks are marked, and a missing or unexpected file
 // shows nothing at all.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -23,7 +23,7 @@ const clone = x => JSON.parse(JSON.stringify(x));
 
 // ---- text --------------------------------------------------------------------
 assert.equal(L.valid(DATA), true);
-assert.equal(L.lead(DATA), "2026 season, weeks 6–7 (week 7 provisional): mean absolute error 4.10 PPR points per player-week, against 4.41 for the naive last-four-games average, over 620 player-weeks. 80.8% of outcomes landed inside the floor–ceiling (p10–p90) band; the target is 80%.");
+assert.equal(L.lead(DATA), "2026 season, weeks 6–7 (week 7 provisional): mean absolute error 4.10 PPR points per player-week for players who recorded a stat line, against 4.41 for the naive last-four-games average, over 620 player-weeks. 80.8% of outcomes landed inside the floor–ceiling (p10–p90) band; the target is 80%.");
 assert.deepEqual(L.rows(DATA), [
   ["6", "315", "3.98", "4.36", "81.6%", "7.6% / 10.8%"],
   ["7 (provisional)", "305", "4.21", "4.47", "80.0%", "9.2% / 10.8%"],
