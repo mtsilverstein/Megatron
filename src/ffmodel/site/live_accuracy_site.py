@@ -6,7 +6,7 @@ The scorecard (`models/diagnostics/live_<S>_weekly.json`, written by `.github/wo
 malformed one raises and leaves the published file as it was. The scorecard is public and carries no third-party
 projection values, so nothing private reaches the site.
 
-Scope, stated on the page: PPR scoring, players who recorded a stat line, projections published before each week.
+Scope, stated on the page: PPR scoring, players who recorded a stat line, projections committed before each week.
 """
 from __future__ import annotations
 

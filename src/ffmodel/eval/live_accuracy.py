@@ -726,7 +726,8 @@ def evaluate(ctx: LiveContext) -> dict:
             "reference_context": {**_reference(ctx.bakeoff), "source": ctx.inputs.get("bakeoff")},
             "caveats": ["Projections = the bot pipeline's latest publication on main before K_N 00:00 UTC, proven "
                         "by GitHub push records; Vercel deployment is not verified.",
-                        "Players who recorded a stat line only; DNPs are outside the estimand.",
+                        "Players who recorded no stat line (including on-field weeks with no recorded stat) are "
+                        "outside the estimand.",
                         "Both expert sources are FantasyPros mirrors; small samples are descriptive, not tests.",
                         "Reference values are context: the historical population and fallback history differ."]}
 

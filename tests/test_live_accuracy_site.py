@@ -20,7 +20,8 @@ def _art():
         "points": {"overall": _cell(30, mae=4.2), "by_week": {"1": {**_cell(10), "last_game": "2026-09-14"},
                                                               "2": {**_cell(20), "last_game": "2026-09-21"}},
                    "by_position": {}},
-        "caveats": ["Players who recorded a stat line only; DNPs are outside the estimand."],
+        "caveats": ["Players who recorded no stat line (including on-field weeks with no recorded stat) are "
+                    "outside the estimand."],
         "ranking": {"primary": {"sp_ours": 0.6}}, "inputs": {"ledger": "x"},
     }
 
