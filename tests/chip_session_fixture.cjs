@@ -54,8 +54,10 @@ const routes = {
   "/user/u1/leagues/nfl/2026": [league],
 };
 const calls = [];
+const failures = {};   // path -> message: Sleeper answers with an error
 Session._get(path => {
   calls.push(path);
+  if (failures[path]) return Promise.reject(new Error(failures[path]));
   const hit = routes[path];
   return hit === undefined ? Promise.reject(new Error(`unrouted ${path}`)) : Promise.resolve(hit);
 });
@@ -257,6 +259,63 @@ async function realTick(panel) {
   assert.ok(byId(account, "session-user"), "account controls remain usable after forgetting");
   FC.mountLeagueContext(null);
   assert.equal(connectMain.children.length, 1, "reinitializing does not duplicate the panel");
+  // 9. A remembered league that stops loading (review fix): a definitive
+  //    failure (wrong season, HTTP 404, a null league body) forgets it and,
+  //    when it came from memory, reopens the page league-free with a note; a
+  //    timeout or a 5xx keeps it, since a retry may succeed.
+  {
+    const KEY = "megatron:lastLeague", NOTE = "megatron:forgotLeague";
+    const ss = new Map();
+    global.sessionStorage = { getItem: k => (ss.has(k) ? ss.get(k) : null), setItem: (k, v) => { ss.set(k, String(v)); }, removeItem: k => { ss.delete(k); } };
+    const cases = [
+      ["wrong season", "100000000000000021", () => { routes["/league/100000000000000021"] = { league_id: "100000000000000021", name: "League D", season: "2025", status: "complete" }; }, true],
+      ["HTTP 404", "100000000000000022", () => { failures["/league/100000000000000022"] = "HTTP 404"; }, true],
+      ["null league body", "100000000000000023", () => { routes["/league/100000000000000023"] = null; }, true],
+      ["timeout", "100000000000000024", () => { failures["/league/100000000000000024"] = "timeout"; }, false],
+      ["HTTP 503", "100000000000000025", () => { failures["/league/100000000000000025"] = "HTTP 503"; }, false],
+    ];
+    for (const [name, id, arrange, forgets] of cases) {
+      arrange();
+      for (const suffix of ["users", "rosters"]) routes[`/league/${id}/${suffix}`] = routes[`/league/${id}/${suffix}`] || [];
+      FC.setLeague(null);
+      Session._storage(store);
+      m.clear(); ss.clear(); m.set(KEY, id);
+      dom("https://example.test/Megatron/weekly.html");
+      const replaced = [];
+      global.location.replace = u => { replaced.push(String(u)); };
+      assert.deepEqual(FC.inSeasonLeague(), { leagueId: id }, `${name}: opened from memory`);
+      FC.setLeague(id);
+      if (forgets) {
+        await until(() => !m.has(KEY), `${name}: the remembered league to be forgotten`);
+        assert.deepEqual(replaced, ["https://example.test/Megatron/weekly.html"], `${name}: reopened league-free`);
+        assert.equal(ss.get(NOTE), "1", `${name}: the note is queued`);
+      } else {
+        await until(() => Session.error(), `${name}: the load to fail`);
+        await pause(20);
+        assert.equal(m.get(KEY), id, `${name}: a transient failure keeps the remembered league`);
+        assert.deepEqual(replaced, [], `${name}: no reload`);
+        assert.equal(ss.has(NOTE), false);
+      }
+    }
+    // An id from the URL that fails is not reopened (the visitor sees its error), but a matching remembered id is dropped.
+    FC.setLeague(null); Session._storage(store);
+    const U = "100000000000000022";
+    m.clear(); ss.clear(); m.set(KEY, U);
+    dom(`https://example.test/Megatron/weekly.html?league=${U}`);
+    const rep2 = []; global.location.replace = u => { rep2.push(String(u)); };
+    FC.inSeasonLeague(); FC.setLeague(U);
+    await until(() => !m.has(KEY), "a URL-opened remembered id that 404s to be forgotten");
+    assert.deepEqual(rep2, [], "a league opened by a link is not reopened without it");
+    // The next league-free page shows the one-line note once, then not again.
+    ss.set(NOTE, "1"); m.clear();
+    const nm = dom("https://example.test/Megatron/weekly.html");
+    FC.leagueNavigation();
+    assert.ok(all(nm).some(n => n.textContent === "The league this browser remembered is no longer available. Connect your Sleeper league to continue."), "the note is shown");
+    assert.equal(ss.has(NOTE), false, "the note is one-shot");
+    FC.setLeague(null);
+    delete global.sessionStorage;
+  }
+
   console.log("chip_session_fixture: real chip + real Session (mount, identify, tick, change, forget; by-id viewer then owner) OK");
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

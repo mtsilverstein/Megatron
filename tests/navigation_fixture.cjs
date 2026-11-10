@@ -178,7 +178,7 @@ global.localStorage = store;
   }
   {
     const { main, links } = domPage(`${base}index.html?league=${X}`);
-    assert.throws(() => FC.leagueNavigation(), { message: "The draft board is only built for registered leagues." });
+    assert.throws(() => FC.leagueNavigation(), { message: "The draft board is not built per league; the 2026 board is archived." });
     assert.deepStrictEqual(links.map(l => new URL(l.href).searchParams.get("league")), [X, X, X, X, null],
       "the masthead is rewritten BEFORE the refusal: this league's pages keep its id, the board link names none");
     const panel = main.children[0];
@@ -187,7 +187,7 @@ global.localStorage = store;
       [`${base}weekly.html?league=${X}`, `${base}waivers.html?league=${X}`, `${base}trade.html?league=${X}`],
       "the way forward is this league's in-season pages, never another league's board");
     assert.ok(!all(main).some(n => n.id === "league-context"), "no league panel for a board that does not exist");
-    assert.throws(() => FC.leagueNavigation(), /only built for registered leagues/);
+    assert.throws(() => FC.leagueNavigation(), /not built per league/);
     assert.strictEqual(main.children.length, 1, "repeated init must not duplicate the panel");
   }
   lsMap.clear();
@@ -353,6 +353,21 @@ global.localStorage = store;
   all(chipEl).find(n => n.tagName === "form").dispatch("submit");
   assert.deepStrictEqual(AN.calls, [["identify", "user_a"]]);
 
+  // A league-free page with its connect prompt showing asks for the username
+  // once: the chip's own form is not built while the prompt is visible.
+  {
+    const PS = stubSession(); FC._session(PS);
+    const pm = dom(`${base}weekly.html`);
+    const promptEl = element("section"); promptEl.id = "connect-prompt"; promptEl.hidden = false;
+    pm.append(promptEl);
+    FC.mountLeagueContext(null);
+    const pPanel = pm.children[0];
+    assert.strictEqual(byId(pPanel, "session-user"), null, "the prompt is the page's one username form");
+    assert.strictEqual(byId(pPanel, "session-use"), null);
+    promptEl.hidden = true;
+    FC.chip.render();
+    assert.ok(byId(pPanel, "session-user"), "with no prompt showing, the chip offers its own form");
+  }
   // A ready bundle renders exactly chipText's line plus refresh/change/forget.
   const R = stubSession(); FC._session(R);
   const rostersFetchedAt = Date.now() - 14000;

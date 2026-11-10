@@ -91,7 +91,7 @@
 </main>
 <footer>Pre-draft: values players and draft picks before the draft. In season: conditional lineup scenarios only — no trade grades.</footer>
 <script src="assets/session.js?v=nodefault1"></script>
-<script src="assets/app.js?v=nodefault1"></script>
+<script src="assets/app.js?v=nodefault2"></script>
 <script src="assets/sleeper.js?v=2"></script>
 <script src="assets/connect.js?v=nodefault1"></script>
 <script src="assets/optimizer.js?v=nodefault1"></script>
@@ -154,7 +154,9 @@
     // archived (the season it was built for is under way). FC.setBoard moves
     // the chip to the board's registry path; TradeMode reads its roster from
     // the session bundle and no username of its own.
-    const board = await FC.loadJSON("data/draft.json");
+    // A board that will not load cannot be this league's: the same answer as another league's.
+    const board = await FC.loadJSON("data/draft.json").catch(() => null);
+    if (!board) { hide(["trade-connect"]); stamp(FC.DRAFT_ONLY); return; }
     if (await FC.boardArchived(board)) {
       hide(["trade-connect"]);
       stamp(`Pre-draft trade values are not offered: the ${board.season} draft board is archived. In-season trade scenarios open when this league's season starts.`);

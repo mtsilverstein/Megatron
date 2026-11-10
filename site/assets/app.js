@@ -22,10 +22,16 @@
   // In-season pages take ANY Sleeper league id. Draft-side pages (the board,
   // its keeper panel, pre-draft trade) read only a published board: an id
   // there is refused by name -- never a substituted league.
-  const DRAFT_ONLY = "The draft board is only built for registered leagues.";
+  const DRAFT_ONLY = "The draft board is not built per league; the 2026 board is archived.";
   const OLD_NAME = "This link uses an old league name. Connect your Sleeper league to continue.";
   const NOT_AN_ID = raw => `"${raw}" is not a Sleeper league id. Connect your Sleeper league to continue.`;
   const LAST_LEAGUE_KEY = "megatron:lastLeague";
+  const FORGOT_KEY = "megatron:forgotLeague";   // sessionStorage: one-shot note after a remembered league was dropped
+  const FORGOTTEN = "The league this browser remembered is no longer available. Connect your Sleeper league to continue.";
+  // A load failure that says the league itself is gone or out of season (not
+  // a network error, timeout or 5xx, where a retry may succeed).
+  const DEFINITIVE_LOAD_FAILURE = /^HTTP 404$|^Sleeper has no league with id |^This league is from the .+ season; projections are for /;
+  let openedFromMemory = null;   // the id pageLeague took from memory, if any
   // Destinations whose league parameter is the id between in-season pages.
   const IN_SEASON_DEST = new Set(["weekly.html", "waivers.html", "trade.html"]);
   // Pages that resolve a league for their tools: the URL's id, else the
@@ -62,6 +68,25 @@
       return isLeagueId(v) ? v : null;
     } catch (_) { return null; }
   }
+  function forgetRememberedLeague(id) {
+    try { if (typeof localStorage !== "undefined" && localStorage && localStorage.getItem(LAST_LEAGUE_KEY) === id) localStorage.removeItem(LAST_LEAGUE_KEY); } catch (_) {}
+    if (openedFromMemory !== id) return;
+    // The page was opened from memory, not by a link: reopen it league-free
+    // (its connect prompt) with a one-line note.
+    try {
+      if (typeof sessionStorage !== "undefined" && sessionStorage) sessionStorage.setItem(FORGOT_KEY, "1");
+      const url = new URL(location.href);
+      url.searchParams.delete("league");
+      if (typeof location.replace === "function") location.replace(url.href);
+    } catch (_) {}
+  }
+  function takeForgottenNote() {
+    try {
+      if (typeof sessionStorage === "undefined" || !sessionStorage || sessionStorage.getItem(FORGOT_KEY) === null) return false;
+      sessionStorage.removeItem(FORGOT_KEY);
+      return true;
+    } catch (_) { return false; }
+  }
   function rememberLeague(id) {
     try { if (isLeagueId(id) && typeof localStorage !== "undefined" && localStorage) localStorage.setItem(LAST_LEAGUE_KEY, id); } catch (_) {}
   }
@@ -84,6 +109,7 @@
       url.searchParams.set("league", id);
       if (typeof history !== "undefined" && history && typeof history.replaceState === "function") history.replaceState(history.state === undefined ? null : history.state, "", url.href);
     } catch (_) { /* the page still opens the league; only the URL is not rewritten */ }
+    openedFromMemory = id;
     return { ...leagueParam(id), remembered: true };
   }
   // The in-season pages' league id, or null: no league (league-free pages).
@@ -207,7 +233,9 @@
       // would refuse it.
       Promise.resolve().then(() => S.ready({ ...extra, leagueId })).then(b => {
         if (b && b.league && b.state && String(b.league.league_id) === leagueId && String(b.league.season) === String(b.state.season)) rememberLeague(leagueId);
-      }).catch(swallow);
+      }).catch(err => {
+        if (err && !err.superseded && DEFINITIVE_LOAD_FAILURE.test(String(err.message || ""))) forgetRememberedLeague(leagueId);
+      });
       return;
     }
     if (!chip.slug || !chip.board || isEspn()) return;
@@ -349,6 +377,10 @@
   // from changes -- `controlsSig` names that state. A tick therefore never
   // replaces the username input the visitor is typing into after "change"
   // or "forget", and never steals keyboard focus from a chip button.
+  function promptShown() {
+    const n = typeof document !== "undefined" && document.getElementById ? document.getElementById("connect-prompt") : null;
+    return !!n && !n.hidden;
+  }
   function renderChip() {
     const S = session(), els = chip.els;
     if (!S || !els) return;
@@ -385,8 +417,11 @@
       const cancel = !!(id || err);
       const anonRefresh = idPath && !id && !err;
       const refreshing = st === "refreshing";
+      // A league-free page whose connect prompt is showing asks for the
+      // username once: the prompt's field, not this one.
+      const promptOnly = !id && !err && !idPath && !chip.changing && promptShown();
       build = () => {
-        const c = [identifyForm(prefill)];
+        const c = promptOnly ? [] : [identifyForm(prefill)];
         // Anonymous: the line already reads "Remembered on this device until
         // you choose forget." (chipText), so no second copy is added here.
         if (cancel) c.push(chipButton("session-cancel", "cancel", () => { chip.changing = false; renderChip(); }));
@@ -394,7 +429,7 @@
         if (anonRefresh) c.push(refreshBtn(refreshing));
         return c;
       };
-      sig = ["form", prefill, cancel, extrasSig, anonRefresh && refreshing];
+      sig = ["form", prefill, cancel, extrasSig, anonRefresh && refreshing, promptOnly];
     } else if (err) {
       line = S.chipText(view, "error", now, err);
       build = () => [chipButton("session-retry", "retry", chipRetry), changeBtn()]; sig = ["error"];
@@ -609,7 +644,7 @@
     const link = document.createElement("a");
     panel.id = "league-recovery";
     panel.className = "league-links";
-    note.textContent = p.legacy ? OLD_NAME : NOT_AN_ID(p.raw);
+    note.textContent = p.forgotten ? FORGOTTEN : p.legacy ? OLD_NAME : NOT_AN_ID(p.raw);
     link.href = new URL("connect.html", location.href).href;
     link.textContent = "Go to the connect page";
     more.append(link);
@@ -669,6 +704,7 @@
     }
     mountLeagueContext(p.isId ? p.leagueId : null);
     if (LEAGUE_PAGES.has(here) && (p.legacy || p.invalid)) mountLeagueNotice(p);
+    else if (LEAGUE_PAGES.has(here) && p.none && takeForgottenNote()) mountLeagueNotice({ ...p, forgotten: true });
     return p.slug;
   }
 

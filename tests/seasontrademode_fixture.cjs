@@ -776,7 +776,7 @@ async function pagePreDraft() {
   assert.equal(da.$("trade-connect").hidden, true);
   // Another league pre-draft is the draft boundary; the board's league without keeper rules has no grader.
   for (const [id, over, expected] of [
-    [B, {}, "The draft board is only built for registered leagues."],
+    [B, {}, "The draft board is not built per league; the 2026 board is archived."],
     [A, { keeper_rules: undefined }, "Trade advice is not available for this league yet."],
     [A, { platform: "espn" }, "Trade advice is not available for this league yet."],
   ]) {
@@ -789,6 +789,14 @@ async function pagePreDraft() {
     assert.equal(d.$("trade-connect").hidden, true);
     assert.equal(Session.bundle().registry.slug, null, "no board was registered for the chip");
   }
+  // A board that will not load cannot be this league's: the draft boundary, not an HTTP error.
+  fresh(); state = { season: "2026", season_type: "pre", week: 0 };
+  routes = { ...baseRoutes(), ...leagueRoutes(B, () => ({ ...baseLeague, league_id: B, status: "pre_draft" })) };
+  statics = {};
+  const dn = await runPage(`https://example.test/Megatron/trade.html?league=${B}`);
+  assert.equal(dn.stamp.textContent, "The draft board is not built per league; the 2026 board is archived.");
+  assert.deepEqual(draftFetches(), ["data/draft.json"]);
+  assert.equal(window.TradeMode.calls.length, 0);
   // Any other state keeps today's message.
   fresh(); state = { season: "2026", season_type: "post", week: 18 };
   routes = { ...baseRoutes(), ...leagueRoutes(L, () => ({ ...baseLeague, status: "complete" })) };
@@ -831,7 +839,7 @@ async function pageRollover() {
   statics = { "data/draft.json": boardFor() };
   const du = startPage(`https://example.test/Megatron/trade.html?league=${L}`);
   await until(() => du.stamp.textContent !== "", "the draft-boundary message");
-  assert.equal(du.stamp.textContent, "The draft board is only built for registered leagues.");
+  assert.equal(du.stamp.textContent, "The draft board is not built per league; the 2026 board is archived.");
   assert.equal(window.TradeMode.calls.length, 0);
   // The same league IN SEASON with a mismatched season is still refused by
   // name; the page never reaches either mode (it waits for the chip's retry).
