@@ -1,5 +1,7 @@
 # Interface release checklist
 
+_Historical record (dated 2026-09-16); not maintained._
+
 Release scope: configured Sleeper weekly/start-sit and waiver tools, plus clearly
 labeled draft tooling. A research prototype is not live trade advice. ESPN
 in-season advice remains unsupported and must be labeled as such.

@@ -174,8 +174,10 @@ def test_week_auto_errors_when_season_complete():
     weekly = make_weekly([{"week": w, "player_id": f"{t}{w}", "team": t}
                           for w in (1, 2, 3, 4) for t in ("AAA", "BBB")])
     sched = _sched_with_scores(4, season=2023, completed_rows={i:(10,7) for i in range(4)})
-    with pytest.raises(RuntimeError, match="2023"):
+    with pytest.raises(RuntimeError, match="2023") as exc:
         resolve_week("auto", weekly, sched, season=2023)
+    from ffmodel.site.generate import SeasonOver
+    assert isinstance(exc.value, SeasonOver)
 
 
 def _sched_with_scores(weeks=4, season=2026, completed_rows=None):
@@ -202,6 +204,66 @@ def test_auto_keeps_partial_week_and_rejects_incomplete_stats():
         resolve_week("auto", weekly.iloc[:1], sched, 2023)
     with pytest.raises(RuntimeError, match="final scores"):
         resolve_week("auto", weekly, sched.drop(columns="home_score"), 2023)
+
+
+def _pending_case(gamedays, drop_gameday=False):
+    """Two completed week-1 games (AAA-BBB, CCC-DDD); weekly stats exist for no team."""
+    import datetime as dt
+    sched = _sched_with_scores(2, season=2023, completed_rows={0: (10, 7), 1: (10, 7)})
+    sched.loc[1, "week"] = 1
+    sched.loc[1, "home_team"] = "CCC"
+    sched.loc[1, "away_team"] = "DDD"
+    sched.loc[0, "gameday"], sched.loc[1, "gameday"] = gamedays
+    if drop_gameday:
+        sched = sched.drop(columns="gameday")
+    weekly = make_weekly([{"team": "ZZZ"}])
+    return weekly, sched, dt.date(2023, 9, 20)
+
+
+def test_missing_stats_for_recent_game_is_stats_pending():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-19", "2023-09-19"))
+    with pytest.raises(StatsPending, match="completed team-games"):
+        validate_completed_games(weekly, sched, 2023, today=today)
+
+
+def test_missing_stats_for_old_game_stays_a_plain_runtime_error():
+    from ffmodel.site.generate import StatsPending, resolve_week
+    weekly, sched, today = _pending_case(("2023-09-17", "2023-09-17"))
+    with pytest.raises(RuntimeError) as exc:
+        resolve_week("auto", weekly, sched, 2023, today=today)
+    assert not isinstance(exc.value, StatsPending)
+
+
+def test_stats_pending_boundary_is_two_days():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-18", "2023-09-18"))
+    with pytest.raises(StatsPending):
+        validate_completed_games(weekly, sched, 2023, today=today)
+
+
+def test_missing_stats_without_gameday_fails_closed():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-19", "2023-09-19"), drop_gameday=True)
+    with pytest.raises(RuntimeError) as exc:
+        validate_completed_games(weekly, sched, 2023, today=today)
+    assert not isinstance(exc.value, StatsPending)
+
+
+def test_missing_stats_mixed_recent_and_old_is_a_plain_runtime_error():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-19", "2023-09-10"))
+    with pytest.raises(RuntimeError) as exc:
+        validate_completed_games(weekly, sched, 2023, today=today)
+    assert not isinstance(exc.value, StatsPending)
+
+
+def test_missing_stats_with_unparseable_gameday_fails_closed():
+    from ffmodel.site.generate import StatsPending, validate_completed_games
+    weekly, sched, today = _pending_case(("2023-09-19", None))
+    with pytest.raises(RuntimeError) as exc:
+        validate_completed_games(weekly, sched, 2023, today=today)
+    assert not isinstance(exc.value, StatsPending)
 
 
 def test_small_current_season_allowed_only_with_complete_team_coverage():
@@ -354,6 +416,8 @@ def _run_generate_with_stubs(monkeypatch, tmp_path, argv, capture: dict,
         capture["scheduled_teams"] = k.get("scheduled_teams")
         return PLAUSIBLE_TEAMS if current_teams is None else current_teams
     monkeypatch.setattr(rosters_mod, "pull_current_teams", fake_current_teams)
+    monkeypatch.setattr(rosters_mod, "pull_released_ids",
+                        lambda *a, **k: set(capture.get("released", ())))
     monkeypatch.setattr(features_mod, "build_features", lambda *a, **k: weekly)
 
     if pull_draft_picks is None:
@@ -872,8 +936,9 @@ def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
 
     seen = {}
 
-    def fake_combined(weekly, schedules, season, week, current_teams=None):
+    def fake_combined(weekly, schedules, season, week, current_teams=None, **kw):
         seen["current_teams"] = current_teams
+        seen["exclude_ids"] = kw.get("exclude_ids")
         return (None, None)
     monkeypatch.setattr(future_mod, "combined_future_features", fake_combined)
     monkeypatch.setattr(weekly_mod, "build_weekly_projections",
@@ -881,10 +946,12 @@ def test_weekly_run_threads_current_teams_into_the_projection_skeleton(
 
     def boom_draft_picks(*a, **k):
         raise AssertionError("weekly-only run must not pull draft picks")
-    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"], {},
+    _run_generate_with_stubs(monkeypatch, tmp_path, ["--week", "6"],
+                             {"released": {"ZZ-RELEASED"}},
                              pull_draft_picks=boom_draft_picks)
 
     assert seen["current_teams"] == PLAUSIBLE_TEAMS
+    assert "ZZ-RELEASED" in seen["exclude_ids"]
 
 
 @pytest.mark.parametrize("argv", [["--week", "6"], ["--draft"]])
@@ -1063,3 +1130,22 @@ def test_weekly_workflow_publishes_one_validated_batch_for_both_leagues():
     assert "--remaining" not in text
     assert "for LEAGUE in fam gabagool; do" in text           # draft branch unchanged
     assert "for LEAGUE in gabagool fam; do" not in text
+
+
+def test_load_adp_skips_a_snapshot_from_another_season(monkeypatch, tmp_path):
+    from ffmodel.site import generate
+    import ffmodel.data.adp as adp_mod
+
+    snap = tmp_path / "fantasypros_adp_2026-07-27.csv"
+    snap.write_text("unused\n", encoding="utf-8")
+    monkeypatch.setattr(adp_mod, "SNAPSHOT_PATH", snap)
+    monkeypatch.setattr(adp_mod, "pull_adp",
+                        lambda season, cache_dir=None, teams=12:
+                        pd.DataFrame({"player_id": ["00-1"], "adp": [3.0]}))
+
+    adp_df, source = generate._load_adp(2027, tmp_path)
+    assert list(adp_df["player_id"]) == ["00-1"]
+    assert source == {
+        "source": "ffcalculator",
+        "snapshot_skipped": ("fantasypros_adp_2026-07-27.csv is for season "
+                             "2026, board season 2027")}

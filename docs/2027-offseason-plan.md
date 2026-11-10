@@ -12,7 +12,7 @@ spec disagree, the spec governs.
 
 | When | What | Who |
 |---|---|---|
-| Wed 2026-11-04 (before Thu 11-05 8:15 PM ET) | Origin-9 prospective freeze: `gh workflow run prospective-freeze.yml --ref main -f origin=9 -f dry_run=false -f contingency_origin9_only=false`. Fails closed (exit 4) if week-8 data is incomplete; retry before the cutoff. | Owner dispatches |
+| Wed 2026-11-04 (before Thu 11-05 8:15 PM ET) | Origin-9 prospective freeze: `gh workflow run prospective-freeze.yml --ref main -f origin=9 -f dry_run=false -f contingency_origin9_only=false`. Fails closed (exit 4) if week-8 data is incomplete; retry before the cutoff. Done 2026-11-05 (commit e3860f7). | Owner dispatches |
 | Weeks 9–18, every Tue/Wed | Weekly accuracy scorecard (automatic); the about page and weekly footer refresh from it. | Actions |
 | After the last week-18 game | The single Sleeper blend read (spec 2026-10-06 §4.8.4, consequences §4.8.6). Read once; no earlier peeks. | Controller + owner, private repo only |
 | 2027-01-12 to 01-14 (UTC) | Outcome capture for the per-format prospective test (spec 2026-09-30 §7.6). No capture in that window means the test is reported as not evaluated. | Actions (cron) |
@@ -46,6 +46,8 @@ Outcome: _(fill in after the read: category and action authorised, no numbers)_
 - `inconclusive` or `conditional_fail`: the gate stays closed, and the failure is published.
 - A pass is one season of evidence. `pass` (as opposed to `conditional_pass`) is reserved for a future cross-season
   rule, which 2027 could register (§4.4).
+- The January write-up must disclose that the frozen ρ table uses a normalised estimator, not the spec's mean of
+  products (about 20% lower). This makes the coverage gate harder to pass, never easier (audit A5-1).
 
 Outcome: _(fill in per format after the evaluation)_
 
@@ -82,7 +84,10 @@ availability work did not move the board. The plan therefore spends effort on me
    ("no injury/news signals") before any design work, and a pre-registered test with a pass bar set in advance.
 3. **Cross-season roster-simulation rule.** If any format reached `conditional_pass` in 2026, register the 2027
    replication rule before the season, so `pass` has a defined meaning.
-4. **Not planned:** a bigger network, more in-season box-score features, kickers, defenses, DFS. Re-open only with a
+4. **Draft board for any Sleeper league.** The 2026 board was built per registered league. For 2027, build boards per
+   scoring format and apply keeper rules from the league a visitor connects, so no league is a default (owner
+   decision 2026-11-07).
+5. **Not planned:** a bigger network, more in-season box-score features, kickers, defenses, DFS. Re-open only with a
    new reason.
 
 ## 5. Season rollover checklist (before the 2027 draft board)
@@ -102,6 +107,20 @@ availability work did not move the board. The plan therefore spends effort on me
 - [ ] Dependency drift: run the full suite against current pins and the latest pandas and nflreadpy. Pandas is capped
       `<4`. Check CI after every push.
 - [ ] A dry run of the draft board (`weekly-update.yml` with `draft=true`) at least two weeks before Aug 20.
+- [ ] Re-enable scheduled workflows. GitHub disables a public repo's scheduled workflows after 60 days without
+      repository activity, so weekly-update, weekly-accuracy and market-snapshots will likely be disabled by spring.
+      Check the Actions tab and run gh workflow enable for each (audit A9-8).
+- [ ] FantasyPros data goes private. After the January read, move data_snapshots/fantasypros_*.csv,
+      data_snapshots/weekly_ecr/ and data_snapshots/ros_ecr/ to the private data repo, point the same-week benchmark
+      and the board's snapshot paths there, and capture 2027 exports privately from the start (spec §11 note of
+      2026-11-07).
+- [ ] League ids leave the public site data. The per-league legacy files (weekly.json, weekly-fam.json,
+      remaining-<slug>.json, draft*.json league blocks) carry league ids and exist because the 2026 live scorecard
+      reads site/data/weekly.json. Register the 2027 scorecard against the neutral batch, then stop generating them.
+- [ ] Immutable releases. Before any 2027 freeze, enable immutable releases and make the freeze workflow create its
+      release as a draft, attach the assets, then publish (an immutable release cannot take assets after publishing).
+- [ ] Reserve-list status on the weekly slate. The roster feed's RES status (77 players in week 9 of 2026) is
+      dropped; show it on the weekly page (audit A8-4).
 
 ## 6. Open owner decisions
 

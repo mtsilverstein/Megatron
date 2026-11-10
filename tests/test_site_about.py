@@ -154,3 +154,29 @@ def test_board_report_without_coverage_degrades_to_no_claim(tmp_path):
                         site_model="test")
     assert about["season_bands"] is None
     assert [r["source"] for r in about["reports"]] == ["bakeoff.json"]
+
+
+def test_median_bakeoff_artifacts_stay_off_the_about_page():
+    """generate.py and batch.py build the published about.json from
+    `models/backtests/*.json`, a non-recursive glob. The median-objective
+    bake-off and its paired comparison (audit A2-1) live one level down, in
+    `models/backtests/xgb_median/`, on purpose: the paired file is not a
+    weekly report, so build_about would raise on it and the weekly bot would
+    stop publishing, and the bake-off would add a table to the page
+    unannounced. Putting either on the page is a deliberate copy change, not
+    a side effect of committing it."""
+    backtests = Path(__file__).resolve().parents[1] / "models" / "backtests"
+    variant = backtests / "xgb_median"
+    assert (variant / "bakeoff_xgb_median.json").is_file()
+    assert (variant / "paired_xgb_median.json").is_file()
+
+    paths = sorted(backtests.glob("*.json"))   # the site's own glob
+    assert [p.name for p in paths] == ["bakeoff.json", "baselines.json",
+                                       "board_backtest.json"]
+    about = build_about(paths, data_through="2025-wk18", site_model="transformer")
+    assert sorted(r["source"] for r in about["reports"]) == ["bakeoff.json",
+                                                             "baselines.json"]
+    # why the paired file must never sit in the globbed directory
+    with pytest.raises(ValueError, match="missing keys"):
+        build_about([variant / "paired_xgb_median.json"],
+                    data_through="2025-wk18", site_model="transformer")

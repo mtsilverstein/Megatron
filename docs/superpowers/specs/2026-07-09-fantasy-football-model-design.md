@@ -147,6 +147,10 @@ Every page shows a "data as of \<date\>" stamp.
     injury-report ingestion, news text and NLP stay out of scope. Raw third-party data (lines, props, other providers'
     projections) is stored in a private repository, never in this public one, and is used only within the provider's
     terms.
+  - **Note (2026-11-07).** Files already in this repo that predate or conflict with this rule stay until the January 2027
+    read: the raw FantasyPros CSVs in data_snapshots/ (the frozen o5/o9 manifests hash a copy of one) and the rank-only
+    weekly/ROS ECR archives (the pre-registered same-week benchmark reads data_snapshots/weekly_ecr). No new raw export
+    is committed. All of it moves to the private repository after the read (docs/2027-offseason-plan.md §5).
 - In-week live updates (one refresh per week).
 - Any paid infrastructure; everything runs on free tiers.
 

@@ -28,7 +28,7 @@ from pathlib import Path
 import pandas as pd
 
 from ffmodel.data.pull import (LIVE_MAX_AGE_HOURS, POSITIONS, _cached,
-                              assert_snapshot_is_newest)
+                              assert_snapshot_is_newest, current_nfl_season)
 
 # FantasyPros publishes many ranking flavors in one frame; these two select
 # the preseason redraft consensus ("ro" = redraft overall).
@@ -635,12 +635,21 @@ def consensus_for_season(season: int, schedules: pd.DataFrame,
     # Leak discipline is NOT relaxed for it: the same strictly-before-kickoff
     # rule that governs the mirror applies here, so a snapshot captured after
     # week 1 has begun is refused rather than quietly used.
+    #
+    # The pin belongs to the season it was captured for. A different season's
+    # board (a historical backtest, or next year's board before its own export
+    # is dropped in) falls through to the mirror exactly as if the file were
+    # absent, rather than raising or ranking on another year's consensus.
+    snapshot = None
     if ECR_SNAPSHOT_PATH.exists():
         # Same trap as the ADP pin: a newer export on disk that the constant
         # does not point at would be used as a silently stale consensus.
         assert_snapshot_is_newest(ECR_SNAPSHOT_PATH)
         snapshot = parse_ecr_snapshot_csv(ECR_SNAPSHOT_PATH)
         captured = snapshot["scrape_date"].iloc[0]
+        if current_nfl_season(captured.date()) != season:
+            snapshot = None
+    if snapshot is not None:
         if captured >= kickoff:
             raise ValueError(
                 f"ECR snapshot {ECR_SNAPSHOT_PATH.name} was captured "

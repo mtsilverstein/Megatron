@@ -5,10 +5,16 @@ document is the trust part: what the model is, how it is evaluated, where it
 genuinely stands against the alternatives a real drafter has, and — at least
 as important — what was tried and *didn't* work, with the reason in each case.
 
-Every number here is measured walk-forward on held-out seasons the model never
-trained on. Nothing was tuned against those seasons. Where a result is within
-statistical noise, it is reported as within noise rather than rounded into a
-win.
+Every model number here is measured walk-forward on held-out seasons the model
+never trained on. No model hyperparameter was fitted on those seasons: the
+hyperparameter sweep validates on the 2022 fold only. Several design choices
+were made after 2023–25 results had been seen, though, and are reported on
+those same seasons: the decision to calibrate the bands, the redefinition of
+the band construction, the 3-seed ensemble, the week-to-week correlation in the
+season simulation, the rejection of feature pack v2 and the decision to order
+the draft board by expert consensus. Those numbers are not first-look
+out-of-sample results. Where a result is within statistical noise, it is
+reported as within noise rather than rounded into a win.
 
 ---
 
@@ -24,6 +30,13 @@ pure scoring functions, so PPR is the default and half-PPR / standard derive
 for free, and the p10/p90 stat quantiles become sign-coherent **floor and
 ceiling point bands**.
 
+The published points p50 is the score of the p50 stat line, a sum of per-stat
+medians. A sum of medians is not the median of the sum, so the p50 is not the
+median of a player's points: for players projected at 8 or more points, 60% of
+live 2026 outcomes through week 8 landed above it (audit A4-4, 2026-11-07). It
+works for ranking players within a position; as an absolute total (a lineup
+against an opponent, a FAAB price) it runs low for starters.
+
 Design commitments that shape everything below:
 
 - **Raw stats, never points directly.** Points are a deterministic function of
@@ -32,9 +45,11 @@ Design commitments that shape everything below:
   held-out years are 2023, 2024, 2025. Random train/test splits are forbidden
   — the rolling features would leak the future into the past.
 - **Free tiers only.** Training on Kaggle (30 GPU-h/week), weekly inference and
-  publishing on GitHub Actions + Pages. No paid infrastructure, ever.
+  publishing on GitHub Actions, the static site hosted on Vercel. No paid
+  infrastructure, ever.
 - **Baselines run through the identical harness** — a naive last-4-game average
-  and an XGBoost model — and results are reported honestly whichever wins.
+  and XGBoost, with a squared-error and a median objective — and results are
+  reported honestly whichever wins.
 
 ## 2. How claims are kept honest
 
@@ -43,67 +58,103 @@ information that wasn't available at prediction time) and the garden of
 forking paths (trying many things and reporting the one that looked good). The
 project guards against both explicitly:
 
-- **Pre-registration.** Every experiment's success criterion is written down —
-  in the project ledger, before the result is seen — and the verdict is read
-  off that criterion afterward. Several experiments below *passed the letter*
-  of a criterion and were still declined because the effect was within noise.
+- **Pre-registration.** Every gated experiment's success criterion is written
+  down — in the project ledger, before the result is seen — and the verdict is
+  read off that criterion afterward. Several experiments below *passed the
+  letter* of a criterion and were still declined because the effect was within
+  noise. Diagnostics, which gate nothing (the ≥8-game cut in §3 is one), are
+  labelled as diagnostics rather than tests.
 - **Adversarial review.** Substantive changes are reviewed by an independent
   pass whose job is to break the claim. That pass has repeatedly earned its
   keep — see §5.
-- **Significance, not point estimates.** With only three held-out seasons, the
-  standard error on a season-level accuracy delta is ≈0.028 — wide enough that
-  most "improvements" are indistinguishable from zero. Comparisons use paired
-  per-row tests and bootstrap confidence intervals, not eyeballed means.
+- **Significance, not point estimates.** With only three held-out seasons, a
+  season-level accuracy delta is noisy: feature pack v2's had a standard error
+  of 0.028 across seasons (`models/diagnostics/feature_pack_v2_gate.json`) —
+  wide enough that most "improvements" are indistinguishable from zero.
+  Comparisons use paired per-row tests and bootstrap confidence intervals, not
+  eyeballed means.
 
 ## 3. Where the model actually stands
 
-### It beats its own baselines
+### It ties a properly specified XGBoost on point accuracy
 
-Walk-forward weekly PPR mean absolute error, pooled over 2023–25:
+Walk-forward weekly PPR mean absolute error, pooled over the 17,908
+player-weeks of 2023–25 (`models/backtests/bakeoff.json`; the median-objective
+entrant is in `models/backtests/xgb_median/bakeoff_xgb_median.json`):
 
 | model | weekly PPR MAE |
 |---|---|
-| naive last-4 average | 4.61 |
-| XGBoost | 4.45 |
-| **quantile transformer** | **4.33** |
+| naive last-4 average | 4.612 |
+| XGBoost, squared-error objective (a mean predictor) | 4.448 |
+| XGBoost, median objective (3-seed ensemble) | 4.326 |
+| quantile transformer (3-seed ensemble) | 4.325 |
 
-A real but modest gap. The transformer wins every held-out season; it loses on
-RMSE, as a median predictor should against a mean predictor — a point in its
-favor for a floor/ceiling product, not against it.
+The transformer's point prediction is a median (its p50 head is trained with
+pinball loss), and MAE rewards a median. The committed XGBoost baseline uses
+XGBoost's default squared-error objective, so it predicts means; nearly all of
+its 0.12-point deficit is that objective. Given a median objective (pinball
+loss at 0.5) and nothing else changed — same frozen features, same
+hyperparameters, identical rows, seeds 0–2 averaged row by row — XGBoost ties
+the transformer: a paired difference of −0.0010 points per player-week, 95%
+interval [−0.0213, +0.0189] (season-week cluster bootstrap,
+`models/backtests/xgb_median/paired_xgb_median.json`). By season the
+transformer is behind in 2023 (+0.019) and 2025 (+0.004) and ahead in 2024
+(−0.027), and no season's interval excludes zero. By position, QB (−0.053) and
+WR (−0.013) lean to the transformer and RB (+0.011) to XGBoost, all inside
+noise. TE is the one cell whose interval excludes zero, and it favours XGBoost
+(+0.035, [+0.003, +0.069]); it is one of seven sub-group cells, with no
+multiplicity correction.
 
-### It loses to the experts, and to the crowd, at the draft
+The squared-error row stays in the table as a labelled mean predictor. The
+transformer loses to it on RMSE (6.51 vs 6.08, averaged over the three
+seasons), as a median predictor should against a mean predictor. The
+transformer's distinct contribution is not point accuracy but the calibrated
+floor/ceiling band (§6); neither XGBoost entrant publishes one.
+
+### It loses to the experts at the draft
 
 The honest benchmark is not "does it beat a naive average" but "is it better
-than what a drafter can get for free." Two references, both snapshotted
-*strictly before* kickoff (leak-safe), scored on realized end-of-season finish:
+than what a drafter can get for free." The reference measured here is expert
+consensus, snapshotted *strictly before* kickoff (leak-safe) and scored on
+realized end-of-season finish (`models/diagnostics/consensus_benchmark.json`):
 
 - **Expert consensus (FantasyPros ECR).** Preseason starter hit-rate: **consensus
   60.5% vs the model 53.9%**, and consensus wins all twelve position-seasons on
   a like-for-like ranking comparison. The model does *not* out-rank the experts.
-- **Average draft position (ADP)** — what league-mates actually draft from,
-  aggregated from thousands of real drafts. On the two seasons with clean
-  historical ADP: **ADP 57.2% vs the model 52.6%.** ADP is measurably *easier*
-  than expert consensus (the crowd is noisier than the experts), which confirms
-  the intuition that a better ranker can beat it — but the model is not that
-  ranker: it loses to ADP within every position, and when it deviates from ADP
-  it is the one who is wrong 57% of the time.
+- **Average draft position (ADP)** — what league-mates actually draft from — has
+  not been benchmarked. This project has no historical ADP, only the 2026
+  preseason snapshot. Scoring the 2026 board against ADP and consensus by
+  position is the first item of the 2027 plan
+  (`docs/2027-offseason-plan.md` §4.1).
 
-No public open-source model has been shown to beat expert consensus on
-preseason ranking, so this is not a surprising place to land — but it is stated
-plainly rather than hidden behind a favorable internal baseline.
+Losing to consensus was the pre-registered expectation (the artifact's
+`pre_registered_expectation`), and it is stated plainly rather than hidden
+behind a favorable internal baseline.
 
-### The one number that explains the gap
+### Players who played: a diagnostic, not an explanation
 
-Restricting the comparison to players who actually appeared in ≥8 games shrinks
-the model-vs-consensus ranking gap from 0.123 to **0.049** — roughly **60% of
-the expert edge is availability forecasting**, not per-game production ranking.
-Experts (and the crowd) are better at knowing *who will play* — injuries,
-holdouts, camp battles, role changes — not at knowing who scores more per game.
-Conditional on a player suiting up, the model is close.
+The benchmark also reports the same comparison restricted to players who went
+on to appear in at least 8 games. The artifact labels those rows "an
+OUTCOME-SELECTED diagnostic, never the headline", and they are read that way
+here. Within position, averaged over the three seasons, the cut closes about 7%
+of the ranking gap at QB, 46% at RB, 12% at WR and 1% at TE, and consensus still
+wins all twelve position-seasons after it. Earlier versions of this document
+read the pooled all-positions row, which mixes positions, as showing that most
+of the experts' edge is availability forecasting; the per-position rows do not
+support that.
 
-That single measurement reframes the whole project: **the draft board's ceiling
-is set by information that is not in the box score.** No amount of better
-box-score modeling closes a gap that is mostly about availability.
+The gap to consensus is real at every position. Restricting to players who
+played at least 8 games narrows it mainly at running back, and because that cut
+selects on the outcome, it says nothing causal about availability. What the
+evidence does support is narrower. Among players who played, consensus is
+nearly as far ahead on points per game as on total points (Spearman advantage
+0.127 vs 0.152, averaged over position-seasons; audit A3-1, 2026-11-07), so the
+experts' edge is not mainly about who plays. And two other estimators on the
+same box-score inputs did no better: a median-objective XGBoost ties the
+transformer on point accuracy (above), and a conditional-mean head improved
+points but not ranking (§7). That is consistent with the gap being information
+the model never sees — depth charts, role and scheme changes — rather than the
+estimator, but it has not been tested directly.
 
 ### Weekly: behind same-week expert consensus
 
@@ -127,12 +178,12 @@ box-score modeling closes a gap that is mostly about availability.
 > modelled.
 >
 > **Why the earlier numbers were wrong (correction of 2026-10-06).** Every
-> expert comparison below used the wrong week's consensus.
-> `weekly_rankings.weekly_snapshot` takes the latest nflverse scrape in the seven
-> days before week N's first kickoff, and nflverse scrapes FantasyPros on
-> Fridays — so that scrape is the *previous* Friday's, i.e. week N−1's rankings,
-> made before week N−1's Sunday games and injury news. The re-measurement's
-> `old_protocol_staleness_audit` checks the old snapshots against the bye
+> earlier expert comparison (the superseded record below) used the wrong week's
+> consensus. `weekly_rankings.weekly_snapshot` takes the latest nflverse
+> scrape in the seven days before week N's first kickoff, and nflverse scrapes
+> FantasyPros on Fridays — so that scrape is the *previous* Friday's, i.e. week
+> N−1's rankings, made before week N−1's Sunday games and injury news. The
+> re-measurement's `old_protocol_staleness_audit` checks the old snapshots against the bye
 > schedule: of the 38 weeks in 2020–25 where the bye schedule can discriminate
 > (byes in both weeks N−1 and N, and different), 36 **contradicted** the assigned
 > week, 1 was **bye-consistent** (compatible with week N, which is not proof of
@@ -141,47 +192,15 @@ box-score modeling closes a gap that is mostly about availability.
 > **invalidated by the corrected analysis**; the old and new comparisons also
 > differ in population and coverage, so the size of each change is not
 > attributed to staleness alone. This re-measurement is a pre-registered
-> reanalysis of data already examined, not an untouched replication. The
-> original text is kept below as the record; it is **superseded**.
+> reanalysis of data already examined, not an untouched replication.
 
-Over a one-week horizon, the injury report is already public and the
-availability edge largely evaporates. Measured against **weekly** expert
-consensus (conditional on players who played), the model is a **statistical
-tie**: within-position rank correlation 0.594 vs 0.596, a paired 95% interval
-of [−0.012, +0.008] that includes zero. For a free model against a paid expert
-panel, parity is a genuine result — and it points at where the model's real
-value lives.
-
-That tie is measured on **weeks 3–17** of 2023–25 (2024 starts at week 5), 172
-position-weeks over 12,182 player-weeks. Eleven of the 54 season-weeks have no
-expert ranking scraped inside the seven days before kickoff, and the leak guard
-skips such a week rather than reach past kickoff to fill it. The figures above
-were prose in this document before they were an artifact; they have since been
-reproduced exactly and committed.
-
-The model has one measurable **running-back weekly** edge, and it survives
-out-of-sample replication. It was found on 2023–25 (out-ranking weekly
-consensus 0.7215 vs 0.6958, winning all three seasons). The replication was
-pre-registered *before* the earlier-fold models were trained, then run on the
-disjoint 2020–22 seasons — and it held: **0.666 vs 0.642, winning all three
-again, a pooled advantage of +0.024 with a paired 95% interval [+0.007, +0.044]
-that excludes zero.** Both samples now exist side by side:
-
-| position | 2020–22 delta | 2023–25 delta |
-|---|---|---|
-| QB | −0.063 | −0.040 |
-| **RB** | **+0.024** | **+0.026** |
-| WR | +0.003 | +0.009 |
-| TE | −0.014 | −0.001 |
-
-Running back is the only position positive on both disjoint samples, and its
-paired interval excludes zero in each. Quarterback is a loss on both, and on
-2023–25 the interval excludes zero — a real deficit, not noise. That pattern is
-the signature of a real signal rather than a scoring artifact: a global quirk
-would lift every position, but only the one whose value is workload-driven
-(carries, targets, snap share) benefits, and that is exactly what the model's
-usage features capture. Running back is the one place the model measurably
-out-ranks the expert panel.
+**Superseded record.** Before the correction, this section reported two weekly
+results, both measured against the previous week's rankings and both
+withdrawn: a statistical tie with weekly consensus on 2023–25, and a
+running-back edge that appeared to replicate on 2020–22. Their artifacts,
+`models/diagnostics/weekly_consensus.json` and
+`models/diagnostics/rb_oos_weekly.json`, are kept as history only. The
+current weekly result is the one above: behind consensus at every position.
 
 ## 4. What didn't work — and why
 
@@ -210,7 +229,8 @@ mechanism is the useful part:
   and was not promoted. The most useful negative result the project has produced
   — the full record is in §7.
 - **Betting lines as features** (team implied total and expected margin from
-  historical schedule lines, added to the XGBoost baseline; pre-registered
+  historical schedule lines, added to the squared-error XGBoost baseline of §3,
+  the mean predictor, and not re-run with the median objective; pre-registered
   2026-10-11, run once on 2026-10-12). **Fail, inconclusive.** One of the six
   registered conditions failed: *materiality*. Adding the lines cut PPR error by
   0.039 points per player-week, equal-weighted over 2023–25 and averaged over
@@ -300,16 +320,39 @@ that was never checked.
 
 ## 6. What the model is genuinely good for
 
-- **A free, transparent weekly projector** that beats its own baselines
-  (§3). In the historical 2023–25 PPR benchmark against same-week FantasyPros
-  consensus, it ranks matched players who played after the scrape **less
-  accurately within position** (−0.037 rank correlation, pre-registered
-  reanalysis; §3). The earlier "parity" and running-back edge are invalidated by
-  that corrected analysis.
-- **Calibrated floor/ceiling bands.** Held-out weekly coverage sits inside a
-  0.75–0.85 target for every position; ADP and ECR give a single number, this
-  gives a distribution. That is a real product difference neither benchmark
-  rewards.
+- **A free, transparent weekly projector** that beats the naive baseline and
+  ties a median-objective XGBoost on point accuracy (§3). In the historical
+  2023–25 PPR benchmark against same-week FantasyPros consensus, it ranks
+  matched players who played after the scrape **less accurately within
+  position** (−0.037 rank correlation, pre-registered reanalysis; §3). The
+  earlier "parity" and running-back edge are invalidated by that corrected
+  analysis.
+- **Calibrated floor/ceiling bands.** Held-out 2023–25 weekly PPR coverage sits
+  inside a 0.75–0.85 target for every position-season
+  (`models/backtests/bakeoff.json`); ADP, ECR and both XGBoost entrants give a
+  single number, this gives a distribution. That is the transformer's distinct
+  contribution, and a real product difference neither benchmark rewards. Two
+  exceptions are on record:
+  - Calibration is fitted on PPR scoring and the same factors are reused for
+    every format. Pooled over 2023–25, half-PPR and standard stay inside the
+    window at every position, but under 6-point passing touchdowns the QB band
+    covers 0.739 of outcomes (0.721 / 0.774 / 0.723 by season, n = 1,991)
+    against 0.780 under PPR, below the window (audit A2-3, 2026-11-07).
+  - Live, through week 8 of 2026, QB, RB and WR coverage sits inside the window
+    (84.0%, 82.3%, 80.1%), but TE is at 73.9%, below the 0.75 floor the
+    historical bands meet (`models/diagnostics/live_2026_weekly.json`).
+- **A live 2026 record.** The weekly scorecard scores, in PPR, the projections
+  committed before each week's first kickoff (proven by GitHub push records,
+  not by the Vercel deploy) for players who recorded a stat line. Through week 8
+  of 2026 that is 2,629 player-weeks: MAE 4.33 against 4.63 for the naive
+  last-4 average, and 79.7% of outcomes inside the p10–p90 band
+  (`models/diagnostics/live_2026_weekly.json`, as of 2026-11-04). The
+  stat-line population leaves out players who did not play, and also 309
+  player-weeks of players who took offensive snaps but recorded no stat
+  (audit A4-1, 2026-11-07). Counting those as scored outcomes moves coverage
+  from 79.7% to 77.4% through week 8; the gain over the naive baseline grows
+  rather than shrinks (0.30 to 0.38 points). The bands describe a player who
+  plays; they do not include the chance of not playing.
 - **Honest baselines and honest bands**, so a user knows not just a projection
   but how much to trust it.
 - **A draft board that ranks on consensus and shows the model's bands.** The
@@ -320,14 +363,15 @@ that was never checked.
 
 ## 7. Honest limitations and what would actually move the needle
 
-- **The draft board should not be used to deviate from consensus/ADP.** Measured
-  three ways, the model's disagreements at the season level cost points. The
-  right use of the board is as a calibrated, banded view of consensus, not a
-  contrarian oracle.
-- **The real headroom is offseason context** — depth charts, injury history,
-  role and scheme changes — the availability information the v1 scope guard
-  deliberately excludes. Closing the gap to consensus is a data-scope decision,
-  not a modeling tweak, and it is genuinely hard.
+- **The draft board should not be used to deviate from consensus.** The model's
+  own season ranking loses to expert consensus in every position-season (§3),
+  so its disagreements with consensus are not an edge. The right use of the
+  board is as a calibrated, banded view of consensus, not a contrarian oracle.
+- **The likeliest headroom is offseason context** — depth charts, injury
+  history, role and scheme changes — information the v1 scope guard
+  deliberately excludes. That is a hypothesis, not a measurement (§3). The 2027
+  plan measures first, with an ADP benchmark, before anything is built for it;
+  using that information would also need an owner amendment to the scope guard.
 - **Quarterback is the weakest position** across every cut — pooled over nine
   walk-forward folds, weekly within-position rank correlation is 0.471 for QB
   against 0.630 for RB/WR/TE — traceable to the rushing-touchdown component of QB
@@ -335,8 +379,10 @@ that was never checked.
   call the fix a better point construction (an expectation or a dedicated mean
   head) and leave it as an open thread. **That thread is now closed, and the
   answer was no.** A pre-registered experiment fitted Poisson conditional-mean
-  heads for the eight count components and ran 9 walk-forward folds × 3 seeds × 2
-  arms. Verdict: **not promoted.** The primary — pooled RB/WR/TE weekly
+  heads for the eight count components and ran 9 walk-forward folds × 3 seeds,
+  read out as 2 inference arms from the same fits (40 Kaggle runs in all, with
+  4 λ-selection runs and 9 baseline runs that completed the v1 folds).
+  Verdict: **not promoted.** The primary — pooled RB/WR/TE weekly
   within-position Spearman against v1 — came back at **−0.0005, 95% CI [−0.0015,
   +0.0004]**: flat. Quarterback itself moved +0.005 with an interval spanning
   zero. The band guard also failed, on 2022 QB coverage of 0.861 against a 0.85
@@ -349,12 +395,11 @@ that was never checked.
   **The informative part is what did improve.** Pooled PPR MAE dropped
   significantly: **4.404 vs 4.491, a delta of −0.087 with a 95% CI of [−0.112,
   −0.059].** The conditional-mean head predicts *points* better and *ranking* not
-  at all. That is the sharpest confirmation yet of the through-line in §3: the
-  ranking ceiling is set by information absent from the box score, not by the
-  estimator applied to it. And this is a tight null rather than an underpowered
-  one — the pre-registration anticipated a standard error of 0.007–0.010, enough
-  to resolve an effect of about 0.02; the realized 95% interval on the primary has
-  a half-width of 0.00096.
+  at all. That fits the reading in §3: on these box-score inputs, changing the
+  estimator moves point error but not ranking. And this is a tight null rather
+  than an underpowered one — the pre-registration anticipated a standard error
+  of 0.007–0.010, enough to resolve an effect of about 0.02; the realized 95%
+  interval on the primary has a half-width of 0.00096.
 - **More held-out seasons is no longer the obvious next step.** This document
   previously called a longer walk-forward (≈10 folds) the cheapest way to resolve
   the small effects the project keeps meeting. The mean-head gate effectively ran
@@ -367,6 +412,11 @@ that was never checked.
   `xgb_seed`, `xgb_feature_set`, and a `data_vintage` block carrying a sha256 per
   source parquet, and two reports are compared only when all three match.
 
-*This document is regenerated as results change; every figure traces to a
-committed evaluation in [`models/`](../models/) and a script under
-[`src/ffmodel/eval/`](../src/ffmodel/eval/).*
+*This document is updated as results change. Evaluation figures come from
+committed artifacts in [`models/`](../models/), produced by code under
+[`src/ffmodel/eval/`](../src/ffmodel/eval/); the key ones are named in the
+text. The exceptions: the process figures in §5 (the loss-share audit, the
+mutation test) come from the project's spec and review records; the
+per-player availability figures in §4 are not in a committed artifact; and
+figures marked "audit" come from the project audit of 2026-11-07 and carry its
+date.*

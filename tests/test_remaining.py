@@ -159,3 +159,14 @@ def test_load_evaluation_borrows_reference_only_when_scoring_matches(tmp_path):
                              reference_scoring={"rec": 1}) is None
     assert R.load_evaluation("fam", {"rec": 1}, diagnostics_dir=d) is None  # no reference scoring given
     assert R.load_evaluation("gabagool", {"rec": 1}, diagnostics_dir=tmp_path / "nowhere") is None
+
+
+def test_cut_only_player_is_absent_from_remaining_payloads(monkeypatch):
+    from ffmodel.data.rosters import normalize_current_teams
+
+    args, _ = setup(monkeypatch)
+    raw = pd.DataFrame([("rookie", "WR", "B", "CUT"), ("a", "RB", "A", "ACT")],
+                       columns=["gsis_id", "position", "team", "status"])
+    args["current_teams"] = normalize_current_teams(raw)
+    ids = {p["player_id"] for p in R.build_remaining(**args)["players"]}
+    assert ids == {"a"}

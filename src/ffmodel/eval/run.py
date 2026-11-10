@@ -10,10 +10,11 @@ from pathlib import Path
 import pandas as pd
 
 from ffmodel.baseline.naive import NaiveLast4
-from ffmodel.baseline.xgb import XGBBaseline
+from ffmodel.baseline.xgb import OBJECTIVES, XGBBaseline, XGBSeedAverage
 from ffmodel.data.features import build_features
 from ffmodel.data.pull import _cache_name, pull_schedules, pull_weekly
 from ffmodel.eval.harness import run_backtest
+from ffmodel.eval.paired import build_paired_report
 from ffmodel.model.train import _run_is_complete
 from ffmodel.scoring import BAND_CONSTRUCTION
 
@@ -148,11 +149,48 @@ def build_parser() -> argparse.ArgumentParser:
                              "--transformer-root models/transformer/v1_s44) to average "
                              "multiple seed artifacts as one ensembled entrant. A single "
                              "occurrence behaves exactly as before.")
+    parser.add_argument("--xgb-median", action="store_true",
+                        help="Also run the median-objective XGBoost entrant "
+                             "(`xgboost_median`: pinball loss at q=0.5, the "
+                             "transformer's p50 objective). The squared-error "
+                             "`xgboost` entrant is unchanged and still runs.")
+    parser.add_argument("--xgb-median-seeds", nargs="+", type=int, default=[0],
+                        help="Seeds the median entrant is fitted under; its stat "
+                             "lines are averaged across them (e.g. 0 1 2, matching "
+                             "the transformer's 3-seed ensemble). The `xgboost` "
+                             "entrant keeps xgb_seed 0 so it stays comparable "
+                             "with the committed reports.")
+    parser.add_argument("--paired-out", type=Path, default=None,
+                        help="Also write a paired comparison of the transformer "
+                             "against each XGBoost entrant, computed on the "
+                             "identical harness rows (season-week cluster "
+                             "bootstrap). Requires --transformer-root.")
     return parser
 
 
+def xgb_provenance(entrant) -> dict:
+    """What an XGBoost entrant's rows were trained with: its objective and
+    the seed(s) behind it. Read off the entrant, so the record is what ran."""
+    params = OBJECTIVES[entrant.objective]
+    seeds = entrant.seeds if hasattr(entrant, "seeds") else [entrant.seed]
+    return {
+        "name": entrant.name,
+        "objective": params["objective"],
+        "quantile_alpha": params.get("quantile_alpha"),
+        "seeds": list(seeds),
+        "feature_set": entrant.feature_set,
+    }
+
+
 def main() -> None:
-    args = build_parser().parse_args()
+    parser = build_parser()
+    args = parser.parse_args()
+    if args.paired_out is not None:
+        if args.transformer_root is None:
+            parser.error("--paired-out compares the transformer with XGBoost; "
+                         "pass --transformer-root as well")
+        if args.paired_out.resolve() == args.out.resolve():
+            parser.error("--paired-out must be a different file from --out")
 
     seasons = list(range(args.first_season, args.last_season + 1))
     weekly = pull_weekly(seasons, cache_dir=args.data_dir)
@@ -160,14 +198,21 @@ def main() -> None:
     features = build_features(weekly, schedules)
 
     xgb = XGBBaseline()
-    predictors = [NaiveLast4(), xgb]
+    xgb_entrants = [xgb]
+    if args.xgb_median:
+        xgb_entrants.append(XGBSeedAverage(args.xgb_median_seeds, objective="median"))
+    predictors = [NaiveLast4(), *xgb_entrants]
     if args.transformer_root is not None:
         from ffmodel.model.predictor import TransformerPredictor
         predictors.append(TransformerPredictor(args.transformer_root, features))
-    results = run_backtest(features, predictors, test_seasons=args.test_seasons)
+    if args.paired_out is not None:
+        results, rows = run_backtest(features, predictors,
+                                     test_seasons=args.test_seasons, return_rows=True)
+    else:
+        results = run_backtest(features, predictors, test_seasons=args.test_seasons)
 
     records = results.astype(object).where(pd.notna(results), None).to_dict(orient="records")
-    report = {
+    provenance = {
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "seasons": [args.first_season, args.last_season],
         "test_seasons": sorted(args.test_seasons),
@@ -191,16 +236,43 @@ def main() -> None:
         # Two reports are not comparable at that resolution unless the seed
         # matches, so it is recorded rather than assumed.
         "xgb_seed": xgb.seed,
+        # provenance: the training objective and seed(s) behind every XGBoost
+        # entrant's rows. The objective decides what the entrant predicts --
+        # squared error is a MEAN predictor, which MAE scoring penalises
+        # against the transformer's median (audit A2-1) -- and it used to be
+        # recorded nowhere. `xgb_feature_set`/`xgb_seed` above stay as they
+        # were and describe the `xgboost` entrant.
+        "xgb_entrants": [xgb_provenance(e) for e in xgb_entrants],
         # provenance: which nflverse pull the whole report was computed from
         "data_vintage": data_vintage(args.data_dir, seasons, len(features)),
-        "results": records,
     }
+    report = {**provenance, "results": records}
+    report_text = json.dumps(report, indent=2)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(report, indent=2))
+    args.out.write_text(report_text)
 
     overall = results[results["position"] == "OVERALL"]
     print(overall.groupby("model")[["mae", "rmse"]].mean().round(3))
     print(f"\nfull report -> {args.out}")
+
+    if args.paired_out is not None:
+        # Hash of the report's JSON text with LF line endings -- what git
+        # stores -- not of the bytes on disk, which a Windows checkout
+        # rewrites to CRLF.
+        source = {"bakeoff_report": {
+            "path": args.out.as_posix(),
+            "sha256": hashlib.sha256(report_text.encode("utf-8")).hexdigest(),
+        }}
+        paired = build_paired_report(rows, "transformer",
+                                     [e.name for e in reversed(xgb_entrants)],
+                                     {**provenance, **source})
+        args.paired_out.parent.mkdir(parents=True, exist_ok=True)
+        args.paired_out.write_text(json.dumps(paired, indent=2, allow_nan=False))
+        for comp in paired["comparisons"]:
+            cell = comp["pooled"]
+            print(f"{comp['challenger']} - {comp['baseline']}: "
+                  f"{cell['mean_diff']:+.4f} {cell['ci95']} (n={cell['n']})")
+        print(f"paired comparison -> {args.paired_out}")
 
 
 if __name__ == "__main__":

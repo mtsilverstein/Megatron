@@ -1,5 +1,7 @@
 # League onboarding checkpoint — 2026-09-12
 
+_Historical record (dated 2026-09-12); not maintained._
+
 Implemented locally, not committed or deployed:
 
 - `connect.html` and `assets/connect.js`: current-season public Sleeper

@@ -319,3 +319,61 @@ def test_a_response_missing_whole_teams_never_replaces_the_cache(tmp_path):
         nflreadpy.load_rosters = real
 
     assert path.read_bytes() == before, "a refused frame overwrote the cache"
+
+
+# --- released / retired players ----------------------------------------------
+
+def test_a_cut_only_player_is_unmapped():
+    assert normalize_current_teams(_raw([("00-1", "QB", "NE", "CUT")])) == {}
+
+
+def test_a_retired_only_player_is_unmapped():
+    assert normalize_current_teams(_raw([("00-1", "QB", "NE", "RET")])) == {}
+
+
+def test_cut_plus_act_rows_map_to_the_act_team():
+    for rows in ([("00-1", "WR", "OLD", "CUT"), ("00-1", "WR", "NEW", "ACT")],
+                 [("00-1", "WR", "NEW", "ACT"), ("00-1", "WR", "OLD", "CUT")]):
+        assert normalize_current_teams(_raw(rows)) == {"00-1": "NEW"}
+
+
+def test_released_ids_needs_every_row_to_be_cut_or_ret():
+    from ffmodel.data.rosters import released_ids
+
+    got = released_ids(_raw([
+        ("00-1", "QB", "NE", "CUT"),
+        ("00-2", "WR", "NE", "RET"),
+        ("00-3", "WR", "OLD", "CUT"), ("00-3", "WR", "NEW", "ACT"),
+        ("00-4", "RB", "KC", "ACT"),
+        ("00-5", "K", "KC", "CUT"),
+        (None, "WR", "KC", "CUT"),
+    ]))
+    assert got == {"00-1", "00-2"}
+    assert released_ids(_raw([])) == set()
+
+
+def _weekly(rows):
+    return pd.DataFrame(rows, columns=["player_id", "season"])
+
+
+def test_in_season_exclusions_union_released_and_unrostered_without_a_game():
+    from ffmodel.data.rosters import in_season_exclusions
+
+    weekly = _weekly([("rel", 2026), ("gone", 2025), ("new", 2025), ("new", 2026),
+                      ("ok", 2026)])
+    got = in_season_exclusions(weekly, {"ok": "NE"}, {"rel"}, 2026)
+    # "new" is missing from the feed but has played this season: kept.
+    assert got == {"rel", "gone"}
+
+
+def test_pull_released_ids_reuses_the_current_teams_cache(tmp_path):
+    from ffmodel.data.pull import _cache_name
+    from ffmodel.data.rosters import MIN_PLAYERS_PER_POSITION, pull_released_ids
+
+    n = MIN_PLAYERS_PER_POSITION
+    rows = [("00-cut", "QB", "NE", "CUT")]
+    rows += [(f"00-{pos}{i}", pos, "NE", "ACT")
+             for pos in ("QB", "RB", "WR", "TE") for i in range(n)]
+    name = _cache_name("rosters_current", [2026])
+    _raw(rows).to_parquet(tmp_path / f"{name}.parquet", index=False)
+    assert pull_released_ids(2026, cache_dir=tmp_path) == {"00-cut"}

@@ -1,6 +1,6 @@
 # Weekly start/sit v1
 
-Open `weekly.html?league=gabagool` or `weekly.html?league=fam`, enter a Sleeper username, and load the roster.
+Open `weekly.html?league=<league id>` for any Sleeper league, enter a Sleeper username, and load the roster.
 The plan uses the selected league's modeled weekly scoring regardless of the ranking-table
 filters below it. It does not change any lineup in Sleeper.
 
@@ -18,16 +18,16 @@ Questionable players remain eligible with warnings; Out, Doubtful, IR, PUP and
 Suspended players are excluded, as are reserve/taxi and bye-week players.
 Manual exclusions are temporary and reset on refresh.
 
-Live roster/scoring settings and NFL season/week must match the published
-contracts. Missing eligible projections, unknown teams, unsupported slots or
+Live roster and scoring settings are read from the connected league, and the NFL
+season/week must match the published data. Missing eligible projections, unknown teams, unsupported slots or
 stale schedule/projection data block the full recommendation. The schedule
 snapshot expires after seven days. Kickoff generation reads nflverse's Eastern
 game times and converts them to UTC; it runs with weekly site generation.
 
 Started-game starters stay in their exact slots; started-game bench players
 cannot enter. A kickoff crossing after roster retrieval requires another
-refresh. The page checks its roster age every 15 seconds and hides the plan
-after 60 seconds. These are snapshot safeguards, not authoritative platform
+refresh. The page checks its roster age every 15 seconds and keeps the plan
+and marks it stale after 60 seconds. These are snapshot safeguards, not authoritative platform
 lock detection: verify postponements and final availability in Sleeper.
 The player/injury catalog is cached for the page session; reload the page to
 refresh it. No current-news or matchup-win-probability model is included.

@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -115,8 +116,36 @@ def parse_and_validate(argv=None) -> argparse.Namespace:
     return args
 
 
-def validate_completed_games(weekly, schedules, season):
-    """Reject successful but incomplete pulls of completed team-games."""
+class SeasonOver(RuntimeError):
+    """Every regular-season game has a final score: there is no slate left to build."""
+
+
+class StatsPending(RuntimeError):
+    """Only games finished within the last 2 days lack weekly stats: nflverse has not posted them yet."""
+
+
+def _only_recent_games_missing(complete, missing, today) -> bool:
+    """True when every missing (week, team) sits in a game played at most 2 days before today."""
+    if "gameday" not in complete:
+        return False
+    missing_set = set(missing)
+    for row in complete.itertuples():
+        if not any((int(row.week), team) in missing_set for team in (row.home_team, row.away_team)):
+            continue
+        try:
+            played = datetime.strptime(str(row.gameday), "%Y-%m-%d").date()
+        except ValueError:
+            return False
+        if (today - played).days > 2:
+            return False
+    return True
+
+
+def validate_completed_games(weekly, schedules, season, *, today=None):
+    """Reject successful but incomplete pulls of completed team-games.
+
+    Raises StatsPending (a RuntimeError) instead when every gap is a game from the last 2 days.
+    """
     games = schedules[schedules["season"] == season]
     if "game_type" in games:
         games = games[games["game_type"] == "REG"]
@@ -133,21 +162,40 @@ def validate_completed_games(weekly, schedules, season):
                for team in (row.home_team, row.away_team)
                if (row.week, team) not in observed]
     if missing:
-        raise RuntimeError(f"completed team-games missing weekly stats: {missing}")
+        message = f"completed team-games missing weekly stats: {missing}"
+        if today is None:
+            today = datetime.now(timezone.utc).date()
+        if _only_recent_games_missing(complete, missing, today):
+            raise StatsPending(message)
+        raise RuntimeError(message)
 
 
-def resolve_week(week, weekly: pd.DataFrame, schedules: pd.DataFrame, season: int) -> int:
+def resolve_week(week, weekly: pd.DataFrame, schedules: pd.DataFrame, season: int, *,
+                 today=None) -> int:
     if week != "auto":
         return int(week)
-    validate_completed_games(weekly, schedules, season)
+    validate_completed_games(weekly, schedules, season, today=today)
     games = schedules[schedules["season"] == season]
     if "game_type" in games:
         games = games[games["game_type"] == "REG"]
     remaining = [w for w, group in games.groupby("week", sort=True)
                  if not (group.home_score.notna() & group.away_score.notna()).all()]
     if not remaining:
-        raise RuntimeError(f"season {season} has no unplayed scheduled weeks left")
+        raise SeasonOver(f"season {season} has no unplayed scheduled weeks left")
     return int(remaining[0])
+
+
+def in_season_exclusions(weekly, current_teams, season, cache_dir):
+    """Ids the in-season weekly slate drops, with a counts-only log line.
+
+    Reads the roster frame `pull_current_teams` just cached, so no second download."""
+    from ffmodel.data import rosters
+
+    released = rosters.pull_released_ids(season, cache_dir=cache_dir)
+    excluded = rosters.in_season_exclusions(weekly, current_teams, released, season)
+    print(f"in-season exclusions - released/retired: {len(released & excluded)}, "
+          f"not on a roster: {len(excluded - released)}")
+    return excluded
 
 
 def history_before_week(weekly, season, week):
@@ -317,10 +365,19 @@ def _load_adp(season, data_dir, draft_picks=None, *, teams: int = 12,
     """
     from ffmodel.data.adp import (DRAFTABLE_ADP, SNAPSHOT_PATH, load_snapshot_adp,
                                   pull_adp, snapshot_date)
-    from ffmodel.data.pull import assert_snapshot_is_newest
+    from ffmodel.data.pull import assert_snapshot_is_newest, current_nfl_season
     from ffmodel.data.rankings import _backfill_draft_gsis, pull_player_ids
 
+    skipped = None
     if SNAPSHOT_PATH.exists():
+        snap_season = current_nfl_season(
+            datetime.strptime(snapshot_date(SNAPSHOT_PATH), "%Y-%m-%d").date())
+        if snap_season != season:
+            # A pinned export describes the season it was captured for; using
+            # it for another board would rank on a stale population silently.
+            skipped = (f"{SNAPSHOT_PATH.name} is for season {snap_season}, "
+                       f"board season {season}")
+    if SNAPSHOT_PATH.exists() and skipped is None:
         # Loud if a fresher export was dropped in without bumping the pin --
         # otherwise the board rebuilds off stale ADP and reports success.
         assert_snapshot_is_newest(SNAPSHOT_PATH)
@@ -342,7 +399,10 @@ def _load_adp(season, data_dir, draft_picks=None, *, teams: int = 12,
         # block so it actually reaches the published draft.json.
         source.update(_bounded_stats(stats))
         return adp_df, source
-    return pull_adp(season, cache_dir=data_dir, teams=teams), {"source": "ffcalculator"}
+    source = {"source": "ffcalculator"}
+    if skipped is not None:
+        source["snapshot_skipped"] = skipped
+    return pull_adp(season, cache_dir=data_dir, teams=teams), source
 
 
 # League sizes FFCalculator will serve. Any other value returns HTTP 400 --
@@ -696,9 +756,12 @@ def main() -> None:
               f"({pick_six_prior['first_season']}–{pick_six_prior['through_season']})")
     if week is not None:
         projection_history, projection_through = history_before_week(weekly, args.season, week)
+        exclude_ids = in_season_exclusions(weekly, current_teams, args.season,
+                                           args.data_dir)
         combined, future = combined_future_features(projection_history, schedules,
                                                     args.season, week,
-                                                    current_teams)
+                                                    current_teams,
+                                                    exclude_ids=exclude_ids)
         if hasattr(predictor, "attach_features"):
             predictor.attach_features(combined)
         payloads[cfg.weekly_file] = build_weekly_projections(
