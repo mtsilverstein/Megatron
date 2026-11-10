@@ -1,9 +1,9 @@
 {
   "season": 2026,
-  "week": 9,
-  "data_through": "2026-wk8",
-  "generated_at": "2026-11-10T00:45:25+00:00",
-  "batch_id": "2026-11-10T00:45:25+00:00|2026-wk8|w9",
+  "week": 10,
+  "data_through": "2026-wk9",
+  "generated_at": "2026-11-10T13:36:39+00:00",
+  "batch_id": "2026-11-10T13:36:39+00:00|2026-wk9|w10",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -12,8 +12,8 @@
     "scoring": "PPR"
   },
   "crosswalk": {
-    "matched_gsis": 172,
-    "matched_name": 534,
+    "matched_gsis": 173,
+    "matched_name": 544,
     "unmatched": 14
   },
   "players": [
@@ -39,18 +39,6 @@
       "ecr": 198,
       "identity_only": false,
       "reason": null,
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0024243",
-      "sleeper_id": "111",
-      "name": "Marcedes Lewis",
-      "team": "DEN",
-      "position": "TE",
-      "bye": 10,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -483,6 +471,18 @@
       "ecr": null,
       "identity_only": false,
       "reason": null,
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0032434",
+      "sleeper_id": "3357",
+      "name": "Brandon Allen",
+      "team": "TEN",
+      "position": "QB",
+      "bye": 9,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -1630,11 +1630,11 @@
       "sleeper_id": "6451",
       "name": "Stephen Carlson",
       "team": "CHI",
-      "position": null,
+      "position": "TE",
       "bye": 10,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "gsis"
     },
     {
@@ -2239,15 +2239,15 @@
     },
     {
       "player_id": "00-0036020",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "6918",
+      "name": "Salvon Ahmed",
       "team": "CHI",
-      "position": null,
+      "position": "RB",
       "bye": 10,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0036040",
@@ -2307,6 +2307,18 @@
       "ecr": null,
       "identity_only": false,
       "reason": null,
+      "match": "name"
+    },
+    {
+      "player_id": "00-0036176",
+      "sleeper_id": "7436",
+      "name": "Mason Kinsey",
+      "team": "TEN",
+      "position": "WR",
+      "bye": 9,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -5587,15 +5599,15 @@
     },
     {
       "player_id": "00-0038930",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "11186",
+      "name": "Carlos Washington Jr.",
       "team": "MIA",
-      "position": null,
+      "position": "RB",
       "bye": 6,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0038933",
@@ -6739,15 +6751,15 @@
     },
     {
       "player_id": "00-0039652",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "12356",
+      "name": "Jabari Small",
       "team": "DET",
-      "position": null,
+      "position": "RB",
       "bye": 6,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0039677",
@@ -8479,15 +8491,15 @@
     },
     {
       "player_id": "00-0040464",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "12773",
+      "name": "DJ Uiagalelei",
       "team": "LAC",
-      "position": null,
+      "position": "QB",
       "bye": 7,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0040466",
@@ -9679,27 +9691,27 @@
     },
     {
       "player_id": "00-0040930",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13726",
+      "name": "Camden Brown",
       "team": "DAL",
-      "position": null,
+      "position": "WR",
       "bye": 14,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0040934",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13325",
+      "name": "Jordan Hudson",
       "team": "DAL",
-      "position": null,
+      "position": "WR",
       "bye": 14,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0040937",
@@ -10063,15 +10075,15 @@
     },
     {
       "player_id": "00-0041029",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13281",
+      "name": "Jordyn Tyson",
       "team": "NO",
-      "position": null,
+      "position": "WR",
       "bye": 8,
       "ecr": 141,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041032",
@@ -10603,15 +10615,15 @@
     },
     {
       "player_id": "00-0041176",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13760",
+      "name": "Jaden Bradley",
       "team": "WAS",
-      "position": null,
+      "position": "WR",
       "bye": 7,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041178",
@@ -11347,15 +11359,15 @@
     },
     {
       "player_id": "00-0041376",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13603",
+      "name": "Gregory Desrosiers",
       "team": "NYG",
-      "position": null,
+      "position": "RB",
       "bye": 8,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041380",
