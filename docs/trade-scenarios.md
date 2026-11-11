@@ -56,7 +56,8 @@ scenario, not an injury or return-date prediction. IR/taxi players cannot
 be traded by this first version. A bye or deliberately excluded week is
 labeled zero.
 
-Missing projections (audit 2026-11-07, A6-3): a rostered player who is not in
+Missing projections (§7.1 amendment of 2026-11-07,
+`docs/superpowers/specs/2026-10-01-any-league-inseason-design.md`): a rostered player who is not in
 the offer and has no usable projection in a future week (no projection, a
 projection for another team or position, or no row for that week) counts as 0
 in that week, like a bye, and is named in the result's `caveats` ("No
@@ -78,8 +79,8 @@ explicit scenario assumption that the player cannot contribute.
 Uneven trades require explicit legal drops if roster capacity would be
 exceeded. Dropped players remain in the baseline but leave the changed roster,
 so losing their lineup contribution counts against the trade. A player is
-modeled only when his Sleeper catalog position is QB, RB, WR or TE (audit
-A6-4); K, DEF, a fullback and every IDP position occupy roster spaces but have
+modeled only when his Sleeper catalog position is QB, RB, WR or TE (the same
+§7.1 amendment); K, DEF, a fullback and every IDP position occupy roster spaces but have
 no modeled points, and only modeled players can be traded. Missing starting
 positions fail instead of inventing replacement production. Supported skill
 slots include dedicated positions, FLEX and SUPER_FLEX.

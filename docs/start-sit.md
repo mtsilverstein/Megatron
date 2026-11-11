@@ -24,7 +24,7 @@ NFL team is missing from the kickoff schedule (unless he is excluded) block the 
 snapshot expires after seven days. Kickoff generation reads nflverse's Eastern
 game times and converts them to UTC; it runs with weekly site generation.
 
-One player or one slot no longer blocks the plan (audit 2026-11-07, A6-2 and A6-3). An available player with no
+One player or one slot no longer blocks the plan (§7.1 amendment of 2026-11-07, `docs/superpowers/specs/2026-10-01-any-league-inseason-design.md`). An available player with no
 NFL team or no current-team projection is treated as unavailable: he scores 0, is not a candidate, and is named in
 one note ("Not projected this week: … — treated as unavailable."). A slot that no available, projected player can
 fill is left empty, scores 0 and says so ("No available TE this week — add one from waivers."); a FLEX goes empty

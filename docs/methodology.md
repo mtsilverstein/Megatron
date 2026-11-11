@@ -33,7 +33,8 @@ ceiling point bands**.
 The published points p50 is the score of the p50 stat line, a sum of per-stat
 medians. A sum of medians is not the median of the sum, so the p50 is not the
 median of a player's points: for players projected at 8 or more points, 60% of
-live 2026 outcomes through week 8 landed above it (audit A4-4, 2026-11-07). It
+outcomes landed above it (measured on the live 2026 record through week 8,
+7 November 2026). It
 works for ranking players within a position; as an absolute total (a lineup
 against an opponent, a FAAB price) it runs low for starters.
 
@@ -100,8 +101,9 @@ interval [−0.0213, +0.0189] (season-week cluster bootstrap,
 `models/backtests/xgb_median/paired_xgb_median.json`). The squared-error
 entrant is a single seed (seed 0) and the median entrant a 3-seed ensemble,
 but the ensemble is not what closes the gap: a single-seed median XGBoost run
-in the audit also ties the transformer (MAE 4.329 against 4.325, paired
-difference −0.004, 95% interval [−0.025, +0.016]; audit A2-1, 2026-11-07).
+on the same harness rows also ties the transformer (MAE 4.329 against 4.325,
+paired difference −0.004, 95% interval [−0.025, +0.016]; measured 7 November
+2026, not committed as an artifact).
 Against the 3-seed entrant, by season the transformer is behind in 2023
 (+0.019) and 2025 (+0.004) and ahead in 2024 (−0.027), and no season's
 interval excludes zero. By position, QB (−0.053) and
@@ -153,7 +155,8 @@ played at least 8 games narrows it mainly at running back, and because that cut
 selects on the outcome, it says nothing causal about availability. What the
 evidence does support is narrower. Among players who played, consensus is
 nearly as far ahead on points per game as on total points (Spearman advantage
-0.127 vs 0.152, averaged over position-seasons; audit A3-1, 2026-11-07), so
+0.127 vs 0.152, averaged over position-seasons; measured on the consensus
+benchmark's 2023–25 position-seasons, 7 November 2026), so
 this comparison does not show the edge is mainly about who plays. Changing the
 estimator on the same box-score inputs has not moved ranking: a
 conditional-mean head improved points but not within-position ranking (§7).
@@ -182,7 +185,9 @@ tested directly.
 > −0.020, TE −0.023 / −0.030 — every interval below zero. **Rule 2 (the RB
 > edge) is not established; the RB edge is retracted.** The interval is
 > conditional on these seasons, and within-season serial dependence is not
-> modelled.
+> modelled. A sensitivity outside the pre-registration (7 November 2026):
+> including ranked players who recorded no stat line, each scored at 0 points,
+> the 2023–25 consensus deficit grows from −0.037 to about −0.109.
 >
 > **Why the earlier numbers were wrong (correction of 2026-10-06).** Every
 > earlier expert comparison (the superseded record below) used the wrong week's
@@ -344,7 +349,8 @@ that was never checked.
     every format. Pooled over 2023–25, half-PPR and standard stay inside the
     window at every position, but under 6-point passing touchdowns the QB band
     covers 0.739 of outcomes (0.721 / 0.774 / 0.723 by season, n = 1,991)
-    against 0.780 under PPR, below the window (audit A2-3, 2026-11-07).
+    against 0.780 under PPR, below the window (measured on the held-out
+    bake-off rows, 7 November 2026).
   - Live, through week 8 of 2026, QB, RB and WR coverage sits inside the window
     (84.0%, 82.3%, 80.1%), but TE is at 73.9%, below the 0.75 floor the
     historical bands meet (`models/diagnostics/live_2026_weekly.json`).
@@ -356,7 +362,8 @@ that was never checked.
   (`models/diagnostics/live_2026_weekly.json`, as of 2026-11-04). The
   stat-line population leaves out players who did not play, and also 309
   player-weeks of players who took offensive snaps but recorded no stat
-  (audit A4-1, 2026-11-07). Counting those as scored outcomes moves coverage
+  (measured on the live 2026 record through week 8 against nflverse snap
+  counts, 7 November 2026). Counting those as scored outcomes moves coverage
   from 79.7% to 77.4% through week 8; the gain over the naive baseline grows
   rather than shrinks (0.30 to 0.38 points). The bands describe a player who
   plays; they do not include the chance of not playing.
@@ -397,7 +404,9 @@ that was never checked.
   0.844, so the mean head pushed an already-marginal cell over rather than
   breaking the bands. The second arm was significantly *worse* on the primary
   (−0.0011, interval excluding zero), even though it was the arm that helped QB
-  (+0.015, interval excluding zero).
+  (+0.015, interval excluding zero). That QB gain does not survive a
+  small-cluster correction of the 9-fold interval, which widens it to about
+  [−0.001, +0.030].
 
   **The informative part is what did improve.** Pooled PPR MAE dropped
   significantly: **4.404 vs 4.491, a delta of −0.087 with a 95% CI of [−0.112,
@@ -425,5 +434,6 @@ committed artifacts in [`models/`](../models/), produced by code under
 text. The exceptions: the process figures in §5 (the loss-share audit, the
 mutation test) come from the project's spec and review records; the
 per-player availability figures in §4 are not in a committed artifact; and
-figures marked "audit" come from the project audit of 2026-11-07 and carry its
-date.*
+figures dated 7 November 2026 that name no committed file come from the
+project's audit of that day, whose working records are not public, so each
+says what it was measured on.*
