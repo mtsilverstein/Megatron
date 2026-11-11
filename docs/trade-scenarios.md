@@ -44,7 +44,8 @@ Only weeks after both the current week and the projection origin are compared.
 A 60-second roster age limit and
 72-hour projection age limit apply. Use the other league's own artifact for
 FAM; cross-league scoring or identities cannot be substituted.
-The CLI uses the league's checked-in draft board only as an identity
+Limitation of `tools/seasontrade.cjs`, not of the site: the CLI covers only the
+registered boards, because it uses the league's checked-in draft board only as an identity
 crosswalk, never as a source of points or rankings. Leading/trailing spaces
 in catalog GSIS IDs are normalized. Relevant player position/ID conflicts
 remain blocking rather than being guessed away.

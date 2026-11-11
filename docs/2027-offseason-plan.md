@@ -101,6 +101,10 @@ therefore spends effort on measurement before building.
 - [ ] New preseason ADP and ECR exports to replace the dated 2026 snapshots (`SNAPSHOT_PATH` in
       `src/ffmodel/data/adp.py`, `ECR_SNAPSHOT_PATH` in `src/ffmodel/data/rankings.py`).
 - [ ] Sleeper creates new league IDs each season: update the two owner leagues' IDs and re-check keeper auto-fill.
+- [ ] Hard-coded 2026 strings: the "2026 draft board (archived)" nav label on six pages and the DRAFT_ONLY copy in
+  `site/assets/app.js` name the season; update them when the 2027 board ships.
+- [ ] Connect-prompt markup is duplicated across weekly, waivers and trade; consolidate it when the 2027 board work
+  touches those pages.
 - [ ] The format-test label in `site/assets/leaguedata.js` ("results January 2027") reads correctly after the
       verdicts.
 - [ ] The live accuracy scorecard runs for 2027 (`live_2027_weekly.json`; the site copy already follows `season`).

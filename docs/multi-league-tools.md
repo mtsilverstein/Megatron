@@ -1,14 +1,16 @@
 # Shared league context
 
-Use the League selector at the top of each page. Gabagool and FAM are both
-Sleeper leagues accessible to Max973; they are not separate logins. A public
+_Historical design record (2026-09); the site no longer has a league registry or default leagues — any Sleeper league connects by username or league link (2026-11-07)._
+
+Use the League selector at the top of each page. Any Sleeper league on the connected
+account can be selected; leagues are not separate logins. A public
 username is sufficient. The identity is entered once, in the chip inside
 `#league-context`, and shared by every page through `assets/session.js`; it
 is remembered on this device until you choose forget, and credentials are
 never requested. League choice lives in each tab's URL, so using FAM cannot
 change an open Gabagool tab.
 
-`FC.REGISTRY` in `assets/app.js` is the single source of league capabilities:
+(Retired) `FC.REGISTRY` in `assets/app.js` was the single source of league capabilities:
 slug, platform, live league id, label and which tools each league connects
 to. The session, the nav labels, the league select and the connect page's
 configured-league detection all read it; nothing else keeps a league table.
@@ -37,8 +39,8 @@ modeled-Gabagool-scoring historical diagnostic, not a new FAM backtest.
 `connect.html` discovers current-season leagues for the shared session's
 account and displays live roster/scoring settings. Its form and the chip
 write the same identity; a change or forget in either clears the list.
-Configured leagues are recognised from `FC.REGISTRY` and their links still use
-the existing tools' contract checks. Unknown leagues have no advice links and
+Formerly, configured leagues were recognised from `FC.REGISTRY`; the site now has
+no registry, and links use the existing tools' contract checks. Unknown leagues have no advice links and
 do not inherit Gabagool values. Editing the username invalidates pending
 results.
 

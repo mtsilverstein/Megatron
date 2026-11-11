@@ -16,7 +16,7 @@ Implemented locally, not committed or deployed:
   bonuses and K/DST), missing stats and invalid weights are rejected.
 
 Validation: 763 Python tests passed, 2 network integration tests deselected;
-all 20 Node fixtures passed. Local browser discovery with Max973 returned FAM
+all 20 Node fixtures passed. Local browser discovery with the owner's account returned FAM
 FOOTBALL (rolling priority) and Gabagool Fools (FAAB), with correct URL links.
 Editing the username cleared prior results. No roster mutations, claims,
 credential handling or `.claude/` writes. Existing snapshots preserved.
