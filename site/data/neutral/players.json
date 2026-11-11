@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 10,
   "data_through": "2026-wk9",
-  "generated_at": "2026-11-10T13:36:39+00:00",
-  "batch_id": "2026-11-10T13:36:39+00:00|2026-wk9|w10",
+  "generated_at": "2026-11-11T12:49:50+00:00",
+  "batch_id": "2026-11-11T12:49:50+00:00|2026-wk9|w10",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -133,8 +133,8 @@
       "position": "QB",
       "bye": 13,
       "ecr": 279,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -181,8 +181,8 @@
       "position": "WR",
       "bye": 13,
       "ecr": 177,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -633,12 +633,12 @@
       "player_id": "00-0033119",
       "sleeper_id": "3257",
       "name": "Jacoby Brissett",
-      "team": "ARI",
+      "team": "BAL",
       "position": "QB",
-      "bye": 14,
+      "bye": 13,
       "ecr": 183,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "gsis"
     },
     {
@@ -2428,6 +2428,18 @@
       "identity_only": false,
       "reason": null,
       "match": "name"
+    },
+    {
+      "player_id": "00-0036261",
+      "sleeper_id": null,
+      "name": null,
+      "team": "SF",
+      "position": null,
+      "bye": 8,
+      "ecr": 317,
+      "identity_only": true,
+      "reason": "no_projection",
+      "match": null
     },
     {
       "player_id": "00-0036264",
@@ -4693,8 +4705,8 @@
       "position": "WR",
       "bye": 8,
       "ecr": 523,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -5749,8 +5761,8 @@
       "position": "WR",
       "bye": 13,
       "ecr": 85,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -6601,8 +6613,8 @@
       "position": "TE",
       "bye": 8,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
@@ -8305,8 +8317,8 @@
       "position": "TE",
       "bye": 6,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
@@ -11161,8 +11173,8 @@
       "position": "TE",
       "bye": 11,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "name"
     },
     {
