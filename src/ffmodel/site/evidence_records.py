@@ -4,8 +4,8 @@ A measured number is a claim about TODAY's output only when the scoring it was
 actually measured under and the method that produced it both match exactly.
 Each record therefore separates:
 
-- `source_settings` - the league whose settings the run was given (provenance
-  only, never matched on);
+- `source_settings` - the scoring format the run was given, described without
+  naming any league (provenance only, never matched on);
 - `effective_scoring` - the evidence identity (`leaguelens.evidence_identity`)
   of the weights applied to REALIZED outcomes;
 - `prediction_scoring` - the identity of the weights applied to the FORECAST;
@@ -124,6 +124,18 @@ def _identity(sleeper_scoring: dict) -> str:
 
 _committed_sha256 = committed_sha256
 
+def describe_scoring_format(sleeper_scoring: dict, *, teams: int | None = None,
+                            qbs: int | None = None) -> str:
+    """A league-free format description from Sleeper-keyed scoring, e.g.
+    "12-team 1QB PPR, 6-pt pass TD". Team and QB counts are named only when the
+    record's inputs carry them."""
+    rec = float(sleeper_scoring.get("rec", 0))
+    ppr = {1.0: "PPR", 0.5: "half-PPR", 0.0: "standard"}.get(rec, f"{rec:g}-pt reception")
+    ptd = float(sleeper_scoring.get("pass_td", 4))
+    lead = " ".join(x for x in (f"{teams}-team" if teams else "", f"{qbs}QB" if qbs else "") if x)
+    return f"{lead} {ppr}, {ptd:g}-pt pass TD".strip()
+
+
 def _load(root: Path, rel: str) -> tuple[dict, dict]:
     path = root / rel
     return json.loads(path.read_text(encoding="utf-8")), {"path": rel, "sha256": _committed_sha256(path)}
@@ -155,10 +167,12 @@ def _ros_record(root: Path) -> dict:
     omitted += [{"key": k, "reason": "no projection head; predicted stat components only"}
                 for k in league.get("unprojected_scoring", {}) if k != "pass_int_td"]
     return {
-        "id": "ros_mae_gabagool",
+        "id": "ros_mae",
         "metric": "rest_of_season_points_mae",
         "source": source,
-        "source_settings": {"league": league["name"], "scoring": league["sleeper_scoring"]},
+        "source_settings": {"league": describe_scoring_format(
+            league["sleeper_scoring"], teams=league.get("teams"),
+            qbs=league.get("roster", {}).get("QB")), "scoring": league["sleeper_scoring"]},
         "effective_scoring": identity,
         "prediction_scoring": identity,
         "omitted": omitted,
@@ -172,12 +186,18 @@ def _ros_record(root: Path) -> dict:
     }
 
 
+def _coverage_label(weights: dict) -> str:
+    """The source file's label names its league; this one names the format."""
+    fmt = describe_scoring_format(weights).split(", ")[-1]
+    return f"modeled scoring subset ({fmt} format), not complete Sleeper scoring"
+
+
 def _close_call_record(root: Path) -> dict:
     data, source = _load(root, CLOSE_CALL_SOURCE)
     if data.get("experiment") != "close-start-sit-decisions":
         raise ValueError(f"{CLOSE_CALL_SOURCE}: not the close start/sit experiment")
     scoring = dict(data["scoring"])
-    league_name = scoring.pop("name")
+    scoring.pop("name")  # the source file names its league; the record describes the format
     coverage = data["scoring_coverage"]
     if "expected-cost" not in coverage["prediction_pick_sixes"]:
         raise ValueError(f"{CLOSE_CALL_SOURCE}: forecast pick-six handling changed; re-read it")
@@ -196,14 +216,14 @@ def _close_call_record(root: Path) -> dict:
         "id": "start_sit_close_calls",
         "metric": "close_start_sit_choice_accuracy",
         "source": source,
-        "source_settings": {"league": league_name, "scoring": data["scoring"]},
+        "source_settings": {"league": describe_scoring_format(weights), "scoring": scoring},
         "effective_scoring": _identity({**weights, "pass_int_td": 0}),
         "prediction_scoring": _identity(weights),
         "omitted": omitted,
         "method": None,
         "population": {"seasons": data["seasons"], "conditioning": data["conditioning"],
                        "pair_universe": data["pair_universe"], "scope_note": data["scope_note"],
-                       "scoring_coverage": coverage["label"]},
+                       "scoring_coverage": _coverage_label(weights)},
         "horizon": {"unit": "single_week", "test_seasons": data["seasons"],
                     "folds": data["artifacts"]["folds"]},
         "values": {k: data[k] for k in ("overall", "by_position", "week_1")},

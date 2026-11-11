@@ -8,14 +8,14 @@
   "kind": "neutral_evaluation",
   "records": [
     {
-      "id": "ros_mae_gabagool",
+      "id": "ros_mae",
       "metric": "rest_of_season_points_mae",
       "source": {
         "path": "models/diagnostics/remaining_matrix_gabagool.json",
         "sha256": "d11f4e66c7d15113e7ab39b6c1ff10255a93422dc8e1ff776b7b91a09d76c81c"
       },
       "source_settings": {
-        "league": "Gabagool Fools",
+        "league": "12-team 1QB PPR, 6-pt pass TD",
         "scoring": {
           "pass_yd": 0.04,
           "pass_td": 6.0,
@@ -363,9 +363,8 @@
         "sha256": "ae03e66e80cbb4aaa66d10eb4c140beaf406f9d12a5c78d55d53e5522c3811d9"
       },
       "source_settings": {
-        "league": "Gabagool Fools",
+        "league": "PPR, 6-pt pass TD",
         "scoring": {
-          "name": "Gabagool Fools",
           "pass_yd": 0.04,
           "pass_td": 6,
           "interception": -2,
@@ -432,7 +431,7 @@
           "warning": "The projection screen narrows the broad tail but is only a plausible-starter proxy; eligible players were not observed on the same fantasy roster."
         },
         "scope_note": "This measures pairwise choices among players who recorded a historical stat line. It does not reconstruct any fantasy roster.",
-        "scoring_coverage": "modeled Gabagool scoring subset, not complete Sleeper scoring"
+        "scoring_coverage": "modeled scoring subset (6-pt pass TD format), not complete Sleeper scoring"
       },
       "horizon": {
         "unit": "single_week",
