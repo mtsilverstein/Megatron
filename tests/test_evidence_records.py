@@ -213,3 +213,12 @@ def test_source_hash_is_line_ending_independent(tmp_path):
     a.write_bytes(b'{\n "x": 1\n}\n')
     b.write_bytes(b'{\r\n "x": 1\r\n}\r\n')
     assert er._committed_sha256(a) == er._committed_sha256(b)
+
+
+def test_describe_scoring_format_refuses_missing_weights():
+    import pytest
+    from ffmodel.site.evidence_records import describe_scoring_format
+    assert describe_scoring_format({"rec": 1, "pass_td": 6}, teams=12, qbs=1) == "12-team 1QB PPR, 6-pt pass TD"
+    for scoring in ({"pass_td": 6}, {"rec": 1}):
+        with pytest.raises(ValueError, match="scoring format needs"):
+            describe_scoring_format(scoring)
