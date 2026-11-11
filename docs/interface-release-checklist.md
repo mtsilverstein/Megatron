@@ -54,7 +54,7 @@ runtime headers; inspect the rendered layout before removing branding.
 
 ## Still required before full interface sign-off
 
-September 16 root browser check of deployed 645a523: Max973 Gabagool roster 9
+September 16 root browser check of deployed 645a523: the owner's account Gabagool roster 9
 and FAM roster 1 both loaded Week 2 with 13/13 skill coverage in separate tabs.
 Gabagool weak rows and export withheld bids; FAM displayed rolling priority and
 no positive swaps under default protections. Explicit Week 1 blocked advice;
@@ -118,10 +118,10 @@ weekly.html. Re-run after the correction: waivers, waivermode, shared_assets
 and interface_hierarchy fixtures pass.
 
 Evidence provenance for this gate, kept separate: (a) root's local browser
-verification covers Max973's own rosters (Gabagool week 2, roster 9; see the
+verification covers the owner's own rosters (Gabagool week 2, roster 9; see the
 hierarchy pass above) and is the only browser/mobile evidence; nothing in this
 check re-ran it against the corrected gate. (b) The Opus check's own evidence
-was a static, read-only Sleeper API sampling of rosters other than Max973's,
+was a static, read-only Sleeper API sampling of rosters other than the owner's,
 run under the earlier selective gate: Gabagool week 2 produced 26 rows, all
 already weak; FAM week 2 produced 120 rows (100 weak, 12 gated, 8 priced);
 Gabagool roster 3 failed closed with "1 owned player(s) missing from board"
@@ -151,14 +151,14 @@ logo like the other five. Screenshots: `.review/shots/before-waivers-390.png`,
 `after-waivers-390.png`, `after-weekly-espn-390.png`, `after-index-fam-390.png`.
 
 Drop-cost gate, live read-only browser check of the corrected wording
-(local build, Max973, separate tabs): Gabagool week 2, roster 9, 13/13
+(local build, the owner's account, separate tabs): Gabagool week 2, roster 9, 13/13
 coverage, 10 alternatives — all weak-signal (precedence over the drop gate),
 table and export print "no bid suggested…" and the rosterCost line, no `$`,
 `null`, "modeled FAAB" or "preseason" in any ADD row; the FAAB header still
 reports Remaining/reserve/spendable dollars, as intended. FAM week 2, roster
 1, 13/13 coverage, rolling priority 2, zero positive swaps under default
 protections; export has no bid lines. The Gabagool tab kept `?league=gabagool`
-while FAM loaded. Consequence: Max973's own rosters never produce a
+while FAM loaded. Consequence: the owner's own rosters never produce a
 non-weak required-drop row, so the "drop cost unassessed" wording itself is
 still only fixture-verified, not observed live. Also observed: the Gabagool
 snapshot expired after a few minutes, hiding results with "Roster snapshot
@@ -175,7 +175,7 @@ tabindex, arrow keys), trade, about and connect pages; every stop accepted
 focus and order matched the visual order. One concrete defect fixed:
 `#trade-user`, `#draft-username`, `#draft-id-input` and the four keeper
 inputs had placeholder-only accessible names, and the shared username
-auto-fill hides that placeholder (draft-username loaded with "Max973"); each
+auto-fill hides that placeholder (draft-username loaded with the owner's account); each
 now carries an `aria-label`. No controller changes. New static regressions:
 every non-checkbox input on the six pages must have an aria-label, wrapping
 <label> or label[for] (fails against the pre-change tree); the mobile
@@ -188,7 +188,7 @@ Final pre-push check (September 16, Opus; root reviews):
 
 - Non-weak required-drop wording, observed in the real waivers controller
   (table and export) against a **clearly labeled synthetic ownership fixture**,
-  because Max973's live rosters cannot produce that row. Local build,
+  because the owner's live rosters cannot produce that row. Local build,
   `waivers.html?league=gabagool`, real committed `data/draft.json`,
   `data/weekly.json` (week 2, generated 2026-09-16) and `data/kickoffs.json`;
   only the Sleeper side was stubbed in-page (`window.Sleeper.get` replaced
@@ -248,7 +248,7 @@ above; items are struck only where the log records the evidence):
   `style.css?v=mobile1` and `waivers.js?v=dropcost2` confirmed on
   mtsilverstein.github.io/Megatron/waivers.html (September 16).
 - Still fixture-only: the non-weak "drop cost unassessed" row has never been
-  observed against a live league (Max973's rosters produce only weak rows).
+  observed against a live league (the owner's rosters produce only weak rows).
 
 No claims or bids are submitted in testing. Model accuracy, winning-bid
 calibration, and general-purpose arbitrary-league support are separate release

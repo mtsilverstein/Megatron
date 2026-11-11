@@ -69,7 +69,7 @@ The first release is the safe ownership/budget/lineup foundation for this work, 
 
 ## Validation
 
-September 15 read-only audit: both Max973 Sleeper leagues loaded against deployed
+September 15 read-only audit: both of the owner's Sleeper leagues loaded against deployed
 Week 2 data and live rosters. With current starters protected, Gabagool produced
 10 independent alternatives; FAM produced no positive modeled swaps. These are
 snapshot-specific outputs, not recommendations to submit all alternatives.
