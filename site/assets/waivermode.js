@@ -47,6 +47,18 @@
   // Rosters older than this (from the post-fetch time) are marked stale.
   const STALE_MS = 60000;
 
+  // id -> full_name for the whole ~11k-player catalog, built once per catalog
+  // object (recomputes pass the same reference).
+  const namesCache = new WeakMap();
+  function catalogNamesOf(catalog) {
+    if (!catalog || typeof catalog !== "object") return {};
+    let names = namesCache.get(catalog);
+    if (!names) {
+      names = Object.fromEntries(Object.entries(catalog).map(([k, v]) => [k, v && v.full_name]).filter(e => e[1]));
+      namesCache.set(catalog, names);
+    }
+    return names;
+  }
   function requestedWeek(value, state, season) {
     const automatic = !String(value ?? "").trim();
     if (automatic && (String(state?.season) !== String(season) || state?.season_type !== "regular"))
@@ -156,7 +168,7 @@
     const finalWeek = priced && dc.futureWeeks === 0;
     const rosPart = finalWeek ? ` ${COPY.thisWeekOnly}` : priced ? ` this week · ROS ${sign(dc.rosDelta)}` : "";
     const tag = weak ? " · weak signal" : held ? " · drop cost unassessed" : negative ? " · drop costs more than the add returns" : "";
-    const exportRos = finalWeek ? `; ${COPY.thisWeekOnly}` : priced ? `; ROS ${sign(dc.rosDelta)} (wk ${(dc.endWeek - dc.futureWeeks) + 1}–${dc.endWeek})` : "";
+    const exportRos = finalWeek ? `; ${COPY.thisWeekOnly}` : priced ? `; ROS ${sign(dc.rosDelta)} (${dc.futureWeeks === 1 ? `wk ${dc.endWeek}` : `wk ${(dc.endWeek - dc.futureWeeks) + 1}–${dc.endWeek}`})` : "";
     const exportTag = weak ? "WEAK SIGNAL" : held ? "DROP COST UNASSESSED" : negative ? "DROP COSTS MORE THAN ADD RETURNS" : "modeled";
     // Compact forms for the grouped table and the best-move card: the same
     // values and the same withheld states, shorter words. Never dollars for
@@ -345,7 +357,7 @@
     const label = `Rest-of-season values. Horizon: ${COPY.horizon}. Totals: ${COPY.aggregation}.`;
     if (!ros) return label;
     if (ros.fresh) {
-      const span = ros.futureWeeks === 0 ? `${COPY.thisWeekOnly}, no later weeks remain` : `weeks ${ros.endWeek - ros.futureWeeks + 1}–${ros.endWeek}`;
+      const span = ros.futureWeeks === 0 ? `${COPY.thisWeekOnly}, no later weeks remain` : (ros.futureWeeks === 1 ? `week ${ros.endWeek}` : `weeks ${ros.endWeek - ros.futureWeeks + 1}–${ros.endWeek}`);
       return `Rest-of-season projections: ${span}; generated ${ros.generatedAt}, data through ${ros.dataThrough || "unknown"}; ${ros.pricedOwned}/${activeOwnedSkills} ${owner ? "roster" : "of this team's"} players priced.${ros.unmodeledOwned.length ? ` No rest-of-season projection: ${ros.unmodeledOwned.map(p => p.name).join(", ")}.` : ""} ${label} Values assume participation; injuries and returns are not forecast.`;
     }
     return `Rest-of-season projections unavailable${ros.reason ? ` (${ros.reason})` : ""}; drop costs are unassessed and spend guidance is limited to open-slot adds. ${label}`;
@@ -843,7 +855,7 @@
         const remainingReason = s.view.remainingReason === LeagueData.COPY.noWeeks ? "no projected weeks remain" : s.view.remainingReason;
         result = s.note ? null : W.analyze({ board: rosBoard(s), ...s.world, weekly: s.view.weekly, kickoffs: s.kickoffs, snapshotAt: s.bundle.rostersRequestedAt,
           remaining: s.view.remaining, remainingReason, week: s.week, protectedIds: [...protectedIds], budgetReserve: reserve,
-          catalogNames: Object.fromEntries(Object.entries(s.catalog || {}).map(([k, v]) => [k, v && v.full_name]).filter(e => e[1])) });
+          catalogNames: catalogNamesOf(s.catalog) });
         intel = I.analyze({ board: s.board, ...s.world, catalog: s.catalog, signals: s.signals, roles: s.roles, ros: s.rosEcr, week: s.week });
         const mine = s.world.rosters.find(r => r.roster_id === s.world.rosterId);
         // The summary line: league · week · budget or priority · data as of · whose team.

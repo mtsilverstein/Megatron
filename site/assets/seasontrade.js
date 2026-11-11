@@ -127,8 +127,10 @@
       gap(p&&team(p.team)&&team(p.team)===team(c.team),`Missing projection or current-team mismatch: ${c.full_name||id}`);
       gap(!p.position||p.position===c.position,"Projection position mismatch");
       require(Array.isArray(p.weeks),"Player week coverage missing");
-      const rows=p.weeks.filter(w=>w.week===week);require(rows.length<=1,"Missing/duplicate projection week");gap(rows.length===1,"Missing/duplicate projection week");
-      const row=rows[0],excluded=(excludeWeeks[id]||[]).includes(week);
+      const rows=p.weeks.filter(w=>w.week===week);require(rows.length<=1,"Missing/duplicate projection week");// A week the user already zeroed needs no projection row and is not a gap.
+      const excluded=(excludeWeeks[id]||[]).includes(week);
+      gap(rows.length===1||excluded,"Missing/duplicate projection week");
+      const row=rows[0];
       let points=0,status=excluded?"assumed_unavailable":row.status;
       if (!excluded&&row.status!=="bye") {
         gap(row.status==="conditional_projection"&&typeof row.points?.league?.p50==="number"&&Number.isFinite(row.points.league.p50),`Missing finite projection; unknown is not zero (${row.reason||row.status})`);

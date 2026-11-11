@@ -191,6 +191,8 @@
   const FIRST_WEEK = 1;
   // What every range reads in the final week, when no future week remains (A6-6).
   const THIS_WEEK_ONLY = "this week only";
+  // A one-week span reads "week 17", never "weeks 17–17".
+  const weekSpan = (a, b) => a === b ? `week ${a}` : `weeks ${a}–${b}`;
   const BUDGET_SPENT = "Your FAAB budget is spent; $0 claims are allowed in this league.";
   const BUDGET_ZERO = "This league's FAAB budget is $0; claims are $0.";
   const RESERVE_HELD = 'Budget held in reserve. Lower "Budget to keep" to bid.';
@@ -249,7 +251,7 @@
       return { status:"unassessed", label:"drop cost unassessed: the rest-of-season change is not priced for this swap, so no spend guidance is offered", reason:"roster cannot field a full lineup from modeled players in every future week" };
     // The final week (no future weeks): "this week only", never a backwards range (A6-6).
     const label = ros.futureWeeks === 0 ? `priced: ${THIS_WEEK_ONLY}, no rest-of-season weeks remain`
-      : `priced: rest-of-season lineup change over weeks ${ros.firstWeek}–${ros.endWeek}, assuming participation`;
+      : `priced: rest-of-season lineup change over ${weekSpan(ros.firstWeek, ros.endWeek)}, assuming participation`;
     return { status:"priced", label,
              addContributes, dropForfeits, rosDelta, futureWeeks:ros.futureWeeks, endWeek:ros.endWeek };
   }
@@ -521,7 +523,7 @@
       const weak = !netNegative && perWeekGain < WEAK_SIGNAL_PTS;
       const unassessed = dropCost.status === "unassessed";
       const finalWeek = priced && dropCost.futureWeeks === 0;
-      const span = priced && !finalWeek ? `weeks ${firstFuture}–${dropCost.endWeek}` : null;
+      const span = priced && !finalWeek ? weekSpan(firstFuture, dropCost.endWeek) : null;
       const signal = {
         strength: weak ? "weak" : "modeled", perWeekGain, thresholdPerWeek: WEAK_SIGNAL_PTS, moveValue, basis,
         label: weak

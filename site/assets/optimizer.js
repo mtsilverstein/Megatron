@@ -606,7 +606,7 @@
        NEGATIVE. Read this before trying a third.
 
        The complaint both were answering is real and reproduces. At pick 34 of
-       mock 1402727282350559232, holding McBride already, this chain took TE
+       a mock draft, holding McBride already, this chain took TE
        Colston Loveland (rawCost 1.61, role FLEX, vorp 49) over RB Breece Hall
        (rawCost 0.00, role RB2, vorp 32) -- the objective's own preference,
        overruled. It happens because a gap under TIE_POINTS clamps to zero, so

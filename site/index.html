@@ -178,11 +178,11 @@ the tick is the simulated median, and VORP is built from that same median.
 When your tier empties, don't chase. Rookies (marked R) carry draft-capital
 cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/bands.js"></script>
-<script src="assets/session.js?v=final1"></script>
-<script src="assets/app.js?v=final1"></script>
+<script src="assets/session.js?v=fu2"></script>
+<script src="assets/app.js?v=fu2"></script>
 <script src="assets/sleeper.js?v=2"></script>
-<script src="assets/optimizer.js?v=nodefault1"></script>
-<script src="assets/draftmode.js?v=nodefault1"></script>
+<script src="assets/optimizer.js?v=fu2"></script>
+<script src="assets/draftmode.js?v=fu2"></script>
 <script src="assets/manualdraft.js?v=audit2"></script>
 <script src="assets/keepers.js?v=session1"></script>
 <script>
@@ -740,14 +740,17 @@ cohort priors — wide bands on purpose; see the about page.</footer>
 
   FC.posFilter(document.getElementById("pos-filters"), p => { pos = p; render(rows); });
   const scWrap = document.getElementById("scoring-filters");
+  // An archived board belongs to no visitor's league: its default lens is the
+  // board's own scoring, never "my league".
+  const lensName = rn => rn === "league" && archived ? "BOARD SCORING" : FC.LENS_LABEL[rn];
   scoring = FC.scoringFilter(scWrap, Object.keys(board.players[0].season_points), rn => {
     scoring = rn;
     document.getElementById("pts-header").textContent =
-      `Season pts (p50, ${FC.LENS_LABEL[rn].toLowerCase()})`;
+      `Season pts (p50, ${lensName(rn).toLowerCase()})`;
     render(rows);
-  });
+  }, archived ? lensName("league") : undefined);
   document.getElementById("pts-header").textContent =
-    `Season pts (p50, ${FC.LENS_LABEL[scoring].toLowerCase()})`;
+    `Season pts (p50, ${lensName(scoring).toLowerCase()})`;
 
   FC.makeSortable(table, rows, render);
   render(rows);

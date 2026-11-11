@@ -419,6 +419,19 @@ assert.strictEqual(D.pickOwner(TP_OWN, 3, 4), 1, "the R3 you acquired is not you
 assert.strictEqual(D.pickOwner(TP_OWN, 4, 1), 2, "a trade between two other teams was lost");
 assert.strictEqual(D.pickOwner(TP_OWN, 1, 1), 3, "a 2027 trade moved a 2026 pick");
 assert.strictEqual(D.pickOwner(TP_OWN, 1, 9), null, "a seat the draft does not have");
+// A row stamped with ANOTHER draft's id (safe integer or short numeric string) is
+// rejected; the draft's own id and an unsafe (past 2^53) number are accepted.
+{
+  const row = (draft_id, owner_id) => ({ season: "2026", round: 1, roster_id: 3, owner_id, draft_id });
+  const own = (...rows) => D.pickOwner(D.pickOwnership(TP_DRAFT, rows), 1, 1);
+  assert.strictEqual(own(row(7000002, 2)), 3, "a safe-integer foreign draft_id was honoured");
+  assert.strictEqual(own(row("7000002", 2)), 3, "a numeric-string foreign draft_id was honoured");
+  assert.strictEqual(own(row(7000001, 2)), 2, "the draft's own numeric id was rejected");
+  assert.strictEqual(own(row("7000001", 2)), 2, "the draft's own string id was rejected");
+  assert.strictEqual(own(row(1234567890123456789, 2)), 2, "a corrupt past-2^53 id must skip the check");
+  assert.strictEqual(own(row(undefined, 2)), 2, "a row without draft_id must be kept");
+  assert.strictEqual(own(row(7000001, 2), row(7000001, 4)), 4, "duplicate rows resolve last-row-wins");
+}
 // No slot_to_roster_id (a standalone mock): nothing to map, column ownership.
 assert.strictEqual(D.pickOwnership({ ...TP_DRAFT, slot_to_roster_id: null }, TP_TRADED), null);
 // The traded_picks fetch failed: each seat keeps its own column.

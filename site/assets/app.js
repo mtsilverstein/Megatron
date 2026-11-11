@@ -834,7 +834,7 @@
   const LENS_LABEL = { league: "MY LEAGUE", ppr: "PPR", half_ppr: "HALF-PPR",
                        standard: "STANDARD" };
 
-  function scoringFilter(wrap, present, onChange) {
+  function scoringFilter(wrap, present, onChange, leagueLabel) {
     const lenses = Object.keys(LENS_LABEL).filter(l => present.includes(l));
     const initial = lenses[0];
     const table = document.querySelector("table");
@@ -847,7 +847,7 @@
     };
     lenses.forEach(lens => {
       const b = document.createElement("button");
-      b.textContent = LENS_LABEL[lens];
+      b.textContent = lens === "league" && leagueLabel ? leagueLabel : LENS_LABEL[lens];
       b.setAttribute("aria-pressed", lens === initial ? "true" : "false");
       b.addEventListener("click", () => {
         wrap.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", "false"));

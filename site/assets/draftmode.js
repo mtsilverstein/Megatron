@@ -554,9 +554,14 @@ window.DraftMode = (() => {
      holds its own column (the fallback updateOwnership warns about).
 
      Only this draft's season counts -- a row for next year's draft must not
-     move this year's pick. draft_id is NOT checked: Sleeper publishes it on
-     these rows as a JSON number past 2^53, so it does not survive parsing
-     intact, and the endpoint is per-draft anyway. */
+     move this year's pick. draft_id is checked only when it is a safe integer
+     or a short numeric string that differs from the draft's own id: Sleeper
+     publishes it on these rows as a JSON number past 2^53, which does not
+     survive parsing intact, so such a value is corrupt and the check is
+     skipped; the endpoint is per-draft anyway.
+
+     Rows for the same (round, original roster) resolve last-row-wins. That is
+     acceptable: Sleeper lists the current owner of a pick once. */
   function pickOwnership(draft, tradedPicks) {
     const map = draft && draft.slot_to_roster_id;
     if (!map || typeof map !== "object") return null;
@@ -570,8 +575,12 @@ window.DraftMode = (() => {
     if (Array.isArray(tradedPicks)) {
       traded = new Map();
       const season = draft.season != null ? String(draft.season) : null;
+      const ownId = draft.draft_id != null ? String(draft.draft_id) : null;
+      const foreignDraft = v => v != null && String(v) !== ownId && (
+        (typeof v === "number" && Number.isSafeInteger(v)) || (typeof v === "string" && /^[0-9]{1,15}$/.test(v)));
       for (const t of tradedPicks) {
         if (!t || (season && t.season != null && String(t.season) !== season)) continue;
+        if (ownId != null && foreignDraft(t.draft_id)) continue;
         const round = draftNumber(t.round), from = draftNumber(t.roster_id),
               to = draftNumber(t.owner_id);
         if (round > 0 && from > 0 && to > 0) traded.set(`${round}:${from}`, to);

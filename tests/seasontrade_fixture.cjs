@@ -129,6 +129,9 @@ group('A6-3: a non-traded player\'s missing projection counts as 0 with a caveat
   // A missing week row for b (not traded): 0 that week only.
   const hole=clone(base);hole.remaining.players.find(p=>p.player_id==='gb').weeks.pop();
   assert.deepEqual(analyze(hole).caveats,['No projection for b in 1 week(s): counted as 0.']);
+  // The same hole in a week the user already zeroed is not a gap: no caveat.
+  const holeLast=Math.max(...base.remaining.players.find(p=>p.player_id==='gb').weeks.map(w=>w.week));  // the popped week
+  assert.deepEqual(analyze({...hole,excludeWeeks:{b:[holeLast]}}).caveats,[],'an excluded week with no row is not a gap');
   // He contributes 0, he is not dropped: a sole TE without a projection still fills the TE slot at 0.
   // Roster 1's only TE, t, is on no board and in no projection; roster 2's TE u projects 4.
   const te=clone(base);

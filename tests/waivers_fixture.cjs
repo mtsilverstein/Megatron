@@ -661,7 +661,7 @@ check("week 16 and 17 horizons; week 18 end state", () => {
   let out = atWeek(16, remainingFor(steadyFuture(), { end_week:17 }, 16));
   let row = rowOf(out,"7","8");
   assert.equal(row.dropCost.status, "priced"); assert.deepEqual([row.dropCost.futureWeeks, row.dropCost.endWeek], [1, 17]);
-  assert.equal(row.rosterCost, "dropping WR8 forfeits 0.00 projected lineup points over weeks 17–17; RB7 adds 7.00 in his place");
+  assert.equal(row.rosterCost, "dropping WR8 forfeits 0.00 projected lineup points over week 17; RB7 adds 7.00 in his place");
   assert.ok(close(row.signal.perWeekGain, (11 + 7) / 2));
   // Week 17: no future weeks; the price is this week alone, and every range reads "this week only" (A6-6).
   out = atWeek(17, remainingFor(steadyFuture(), { end_week:17 }, 17));

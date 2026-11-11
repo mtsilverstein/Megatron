@@ -15,7 +15,8 @@
    - entering `identifying`/`loadingLeague` clears `myRoster` FIRST and fires
      onChange so account-derived surfaces disable before the network trip;
    - every Sleeper call goes through Sleeper.get (cache-busted, no-store, 4 s
-     abort); `Sleeper` is resolved lazily so this module loads under node;
+     default abort; the ~11k-player catalog has its own 60 s deadline,
+     Sleeper.CATALOG_TIMEOUT_MS); `Sleeper` is resolved lazily so this module loads under node;
    - storage that throws degrades to a memory-only identity; corrupt JSON is
      anonymous; nothing here ever throws because of storage.
 

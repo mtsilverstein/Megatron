@@ -247,6 +247,11 @@ console.log("sort_fixture: OK");
   assert.strictEqual(th._ariaSort, "ascending", "keep must preserve ascending too");
   assert.deepStrictEqual(rendered, ["passer", "rusher"]);
 
+  // An archived board relabels the default lens; the other lenses keep theirs.
+  made.length = 0;
+  FC.scoringFilter(wrap, ["ppr", "league"], () => {}, "BOARD SCORING");
+  assert.deepStrictEqual(made.map(b => b.textContent), ["BOARD SCORING", "PPR"]);
+
   delete global.document;
 }
 console.log("sort_fixture: scoring-lens group OK");
