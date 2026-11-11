@@ -905,7 +905,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   }
   // A6-3: owned players the engine counts as 0 -> one visible caveat beside the top option, also in the export.
   assert.equal($("waiver-caveat").hidden, true, "no caveat when every owned player is projected");
-  const CAVEAT = "Not projected: A Back. They count as 0, so if one of them starts for you, gains are overstated.";
+  const CAVEAT = "Not projected: A Back. He counts as 0, so if he starts for you, gains are overstated.";
   engineRows = null; engineCaveats = [CAVEAT];
   await refresh("a roster with an unprojected player");
   {

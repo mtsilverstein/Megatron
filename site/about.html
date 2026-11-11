@@ -69,7 +69,7 @@
     <p class="chart-note" id="bo-note"></p>
     <p class="chart-note">The XGBoost in this chart and in the tables below is trained
     with squared error and a single seed, so it predicts means, and mean absolute
-    error rewards a median. Given the transformer&rsquo;s median objective and
+    error rewards a median. Trained with the transformer&rsquo;s median objective and
     nothing else changed, a 3-seed XGBoost ensemble ties the transformer: mean
     absolute error 4.326 against 4.325 over the 17,908 held-out player-weeks, a
     paired difference of &minus;0.001 points (95% interval &minus;0.021 to
@@ -86,8 +86,8 @@
     player's recent game log and the matchup, and predicts a <strong>floor (p10),
     median (p50) and ceiling (p90)</strong> for every stat. A player&rsquo;s points
     p50 is the score of those per-stat medians, which is not the median of his
-    points: for players projected at 8 or more points, about 60% of live 2026
-    outcomes through week 8 landed above it (audit A4-4, 7 November 2026). The range bands you see
+    points: for players projected at 8 or more points, about 60% of outcomes
+    landed above it (measured on the live 2026 record through week 8, 7 November 2026). The range bands you see
     on the draft board and the weekly page start from those raw quantiles. In
     the 2023&ndash;2025 bake-off the weekly bands were calibrated per position
     &mdash; widened or narrowed so measured coverage tracks the 0.80 target
@@ -222,8 +222,8 @@
 uncertainty. Built as an open portfolio project — data via nflverse.
 <a href="https://github.com/mtsilverstein/Megatron/blob/main/docs/case-study.md">How it was built</a> ·
 <a href="https://github.com/mtsilverstein/Megatron/blob/main/docs/methodology.md">Full methodology and results</a></footer>
-<script src="assets/session.js?v=nodefault1"></script>
-<script src="assets/app.js?v=nodefault2"></script>
+<script src="assets/session.js?v=final1"></script>
+<script src="assets/app.js?v=final1"></script>
 <script src="assets/sleeper.js?v=2"></script>
 <script src="assets/liveaccuracy.js?v=2"></script>
 <script>

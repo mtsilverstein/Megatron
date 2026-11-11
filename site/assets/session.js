@@ -331,7 +331,8 @@
   // the latter (spec §4.2). The league object is re-read on EVERY call (any-
   // league spec 5.2); users only for a full load. Shapes are validated here;
   // a malformed component fails the whole load. On the id path a null league
-  // is Sleeper's "no such league" and is named so even when a sibling
+  // -- or an HTTP 404 for /league/<id>, which is how Sleeper answers an
+  // unknown id -- is "no such league" and is named so even when a sibling
   // request failed too (all four settle before anything is judged).
   async function fetchLeague(entry, get, scope, base) {
     const id = entry.leagueId;
@@ -344,7 +345,10 @@
     const rostersP = get(`/league/${id}/rosters`).then(r => { rostersFetchedAt = Date.now(); return r; });
     const stateP = get("/state/nfl");
     const settled = await Promise.allSettled([leagueP, usersP, rostersP, stateP]);
-    if (isIdEntry(entry) && settled[0].status === "fulfilled" && (settled[0].value === null || settled[0].value === undefined)) throw new Error(NO_LEAGUE(id));
+    const noLeague = settled[0].status === "fulfilled"
+      ? settled[0].value === null || settled[0].value === undefined
+      : /^HTTP 404$/.test(String((settled[0].reason && settled[0].reason.message) || ""));
+    if (isIdEntry(entry) && noLeague) throw new Error(NO_LEAGUE(id));
     for (const r of settled) if (r.status === "rejected") throw r.reason;
     const [league, users, rosters, state] = settled.map(r => r.value);
     if (!league || typeof league !== "object" || league.league_id === undefined || league.league_id === null) throw new Error("Sleeper returned a malformed league.");

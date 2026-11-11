@@ -35,7 +35,9 @@
   function playerId(p) { return p && (p.sleeper_id ?? p.id); }
   function nameOf(p) { return p.name || p.full_name || id(playerId(p)); }
   // The one caveat for owned players counted as 0 (audit A6-3).
-  const notProjectedCaveat = names => `Not projected: ${names.join(", ")}. They count as 0, so if one of them starts for you, gains are overstated.`;
+  const notProjectedCaveat = names => `Not projected: ${names.join(", ")}. ${names.length === 1
+    ? "He counts as 0, so if he starts for you, gains are overstated."
+    : "They count as 0, so if one of them starts for you, gains are overstated."}`;
   function position(p) {
     const v = String(p && (p.position || p.pos) || "").toUpperCase();
     return v === "DST" ? "DEF" : v;

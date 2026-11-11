@@ -368,6 +368,30 @@ global.localStorage = store;
     FC.chip.render();
     assert.ok(byId(pPanel, "session-user"), "with no prompt showing, the chip offers its own form");
   }
+  // Waivers and Trade mount the panel FIRST and show the prompt after; the
+  // real LeagueConnect.initPrompt re-renders the chip, so those pages also ask
+  // once, and the line does not promise a forget control that is not there.
+  {
+    const { initPrompt } = require("../site/assets/connect.js");
+    for (const pageName of ["waivers.html", "trade.html"]) {
+      const PS = stubSession(); FC._session(PS);
+      const pm = dom(`${base}${pageName}`);
+      const promptEl = element("section"); promptEl.id = "connect-prompt"; promptEl.hidden = true;
+      for (const [tag, id] of [["form", "connect-prompt-form"], ["input", "connect-prompt-input"], ["p", "connect-prompt-status"], ["ul", "connect-prompt-results"]]) {
+        const n = element(tag); n.id = id; promptEl.append(n);
+      }
+      pm.append(promptEl);
+      FC.mountLeagueContext(null);
+      const pPanel = pm.children.find(n => n.id === "league-context");
+      assert.ok(byId(pPanel, "session-user"), `${pageName}: before the prompt shows, the chip has its form`);
+      promptEl.hidden = false;
+      initPrompt();
+      assert.strictEqual(byId(pPanel, "session-user"), null, `${pageName}: the prompt is the page's one username form`);
+      assert.strictEqual(all(pm).filter(n => n.id === "session-user" || n.id === "connect-prompt-input").length, 1);
+      assert.ok(!all(pm).some(n => /until you choose forget/.test(n.textContent)), `${pageName}: no forget promise with no league open`);
+      assert.strictEqual(byId(pPanel, "session-text").textContent, "");
+    }
+  }
   // A ready bundle renders exactly chipText's line plus refresh/change/forget.
   const R = stubSession(); FC._session(R);
   const rostersFetchedAt = Date.now() - 14000;

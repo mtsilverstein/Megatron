@@ -136,6 +136,12 @@
     const form = $("connect-prompt-form"), input = $("connect-prompt-input");
     const status = $("connect-prompt-status"), results = $("connect-prompt-results");
     if (!form || !input || !status || !results) return;
+    // Pages show the prompt, then call this. A league panel mounted before
+    // the prompt was visible still holds its own username form: re-render it
+    // so the page asks once. Resolved here, not at load: the connect page's
+    // own code never needs FC.
+    const FC = dep("FC", "./app.js");
+    if (FC && FC.chip && typeof FC.chip.render === "function") FC.chip.render();
     const Session = SharedSession;
     const open = id => `${new URL(location.href).pathname.split("/").pop() || "weekly.html"}?league=${encodeURIComponent(id)}`;
     let generation = 0;

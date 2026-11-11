@@ -834,6 +834,14 @@ const sorted = a => a.slice().sort();
     // The unknown-league message wins even when a sibling request rejects.
     r[`/league/${Z}/rosters`] = new Error("HTTP 404");
     await assert.rejects(Session.ready({ leagueId: Z }), { message: `Sleeper has no league with id ${Z}.` });
+    // Sleeper answers an unknown id with HTTP 404 (not a null body): the same
+    // sentence, never a bare "HTTP 404". Other failures keep their own text.
+    r[`/league/${Z}`] = new Error("HTTP 404");
+    await assert.rejects(Session.ready({ leagueId: Z }), { message: `Sleeper has no league with id ${Z}.` });
+    assert.equal(Session.error(), `Sleeper has no league with id ${Z}.`);
+    r[`/league/${Z}`] = new Error("HTTP 503");
+    await assert.rejects(Session.ready({ leagueId: Z }), { message: "HTTP 503" });
+    r[`/league/${Z}`] = null;
     // Last season's league id: the league exists but projections are for the current season.
     r[`/league/${X}`] = { ...leagueX, season: "2025" };
     await assert.rejects(Session.ready({ leagueId: X }), { message: "This league is from the 2025 season; projections are for 2026." });

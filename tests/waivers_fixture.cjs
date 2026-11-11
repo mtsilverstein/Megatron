@@ -287,7 +287,7 @@ check("fresh-week unavailable owned players score zero", () => {
   assert.ok(upgrade && upgrade.lineupGain>=18, `unavailable owned player retained healthy points: ${upgrade&&upgrade.lineupGain}`);
 });
 
-const NOT_PROJECTED = names => `Not projected: ${names}. They count as 0, so if one of them starts for you, gains are overstated.`;
+const NOT_PROJECTED = name => `Not projected: ${name}. He counts as 0, so if he starts for you, gains are overstated.`;
 check("A6-3: an owned player with no weekly projection counts 0, stays protected from drops, is named once; the desk is computed", () => {
   // WR8 (the FLEX starter) has no weekly row. Baseline QB20 RB10 WR11 TE8 FLEX WR8=0 -> 49.
   const fresh=freshWeekly(board.players.filter(x=>x.sleeper_id!=="8"));
@@ -301,6 +301,10 @@ check("A6-3: an owned player with no weekly projection counts 0, stays protected
   assert.equal(out.coverage.activeOwnedSkills,5);
   assert.equal(out.coverage.projectedOwnedSkills,4);
   assert.deepEqual(out.coverage.missingOwnedWeekly,[{id:"8",name:"WR8"}]);
+  // Two unprojected players: the plural sentence.
+  const two=W.analyze({...base,weekly:freshWeekly(board.players.filter(x=>!["3","8"].includes(x.sleeper_id)))});
+  assert.equal(two.caveats.length,1,"one caveat, however many names");
+  assert.match(two.caveats[0],/^Not projected: (WR3, WR8|WR8, WR3)\. They count as 0, so if one of them starts for you, gains are overstated\.$/);
   // A bench player counted as 0 never displaces a projected starter: the RB7-for-RB2 gain is the projected one.
   const roomyLeague={...league,roster_positions:["QB","RB","WR","TE","K","DEF","BN"]};
   const roomyRosters=[{...rosters[0],starters:["1","2","3","4","5","6"]},rosters[1]];
@@ -857,7 +861,7 @@ check("through LeagueData.views + WaiverMode.hydrateBoard: traded and position-c
   // Traded after the batch: the view keeps the projection team, so he has no current-team
   // projection: counted 0 (never his old-team 15) and named. WR v6 (17) over WR v3 (12) in WR, v3 to FLEX over RB v4 (9).
   const traded = run({ ...cat, v2:{ ...cat.v2, team:"B" } });
-  assert.deepEqual(traded.caveats, ["Not projected: Nv2. They count as 0, so if one of them starts for you, gains are overstated."]);
+  assert.deepEqual(traded.caveats, ["Not projected: Nv2. He counts as 0, so if he starts for you, gains are overstated."]);
   assert.ok(close(rowOf(traded, "v6", "v4").lineupGain, 17 + 12 - 12 - 9));
   assert.ok(traded.rows.every(r => r.drop.id !== "v2"));
   // Position changed live (WR -> RB): excluded from the view, hydrated as identity-only, so he has
@@ -870,7 +874,7 @@ check("through LeagueData.views + WaiverMode.hydrateBoard: traded and position-c
   const counted = run(moved);
   assert.equal(counted.recommendationBlock, undefined);
   assert.ok(counted.rows.length > 0);
-  assert.deepEqual(counted.caveats, ["Not projected: Nv3. They count as 0, so if one of them starts for you, gains are overstated."]);
+  assert.deepEqual(counted.caveats, ["Not projected: Nv3. He counts as 0, so if he starts for you, gains are overstated."]);
 });
 
 check("I1: a withheld ros_value (WaiverMode.gateRos) orders and explains exactly like an unknown one", () => {

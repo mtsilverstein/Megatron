@@ -412,18 +412,20 @@
       // (including error, where the previous attempt prefills the box).
       // On the id path an anonymous bundle is a real state (ready /
       // refreshing, a viewed team), so the line follows it.
-      line = err ? S.chipText(view, "error", now, err) : S.chipText(view, id || idPath ? st : "anonymous", now);
+      // A league-free page whose connect prompt is showing asks for the
+      // username once: the prompt's field, not this one. Nothing is
+      // remembered yet and there is no forget control, so the line is empty
+      // (the panel's note already says no league is open).
+      const promptOnly = !id && !err && !idPath && !chip.changing && promptShown();
+      line = promptOnly ? "" : err ? S.chipText(view, "error", now, err) : S.chipText(view, id || idPath ? st : "anonymous", now);
       const prefill = id ? id.username : (chip.changing && chip.lastName) || chip.prefill;
       const cancel = !!(id || err);
       const anonRefresh = idPath && !id && !err;
       const refreshing = st === "refreshing";
-      // A league-free page whose connect prompt is showing asks for the
-      // username once: the prompt's field, not this one.
-      const promptOnly = !id && !err && !idPath && !chip.changing && promptShown();
       build = () => {
         const c = promptOnly ? [] : [identifyForm(prefill)];
-        // Anonymous: the line already reads "Remembered on this device until
-        // you choose forget." (chipText), so no second copy is added here.
+        // Anonymous with its own form: the line already reads "Remembered on
+        // this device until you choose forget." (chipText), so no second copy.
         if (cancel) c.push(chipButton("session-cancel", "cancel", () => { chip.changing = false; renderChip(); }));
         c.push(...extras());
         if (anonRefresh) c.push(refreshBtn(refreshing));
