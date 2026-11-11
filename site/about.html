@@ -696,8 +696,8 @@ window.AboutScoped = (() => {
       dl.append(dd);
     };
     const sl = r.source_settings || {};
-    add("Source league", el("span", (sl.league ? String(sl.league) : "not recorded") +
-      " (provenance only; not matched to any other league)"));
+    add("Scoring format", el("span", (sl.league ? String(sl.league) : "not recorded") +
+      " (provenance only; not matched to any league)"));
     add("Scoring", ...scoringLines(r).map(t => el("p", t)));
     const omitted = Array.isArray(r.omitted) ? r.omitted : [];
     if (omitted.length) {

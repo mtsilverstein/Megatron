@@ -259,9 +259,9 @@ def main() -> None:
     print(f"\nfull report -> {args.out}")
 
     if args.paired_out is not None:
-        # Hash of the report's JSON text with LF line endings -- what git
-        # stores -- not of the bytes on disk, which a Windows checkout
-        # rewrites to CRLF.
+        # Hash of the in-memory report text (LF line endings), not of the bytes
+        # read back from disk, so the digest does not depend on the platform's
+        # newline translation.
         source = {"bakeoff_report": {
             "path": args.out.as_posix(),
             "sha256": hashlib.sha256(report_text.encode("utf-8")).hexdigest(),

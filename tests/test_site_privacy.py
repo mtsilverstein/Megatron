@@ -77,3 +77,17 @@ def test_site_names_no_configured_league_and_not_the_owner():
             bad[str(path.relative_to(ROOT))] = len(found)
     # Counts only, so a failure does not print the identifiers it found.
     assert bad == {}, f"league or owner identifiers in the site's code or copy: {bad}"
+
+
+def test_published_evaluation_records_name_no_league():
+    """The about page renders `neutral/evaluation.json`; its records describe the
+    scoring format, not a league. `source.path` is a file name, not copy."""
+    from ffmodel.site.evidence_records import build_evaluation
+    from ffmodel.site.neutral import BatchContext
+    import json
+    doc = build_evaluation(BatchContext(2026, 5, "2026-wk4", "2026-10-06T00:00:00+00:00", "x"), root=ROOT)
+    for r in doc["records"]:
+        r.pop("source")
+    tokens, phrases = forbidden()
+    found = hits(json.dumps(doc), tokens, phrases)
+    assert found == set(), f"{len(found)} league identifier(s) in the evaluation records"
