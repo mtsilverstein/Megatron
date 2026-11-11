@@ -62,6 +62,7 @@ def test_feature_builder_receives_prior_season_schedule(monkeypatch):
     monkeypatch.setattr(R, "combined_future_features", spy)
     R.build_remaining(**_args())
     assert seen and all((s.season == 2025).any() for s in seen)
+    assert all(not (s.season > 2026).any() for s in seen), "no season after the target season"
 
 
 def test_remaining_horizon_one_matches_current_week_path():
