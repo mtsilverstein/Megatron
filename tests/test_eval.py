@@ -389,3 +389,25 @@ def test_paired_out_requires_the_transformer(monkeypatch, tmp_path):
     with pytest.raises(SystemExit):
         _run_main_with_stubs(monkeypatch, tmp_path, [
             "--xgb-median", "--paired-out", str(tmp_path / "paired.json")])
+
+
+def test_paired_out_must_differ_from_out(monkeypatch, tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        _run_main_with_stubs(monkeypatch, tmp_path, [
+            "--transformer-root", "models/transformer/v1", "--xgb-median",
+            "--paired-out", str(tmp_path / "report.json")])
+    assert "--paired-out must be a different file from --out" in capsys.readouterr().err
+    assert not (tmp_path / "report.json").exists()
+
+
+def test_xgb_median_seeds_require_the_median_entrant(monkeypatch, tmp_path, capsys):
+    """Seeds without --xgb-median used to be ignored silently: the run looked configured and was not."""
+    with pytest.raises(SystemExit):
+        _run_main_with_stubs(monkeypatch, tmp_path, ["--xgb-median-seeds", "0", "1", "2"])
+    assert "pass --xgb-median as well" in capsys.readouterr().err
+    assert not (tmp_path / "report.json").exists()
+
+
+def test_xgb_median_alone_keeps_seed_0(monkeypatch, tmp_path):
+    report = _run_main_with_stubs(monkeypatch, tmp_path, ["--xgb-median"])
+    assert report["xgb_entrants"][1]["seeds"] == [0]

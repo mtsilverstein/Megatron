@@ -150,6 +150,65 @@ def test_main_lines_failure(env, monkeypatch):
     assert not list(dest.rglob("lines/**/*.json.gz"))
 
 
+def _files(dest):
+    return sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
+
+
+def test_scheduled_capture_of_an_already_captured_batch_is_skipped(props_env, monkeypatch, capsys):
+    """A weekly run that published nothing (exit 10/11) leaves the batch id unchanged: no request, no write."""
+    tmp, weekly, dest, fake = props_env
+    assert _run(weekly, dest) == 0                     # the publication's own capture
+    before = {p: (dest / p).read_bytes() for p in _files(dest)}
+    calls = []
+    monkeypatch.setattr(ms, "http_get", lambda *a, **k: calls.append("sleeper") or (200, b"[]"))
+    monkeypatch.setattr(ms, "lines_snapshot", lambda *a: calls.append("lines") or LINES_PAYLOAD)
+    fake.calls.clear()
+    capsys.readouterr()
+    assert _run(weekly, dest) == 0
+    assert calls == [] and fake.calls == []
+    assert {p: (dest / p).read_bytes() for p in _files(dest)} == before
+    out = capsys.readouterr()
+    assert out.out.count("\n") == 1 and out.out.startswith("skipped:") and out.err == ""
+    assert "k-test" not in out.out and "b|y" not in out.out
+
+
+@pytest.mark.parametrize("log", ms.ARCHIVE_LOGS)
+def test_any_archive_log_marks_the_batch_captured(env, log):
+    tmp, weekly, dest = env
+    (dest / log).parent.mkdir(parents=True, exist_ok=True)
+    (dest / log).write_text(json.dumps({"published_batch_id": "b|x"}) + "\n", encoding="utf-8")
+    assert ms.batch_already_captured(dest, "b|x")
+    assert not ms.batch_already_captured(dest, "b|other")
+    assert _run(weekly, dest) == 0
+    assert _files(dest) == [log]
+
+
+def test_a_new_batch_is_captured(env):
+    tmp, weekly, dest = env
+    assert _run(weekly, dest) == 0
+    weekly.write_text(json.dumps({"season": 2026, "week": 6, "batch_id": "b|new"}), encoding="utf-8")
+    assert _run(weekly, dest) == 0
+    assert [m["published_batch_id"] for m in _manifest(dest, "sleeper")] == ["b|x", "b|new"]
+    assert [m["published_batch_id"] for m in _manifest(dest, "lines")] == ["b|x", "b|new"]
+
+
+def test_repeat_batch_and_manual_captures_are_never_skipped(env, monkeypatch):
+    tmp, weekly, dest = env
+    clock = iter(T0 + timedelta(seconds=s) for s in range(100))   # three runs, three capture stamps
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return next(clock)
+    monkeypatch.setattr(ms, "datetime", Clock)
+    assert _run(weekly, dest) == 0
+    assert ms.main(["--dest", str(dest), "--weekly", str(weekly), "--published-commit", "abc123",
+                    "--repeat-batch"]) == 0
+    assert ms.main(["--dest", str(dest), "--weekly", str(weekly), "--published-commit", "abc123",
+                    "--capture-kind", "manual"]) == 0
+    assert [m["capture_kind"] for m in _manifest(dest, "sleeper")] == ["scheduled", "scheduled", "manual"]
+
+
 def test_main_writes_only_under_dest(env):
     tmp, weekly, dest = env
     before = {p for p in tmp.rglob("*") if p.is_file()}
@@ -464,6 +523,16 @@ def test_workflow_structure():
     pushers = [s for s in steps if "gitp push" in s.get("run", "")]
     assert len(pushers) == 1 and pushers[0]["working-directory"] == "private-data"
     assert "workflow_run.conclusion == 'success'" in wf["jobs"]["snapshot"]["if"]
+
+
+def test_workflow_repeats_a_batch_only_on_manual_dispatch():
+    """An automatic run keeps the collector's one-capture-per-publication rule; a dispatch opts out."""
+    steps = _wf("market-snapshots.yml")["jobs"]["snapshot"]["steps"]
+    (cap,) = [s for s in steps if "ffmodel.collect.market_snapshots" in s.get("run", "")]
+    assert cap["env"]["EVENT"] == "${{ github.event_name }}"
+    assert 'if [ "$EVENT" = "workflow_dispatch" ]; then REPEAT="--repeat-batch"; fi' in cap["run"]
+    assert "--dest private-data $REPEAT" in cap["run"]
+    assert "--capture-kind" not in cap["run"]
 
 
 def test_workflow_token_hardening():

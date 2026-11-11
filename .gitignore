@@ -66,5 +66,7 @@ models/diagnostics/trade_sim_eval_fam_waiver.json
 /private-data/
 /data_snapshots/sleeper_projections/
 
-# Manual upper-case FantasyPros exports are never committed (design spec §11 note, 2026-11-07).
+# Manual FantasyPros exports are never committed (design spec §11 note, 2026-11-07). The pattern targets their
+# upper-case `FantasyPros_*` names; on a case-insensitive checkout (core.ignorecase=true, e.g. Windows) it also
+# matches lower-case `fantasypros_*` names. Only new, untracked files are affected; tracked files stay tracked.
 data_snapshots/FantasyPros_*

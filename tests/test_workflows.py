@@ -40,6 +40,19 @@ def test_weekly_update_commit_step_retries_with_injected_token():
     assert "git rebase --abort" in step["run"]
 
 
+def _retry_loop(run):
+    return run[run.index("for i in 1 2 3; do"):run.index("done")]
+
+
+def test_bot_push_retries_pause_between_attempts():
+    """Three attempts back to back would spend themselves in seconds on one transient GitHub error."""
+    update = _step(_load("weekly-update.yml"), "regenerate", "id", "commit")["run"]
+    accuracy = next(s for s in _steps(_load("weekly-accuracy.yml"), "accuracy")
+                    if "git commit" in s.get("run", ""))["run"]
+    for run in (update, accuracy):
+        assert "sleep 5" in _retry_loop(run)
+
+
 def test_weekly_update_optional_refreshes_gated_on_published_batch():
     doc = _load("weekly-update.yml")
     for sid in ("live_experts", "ros_experts"):

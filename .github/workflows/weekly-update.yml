@@ -116,6 +116,7 @@ jobs:
           for i in 1 2 3; do
             gitp pull --rebase origin "$BRANCH" && gitp push origin "HEAD:$BRANCH" && echo "pushed=true" >> "$GITHUB_OUTPUT" && exit 0
             git rebase --abort 2>/dev/null || true   # a failed rebase must not poison the next attempt
+            sleep 5                                  # a transient GitHub error gets time to clear
           done
           exit 1
       # Hosting is Vercel (Git integration): the data push above triggers the deploy.

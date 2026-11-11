@@ -435,6 +435,53 @@ def test_rejects_unsupported_leagues_and_models(world, tmp_path):
     assert world["predictors"] == []
 
 
+def test_season_complete_exits_10_through_the_real_path_before_any_roster_pull(world, tmp_path, monkeypatch,
+                                                                                capsys):
+    """Every REG game final and every stat posted: the real validate / extend / resolve path ends the run with
+    exit 10 and an empty stage. The week resolves before the roster and Sleeper-catalog pulls, so a January outage
+    of either feed cannot turn the season-over run red."""
+    import ffmodel.data.rosters as rosters_mod
+    import ffmodel.site.sleeper as sleeper_mod
+
+    def outage(*a, **k):
+        raise ConnectionError("feed unreachable")
+    monkeypatch.setattr(rosters_mod, "pull_current_teams", outage)
+    monkeypatch.setattr(sleeper_mod, "pull_sleeper_players", outage)
+    world["completed_through"] = 18
+    out = tmp_path / "stage"
+    assert run_batch(out) == batch.EXIT_SEASON_OVER, capsys.readouterr()
+    assert "season 2026 is complete" in capsys.readouterr().out
+    assert not out.exists() or not any(out.iterdir())
+    assert world["predictors"] == []
+
+
+def test_week_18_stats_pending_exits_11_through_the_real_path(world, tmp_path, monkeypatch, capsys):
+    """Week 18 played today, its stats not posted yet: the real path exits 11 with an empty stage."""
+    import ffmodel.data.pull as pull_mod
+    import ffmodel.site.generate as gen_mod
+
+    world["completed_through"] = 18
+    with_stats = pull_mod.pull_weekly
+
+    def without_week_18(seasons, cache_dir=None):
+        w = with_stats(seasons, cache_dir)
+        return w[~((w.season == SEASON) & (w.week == 18))].reset_index(drop=True)
+    monkeypatch.setattr(pull_mod, "pull_weekly", without_week_18)
+    _, schedules = make_world(18)
+    week_18_day = schedules[(schedules.season == SEASON) & (schedules.week == 18)].gameday.iloc[0]
+
+    class Today(gen_mod.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return pd.Timestamp(week_18_day).to_pydatetime().replace(tzinfo=tz)
+    monkeypatch.setattr(gen_mod, "datetime", Today)
+    out = tmp_path / "stage"
+    assert run_batch(out) == batch.EXIT_STATS_PENDING, capsys.readouterr()
+    assert "stats for completed games are not posted yet" in capsys.readouterr().out
+    assert not out.exists() or not any(out.iterdir())
+    assert world["predictors"] == []
+
+
 @pytest.mark.parametrize("exc_name,code,line", [
     ("SeasonOver", batch.EXIT_SEASON_OVER, "batch: season 2026 is complete; no slate to publish"),
     ("StatsPending", batch.EXIT_STATS_PENDING, "batch: stats for completed games are not posted yet (x)"),

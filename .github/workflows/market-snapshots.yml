@@ -51,11 +51,16 @@ jobs:
         id: capture
         if: steps.gate.outputs.skip != 'true'
         # SharpAPI key only here (props source); absent -> props are skipped, not failed.
+        # After a weekly run that published nothing (season over, stats pending) the batch id is unchanged and the
+        # collector skips (exit 0, nothing written, no request). A manual dispatch captures anyway, as it always has.
         env:
           SHARPAPI_KEY: ${{ secrets.SHARPAPI_KEY }}
+          EVENT: ${{ github.event_name }}
         run: |
           rc=0
-          python -m ffmodel.collect.market_snapshots --dest private-data || rc=$?
+          REPEAT=""
+          if [ "$EVENT" = "workflow_dispatch" ]; then REPEAT="--repeat-batch"; fi
+          python -m ffmodel.collect.market_snapshots --dest private-data $REPEAT || rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
       - name: Commit to the private repo only
         if: steps.gate.outputs.skip != 'true'

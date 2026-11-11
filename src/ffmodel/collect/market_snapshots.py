@@ -10,6 +10,11 @@ only: no model uses them without its own pre-registered test.
 
 Nothing here writes into the public repo: every write goes under --dest (the private checkout).
 Captures are append-only; an existing capture path is an error, never an overwrite.
+
+One automatic capture per publication: every publication mints a new batch id, and a weekly run that published
+nothing (season over, stats pending) leaves the published batch id unchanged. A scheduled capture whose batch id the
+archive already records is skipped before any request or write; --repeat-batch (a deliberate manual dispatch) captures
+anyway.
 """
 from __future__ import annotations
 
@@ -282,6 +287,26 @@ def write_capture(dest: Path, kind: str, season: int, week: int, retrieved_at: d
     return line
 
 
+# Every archive log whose lines carry `published_batch_id` (the props batch log records failed batches too).
+ARCHIVE_LOGS = ("sleeper/manifest.jsonl", "lines/manifest.jsonl", "props/manifest.jsonl", "props/batches.jsonl")
+
+
+def batch_already_captured(dest: Path, batch_id: str) -> bool:
+    """True when any archive log under `dest` already records a capture for this published batch id."""
+    for rel in ARCHIVE_LOGS:
+        path = Path(dest) / rel
+        if not path.exists():
+            continue
+        with path.open(encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                if isinstance(rec, dict) and rec.get("published_batch_id") == batch_id:
+                    return True
+    return False
+
+
 def _git_head() -> str:
     return subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
 
@@ -292,10 +317,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--weekly", type=Path, default=Path("site/data/neutral/weekly.json"))
     ap.add_argument("--published-commit", default=None, help="default: git rev-parse HEAD")
     ap.add_argument("--capture-kind", choices=["scheduled", "manual"], default="scheduled")
+    ap.add_argument("--repeat-batch", action="store_true",
+                    help="capture even when the archive already records this published batch (manual dispatch)")
     args = ap.parse_args(argv)
 
     target = published_target(args.weekly)
     season, week = target["season"], target["week"]
+    if args.capture_kind == "scheduled" and not args.repeat_batch and batch_already_captured(args.dest, target["batch_id"]):
+        print(f"skipped: the archive already records a capture of the published batch ({season} week {week}); "
+              f"nothing new was published since")
+        return 0
     common = {"published_commit": args.published_commit or _git_head(),
               "published_batch_id": target["batch_id"], "capture_kind": args.capture_kind}
     failures: list[str] = []

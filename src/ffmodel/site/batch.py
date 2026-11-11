@@ -149,6 +149,9 @@ def build_batch(args) -> tuple[dict, object, dict | None]:
     schedules = pull_schedules(list(range(args.first_season, season + 1)), cache_dir=args.data_dir)
     weekly = gen._extend_with_target_season(weekly, schedules, season, args.data_dir)
     gen.validate_inputs(weekly, schedules, season)
+    # Weekly stats and schedules alone decide the week. Resolving it before the roster and Sleeper-catalog pulls
+    # means a season-over (exit 10) run never turns red on a transient outage of either feed.
+    week = gen.resolve_week(args.week, weekly, schedules, season)
     season_games = schedules[schedules["season"] == season]
     scheduled_teams = set(season_games["home_team"]) | set(season_games["away_team"])
     current_teams = pull_current_teams(season, cache_dir=args.data_dir,
@@ -160,7 +163,6 @@ def build_batch(args) -> tuple[dict, object, dict | None]:
     latest_season = int(weekly["season"].max())
     latest_week = int(weekly[weekly["season"] == latest_season]["week"].max())
     data_through = f"{latest_season}-wk{latest_week}"     # about.json: full observed data
-    week = gen.resolve_week(args.week, weekly, schedules, season)
     projection_history, projection_through = gen.history_before_week(weekly, season, week)
     kickoffs = pull_kickoffs(season, week)
     roles = build_roles(weekly, schedules, season, week)

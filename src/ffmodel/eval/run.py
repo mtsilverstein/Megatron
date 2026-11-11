@@ -154,12 +154,12 @@ def build_parser() -> argparse.ArgumentParser:
                              "(`xgboost_median`: pinball loss at q=0.5, the "
                              "transformer's p50 objective). The squared-error "
                              "`xgboost` entrant is unchanged and still runs.")
-    parser.add_argument("--xgb-median-seeds", nargs="+", type=int, default=[0],
-                        help="Seeds the median entrant is fitted under; its stat "
-                             "lines are averaged across them (e.g. 0 1 2, matching "
-                             "the transformer's 3-seed ensemble). The `xgboost` "
-                             "entrant keeps xgb_seed 0 so it stays comparable "
-                             "with the committed reports.")
+    parser.add_argument("--xgb-median-seeds", nargs="+", type=int, default=None,
+                        help="Seeds the median entrant is fitted under (default: 0); "
+                             "its stat lines are averaged across them (e.g. 0 1 2, "
+                             "matching the transformer's 3-seed ensemble). Requires "
+                             "--xgb-median. The `xgboost` entrant keeps xgb_seed 0 "
+                             "so it stays comparable with the committed reports.")
     parser.add_argument("--paired-out", type=Path, default=None,
                         help="Also write a paired comparison of the transformer "
                              "against each XGBoost entrant, computed on the "
@@ -185,6 +185,9 @@ def xgb_provenance(entrant) -> dict:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    if args.xgb_median_seeds is not None and not args.xgb_median:
+        parser.error("--xgb-median-seeds sets the median entrant's seeds; "
+                     "pass --xgb-median as well")
     if args.paired_out is not None:
         if args.transformer_root is None:
             parser.error("--paired-out compares the transformer with XGBoost; "
@@ -200,7 +203,7 @@ def main() -> None:
     xgb = XGBBaseline()
     xgb_entrants = [xgb]
     if args.xgb_median:
-        xgb_entrants.append(XGBSeedAverage(args.xgb_median_seeds, objective="median"))
+        xgb_entrants.append(XGBSeedAverage(args.xgb_median_seeds or [0], objective="median"))
     predictors = [NaiveLast4(), *xgb_entrants]
     if args.transformer_root is not None:
         from ffmodel.model.predictor import TransformerPredictor
