@@ -11,7 +11,7 @@ from ffmodel.site import remaining as R
 from ffmodel.site import weekly as W
 from ffmodel.site.leaguelens import STATS
 from ffmodel.site.neutral import (BatchContext, build_players, empty_remaining, make_batch_context,
-                                  neutral_weekly, normalize_team)
+                                  neutral_weekly, normalize_team, sleeper_crosswalk)
 from tests.test_remaining import setup as legacy_setup
 
 FIXTURE = Path(__file__).parent / "fixtures" / "remaining_legacy_expected.json"
@@ -321,7 +321,7 @@ def test_identity_one_to_one_and_catalog_name():
     assert out["players"] == [{"player_id": "00-1", "sleeper_id": "4046", "name": "Patrick Mahomes II",
                                "team": "KC", "position": "QB", "bye": 7, "ecr": None,
                                "identity_only": False, "reason": None, "match": "gsis"}]
-    assert out["crosswalk"] == {"matched_gsis": 1, "matched_name": 0, "unmatched": 0}
+    assert out["crosswalk"] == {"matched_gsis": 1, "matched_crosswalk": 0, "matched_name": 0, "unmatched": 0}
 
 
 def test_identity_duplicate_gsis_no_name_fallback():
@@ -349,7 +349,7 @@ def test_identity_name_fallback_priced():
                                "identity_only": False, "reason": None, "match": "name"}
     assert (by["00-o"]["sleeper_id"], by["00-o"]["name"], by["00-o"]["match"]) == ("8144", "Chris Olave", "name")
     assert by["00-o"]["identity_only"] is False
-    assert out["crosswalk"] == {"matched_gsis": 0, "matched_name": 2, "unmatched": 0}
+    assert out["crosswalk"] == {"matched_gsis": 0, "matched_crosswalk": 0, "matched_name": 2, "unmatched": 0}
 
 
 def test_identity_name_ambiguous_in_catalog():
@@ -368,7 +368,7 @@ def test_identity_name_ambiguous_among_projections():
     by = _by_id(out)
     for pid in ("00-1", "00-2"):
         assert (by[pid]["reason"], by[pid]["sleeper_id"], by[pid]["match"]) == ("ambiguous_name_match", None, None)
-    assert out["crosswalk"] == {"matched_gsis": 0, "matched_name": 0, "unmatched": 2}
+    assert out["crosswalk"] == {"matched_gsis": 0, "matched_crosswalk": 0, "matched_name": 0, "unmatched": 2}
 
 
 def test_identity_name_match_team_disagreement():
@@ -383,7 +383,80 @@ def test_identity_name_match_with_different_gsis():
     out = build_players(CTX, _wk(("00-1", "Josh Allen", "BUF", "QB")), _rem(), catalog, None, _schedule())
     p = _by_id(out)["00-1"]
     assert (p["identity_only"], p["reason"], p["sleeper_id"], p["match"]) == (True, "gsis_disagrees", None, None)
-    assert out["crosswalk"] == {"matched_gsis": 0, "matched_name": 0, "unmatched": 1}
+    assert out["crosswalk"] == {"matched_gsis": 0, "matched_crosswalk": 0, "matched_name": 0, "unmatched": 1}
+
+
+def test_sleeper_crosswalk_pairs():
+    ids = pd.DataFrame({"gsis_id": ["00-1", "00-2", None, "00-3", "00-4", "00-5", "00-5", "00-6", "00-7"],
+                        "sleeper_id": [8122.0, float("nan"), 9.0, None, 77.0, 11.0, 12.0, 55.0, 55.0]})
+    assert sleeper_crosswalk(ids) == {"00-1": "8122", "00-4": "77"}
+    assert sleeper_crosswalk(pd.DataFrame({"gsis_id": ["00-1"]})) == {}
+    assert sleeper_crosswalk(None) == {}
+
+
+_KNIGHT = {"8122": {"gsis_id": None, "full_name": "Zonovan Knight", "team": "ARI", "position": "RB"}}
+
+
+def test_crosswalk_link_and_default_unchanged():
+    args = (CTX, _wk(("00-0037157", "Bam Knight", "ARI", "RB")), _rem(), _KNIGHT, None, _schedule())
+    out = build_players(*args, crosswalk={"00-0037157": "8122"})
+    p = _by_id(out)["00-0037157"]
+    assert (p["sleeper_id"], p["name"], p["identity_only"], p["match"]) == (
+        "8122", "Zonovan Knight", False, "crosswalk")
+    assert out["crosswalk"] == {"matched_gsis": 0, "matched_crosswalk": 1, "matched_name": 0, "unmatched": 0}
+    assert list(out["crosswalk"]) == ["matched_gsis", "matched_crosswalk", "matched_name", "unmatched"]
+    q = _by_id(build_players(*args))["00-0037157"]
+    assert (q["reason"], q["sleeper_id"], q["match"]) == ("no_catalog_match", None, None)
+
+
+def test_crosswalk_resolves_ambiguous_name():
+    catalog = {"1": {"gsis_id": None, "full_name": "Mike Williams", "team": "NYJ", "position": "WR"},
+               "2": {"gsis_id": None, "full_name": "Mike Williams", "team": "PIT", "position": "WR"}}
+    out = build_players(CTX, _wk(("00-1", "Mike Williams", "NYJ", "WR")),
+                        _rem(("00-2", "PIT", "WR", "Mike Williams")), catalog, None, _schedule(),
+                        crosswalk={"00-1": "1", "00-2": "2"})
+    by = _by_id(out)
+    assert (by["00-1"]["sleeper_id"], by["00-1"]["match"], by["00-1"]["identity_only"]) == ("1", "crosswalk", False)
+    assert (by["00-2"]["sleeper_id"], by["00-2"]["match"], by["00-2"]["identity_only"]) == ("2", "crosswalk", False)
+
+
+def test_crosswalk_entry_with_other_gsis_disagrees():
+    catalog = {"8": {"gsis_id": "00-9", "full_name": "Some Guy", "team": "KC", "position": "WR"}}
+    p = _by_id(build_players(CTX, _wk(("00-1", "Some Guy", "KC", "WR")), _rem(), catalog, None, _schedule(),
+                             crosswalk={"00-1": "8"}))["00-1"]
+    assert (p["reason"], p["sleeper_id"], p["match"]) == ("gsis_disagrees", None, None)
+
+
+def test_crosswalk_vs_unique_name_match_disagrees():
+    catalog = {"1": {"gsis_id": None, "full_name": "Some Guy", "team": "KC", "position": "WR"},
+               "2": {"gsis_id": None, "full_name": "Other Name", "team": "KC", "position": "WR"}}
+    p = _by_id(build_players(CTX, _wk(("00-1", "Some Guy", "KC", "WR")), _rem(), catalog, None, _schedule(),
+                             crosswalk={"00-1": "2"}))["00-1"]
+    assert (p["reason"], p["sleeper_id"], p["match"]) == ("crosswalk_disagrees", None, None)
+
+
+def test_crosswalk_id_not_in_catalog_falls_to_name():
+    catalog = {"1": {"gsis_id": None, "full_name": "Some Guy", "team": "KC", "position": "WR"}}
+    p = _by_id(build_players(CTX, _wk(("00-1", "Some Guy", "KC", "WR")), _rem(), catalog, None, _schedule(),
+                             crosswalk={"00-1": "999"}))["00-1"]
+    assert (p["sleeper_id"], p["match"], p["identity_only"]) == ("1", "name", False)
+
+
+def test_crosswalk_link_team_disagreement():
+    catalog = {"8": {"gsis_id": None, "full_name": "Some Guy", "team": "BUF", "position": "WR"}}
+    p = _by_id(build_players(CTX, _wk(("00-1", "Other Spelling", "KC", "WR")), _rem(), catalog, None,
+                             _schedule(), crosswalk={"00-1": "8"}))["00-1"]
+    assert (p["reason"], p["sleeper_id"], p["match"]) == ("team_disagrees", "8", "crosswalk")
+
+
+def test_duplicate_sleeper_link_fails_closed():
+    catalog = {"8": {"gsis_id": None, "full_name": "Some Guy", "team": "KC", "position": "WR"}}
+    out = build_players(CTX, _wk(("00-1", "Other Spelling", "KC", "WR"), ("00-2", "Some Guy", "KC", "WR")),
+                        _rem(), catalog, None, _schedule(), crosswalk={"00-1": "8"})
+    by = _by_id(out)
+    for pid, match in (("00-1", "crosswalk"), ("00-2", "name")):
+        assert (by[pid]["reason"], by[pid]["sleeper_id"], by[pid]["match"]) == ("duplicate_sleeper_link", "8", match)
+        assert by[pid]["identity_only"] is True
 
 
 def test_identity_crosswalk_header_counts():
@@ -394,7 +467,7 @@ def test_identity_crosswalk_header_counts():
                                  ("00-3", "Nobody", "KC", "TE")),
                         _rem(("00-9", "LA", None, None)), catalog, None, _schedule())
     # 00-9 is never projected (no position): it keeps its gsis link but is not counted.
-    assert out["crosswalk"] == {"matched_gsis": 1, "matched_name": 1, "unmatched": 1}
+    assert out["crosswalk"] == {"matched_gsis": 1, "matched_crosswalk": 0, "matched_name": 1, "unmatched": 1}
     assert _by_id(out)["00-9"]["match"] == "gsis" and _by_id(out)["00-9"]["reason"] == "no_projection"
     assert list(out)[-2:] == ["crosswalk", "players"]
 

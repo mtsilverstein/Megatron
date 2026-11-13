@@ -92,6 +92,18 @@ def _stage_is_empty(out: Path) -> bool:
     return out.is_dir() and not any(out.iterdir())
 
 
+def _load_sleeper_crosswalk(data_dir) -> dict:
+    """gsis_id -> sleeper_id from the ffverse crosswalk, or {}. Optional: never fails the batch."""
+    try:
+        from ffmodel.data.rankings import pull_player_ids
+        from ffmodel.site.neutral import sleeper_crosswalk
+
+        return sleeper_crosswalk(pull_player_ids(data_dir))
+    except Exception as exc:  # noqa: BLE001 - optional identity feed
+        print(f"Sleeper id crosswalk unavailable ({exc}); players.json links by GSIS id and name only")
+        return {}
+
+
 def _load_ecr_rows(season, schedules, data_dir):
     """The preseason ECR snapshot, on GSIS ids, or None. Optional: never fails the batch.
 
@@ -158,6 +170,8 @@ def build_batch(args) -> tuple[dict, object, dict | None]:
                                        scheduled_teams=scheduled_teams)
     assert_roster_coverage(current_teams, scheduled_teams)
     sleeper_players = pull_sleeper_players(cache_dir=args.data_dir, max_age_hours=24)
+    id_crosswalk = _load_sleeper_crosswalk(args.data_dir)
+    print(f"Sleeper id crosswalk: {len(id_crosswalk)} one-to-one pairs")
     ecr_rows = _load_ecr_rows(season, schedules, args.data_dir)
 
     latest_season = int(weekly["season"].max())
@@ -238,7 +252,7 @@ def build_batch(args) -> tuple[dict, object, dict | None]:
     payloads[f"{NEUTRAL_DIR}/weekly.json"] = weekly_n
     payloads[f"{NEUTRAL_DIR}/remaining.json"] = remaining_n
     payloads[f"{NEUTRAL_DIR}/players.json"] = build_players(
-        ctx, weekly_n, remaining_n, sleeper_players, ecr_rows, schedules)
+        ctx, weekly_n, remaining_n, sleeper_players, ecr_rows, schedules, crosswalk=id_crosswalk)
     payloads[f"{NEUTRAL_DIR}/evaluation.json"] = build_evaluation(ctx)
     payloads[f"{NEUTRAL_DIR}/formats.json"] = {
         **ctx.header(), "schema_version": 1, "kind": "neutral_formats", "formats": format_table()}

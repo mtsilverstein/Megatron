@@ -7,7 +7,8 @@ every neutral file header carries its five fields plus `schema_version` and
 
 `build_players` is the **scorable universe**: every player in the neutral
 weekly or remaining payload, crosswalked to Sleeper by a one-to-one GSIS rule,
-falling back to `sleeper.build_crosswalk`'s unique name+position match only
+then by the ffverse id crosswalk (`sleeper_crosswalk`), then falling back to
+`sleeper.build_crosswalk`'s unique name+position match only
 when the catalog has no entry for that GSIS (Sleeper carries a `gsis_id` for a
 minority of active players; spec §3.4 correction 2026-10-05). A duplicated
 GSIS never falls back; any ambiguity or disagreement makes the player
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import copy
 import json
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -196,8 +198,45 @@ def _name_key(name, position):
     return key if key[0] else None
 
 
+def _sleeper_key(v) -> str | None:
+    """A Sleeper id as the catalog keys it: "8122" from 8122, 8122.0 or "8122"; else None."""
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        if pd.isna(v):
+            return None
+    except (TypeError, ValueError):
+        return None
+    if isinstance(v, str):
+        s = v.strip()
+        return s if s.isdigit() else None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return str(int(f)) if f.is_integer() and f > 0 else None
+
+
+def sleeper_crosswalk(ids: pd.DataFrame | None) -> dict[str, str]:
+    """gsis_id -> sleeper_id from the ffverse id crosswalk, one-to-one pairs only.
+
+    Rows missing either id are dropped. A gsis_id or a sleeper_id that pairs with more than one partner is dropped
+    entirely (never a guess). None, or a frame without both columns, -> {}."""
+    if ids is None or not {"gsis_id", "sleeper_id"} <= set(ids.columns):
+        return {}
+    pairs = set()
+    for g, s in zip(ids["gsis_id"], ids["sleeper_id"]):
+        gs = "" if g is None or (not isinstance(g, str) and pd.isna(g)) else str(g).strip()
+        sk = _sleeper_key(s)
+        if gs and sk:
+            pairs.add((gs, sk))
+    per_g = Counter(g for g, _ in pairs)
+    per_s = Counter(s for _, s in pairs)
+    return {g: s for g, s in pairs if per_g[g] == 1 and per_s[s] == 1}
+
+
 def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_players: dict,
-                  ecr_rows, schedule: pd.DataFrame) -> dict:
+                  ecr_rows, schedule: pd.DataFrame, *, crosswalk: dict | None = None) -> dict:
     """`neutral/players.json`: the scorable universe (spec §3.4).
 
     Members are every player in `weekly_n` or `remaining_n` (the neutral
@@ -209,7 +248,12 @@ def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_
     - in remaining only and never projected (no position) -> `no_projection`
     - more than one catalog entry with that stripped `gsis_id` ->
       `duplicate_gsis_in_catalog` (no name fallback)
-    - no catalog entry with it -> name fallback on
+    - no catalog entry with it -> the `crosswalk` (gsis -> sleeper id, see
+      `sleeper_crosswalk`) when it names a catalog entry: that entry carries a
+      different `gsis_id` -> `gsis_disagrees`; the name rule would link a
+      different Sleeper id -> `crosswalk_disagrees`; else linked
+      (`match "crosswalk"`). No crosswalk entry (or not in the catalog) ->
+      name fallback on
       `(sleeper._normalize_name(name), position)` (catalog `full_name`, else
       first + last): no candidate -> `no_catalog_match`; more than one catalog
       candidate, or more than one projected player with that key ->
@@ -218,11 +262,14 @@ def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_
     - catalog team differs after `normalize_team` -> `team_disagrees`
     - catalog position differs -> `position_disagrees`
 
-    `match` is `"gsis"`, `"name"` or null (no unique link). `sleeper_id` and
+    After the loop, projected players sharing one Sleeper id whose `match` is
+    not `"gsis"` become identity-only (`duplicate_sleeper_link`).
+
+    `match` is `"gsis"`, `"crosswalk"`, `"name"` or null (no unique link). `sleeper_id` and
     the catalog `full_name` are filled whenever there is a unique link,
     identity-only or not (roster identity is still useful); otherwise
     `sleeper_id` is null and `name` is the projection's. The header's
-    `crosswalk` block counts `matched_gsis` / `matched_name` / `unmatched`
+    `crosswalk` block counts `matched_gsis` / `matched_crosswalk` / `matched_name` / `unmatched`
     over projected players (those with a position).
 
     `ecr_rows` is None or the normalized ECR DataFrame the draft board uses
@@ -258,7 +305,7 @@ def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_
             proj_key_counts[key] = proj_key_counts.get(key, 0) + 1
 
     players = []
-    crosswalk = {"matched_gsis": 0, "matched_name": 0, "unmatched": 0}
+    counts = {"matched_gsis": 0, "matched_crosswalk": 0, "matched_name": 0, "unmatched": 0}
     for pid in union:
         w, r = weekly_by.get(pid), remaining_by.get(pid)
         src = w or r
@@ -272,7 +319,17 @@ def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_
         else:
             key = _name_key(proj_name, position)
             candidates = by_name_pos.get(key, []) if key is not None else []
-            if not candidates:
+            xs = (crosswalk or {}).get(pid)
+            xmeta = sleeper_players.get(xs) if xs else None
+            if isinstance(xmeta, dict):
+                if str(xmeta.get("gsis_id") or "").strip():
+                    link_reason = "gsis_disagrees"
+                elif (len(candidates) == 1 and not str(candidates[0][1].get("gsis_id") or "").strip()
+                      and proj_key_counts[key] == 1 and candidates[0][0] != xs):
+                    link_reason = "crosswalk_disagrees"
+                else:
+                    (sid, meta), match = (xs, xmeta), "crosswalk"
+            elif not candidates:
                 link_reason = "no_catalog_match"
             elif len(candidates) > 1 or proj_key_counts[key] > 1:
                 link_reason = "ambiguous_name_match"
@@ -294,12 +351,16 @@ def build_players(ctx: BatchContext, weekly_n: dict, remaining_n: dict, sleeper_
         elif meta.get("position") != position:
             reason = "position_disagrees"
         if position is not None:
-            crosswalk[f"matched_{match}" if match else "unmatched"] += 1
+            counts[f"matched_{match}" if match else "unmatched"] += 1
         name = (meta.get("full_name") if meta is not None and meta.get("full_name")
                 else proj_name)
         players.append({"player_id": pid, "sleeper_id": sid, "name": name, "team": team,
                         "position": position, "bye": byes.get(normalize_team(team)),
                         "ecr": ranks.get(pid), "identity_only": reason is not None,
                         "reason": reason, "match": match})
+    claims = Counter(p["sleeper_id"] for p in players if p["sleeper_id"] is not None)
+    for p in players:
+        if claims.get(p["sleeper_id"], 0) > 1 and p["match"] != "gsis" and p["reason"] is None:
+            p["identity_only"], p["reason"] = True, "duplicate_sleeper_link"
     return {**ctx.header(), "schema_version": 1, "kind": "neutral_players",
-            "ecr_source": ecr_source, "crosswalk": crosswalk, "players": players}
+            "ecr_source": ecr_source, "crosswalk": counts, "players": players}
