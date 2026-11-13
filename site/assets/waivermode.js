@@ -35,7 +35,9 @@
   const COPY = Object.freeze({
     simulationOff: "Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.",
     bestBall: "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.",
-    noEvidence: "No measured evaluation for your league's scoring and this model.",
+    // The evidence fallback (spec §3.2): the standalone sentence, and the short form after a label.
+    noEvidence: "Your league's scoring is applied; its accuracy has not been measured.",
+    notMeasured: "not measured for your league's scoring.",
     horizon: "through NFL week 17, regardless of your league's schedule",
     aggregation: "sum of weekly medians through NFL week 17, not a season median",
     thisWeekOnly: "this week only",     // the final week: no future weeks, so no range (audit A6-6)
@@ -378,7 +380,7 @@
         lines.push(`${h.horizon} week${h.horizon === 1 ? "" : "s"} ahead: model MAE ${num(h.model_mae)} vs baseline ${num(h.baseline_mae)} (${h.paired_player_forecasts ?? "n/a"} paired forecasts)`);
       return lines;
     }
-    return [`Rest-of-season accuracy: ${COPY.noEvidence}`];
+    return [`Rest-of-season accuracy: ${COPY.notMeasured}`];
   }
 
   // The board as the desk may use it: every finite `ros_value` passed through

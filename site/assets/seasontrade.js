@@ -22,8 +22,15 @@
     require(new Set(out).size===out.length,`${label} contains duplicate identity`);
     return out;
   }
-  // Lineup.bestLineup's result, validated: an unfillable slot refuses (never a partial sum).
-  const asLineup=r=>{require(Number.isFinite(r.total),`Roster cannot fill required ${r.unfillable} slot; no replacement score assumed`);return {total:r.total,lineup:r.starters.map(s=>({...s.player,slot:s.slot}))};};
+  // analyze's lineup: Lineup.bestLineup's; a slot nobody can fill even after free-agent pickups is left empty and scores
+  // 0 (Lineup.solve allowEmpty), never a partial sum elsewhere. The empty slot's row has no player (id null).
+  const solveEmpty=(players,slots)=>Lineup.solve({slots,candidates:players.map(p=>({id:String(p.id),position:p.position,score:p.points})),allowEmpty:true});
+  function lineupOf(players,slots) {
+    const r=Lineup.bestLineup(players,slots,p=>p.points);
+    if(Number.isFinite(r.total))return {total:r.total,lineup:r.starters.map(s=>({...s.player,slot:s.slot}))};
+    const e=solveEmpty(players,slots),byId=new Map(players.map(p=>[String(p.id),p]));
+    return {total:e.total,lineup:e.assignment.map(a=>a.empty?{id:null,name:"nobody",position:null,points:0,status:"empty",slot:a.slot,empty:true}:{...byId.get(a.id),slot:a.slot})};
+  }
   // Identity, coverage and roster resolution shared by analyze (central lineup
   // scenario) and simulate (seeded season simulation): both must resolve the
   // same players the same way, so this is the one place it happens.
@@ -174,24 +181,73 @@
     }
     return {remaining,rosters,board,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,projections,excludeWeeks,currentWeek,boardGsis,gaps};
   }
-  function analyze(args) {
-    const {remaining,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,excludeWeeks,currentWeek,gaps}=resolveScenario(args,{zeroGaps:true});
-    const weeks=[];
-    for(let week=first;week<=remaining.end_week;week++) {
-      const sides=selected.map((rid,i)=>{
-        const b=asLineup(Lineup.bestLineup(before[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots,p=>p.points));
-        const a=asLineup(Lineup.bestLineup(after[i].map(id=>resolved.get(week).get(id)).filter(Boolean),slots,p=>p.points));
-        return {rosterId:rosterMap.get(rid).roster_id,before:b,after:a,delta:a.total-b.total};
-      });
-      weeks.push({week,sides});
+  // analyze's free agents (owner decision 2026-11-13): skill players on no roster (players, reserve or taxi of any
+  // team; by Sleeper id, and by GSIS as poolByWeek decides ownership), mapped by the board, whose projection passes
+  // resolve's team and identity guards and has a usable row for EVERY compared week (a finite league p50, or a bye as
+  // 0; unknown is not zero, so no partial coverage). Ranked by summed p50, Sleeper id ascending on a tie. Nobody adds a
+  // player who cannot play (owner-delegated call 2026-11-13): a catalog IR/Out/PUP/Sus/NA/DNR tag, or a catalog status
+  // other than Active, keeps him out; Questionable and Doubtful stay eligible. Rostered players are not filtered.
+  const unavailable=c=>["IR","Out","PUP","Sus","NA","DNR"].includes(c.injury_status)||(c.status!=null&&c.status!=="Active");
+  function freeAgents({rosters,catalog,boardGsis,projections},weeks) {
+    const owned=new Set(),ownedGsis=new Set();
+    for(const r of rosters) for(const id of [...(r.players||[]),...(r.reserve||[]),...(r.taxi||[])].map(String)) {
+      owned.add(id);const g=(catalog[id]&&catalog[id].gsis_id)||boardGsis.get(id);if(g)ownedGsis.add(g);
     }
+    const out=[];
+    for(const [id,gsis] of boardGsis) {
+      const c=catalog[id],position=Lineup.modeledPosition(c),p=projections.get(gsis);
+      if(owned.has(id)||ownedGsis.has(gsis)||!position||unavailable(c)||!p||!team(p.team)||team(p.team)!==team(c.team)||(p.position&&p.position!==position)||(c.gsis_id&&c.gsis_id!==gsis)||!Array.isArray(p.weeks))continue;
+      const rows=weeks.map(w=>{const rs=p.weeks.filter(x=>x.week===w),row=rs[0];
+        return rs.length!==1?null:row.status==="bye"?{points:0,status:"bye"}:row.status==="conditional_projection"&&Number.isFinite(row.points?.league?.p50)?{points:row.points.league.p50,status:row.status}:null;});
+      if(rows.includes(null))continue;
+      const name=c.full_name||id;
+      out.push({id,name,position,sum:rows.reduce((n,r)=>n+r.points,0),weeks:rows.map(r=>({id,name,position,points:r.points,status:r.status,reportedInjury:c.injury_status||null}))});
+    }
+    return out.sort((x,y)=>y.sum-x.sum||(x.id<y.id?-1:x.id>y.id?1:0));
+  }
+  function analyze(args) {
+    const ctx=resolveScenario(args,{zeroGaps:true});
+    const {remaining,catalog,slots,selected,rosterMap,before,after,relevant,resolved,first,excludeWeeks,currentWeek,gaps}=ctx;
+    const weekNos=[];for(let w=first;w<=remaining.end_week;w++)weekNos.push(w);
+    // A rostered (non-traded) player's weeks without a projection, counted as 0 (audit A6-3).
+    const caveats=[...gaps.values()].map(g=>`No projection for ${g.name} in ${g.weeks} week(s): counted as 0.`),pickups=[];
+    let pool=null;   // built only when some roster cannot fill a slot
+    // Each roster-scenario (side x before/after) on its own: if a week leaves a starting slot empty, it adds the best
+    // free agent for that slot, kept for every compared week, one at a time until every week fills or no candidate is
+    // left (the two teams' scenarios are independent what-ifs). Fillable rosters take today's path unchanged.
+    const lineups=selected.map((rid,i)=>Object.fromEntries([["before",before[i]],["after",after[i]]].map(([scenario,ids])=>{
+      const label=i?"They":"You",added=[];
+      const playersIn=k=>ids.map(id=>resolved.get(weekNos[k]).get(id)).filter(Boolean).concat(added.map(f=>f.weeks[k]));
+      const emptyIn=k=>Number.isFinite(Lineup.lineupScore(playersIn(k),slots,p=>p.points))?[]:solveEmpty(playersIn(k),slots).assignment.filter(a=>a.empty).map(a=>a.slot);
+      for(;;) {
+        let pick=null;
+        for(let k=0;k<weekNos.length&&!pick;k++) for(const slot of emptyIn(k)) {
+          const f=(pool=pool||freeAgents(ctx,weekNos)).find(f=>eligible[slot].includes(f.position)&&!added.includes(f));
+          if(f){pick={f,slot};break;}
+        }
+        if(!pick)break;
+        added.push(pick.f);
+        pickups.push({rosterId:rosterMap.get(rid).roster_id,scenario,id:pick.f.id,name:pick.f.name,position:pick.f.position,slot:pick.slot});
+        caveats.push(`${label} has no ${pick.slot} to start ${scenario==="after"?"after this trade":"now"}: assumes they add ${pick.f.name} (${pick.f.position}), the best free agent available for it. The roster spot this needs is not modeled.`);
+      }
+      const byWeek=weekNos.map((w,k)=>lineupOf(playersIn(k),slots)),empty=new Map();
+      byWeek.forEach((l,k)=>l.lineup.filter(p=>p.empty).forEach(p=>empty.set(p.slot,(empty.get(p.slot)||new Set()).add(weekNos[k]))));
+      for(const [slot,ws] of empty) {
+        const text=`${label} would have no ${slot} to start in week(s) ${[...ws].join(", ")}: counted as 0, and no free agent with a projection is available for it.`;
+        if(!caveats.includes(text))caveats.push(text);   // the same empty slot before and after: said once
+      }
+      return [scenario,byWeek];
+    })));
+    const weeks=weekNos.map((week,k)=>({week,sides:selected.map((rid,i)=>{
+      const b=lineups[i].before[k],a=lineups[i].after[k];
+      return {rosterId:rosterMap.get(rid).roster_id,before:b,after:a,delta:a.total-b.total};
+    })}));
     return {advice_eligible:false,scenario:"Conditional starting-lineup comparison; not expected realized gain or a trade verdict",
       weeks,sides:selected.map((r,i)=>({rosterId:rosterMap.get(r).roster_id,delta:weeks.reduce((n,w)=>n+w.sides[i].delta,0)})),
       assumptions:{assumeAvailable:true,excludeWeeks,currentWeekSkipped:currentWeek,scoringScope:remaining.scoring_scope||"Supported model stat subset only"},
-      availabilityFlags:[...relevant].filter(id=>catalog[id]?.injury_status).map(id=>({id,name:catalog[id].full_name||id,status:catalog[id].injury_status,interpretation:"Reported catalog tag; no return-date inference"})),
-      // A rostered (non-traded) player's weeks without a projection, counted as 0 (audit A6-3).
-      caveats:[...gaps.values()].map(g=>`No projection for ${g.name} in ${g.weeks} week(s): counted as 0.`),
-      warnings:["All non-excluded active players are assumed available, including reported injuries; availability is not predicted.","No keeper, future-pick, waiver-replacement, bench insurance or the other side's willingness to deal.","Sum of weekly lineup central scenarios, not a season median or calibrated uncertainty interval.","Current-week games are excluded. Verify processing time, platform eligibility and future roster constraints."]};
+      availabilityFlags:[...new Set([...relevant,...pickups.map(p=>p.id)])].filter(id=>catalog[id]?.injury_status).map(id=>({id,name:catalog[id].full_name||id,status:catalog[id].injury_status,interpretation:"Reported catalog tag; no return-date inference"})),
+      caveats,pickups,
+      warnings:["All non-excluded active players are assumed available, including reported injuries; availability is not predicted.","No keeper or future-pick value, bench insurance, or the other side's willingness to deal; a free agent is assumed only to fill a starting slot a roster cannot fill.","Sum of weekly lineup central scenarios, not a season median or calibrated uncertainty interval.","Current-week games are excluded. Verify processing time, platform eligibility and future roster constraints."]};
   }
   // Seeded season simulation of the same scenario analyze compares. Identity,
   // coverage and roster resolution are resolveScenario's, so both functions see

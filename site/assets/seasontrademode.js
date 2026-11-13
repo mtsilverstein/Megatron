@@ -51,11 +51,23 @@
   const COPY = Object.freeze({
     simulationOff: "Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.",
     bestBall: "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.",
-    noEvidence: "No measured evaluation for your league's scoring and this model.",
+    // The evidence fallback (spec §3.2): the standalone sentence, and the short form after a label ("Rest-of-season
+    // accuracy: ..."). Either way the league's own scoring IS applied; only its accuracy is unmeasured.
+    noEvidence: "Your league's scoring is applied; its accuracy has not been measured.",
+    notMeasured: "not measured for your league's scoring.",
     horizon: "through NFL week 17, regardless of your league's schedule",
     aggregation: "sum of weekly medians through NFL week 17, not a season median",
+    // A skill player the comparison cannot price (2026-11-13): listed, but he cannot be ticked.
+    noProjection: "No projection: can't be included in a comparison.",
   });
   const ROS_METRIC = "rest_of_season_points_mae";
+  // Lineup slots in words for every sentence the page writes; result.pickups[].slot keeps the code.
+  const SLOT_NAMES = Object.freeze({ FLEX: "flex", SUPER_FLEX: "superflex", WRRB_FLEX: "RB/WR flex", REC_FLEX: "WR/TE flex" });
+  const slotName = s => (Object.prototype.hasOwnProperty.call(SLOT_NAMES, s) ? SLOT_NAMES[s] : String(s));
+  // An engine caveat as the page says it: the engine calls the first team "You" and the second "They" and names a slot
+  // by its code ("You has no SUPER_FLEX to start ..."); the page names the teams and the slot. Other caveats pass as they are.
+  const caveatText = (c, teamOf) => String(c).replace(/^(You|They) (has|would have) no (\S+) to start /,
+    (m, who, verb, slot) => `${teamOf[who]} ${verb} no ${slotName(slot)} to start `);
 
   // "3-5, 8" -> [3,4,5,8]. Anything else is an error the user sees; an
   // unparseable exclusion must never silently mean "no exclusion".
@@ -110,6 +122,22 @@
   // named, because the totals count starters only and he adds 0 there.
   const fmt1 = x => { const r = Math.round(x * 10) / 10; return r === 0 ? "0.0" : `${r < 0 ? "−" : "+"}${Math.abs(r).toFixed(1)}`; };
   const andList = xs => xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+  // A slot nobody fills is the engine's empty row (id null, name "nobody"): it is keyed and named by its slot, so the
+  // sentence reads "E Name starts and the TE slot stays empty, instead of A Name and T Name".
+  const rowKey = p => (p.empty ? `empty:${p.slot}` : String(p.id));
+  const minus = (xs, ys) => {                 // xs not in ys, as multisets (two empty RB slots are two rows)
+    const left = new Map();
+    for (const p of ys) left.set(rowKey(p), (left.get(rowKey(p)) || 0) + 1);
+    return xs.filter(p => { const n = left.get(rowKey(p)) || 0; if (n) left.set(rowKey(p), n - 1); return !n; });
+  };
+  function moveText(enter, leave) {
+    const names = xs => xs.filter(p => !p.empty).map(p => p.name), slots = xs => xs.filter(p => p.empty).map(p => slotName(p.slot));
+    const ins = names(enter), emptied = slots(enter), outs = [...names(leave), ...slots(leave).map(s => `an empty ${s} slot`)];
+    const starts = ins.length ? `${andList(ins)} ${ins.length === 1 ? "starts" : "start"}` : "";
+    if (!emptied.length) return `${starts} instead of ${andList(outs)}`;
+    const empty = `the ${andList(emptied)} ${emptied.length === 1 ? "slot stays" : "slots stay"} empty`;
+    return `${starts ? `${starts} and ${empty}` : empty}, instead of ${andList(outs)}`;
+  }
   function lineupSummary(result, ctx) {
     const span = `weeks ${ctx.firstWeek}–${ctx.endWeek}`;
     const label = i => (i === 0 ? (ctx.ownLabel || "Your lineup") : (ctx.names && ctx.names[result.sides[i].rosterId]) || `roster ${result.sides[i].rosterId}`);
@@ -127,10 +155,8 @@
       for (const w of result.weeks) {
         const side = w.sides[i];
         const before = side.before.lineup || [], after = side.after.lineup || [];
-        const bIds = new Set(before.map(p => String(p.id))), aIds = new Set(after.map(p => String(p.id)));
-        const enter = after.filter(p => !bIds.has(String(p.id))).map(p => p.name);
-        const leave = before.filter(p => !aIds.has(String(p.id))).map(p => p.name);
-        if (enter.length || leave.length) changes.push({ week: w.week, delta: side.delta, move: `${andList(enter)} ${enter.length === 1 ? "starts" : "start"} instead of ${andList(leave)}` });
+        const enter = minus(after, before), leave = minus(before, after);
+        if (enter.length || leave.length) changes.push({ week: w.week, delta: side.delta, move: moveText(enter, leave) });
       }
       return { i, delta: s.delta, changes };
     });
@@ -163,6 +189,13 @@
     }
     return { headline: "Comparison blocked", rows: [String(error && error.message || error)] };
   }
+  // The status line after a refused comparison carries the outcome, not a bare "comparison blocked": the headline, or
+  // for a traded player without a projection the engine's message, which names him and says what to do.
+  function blockedStatus(error) {
+    if (error && Array.isArray(error.tradedWithoutProjection)) return `Comparison blocked: ${error.message}`;
+    const { headline, rows } = coverageText(error);
+    return headline.startsWith("Comparison blocked: ") ? headline : `Comparison blocked: ${rows[0]}`;
+  }
 
   // --- league context (spec §6.1, §4, §6.2, §7.2) --------------------------
   // The lines above the columns: the format line (eligibility wins for best
@@ -194,7 +227,7 @@
         lines.push(`${h.horizon} week${h.horizon === 1 ? "" : "s"} ahead: model MAE ${num(h.model_mae)} vs baseline ${num(h.baseline_mae)} (${h.paired_player_forecasts ?? "n/a"} paired forecasts)`);
       return lines;
     }
-    return [`Rest-of-season accuracy: ${COPY.noEvidence}`];
+    return [`Rest-of-season accuracy: ${COPY.notMeasured}`];
   }
   // Best ball / an unknown slot: the analysed roster's rest-of-season values,
   // active skill players only. Unknown is not 0. Every number comes through
@@ -625,7 +658,22 @@
       if (side === sides.mine) return viewer() ? `${sideName(side)} gives` : `You give — ${sideName(side)}`;
       return viewer() ? `${sideName(sides.mine)} gets — from ${sideName(side)}` : `You get — ${sideName(side)}`;
     }
+    // A skill player the comparison can price: in the view's scorable mapping, with one usable row (a finite league
+    // p50, or a bye) for every compared week. SeasonTrade.analyze refuses an offer with any other (the most common
+    // block), so such a player is listed but cannot be ticked; off the offer he still counts as 0 there.
+    function priceable(id, remById) {
+      const gsis = S.view && S.view.scorableBySleeper ? S.view.scorableBySleeper.get(String(id)) : undefined;
+      const p = gsis === undefined ? null : remById.get(String(gsis));
+      if (!p || !Array.isArray(p.weeks)) return false;
+      for (let w = first(); w <= last(); w++) {
+        const rows = p.weeks.filter(r => r && r.week === w), r = rows[0];
+        if (rows.length !== 1) return false;
+        if (r.status !== "bye" && !(r.status === "conditional_projection" && r.points && r.points.league && Number.isFinite(r.points.league.p50))) return false;
+      }
+      return true;
+    }
     function drawColumns() {
+      const remById = new Map(((S.remaining && S.remaining.players) || []).map(p => [String(p.player_id), p]));
       for (const side of [sides.mine, sides.theirs]) {
         side.ul.replaceChildren();
         side.dropBtns.clear();
@@ -639,7 +687,7 @@
         }
         const order = { QB: 0, RB: 1, WR: 2, TE: 3 };
         skill.sort((a, b) => (order[S.catalog[a].position] - order[S.catalog[b].position]) || playerName(a).localeCompare(playerName(b)));
-        for (const id of skill) side.ul.append(playerRow(side, id));
+        for (const id of skill) side.ul.append(priceable(id, remById) ? playerRow(side, id) : disabledRow(side, id, COPY.noProjection));
         for (const id of other) side.ul.append(disabledRow(side, id, "no modeled points"));
         for (const id of missing) side.ul.append(disabledRow(side, id, "not in the player catalog — reload the page"));
         for (const id of locked) side.ul.append(disabledRow(side, id, "IR/taxi — not tradeable in this version"));
@@ -825,18 +873,28 @@
         });
         render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters });
         setStatus(`lineups compared for weeks ${result.weeks[0].week}–${result.weeks[result.weeks.length - 1].week}`);
+        showResult();
       } catch (e) {
         // A superseded refresh means the session moved on (new league load or
         // identity); sync() already owns the screen for that.
         if (SESSION.isSuperseded(e)) return;
         renderBlocked(e);
-        setStatus("comparison blocked");
+        setStatus(blockedStatus(e));
+        showResult();
       } finally {
         busy = false; refreshCompare();
       }
     }
 
     // --- output (spec §4.5 order) -------------------------------------------
+    // A finished comparison (compared or blocked) renders below both roster lists, off a phone's screen: bring it into
+    // view, without motion when the reader prefers less. Guarded for environments without either API.
+    function showResult() {
+      if (typeof els.result.scrollIntoView !== "function") return;
+      const reduce = typeof W.matchMedia === "function" && W.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      els.result.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+    }
+
     function provenanceText(snapshotAt) {
       const r = S.remaining, deadline = S.league.settings && S.league.settings.trade_deadline;
       const catalogAt = SESSION.catalogFetchedAt();
@@ -866,8 +924,11 @@
       const received = [receive.map(String), give.map(String)];   // side 0 is the analysed roster: it gets `receive`
       const playerNameOf = id => playerNamesAll[String(id)] || String(id);
       for (const line of lineupSummary(result, { names, ownLabel, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week, received, playerName: playerNameOf })) summary.append(el("p", line));
-      // Rostered players without a projection, counted as 0 (engine caveats, audit A6-3).
-      for (const c of result.caveats || []) summary.append(el("p", c, "season-summary-note"));
+      // Engine caveats: rostered players without a projection, counted as 0 (audit A6-3), and a starting slot a roster
+      // cannot fill, taken by a free agent (result.pickups) or left at 0. The engine calls the first team "You" and the
+      // second "They" and names the slot by its code; the page names both (caveatText).
+      const teamOf = { You: names[result.sides[0].rosterId], They: names[result.sides[1].rosterId] };
+      for (const c of result.caveats || []) summary.append(el("p", caveatText(c, teamOf), "season-summary-note"));
       summary.append(el("p", STARTERS_ONLY, "season-summary-note"));
       out.append(summary);
       // Everything after the totals is collapsible detail; nothing is removed.
@@ -925,15 +986,20 @@
     }
 
     function renderBlocked(error) {
-      const c = coverageText(error);
       const out = els.result;
       out.replaceChildren();
-      const h = el("p", null, "season-headline"); h.append(el("strong", c.headline)); out.append(h);
-      out.append(list(c.rows));
-      // A traded player without a projection: the engine's message names him
-      // and says what to do. Other players' gaps never reach here (they count as 0).
-      out.append(el("p", Array.isArray(error && error.tradedWithoutProjection)
-        ? `Nothing was scored. ${error.message}` : "Nothing was scored.", "season-subline"));
+      const h = el("p", null, "season-headline"); out.append(h);
+      // A traded player without a projection: only the engine's message, which names him and says what to do -- not
+      // one row per player-week. Other players' gaps never reach here (they count as 0).
+      if (Array.isArray(error && error.tradedWithoutProjection)) {
+        h.append(el("strong", "Comparison blocked"));
+        out.append(el("p", error.message, "season-subline"));
+      } else {
+        const c = coverageText(error);
+        h.append(el("strong", c.headline));
+        out.append(list(c.rows));
+        out.append(el("p", "Nothing was scored.", "season-subline"));
+      }
       out.hidden = false;
     }
 
@@ -955,6 +1021,7 @@
   }
 
   return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, STARTERS_ONLY, coverageText,
+    blockedStatus, slotName, caveatText,
     contextLines, evidenceLines, rosValueLines, COPY, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init, batch, _reset,
     gradeLabel, pickHorizon, stratumOf, lopsidedMeasure, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
 });
