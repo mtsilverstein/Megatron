@@ -35,7 +35,8 @@ async function sub(name, fn) { try { await fn(); n++; } catch (e) { e.message = 
 
 const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.";
 const BEST_BALL = "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.";
-const NO_EVIDENCE = "No measured evaluation for your league's scoring and this model.";
+const NO_EVIDENCE = "Your league's scoring is applied; its accuracy has not been measured.";
+const NOT_MEASURED = "not measured for your league's scoring.";
 const AGG = "sum of weekly medians through NFL week 17, not a season median";
 const HORIZON = "through NFL week 17, regardless of your league's schedule";
 const GATE = "Enter your Sleeper username, or choose a team to view.";
@@ -86,7 +87,7 @@ check("scenarioText: headline, subline, sides and assumptions; no future-pick li
 check("no forbidden word leaves the text builders outside the two allowed sentences", () => {
   const t = M.scenarioText(result, ctx);
   const c = M.coverageText(Object.assign(new Error("Projection coverage blocked: 1 players, 2 player-weeks."), { name: "ProjectionCoverageError", coverageIssues: [{ id: "x", name: "X", week: 3, reason: "unknown is not zero (no_observed_history)" }, { id: "x", name: "X", week: 4, reason: "unknown is not zero (no_observed_history)" }] }));
-  const all = [t.subline, ...t.sides.flatMap(s => Object.values(s)), ...t.assumptions, c.headline, ...c.rows, ...M.contextLines({ format: { text: "Format: not in the format test" }, view: { disclosures: { banner: null, footnotes: [] } } })];
+  const all = [t.subline, ...t.sides.flatMap(s => Object.values(s)), ...t.assumptions, c.headline, ...c.rows, ...M.contextLines({ format: { text: "Scored with your league's own settings. Accuracy for this exact format has not been measured." }, view: { disclosures: { banner: null, footnotes: [] } } })];
   const scrubbed = all.map(s => M.ALLOWED_SENTENCES.reduce((x, a) => x.split(a).join(""), s)).join("\n").toLowerCase();
   for (const w of M.FORBIDDEN) assert.ok(!scrubbed.includes(w), `forbidden word "${w}" in: ${scrubbed}`);
   assert.equal(c.headline, "Comparison blocked: 1 player(s), 2 player-week(s) without a projection");
@@ -154,6 +155,47 @@ check("lineupSummary: nothing changes -> one sentence, then each side's never-st
   ]);
   assert.match(M.STARTERS_ONLY, /^These totals count starting lineups only: a bench player adds points only in weeks he starts .* Cover for injuries you have not entered is not counted\.$/);
 });
+// 2026-11-13: a slot no player fills is the engine's empty row ({id: null, name: "nobody", empty: true}); the page names
+// the slot, never a player called "nobody", and says slot codes in words.
+check("slotName: readable lineup slot names; QB/RB/WR/TE stay as they are", () => {
+  assert.deepEqual(["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "WRRB_FLEX", "REC_FLEX"].map(M.slotName),
+    ["QB", "RB", "WR", "TE", "flex", "superflex", "RB/WR flex", "WR/TE flex"]);
+});
+check("caveatText: the engine's You/They and slot code become the team names and the readable slot", () => {
+  const teams = { You: "Team 1", They: "Team 2" };
+  assert.equal(M.caveatText("You has no SUPER_FLEX to start after this trade: assumes they add Q One (QB), the best free agent available for it. The roster spot this needs is not modeled.", teams),
+    "Team 1 has no superflex to start after this trade: assumes they add Q One (QB), the best free agent available for it. The roster spot this needs is not modeled.");
+  assert.equal(M.caveatText("They would have no REC_FLEX to start in week(s) 4, 5: counted as 0, and no free agent with a projection is available for it.", teams),
+    "Team 2 would have no WR/TE flex to start in week(s) 4, 5: counted as 0, and no free agent with a projection is available for it.");
+  assert.equal(M.caveatText("They has no QB to start now: assumes they add Q One (QB), the best free agent available for it. The roster spot this needs is not modeled.", teams),
+    "Team 2 has no QB to start now: assumes they add Q One (QB), the best free agent available for it. The roster spot this needs is not modeled.");
+  assert.equal(M.caveatText("No projection for D Deep in 3 week(s): counted as 0.", teams), "No projection for D Deep in 3 week(s): counted as 0.");
+});
+check("lineupSummary: an empty starting slot is named as a slot, never as a player called nobody", () => {
+  const NOBODY = slot => ({ id: null, name: "nobody", position: null, points: 0, status: "empty", slot, empty: true });
+  const A = P("a", "A Name", "QB"), T = P("t", "T Name", "TE"), E = P("e", "E Name", "QB"), D = P("d", "D Name", "WR"), F = P("f", "F Name", "FLEX");
+  const move = (before, after) => M.lineupSummary({ weeks: [{ week: 4, sides: [{ rosterId: 1, before: { total: 20, lineup: before }, after: { total: 9, lineup: after }, delta: -11 },
+    { rosterId: 2, before: { total: 0, lineup: [] }, after: { total: 0, lineup: [] }, delta: 0 }] }], sides: [{ rosterId: 1, delta: -11 }, { rosterId: 2, delta: 0 }] },
+    { names: { 1: "Team 1", 2: "Team 2" }, firstWeek: 4, endWeek: 4 })[0].replace(/^Your lineup: −11\.0 pts over weeks 4–4\. All of it is week 4: /, "");
+  assert.equal(move([A, T], [E, NOBODY("TE")]), "E Name starts and the TE slot stays empty, instead of A Name and T Name.");
+  assert.equal(move([A, D, F], [E, NOBODY("WR"), NOBODY("FLEX")]), "E Name starts and the WR and flex slots stay empty, instead of A Name, D Name and F Name.");
+  assert.equal(move([A, T], [NOBODY("QB"), T]), "the QB slot stays empty, instead of A Name.");
+  assert.equal(move([NOBODY("QB"), T], [E, T]), "E Name starts instead of an empty QB slot.");
+  // Empty rows are matched by slot, not by their shared null id: one empty slot swapped for another is still a change.
+  assert.equal(move([NOBODY("QB"), T], [E, NOBODY("TE")]), "E Name starts and the TE slot stays empty, instead of T Name and an empty QB slot.");
+  assert.equal(M.lineupSummary({ weeks: [{ week: 4, sides: [{ rosterId: 1, before: { total: 5, lineup: [A, NOBODY("TE")] }, after: { total: 5, lineup: [A, NOBODY("TE")] }, delta: 0 },
+    { rosterId: 2, before: { total: 0, lineup: [] }, after: { total: 0, lineup: [] }, delta: 0 }] }], sides: [{ rosterId: 1, delta: 0 }, { rosterId: 2, delta: 0 }] },
+    { names: {}, firstWeek: 4, endWeek: 4 })[0], "No change to either starting lineup in weeks 4–4 under these assumptions.", "the same empty slot before and after is no change");
+});
+check("blockedStatus: the status line carries why the comparison was blocked, not a bare 'comparison blocked'", () => {
+  const issues = [{ id: "x", name: "X", week: 3, reason: "r" }, { id: "x", name: "X", week: 4, reason: "r" }];
+  assert.equal(M.blockedStatus(Object.assign(new Error("Projection coverage blocked: 1 players, 2 player-weeks. r"), { coverageIssues: issues })),
+    "Comparison blocked: 1 player(s), 2 player-week(s) without a projection");
+  const traded = Object.assign(new Error("No projection for X in 2 week(s): a traded player cannot be counted as 0. Remove that player from the offer to compare the rest."),
+    { coverageIssues: issues, tradedWithoutProjection: ["X"] });
+  assert.equal(M.blockedStatus(traded), `Comparison blocked: ${traded.message}`, "a traded player: the engine's message, which says what to do");
+  assert.equal(M.blockedStatus(new Error("Roster snapshot stale or invalid; reload")), "Comparison blocked: Roster snapshot stale or invalid; reload");
+});
 check("the v1 simulation gate is gone (spec §6.2): no evalView/gateOpen; the measured-method helpers stay pure", () => {
   assert.equal(M.evalView, undefined); assert.equal(M.gateOpen, undefined);
   for (const f of ["gradeLabel", "pickHorizon", "stratumOf", "lopsidedMeasure", "errorFor", "gradeText", "marketText", "startCounts"]) assert.equal(typeof M[f], "function", f);
@@ -167,22 +209,24 @@ check("COPY strings are the plan's exact copy", () => {
   assert.equal(M.COPY.simulationOff, SIM_OFF);
   assert.equal(M.COPY.bestBall, BEST_BALL);
   assert.equal(M.COPY.noEvidence, NO_EVIDENCE);
+  assert.equal(M.COPY.notMeasured, NOT_MEASURED);
+  assert.equal(M.COPY.noProjection, "No projection: can't be included in a comparison.");
   assert.equal(M.COPY.aggregation, AGG);
   assert.equal(M.COPY.horizon, HORIZON);
 });
 check("contextLines: format line, banner, footnotes, the aggregation label and the simulation note, in that order", () => {
-  const view = { disclosures: { banner: "Your league also scores first downs, which these projections leave out; rankings may be off for your league.", footnotes: ["Pick-sixes use an average rate, not a forecast.", "Not projected: pass_2pt (rare events)."] } };
-  assert.deepEqual(M.contextLines({ format: { text: "Format: not in the format test" }, view }), [
-    "Format: not in the format test", view.disclosures.banner, ...view.disclosures.footnotes,
+  const view = { disclosures: { banner: "Your league also scores first downs, which these projections leave out; rankings may be off for your league.", footnotes: ["Pick-sixes use an average rate, not a forecast.", "Not projected: two-point conversions (rare events)."] } };
+  assert.deepEqual(M.contextLines({ format: { text: "Scored with your league's own settings. Accuracy for this exact format has not been measured." }, view }), [
+    "Scored with your league's own settings. Accuracy for this exact format has not been measured.", view.disclosures.banner, ...view.disclosures.footnotes,
     `Lineup totals. Horizon: ${HORIZON}. Totals: ${AGG}.`, SIM_OFF]);
-  assert.deepEqual(M.contextLines({ format: { text: "Best ball — not eligible for the format test" }, view: { disclosures: { banner: null, footnotes: [] } } }),
-    ["Best ball — not eligible for the format test", `Lineup totals. Horizon: ${HORIZON}. Totals: ${AGG}.`, SIM_OFF]);
+  assert.deepEqual(M.contextLines({ format: { text: "Scored with your league's own settings. Best-ball leagues are not part of the accuracy measurement." }, view: { disclosures: { banner: null, footnotes: [] } } }),
+    ["Scored with your league's own settings. Best-ball leagues are not part of the accuracy measurement.", `Lineup totals. Horizon: ${HORIZON}. Totals: ${AGG}.`, SIM_OFF]);
 });
 const EVAL_DOC = require("./fixtures/neutral_evaluation.json");
 check("evidenceLines: the fallback unless a rest-of-season record binds to the live lens and the current method", () => {
   const lens = LL.classify({ rec: 1 });
-  assert.deepEqual(M.evidenceLines(null, { lens, method: null }), [`Rest-of-season accuracy: ${NO_EVIDENCE}`]);
-  assert.deepEqual(M.evidenceLines(EVAL_DOC, { lens, method: null }), [`Rest-of-season accuracy: ${NO_EVIDENCE}`], "a null method never binds");
+  assert.deepEqual(M.evidenceLines(null, { lens, method: null }), [`Rest-of-season accuracy: ${NOT_MEASURED}`]);
+  assert.deepEqual(M.evidenceLines(EVAL_DOC, { lens, method: null }), [`Rest-of-season accuracy: ${NOT_MEASURED}`], "a null method never binds");
   const rec = EVAL_DOC.records.find(r => r.metric === "rest_of_season_points_mae");
   assert.ok(rec, "the fixture carries a rest-of-season record");
   const method = { v: 2, model: "transformer", checkpoints: [{ path: "models/transformer/v1/through2025/model.pt", sha256: "b".repeat(64) }], artifacts: ["models/transformer/v1"], ensemble: "mean_of_seed_quantiles", band_construction: "sign_coherent_v1",
@@ -191,8 +235,8 @@ check("evidenceLines: the fallback unless a rest-of-season record binds to the l
   const lines = M.evidenceLines(bound, { lens, method });
   assert.equal(lines[0], "Rest-of-season accuracy, measured under this league's scoring and this model:");
   assert.ok(lines.length > 1 && lines.slice(1).every(l => /weeks? ahead: model MAE/.test(l)), lines.join(" | "));
-  assert.deepEqual(M.evidenceLines(bound, { lens: LL.classify({ rec: 0.5 }), method }), [`Rest-of-season accuracy: ${NO_EVIDENCE}`], "other scoring: fallback");
-  assert.deepEqual(M.evidenceLines(bound, { lens, method: { ...method, model: "xgboost" } }), [`Rest-of-season accuracy: ${NO_EVIDENCE}`], "other method: fallback");
+  assert.deepEqual(M.evidenceLines(bound, { lens: LL.classify({ rec: 0.5 }), method }), [`Rest-of-season accuracy: ${NOT_MEASURED}`], "other scoring: fallback");
+  assert.deepEqual(M.evidenceLines(bound, { lens, method: { ...method, model: "xgboost" } }), [`Rest-of-season accuracy: ${NOT_MEASURED}`], "other method: fallback");
 });
 check("rosValueLines: each active skill player's rest-of-season value with the aggregation label; unknown is not zero", () => {
   const board = { players: [{ sleeper_id: "a", name: "A Back", position: "RB", ros_value: 41.25 }, { sleeper_id: "b", name: "B Wide", position: "WR", ros_value: null }] };
@@ -445,7 +489,7 @@ async function ownerFlow() {
     assert.ok(!els.result.children.some(x => x.className === "season-grade"));
     const details = els.result.children.filter(x => x.tagName === "details");
     assert.deepEqual(details.map(d => d.children[0].textContent), ["Week-by-week lineup totals", "Assumptions", "Engine notes", "Measured evaluation"]);
-    assert.equal(text(details[3]).split("\n").slice(1).join("\n"), `Rest-of-season accuracy: ${NO_EVIDENCE}`);
+    assert.equal(text(details[3]).split("\n").slice(1).join("\n"), `Rest-of-season accuracy: ${NOT_MEASURED}`);
     assert.ok(!/Not valued: picks/.test(text(els.result)));
     assert.equal(els.status.textContent, "lineups compared for weeks 4–6");
   });
@@ -566,13 +610,105 @@ async function reviewFocus1() {
   assert.equal(summary.className, "season-summary");
   const notes = summary.children.filter(x => x.className === "season-summary-note").map(x => x.textContent);
   assert.deepEqual(notes, ["No projection for D Deep in 3 week(s): counted as 0.", M.STARTERS_ONLY], "the caveat is visible in the summary, before the starters-only note");
-  // In the offer, he still blocks the comparison, by name.
+  // In the offer, he still blocks the comparison, by name: the status line and the result say only the engine's
+  // message (it names him and says what to do), not one row per player-week.
   tickPlayer(els.mine, "d");
   await clickCompare(els, () => !els.result.hidden && analyzeErrors.length === 1, "the blocked comparison");
-  assert.equal(els.status.textContent, "comparison blocked");
-  assert.match(text(els.result.children[0]), /^Comparison blocked: 1 player\(s\), 3 player-week\(s\) without a projection$/);
-  assert.ok(text(els.result).includes("D Deep · week 4 · Missing projection or current-team mismatch: D Deep"));
-  assert.ok(text(els.result).includes("Nothing was scored. No projection for D Deep in 3 week(s): a traded player cannot be counted as 0. Remove that player from the offer to compare the rest."), "never scored for his old team");
+  const MSG = "No projection for D Deep in 3 week(s): a traded player cannot be counted as 0. Remove that player from the offer to compare the rest.";
+  assert.equal(analyzeErrors[0].message, MSG, "never scored for his old team");
+  assert.equal(els.status.textContent, `Comparison blocked: ${MSG}`);
+  assert.equal(text(els.result.children[0]), "Comparison blocked");
+  assert.deepEqual(els.result.children.slice(1).map(x => x.textContent), [MSG]);
+  assert.ok(!els.result.children.some(x => x.tagName === "ul") && !/week 4 ·/.test(text(els.result)), text(els.result));
+}
+
+// The outcome of Compare lineups renders below both roster lists, so it is brought into view (no motion when the reader
+// prefers less), and the status line says why a comparison was blocked. E Slot (not traded) is missing from the
+// catalog, so the engine refuses the comparison with a coverage error.
+async function blockedFlow() {
+  fresh(); statics = makeStatics(); routes = baseRoutes(); league = baseLeague; state = { season: "2026", season_type: "regular", week: 3 };
+  catalog = baseCatalog(); delete catalog.e;
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await Session.identify("user_a");
+  await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
+  const scrolls = [];
+  els.result.scrollIntoView = opts => scrolls.push(opts);
+  let reduce = true;
+  window.matchMedia = q => ({ matches: reduce && q === "(prefers-reduced-motion: reduce)" });
+  try {
+    tickPlayer(els.mine, "a"); tickPlayer(els.theirs, "c");
+    await clickCompare(els, () => !els.result.hidden && analyzeErrors.length === 1, "the blocked comparison");
+    assert.equal(els.status.textContent, "Comparison blocked: 1 player(s), 3 player-week(s) without a projection");
+    assert.equal(text(els.result.children[0]), "Comparison blocked: 1 player(s), 3 player-week(s) without a projection");
+    assert.ok(text(els.result).includes("e · week 4 · Catalog identity missing"), text(els.result));
+    assert.deepEqual(scrolls, [{ block: "start", behavior: "auto" }], "reduced motion: no smooth scroll");
+    reduce = false;
+    await clickCompare(els, () => analyzeErrors.length === 2 && !els.result.hidden && scrolls.length === 2, "the second blocked comparison");
+    assert.deepEqual(scrolls[1], { block: "start", behavior: "smooth" });
+  } finally { delete window.matchMedia; }
+}
+
+// A skill player the comparison cannot price is listed but cannot be ticked: U is not in the view's scorable mapping,
+// V's projection has no week-5 row. The engine would refuse any offer with either; off the offer they count as 0.
+async function unpriceableFlow() {
+  fresh(); statics = makeStatics({ people: [...PEOPLE, ["v", "00-0000008", "WR", "V Gap", 1, 10]] });
+  const vRem = statics["data/neutral/remaining.json"].players.find(p => p.player_id === "00-0000008");
+  vRem.weeks = vRem.weeks.filter(w => w.week !== 5);
+  routes = baseRoutes();
+  routes[`/league/${L}/rosters`] = () => rosters.map(r => (r.roster_id === 9 ? { ...r, players: [...r.players, "u", "v"] } : { ...r }));
+  league = baseLeague; state = { season: "2026", season_type: "regular", week: 3 };
+  catalog = baseCatalog();
+  catalog.u = { position: "RB", full_name: "U Nmapped", team: "X" };
+  catalog.v = { position: "WR", full_name: "V Gap", team: "X", gsis_id: "00-0000008" };
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await Session.identify("user_a");
+  await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
+  for (const id of ["u", "v"]) {
+    const li = els.mine.children.find(x => x.dataset.id === id);
+    assert.ok(/season-disabled/.test(li.className), `${id}: ${li.className}`);
+    assert.equal(li.children[0].children[0].disabled, true, `${id}: the checkbox is disabled`);
+    assert.deepEqual(li.children.filter(x => x.className === "trade-why").map(x => x.textContent), [M.COPY.noProjection]);
+    tickPlayer(els.mine, id);
+  }
+  assert.equal(els.compare.disabled, true, "nothing selectable was ticked");
+  const k = els.mine.children.find(x => x.dataset.id === "k");
+  assert.ok(/no modeled points/.test(text(k)) && !text(k).includes(M.COPY.noProjection), "a kicker keeps his own note");
+  tickPlayer(els.mine, "a"); tickPlayer(els.theirs, "c");
+  await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, "the comparison beside the unpriced players");
+  assert.deepEqual(analyzeCalls[0].give, ["a"]);
+  const notes = els.result.children[0].children.filter(x => x.className === "season-summary-note").map(x => x.textContent);
+  for (const n of ["No projection for U Nmapped in 3 week(s): counted as 0.", "No projection for V Gap in 1 week(s): counted as 0."]) assert.ok(notes.includes(n), notes.join(" | "));
+}
+
+// A roster left with no player for a starting slot and no free agent for it: the slot is named in words ("flex", not
+// FLEX), and the summary says the slot stays empty instead of naming a player "nobody". G Free is the only free agent.
+async function emptySlotFlow() {
+  fresh(); statics = makeStatics({ people: [...PEOPLE, ["g", "00-0000007", "RB", "G Free", 5, 70]] }); routes = baseRoutes(); league = baseLeague;
+  state = { season: "2026", season_type: "regular", week: 3 };
+  catalog = baseCatalog(); catalog.g = { position: "RB", full_name: "G Free", team: "X", gsis_id: "00-0000007" };
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await Session.identify("user_a");
+  await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
+  const scrolls = [];
+  els.result.scrollIntoView = opts => scrolls.push(opts);     // no matchMedia here: the guard reads it as no preference
+  for (const id of ["a", "d", "e"]) tickPlayer(els.mine, id);  // User A gives every skill player and gets nobody
+  await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, "the comparison that leaves slots empty");
+  assert.equal(analyzeErrors.length, 0);
+  const lines = els.result.children[0].children.map(x => x.textContent);
+  assert.deepEqual(lines.filter((x, i) => els.result.children[0].children[i].className === "season-summary-note"), [
+    "User A has no RB to start after this trade: assumes they add G Free (RB), the best free agent available for it. The roster spot this needs is not modeled.",
+    "User A would have no WR to start in week(s) 4, 5, 6: counted as 0, and no free agent with a projection is available for it.",
+    "User A would have no flex to start in week(s) 4, 5, 6: counted as 0, and no free agent with a projection is available for it.",
+    M.STARTERS_ONLY]);
+  assert.ok(lines[0].includes(": G Free starts and the WR and flex slots stay empty, instead of A Back, D Deep and E Slot"), lines[0]);
+  assert.ok(!/\bnobody\b/.test(text(els.result)) && !/FLEX/.test(text(els.result)), text(els.result));
+  assert.deepEqual(scrolls, [{ block: "start", behavior: "smooth" }], "a finished comparison is brought into view");
 }
 
 // A slot a roster cannot fill (owner decision 2026-11-13): the engine's free-agent caveats reach the summary with the
@@ -634,7 +770,7 @@ async function bestBall() {
   assert.equal(lines[0], BEST_BALL);
   assert.equal(lines[1], `Rest-of-season values. Horizon: ${HORIZON}. Totals: ${AGG}.`);
   assert.ok(lines.some(l => /^A Back · RB · \d+\.\d\d$/.test(l)), lines.join(" | "));
-  assert.ok(els.context.children.some(x => x.textContent === "Best ball — not eligible for the format test"));
+  assert.ok(els.context.children.some(x => x.textContent === "Scored with your league's own settings. Best-ball leagues are not part of the accuracy measurement."));
   assert.ok(els.context.children.some(x => x.textContent === SIM_OFF));
   assert.equal(analyzeCalls.length, 0, "no lineup comparison for best ball");
   assert.equal(els.status.textContent, "2 teams loaded — you are User A");
@@ -886,6 +1022,9 @@ async function pageRollover() {
   await sub("over the roster limit: inline Drop buttons in the team's own column, no second roster list", dropFlow);
   await sub("Review Focus 1 / A6-3: a player traded after the batch counts as 0 off the offer (named caveat) and blocks the comparison by name in it", reviewFocus1);
   await sub("an unfillable starting slot: the free-agent pickup and the counted-as-0 slot are named on the page with the team names", pickupFlow);
+  await sub("a blocked comparison: the status says why, the outcome is brought into view (reduced motion respected)", blockedFlow);
+  await sub("a skill player without a usable projection is listed disabled with the note and cannot be ticked", unpriceableFlow);
+  await sub("slots left empty: readable slot names, and the summary names the empty slot, not a player called nobody", emptySlotFlow);
   await sub("viewer flow: Viewing {team}, reworded columns, the viewer's comparison, then the owner identifies", viewerFlow);
   await sub("best ball: projections and rest-of-season values only, with the note", bestBall);
   await sub("an unknown starting slot: the note, no lineup comparison", unknownSlot);

@@ -22,7 +22,8 @@
 (function () {
   "use strict";
   const BEST_BALL = "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.";
-  const NO_EVIDENCE = "No measured evaluation for your league's scoring and this model.";
+  // The evidence fallback after its label ("Close calls: ...", the footer's "Band calibration: ...").
+  const NOT_MEASURED = "not measured for your league's scoring.";
   const HEURISTIC = n => `${n}-point threshold in your league's points (a heuristic)`;
   const STALE_MS = 60000;   // rosters older than this (from the post-fetch time) are marked stale
   const STALE_STATUS = " Rosters are over a minute old; use Refresh rosters above the plan before acting on it.";
@@ -102,10 +103,10 @@
         const r=rec("start_sit_close_calls"), acc=r&&r.values&&r.values.overall&&r.values.overall.choice_accuracy;
         close.textContent=Number.isFinite(acc)
           ? `Close calls: ${(acc*100).toFixed(1)}% correct on same-position, played-player pairs within 3 projected points (both projected ≥5), measured under this league's scoring and this model. Not a roster, cross-position FLEX or expert-comparison backtest. Tiny differences are weak leans.`
-          : `Close calls: ${NO_EVIDENCE} Tiny differences are weak leans.`;
+          : `Close calls: ${NOT_MEASURED} Tiny differences are weak leans.`;
       }
       // No calibration evidence record exists yet (src/ffmodel/site/evidence_records.py docstring, item 3).
-      if(band)band.textContent=NO_EVIDENCE;
+      if(band)band.textContent=NOT_MEASURED;
     }
     const who=s=>s.world.role==="viewer"?`Viewing ${S.teamName(s.world.users,s.roster)}`:`Read-only roster ${s.world.rosterId}`;
     function stamps(s){

@@ -45,7 +45,7 @@
     </div>
     <p id="ss-status" role="status">The plan loads from the league panel above: enter your Sleeper username, or choose a team to view. The projections below remain independent of this plan.</p>
     <details id="ss-exclude-panel" hidden><summary>Manually exclude unavailable players</summary><p>Use current injury information. Excluding someone is not a recommendation to drop them. Game-started slots cannot be changed. Exclusions are kept when you refresh this team's rosters; reload the page to clear them and refresh the cached injury catalog.</p><div id="ss-exclude"></div></details>
-    <p id="ss-evidence">Close calls: No measured evaluation for your league's scoring and this model. Tiny differences are weak leans.</p>
+    <p id="ss-evidence">Close calls: not measured for your league's scoring. Tiny differences are weak leans.</p>
     <p id="ss-stale" hidden><span id="ss-stale-text"></span> <button type="button" id="ss-stale-refresh">Refresh rosters</button></p>
     <div id="ss-output" class="table-wrap"></div>
   </section>
@@ -73,7 +73,7 @@
 </main>
 <footer>Floor and ceiling combine the model's stat-line quantiles sign-coherently
 (sign-coherent component bands; not calibrated coverage for custom scoring).
-Band calibration: <span id="band-evidence">No measured evaluation for your league's scoring and this model.</span>
+Band calibration: <span id="band-evidence">not measured for your league's scoring.</span>
 These marginal bands are not matchup win probabilities; choosing by floor or ceiling is not a validated strategy.
 In the historical 2023–25 PPR benchmark, the model ranked matched players who
 played after the scrape less accurately within position than FantasyPros

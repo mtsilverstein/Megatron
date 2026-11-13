@@ -358,13 +358,13 @@ const sqFrom = (stats, order = STATS) => {
   // ---- format line ---------------------------------------------------------------
   {
     const F = FORMATS_DOC.formats;
-    const NOT = "Format: not in the format test";
+    const NOT = "Scored with your league's own settings. Accuracy for this exact format has not been measured.";
     assert.deepStrictEqual(await LD.formatLine(GAB, F),
-      { text: "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format test (results January 2027)", inTest: true, eligible: true });
+      { text: "Scored with your league's own settings (12-team 1QB PPR, 6-pt pass TD). This format's accuracy is being measured this season; results in January 2027.", inTest: true, eligible: true });
     assert.deepStrictEqual(await LD.formatLine(LEAGUES.owner10_like, F),
-      { text: "Format: 10-team 1QB PPR, 6-pt pass TD — in the 2026 format test (results January 2027)", inTest: true, eligible: true });
+      { text: "Scored with your league's own settings (10-team 1QB PPR, 6-pt pass TD). This format's accuracy is being measured this season; results in January 2027.", inTest: true, eligible: true });
     assert.deepStrictEqual(await LD.formatLine(LEAGUES.te_premium, F), { text: NOT, inTest: false, eligible: true });
-    assert.deepStrictEqual(await LD.formatLine(LEAGUES.best_ball, F), { text: "Best ball — not eligible for the format test", inTest: false, eligible: false });
+    assert.deepStrictEqual(await LD.formatLine(LEAGUES.best_ball, F), { text: "Scored with your league's own settings. Best-ball leagues are not part of the accuracy measurement.", inTest: false, eligible: false });
     assert.deepStrictEqual(await LD.formatLine(LEAGUES.idp, F), { text: NOT, inTest: false, eligible: false });
     assert.deepStrictEqual(await LD.formatLine(LEAGUES.weird_slot, F), { text: NOT, inTest: false, eligible: false });
     assert.deepStrictEqual(await LD.formatLine(LEAGUES.type_9, F), { text: "This league type isn't supported yet.", inTest: false, eligible: false });
