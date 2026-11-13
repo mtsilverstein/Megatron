@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 10,
   "data_through": "2026-wk9",
-  "generated_at": "2026-11-12T22:47:43+00:00",
-  "batch_id": "2026-11-12T22:47:43+00:00|2026-wk9|w10",
+  "generated_at": "2026-11-13T13:15:03+00:00",
+  "batch_id": "2026-11-13T13:15:03+00:00|2026-wk9|w10",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -12,8 +12,8 @@
     "scoring": "PPR"
   },
   "crosswalk": {
-    "matched_gsis": 131,
-    "matched_name": 508,
+    "matched_gsis": 133,
+    "matched_name": 510,
     "unmatched": 11
   },
   "players": [
@@ -37,6 +37,18 @@
       "position": "QB",
       "bye": 6,
       "ecr": 390,
+      "identity_only": false,
+      "reason": null,
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0026300",
+      "sleeper_id": "260",
+      "name": "Josh Johnson",
+      "team": "ARI",
+      "position": "QB",
+      "bye": 14,
+      "ecr": null,
       "identity_only": false,
       "reason": null,
       "match": "gsis"
@@ -282,6 +294,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0032208",
+      "sleeper_id": "2334",
+      "name": "Phillip Dorsett II",
+      "team": "ARI",
+      "position": null,
+      "bye": 14,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "no_projection",
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0032268",
       "sleeper_id": "2307",
       "name": "Marcus Mariota",
@@ -315,6 +339,18 @@
       "ecr": 420,
       "identity_only": false,
       "reason": null,
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0032394",
+      "sleeper_id": "3258",
+      "name": "Nick Vannett",
+      "team": "BAL",
+      "position": null,
+      "bye": 13,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "no_projection",
       "match": "gsis"
     },
     {
@@ -624,6 +660,18 @@
       "team": "SEA",
       "position": "TE",
       "bye": 11,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "gsis"
+    },
+    {
+      "player_id": "00-0033589",
+      "sleeper_id": "4274",
+      "name": "David Moore",
+      "team": "CAR",
+      "position": "WR",
+      "bye": 5,
       "ecr": null,
       "identity_only": false,
       "reason": null,
@@ -1443,18 +1491,6 @@
       "ecr": null,
       "identity_only": false,
       "reason": null,
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0035589",
-      "sleeper_id": "6045",
-      "name": "Gary Jennings",
-      "team": "LAC",
-      "position": null,
-      "bye": 7,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
       "match": "gsis"
     },
     {
@@ -4002,18 +4038,6 @@
       "match": "name"
     },
     {
-      "player_id": "00-0038519",
-      "sleeper_id": "11320",
-      "name": "Nikko Remigio",
-      "team": "KC",
-      "position": "WR",
-      "bye": 5,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "name"
-    },
-    {
       "player_id": "00-0038542",
       "sleeper_id": "9509",
       "name": "Bijan Robinson",
@@ -4072,6 +4096,18 @@
       "identity_only": true,
       "reason": "no_projection",
       "match": null
+    },
+    {
+      "player_id": "00-0038551",
+      "sleeper_id": "9757",
+      "name": "Kendre Miller",
+      "team": "DAL",
+      "position": "RB",
+      "bye": 14,
+      "ecr": 277,
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0038555",
@@ -6918,6 +6954,18 @@
       "match": null
     },
     {
+      "player_id": "00-0040390",
+      "sleeper_id": "12938",
+      "name": "Jackson Meeks",
+      "team": "DET",
+      "position": "TE",
+      "bye": 6,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
+    },
+    {
       "player_id": "00-0040392",
       "sleeper_id": null,
       "name": null,
@@ -8730,6 +8778,18 @@
       "match": null
     },
     {
+      "player_id": "00-0041139",
+      "sleeper_id": null,
+      "name": null,
+      "team": "MIN",
+      "position": null,
+      "bye": 6,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "no_projection",
+      "match": null
+    },
+    {
       "player_id": "00-0041149",
       "sleeper_id": null,
       "name": null,
@@ -9100,6 +9160,18 @@
       "identity_only": true,
       "reason": "no_projection",
       "match": null
+    },
+    {
+      "player_id": "00-0041314",
+      "sleeper_id": "13827",
+      "name": "Tanner Arkin",
+      "team": "NE",
+      "position": "TE",
+      "bye": 11,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041317",
