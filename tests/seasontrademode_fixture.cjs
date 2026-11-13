@@ -267,7 +267,7 @@ check("sources: no traded_picks, future picks, gate file or simulation in the co
   assert.deepEqual([...at].sort((a, b) => a - b), at, `trade.html: ${ORDER.join(" -> ")} in order`);
   assert.ok(srcs.indexOf("ros.js") < srcs.indexOf("seasontrade.js") && srcs.indexOf("rostersim.js") < srcs.indexOf("seasontrade.js"), "the frozen method's modules still load before the engine");
   assert.ok(!srcs.includes("waiverintel.js"), "the ROS market check left with the grade");
-  assert.ok(/seasontrademode\.js\?v=audit1/.test(html) && /seasontrade\.js\?v=fu2/.test(html) && /lineup\.js\?v=3/.test(html), "cache keys bumped");
+  assert.ok(/seasontrademode\.js\?v=lf1/.test(html) && /seasontrade\.js\?v=lf1/.test(html) && /lineup\.js\?v=3/.test(html), "cache keys bumped");
   assert.ok(/id="season-context"/.test(html), "the context lines have a home on the page");
 });
 
