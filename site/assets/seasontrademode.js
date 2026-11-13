@@ -866,8 +866,11 @@
       const received = [receive.map(String), give.map(String)];   // side 0 is the analysed roster: it gets `receive`
       const playerNameOf = id => playerNamesAll[String(id)] || String(id);
       for (const line of lineupSummary(result, { names, ownLabel, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week, received, playerName: playerNameOf })) summary.append(el("p", line));
-      // Rostered players without a projection, counted as 0 (engine caveats, audit A6-3).
-      for (const c of result.caveats || []) summary.append(el("p", c, "season-summary-note"));
+      // Engine caveats: rostered players without a projection, counted as 0 (audit A6-3), and a starting slot a roster
+      // cannot fill, taken by a free agent (result.pickups) or left at 0. The engine calls the first team "You" and the
+      // second "They"; the page names them.
+      const teamOf = { You: names[result.sides[0].rosterId], They: names[result.sides[1].rosterId] };
+      for (const c of result.caveats || []) summary.append(el("p", c.replace(/^(You|They)(?= (?:has|would have) no )/, w => teamOf[w]), "season-summary-note"));
       summary.append(el("p", STARTERS_ONLY, "season-summary-note"));
       out.append(summary);
       // Everything after the totals is collapsible detail; nothing is removed.

@@ -318,21 +318,21 @@ const PEOPLE = [["a", "00-0000001", "RB", "A Back", 4, 60], ["d", "00-0000004", 
   ["b", "00-0000002", "WR", "B Wide", 6, 80], ["c", "00-0000003", "RB", "C Run", 3, 40], ["f", "00-0000006", "RB", "F Flex", 2, 10]];
 const sqOf = (rec, yds) => { const o = f => Object.fromEntries(STATS.map(s => [s, s === "receptions" ? rec * f : s === "receiving_yards" ? yds * f : 0])); return { p10: o(0.5), p50: o(1), p90: o(1.5) }; };
 const vecOf = (rec, yds, f) => STATS.map(s => s === "receptions" ? rec * f : s === "receiving_yards" ? yds * f : 0);
-function makeStatics({ week = 3, noWeeks = false, lastWeek = 6 } = {}) {
+function makeStatics({ week = 3, noWeeks = false, lastWeek = 6, people = PEOPLE } = {}) {
   const HDR = { season: 2026, week, data_through: `2026-wk${week - 1}`, generated_at: new Date().toISOString(), batch_id: `b-w${week}` };
   const weeks = [];
   for (let w = week; w <= lastWeek; w++) weeks.push(w);
   return {
     "data/neutral/weekly.json": { ...HDR, schema_version: 1, kind: "neutral_weekly", model: "transformer", method: METHOD,
-      players: PEOPLE.map(([sid, pid, pos, name, rec, yds]) => ({ player_id: pid, name, team: "X", opponent: "Y", position: pos, is_home: true, stat_quantiles: sqOf(rec, yds), points: { ppr: null, half_ppr: null, standard: null } })) },
+      players: people.map(([sid, pid, pos, name, rec, yds]) => ({ player_id: pid, name, team: "X", opponent: "Y", position: pos, is_home: true, stat_quantiles: sqOf(rec, yds), points: { ppr: null, half_ppr: null, standard: null } })) },
     "data/neutral/remaining.json": noWeeks
       ? { ...HDR, schema_version: 2, kind: "neutral_remaining", horizon: "remaining_season", status: "no_remaining_weeks", start_week: week, end_week: 17, model: "transformer", stat_order: STATS.slice(), players: [] }
       : { ...HDR, schema_version: 2, kind: "neutral_remaining", horizon: "remaining_season", status: "experimental", start_week: week, end_week: lastWeek, model: "transformer",
           stat_order: STATS.slice(), method: METHOD, pick_six_forecast: METHOD.prior,
-          players: PEOPLE.map(([sid, pid, pos, name, rec, yds]) => ({ player_id: pid, team: "X", position: pos, name,
+          players: people.map(([sid, pid, pos, name, rec, yds]) => ({ player_id: pid, team: "X", position: pos, name,
             weeks: weeks.map(w => sid === "b" && w === 5 ? { week: w, status: "bye", points: null } : { week: w, status: "conditional_projection", opponent: "Y", stats: [vecOf(rec, yds, 0.5), vecOf(rec, yds, 1), vecOf(rec, yds, 1.5)] }) })) },
     "data/neutral/players.json": { ...HDR, schema_version: 1, kind: "neutral_players",
-      players: PEOPLE.map(([sid, pid, pos, name]) => ({ player_id: pid, sleeper_id: sid, name, team: "X", position: pos, bye: sid === "b" ? 5 : 9, ecr: null, identity_only: false, reason: null })) },
+      players: people.map(([sid, pid, pos, name]) => ({ player_id: pid, sleeper_id: sid, name, team: "X", position: pos, bye: sid === "b" ? 5 : 9, ecr: null, identity_only: false, reason: null })) },
     "data/neutral/formats.json": { ...require("./fixtures/neutral_formats.json"), ...HDR },
     "data/neutral/evaluation.json": { ...require("./fixtures/neutral_evaluation.json"), ...HDR },
   };
@@ -573,6 +573,30 @@ async function reviewFocus1() {
   assert.match(text(els.result.children[0]), /^Comparison blocked: 1 player\(s\), 3 player-week\(s\) without a projection$/);
   assert.ok(text(els.result).includes("D Deep · week 4 · Missing projection or current-team mismatch: D Deep"));
   assert.ok(text(els.result).includes("Nothing was scored. No projection for D Deep in 3 week(s): a traded player cannot be counted as 0. Remove that player from the offer to compare the rest."), "never scored for his old team");
+}
+
+// A slot a roster cannot fill (owner decision 2026-11-13): the engine's free-agent caveats reach the summary with the
+// two team names in place of its "You"/"They". G Free is a projected RB on no roster; nobody is a free-agent WR.
+async function pickupFlow() {
+  fresh(); statics = makeStatics({ people: [...PEOPLE, ["g", "00-0000007", "RB", "G Free", 5, 70]] }); routes = baseRoutes(); league = baseLeague;
+  state = { season: "2026", season_type: "regular", week: 3 };
+  catalog = baseCatalog(); catalog.g = { position: "RB", full_name: "G Free", team: "X", gsis_id: "00-0000007" };
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await Session.identify("user_a");
+  await until(() => /teams loaded/.test(els.status.textContent), "the owner's columns");
+  // User A gives its only RB for Bo's Bunch's only WR.
+  tickPlayer(els.mine, "a"); tickPlayer(els.theirs, "b");
+  await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, "the comparison with an unfillable slot on each side");
+  assert.equal(analyzeErrors.length, 0, "never refused");
+  assert.equal(els.status.textContent, "lineups compared for weeks 4–6");
+  const notes = els.result.children[0].children.filter(x => x.className === "season-summary-note").map(x => x.textContent);
+  assert.deepEqual(notes, [
+    "User A has no RB to start after this trade: assumes they add G Free (RB), the best free agent available for it. The roster spot this needs is not modeled.",
+    "Bo's Bunch would have no WR to start in week(s) 4, 5, 6: counted as 0, and no free agent with a projection is available for it.",
+    M.STARTERS_ONLY]);
+  assert.ok(!/\b(You|They) (has|would have) no /.test(text(els.result)), "no engine placeholder left on the page");
 }
 
 async function viewerFlow() {
@@ -861,6 +885,7 @@ async function pageRollover() {
   await sub("owner flow under the real Session, LeagueData and LiveWorld", ownerFlow);
   await sub("over the roster limit: inline Drop buttons in the team's own column, no second roster list", dropFlow);
   await sub("Review Focus 1 / A6-3: a player traded after the batch counts as 0 off the offer (named caveat) and blocks the comparison by name in it", reviewFocus1);
+  await sub("an unfillable starting slot: the free-agent pickup and the counted-as-0 slot are named on the page with the team names", pickupFlow);
   await sub("viewer flow: Viewing {team}, reworded columns, the viewer's comparison, then the owner identifies", viewerFlow);
   await sub("best ball: projections and rest-of-season values only, with the note", bestBall);
   await sub("an unknown starting slot: the note, no lineup comparison", unknownSlot);

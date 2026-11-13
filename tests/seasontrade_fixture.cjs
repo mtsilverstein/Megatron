@@ -19,6 +19,17 @@ const original=clone(base);
 const groupFails=[];
 const group=(name,fn)=>{try{fn();}catch(e){e.message=`${name}: ${e.message}`;if(process.env.FIXTURE_ALL){groupFails.push(e.message.split('\n')[0]);return;}throw e;}};
 const withPos=(src,pos)=>{const x=clone(src);for(const [id,p] of Object.entries(pos)){x.catalog[id].position=p;x.remaining.players.find(q=>q.player_id==='g'+id).position=p;x.board.players.find(q=>q.sleeper_id===id).position=p;}return x;};
+// Players with a catalog entry, a board mapping and a projection, on no roster until a test puts them on one (a free
+// agent). `weeks` = the week-2 and week-3 rows: a number is a p50, null no row, any other string that row's status.
+// board:false leaves him off the board; projTeam/projPos set the projection's own team/position; the rest is catalog.
+const addPlayers=(src,list)=>{const x=clone(src);for(const {id,position,weeks,board=true,team='A',projTeam=team,projPos=position,...cat} of list){
+  x.catalog[id]={gsis_id:'g'+id,position,team,full_name:id,...cat};
+  if(board)x.board.players.push({sleeper_id:id,player_id:'g'+id,position});
+  x.remaining.players.push({player_id:'g'+id,team:projTeam,position:projPos,weeks:[2,3].flatMap((week,k)=>weeks[k]===null?[]
+    :[typeof weeks[k]==='number'?{week,status:'conditional_projection',points:{league:{p50:weeks[k]}}}:{week,status:weeks[k],points:null}])});
+}return x;};
+const PICKUP=(label,slot,when,name,pos)=>`${label} has no ${slot} to start ${when}: assumes they add ${name} (${pos}), the best free agent available for it. The roster spot this needs is not modeled.`;
+const EMPTY=(label,slot,weeks)=>`${label} would have no ${slot} to start in week(s) ${weeks}: counted as 0, and no free agent with a projection is available for it.`;
 const deltas=args=>analyze(args).sides.map(s=>s.delta);
 group('independent failures, each alone against a passing base (kept checks, spec §5.3)',()=>{
   assert.deepEqual(deltas(base),[20,-20]);
@@ -44,7 +55,11 @@ group('no published league contract: a contract-free view passes; another league
 group('WRRB_FLEX and REC_FLEX eligibility through the exact kernel',()=>{
   const wrrb=withPos(base,{b:'TE',d:'TE'});wrrb.league.roster_positions=['WRRB_FLEX','BN'];
   assert.deepEqual(deltas(wrrb),[20,-20],'RB for RB in WRRB_FLEX');
-  assert.throws(()=>analyze({...wrrb,receive:['d']}),/cannot fill required WRRB_FLEX slot/,'a TE never fills WRRB_FLEX');
+  // Two TEs leave WRRB_FLEX empty: roster 1 adds the best RB/WR free agent, never the better TE (owner decision 2026-11-13).
+  const wrrbFA=addPlayers(wrrb,[{id:'tf',position:'TE',weeks:[9,9]},{id:'wf',position:'WR',weeks:[3,3]}]);
+  const twoTE=analyze({...wrrbFA,receive:['d']});
+  assert.deepEqual(twoTE.pickups,[{rosterId:1,scenario:'after',id:'wf',name:'wf',position:'WR',slot:'WRRB_FLEX'}],'a TE never fills WRRB_FLEX');
+  assert.deepEqual(twoTE.sides.map(s=>s.delta),[-14,0],'a10 -> wf3 each week; roster 2 keeps c20');
   const rec=withPos(base,{a:'WR',c:'TE'});rec.league.roster_positions=['REC_FLEX','BN'];
   const out=analyze(rec);
   assert.deepEqual(out.weeks[0].sides.map(s=>[s.before.total,s.after.total]),[[10,20],[20,10]],'RBs b and d never start in REC_FLEX');
@@ -233,7 +248,15 @@ bad.remaining.players[0].weeks[0].status='bye';
 assert.doesNotThrow(()=>analyze(bad));
 assert.throws(()=>analyze({...base,catalog:{...catalog,a:{...catalog.a,team:'B'}}}),reasonOf(/Missing projection or current-team mismatch: a/));
 assert.throws(()=>analyze({...base,rosters:[{...base.rosters[0],reserve:['a']},base.rosters[1]]}),/non-reserve/);
-assert.throws(()=>analyze({...base,league:{...league,roster_positions:['QB','BN']}}),/cannot fill/);
+// No QB on either roster: every roster-scenario adds the same best free-agent QB (independent what-ifs), named for each.
+{
+  const noQB=analyze(addPlayers({...base,league:{...league,roster_positions:['QB','BN']}},[{id:'q1',position:'QB',weeks:[4,4],full_name:'Q One'}]));
+  const pick=(rosterId,scenario)=>({rosterId,scenario,id:'q1',name:'Q One',position:'QB',slot:'QB'});
+  assert.deepEqual(noQB.pickups,[pick(1,'before'),pick(1,'after'),pick(2,'before'),pick(2,'after')]);
+  assert.deepEqual(noQB.caveats,[PICKUP('You','QB','now','Q One','QB'),PICKUP('You','QB','after this trade','Q One','QB'),
+    PICKUP('They','QB','now','Q One','QB'),PICKUP('They','QB','after this trade','Q One','QB')]);
+  assert.deepEqual(noQB.weeks.map(w=>w.sides.map(s=>[s.before.total,s.after.total])),[[[4,4],[4,4]],[[4,4],[4,4]]]);
+}
 const flex=clone(base);
 flex.league.roster_positions=['RB','FLEX'];
 out=analyze(flex);
@@ -294,16 +317,99 @@ assert.throws(()=>analyze({...gaps,board:{...identityBoard,players:identityBoard
   assert.deepEqual(out2.sides.map(s => s.delta), [12, -16]);
   assert.throws(() => analyze({ ...two, drops: { 2: ['c'] } }), /retained owned player, not trade asset/);
 }
-// Scarce position: the only TE on a roster cannot be traded away without a replacement.
+// Scarce position: the only TE on a roster traded away is replaced by the best free-agent TE, named. Roster 2 has no
+// TE before the trade, so it adds the same free agent "now".
 {
-  const te = clone(base);
+  const te = addPlayers(base, [{ id: 'tf', position: 'TE', weeks: [3, 4] }]);
   te.league.roster_positions = ['RB', 'TE', 'BN'];
-  te.catalog = { ...catalog, t: { gsis_id: 'gt', position: 'TE', team: 'A', full_name: 't' } };
+  te.catalog = { ...te.catalog, t: { gsis_id: 'gt', position: 'TE', team: 'A', full_name: 't' } };
   te.board.players.push({ sleeper_id: 't', player_id: 'gt', position: 'TE' });
   te.rosters = [{ roster_id: 1, players: ['a', 't'] }, { roster_id: 2, players: ['c', 'd'] }];
   te.remaining.players.push({ player_id: 'gt', team: 'A', position: 'TE', weeks: [2, 3].map(week => ({ week, status: 'conditional_projection', points: { league: { p50: 7 } } })) });
   te.give = ['t']; te.receive = ['d'];
-  assert.throws(() => analyze(te), /cannot fill required TE slot/);
+  const out = analyze(te);
+  assert.deepEqual(out.pickups, [{ rosterId: 1, scenario: 'after', id: 'tf', name: 'tf', position: 'TE', slot: 'TE' }, { rosterId: 2, scenario: 'before', id: 'tf', name: 'tf', position: 'TE', slot: 'TE' }]);
+  assert.deepEqual(out.caveats, [PICKUP('You', 'TE', 'after this trade', 'tf', 'TE'), PICKUP('They', 'TE', 'now', 'tf', 'TE')]);
+  // roster 1: a10+t7=17 -> a10+tf(3,4); roster 2: c20+tf(3,4) -> c20+t7.
+  assert.deepEqual(out.weeks.map(w => w.sides.map(s => s.delta)), [[-4, 4], [-3, 3]]);
+}
+// A slot no rostered player can fill (owner decision 2026-11-13, analyze only): the roster adds the best free agent for
+// it, kept for every compared week, named in `pickups` and a caveat; with none, the slot stays empty and scores 0.
+{
+  const fails=[];
+  const b1=(name,fn)=>{try{fn();}catch(e){e.message=`${name}: ${e.message}`;if(process.env.FIXTURE_ALL){fails.push(e.message.split('\n')[0]);return;}throw e;}};
+  // a (QB 10), b (RB 5) | c (QB 20), d (RB 2); roster 1 gives its only QB and receives nothing.
+  const qb=withPos(base,{a:'QB',c:'QB'});qb.league.roster_positions=['QB','RB','BN'];qb.receive=[];
+  const E={id:'e',position:'QB',weeks:[6,6],full_name:'E Free',injury_status:'Questionable'};     // sum 12: the pick
+  const Q={id:'q',position:'QB',weeks:['bye',11]};                                                 // a bye counts 0: sum 11
+  // Each decoy outscores e; any one admitted would be the pick.
+  const DECOYS=[{id:'h',position:'QB',weeks:[15,15]},{id:'i',position:'QB',weeks:[16,16]},{id:'j',position:'QB',weeks:[17,17]},
+    {id:'k',position:'QB',weeks:[18,18],projTeam:'B'},{id:'m',position:'QB',weeks:[19,null]},{id:'n',position:'QB',weeks:[20,'unmodeled']},
+    {id:'o',position:'QB',weeks:[21,21],board:false},{id:'s',position:'QB',weeks:[22,22],gsis_id:'gzz'},{id:'v',position:'QB',weeks:[23,23],projPos:'RB'},
+    {id:'w',position:'QB',weeks:[24,24]}];                                          // his GSIS is a rostered player's (x2 on roster 3)
+  const world=list=>{
+    const x=addPlayers(qb,list);
+    // h on roster 2's reserve, i only on its taxi list, j on roster 3 (not in the trade); roster 3's x2 carries w's
+    // GSIS in the catalog and is on no board, so w is owned by GSIS, not by Sleeper id
+    x.league.total_rosters=3;
+    x.catalog.x2={gsis_id:'gw',position:'QB',team:'A',full_name:'x2'};
+    x.rosters=[x.rosters[0],{...x.rosters[1],players:['c','d','h'],reserve:['h'],taxi:['i']},{roster_id:3,players:['j','x2']}];
+    return x;
+  };
+  b1('giving away the only QB adds the highest-sum free-agent QB after the trade, named; "before" adds nobody',()=>{
+    const out=analyze(world([Q,...DECOYS,E]));
+    assert.deepEqual(out.pickups,[{rosterId:1,scenario:'after',id:'e',name:'E Free',position:'QB',slot:'QB'}]);
+    assert.deepEqual(out.caveats,[PICKUP('You','QB','after this trade','E Free','QB')]);
+    // He starts like any rostered player: roster 1 a10+b5=15 -> e6+b5=11; roster 2 keeps c20+d2.
+    assert.deepEqual(out.weeks.map(w=>w.sides.map(s=>[s.before.total,s.after.total,s.delta])),[[[15,11,-4],[22,22,0]],[[15,11,-4],[22,22,0]]]);
+    assert.deepEqual(out.sides.map(s=>s.delta),[-8,0]);
+    assert.deepEqual(out.weeks[0].sides[0].after.lineup.map(p=>[p.id,p.slot,p.points,p.status]),[['e','QB',6,'conditional_projection'],['b','RB',5,'conditional_projection']]);
+    assert.deepEqual(out.availabilityFlags.map(f=>[f.id,f.status]),[['e','Questionable']],'his reported tag is named like a rostered player\'s');
+    assert.ok(out.warnings.includes("No keeper or future-pick value, bench insurance, or the other side's willingness to deal; a free agent is assumed only to fill a starting slot a roster cannot fill."));
+    assert.ok(!out.warnings.some(w=>/waiver-replacement/.test(w)));
+  });
+  b1('the pool: rostered (players, reserve, taxi, any team), team-mismatched, week-missing, unmapped and identity-mismatched players are never candidates; a bye counts 0',()=>{
+    assert.equal(analyze(world([...DECOYS,Q])).pickups[0].id,'q','without e: q (bye 0 + 11), never a decoy');
+    assert.equal(analyze(world([...DECOYS])).pickups.length,0,'decoys alone: nobody');
+    // Control: a decoy without its defect is a candidate (k on the catalog's team).
+    assert.equal(analyze(world([...DECOYS.filter(d=>d.id!=='k'),{id:'k',position:'QB',weeks:[18,18]},E])).pickups[0].id,'k');
+  });
+  b1('a tie on the summed p50 goes to the lowest Sleeper id, whatever the input order',()=>{
+    const out=analyze(world([{id:'r',position:'QB',weeks:[7,5]},{id:'p',position:'QB',weeks:[5,7]}]));
+    assert.deepEqual(out.pickups.map(p=>p.id),['p']);
+  });
+  // Roster 1 adds a TE t (7), roster 2 a TE u (4): slots QB, RB, TE.
+  const withTE=list=>{const x=addPlayers(qb,[{id:'t',position:'TE',weeks:[7,7]},{id:'u',position:'TE',weeks:[4,4]},...list]);
+    x.league.roster_positions=['QB','RB','TE','BN','BN'];x.rosters[0].players.push('t');x.rosters[1].players.push('u');return x;};
+  b1('two unfillable slots (QB and TE) -> two pickups, each the best for its slot',()=>{
+    const out=analyze({...withTE([E,{id:'tf',position:'TE',weeks:[3,3]},{id:'tg',position:'TE',weeks:[2,2]}]),give:['a','t']});
+    assert.deepEqual(out.pickups,[{rosterId:1,scenario:'after',id:'e',name:'E Free',position:'QB',slot:'QB'},{rosterId:1,scenario:'after',id:'tf',name:'tf',position:'TE',slot:'TE'}]);
+    assert.deepEqual(out.caveats,[PICKUP('You','QB','after this trade','E Free','QB'),PICKUP('You','TE','after this trade','tf','TE')]);
+    assert.deepEqual(out.weeks[0].sides[0].after.lineup.map(p=>[p.slot,p.id,p.points]),[['QB','e',6],['RB','b',5],['TE','tf',3]]);
+    assert.deepEqual(out.sides.map(s=>s.delta),[-16,6],'a10+b5+t7=22 -> e6+b5+tf3=14 each week; roster 2 starts t7 over u4');
+  });
+  b1('no eligible free agent: the slot stays empty, scores 0, and the caveat names the weeks; other slots still fill',()=>{
+    const TZ={id:'tz',position:'TE',weeks:[9,null]};                         // a TE without a week-3 row: not a candidate
+    const out=analyze({...withTE([E,TZ]),give:['t']});
+    assert.deepEqual(out.pickups,[]);
+    assert.deepEqual(out.caveats,[EMPTY('You','TE','2, 3')]);
+    assert.deepEqual(out.weeks[0].sides[0].after.lineup.map(p=>[p.slot,p.id,p.points]),[['QB','a',10],['RB','b',5],['TE',null,0]]);
+    assert.deepEqual(out.weeks.map(w=>w.sides[0].after.total),[15,15]);
+    assert.deepEqual(out.sides.map(s=>s.delta),[-14,6]);
+    const both=analyze({...withTE([E,TZ]),give:['a','t']});
+    assert.deepEqual(both.pickups.map(p=>[p.id,p.slot]),[['e','QB']],'the QB still fills when the TE cannot');
+    assert.deepEqual(both.caveats,[PICKUP('You','QB','after this trade','E Free','QB'),EMPTY('You','TE','2, 3')]);
+  });
+  b1('regression pin: a fully fillable trade adds nobody, even beside a better free agent; same numbers as before the change',()=>{
+    const flex=clone(base);flex.league.roster_positions=['RB','FLEX'];
+    const out=analyze(addPlayers(flex,[{id:'e',position:'RB',weeks:[50,50]}]));
+    assert.deepEqual(out.pickups,[]);
+    assert.deepEqual(out.weeks.map(w=>w.sides.map(s=>[s.before.total,s.after.total,s.before.lineup.map(p=>p.id+':'+p.slot).join(),s.after.lineup.map(p=>p.id+':'+p.slot).join()])),
+      [[[15,25,'a:RB,b:FLEX','b:RB,c:FLEX'],[22,12,'c:RB,d:FLEX','a:RB,d:FLEX']],[[15,25,'a:RB,b:FLEX','b:RB,c:FLEX'],[22,12,'c:RB,d:FLEX','a:RB,d:FLEX']]]);
+    assert.deepEqual(out.sides,[{rosterId:1,delta:20},{rosterId:2,delta:-20}]);
+    assert.deepEqual(out,analyze(flex),'the free agent changes nothing');
+  });
+  if(fails.length){console.log(`FAILED (${fails.length}):\n  `+fails.join('\n  '));process.exit(1);}
 }
 // A bye and an exclusion in the same week are both zero, labeled differently.
 // Corrected from the brief's draft: with only one RB slot (the base league) the
