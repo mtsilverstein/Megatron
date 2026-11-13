@@ -184,7 +184,10 @@
   // analyze's free agents (owner decision 2026-11-13): skill players on no roster (players, reserve or taxi of any
   // team; by Sleeper id, and by GSIS as poolByWeek decides ownership), mapped by the board, whose projection passes
   // resolve's team and identity guards and has a usable row for EVERY compared week (a finite league p50, or a bye as
-  // 0; unknown is not zero, so no partial coverage). Ranked by summed p50, Sleeper id ascending on a tie.
+  // 0; unknown is not zero, so no partial coverage). Ranked by summed p50, Sleeper id ascending on a tie. Nobody adds a
+  // player who cannot play (owner-delegated call 2026-11-13): a catalog IR/Out/PUP/Sus/NA/DNR tag, or a catalog status
+  // other than Active, keeps him out; Questionable and Doubtful stay eligible. Rostered players are not filtered.
+  const unavailable=c=>["IR","Out","PUP","Sus","NA","DNR"].includes(c.injury_status)||(c.status!=null&&c.status!=="Active");
   function freeAgents({rosters,catalog,boardGsis,projections},weeks) {
     const owned=new Set(),ownedGsis=new Set();
     for(const r of rosters) for(const id of [...(r.players||[]),...(r.reserve||[]),...(r.taxi||[])].map(String)) {
@@ -193,7 +196,7 @@
     const out=[];
     for(const [id,gsis] of boardGsis) {
       const c=catalog[id],position=Lineup.modeledPosition(c),p=projections.get(gsis);
-      if(owned.has(id)||ownedGsis.has(gsis)||!position||!p||!team(p.team)||team(p.team)!==team(c.team)||(p.position&&p.position!==position)||(c.gsis_id&&c.gsis_id!==gsis)||!Array.isArray(p.weeks))continue;
+      if(owned.has(id)||ownedGsis.has(gsis)||!position||unavailable(c)||!p||!team(p.team)||team(p.team)!==team(c.team)||(p.position&&p.position!==position)||(c.gsis_id&&c.gsis_id!==gsis)||!Array.isArray(p.weeks))continue;
       const rows=weeks.map(w=>{const rs=p.weeks.filter(x=>x.week===w),row=rs[0];
         return rs.length!==1?null:row.status==="bye"?{points:0,status:"bye"}:row.status==="conditional_projection"&&Number.isFinite(row.points?.league?.p50)?{points:row.points.league.p50,status:row.status}:null;});
       if(rows.includes(null))continue;

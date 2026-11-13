@@ -374,6 +374,19 @@ assert.throws(()=>analyze({...gaps,board:{...identityBoard,players:identityBoard
     // Control: a decoy without its defect is a candidate (k on the catalog's team).
     assert.equal(analyze(world([...DECOYS.filter(d=>d.id!=='k'),{id:'k',position:'QB',weeks:[18,18]},E])).pickups[0].id,'k');
   });
+  // Owner-delegated call 2026-11-13: nobody adds a player who cannot play to fill a starting slot. A reported IR, Out,
+  // PUP, Sus, NA or DNR tag, or a catalog status other than Active, keeps a free agent out of the pool.
+  b1('a free agent who cannot play is never the pick; Questionable and Doubtful stay eligible',()=>{
+    const T=over=>({id:'t',position:'QB',weeks:[30,30],full_name:'T Top',...over});           // sum 60: the pick if eligible
+    assert.equal(analyze(world([Q,T({injury_status:'IR'})])).pickups[0].id,'q','an IR free agent with the highest sum is skipped for the next-best healthy one');
+    for(const injury_status of ['Out','PUP','Sus','NA','DNR']) assert.equal(analyze(world([Q,T({injury_status})])).pickups[0].id,'q',injury_status);
+    for(const status of ['Inactive','Injured Reserve','Practice Squad']) assert.equal(analyze(world([Q,T({status})])).pickups[0].id,'q',status);
+    assert.equal(analyze(world([Q,T({injury_status:'IR'}),E])).pickups[0].id,'e','a Questionable one (E Free, 12) is not skipped');
+    for(const injury_status of ['Questionable','Doubtful']) assert.equal(analyze(world([Q,T({injury_status})])).pickups[0].id,'t',injury_status);
+    assert.equal(analyze(world([Q,T({status:'Active'})])).pickups[0].id,'t','an Active status is eligible');
+    assert.equal(analyze(world([Q,T({status:null,injury_status:null})])).pickups[0].id,'t','no status and no tag is eligible');
+    assert.deepEqual(analyze(world([T({injury_status:'Out'})])).pickups,[],'no eligible free agent: the slot stays empty');
+  });
   b1('a tie on the summed p50 goes to the lowest Sleeper id, whatever the input order',()=>{
     const out=analyze(world([{id:'r',position:'QB',weeks:[7,5]},{id:'p',position:'QB',weeks:[5,7]}]));
     assert.deepEqual(out.pickups.map(p=>p.id),['p']);
