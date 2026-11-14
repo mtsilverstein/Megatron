@@ -8,7 +8,7 @@
 <title>Trade calculator — Megatron</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Bruno+Ace&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=lf1">
+<link rel="stylesheet" href="assets/style.css?v=picks1">
 <link rel="stylesheet" href="assets/interface.css?v=nodefault1">
 </head>
 <body>
@@ -62,15 +62,17 @@
     <p class="eyebrow" id="season-eyebrow"></p>
     <ol class="season-steps" id="season-steps">
       <li>Choose the team you are trading with.</li>
-      <li>Tick the players moving on each side.</li>
+      <li>Tick the players moving on each side (in a keeper league, next season's draft picks too).</li>
       <li>Press <strong>Compare lineups</strong>.</li>
     </ol>
     <details><summary>What the comparison includes</summary>
     <p class="draft-note" id="season-note">The result is starting-lineup points
     over the remaining weeks for both rosters, before and after the players
     change hands. Every player is assumed to play every remaining week unless
-    you enter weeks he is out (optional). Keeper value, draft picks and the
-    current week are left out.</p>
+    you enter weeks he is out (optional). Keeper value and the current week
+    are left out. In a keeper league, draft picks can join the offer: they
+    change nothing this season and are valued separately, as next season's
+    expected points.</p>
     </details>
     <div class="draft-note" id="season-context" hidden></div>
     <div class="draft-row" id="season-connect">
@@ -82,9 +84,11 @@
     </div>
     <p class="draft-note" id="season-warn" hidden></p>
     <div class="trade-cols" id="season-cols" hidden>
-      <div><h2>You give</h2><p class="trade-col-note" id="season-mine-drops" hidden></p><ul class="trade-assets" id="season-mine"></ul></div>
-      <div><h2>You get</h2><p class="trade-col-note" id="season-theirs-drops" hidden></p><ul class="trade-assets" id="season-theirs"></ul></div>
+      <div><h2>You give</h2><p class="trade-col-note" id="season-mine-drops" hidden></p><ul class="trade-assets" id="season-mine"></ul><div class="season-picks" id="season-mine-picks" hidden></div></div>
+      <div><h2>You get</h2><p class="trade-col-note" id="season-theirs-drops" hidden></p><ul class="trade-assets" id="season-theirs"></ul><div class="season-picks" id="season-theirs-picks" hidden></div></div>
     </div>
+    <p class="draft-note" id="season-picks-note" hidden></p>
+    <div class="season-pick-controls" id="season-pick-controls" hidden></div>
     <div class="draft-shortlist-panel" id="season-result" hidden></div>
     <p class="draft-note" id="season-provenance"></p>
   </section>
@@ -102,11 +106,12 @@
 <script src="assets/formats.js?v=1"></script>
 <script src="assets/lineup.js?v=3"></script>
 <script src="assets/leaguelens.js?v=lf1"></script>
+<script src="assets/pickvalue.js?v=picks1"></script>
 <script src="assets/leaguedata.js?v=lf1"></script>
 <script src="assets/liveworld.js?v=1"></script>
 <script src="assets/trademode.js?v=session1"></script>
 <script src="assets/seasontrade.js?v=lf1"></script>
-<script src="assets/seasontrademode.js?v=lf1"></script>
+<script src="assets/seasontrademode.js?v=picks1"></script>
 <script>
 (async () => {
   FC.leagueNavigation();
@@ -212,6 +217,10 @@
         result: $("season-result"),
         provenance: $("season-provenance"),
         context: $("season-context"),
+        minePicks: $("season-mine-picks"),
+        theirsPicks: $("season-theirs-picks"),
+        pickControls: $("season-pick-controls"),
+        picksNote: $("season-picks-note"),
       },
     });
     return;

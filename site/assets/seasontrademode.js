@@ -4,10 +4,19 @@
    Session bundle and to SeasonTrade.analyze.
 
    Statics, once per document (a failure retries on the next load): the
-   league-neutral batch (LeagueData.loadBatch). No draft board, no per-league
-   remaining file, no traded picks and no simulation inputs: future picks are
-   not on the in-season page (spec §7.2) and simulation is off for everyone
-   in phase 1 (spec §6.2).
+   league-neutral batch (LeagueData.loadBatch) and, for a keeper league only,
+   the pick-value table (assets/pick_curve.json). No draft board, no
+   per-league remaining file and no simulation inputs: simulation is off for
+   everyone in phase 1 (spec §6.2).
+
+   Draft picks (spec 2026-11-13-trade-draft-picks §5.5-5.7): only when
+   PickValue.eligibility(league) passes (keeper league, in season, one QB),
+   each load reads Sleeper's traded_picks and the league's draft through
+   window.Sleeper.get; any failure shows one "Draft picks unavailable" line
+   and the page works as it does without picks. Picks change nothing this
+   season and take no roster spot: a picks-only offer never calls the
+   lineup engine. The weighting, draft-order and keeper-rule controls
+   recompute the pick lines in place, with no new read.
 
    The live world comes from the committed Session bundle: the league (read
    from EACH committed bundle, never a closure copy), users, rosters, NFL
@@ -36,11 +45,15 @@
   // Lazy: resolved at call time so script order does not matter.
   const LD = () => dep("LeagueData", "./leaguedata.js");
   const LW = () => dep("LiveWorld", "./liveworld.js");
+  const PV = () => dep("PickValue", "./pickvalue.js");
+  const LLens = () => dep("LeagueLens", "./leaguelens.js");
   const SKILL = new Set(["QB", "RB", "WR", "TE"]);
   const HEADLINE = "Conditional lineup scenario — not a trade verdict.";
   const SUBLINE_TAIL = "Keeper value and draft picks are not valued, so no overall grade is shown.";
+  // An offer with a draft pick: the two sentences that would otherwise be false (spec §5.7).
+  const PICKS_SUBLINE_TAIL = "Keeper value is not counted; draft picks are valued for next season only.";
   const FORBIDDEN = Object.freeze(["verdict", "win/win", "fair", "winner", "accept", "recommend", "grade"]);
-  const ALLOWED_SENTENCES = Object.freeze([HEADLINE, SUBLINE_TAIL]);
+  const ALLOWED_SENTENCES = Object.freeze([HEADLINE, SUBLINE_TAIL, PICKS_SUBLINE_TAIL]);
   // The measured-method vocabulary (gradeText/marketText below). Dormant in
   // phase 1: no grade is shown to anyone (spec §6.2), but the pure helpers
   // stay pinned to the backtest by sim_parity_fixture.
@@ -68,6 +81,90 @@
   // by its code ("You has no SUPER_FLEX to start ..."); the page names the teams and the slot. Other caveats pass as they are.
   const caveatText = (c, teamOf) => String(c).replace(/^(You|They) (has|would have) no (\S+) to start /,
     (m, who, verb, slot) => `${teamOf[who]} ${verb} no ${slotName(slot)} to start `);
+
+  // --- draft picks: copy and pure helpers (spec 2026-11-13-trade-draft-picks §5.6, §5.7) ---------------------
+  // Values are shown in whole points: a pick's value is a 2021–2025 average, and a middle round's range can be
+  // about 2 points wide, which must not read as precision (controller ruling 2026-11-13).
+  const PICK_CURVE_PATH = "assets/pick_curve.json?v=picks1";
+  const PICK_ORDERS = Object.freeze([["unset", "Not set yet"], ["standings", "By this season's standings"]]);
+  const PICK_RULES = Object.freeze([["unknown", "Unknown"], ["ladder", "Round drafted − 1 per year kept (waiver pickups: round 12; max 2 years)"]]);
+  const ENGINE_PICK_NOTE = "No keeper or future-pick value, bench insurance, or the other side's willingness to deal";
+  const PICK_COPY = Object.freeze({
+    weighting: "Weighting:",
+    help: () => `How much a point next season counts: ${Object.values(PV().PRESETS).map(p => `${p.label} ×${p.w}`).join(", ")}.`,
+    order: next => `${next} draft order:`,
+    keeperRule: "Keeper rule:",
+    valuesNote: "Pick values: what players drafted at each spot actually scored in 2021–2025, above a waiver-level starter, in your league's scoring. A player's value next season, as a keeper, is not counted.",
+    averagesNote: "Pick values are 2021–2025 averages; any single pick can land far from them.",
+    // The engine's note, when the offer has a pick: the pick values sit in the summary, above the engine notes.
+    engineNote: "Draft picks are valued for next season above; keeper value, bench insurance and the other side's willingness to deal are not counted",
+    unavailable: reason => `Draft picks unavailable: ${reason}`,
+  });
+  // Whole points, rounded half away from zero so the two sides of one trade read as mirror images; 0 has no sign.
+  const whole = x => Math.sign(x) * Math.round(Math.abs(x));
+  function signedWhole(x) {
+    const r = whole(x);
+    return r === 0 ? "0" : `${r < 0 ? "−" : "+"}${Math.abs(r)}`;
+  }
+  // One pick's line. v = PickValue.pickValue's {value, low, high, slot, first, last}; slot is null when the order is
+  // not set (the round's average) and the estimated overall pick under this season's standings.
+  function pickLine(label, v) {
+    const n = x => String(whole(x));
+    return v.slot == null
+      ? `${label}: worth about ${n(v.value)} (anywhere from pick ${v.first} to ${v.last}: ${n(v.low)}–${n(v.high)})`
+      : `${label}: worth about ${n(v.value)} at pick ${v.slot} by current standings (round range ${v.first}–${v.last}: ${n(v.low)}–${n(v.high)})`;
+  }
+  // The engine's warnings as the page shows them: with a pick in the offer the "no future-pick value" clause would be
+  // false, so it is reworded; the rest of that note (the free-agent assumption) stays. Without a pick: unchanged.
+  function engineWarningText(w, hasPicks) {
+    const s = String(w);
+    return hasPicks && s.startsWith(ENGINE_PICK_NOTE) ? PICK_COPY.engineNote + s.slice(ENGINE_PICK_NOTE.length) : s;
+  }
+  // sides: [{you, name, thisSeason, gets: [{season, label, v}], gives: [...]}], side 0 first. Returns [{text, cls}]:
+  // per side who gets and gives which pick, the picks' total, one line per pick, the combined number; then the
+  // two notes, once. "Future seasons" replaces "Next season" when any pick in the offer is two or more seasons ahead.
+  function picksSummary({ sides, preset, currentSeason }) {
+    const P = PV().PRESETS[preset];
+    if (!P) throw new Error(`Unknown weighting preset: ${preset}`);
+    const now = Number(currentSeason);
+    const later = sides.some(s => [...s.gets, ...s.gives].some(p => Number(p.season) - now >= 2));
+    const lines = [];
+    for (const s of sides) {
+      const gets = s.gets.map(p => p.label), gives = s.gives.map(p => p.label);
+      const verbs = s.you ? ["get", "give"] : ["gets", "gives"];
+      const parts = [gets.length ? `${verbs[0]} ${andList(gets)}` : "", gives.length ? `${verbs[1]} ${andList(gives)}` : ""].filter(Boolean);
+      // "gets A and gives B"; with a list on either side, "gets A and B, and gives C".
+      const glue = gets.length > 1 || gives.length > 1 ? ", and " : " and ";
+      lines.push({ text: `${s.you ? "You" : s.name} ${parts.join(glue)}.`, cls: "season-picks-side" });
+      const c = PV().combine({ thisSeason: s.thisSeason, preset, currentSeason,
+        receive: s.gets.map(p => ({ season: p.season, value: p.v.value })), give: s.gives.map(p => ({ season: p.season, value: p.v.value })) });
+      lines.push({ text: `${later ? "Future seasons" : "Next season"}: ${signedWhole(c.future)} expected points from picks.`, cls: "" });
+      for (const p of [...s.gets, ...s.gives]) lines.push({ text: pickLine(p.label, p.v), cls: "season-pick-line" });
+      lines.push({ text: `Combined at ${P.label} (next season ×${c.w}): ${signedWhole(c.combined)}`, cls: "season-picks-combined" });
+    }
+    lines.push({ text: PICK_COPY.valuesNote, cls: "season-summary-note" });
+    lines.push({ text: PICK_COPY.averagesNote, cls: "season-summary-note" });
+    return lines;
+  }
+  // The roster's top `keepers` skill players by rest-of-season value (rosValue: Map sleeper id -> ros_value). Every
+  // player on the roster counts, IR and taxi included (a keeper can be injured now); one without a value is not
+  // ranked. Ties go to the lower id, so the answer is stable.
+  function likelyKeepers({ roster, catalog, rosValue, keepers }) {
+    const K = Number(keepers);
+    if (!Number.isInteger(K) || K <= 0) return new Set();
+    const ranked = ((roster && roster.players) || []).map(String)
+      .filter(id => SKILL.has(((catalog && catalog[id]) || {}).position) && Number.isFinite(rosValue.get(id)))
+      .sort((a, b) => rosValue.get(b) - rosValue.get(a) || (a < b ? -1 : a > b ? 1 : 0));
+    return new Set(ranked.slice(0, K));
+  }
+  // A reason as the second half of "Draft picks unavailable: ...": lower-case start (Sleeper stays capitalized), a
+  // closing period.
+  const reasonText = msg => {
+    const s = String(msg || "unknown error").trim();
+    const t = /^Sleeper\b/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1);
+    return /[.!?]$/.test(t) ? t : `${t}.`;
+  };
+  const failedRead = (what, e) => new Error(`${what} did not load (${String((e && e.message) || e).replace(/\.$/, "")})`);
 
   // "3-5, 8" -> [3,4,5,8]. Anything else is an error the user sees; an
   // unparseable exclusion must never silently mean "no exclusion".
@@ -105,7 +202,7 @@
       const after = result.weeks.reduce((a, w) => a + w.sides[i].after.total, 0);
       return { name: name(s.rosterId), before: fmt(before), after: fmt(after), delta: fmtDelta(s.delta) };
     });
-    const subline = `Sum of weekly central (p50) lineup scenarios for weeks ${ctx.firstWeek}–${ctx.endWeek}; week ${ctx.currentWeek} is excluded because trades may process after games start. ${ctx.graded ? GRADED_SUBLINE_TAIL : SUBLINE_TAIL}`;
+    const subline = `Sum of weekly central (p50) lineup scenarios for weeks ${ctx.firstWeek}–${ctx.endWeek}; week ${ctx.currentWeek} is excluded because trades may process after games start. ${ctx.graded ? GRADED_SUBLINE_TAIL : ctx.picks ? PICKS_SUBLINE_TAIL : SUBLINE_TAIL}`;
     const assumptions = [];
     for (const [id, weeks] of Object.entries(ctx.excludeWeeks || {})) if (weeks.length) assumptions.push(`${pname(id)} assumed unavailable weeks ${weeks.join(", ")} (your assumption, not a return-date prediction)`);
     for (const [rid, ids] of Object.entries(ctx.drops || {})) for (const id of ids) assumptions.push(`${name(rid)} drops ${pname(id)}`);
@@ -383,16 +480,24 @@
   // --- statics: once per document, a failure retries on the next call ----------
   let batchPromise = null;
   const batch = () => batchPromise || (batchPromise = LD().loadBatch().catch(e => { batchPromise = null; throw e; }));
-  const _reset = () => { batchPromise = null; };   // test hook: a cold document
+  // The pick-value table (Task 1 artifact): fetched only for a keeper league, once per document.
+  let curvePromise = null;
+  const pickCurve = () => curvePromise || (curvePromise = (async () => {
+    const res = await fetch(PICK_CURVE_PATH);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  })().catch(e => { curvePromise = null; throw e; }));
+  const _reset = () => { batchPromise = null; curvePromise = null; };   // test hook: a cold document
 
   // --- controller -----------------------------------------------------------
   // Everything below touches the DOM; the pure helpers above are what the
   // fixture pins. Nothing here calls Trade.* or TradeMode.*: the pre-draft
-  // engine's numbers are not defined in season (spec §6.6). This controller
-  // makes no Sleeper call of its own: the league, users, rosters and NFL state
-  // come from the committed Session bundle, the ~5 MB player catalog from
-  // Session.catalog() (once per document), and a compare re-reads rosters
-  // (and, as every refresh does, the league settings) through Session.refresh.
+  // engine's numbers are not defined in season (spec §6.6). The league,
+  // users, rosters and NFL state come from the committed Session bundle, the
+  // ~5 MB player catalog from Session.catalog() (once per document), and a
+  // compare re-reads rosters (and, as every refresh does, the league
+  // settings) through Session.refresh. Its only Sleeper calls of its own are
+  // a keeper league's traded_picks and draft, once per load (readPicks).
 
   // Same rule as TradeMode.teamName / Session.teamName.
   const teamNameOf = (user, rosterId) => (user && user.metadata && user.metadata.team_name) || (user && user.display_name) || `Roster ${rosterId}`;
@@ -407,7 +512,12 @@
   // league settings the views and the lineup slots were built from.
   // Waiver bookkeeping inside league.settings (daily_waivers_last_ran, leg, ...) moves
   // on every refresh, so only the settings that shape views and slots are keyed.
-  const settingsKey = league => JSON.stringify(league ? [league.league_id, league.season, league.status, league.total_rosters, league.roster_positions, league.scoring_settings, league.settings && league.settings.type, league.settings && league.settings.best_ball] : null);
+  // The keeper count and the draft id shape the pick values, so they are keyed too.
+  const settingsKey = league => JSON.stringify(league ? [league.league_id, league.season, league.status, league.total_rosters, league.roster_positions, league.scoring_settings, league.settings && league.settings.type, league.settings && league.settings.best_ball,
+    league.settings && league.settings.max_keepers, league.draft_id] : null);
+  // A pick as a checkbox key and back: season|round|original roster id.
+  const pickKey = p => `${p.season}|${p.round}|${p.originalRosterId}`;
+  const PREF_KEY = leagueId => `megatron.trade.picks.v1|${leagueId}`;
   const sameIdentity = (a, b) => (!a && !b) || (!!a && !!b && a.userId === b.userId);
   class PreflightError extends Error {}
 
@@ -449,9 +559,16 @@
     // field that does not).
     // `dropBtns` maps a rendered row's id to its inline Drop button: a side over the roster limit marks its drops in
     // its own column, so the roster is never listed twice.
-    const newSide = (ul, dropsEl) => ({ ul, dropsEl, roster: null, active: [], players: new Set(), drops: new Set(), weeks: new Map(), errors: new Map(), needed: 0, dropBtns: new Map() });
-    const sides = { mine: newSide(els.mine, els.mineDrops), theirs: newSide(els.theirs, els.theirsDrops) };
+    // `picks` maps a ticked draft pick's key to the pick; `picksEl` is the column's pick group (keeper leagues).
+    const newSide = (ul, dropsEl, picksEl) => ({ ul, dropsEl, picksEl, roster: null, active: [], players: new Set(), picks: new Map(), drops: new Set(), weeks: new Map(), errors: new Map(), needed: 0, dropBtns: new Map() });
+    const sides = { mine: newSide(els.mine, els.mineDrops, els.minePicks), theirs: newSide(els.theirs, els.theirsDrops, els.theirsPicks) };
     const sideName = s => s.roster ? rosterName(s.roster.roster_id) : "";
+    // Draft picks for the current load: off (not a keeper league, or the page lacks the pick elements), a reason line
+    // (dynasty, two QBs, or a failed read), or ok with the owned picks, the two curves (one per keeper rule) and the
+    // user's choices. `lastPicks` is the result on screen whose pick lines the controls recompute in place.
+    const picksUI = Boolean(els.minePicks && els.theirsPicks && els.pickControls && els.picksNote);
+    const PICKS_OFF = Object.freeze({ ok: false, line: null });
+    let PK = PICKS_OFF, lastPicks = null;
 
     function setEyebrow(week) {
       if (!S.league) { els.eyebrow.textContent = ""; return; }
@@ -491,6 +608,72 @@
       els.provenance.textContent = "";
       els.controls.hidden = true; els.cols.hidden = true; els.compare.disabled = true; els.warn.hidden = true;
       if (els.context) { els.context.replaceChildren(); els.context.hidden = true; }
+      if (picksUI) for (const n of [els.minePicks, els.theirsPicks, els.pickControls, els.picksNote]) { n.replaceChildren(); n.hidden = true; }
+    }
+
+    // --- draft picks: reads (keeper leagues only) -----------------------------
+    // Never rejects: {ok:false, line} for a league that gets a reason line or a failed read, {ok:false, line:null}
+    // for one that gets nothing (redraft, or no pick elements on the page), else the raw reads.
+    async function readPicks(league) {
+      if (!picksUI) return PICKS_OFF;
+      let gate;
+      try { gate = PV().eligibility(league); } catch (e) { return PICKS_OFF; }
+      if (!gate.ok) return gate.reason ? { ok: false, line: gate.reason } : PICKS_OFF;
+      const sleeper = (p, what) => (W.Sleeper && typeof W.Sleeper.get === "function"
+        ? Promise.resolve().then(() => W.Sleeper.get(p)) : Promise.reject(new Error("the Sleeper client is not loaded"))).catch(e => { throw failedRead(what, e); });
+      try {
+        if (league.draft_id === null || league.draft_id === undefined || league.draft_id === "") throw new Error("the league has no draft on Sleeper");
+        const [tradedPicks, draft, artifact] = await Promise.all([
+          sleeper(`/league/${encodeURIComponent(league.league_id)}/traded_picks`, "Sleeper's list of traded picks"),
+          sleeper(`/draft/${encodeURIComponent(league.draft_id)}`, "the league's draft settings"),
+          pickCurve().catch(e => { throw failedRead("the pick-value table", e); }),
+        ]);
+        if (!Array.isArray(tradedPicks)) throw new Error("Sleeper's list of traded picks is malformed");
+        if (!draft || typeof draft !== "object") throw new Error("the league's draft settings are malformed");
+        return { ok: true, tradedPicks, draft, artifact };
+      } catch (e) {
+        return { ok: false, line: PICK_COPY.unavailable(reasonText(e.message)) };
+      }
+    }
+    // The reads, made usable for this league: ownership, rounds, both curves (so changing the keeper rule never
+    // fails later), the remembered choices. Any error becomes the unavailable line.
+    function preparePicks(read, { league, rosters, batch: b }) {
+      if (!read.ok) return read;
+      try {
+        const P = PV(), { tradedPicks, draft, artifact } = read;
+        const rounds = P.draftRounds({ draft, tradedPicks });
+        if (rounds == null) throw new Error("the number of draft rounds is unknown");
+        const seasons = P.pickSeasons({ league, tradedPicks });
+        const owned = P.ownedPicks({ rosters, tradedPicks, seasons, rounds });
+        const prior = b && b.weekly && b.weekly.method && b.weekly.method.prior;
+        const rate = prior && Number.isFinite(prior.rate) ? prior.rate : undefined;
+        const base = { artifact, weights: LLens().effectiveWeights(league.scoring_settings), slots: league.roster_positions,
+          teams: league.total_rosters, keepers: league.settings && league.settings.max_keepers, rounds, pickSixRate: rate };
+        const curves = {};
+        for (const rule of P.KEEPER_RULES) curves[rule] = P.buildCurve({ ...base, keeperRule: rule });
+        const current = Number(league.season);
+        return { ok: true, line: null, owned, rounds, curves, teams: league.total_rosters, current, next: current + 1,
+          snake: draft.type === "snake", reversalRound: draft.settings && draft.settings.reversal_round, pref: loadPref(league.league_id), presetBtns: new Map() };
+      } catch (e) {
+        return { ok: false, line: PICK_COPY.unavailable(reasonText(e.message)) };
+      }
+    }
+    // The user's choices, per league, in this browser; unreadable or unknown values fall back to the defaults.
+    function storage() { try { return W.localStorage || null; } catch (_) { return null; } }
+    function loadPref(leagueId) {
+      const P = PV(), out = { preset: P.DEFAULT_PRESET, order: "unset", keeperRule: "unknown" };
+      try {
+        const s = storage(), raw = s && s.getItem(PREF_KEY(leagueId)), v = raw ? JSON.parse(raw) : null;
+        if (v && typeof v === "object") {
+          if (Object.prototype.hasOwnProperty.call(P.PRESETS, v.preset)) out.preset = v.preset;
+          if (PICK_ORDERS.some(([k]) => k === v.order)) out.order = v.order;
+          if (P.KEEPER_RULES.includes(v.keeperRule)) out.keeperRule = v.keeperRule;
+        }
+      } catch (_) { /* defaults */ }
+      return out;
+    }
+    function savePref(leagueId, pref) {
+      try { const s = storage(); if (s) s.setItem(PREF_KEY(leagueId), JSON.stringify(pref)); } catch (_) { /* not remembered */ }
     }
 
     // Why the columns are not showing: the session's error, still loading, or
@@ -538,7 +721,13 @@
       currentBundle = bundle;
       try {
         hideAll();
+        PK = PICKS_OFF;
         setStatus("reading projections, scoring and the player catalog…");
+        // A keeper league's pick reads run beside the statics; readPicks never rejects. Best ball and an unknown
+        // starting slot get no comparison at all, so no pick reads either.
+        let noComparison = false;
+        try { noComparison = LD().leagueType(bundle.league).bestBall || LD().slotSupport(bundle.league).unknown.length > 0; } catch (_) { /* read; load decides */ }
+        const picksRead = noComparison ? Promise.resolve(PICKS_OFF) : readPicks(bundle.league);
         const [b, catalog] = await Promise.all([batch(), SESSION.catalog()]);
         if (stale()) return;
         const { league, users, rosters, state } = bundle;
@@ -551,17 +740,22 @@
         preflightProjections({ league, remaining: view.remaining, remainingReason: view.remainingReason, week, catalog });
         const format = await LD().formatLine(league, b.formats);
         if (stale()) return;
+        const read = await picksRead;
+        if (stale()) return;
         adopt(bundle);
         Object.assign(S, { batch: b, view, remaining: view.remaining, board: view.board, catalog, format, week });
         const type = LD().leagueType(league), unknown = LD().slotSupport(league).unknown;
         S.note = type.bestBall ? COPY.bestBall
           : unknown.length ? `Unsupported lineup slot: ${unknown.join(", ")} — no trade lineup comparison for this league; the rest-of-season values below still apply.` : null;
+        PK = S.note ? PICKS_OFF : preparePicks(read, { league, rosters, batch: b });
         renderContext();
         renderWarn();
         S.loadedProvenance = provenanceText(null);
         els.provenance.textContent = S.loadedProvenance;
         if (S.note) renderNote();
         else {
+          renderPicksNote();
+          drawPickControls();
           redraw();
           els.controls.hidden = false; els.cols.hidden = false;
         }
@@ -634,7 +828,100 @@
 
     function resetSide(side, roster) {
       side.roster = roster; side.active = activeIds(roster);
-      side.players.clear(); side.drops.clear(); side.weeks.clear(); side.errors.clear(); side.needed = 0;
+      side.players.clear(); side.picks.clear(); side.drops.clear(); side.weeks.clear(); side.errors.clear(); side.needed = 0;
+    }
+
+    // --- draft picks: the note, the controls, the column groups ------------------
+    function renderPicksNote() {
+      if (!picksUI) return;
+      els.picksNote.textContent = PK.line || "";
+      els.picksNote.hidden = !PK.line;
+    }
+    // Weighting presets, the draft-order and keeper-rule selects. Each change recomputes the pick lines of the result
+    // on screen (no Sleeper read, no engine call) and is remembered for this league.
+    function drawPickControls() {
+      if (!picksUI) return;
+      const box = els.pickControls;
+      box.replaceChildren();
+      box.hidden = !PK.ok;
+      if (!PK.ok) return;
+      const group = el("div", null, "season-pick-weight");
+      const label = el("span", PICK_COPY.weighting, "season-pick-label");
+      label.id = "season-weight-label";
+      group.setAttribute("role", "group");
+      group.setAttribute("aria-labelledby", label.id);
+      group.append(label);
+      PK.presetBtns.clear();
+      for (const [key, p] of Object.entries(PV().PRESETS)) {
+        const btn = el("button", p.label, "season-preset");
+        btn.type = "button"; btn.dataset.preset = key;
+        btn.addEventListener("click", () => setPref({ preset: key }));
+        PK.presetBtns.set(key, btn);
+        group.append(btn);
+      }
+      box.append(group, el("p", PICK_COPY.help(), "season-pick-help"));
+      const select = (text, options, prop) => {
+        const wrap = el("label", null, "season-pick-select"), s = el("select");
+        for (const [value, t] of options) { const o = el("option", t); o.value = value; s.append(o); }
+        s.addEventListener("change", () => { if (options.some(([v]) => v === s.value)) setPref({ [prop]: s.value }); });
+        wrap.append(el("span", text), s);
+        box.append(wrap);
+        return s;
+      };
+      PK.orderSel = select(PICK_COPY.order(PK.next), PICK_ORDERS, "order");
+      PK.ruleSel = select(PICK_COPY.keeperRule, PICK_RULES, "keeperRule");
+      syncPickControls();
+    }
+    function syncPickControls() {
+      for (const [key, btn] of PK.presetBtns) btn.setAttribute("aria-pressed", key === PK.pref.preset ? "true" : "false");
+      if (PK.orderSel) PK.orderSel.value = PK.pref.order;
+      if (PK.ruleSel) PK.ruleSel.value = PK.pref.keeperRule;
+    }
+    function setPref(change) {
+      if (!PK.ok) return;
+      PK.pref = { ...PK.pref, ...change };
+      savePref(S.league.league_id, PK.pref);
+      syncPickControls();
+      if (lastPicks && !els.result.hidden) fillPicksBlock();
+    }
+    // A pick's name in one team's view: its own pick, or the original team's.
+    const pickLabel = (p, rosterId) => `${p.season} R${p.round}${String(p.originalRosterId) === String(rosterId) ? "" : ` (from ${rosterName(p.originalRosterId)})`}`;
+    // The column's collapsed "Draft picks (N)" group, one checkbox per pick the team owns now. A ticked pick joins the
+    // offer like a player but takes no roster spot, so it never changes the drop count.
+    function drawPicks(side) {
+      if (!picksUI || !side.picksEl) return;
+      const box = side.picksEl;
+      box.replaceChildren();
+      box.hidden = !PK.ok;
+      if (!PK.ok) return;
+      // By season and round; within a round the team's own pick first, then acquired ones.
+      const rid = Number(side.roster.roster_id), own = p => (Number(p.originalRosterId) === rid ? 0 : 1);
+      const owned = (PK.owned.get(rid) || []).slice()
+        .sort((a, b) => a.season - b.season || a.round - b.round || own(a) - own(b) || a.originalRosterId - b.originalRosterId);
+      for (const key of [...side.picks.keys()]) if (!owned.some(p => pickKey(p) === key)) side.picks.delete(key);
+      const group = el("details", null, "season-detail season-picks-group");
+      group.open = side.picks.size > 0;
+      group.append(el("summary", `Draft picks (${owned.length})`));
+      const ul = el("ul", null, "trade-assets season-pick-list");
+      for (const p of owned) ul.append(pickRow(side, p));
+      group.append(ul);
+      box.append(group);
+    }
+    function pickRow(side, p) {
+      const key = pickKey(p);
+      const li = el("li", null, "season-row season-pick");
+      li.dataset.pick = key;
+      const label = el("label"), box = el("input");
+      box.type = "checkbox"; box.dataset.pick = key; box.checked = side.picks.has(key);
+      label.append(box, document.createTextNode(` ${pickLabel(p, side.roster.roster_id)}`));
+      li.append(label);
+      li.classList.toggle("picked", box.checked);
+      box.addEventListener("change", () => {
+        if (box.checked) side.picks.set(key, p); else side.picks.delete(key);
+        li.classList.toggle("picked", box.checked);
+        onInputChange();
+      });
+      return li;
     }
 
     function onPartnerChange() {
@@ -691,6 +978,7 @@
         for (const id of other) side.ul.append(disabledRow(side, id, "no modeled points"));
         for (const id of missing) side.ul.append(disabledRow(side, id, "not in the player catalog — reload the page"));
         for (const id of locked) side.ul.append(disabledRow(side, id, "IR/taxi — not tradeable in this version"));
+        drawPicks(side);
       }
       updateDrops();
     }
@@ -814,7 +1102,7 @@
       // No acknowledgment step: the availability assumption is passed to the
       // engine as assumeAvailable and stated in the result's assumptions.
       if (!S.me || !S.partner || S.note) return false;
-      if (sides.mine.players.size + sides.theirs.players.size === 0) return false;
+      if (sides.mine.players.size + sides.theirs.players.size + sides.mine.picks.size + sides.theirs.picks.size === 0) return false;
       for (const s of [sides.mine, sides.theirs]) {
         if (s.errors.size) return false;
         if (s.drops.size < s.needed) return false;
@@ -829,6 +1117,7 @@
       els.result.hidden = true;
       els.result.replaceChildren();
       els.provenance.textContent = S.loadedProvenance;
+      lastPicks = null;
     }
 
     // --- compare ------------------------------------------------------------
@@ -859,6 +1148,16 @@
           if (![...s.players, ...s.drops].every(id => active.has(id))) { redraw(); setStatus(CHANGED); return; }
         }
         const give = [...sides.mine.players], receive = [...sides.theirs.players];
+        // Picks change nothing this season: they never reach the lineup engine.
+        const byDraft = (a, b) => a.season - b.season || a.round - b.round || a.originalRosterId - b.originalRosterId;
+        const givePicks = [...sides.mine.picks.values()].sort(byDraft), receivePicks = [...sides.theirs.picks.values()].sort(byDraft);
+        if (!give.length && !receive.length) {
+          // Picks only (Review Focus 3): this season is 0 for both teams and the engine is not called.
+          renderPicksOnly({ snapshotAt, givePicks, receivePicks, rosters });
+          setStatus("draft picks compared; no players move");
+          showResult();
+          return;
+        }
         const drops = {};
         for (const s of [sides.mine, sides.theirs]) if (s.drops.size) drops[String(s.roster.roster_id)] = [...s.drops];
         const excludeWeeks = {};
@@ -871,7 +1170,7 @@
           rosterIds: [S.me.roster_id, S.partner.roster_id], give, receive, drops, excludeWeeks,
           currentWeek: week, assumeAvailable: true, now: Date.now(), snapshotAt,
         });
-        render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters });
+        render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters, givePicks, receivePicks });
         setStatus(`lineups compared for weeks ${result.weeks[0].week}–${result.weeks[result.weeks.length - 1].week}`);
         showResult();
       } catch (e) {
@@ -906,14 +1205,70 @@
         + (deadline ? ` Trade deadline: week ${deadline} (league setting).` : "");
     }
 
-    function render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters }) {
+    // --- draft picks in the result ----------------------------------------------
+    // The pick lines of the result on screen, recomputed in place under the current choices. A failure here (it
+    // should not happen: the curves were built at load) says so in one line and leaves the rest of the result.
+    function fillPicksBlock() {
+      const c = lastPicks;
+      if (!c || !PK.ok) return;
+      let lines;
+      try {
+        const curve = PK.curves[PK.pref.keeperRule];
+        const value = p => PV().pickValue({ pick: p, curve, order: PK.pref.order, rosters: c.rosters, teams: PK.teams, rounds: PK.rounds,
+          snake: PK.snake, reversalRound: PK.reversalRound });
+        const side = i => {
+          const rid = c.rosterIds[i], mk = p => ({ season: p.season, label: pickLabel(p, rid), v: value(p) });
+          return { you: i === 0 && !viewer(), name: rosterName(rid), thisSeason: c.thisSeason[i],
+            gets: (i === 0 ? c.receivePicks : c.givePicks).map(mk), gives: (i === 0 ? c.givePicks : c.receivePicks).map(mk) };
+        };
+        lines = picksSummary({ sides: [side(0), side(1)], preset: PK.pref.preset, currentSeason: PK.current });
+        for (const t of c.keeperLines) lines.push({ text: t, cls: "season-summary-note" });
+      } catch (e) {
+        lines = [{ text: PICK_COPY.unavailable(reasonText(e.message)), cls: "season-summary-note" }];
+      }
+      c.block.replaceChildren();
+      for (const l of lines) c.block.append(el("p", l.text, l.cls || undefined));
+    }
+    // A traded player in his current team's top max_keepers skill players by rest-of-season value (spec §5.7).
+    function keeperLines(give, receive, rosters) {
+      const K = S.league.settings && S.league.settings.max_keepers;
+      const ros = new Map(((S.board && S.board.players) || []).map(p => [String(p.sleeper_id), p.ros_value]));
+      const out = [];
+      for (const [ids, rid] of [[give, S.me.roster_id], [receive, S.partner.roster_id]]) {
+        const roster = rosters.find(r => String(r.roster_id) === String(rid));
+        const top = likelyKeepers({ roster, catalog: S.catalog, rosValue: ros, keepers: K });
+        for (const id of ids) if (top.has(String(id))) out.push(`${playerName(id)} is likely one of ${rosterName(rid)}'s keepers; his value next season is not counted.`);
+      }
+      return out;
+    }
+    // Inside the summary, after the lineup lines: the block the controls recompute.
+    function picksBlock(summary, { rosterIds, thisSeason, givePicks, receivePicks, rosters, keeper }) {
+      const block = el("div", null, "season-picks-result");
+      summary.append(block);
+      lastPicks = { block, rosterIds, thisSeason, givePicks, receivePicks, rosters, keeperLines: keeper };
+      fillPicksBlock();
+    }
+    function renderPicksOnly({ snapshotAt, givePicks, receivePicks, rosters }) {
+      const out = els.result;
+      out.replaceChildren();
+      const summary = el("div", null, "season-summary");
+      summary.append(el("p", `This season: 0 pts for both teams over weeks ${first()}–${last()}; no players move, so neither starting lineup changes.`));
+      picksBlock(summary, { rosterIds: [S.me.roster_id, S.partner.roster_id], thisSeason: [0, 0], givePicks, receivePicks, rosters, keeper: [] });
+      out.append(summary);
+      out.append(el("p", PICKS_SUBLINE_TAIL, "season-subline"));
+      els.provenance.textContent = provenanceText(snapshotAt);
+      out.hidden = false;
+    }
+
+    function render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters, givePicks = [], receivePicks = [] }) {
+      const hasPicks = givePicks.length + receivePicks.length > 0;
       const names = {};
       for (const s of result.sides) names[s.rosterId] = rosterName(s.rosterId);
       const playerNamesAll = {};
       for (const r of rosters) for (const id of [...(r.players || []), ...(r.reserve || []), ...(r.taxi || [])]) playerNamesAll[String(id)] = playerName(String(id));
       const weeks = result.weeks;
       const t = scenarioText(result, {
-        names, playerNames: {}, playerNamesAll, excludeWeeks, drops,
+        names, playerNames: {}, playerNamesAll, excludeWeeks, drops, picks: hasPicks,
         currentWeek: week, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week,
       });
       const out = els.result;
@@ -924,6 +1279,9 @@
       const received = [receive.map(String), give.map(String)];   // side 0 is the analysed roster: it gets `receive`
       const playerNameOf = id => playerNamesAll[String(id)] || String(id);
       for (const line of lineupSummary(result, { names, ownLabel, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week, received, playerName: playerNameOf })) summary.append(el("p", line));
+      // Draft picks: next season and the combined number, after this season's lines (an offer without a pick: nothing).
+      if (hasPicks) picksBlock(summary, { rosterIds: result.sides.map(s => s.rosterId), thisSeason: result.sides.map(s => s.delta),
+        givePicks, receivePicks, rosters, keeper: keeperLines(give, receive, rosters) });
       // Engine caveats: rostered players without a projection, counted as 0 (audit A6-3), and a starting slot a roster
       // cannot fill, taken by a free agent (result.pickups) or left at 0. The engine calls the first team "You" and the
       // second "They" and names the slot by its code; the page names both (caveatText).
@@ -975,8 +1333,8 @@
       if ((result.availabilityFlags || []).length) {
         section("Reported availability tags", false).append(list(result.availabilityFlags.map(f => `${f.name}: ${f.status} — ${f.interpretation}`)));
       }
-      // 6. engine warnings verbatim
-      section("Engine notes", false).append(list(result.warnings || []));
+      // 6. engine warnings verbatim (with a pick in the offer, the future-pick clause is reworded: it would be false)
+      section("Engine notes", false).append(list((result.warnings || []).map(w => engineWarningText(w, hasPicks))));
       // 7. evaluation: only a record measured under this league's scoring and this model (spec §3.2)
       const ev = section("Measured evaluation", false);
       for (const line of evidenceLines(S.batch.evaluation, S.view)) ev.append(el("p", line, "season-eval"));
@@ -1022,6 +1380,7 @@
 
   return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, STARTERS_ONLY, coverageText,
     blockedStatus, slotName, caveatText,
+    PICKS_SUBLINE_TAIL, PICK_COPY, signedWhole, pickLine, engineWarningText, picksSummary, likelyKeepers,
     contextLines, evidenceLines, rosValueLines, COPY, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init, batch, _reset,
     gradeLabel, pickHorizon, stratumOf, lopsidedMeasure, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
 });

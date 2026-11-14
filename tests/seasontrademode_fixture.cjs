@@ -10,7 +10,11 @@
 // flow, no future picks and no traded_picks request, no simulation inputs,
 // rendered format line / banner / footnotes / settings stamp / simulation
 // note / aggregation label / evidence fallback, live settings recompute,
-// viewer flow, best ball, week 18, Review Focus 1. Part 3 runs trade.html's
+// viewer flow, best ball, week 18, Review Focus 1. Part 2b pins draft picks in
+// keeper leagues (spec 2026-11-13-trade-draft-picks): rows under the current
+// owner, the controls (recompute with no read), picks-only (no engine call),
+// player+pick, unavailable reads, dynasty/two-QB reasons, likely keepers and
+// the no-pick regression pin. Part 3 runs trade.html's
 // inline script: the mode is resolved from the live league before any draft
 // data is fetched, and the in-season page never requests draft.json.
 // All league data is synthetic (fictional owners and ids).
@@ -255,20 +259,90 @@ check("rosValueLines: each active skill player's rest-of-season value with the a
     [`Rest-of-season values withheld: ${STALE}.`, "A Back · RB · withheld", "B Wide · WR · withheld"]);
   assert.throws(() => M.rosValueLines(board, { players: ["a"] }, catalog), /needs the rest-of-season gate/, "no ungated path");
 });
-check("sources: no traded_picks, future picks, gate file or simulation in the controller; trade.html loads the kernel and the adapter", () => {
+// Draft picks (spec 2026-11-13-trade-draft-picks): traded_picks IS read now, but only for a keeper league (the
+// behavioural flows below pin that); the pre-draft engine's pick code and the simulation stay out.
+check("sources: no pre-draft pick code, gate file or simulation in the controller; trade.html loads the kernel, pickvalue and the adapter", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "site", "assets", "seasontrademode.js"), "utf8");
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
-  for (const re of [/traded_picks/, /pickOwnership/, /DRAFT_ROUNDS/, /defaultPicks/, /trade_sim_eval/, /availability\.json/, /\.simulate\(/, /stratumInputs\(/, /picksUnknown/, /\/user\//, /\/players\/nfl/, /leagueDataPath/])
+  for (const re of [/pickOwnership/, /DRAFT_ROUNDS/, /defaultPicks/, /trade_sim_eval/, /availability\.json/, /\.simulate\(/, /stratumInputs\(/, /picksUnknown/, /\/user\//, /\/players\/nfl/, /leagueDataPath/])
     assert.ok(!re.test(src), `seasontrademode.js must not contain ${re}`);
+  assert.ok(src.includes('"assets/pick_curve.json?v=picks1"'), "the pick-value table is fetched with a cache key");
   const srcs = [...html.matchAll(/<script\b[^>]*src="assets\/([^"?]+)(?:\?[^"]*)?"/g)].map(x => x[1]);
-  const ORDER = ["formats.js", "lineup.js", "leaguelens.js", "leaguedata.js", "liveworld.js", "seasontrade.js", "seasontrademode.js"];
+  const ORDER = ["formats.js", "lineup.js", "leaguelens.js", "pickvalue.js", "leaguedata.js", "liveworld.js", "seasontrade.js", "seasontrademode.js"];
   for (const f of ORDER) assert.equal(srcs.filter(s => s === f).length, 1, `trade.html: exactly one ${f}`);
   const at = ORDER.map(f => srcs.indexOf(f));
   assert.deepEqual([...at].sort((a, b) => a - b), at, `trade.html: ${ORDER.join(" -> ")} in order`);
   assert.ok(srcs.indexOf("ros.js") < srcs.indexOf("seasontrade.js") && srcs.indexOf("rostersim.js") < srcs.indexOf("seasontrade.js"), "the frozen method's modules still load before the engine");
   assert.ok(!srcs.includes("waiverintel.js"), "the ROS market check left with the grade");
-  assert.ok(/seasontrademode\.js\?v=lf1/.test(html) && /seasontrade\.js\?v=lf1/.test(html) && /lineup\.js\?v=3/.test(html), "cache keys bumped");
+  assert.ok(/seasontrademode\.js\?v=picks1/.test(html) && /pickvalue\.js\?v=picks1/.test(html) && /style\.css\?v=picks1/.test(html)
+    && /seasontrade\.js\?v=lf1/.test(html) && /lineup\.js\?v=3/.test(html), "cache keys bumped for the changed assets only");
   assert.ok(/id="season-context"/.test(html), "the context lines have a home on the page");
+  // The pick groups sit in the columns under the players; the note and the controls come after the columns, before the result.
+  for (const side of ["mine", "theirs"]) assert.match(html, new RegExp(`<ul class="trade-assets" id="season-${side}"></ul><div class="season-picks" id="season-${side}-picks" hidden></div>`));
+  const pos = id => html.indexOf(`id="${id}"`);
+  assert.ok(pos("season-cols") < pos("season-picks-note") && pos("season-picks-note") < pos("season-pick-controls") && pos("season-pick-controls") < pos("season-result"));
+});
+// ---- draft picks: the pure copy (spec §5.6, §5.7; controller ruling: whole points, one averages line) ----
+const ENGINE_NOTE = "No keeper or future-pick value, bench insurance, or the other side's willingness to deal; a free agent is assumed only to fill a starting slot a roster cannot fill.";
+const PICK_VALUES = "Pick values: what players drafted at each spot actually scored in 2021–2025, above a waiver-level starter, in your league's scoring. A player's value next season, as a keeper, is not counted.";
+const PICK_AVERAGES = "Pick values are 2021–2025 averages; any single pick can land far from them.";
+check("draft-pick copy: signed whole points (symmetric), a pick line under either draft order, the engine note and the subline tail", () => {
+  assert.deepEqual([52.4, -3.6, 0.4, -0.4, 1.5, -1.5, 0].map(M.signedWhole), ["+52", "−4", "0", "0", "+2", "−2", "0"]);
+  const v = { value: 62.6, low: 57.4, high: 70.8, slot: null, first: 1, last: 12 };
+  assert.equal(M.pickLine("2027 R1 (from Team 7)", v), "2027 R1 (from Team 7): worth about 63 (anywhere from pick 1 to 12: 57–71)");
+  assert.equal(M.pickLine("2027 R3", { value: 40.2, low: 36.6, high: 43.7, slot: 29, first: 25, last: 36 }),
+    "2027 R3: worth about 40 at pick 29 by current standings (round range 25–36: 37–44)");
+  assert.equal(M.engineWarningText(ENGINE_NOTE, false), ENGINE_NOTE, "no pick in the offer: the engine's note as it is");
+  assert.equal(M.engineWarningText(ENGINE_NOTE, true), "Draft picks are valued for next season above; keeper value, bench insurance and the other side's willingness to deal are not counted; a free agent is assumed only to fill a starting slot a roster cannot fill.");
+  assert.equal(M.engineWarningText("Current-week games are excluded.", true), "Current-week games are excluded.");
+  assert.equal(M.PICKS_SUBLINE_TAIL, "Keeper value is not counted; draft picks are valued for next season only.");
+  assert.ok(M.ALLOWED_SENTENCES.includes(M.PICKS_SUBLINE_TAIL));
+  const t = M.scenarioText(result, { ...ctx, picks: true });
+  assert.equal(t.subline, `Sum of weekly central (p50) lineup scenarios for weeks 3–17; week 2 is excluded because trades may process after games start. ${M.PICKS_SUBLINE_TAIL}`);
+  assert.equal(M.PICK_COPY.valuesNote, PICK_VALUES); assert.equal(M.PICK_COPY.averagesNote, PICK_AVERAGES);
+  assert.equal(M.PICK_COPY.help(), "How much a point next season counts: Win now ×0.5, Balanced ×0.8, Rebuild ×1.2.");
+});
+check("picksSummary: per side who gets and gives what, the next-season total, one line per pick, the combined line; then the two notes", () => {
+  const pk = (season, label, value) => ({ season, label, v: { value, low: value - 2, high: value + 2, slot: null, first: 1, last: 12 } });
+  const lines = M.picksSummary({ currentSeason: "2026", preset: "balanced", sides: [
+    { you: true, name: "Team 1", thisSeason: -38.2, gets: [pk(2027, "2027 R1 (from Team 7)", 63)], gives: [pk(2027, "2027 R3", 11)] },
+    { you: false, name: "Team 7", thisSeason: 40.3, gets: [pk(2027, "2027 R3 (from Team 1)", 11)], gives: [pk(2027, "2027 R1", 63)] },
+  ] });
+  assert.deepEqual(lines.map(l => l.text), [
+    "You get 2027 R1 (from Team 7) and give 2027 R3.",
+    "Next season: +52 expected points from picks.",
+    "2027 R1 (from Team 7): worth about 63 (anywhere from pick 1 to 12: 61–65)",
+    "2027 R3: worth about 11 (anywhere from pick 1 to 12: 9–13)",
+    "Combined at Balanced (next season ×0.8): +3",
+    "Team 7 gets 2027 R3 (from Team 1) and gives 2027 R1.",
+    "Next season: −52 expected points from picks.",
+    "2027 R3 (from Team 1): worth about 11 (anywhere from pick 1 to 12: 9–13)",
+    "2027 R1: worth about 63 (anywhere from pick 1 to 12: 61–65)",
+    "Combined at Balanced (next season ×0.8): −1",
+    PICK_VALUES, PICK_AVERAGES]);
+  // One side only gets, the other only gives; a pick two seasons ahead: "Future seasons", weighted w^2.
+  const later = M.picksSummary({ currentSeason: 2026, preset: "win_now", sides: [
+    { you: false, name: "Team 1", thisSeason: 0, gets: [pk(2028, "2028 R1 (from Team 7)", 40)], gives: [] },
+    { you: false, name: "Team 7", thisSeason: 0, gets: [], gives: [pk(2028, "2028 R1", 40)] },
+  ] }).map(l => l.text);
+  assert.deepEqual(later.slice(0, 4), ["Team 1 gets 2028 R1 (from Team 7).", "Future seasons: +40 expected points from picks.",
+    "2028 R1 (from Team 7): worth about 40 (anywhere from pick 1 to 12: 38–42)", "Combined at Win now (next season ×0.5): +10"]);
+  assert.deepEqual(later.slice(4, 6), ["Team 7 gives 2028 R1.", "Future seasons: −40 expected points from picks."]);
+  const two = M.picksSummary({ currentSeason: 2026, preset: "balanced", sides: [
+    { you: true, name: "Team 1", thisSeason: 0, gets: [pk(2027, "2027 R1 (from Team 7)", 63)], gives: [pk(2027, "2027 R3", 11), pk(2027, "2027 R5", 5)] },
+    { you: false, name: "Team 7", thisSeason: 0, gets: [pk(2027, "2027 R3 (from Team 1)", 11), pk(2027, "2027 R5 (from Team 1)", 5)], gives: [pk(2027, "2027 R1", 63)] },
+  ] }).map(l => l.text);
+  assert.equal(two[0], "You get 2027 R1 (from Team 7), and give 2027 R3 and 2027 R5.");
+  assert.equal(two[6], "Team 7 gets 2027 R3 (from Team 1) and 2027 R5 (from Team 1), and gives 2027 R1.");
+});
+check("likelyKeepers: the top max_keepers skill players of a roster by rest-of-season value (IR and taxi count; unknown values do not)", () => {
+  const roster = { players: ["a", "b", "c", "k", "r", "t"], reserve: ["r"], taxi: ["t"] };
+  const catalog = { a: { position: "RB" }, b: { position: "WR" }, c: { position: "TE" }, k: { position: "K" }, r: { position: "RB" }, t: { position: "QB" } };
+  const ros = new Map([["a", 50], ["b", 80], ["c", null], ["k", 999], ["r", 60], ["t", 10]]);
+  assert.deepEqual([...M.likelyKeepers({ roster, catalog, rosValue: ros, keepers: 2 })].sort(), ["b", "r"]);
+  assert.deepEqual([...M.likelyKeepers({ roster, catalog, rosValue: ros, keepers: 1 })], ["b"]);
+  assert.equal(M.likelyKeepers({ roster, catalog, rosValue: ros, keepers: 0 }).size, 0);
+  assert.equal(M.likelyKeepers({ roster, catalog, rosValue: ros, keepers: undefined }).size, 0);
 });
 
 // ============================ Part 2: the controller ============================
@@ -311,25 +385,28 @@ function tradeDom(href) {
   const mainStart = html.search(/<main\b[^>]*>/);
   assert.ok(mainStart >= 0, "trade page contains its main landmark");
   const body = html.slice(mainStart, html.indexOf("</main>"));
+  let col = null;
   for (const m of body.matchAll(/<(\w+)\b[^>]*\bid="([^"]+)"([^>]*)>/g)) {
     const [, tag, id] = m;
     const x = element(tag); x.id = id; x.hidden = /\bhidden\b/.test(m[0]);
     if (["season-mine", "season-theirs", "trade-mine", "trade-theirs"].includes(id)) {
-      const col = element("div"); col.append(element("h2"), x); main.append(col);
-    } else main.append(x);
+      col = element("div"); col.append(element("h2"), x); main.append(col);
+    } else if (/^season-(mine|theirs)-picks$/.test(id) && col) col.append(x);   // the pick group sits under the column's list
+    else main.append(x);
   }
   return { main, stamp, navLinks, $: id => document.getElementById(id) };
 }
 const els$ = $ => ({ eyebrow: $("season-eyebrow"), status: $("season-status"), controls: $("season-controls"), partner: $("season-partner"),
   compare: $("season-compare"), warn: $("season-warn"), cols: $("season-cols"), mine: $("season-mine"), theirs: $("season-theirs"),
   mineDrops: $("season-mine-drops"), theirsDrops: $("season-theirs-drops"), result: $("season-result"), provenance: $("season-provenance"),
-  context: $("season-context") });
+  context: $("season-context"), minePicks: $("season-mine-picks"), theirsPicks: $("season-theirs-picks"),
+  pickControls: $("season-pick-controls"), picksNote: $("season-picks-note") });
 
 // ---- the engine, recorded; simulation calls are counted (must stay 0) ----
-const analyzeCalls = [], analyzeErrors = [];
+const analyzeCalls = [], analyzeErrors = [], analyzeResults = [];
 let simCalls = 0;
 window.SeasonTrade = {
-  analyze(args) { analyzeCalls.push(args); try { return RealSeasonTrade.analyze(args); } catch (e) { analyzeErrors.push(e); throw e; } },
+  analyze(args) { analyzeCalls.push(args); try { const r = RealSeasonTrade.analyze(args); analyzeResults.push(r); return r; } catch (e) { analyzeErrors.push(e); throw e; } },
   simulate() { simCalls++; throw new Error("simulation is off"); },
   stratumInputs() { simCalls++; throw new Error("simulation is off"); },
 };
@@ -410,7 +487,7 @@ function fresh(storage = new Map()) {
   Session._storage({ getItem: k => (storage.has(k) ? storage.get(k) : null), setItem: (k, v) => { storage.set(k, String(v)); },
     removeItem: k => { storage.delete(k); }, key: i => [...storage.keys()][i] ?? null, get length() { return storage.size; } });
   M._reset();
-  analyzeCalls.length = 0; analyzeErrors.length = 0; calls.length = 0; fetched.length = 0; events.length = 0; window.TradeMode.calls.length = 0;
+  analyzeCalls.length = 0; analyzeErrors.length = 0; analyzeResults.length = 0; calls.length = 0; fetched.length = 0; events.length = 0; window.TradeMode.calls.length = 0;
 }
 const until = async (pred, what, ms = 4000) => {
   const t0 = Date.now();
@@ -847,6 +924,316 @@ async function week18() {
   assert.equal(analyzeCalls.length, 0);
 }
 
+// ============ Part 2b: draft picks in keeper leagues (spec 2026-11-13-trade-draft-picks) ============
+// A synthetic 2-team keeper league (type 1, one keeper) drafting 3 snake rounds. Bo's Bunch traded its 2027 R2 to
+// User A. The 12-team owner scoring scores pick-sixes, so the page must pass the batch's prior rate (Review Focus 2).
+const PV = require("../site/assets/pickvalue.js");
+const PICK_CURVE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "site", "assets", "pick_curve.json"), "utf8"));
+const CURVE_PATH = "assets/pick_curve.json?v=picks1";
+const DRAFT_ID = "800000000000000001";
+const KEEPER_POS = ["RB", "WR", "FLEX", "K"];                     // capacity 4: User A's four players fill it
+const keeperLeague = (over = {}, settings = {}) => ({ ...baseLeague, draft_id: DRAFT_ID, roster_positions: KEEPER_POS, ...over,
+  settings: { ...baseLeague.settings, type: 1, max_keepers: 1, ...settings } });
+// Standings: User A (roster 9) has 1 win, Bo's Bunch (roster 3) 2, so User A picks first in odd rounds.
+const STANDINGS = { 9: { wins: 1, losses: 2, fpts: 301, fpts_decimal: 50 }, 3: { wins: 2, losses: 1, fpts: 280 } };
+const standingsRosters = () => rosters.map(r => ({ ...r, settings: { ...STANDINGS[r.roster_id] } }));
+const TRADED = [{ season: "2027", round: 2, roster_id: 3, owner_id: 9, previous_owner_id: 3, league_id: L }];
+const DRAFT = { draft_id: DRAFT_ID, league_id: L, season: "2026", type: "snake", status: "complete", settings: { rounds: 3, teams: 2 } };
+const pickRoutes = ({ traded = TRADED, draft = DRAFT } = {}) => ({ ...baseRoutes(), [`/league/${L}/rosters`]: () => standingsRosters(),
+  [`/league/${L}/traded_picks`]: traded, [`/draft/${DRAFT_ID}`]: draft });
+const pickStatics = opts => ({ ...makeStatics(opts), [CURVE_PATH]: PICK_CURVE });
+const memStorage = (map = new Map()) => ({ map, getItem: k => (map.has(k) ? map.get(k) : null), setItem: (k, v) => { map.set(k, String(v)); }, removeItem: k => { map.delete(k); } });
+const PREF_KEY = `megatron.trade.picks.v1|${L}`;
+const pickGroup = box => box.children.find(x => x.tagName === "details");
+const pickRows = box => all(pickGroup(box)).filter(x => x.tagName === "li");
+const pickLabels = box => pickRows(box).map(li => text(li.children[0]).trim());
+const tickPick = (box, key, on = true) => { const b = pickRows(box).find(li => li.dataset.pick === key).children[0].children[0]; b.checked = on; b.dispatch("change"); };
+const presetBtn = (els, key) => all(els.pickControls).find(x => x.tagName === "button" && x.dataset.preset === key);
+const pickSelects = els => all(els.pickControls).filter(x => x.tagName === "select");
+const choose = (sel, value) => { sel.value = value; sel.dispatch("change"); };
+const summaryOf = els => els.result.children[0];
+const pickBlock = els => summaryOf(els).children.find(x => x.className === "season-picks-result");
+const summaryWithoutPicks = els => summaryOf(els).children.filter(x => x.className !== "season-picks-result").map(x => x.textContent);
+const curveOf = (lg, rule) => PV.buildCurve({ artifact: PICK_CURVE, weights: LL.effectiveWeights(lg.scoring_settings), slots: lg.roster_positions,
+  teams: lg.total_rosters, keepers: lg.settings.max_keepers, rounds: 3, pickSixRate: METHOD.prior.rate, keeperRule: rule });
+const valueOf = (lg, pick, rule, order) => PV.pickValue({ pick, curve: curveOf(lg, rule), order, rosters: standingsRosters(), teams: lg.total_rosters, rounds: 3, snake: true });
+const detailsNamed = (els, title) => els.result.children.find(x => x.tagName === "details" && x.children[0].textContent === title);
+// Every string the picks surfaces render, scrubbed of the allowed sentences, must avoid the page's forbidden words.
+function assertNoForbidden(els) {
+  const strings = [els.result, els.pickControls, els.minePicks, els.theirsPicks, els.picksNote].flatMap(n => all(n).map(x => x.textContent || ""));
+  const scrubbed = strings.map(s => M.ALLOWED_SENTENCES.reduce((x, a) => x.split(a).join(""), s)).join("\n").toLowerCase();
+  for (const w of M.FORBIDDEN) assert.ok(!scrubbed.includes(w), `forbidden word "${w}" in: ${scrubbed}`);
+}
+async function openKeeperPage({ lg = keeperLeague(), staticsOpts, routesOver = {}, storage } = {}) {
+  fresh(); statics = pickStatics(staticsOpts); routes = { ...pickRoutes(), ...routesOver }; league = lg;
+  state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
+  window.localStorage = storage || memStorage();
+  const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+  const els = els$($);
+  M.init({ els }); FC.setLeague(L);
+  await Session.identify("user_a");
+  await until(() => /teams loaded/.test(els.status.textContent), "the keeper league's columns");
+  return els;
+}
+
+async function picksFlow() {
+  const store = memStorage();
+  try {
+    const els = await openKeeperPage({ storage: store });
+    await sub("the picks data is read once, only for the keeper league: traded picks, the league's draft, the pick-value table", async () => {
+      assert.deepEqual(calls.filter(c => /traded_picks|^\/draft\//.test(c)).sort(), [`/draft/${DRAFT_ID}`, `/league/${L}/traded_picks`]);
+      assert.equal(fetched.filter(p => p === CURVE_PATH).length, 1);
+    });
+    await sub("each column lists its owned picks, collapsed, under the players; a traded pick sits under its current owner, named by its original team", async () => {
+      for (const box of [els.minePicks, els.theirsPicks]) { assert.equal(box.hidden, false); assert.equal(pickGroup(box).open, false, "collapsed"); }
+      assert.equal(els.minePicks.parent, els.mine.parent, "the group is in the column, under the list");
+      assert.equal(pickGroup(els.minePicks).children[0].textContent, "Draft picks (4)");
+      assert.deepEqual(pickLabels(els.minePicks), ["2027 R1", "2027 R2", "2027 R2 (from Bo's Bunch)", "2027 R3"]);
+      assert.equal(pickGroup(els.theirsPicks).children[0].textContent, "Draft picks (2)");
+      assert.deepEqual(pickLabels(els.theirsPicks), ["2027 R1", "2027 R3"]);
+      assert.equal(els.picksNote.hidden, true);
+      assert.ok(!els.mine.children.some(li => li.dataset.pick), "picks are not player rows");
+    });
+    await sub("the controls: weighting presets (Balanced pressed), the helper line, the draft order and the keeper rule, defaults first", async () => {
+      assert.equal(els.pickControls.hidden, false);
+      assert.deepEqual(["win_now", "balanced", "rebuild"].map(k => [presetBtn(els, k).textContent, presetBtn(els, k).attrs["aria-pressed"]]),
+        [["Win now", "false"], ["Balanced", "true"], ["Rebuild", "false"]]);
+      assert.ok(all(els.pickControls).some(x => x.textContent === "How much a point next season counts: Win now ×0.5, Balanced ×0.8, Rebuild ×1.2."));
+      const [order, rule] = pickSelects(els);
+      assert.equal(order.parent.children[0].textContent.trim(), "2027 draft order:");
+      assert.deepEqual(order.children.map(o => [o.value, o.textContent]), [["unset", "Not set yet"], ["standings", "By this season's standings"]]);
+      assert.equal(order.value, "unset");
+      assert.equal(rule.parent.children[0].textContent.trim(), "Keeper rule:");
+      assert.deepEqual(rule.children.map(o => [o.value, o.textContent]), [["unknown", "Unknown"], ["ladder", "Round drafted − 1 per year kept (waiver pickups: round 12; max 2 years)"]]);
+      assert.equal(rule.value, "unknown");
+    });
+
+    // Picks only (Review Focus 3): User A gets Bo's Bunch's 2027 R1 and gives its own 2027 R3. Its roster is full.
+    tickPick(els.theirsPicks, "2027|1|3"); tickPick(els.minePicks, "2027|3|9");
+    await sub("a pick takes no roster spot: no drop prompt, Compare is open", async () => {
+      assert.equal(els.mineDrops.hidden, true); assert.equal(els.theirsDrops.hidden, true); assert.equal(els.compare.disabled, false);
+    });
+    await clickCompare(els, () => !els.result.hidden, "the picks-only comparison");
+    const R1 = { season: 2027, round: 1, originalRosterId: 3 }, R3 = { season: 2027, round: 3, originalRosterId: 9 };
+    const expected = (rule, order, preset, now = [0, 0]) => {
+      const v1 = valueOf(league, R1, rule, order), v3 = valueOf(league, R3, rule, order);
+      const { label, w } = PV.PRESETS[preset], fut = v1.value - v3.value;
+      return ["You get 2027 R1 (from Bo's Bunch) and give 2027 R3.", `Next season: ${M.signedWhole(fut)} expected points from picks.`,
+        M.pickLine("2027 R1 (from Bo's Bunch)", v1), M.pickLine("2027 R3", v3), `Combined at ${label} (next season ×${w}): ${M.signedWhole(now[0] + w * fut)}`,
+        "Bo's Bunch gets 2027 R3 (from User A) and gives 2027 R1.", `Next season: ${M.signedWhole(-fut)} expected points from picks.`,
+        M.pickLine("2027 R3 (from User A)", v3), M.pickLine("2027 R1", v1), `Combined at ${label} (next season ×${w}): ${M.signedWhole(now[1] - w * fut)}`,
+        PICK_VALUES, PICK_AVERAGES];
+    };
+    await sub("a picks-only trade: this season 0 and no engine call, then each side's next-season and combined lines in whole points", async () => {
+      assert.equal(analyzeCalls.length, 0, "no lineup engine call");
+      assert.equal(summaryOf(els).children[0].textContent, "This season: 0 pts for both teams over weeks 4–6; no players move, so neither starting lineup changes.");
+      const lines = pickBlock(els).children.map(x => x.textContent);
+      assert.deepEqual(lines, expected("unknown", "unset", "balanced"));
+      assert.match(lines[2], /^2027 R1 \(from Bo's Bunch\): worth about \d+ \(anywhere from pick 1 to 2: \d+–\d+\)$/);
+      assert.match(lines[1], /^Next season: [+−]?\d+ expected points from picks\.$/, "whole points");
+      assert.ok(!text(els.result).includes(M.STARTERS_ONLY), "no lineup totals, so no starters-only note");
+      assert.ok(els.result.children.some(x => x.className === "season-subline" && x.textContent === M.PICKS_SUBLINE_TAIL));
+      assert.equal(els.status.textContent, "draft picks compared; no players move");
+      assertNoForbidden(els);
+    });
+    await sub("weighting, keeper rule and draft order recompute the result: no Sleeper call, no fetch, no engine call; remembered per league", async () => {
+      const nCalls = calls.length, nFetched = fetched.length;
+      presetBtn(els, "rebuild").dispatch("click");
+      assert.equal(presetBtn(els, "rebuild").attrs["aria-pressed"], "true"); assert.equal(presetBtn(els, "balanced").attrs["aria-pressed"], "false");
+      assert.deepEqual(pickBlock(els).children.map(x => x.textContent), expected("unknown", "unset", "rebuild"));
+      const [order, rule] = pickSelects(els);
+      choose(rule, "ladder");
+      assert.deepEqual(pickBlock(els).children.map(x => x.textContent), expected("ladder", "unset", "rebuild"));
+      assert.notEqual(valueOf(league, R3, "ladder", "unset").value, valueOf(league, R3, "unknown", "unset").value, "the keeper rule moves a round-3 pick");
+      choose(order, "standings");
+      const lines = pickBlock(els).children.map(x => x.textContent);
+      assert.deepEqual(lines, expected("ladder", "standings", "rebuild"));
+      // Odd rounds: User A (fewest wins) picks first, so Bo's Bunch's R1 is pick 2 and User A's R3 is pick 5.
+      assert.match(lines[2], /^2027 R1 \(from Bo's Bunch\): worth about \d+ at pick 2 by current standings \(round range 1–2: \d+–\d+\)$/);
+      assert.match(lines[3], /^2027 R3: worth about \d+ at pick 5 by current standings \(round range 5–6: \d+–\d+\)$/);
+      assert.equal(calls.length, nCalls, "no Sleeper call"); assert.equal(fetched.length, nFetched, "no fetch");
+      assert.equal(analyzeCalls.length, 0); assert.equal(els.result.hidden, false, "the result stays on screen");
+      assert.deepEqual(JSON.parse(store.map.get(PREF_KEY)), { preset: "rebuild", order: "standings", keeperRule: "ladder" });
+      assertNoForbidden(els);
+    });
+
+    // The same player trade without and with a pick: this season's numbers are the engine's either way.
+    tickPick(els.theirsPicks, "2027|1|3", false); tickPick(els.minePicks, "2027|3|9", false);
+    tickPlayer(els.mine, "d"); tickPlayer(els.theirs, "b");
+    await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, "the players-only comparison");
+    const plain = { summary: summaryWithoutPicks(els), sides: text(els.result.children.find(x => x.tagName === "table")),
+      weeks: text(detailsNamed(els, "Week-by-week lineup totals")), assumptions: text(detailsNamed(els, "Assumptions")),
+      subline: els.result.children.find(x => x.className === "season-subline").textContent, notes: text(detailsNamed(els, "Engine notes")) };
+    await sub("no pick in the offer: no pick lines, today's subline tail and engine note", async () => {
+      assert.equal(pickBlock(els), undefined);
+      assert.ok(!/Next season|Combined at|Pick values/.test(text(els.result)));
+      assert.ok(plain.subline.endsWith("Keeper value and draft picks are not valued, so no overall grade is shown."));
+      assert.ok(plain.notes.includes(ENGINE_NOTE));
+    });
+    tickPick(els.theirsPicks, "2027|1|3");
+    await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 2, "the same comparison with a pick");
+    await sub("a player and a pick: this season identical to the trade without the pick, plus next-season and combined lines", async () => {
+      for (const k of ["give", "receive", "drops", "excludeWeeks", "rosterIds", "currentWeek"]) assert.deepEqual(analyzeCalls[1][k], analyzeCalls[0][k], k);
+      assert.deepEqual(summaryWithoutPicks(els), plain.summary, "the lineup lines, caveats and starters-only note are unchanged");
+      assert.equal(text(els.result.children.find(x => x.tagName === "table")), plain.sides);
+      assert.equal(text(detailsNamed(els, "Week-by-week lineup totals")), plain.weeks);
+      assert.equal(text(detailsNamed(els, "Assumptions")), plain.assumptions);
+      const d = analyzeResults[1].sides.map(s => s.delta), v1 = valueOf(league, R1, "ladder", "standings"), w = 1.2;
+      assert.deepEqual(pickBlock(els).children.map(x => x.textContent), [
+        "You get 2027 R1 (from Bo's Bunch).", `Next season: ${M.signedWhole(v1.value)} expected points from picks.`,
+        M.pickLine("2027 R1 (from Bo's Bunch)", v1), `Combined at Rebuild (next season ×1.2): ${M.signedWhole(d[0] + w * v1.value)}`,
+        "Bo's Bunch gives 2027 R1.", `Next season: ${M.signedWhole(-v1.value)} expected points from picks.`,
+        M.pickLine("2027 R1", v1), `Combined at Rebuild (next season ×1.2): ${M.signedWhole(d[1] - w * v1.value)}`,
+        PICK_VALUES, PICK_AVERAGES]);
+      const subline = els.result.children.find(x => x.className === "season-subline").textContent;
+      assert.equal(subline, plain.subline.replace("Keeper value and draft picks are not valued, so no overall grade is shown.", M.PICKS_SUBLINE_TAIL));
+      const notes = text(detailsNamed(els, "Engine notes"));
+      assert.ok(notes.includes(M.engineWarningText(ENGINE_NOTE, true)) && !notes.includes("No keeper or future-pick value"), notes);
+      assert.equal(notes, plain.notes.replace(ENGINE_NOTE, M.engineWarningText(ENGINE_NOTE, true)), "only that note changes");
+      assertNoForbidden(els);
+    });
+    await sub("the choices are restored on the next visit to this league", async () => {
+      const again = await openKeeperPage({ storage: store });
+      assert.equal(presetBtn(again, "rebuild").attrs["aria-pressed"], "true");
+      assert.deepEqual(pickSelects(again).map(s => s.value), ["standings", "ladder"]);
+      store.map.set(PREF_KEY, "{not json");
+      const broken = await openKeeperPage({ storage: store });
+      assert.equal(presetBtn(broken, "balanced").attrs["aria-pressed"], "true", "unreadable storage: the defaults");
+      const throwing = { getItem() { throw new Error("denied"); }, setItem() { throw new Error("denied"); } };
+      const denied = await openKeeperPage({ storage: throwing });
+      presetBtn(denied, "win_now").dispatch("click");
+      assert.equal(presetBtn(denied, "win_now").attrs["aria-pressed"], "true", "storage that throws never breaks the controls");
+    });
+  } finally { delete window.localStorage; }
+}
+
+// No pick in the offer renders exactly as a redraft league with the same rosters, scoring and slots (regression pin).
+async function picksRegressionPin() {
+  const run = async lg => {
+    const els = lg.settings.type === 1 ? await openKeeperPage({ lg }) : await (async () => {
+      fresh(); statics = makeStatics(); routes = { ...baseRoutes(), [`/league/${L}/rosters`]: () => standingsRosters() }; league = lg;
+      state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
+      const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+      const e = els$($); M.init({ els: e }); FC.setLeague(L); await Session.identify("user_a");
+      await until(() => /teams loaded/.test(e.status.textContent), "the redraft columns");
+      return e;
+    })();
+    tickPlayer(els.mine, "a"); tickPlayer(els.theirs, "c");
+    await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, "the comparison");
+    return { result: text(els.result), status: els.status.textContent };
+  };
+  try {
+    const redraft = await run({ ...baseLeague, roster_positions: KEEPER_POS });
+    const keeper = await run(keeperLeague());
+    assert.deepEqual(keeper, redraft);
+  } finally { delete window.localStorage; }
+}
+
+// Review Focus 4: a failed traded_picks or draft read, a missing or malformed table, unknown rounds: no pick rows, one
+// line saying why, and the page compares players exactly as before.
+async function picksUnavailable() {
+  const TIMEOUT = "Sleeper did not respond within 4 seconds. Check your connection and try again.";
+  const cases = [
+    ["traded_picks fails", { routesOver: { [`/league/${L}/traded_picks`]: new Error("HTTP 500") } },
+      "Draft picks unavailable: Sleeper's list of traded picks did not load (HTTP 500)."],
+    ["the draft read times out", { routesOver: { [`/draft/${DRAFT_ID}`]: new Error(TIMEOUT) } },
+      "Draft picks unavailable: the league's draft settings did not load (Sleeper did not respond within 4 seconds. Check your connection and try again)."],
+    ["no draft rounds anywhere", { routesOver: { [`/draft/${DRAFT_ID}`]: { ...DRAFT, settings: {} }, [`/league/${L}/traded_picks`]: [] } },
+      "Draft picks unavailable: the number of draft rounds is unknown."],
+    ["the league has no draft", { lg: keeperLeague({ draft_id: null }) }, "Draft picks unavailable: the league has no draft on Sleeper."],
+    ["the pick-value table is missing", { tableMissing: true }, "Draft picks unavailable: the pick-value table did not load (HTTP 404)."],
+    ["the pick-value table is malformed", { table: { ...PICK_CURVE, kind: "other" } }, "Draft picks unavailable: malformed pick curve: unknown kind or schema version."],
+  ];
+  try {
+    for (const [what, opts, line] of cases) {
+      const els = await (async () => {
+        if (!opts.tableMissing && !opts.table) return openKeeperPage(opts);
+        // The table is read once per document: these two cases change it before the page opens.
+        fresh(); statics = pickStatics();
+        if (opts.tableMissing) delete statics[CURVE_PATH]; else statics[CURVE_PATH] = opts.table;
+        routes = pickRoutes(); league = keeperLeague(); state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog();
+        window.localStorage = memStorage();
+        const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+        const e = els$($); M.init({ els: e }); FC.setLeague(L); await Session.identify("user_a");
+        await until(() => /teams loaded/.test(e.status.textContent), "the columns");
+        return e;
+      })();
+      assert.equal(els.status.textContent, "2 teams loaded — you are User A", what);
+      assert.equal(els.picksNote.hidden, false, what); assert.equal(els.picksNote.textContent, line, what);
+      for (const box of [els.minePicks, els.theirsPicks]) { assert.equal(box.hidden, true, what); assert.equal(box.children.length, 0, what); }
+      assert.equal(els.pickControls.hidden, true, what);
+      tickPlayer(els.mine, "d"); tickPlayer(els.theirs, "b");
+      await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, `${what}: the player comparison`);
+      assert.equal(els.status.textContent, "lineups compared for weeks 4–6", what);
+      assert.ok(!/Next season|Combined at|Pick values/.test(text(els.result)), what);
+      assertNoForbidden(els);
+    }
+  } finally { delete window.localStorage; }
+}
+
+// Dynasty and two-quarterback keeper leagues: the reason line, no pick reads at all; redraft stays silent (ownerFlow).
+async function picksGated() {
+  try {
+    for (const [what, lg, line] of [
+      ["dynasty", keeperLeague({}, { type: 2 }), PV.REASONS.dynasty],
+      ["superflex", keeperLeague({ roster_positions: ["RB", "WR", "SUPER_FLEX", "K"] }), PV.REASONS.two_qb],
+      ["two QB slots", keeperLeague({ roster_positions: ["QB", "QB", "RB", "WR", "K"] }), PV.REASONS.two_qb],
+    ]) {
+      const els = await openKeeperPage({ lg });
+      assert.equal(els.picksNote.hidden, false, what); assert.equal(els.picksNote.textContent, line, what);
+      assert.ok(!calls.some(c => /traded_picks|^\/draft\//.test(c)), `${what}: ${calls.join(", ")}`);
+      assert.ok(!fetched.includes(CURVE_PATH), what);
+      assert.equal(els.minePicks.hidden, true, what); assert.equal(els.pickControls.hidden, true, what);
+      assert.equal(els.cols.hidden, false, `${what}: the players are still listed`);
+      assertNoForbidden(els);
+    }
+    // A best-ball keeper league has no lineup comparison, so no pick UI and no pick reads.
+    const bb = await (async () => {
+      fresh(); statics = pickStatics({ lastWeek: 17 }); routes = pickRoutes(); league = keeperLeague({}, { best_ball: 1 });
+      state = { season: "2026", season_type: "regular", week: 3 }; catalog = baseCatalog(); window.localStorage = memStorage();
+      const { $ } = tradeDom(`https://example.test/Megatron/trade.html?league=${L}`);
+      const e = els$($); M.init({ els: e }); FC.setLeague(L); await Session.identify("user_a");
+      await until(() => !e.result.hidden, "the best-ball note");
+      return e;
+    })();
+    assert.equal(bb.result.children[0].textContent, BEST_BALL);
+    assert.ok(!calls.some(c => /traded_picks|^\/draft\//.test(c)) && !fetched.includes(CURVE_PATH), calls.join(", "));
+    for (const n of [bb.minePicks, bb.pickControls, bb.picksNote]) assert.equal(n.hidden, true);
+  } finally { delete window.localStorage; }
+}
+
+// A traded player in his team's top max_keepers by rest-of-season value is named once; one outside it is not.
+async function picksLikelyKeeper() {
+  try {
+    const els = await openKeeperPage({ staticsOpts: { lastWeek: 17 } });   // ros_value needs every week through 17
+    tickPlayer(els.mine, "a"); tickPlayer(els.mine, "d"); tickPlayer(els.theirs, "b"); tickPlayer(els.theirs, "c"); tickPick(els.theirsPicks, "2027|3|3");
+    await clickCompare(els, () => !els.result.hidden && analyzeCalls.length === 1, "the comparison with likely keepers");
+    const lines = pickBlock(els).children.map(x => x.textContent);
+    assert.deepEqual(lines.slice(-2), ["A Back is likely one of User A's keepers; his value next season is not counted.",
+      "B Wide is likely one of Bo's Bunch's keepers; his value next season is not counted."]);
+    assert.deepEqual(lines.slice(-4, -2), [PICK_VALUES, PICK_AVERAGES], "after the two notes");
+    assert.ok(!/D Deep is likely|C Run is likely/.test(text(els.result)));
+    assertNoForbidden(els);
+  } finally { delete window.localStorage; }
+}
+
+// A pick two seasons ahead: listed under its owner and valued at w^2 ("Future seasons").
+async function picksFutureSeason() {
+  try {
+    const traded = [...TRADED, { season: "2028", round: 1, roster_id: 9, owner_id: 3, previous_owner_id: 9, league_id: L }];
+    const els = await openKeeperPage({ routesOver: { [`/league/${L}/traded_picks`]: traded } });
+    assert.equal(pickGroup(els.theirsPicks).children[0].textContent, "Draft picks (6)");
+    assert.deepEqual(pickLabels(els.theirsPicks), ["2027 R1", "2027 R3", "2028 R1", "2028 R1 (from User A)", "2028 R2", "2028 R3"]);
+    assert.equal(pickGroup(els.minePicks).children[0].textContent, "Draft picks (6)");
+    tickPick(els.theirsPicks, "2028|1|9");
+    await clickCompare(els, () => !els.result.hidden, "the future-season comparison");
+    const v = valueOf(league, { season: 2028, round: 1, originalRosterId: 9 }, "unknown", "unset");
+    assert.deepEqual(pickBlock(els).children.map(x => x.textContent).slice(0, 4), ["You get 2028 R1.",
+      `Future seasons: ${M.signedWhole(v.value)} expected points from picks.`, M.pickLine("2028 R1", v),
+      `Combined at Balanced (next season ×0.8): ${M.signedWhole(0.64 * v.value)}`]);
+  } finally { delete window.localStorage; }
+}
+
 // ============================ Part 3: trade.html's mode resolution ============================
 const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
 const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x => x[1]).find(s => /leagueNavigation/.test(s));
@@ -1030,6 +1417,12 @@ async function pageRollover() {
   await sub("an unknown starting slot: the note, no lineup comparison", unknownSlot);
   await sub("I1: best ball / unknown slot rest-of-season values pass the 72 h, future-date and current-team checks or are withheld", rosValidity);
   await sub("week 18: No projected weeks remain.", week18);
+  await sub("draft picks in a keeper league: rows under the owner, controls, picks-only and player+pick comparisons", picksFlow);
+  await sub("draft picks: a trade without a pick renders exactly as in a redraft league", picksRegressionPin);
+  await sub("draft picks unavailable (Review Focus 4): one line why, the page compares players as before", picksUnavailable);
+  await sub("draft picks not offered in dynasty and two-QB leagues: the reason line, no pick reads", picksGated);
+  await sub("draft picks: a traded likely keeper is named", picksLikelyKeeper);
+  await sub("draft picks: a pick two seasons ahead", picksFutureSeason);
   await sub("trade.html with no league: the connect prompt, nothing loaded; an old league name: the same, never a substitute", pageNoLeague);
   await sub("trade.html in season: mode first, never draft.json, in-season links by id", pageInSeason);
   await sub("trade.html pre-draft: the board's own league reaches TradeMode after the mode; archived, other leagues and no keeper rules are refused", pagePreDraft);

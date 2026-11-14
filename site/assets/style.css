@@ -561,6 +561,28 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 #season-result { scroll-margin-top: .75rem; }
 /* The week table has seven columns; on a narrow screen it scrolls inside its own panel, never the page. */
 #season-result .season-detail { overflow-x: auto; }
+/* Draft picks (keeper leagues): a collapsed "Draft picks (N)" group under each roster list, its rows styled as the
+   player rows; the weighting / draft-order / keeper-rule controls between the lists and the result; and the pick
+   lines inside the result's summary. The controls wrap on a narrow screen; a long option is clipped by its select,
+   never pushed past the page. */
+#season-trade .season-picks-group { margin: .6rem 0 0; }
+#season-trade .season-picks-group > summary { padding: .35rem 0; }
+#season-picks-note { margin: .8rem 0 0; }
+#season-pick-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.2rem; margin: 1rem 0 .6rem; }
+#season-pick-controls .season-pick-weight { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+#season-pick-controls .season-pick-label,
+#season-pick-controls .season-pick-select > span { font: 600 .9rem/1.3 "Source Sans 3", sans-serif; color: var(--chalk); }
+.season-preset { padding: .3rem .75rem; border: 1px solid var(--rule); border-radius: 4px; background: transparent;
+  color: var(--chalk-dim); cursor: pointer; font: 600 .9rem/1.3 "Source Sans 3", sans-serif; }
+.season-preset:hover { border-color: var(--chalk-dim); color: var(--chalk); }
+.season-preset[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: rgba(255,255,255,.05); }
+#season-pick-controls .season-pick-help { flex: 1 1 100%; margin: -.2rem 0 0; font: 400 .86rem/1.4 "Source Sans 3", sans-serif; color: var(--chalk-dim); }
+#season-pick-controls .season-pick-select { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; min-width: 0; max-width: 100%; }
+#season-pick-controls select { max-width: 100%; min-width: 0; background: var(--board-raised); border: 1px solid var(--rule);
+  color: var(--chalk); padding: .35rem .4rem; border-radius: 4px; font: 400 .9rem/1.3 "Source Sans 3", sans-serif; }
+.season-summary p.season-picks-side { margin-top: .7rem; font-weight: 600; }
+.season-summary p.season-pick-line { padding-left: .9rem; font-size: .9rem; color: var(--chalk-dim); }
+.season-summary p.season-picks-combined { font-weight: 600; }
 
 @media (max-width: 560px) {
   /* Readable rows and comfortable tap targets. Inputs at 1rem: under 16px, iOS
@@ -585,6 +607,16 @@ tr.mine td:nth-child(3) { text-decoration: none; }
   #season-controls label { display: flex; align-items: center; gap: .4rem; flex: 1 1 auto; min-width: 0; white-space: nowrap; }
   #season-controls select { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 44px; font-size: 1rem; }
   #season-compare { flex: none; min-height: 44px; }
+  /* Draft picks on a phone: the group's summary is a full tap target; the controls stack, each select full width
+     (1rem, so iOS does not zoom), the three presets share one row. They sit after the lists and before the sticky
+     Trade-with/Compare bar (flex order 0). */
+  #season-trade .season-picks-group > summary { padding: .7rem 0; font-size: .9rem; }
+  #season-pick-controls { flex-direction: column; align-items: stretch; gap: .6rem; }
+  #season-pick-controls .season-pick-weight { flex-wrap: nowrap; }
+  #season-pick-controls .season-pick-label { flex: none; }
+  #season-pick-controls .season-preset { flex: 1 1 0; min-width: 0; min-height: 44px; padding: .3rem .4rem; font-size: 1rem; }
+  #season-pick-controls .season-pick-select { flex-direction: column; align-items: stretch; }
+  #season-pick-controls select { width: 100%; min-height: 44px; font-size: 1rem; }
 }
 
 /* -- keeper panel ------------------------------------------------------ */
