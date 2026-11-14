@@ -212,7 +212,9 @@
   }
 
   // Centered moving average, the window shrinking symmetrically at the ends so the top ranks are not dragged
-  // down by a one-sided window.
+  // down by a one-sided window. It maps a non-increasing sequence to a non-increasing one: each step either
+  // slides the window (a smaller value in, a larger out), grows it at the head (two values no larger than any
+  // in it) or shrinks it at the tail (the two largest out).
   function smooth(xs, half) {
     return xs.map((_, i) => {
       const k = Math.min(half, i, xs.length - 1 - i);
@@ -277,9 +279,15 @@
         counts[r.rank - 1] = (counts[r.rank - 1] || 0) + 1;
       }
     }
-    // Mean over the seasons that ranked that deep (every season ranks 1..n, so no rank is empty).
+    // Mean over the seasons that ranked that deep (every season ranks 1..n, so no rank is empty). One player
+    // per rank per season is noisy, so: smooth over about two rounds, force non-increasing, then smooth the
+    // result again so the pooled blocks do not leave a staircase (flat runs and cliffs would make a round's
+    // range and a single slot's value artifacts of where a cliff fell). The second pass keeps the curve
+    // non-increasing (see smooth); the last nonIncreasing only absorbs floating-point dust. One team: no
+    // smoothing at all.
     const raw = sums.map((s, i) => s / counts[i]);
-    const values = Object.freeze(nonIncreasing(smooth(raw, Math.floor(teams / 2))));
+    const half = teams - 1;
+    const values = Object.freeze(nonIncreasing(smooth(nonIncreasing(smooth(raw, half)), half)));
     const maxRank = values.length;
 
     // Market rank of the player available at a live slot: the top keepers*teams never reach the draft.

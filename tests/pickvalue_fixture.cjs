@@ -315,6 +315,32 @@ check("combine: unweighted next-season total, weighted overall w^n, every preset
   assert.throws(() => PV.combine({ thisSeason: 0, give: [], receive: [], preset: "yolo", currentSeason: 2026 }), /preset/);
 });
 
+check("real artifact: values decline smoothly, with no staircase of flat blocks and cliffs", () => {
+  // The committed Task-1 artifact. After the second smoothing pass a single-slot drop is an average of the pooled
+  // curve's drops over about two rounds, so it stays within about twice the mean drop over the surrounding two
+  // rounds whatever the data. A staircase puts a whole block's drop on one slot (9-20x here before the fix).
+  const real = require("../site/assets/pick_curve.json");
+  const HALF = { ...STD, rec: 0.5 };
+  const lineups = [SLOTS, ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX", "BN", "BN"]];
+  for (const scoring of [STD, HALF, PPR]) for (const slots of lineups) for (const teams of [8, 10, 12, 14])
+  for (const [keepers, keeperRule] of [[1, "unknown"], [2, "ladder"]]) {
+    const c = PV.buildCurve({ artifact: real, weights: LL.effectiveWeights(scoring), slots, teams, keepers, rounds: 16, keeperRule });
+    const tag = `${teams} teams, ${keepers} keepers, ${keeperRule}`;
+    for (let s = 1; s < 10 * teams; s++) {
+      const a = Math.max(1, s - teams), b = s + teams;
+      const step = c.valueAtSlot(s) - c.valueAtSlot(s + 1), local = (c.valueAtSlot(a) - c.valueAtSlot(b)) / (b - a);
+      assert.ok(step <= 3 * local + 1e-9, `${tag}: slot ${s} drops ${step} against a local mean drop of ${local}`);
+    }
+    let prev = Infinity;
+    for (let round = 1; round <= 10; round++) {
+      const p = PV.pickValue({ pick: { season: 2027, round, originalRosterId: 1 }, curve: c, order: "unset", rosters: [], teams, rounds: 16, snake: true });
+      assert.ok(p.value < prev, `${tag}: R${round} is worth ${p.value} on average, not below the round before`);
+      if (round <= 6) assert.ok(p.high > p.low, `${tag}: R${round} has no range (${p.high} to ${p.low})`);
+      prev = p.value;
+    }
+  }
+});
+
 check("buildCurve rejects a malformed artifact", () => {
   const w = LL.effectiveWeights(PPR);
   const base = { weights: w, slots: SLOTS, teams: 4, keepers: 0, rounds: 10, keeperRule: "unknown" };
