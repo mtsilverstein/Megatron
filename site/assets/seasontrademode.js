@@ -52,8 +52,9 @@
   const SUBLINE_TAIL = "Keeper value and draft picks are not valued, so no overall grade is shown.";
   // An offer with a draft pick: the two sentences that would otherwise be false (spec §5.7).
   const PICKS_SUBLINE_TAIL = "Keeper value is not counted; draft picks are valued for next season only.";
+  const PICKS_SUBLINE_TAIL_LATER = "Keeper value is not counted; draft picks are valued for future seasons only.";
   const FORBIDDEN = Object.freeze(["verdict", "win/win", "fair", "winner", "accept", "recommend", "grade"]);
-  const ALLOWED_SENTENCES = Object.freeze([HEADLINE, SUBLINE_TAIL, PICKS_SUBLINE_TAIL]);
+  const ALLOWED_SENTENCES = Object.freeze([HEADLINE, SUBLINE_TAIL, PICKS_SUBLINE_TAIL, PICKS_SUBLINE_TAIL_LATER]);
   // The measured-method vocabulary (gradeText/marketText below). Dormant in
   // phase 1: no grade is shown to anyone (spec §6.2), but the pure helpers
   // stay pinned to the backtest by sim_parity_fixture.
@@ -94,10 +95,11 @@
     help: () => `How much a point next season counts: ${Object.values(PV().PRESETS).map(p => `${p.label} ×${p.w}`).join(", ")}.`,
     order: next => `${next} draft order:`,
     keeperRule: "Keeper rule:",
-    valuesNote: "Pick values: what players drafted at each spot actually scored in 2021–2025, above a waiver-level starter, in your league's scoring. A player's value next season, as a keeper, is not counted.",
+    valuesNote: K => `Pick values: what the player ranked at each draft spot by the preseason consensus actually scored in 2021–2025, above a waiver-level starter, in your league's scoring. This estimate assumes each team keeps its ${K} best-ranked player${K === 1 ? "" : "s"}. A player's value next season, as a keeper, is not counted.`,
+    ladderNote: "Under this keeper rule the best players often can't be kept, so early picks are likely worth more than shown.",
     averagesNote: "Pick values are 2021–2025 averages; any single pick can land far from them.",
     // The engine's note, when the offer has a pick: the pick values sit in the summary, above the engine notes.
-    engineNote: "Draft picks are valued for next season above; keeper value, bench insurance and the other side's willingness to deal are not counted",
+    engineNote: later => `Draft picks are valued for ${later ? "future seasons" : "next season"} above; keeper value, bench insurance and the other side's willingness to deal are not counted`,
     unavailable: reason => `Draft picks unavailable: ${reason}`,
   });
   // Whole points, rounded half away from zero so the two sides of one trade read as mirror images; 0 has no sign.
@@ -116,18 +118,22 @@
   }
   // The engine's warnings as the page shows them: with a pick in the offer the "no future-pick value" clause would be
   // false, so it is reworded; the rest of that note (the free-agent assumption) stays. Without a pick: unchanged.
-  function engineWarningText(w, hasPicks) {
+  function engineWarningText(w, hasPicks, later = false) {
     const s = String(w);
-    return hasPicks && s.startsWith(ENGINE_PICK_NOTE) ? PICK_COPY.engineNote + s.slice(ENGINE_PICK_NOTE.length) : s;
+    return hasPicks && s.startsWith(ENGINE_PICK_NOTE) ? PICK_COPY.engineNote(later) + s.slice(ENGINE_PICK_NOTE.length) : s;
   }
   // sides: [{you, name, thisSeason, gets: [{season, label, v}], gives: [...]}], side 0 first. Returns [{text, cls}]:
   // per side who gets and gives which pick, the picks' total, one line per pick, the combined number; then the
   // two notes, once. "Future seasons" replaces "Next season" when any pick in the offer is two or more seasons ahead.
-  function picksSummary({ sides, preset, currentSeason }) {
+  function picksSummary({ sides, preset, currentSeason, keepers, keeperRule }) {
     const P = PV().PRESETS[preset];
     if (!P) throw new Error(`Unknown weighting preset: ${preset}`);
     const now = Number(currentSeason);
     const later = sides.some(s => [...s.gets, ...s.gives].some(p => Number(p.season) - now >= 2));
+    // The factors actually applied, one per distinct number of seasons ahead among the picks in the offer.
+    const ahead = [...new Set(sides.flatMap(s => [...s.gets, ...s.gives]).map(p => Number(p.season) - now))].sort((a, b) => a - b);
+    const factorWord = n => (n <= 1 ? "next season" : n === 2 ? "the season after" : `${n} seasons ahead`);
+    const factors = ahead.map(n => `${factorWord(n)} ×${Number((P.w ** n).toFixed(2))}`).join(", ");
     const lines = [];
     for (const s of sides) {
       const gets = s.gets.map(p => p.label), gives = s.gives.map(p => p.label);
@@ -140,10 +146,11 @@
         receive: s.gets.map(p => ({ season: p.season, value: p.v.value })), give: s.gives.map(p => ({ season: p.season, value: p.v.value })) });
       lines.push({ text: `${later ? "Future seasons" : "Next season"}: ${signedWhole(c.future)} expected points from picks.`, cls: "" });
       for (const p of [...s.gets, ...s.gives]) lines.push({ text: pickLine(p.label, p.v), cls: "season-pick-line" });
-      lines.push({ text: `Combined at ${P.label} (next season ×${c.w}): ${signedWhole(c.combined)}`, cls: "season-picks-combined" });
+      lines.push({ text: `Combined at ${P.label} (${ahead.length ? factors : `next season ×${c.w}`}): ${signedWhole(c.combined)}`, cls: "season-picks-combined" });
     }
-    lines.push({ text: PICK_COPY.valuesNote, cls: "season-summary-note" });
+    lines.push({ text: PICK_COPY.valuesNote(Number(keepers)), cls: "season-summary-note" });
     lines.push({ text: PICK_COPY.averagesNote, cls: "season-summary-note" });
+    if (keeperRule === "ladder") lines.push({ text: PICK_COPY.ladderNote, cls: "season-summary-note" });
     return lines;
   }
   // The roster's top `keepers` skill players by rest-of-season value (rosValue: Map sleeper id -> ros_value). Every
@@ -202,7 +209,7 @@
       const after = result.weeks.reduce((a, w) => a + w.sides[i].after.total, 0);
       return { name: name(s.rosterId), before: fmt(before), after: fmt(after), delta: fmtDelta(s.delta) };
     });
-    const subline = `Sum of weekly central (p50) lineup scenarios for weeks ${ctx.firstWeek}–${ctx.endWeek}; week ${ctx.currentWeek} is excluded because trades may process after games start. ${ctx.graded ? GRADED_SUBLINE_TAIL : ctx.picks ? PICKS_SUBLINE_TAIL : SUBLINE_TAIL}`;
+    const subline = `Sum of weekly central (p50) lineup scenarios for weeks ${ctx.firstWeek}–${ctx.endWeek}; week ${ctx.currentWeek} is excluded because trades may process after games start. ${ctx.graded ? GRADED_SUBLINE_TAIL : ctx.picks ? (ctx.picksLater ? PICKS_SUBLINE_TAIL_LATER : PICKS_SUBLINE_TAIL) : SUBLINE_TAIL}`;
     const assumptions = [];
     for (const [id, weeks] of Object.entries(ctx.excludeWeeks || {})) if (weeks.length) assumptions.push(`${pname(id)} assumed unavailable weeks ${weeks.join(", ")} (your assumption, not a return-date prediction)`);
     for (const [rid, ids] of Object.entries(ctx.drops || {})) for (const id of ids) assumptions.push(`${name(rid)} drops ${pname(id)}`);
@@ -641,6 +648,10 @@
       if (!read.ok) return read;
       try {
         const P = PV(), { tradedPicks, draft, artifact } = read;
+        // An auction (or any other non-snake, non-linear) draft has no picks to trade; the draft board refuses it too.
+        if (draft.type && draft.type !== "snake" && draft.type !== "linear") {
+          throw new Error(`this league's draft ${draft.type === "auction" ? "is an auction, which has" : "type has"} no draft picks to trade`);
+        }
         const rounds = P.draftRounds({ draft, tradedPicks });
         if (rounds == null) throw new Error("the number of draft rounds is unknown");
         const seasons = P.pickSeasons({ league, tradedPicks });
@@ -1214,14 +1225,15 @@
       let lines;
       try {
         const curve = PK.curves[PK.pref.keeperRule];
-        const value = p => PV().pickValue({ pick: p, curve, order: PK.pref.order, rosters: c.rosters, teams: PK.teams, rounds: PK.rounds,
+        const value = p => PV().pickValue({ pick: p, curve, order: p.season === PK.next ? PK.pref.order : "unset", rosters: c.rosters, teams: PK.teams, rounds: PK.rounds,
           snake: PK.snake, reversalRound: PK.reversalRound });
         const side = i => {
           const rid = c.rosterIds[i], mk = p => ({ season: p.season, label: pickLabel(p, rid), v: value(p) });
           return { you: i === 0 && !viewer(), name: rosterName(rid), thisSeason: c.thisSeason[i],
             gets: (i === 0 ? c.receivePicks : c.givePicks).map(mk), gives: (i === 0 ? c.givePicks : c.receivePicks).map(mk) };
         };
-        lines = picksSummary({ sides: [side(0), side(1)], preset: PK.pref.preset, currentSeason: PK.current });
+        lines = picksSummary({ sides: [side(0), side(1)], preset: PK.pref.preset, currentSeason: PK.current,
+          keepers: S.league.settings && S.league.settings.max_keepers, keeperRule: PK.pref.keeperRule });
         for (const t of c.keeperLines) lines.push({ text: t, cls: "season-summary-note" });
       } catch (e) {
         lines = [{ text: PICK_COPY.unavailable(reasonText(e.message)), cls: "season-summary-note" }];
@@ -1241,6 +1253,8 @@
       }
       return out;
     }
+    // Any pick in the offer two or more seasons ahead of the current season (the copy then says "future seasons").
+    const picksLater = (...lists) => lists.some(l => l.some(p => Number(p.season) - PK.current >= 2));
     // Inside the summary, after the lineup lines: the block the controls recompute.
     function picksBlock(summary, { rosterIds, thisSeason, givePicks, receivePicks, rosters, keeper }) {
       const block = el("div", null, "season-picks-result");
@@ -1255,20 +1269,21 @@
       summary.append(el("p", `This season: 0 pts for both teams over weeks ${first()}–${last()}; no players move, so neither starting lineup changes.`));
       picksBlock(summary, { rosterIds: [S.me.roster_id, S.partner.roster_id], thisSeason: [0, 0], givePicks, receivePicks, rosters, keeper: [] });
       out.append(summary);
-      out.append(el("p", PICKS_SUBLINE_TAIL, "season-subline"));
+      out.append(el("p", picksLater(givePicks, receivePicks) ? PICKS_SUBLINE_TAIL_LATER : PICKS_SUBLINE_TAIL, "season-subline"));
       els.provenance.textContent = provenanceText(snapshotAt);
       out.hidden = false;
     }
 
     function render(result, { snapshotAt, week, give, receive, drops, excludeWeeks, rosters, givePicks = [], receivePicks = [] }) {
       const hasPicks = givePicks.length + receivePicks.length > 0;
+      const later = picksLater(givePicks, receivePicks);
       const names = {};
       for (const s of result.sides) names[s.rosterId] = rosterName(s.rosterId);
       const playerNamesAll = {};
       for (const r of rosters) for (const id of [...(r.players || []), ...(r.reserve || []), ...(r.taxi || [])]) playerNamesAll[String(id)] = playerName(String(id));
       const weeks = result.weeks;
       const t = scenarioText(result, {
-        names, playerNames: {}, playerNamesAll, excludeWeeks, drops, picks: hasPicks,
+        names, playerNames: {}, playerNamesAll, excludeWeeks, drops, picks: hasPicks, picksLater: later,
         currentWeek: week, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week,
       });
       const out = els.result;
@@ -1334,7 +1349,7 @@
         section("Reported availability tags", false).append(list(result.availabilityFlags.map(f => `${f.name}: ${f.status} — ${f.interpretation}`)));
       }
       // 6. engine warnings verbatim (with a pick in the offer, the future-pick clause is reworded: it would be false)
-      section("Engine notes", false).append(list((result.warnings || []).map(w => engineWarningText(w, hasPicks))));
+      section("Engine notes", false).append(list((result.warnings || []).map(w => engineWarningText(w, hasPicks, later))));
       // 7. evaluation: only a record measured under this league's scoring and this model (spec §3.2)
       const ev = section("Measured evaluation", false);
       for (const line of evidenceLines(S.batch.evaluation, S.view)) ev.append(el("p", line, "season-eval"));
@@ -1380,7 +1395,7 @@
 
   return Object.freeze({ parseWeeks, identifyRoster, capacityOf, activeSkill, neededDrops, fmtDelta, scenarioText, lineupSummary, STARTERS_ONLY, coverageText,
     blockedStatus, slotName, caveatText,
-    PICKS_SUBLINE_TAIL, PICK_COPY, signedWhole, pickLine, engineWarningText, picksSummary, likelyKeepers,
+    PICKS_SUBLINE_TAIL, PICKS_SUBLINE_TAIL_LATER, PICK_COPY, signedWhole, pickLine, engineWarningText, picksSummary, likelyKeepers,
     contextLines, evidenceLines, rosValueLines, COPY, FORBIDDEN, ALLOWED_SENTENCES, HEADLINE, init, batch, _reset,
     gradeLabel, pickHorizon, stratumOf, lopsidedMeasure, errorFor, gradeText, marketText, startCounts, positionalRanks, GRADE_FORBIDDEN, GRADE_LABELS });
 });
