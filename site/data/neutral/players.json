@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 10,
   "data_through": "2026-wk9",
-  "generated_at": "2026-11-13T13:15:03+00:00",
-  "batch_id": "2026-11-13T13:15:03+00:00|2026-wk9|w10",
+  "generated_at": "2026-11-13T22:43:53+00:00",
+  "batch_id": "2026-11-13T22:43:53+00:00|2026-wk9|w10",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,7 +13,7 @@
   },
   "crosswalk": {
     "matched_gsis": 133,
-    "matched_name": 510,
+    "matched_name": 511,
     "unmatched": 11
   },
   "players": [
@@ -174,6 +174,18 @@
       "match": "gsis"
     },
     {
+      "player_id": "00-0031235",
+      "sleeper_id": "2078",
+      "name": "Odell Beckham Jr.",
+      "team": "MIN",
+      "position": "WR",
+      "bye": 6,
+      "ecr": 373,
+      "identity_only": false,
+      "reason": null,
+      "match": "gsis"
+    },
+    {
       "player_id": "00-0031236",
       "sleeper_id": "2197",
       "name": "Brandin Cooks",
@@ -296,7 +308,7 @@
     {
       "player_id": "00-0032208",
       "sleeper_id": "2334",
-      "name": "Phillip Dorsett II",
+      "name": "Phillip Dorsett",
       "team": "ARI",
       "position": null,
       "bye": 14,
@@ -708,18 +720,6 @@
       "team": "PIT",
       "position": "TE",
       "bye": 9,
-      "ecr": null,
-      "identity_only": false,
-      "reason": null,
-      "match": "gsis"
-    },
-    {
-      "player_id": "00-0033854",
-      "sleeper_id": "4718",
-      "name": "Dare Ogunbowale",
-      "team": "HOU",
-      "position": "RB",
-      "bye": 8,
       "ecr": null,
       "identity_only": false,
       "reason": null,
@@ -1585,8 +1585,8 @@
       "position": "WR",
       "bye": 10,
       "ecr": 295,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -4038,6 +4038,18 @@
       "match": "name"
     },
     {
+      "player_id": "00-0038519",
+      "sleeper_id": "11320",
+      "name": "Nikko Remigio",
+      "team": "HOU",
+      "position": "WR",
+      "bye": 8,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
+    },
+    {
       "player_id": "00-0038542",
       "sleeper_id": "9509",
       "name": "Bijan Robinson",
@@ -5028,18 +5040,6 @@
       "team": "PHI",
       "position": null,
       "bye": 10,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
-    },
-    {
-      "player_id": "00-0039244",
-      "sleeper_id": null,
-      "name": null,
-      "team": "LV",
-      "position": null,
-      "bye": 13,
       "ecr": null,
       "identity_only": true,
       "reason": "no_projection",

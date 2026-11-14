@@ -44,11 +44,21 @@ assert.throws(() => L.score({ p10: [2], p50: { receptions: 5 }, p90: [8] }, "WR"
 assert.throws(() => L.score({ p10: [2], p50: { receptions: 5 }, p90: [8] }, "QB", L.effectiveWeights({ bonus_rec_te: 1 })), /Incomplete/, "containers checked even with no weights");
 const odd = L.classify({ pass_yd: 0.05, rec: 0.25, bonus_fd_wr: 0.5 });
 assert.strictEqual(odd.refused, false);
-assert.strictEqual(L.disclosures(odd).banner, "Your league also scores bonus_fd_wr, which these projections leave out; rankings may be off for your league.");
+assert.strictEqual(L.disclosures(odd).banner, "Your league also scores first downs, which these projections leave out; rankings may be off for your league.");
 const gabD = L.disclosures(L.classify(gab));
 assert.strictEqual(gabD.banner, null);
 assert.ok(gabD.footnotes.includes("Pick-sixes use an average rate, not a forecast."));
 assert.ok(gabD.footnotes.some(f => f.startsWith("Not projected: ") && f.endsWith(" (rare events).")));
+// Readable names, not raw Sleeper keys (2026-11-13): de-duplicated, in the order first seen; an unlabelled key shows raw.
+assert.ok(!gabD.footnotes.some(f => /\b(pass_2pt|st_td|fum_rec_td|rec_td_50p)\b/.test(f)), gabD.footnotes.join(" | "));
+assert.strictEqual(L.disclosures(L.classify({ rec: 1, pass_2pt: 2, st_td: 6, rush_2pt: 2, rec_td_50p: 3 })).footnotes.at(-1),
+  "Not projected: two-point conversions, special-teams touchdowns, long-touchdown bonuses (rare events).");
+assert.strictEqual(L.disclosures(L.classify({ rec: 1, bonus_fd_wr: 0.5, zzz_new: 1, pass_fd: 1, pass_cmp: 0.1, bonus_rec_yd_100: 3, constructor: 1 })).banner,
+  "Your league also scores first downs, zzz_new, completions, 100-yard receiving bonuses, constructor, which these projections leave out; rankings may be off for your league.");
+assert.ok(Object.isFrozen(L.LABELS), "LABELS is frozen");
+// Every key the classifier can disclose has a label, so a future table entry cannot silently show raw.
+for (const k of [...Object.keys(L.RARE), ...L.RECURRING])
+  assert.ok(Object.hasOwn(L.LABELS, k) && typeof L.LABELS[k] === "string" && L.LABELS[k] && !L.LABELS[k].includes("_"), `label for ${k}`);
 const P = require("./fixtures/leaguelens_parity.json");
 for (const cs of P.cases) {
   if (cs.expected_error) { assert.throws(() => L.score(cs.stat_quantiles, cs.position, L.effectiveWeights(cs.scoring)), new RegExp(cs.expected_error)); continue; }

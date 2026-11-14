@@ -338,19 +338,19 @@ const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15
 {
   const lens = LL.classify({ rec:1, pass_td:4, pass_int_td:-2, bonus_fd_wr:0.5, pass_2pt:2 });
   const view = { lens, disclosures: LL.disclosures(lens) };
-  const format = { text:"Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format test (results January 2027)" };
+  const format = { text:"Scored with your league's own settings (12-team 1QB PPR, 6-pt pass TD). This format's accuracy is being measured this season; results in January 2027." };
   const lines = M.contextLines({ format, view, waiverType:2 });
   assert.deepEqual(lines, [
     format.text,
-    "Your league also scores bonus_fd_wr, which these projections leave out; rankings may be off for your league.",
+    "Your league also scores first downs, which these projections leave out; rankings may be off for your league.",
     "Pick-sixes use an average rate, not a forecast.",
-    "Not projected: pass_2pt (rare events).",
+    "Not projected: two-point conversions (rare events).",
     "Weak signal: 1-point threshold in your league's points (a heuristic); a gain under it gets no bid or priority claim.",
     "FAAB bid bands: 2-point threshold in your league's points (a heuristic) and 5-point threshold in your league's points (a heuristic); not calibrated and not a win probability.",
     SIM_OFF,
   ]);
-  const rollingLines = M.contextLines({ format:{ text:"Format: not in the format test" }, view:{ disclosures:{ banner:null, footnotes:[] } }, waiverType:0 });
-  assert.deepEqual(rollingLines, ["Format: not in the format test", "Weak signal: 1-point threshold in your league's points (a heuristic); a gain under it gets no bid or priority claim.", SIM_OFF], "no FAAB bands without FAAB");
+  const rollingLines = M.contextLines({ format:{ text:"Scored with your league's own settings. Accuracy for this exact format has not been measured." }, view:{ disclosures:{ banner:null, footnotes:[] } }, waiverType:0 });
+  assert.deepEqual(rollingLines, ["Scored with your league's own settings. Accuracy for this exact format has not been measured.", "Weak signal: 1-point threshold in your league's points (a heuristic); a gain under it gets no bid or priority claim.", SIM_OFF], "no FAAB bands without FAAB");
   assert.equal(M.COPY.simulationOff, SIM_OFF);
   assert.equal(M.COPY.bestBall, "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.");
 }
@@ -383,7 +383,7 @@ const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15
   const identity = LL.evidenceIdentity(lens.weights);
   const record = { id:"ros_mae_x", metric:"rest_of_season_points_mae", method:METHOD, effective_scoring:identity, prediction_scoring:identity,
     values:[{ horizon:1, position:"ALL", model_mae:4.6121, baseline_mae:4.8154, paired_player_forecasts:1817 }, { horizon:1, position:"QB", model_mae:7.9 }, { horizon:2, position:"ALL", model_mae:5, baseline_mae:5.5, paired_player_forecasts:900 }] };
-  const FALLBACK = ["Rest-of-season accuracy: No measured evaluation for your league's scoring and this model."];
+  const FALLBACK = ["Rest-of-season accuracy: not measured for your league's scoring."];
   assert.deepEqual(M.evidenceLines({ records:[record] }, view), [
     "Rest-of-season accuracy, measured under this league's scoring and this model:",
     "1 week ahead: model MAE 4.61 vs baseline 4.82 (1817 paired forecasts)",
@@ -394,6 +394,8 @@ const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15
   assert.deepEqual(M.evidenceLines({ records:[{ ...record, metric:"close_start_sit_choice_accuracy" }] }, view), FALLBACK);
   assert.deepEqual(M.evidenceLines(null, view), FALLBACK);
   assert.deepEqual(M.evidenceLines(require("./fixtures/neutral_evaluation.json"), view), FALLBACK, "the published records bind to nothing today (spec §8.9)");
+  assert.equal(M.COPY.notMeasured, "not measured for your league's scoring.", "the prefixed form");
+  assert.equal(M.COPY.noEvidence, "Your league's scoring is applied; its accuracy has not been measured.", "the standalone form");
 }
 
 // ---- ECR labels -------------------------------------------------------------------------------

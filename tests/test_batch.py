@@ -131,6 +131,7 @@ def world(monkeypatch):
     import ffmodel.data.features as features_mod
     import ffmodel.data.future as future_mod
     import ffmodel.data.pull as pull_mod
+    import ffmodel.data.rankings as rankings_mod
     import ffmodel.data.rosters as rosters_mod
     import ffmodel.site.generate as gen_mod
     import ffmodel.site.kickoffs as kickoffs_mod
@@ -139,7 +140,8 @@ def world(monkeypatch):
     import ffmodel.site.weekly as weekly_mod
 
     state = {"completed_through": 5, "predictors": [], "sleeper_calls": [],
-             "ecr": ecr_rows, "released": {"ZZ-RELEASED"}, "exclude_ids": []}
+             "ecr": ecr_rows, "released": {"ZZ-RELEASED"}, "exclude_ids": [],
+             "catalog_edit": lambda c: None, "crosswalk_ids": None}
 
     def frames():
         return make_world(state["completed_through"])
@@ -171,8 +173,18 @@ def world(monkeypatch):
 
     def pull_sleeper_players(cache_dir=None, max_age_hours=None):
         state["sleeper_calls"].append(max_age_hours)
-        return catalog()
+        c = catalog()
+        state["catalog_edit"](c)
+        return c
     monkeypatch.setattr(sleeper_mod, "pull_sleeper_players", pull_sleeper_players)
+
+    def pull_player_ids(cache_dir=None, *a, **k):
+        if isinstance(state["crosswalk_ids"], Exception):
+            raise state["crosswalk_ids"]
+        if state["crosswalk_ids"] is None:
+            return pd.DataFrame({"gsis_id": [], "sleeper_id": []})
+        return state["crosswalk_ids"]
+    monkeypatch.setattr(rankings_mod, "pull_player_ids", pull_player_ids)
     monkeypatch.setattr(gen_mod, "_canonicalize_draft_picks",
                         lambda picks, data_dir, target_season=None: (picks, 0))
 
@@ -324,6 +336,36 @@ def test_week_18_writes_empty_remaining_and_succeeds(world, tmp_path):
     legacy = _load(out / "remaining-gabagool.json")
     assert (legacy["start_week"], legacy["end_week"]) == (18, 18)
     assert publish.validate(out) == []
+
+
+def _unlink_first_player(world):
+    """One player's Sleeper catalog row loses its gsis_id, gets a numeric key and a different name spelling."""
+    pid = sorted(PLAYERS)[0]
+
+    def edit(c):
+        c["123"] = {**c.pop("s0"), "gsis_id": None, "full_name": "Different Spelling"}
+    world["catalog_edit"] = edit
+    return pid
+
+
+def test_players_link_through_the_id_crosswalk(world, tmp_path):
+    pid = _unlink_first_player(world)
+    world["crosswalk_ids"] = pd.DataFrame({"gsis_id": [pid], "sleeper_id": [123.0]})
+    out = tmp_path / "stage"
+    assert run_batch(out) == 0
+    by = {p["player_id"]: p for p in _load(out / "neutral/players.json")["players"]}
+    assert (by[pid]["match"], by[pid]["sleeper_id"], by[pid]["identity_only"]) == ("crosswalk", "123", False)
+    assert by[pid]["name"] == "Different Spelling"
+
+
+def test_crosswalk_outage_never_fails_the_batch(world, tmp_path):
+    pid = _unlink_first_player(world)
+    world["crosswalk_ids"] = RuntimeError("offline")
+    out = tmp_path / "stage"
+    assert run_batch(out) == 0
+    by = {p["player_id"]: p for p in _load(out / "neutral/players.json")["players"]}
+    assert (by[pid]["match"], by[pid]["reason"]) == (None, "no_catalog_match")
+    assert by[sorted(PLAYERS)[1]]["match"] == "gsis"
 
 
 def test_missing_ecr_never_fails_the_batch(world, tmp_path):

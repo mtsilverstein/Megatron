@@ -29,6 +29,27 @@
     "rec_10_19", "rec_20_29", "rec_30_39", "rec_40p", "rush_40p", "bonus_pass_cmp_25", "bonus_pass_yd_300",
     "bonus_pass_yd_400", "bonus_rec_yd_100", "bonus_rec_yd_200", "bonus_rush_att_20", "bonus_rush_rec_yd_100",
     "bonus_rush_rec_yd_200", "bonus_rush_yd_100", "bonus_rush_yd_200", "kr_yd", "pr_yd", "bonus_rush_td_qb"]);
+  // Display only (the disclosures name what a league scores in plain words): every RARE and RECURRING key; any
+  // other key is shown raw. Not part of the Python twin's tables.
+  const LABELS = Object.freeze({
+    pass_2pt: "two-point conversions", rush_2pt: "two-point conversions", rec_2pt: "two-point conversions",
+    pass_td_40p: "long-touchdown bonuses", pass_td_50p: "long-touchdown bonuses", rush_td_40p: "long-touchdown bonuses",
+    rush_td_50p: "long-touchdown bonuses", rec_td_40p: "long-touchdown bonuses", rec_td_50p: "long-touchdown bonuses",
+    st_td: "special-teams touchdowns", fum_rec_td: "fumble-recovery touchdowns", fum: "fumbles",
+    bonus_fd_qb: "first downs", bonus_fd_rb: "first downs", bonus_fd_te: "first downs", bonus_fd_wr: "first downs",
+    pass_fd: "first downs", rush_fd: "first downs", rec_fd: "first downs",
+    pass_cmp: "completions", pass_inc: "incompletions", pass_att: "pass attempts",
+    pass_cmp_40p: "40+ yard completion bonuses", pass_sack: "sacks taken",
+    rec_0_4: "reception-length bonuses", rec_5_9: "reception-length bonuses", rec_10_19: "reception-length bonuses",
+    rec_20_29: "reception-length bonuses", rec_30_39: "reception-length bonuses", rec_40p: "reception-length bonuses",
+    rush_40p: "40+ yard run bonuses", bonus_pass_cmp_25: "25-completion bonuses",
+    bonus_pass_yd_300: "300-yard passing bonuses", bonus_pass_yd_400: "400-yard passing bonuses",
+    bonus_rec_yd_100: "100-yard receiving bonuses", bonus_rec_yd_200: "200-yard receiving bonuses",
+    bonus_rush_att_20: "20-carry bonuses",
+    bonus_rush_rec_yd_100: "100-yard rushing-and-receiving bonuses", bonus_rush_rec_yd_200: "200-yard rushing-and-receiving bonuses",
+    bonus_rush_yd_100: "100-yard rushing bonuses", bonus_rush_yd_200: "200-yard rushing bonuses",
+    kr_yd: "return yards", pr_yd: "return yards", bonus_rush_td_qb: "quarterback rushing-touchdown bonuses",
+  });
   const IGNORE_EXACT = new Set(Formats.AUDIT.ignore_exact);
   const IGNORE_RES = Formats.AUDIT.ignore_patterns.map(p => new RegExp("^(?:" + p + ")$"));
   const ignored = k => IGNORE_EXACT.has(k) || IGNORE_RES.some(re => re.test(k));
@@ -118,14 +139,16 @@
     if (Object.values(out).some(v => v !== null && !Number.isFinite(v))) throw new Error("Scoring overflow.");
     return out;
   }
+  // Readable names, de-duplicated in the order first seen; a key without a label is shown as it is.
+  const labels = keys => [...new Set(keys.map(k => (Object.hasOwn(LABELS, k) ? LABELS[k] : k)))].join(", ");
   function disclosures(c) {
     const footnotes = [];
     if (c.approx.includes("pass_int_td")) footnotes.push("Pick-sixes use an average rate, not a forecast.");
-    if (c.rare.length) footnotes.push(`Not projected: ${c.rare.join(", ")} (rare events).`);
+    if (c.rare.length) footnotes.push(`Not projected: ${labels(c.rare)} (rare events).`);
     const banner = c.recurring.length
-      ? `Your league also scores ${c.recurring.join(", ")}, which these projections leave out; rankings may be off for your league.`
+      ? `Your league also scores ${labels(c.recurring)}, which these projections leave out; rankings may be off for your league.`
       : null;
     return { banner, footnotes };
   }
-  return Object.freeze({ POSITIONS, STATS, KEYS, APPROX, RARE, RECURRING, effectiveWeights, classify, plain, evidenceIdentity, score, disclosures });
+  return Object.freeze({ POSITIONS, STATS, KEYS, APPROX, RARE, RECURRING, LABELS, effectiveWeights, classify, plain, evidenceIdentity, score, disclosures });
 });

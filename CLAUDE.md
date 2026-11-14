@@ -4,15 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-A fantasy football (NFL) projection model built as a portfolio piece: a small PyTorch quantile transformer trained on a free SageMaker Studio Lab T4, published as a static GitHub Pages site with a draft board and self-updating weekly projections. The full approved design lives in `docs/superpowers/specs/2026-07-09-fantasy-football-model-design.md` — read it before making design-level changes; it is the source of truth for scope and architecture.
+A fantasy football (NFL) projection model built as a portfolio piece: a small PyTorch quantile transformer trained on free Kaggle GPUs (originally SageMaker Studio Lab), published as a static site on Vercel (megatron-ff.vercel.app) with a draft board and self-updating weekly projections. The full approved design lives in `docs/superpowers/specs/2026-07-09-fantasy-football-model-design.md` — read it before making design-level changes; it is the source of truth for scope and architecture.
 
 Hard deadlines: draft board live ~Aug 20 2026, weekly automation live by Sept 10 2026 (NFL week 1).
 
 ## Three-environment split (do not blur these)
 
 - **Local:** all code development, tests, and the static site. All logic lives in `src/` as importable Python; notebooks in `notebooks/` are thin wrappers and must never be the only home of any logic.
-- **SageMaker Studio Lab:** training only. Free-tier limits shape the code: 4 h GPU/day (T4, ~16 GB), 8 h CPU/day in 4 h sessions, sessions started manually, **no scheduled jobs**. Training loops must checkpoint at least every epoch so a session cutoff loses nothing.
-- **GitHub Actions:** all scheduled work (weekly data pull → CPU inference → regenerate `site/` JSON → deploy Pages). Never design automation that assumes Studio Lab can run it.
+- **Kaggle:** training only (SageMaker Studio Lab closed to new customers 2026-07-30; `notebooks/train_studio_lab.ipynb` is historical). Free-tier limits shape the code: 30 GPU h/week, sessions started manually, **no scheduled jobs**. Pick the T4 x2 accelerator, not the P100 (sm_60 is unsupported by current PyTorch builds). Training loops must checkpoint at least every epoch so a session cutoff loses nothing.
+- **GitHub Actions:** all scheduled work (weekly data pull → CPU inference → regenerate `site/` JSON → commit). The data commit triggers the Vercel deploy through Vercel's Git integration (`vercel.json` serves `site/`); there is no deploy step in Actions. Never design automation that assumes the training environment can run it.
 
 Everything must run on free tiers; do not introduce paid infrastructure.
 
@@ -28,7 +28,7 @@ Everything must run on free tiers; do not introduce paid infrastructure.
 
 ## Stack and layout
 
-Python (PyTorch, `nflreadpy` — not the deprecated `nfl_data_py`, XGBoost, pytest) under `src/ffmodel/` with tests in `tests/`; static HTML/CSS/JS under `site/` (GitHub Pages, no backend, no framework). See the spec §3 for the full directory contract. Tests concentrate on the leak-prone pure functions: feature building, scoring math, walk-forward splits, and site-JSON schema.
+Python (PyTorch, `nflreadpy` — not the deprecated `nfl_data_py`, XGBoost, pytest) under `src/ffmodel/` with tests in `tests/`; static HTML/CSS/JS under `site/` (hosted on Vercel as plain static files, no backend, no framework). See the spec §3 for the full directory contract. Tests concentrate on the leak-prone pure functions: feature building, scoring math, walk-forward splits, and site-JSON schema.
 
 ## How work gets executed
 

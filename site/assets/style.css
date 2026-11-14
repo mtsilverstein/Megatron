@@ -496,11 +496,21 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 [hidden] { display: none !important; }
 
 /* -- in-season trade scenario (trade.html, #season-trade) ---------------- */
-/* Rows are checkbox labels, not click-to-toggle items, and each may carry an
-   "assume unavailable weeks" field that wraps under the name. */
+/* Rows are checkbox labels, not click-to-toggle items. The name line holds the
+   checkbox, the name and (over the roster limit) the Drop button, right-aligned;
+   the row's note (a reported tag, why it is disabled), the "Out some weeks?"
+   link and its field each wrap onto a full line under it, so nothing is pinned
+   over the name or the button. The page scrolls, not each list: a scroll box
+   inside a scrolling page traps a phone user's thumb. Scoped to #season-trade:
+   the archived pre-draft grader (#trade-cols) keeps its own rules. */
+#season-trade .trade-assets { max-height: none; overflow: visible; }
 #season-trade .trade-assets li { flex-wrap: wrap; cursor: default; }
-#season-trade .trade-assets li label { display: flex; align-items: center; gap: .35rem;
-  cursor: pointer; flex: 1 1 auto; color: var(--chalk); }
+#season-trade .trade-assets li > * { order: 2; }
+#season-trade .trade-assets li > label { display: flex; align-items: center; gap: .35rem; order: 0;
+  cursor: pointer; flex: 1 1 0; min-width: 0; color: var(--chalk); }
+#season-trade .trade-assets li > .season-drop-btn { order: 1; }
+#season-trade .trade-assets li > .trade-why,
+#season-trade .trade-assets li > .season-weeks-toggle { flex: 1 1 100%; text-align: left; padding-left: 1.6rem; }
 #season-trade .trade-assets li.season-disabled { opacity: .55; }
 #season-trade .trade-assets li.season-disabled label { cursor: not-allowed; }
 .season-weeks { flex: 1 1 100%; background: var(--board-raised); border: 1px solid var(--rule);
@@ -547,6 +557,35 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 .season-table th, .season-table td { white-space: normal; font-size: .78rem; padding: .3rem .5rem; }
 .season-list { margin: .2rem 0; padding-left: 1.2rem; }
 .season-eval { margin: .15rem 0; }
+/* The comparison's outcome is scrolled into view (seasontrademode.js); leave a little air above it. */
+#season-result { scroll-margin-top: .75rem; }
+/* The week table has seven columns; on a narrow screen it scrolls inside its own panel, never the page. */
+#season-result .season-detail { overflow-x: auto; }
+
+@media (max-width: 560px) {
+  /* Readable rows and comfortable tap targets. Inputs at 1rem: under 16px, iOS
+     zooms the page when the field is focused. */
+  #season-trade .trade-assets li > label { font-size: 1rem; min-height: 44px; }
+  #season-trade .trade-assets input[type="checkbox"] { width: 1.35rem; height: 1.35rem; }
+  #season-trade .trade-assets li > .trade-why,
+  #season-trade .trade-assets li > .season-weeks-toggle { font-size: 1rem; padding-left: 1.7rem; }
+  #season-trade .season-weeks { font-size: 1rem; }
+  #season-trade .season-drop-btn { min-height: 44px; font-size: 1rem; }
+  /* The partner select and Compare lineups stick to the bottom of the screen
+     while the lists scroll past, so Compare is in reach after ticking a player
+     at the bottom of a long roster. Sticky-to-bottom only holds an element whose
+     place in the flow is BELOW the screen, so on a phone the section becomes a
+     column and the bar is ordered after the lists (the DOM, and so the keyboard
+     order, is unchanged). At the end of the lists the bar sits in its own place
+     under the last row, so it never covers it. */
+  #season-trade { display: flex; flex-direction: column; }
+  #season-trade > #season-controls { order: 1; position: sticky; bottom: 0; z-index: 2; margin: 0;
+    padding: .55rem 0; flex-wrap: nowrap; background: var(--board); border-top: 1px solid var(--rule); }
+  #season-trade > #season-result, #season-trade > #season-provenance { order: 2; }
+  #season-controls label { display: flex; align-items: center; gap: .4rem; flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+  #season-controls select { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 44px; font-size: 1rem; }
+  #season-compare { flex: none; min-height: 44px; }
+}
 
 /* -- keeper panel ------------------------------------------------------ */
 .keeper-panel {

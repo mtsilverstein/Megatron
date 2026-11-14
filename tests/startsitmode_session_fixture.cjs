@@ -165,10 +165,11 @@ const until = async (pred, what, ms = 3000) => {
   }
 };
 const GATE = "Enter your Sleeper username, or choose a team to view.";
-const NO_EVIDENCE = "No measured evaluation for your league's scoring and this model.";
+// Both evidence lines are prefixed ("Close calls: ...", the footer's "Band calibration: ..."), so both carry the short form.
+const NOT_MEASURED = "not measured for your league's scoring.";
 const BEST_BALL = "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.";
 const HEURISTIC = "3-point threshold in your league's points (a heuristic)";
-const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format test (results January 2027)";
+const IN_TEST = "Scored with your league's own settings (12-team 1QB PPR, 6-pt pass TD). This format's accuracy is being measured this season; results in January 2027.";
 
 (async () => {
   // 0. Owner decision 2026-11-07: no ?league= (and nothing remembered) is NO
@@ -231,9 +232,9 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.equal(pA.points.league.p50, scoreA(OWNER.scoring_settings), "points.league = the live league's scoring");
   assert.deepEqual(Object.keys(pA.points).sort(), ["half_ppr", "league", "ppr", "standard"]);
   // Close-call and calibration lines: only via evidenceFor -> the fallback today.
-  assert.match($("ss-evidence").textContent, new RegExp(NO_EVIDENCE.replace(/[.']/g, "\\$&")));
+  assert.equal($("ss-evidence").textContent, `Close calls: ${NOT_MEASURED} Tiny differences are weak leans.`);
   assert.doesNotMatch($("ss-evidence").textContent, /56\.3/);
-  assert.equal($("band-evidence").textContent, NO_EVIDENCE);
+  assert.equal($("band-evidence").textContent, NOT_MEASURED);
   assert.deepEqual(fetched.filter(p => /neutral/.test(p)).sort(),
     ["data/neutral/evaluation.json", "data/neutral/formats.json", "data/neutral/players.json", "data/neutral/remaining.json", "data/neutral/weekly.json"]);
   assert.ok(!fetched.some(p => /draft\.json|data\/weekly\.json/.test(p)), "no legacy per-league file is read");
@@ -453,7 +454,7 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   assert.ok(Math.abs(pA8.points.league.p50 - pA.points.league.p50) > 1);
   assert.equal(views.at(-1).league, league);
   assert.ok(outputText().includes("Your league also scores"), "the banner follows the new scoring");
-  assert.ok(outputText().includes("Format: not in the format test"));
+  assert.ok(outputText().includes("Scored with your league's own settings. Accuracy for this exact format has not been measured."));
 
   // 9. Best ball: projections only, no plan, the note; the eligibility line wins.
   league = { ...baseLeague, settings: { ...baseLeague.settings, best_ball: 1 } };
@@ -462,7 +463,7 @@ const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format te
   $("session-refresh").dispatch("click");
   await until(() => outputText().includes(BEST_BALL), "the best-ball note", 5000);
   assert.equal(analyzeCalls.length, an9, "best ball: the engine is never run");
-  assert.ok(outputText().includes("Best ball — not eligible for the format test"));
+  assert.ok(outputText().includes("Scored with your league's own settings. Best-ball leagues are not part of the accuracy measurement."));
   assert.equal($("ss-exclude").children.length, 0);
   assert.doesNotMatch(outputText(), /Suggested starter/);
   assert.equal(views.at(-1).league, league, "projections (views) still computed for best ball");

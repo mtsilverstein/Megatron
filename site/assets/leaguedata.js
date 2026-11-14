@@ -49,9 +49,9 @@
     noWeeks: "No projected weeks remain.",
     noRemaining: "remaining-season projections unavailable",
     unsupportedType: "This league type isn't supported yet.",
-    bestBall: "Best ball — not eligible for the format test",
-    notInTest: "Format: not in the format test",
-    inTest: d => `Format: ${d} — in the 2026 format test (results January 2027)`,
+    bestBall: "Scored with your league's own settings. Best-ball leagues are not part of the accuracy measurement.",
+    notInTest: "Scored with your league's own settings. Accuracy for this exact format has not been measured.",
+    inTest: d => `Scored with your league's own settings (${d}). This format's accuracy is being measured this season; results in January 2027.`,
   });
 
   const isObj = v => v !== null && typeof v === "object" && !Array.isArray(v);

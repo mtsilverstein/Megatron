@@ -231,7 +231,7 @@ const until = async (pred, what, ms = 3000) => {
 };
 const GATE = "Enter your Sleeper username, or choose a team to view.";
 const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.";
-const IN_TEST = "Format: 12-team 1QB PPR, 6-pt pass TD — in the 2026 format test (results January 2027)";
+const IN_TEST = "Scored with your league's own settings (12-team 1QB PPR, 6-pt pass TD). This format's accuracy is being measured this season; results in January 2027.";
 const AGG = "sum of weekly medians through NFL week 17, not a season median";
 const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactions/3`).length;
 
@@ -324,7 +324,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.match(ctx, /Not projected: .*\(rare events\)\./);
   // ROS line: horizon + aggregation labels; evidence: fallback (no record binds).
   assert.ok($("waiver-ros").textContent.includes(AGG) && $("waiver-ros").textContent.includes("through NFL week 17, regardless of your league's schedule"));
-  assert.equal(text("waiver-evaluation").trim(), "Rest-of-season accuracy: No measured evaluation for your league's scoring and this model.");
+  assert.equal(text("waiver-evaluation").trim(), "Rest-of-season accuracy: not measured for your league's scoring.");
   assert.doesNotMatch(text("waiver-evaluation"), /4\.61/);
   // Rows: the "why" value with its aggregation label, owner bid shown; ECR labels.
   assert.ok(text("waiver-table").includes(LABEL));
@@ -846,8 +846,8 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   const c9 = analyzeCalls.at(-1);
   assert.equal(c9.league.scoring_settings.rec, 0.5);
   assert.equal(c9.weekly.players.find(p => p.player_id === "00-0000001").points.league.p50, LL.score(sq(4, 60), "RB", LL.classify(league.scoring_settings).weights).p50);
-  assert.ok(text("waiver-context").includes("Your league also scores bonus_fd_wr, which these projections leave out; rankings may be off for your league."));
-  assert.ok(text("waiver-context").includes("Format: not in the format test"));
+  assert.ok(text("waiver-context").includes("Your league also scores first downs, which these projections leave out; rankings may be off for your league."));
+  assert.ok(text("waiver-context").includes("Scored with your league's own settings. Accuracy for this exact format has not been measured."));
 
   // 9b. Rolling priority: no dollars; the best-move card says claim or not, and the priority.
   league = { ...baseLeague, settings: { ...baseLeague.settings, waiver_type: 0 } };
@@ -1006,7 +1006,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal($("waiver-claims").hidden, true, "best ball: no claim table, the card carries the note");
   assert.equal($("waiver-count-detail").textContent, WaiverMode.COPY.bestBall);
   assert.equal(analyzeCalls.length, an11, "best ball: the engine is never run");
-  assert.ok(text("waiver-context").includes("Best ball — not eligible for the format test"));
+  assert.ok(text("waiver-context").includes("Scored with your league's own settings. Best-ball leagues are not part of the accuracy measurement."));
   assert.equal($("waiver-table").querySelector("tbody").children.length, 0, "no shortlist");
   assert.ok($("waiver-ros").textContent.includes(AGG));
   assert.ok(text("waiver-radar").includes("preseason ECR 12 (PPR reference ranking)"), "projections/research still render");
