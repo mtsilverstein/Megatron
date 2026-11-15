@@ -120,13 +120,17 @@ footer { max-width: 1320px; margin: 0 auto; padding: 1.25rem; font: .8rem/1.65 s
 /* Phones: a connected bar is at most two rows -- the league and the line on
    the first, the team select, Refresh and the account link on the second.
    The chip's box steps aside (display: contents) so the line can share the
-   league's row; its 50% basis pushes the controls onto the next one. */
+   league's row (its text wraps inside it; the age stays visible); its 50%
+   basis pushes the controls onto the next one. Row 2's text button has a
+   zero basis: it never counts toward breaking the row, takes the width the
+   select and Refresh leave, and wraps its own words there. */
 @media (max-width: 480px) {
-  #league-context { gap: .5rem .75rem; padding: .75rem .85rem; }
+  #league-context { gap: .5rem .6rem; padding: .75rem .85rem; }
   #league-context.has-league .session-chip { display: contents; }
   #league-context.has-league > label, #league-context.has-league > .league-name { max-width: 45%; }
   #league-context.has-league .session-text { flex: 1 1 50%; min-width: 0; font-size: .8rem; line-height: 1.35; }
   #league-context.has-league .session-notice { flex-basis: 100%; }
   #league-context #session-team { max-width: 9.5rem; }
   #league-context .session-link { font-size: .8rem; }
+  #league-context.has-league .session-link { flex: 1 1 0; min-width: 0; padding: .2rem 0; line-height: 1.3; text-align: left; }
 }
