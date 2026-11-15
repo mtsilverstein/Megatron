@@ -105,7 +105,7 @@ acheck("draft history is re-keyed from Sleeper ids to BOARD player ids", async (
   assert.ok(!w.ctx.originalByPlayerId.has(star.sleeper_id),
     "a Sleeper-keyed entry would never be found by Trade.candidate");
   assert.deepStrictEqual(w.ctx.originalByPlayerId.get(star.player_id),
-    { round: 1, season: 2025, keptYears: 0 });
+    { round: 1, season: 2025, keptYears: 0, lastDraft: 2025 });
 
   // The consequence, which is what actually breaks: a round-1 pick from last
   // season decays to R0 and returns to the draft pool, so he is worth nothing
@@ -211,6 +211,8 @@ acheck("an empty draft chain is announced too — an empty map is not neutral", 
   const w = await TM.leagueWorld(lg, b);
   assert.ok(w.warnings.some(x => x.indexOf("no draft history") === 0),
     `expected an empty-history warning, got ${JSON.stringify(w.warnings)}`);
+  // One sentence for both panels: the keeper panel's load notes use the same constant.
+  assert.ok(w.warnings.includes(Keepers.NO_HISTORY_NOTE), JSON.stringify(w.warnings));
 });
 
 acheck("a league that is not 12 teams says so", async () => {
@@ -484,7 +486,7 @@ acheck("no username input, league picker or /user/ fetch remains in the pre-draf
   assert.ok(/status !== "pre_draft"/.test(src), "leagueWorld's own pre-draft guard stays");
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
   assert.ok(!/trade-user|trade-load"|trade-league-picker/.test(html), "trade.html carries no legacy inputs");
-  assert.ok(/trademode\.js\?v=k2y1/.test(html) && /keepers\.js\?v=k2y1/.test(html) && /trade\.js\?v=k2y1/.test(html), "cache keys bumped");
+  assert.ok(/trademode\.js\?v=k2y2/.test(html) && /keepers\.js\?v=k2y2/.test(html) && /trade\.js\?v=k2y2/.test(html), "cache keys bumped");
 });
 
 // --- the two-year keeper cap, in this panel's words --------------------------
@@ -493,8 +495,9 @@ acheck("keeperNote: a player kept the most allowed years says so; the cost reaso
   const ctxOf = orig => ({ season: 2027, board: [p], originalByPlayerId: new Map([["b1", orig]]),
                            keptElsewhere: new Set(), futureDiscount: Trade.FUTURE_DISCOUNT });
   const CAP = "already kept the most allowed (2 years) — back to the draft pool, worth 0 to trade";
-  // Trade.candidate carries the kept streak, so Keepers' cap sees it.
-  assert.strictEqual(Trade.candidate(p, ctxOf({ round: 8, season: 2026, keptYears: 2 })).keptYears, 2);
+  // Trade.candidate carries the kept streak and the newest draft's season, so Keepers' cap sees both.
+  const cand = Trade.candidate(p, ctxOf({ round: 8, season: 2026, keptYears: 2, lastDraft: 2026 }));
+  assert.deepStrictEqual([cand.keptYears, cand.lastDraft], [2, 2026]);
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 8, season: 2026, keptYears: 2 })), { eligible: false, text: CAP });
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 8, season: 2026, keptYears: 1 })), { eligible: true, text: "keeper cost R7" });
   // Over the cap AND past the round-2 floor: the cap's reason wins.
@@ -503,11 +506,16 @@ acheck("keeperNote: a player kept the most allowed years says so; the cost reaso
     { eligible: false, text: "keeper cost would be R2 — back to the draft pool, worth 0 to trade" });
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 1, season: 2026, keptYears: 0 })),
     { eligible: false, text: "his keeper ladder has run out — back to the draft pool, worth 0 to trade" });
-  // Every Sleeper-derived entry is anchored in the newest draft (fix round 1, I1), so the cap comes only from a real
-  // keeper streak: a third-year keeper (kept twice, the newest time at R9) says the cap; an entry with no streak
-  // (the {round, season} shape a hand-built history has) is in his first kept year.
-  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2026, keptYears: 2 })), { eligible: false, text: CAP });
+  // Sleeper-derived entries carry lastDraft, the newest draft walked (fix round 2). The cap counts only the current
+  // keeper run: a third-year keeper (kept in the newest draft and the one before) says the cap; a player dropped and
+  // picked back up keeps his original round (league rule) and a keep next season is his first; a keeper run that ended
+  // before the newest draft is broken, so again his first. An entry without lastDraft (a hand-built history) counts
+  // calendar years since its round, as a manual entry does.
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2026, keptYears: 2, lastDraft: 2026 })), { eligible: false, text: CAP });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2024, keptYears: 0, lastDraft: 2026 })), { eligible: true, text: "keeper cost R6" });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2025, keptYears: 2, lastDraft: 2026 })), { eligible: true, text: "keeper cost R7" });
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2026 })), { eligible: true, text: "keeper cost R8" });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2024 })), { eligible: false, text: CAP });
 });
 
 runAll();

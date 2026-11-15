@@ -277,7 +277,7 @@ check("sources: no pre-draft pick code, gate file or simulation in the controlle
   assert.ok(!srcs.includes("waiverintel.js"), "the ROS market check left with the grade");
   // The ladder's draft-history walk is keepers.js's (Task 4): it loads before the controller, after sleeper.js.
   assert.ok(srcs.indexOf("sleeper.js") < srcs.indexOf("keepers.js") && srcs.indexOf("keepers.js") < srcs.indexOf("seasontrademode.js"), "keepers.js loads after sleeper.js, before the controller");
-  assert.ok(/seasontrademode\.js\?v=k2y1/.test(html) && /keepers\.js\?v=k2y1/.test(html) && /pickvalue\.js\?v=picks1/.test(html) && /style\.css\?v=picks1/.test(html)
+  assert.ok(/seasontrademode\.js\?v=k2y2/.test(html) && /keepers\.js\?v=k2y2/.test(html) && /pickvalue\.js\?v=picks1/.test(html) && /style\.css\?v=picks1/.test(html)
     && /seasontrade\.js\?v=lf1/.test(html) && /lineup\.js\?v=3/.test(html), "cache keys bumped for the changed assets only");
   assert.ok(/id="season-context"/.test(html), "the context lines have a home on the page");
   // The pick groups sit in the columns under the players; the note and the controls come after the columns, before the result.
@@ -1484,6 +1484,21 @@ async function picksKeeperCap() {
       assert.deepEqual(keeperLinesOf(els), [likelyLine("D Deep", "User A"), likelyLine("B Wide", "Bo's Bunch")]);
       assert.deepEqual(historyCalls(), HISTORY_CALLS, "walked once");
       assertNoForbidden(els);
+    });
+    // Fix round 2: A Back was kept in 2024 (R7) and 2025 (R6), then dropped and picked back up -- no 2026 pick. He
+    // keeps his original round (league rule: a 2027 R4), and his keeper run ended before the newest draft, so a 2027
+    // keep is his first: he is User A's likely keeper again, not skipped. (D Deep, 2026 R6, would cost a 2027 R5.)
+    const repicked = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, storage: ladderStore(),
+      routesOver: historyRoutes({ y2026: [draftPick("c", 1), draftPick("b", 5), draftPick("d", 6)],
+        y2025: [draftPick("a", 6, true)], y2024: [draftPick("a", 7, true)] }) });
+    await sub("a keeper dropped and picked back up keeps his round, and his kept run restarts", async () => {
+      await until(() => historyCalls().length === HISTORY_CALLS.length, "the walk at load");
+      await settle();
+      await compareOffer(repicked, { givePicks: ["2027|4|9"], getPicks: ["2027|1|3"] }, "giving the 2027 R4");
+      assert.deepEqual(conflictLines(repicked), [conflictLine("User A", "A Back", "2027 R4")]);
+      await compareOffer(repicked, { give: ["a"], receive: ["c"], givePicks: ["2027|5|9"] }, "trading him");
+      assert.deepEqual(keeperLinesOf(repicked), [likelyLine("A Back", "User A")]);
+      assertNoForbidden(repicked);
     });
   } finally { delete window.localStorage; }
 }

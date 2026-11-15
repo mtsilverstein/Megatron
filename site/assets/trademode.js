@@ -175,8 +175,7 @@
     if (league.previous_league_id) {
       original = await Keepers.buildOriginalByPlayerId(league.previous_league_id);
       if (!original.size) {
-        warnings.push("no draft history came back for the previous season(s) — every "
-          + "player is priced as a first-time R12 keeper, so none is ineligible");
+        warnings.push(Keepers.NO_HISTORY_NOTE);   // the keeper panel says the same
       }
     } else {
       warnings.push("no prior season — keeper costs unknown, every player priced at "

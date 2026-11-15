@@ -322,11 +322,13 @@ assert.ok(marginalOnly[0].impact > 0 && marginalOnly[0].impact < K.MARGINAL_POIN
 assert.strictEqual(K.marginal(marginalOnly[0]), true);
 
 // ===========================================================================
-// buildOriginalByPlayerId anchors a player on his pick in the START league's
-// own draft (the newest), never an earlier one (defect C regression): the
-// earlier {round: 4, season: 2023} record must not win over the re-draft. A
-// player picked only in an earlier draft is not in the map at all (fix round
-// 1, I1: the league charges him the waiver price, R12 on his first keep).
+// buildOriginalByPlayerId keeps the MOST RECENT draft per player_id across
+// the previous_league_id chain (defect C regression). This must fail against
+// the old `season < prev.season` condition, which would keep the earlier
+// {round: 4, season: 2023} record instead of the later re-draft. A player
+// picked only in an earlier draft keeps that pick as his anchor (league rule:
+// a dropped and re-picked player keeps his original round); lastDraft is the
+// start league's draft season either way.
 // ===========================================================================
 async function testBuildOriginalByPlayerId() {
   const realFetch = global.fetch;
@@ -356,9 +358,9 @@ async function testBuildOriginalByPlayerId() {
   };
   try {
     const original = await K.buildOriginalByPlayerId("league_2025");
-    assert.deepStrictEqual(original.get("p1"), { round: 8, season: 2025, keptYears: 0 });
-    assert.strictEqual(original.has("p_old"), false, "picked only in an earlier draft: not anchored");
-    assert.deepStrictEqual([...original.keys()], ["p1"]);
+    assert.deepStrictEqual(original.get("p1"), { round: 8, season: 2025, keptYears: 0, lastDraft: 2025 });
+    assert.deepStrictEqual(original.get("p_old"), { round: 3, season: 2023, keptYears: 0, lastDraft: 2025 },
+      "picked only in an earlier draft: he keeps that anchor");
   } finally {
     global.fetch = realFetch;
   }
@@ -382,10 +384,10 @@ async function testKeptYears() {
     [`${api}/draft/dr26/picks`]: [keeper("chain", 6), fresh("new", 5), keeper("waiv", 12), keeper("gap", 7)],
     [`${api}/league/lg25`]: { previous_league_id: "lg24" },
     [`${api}/league/lg25/drafts`]: [{ status: "complete", draft_id: "dr25", season: "2025" }],
-    [`${api}/draft/dr25/picks`]: [keeper("chain", 7)],
+    [`${api}/draft/dr25/picks`]: [keeper("chain", 7), keeper("brk", 9)],
     [`${api}/league/lg24`]: { previous_league_id: null },
     [`${api}/league/lg24/drafts`]: [{ status: "complete", draft_id: "dr24", season: "2024" }],
-    [`${api}/draft/dr24/picks`]: [fresh("chain", 8), keeper("gap", 8), fresh("old", 8)],
+    [`${api}/draft/dr24/picks`]: [fresh("chain", 8), keeper("gap", 8), fresh("old", 8), keeper("brk", 10)],
   };
   let failing = null;   // a base URL that answers HTTP 500
   global.fetch = async (url) => {
@@ -397,29 +399,34 @@ async function testKeptYears() {
   try {
     const o = await K.buildOriginalByPlayerId("lg26");
     // fresh 2024 R8 -> kept 2025 R7 -> kept 2026 R6: anchor 2026 R6, kept twice.
-    assert.deepStrictEqual(o.get("chain"), { round: 6, season: 2026, keptYears: 2 });
-    assert.deepStrictEqual(o.get("new"), { round: 5, season: 2026, keptYears: 0 });
+    assert.deepStrictEqual(o.get("chain"), { round: 6, season: 2026, keptYears: 2, lastDraft: 2026 });
+    assert.deepStrictEqual(o.get("new"), { round: 5, season: 2026, keptYears: 0, lastDraft: 2026 });
     // a waiver keeper sits at R12 in his first kept year, with no 2025 pick
-    assert.deepStrictEqual(o.get("waiv"), { round: 12, season: 2026, keptYears: 1 });
+    assert.deepStrictEqual(o.get("waiv"), { round: 12, season: 2026, keptYears: 1, lastDraft: 2026 });
     // kept 2026, absent 2025, kept 2024: the gap ends the run
-    assert.deepStrictEqual(o.get("gap"), { round: 7, season: 2026, keptYears: 1 });
-    // So: chain is in his third kept year in 2027 and goes back to the pool, at an unchanged cost.
-    const chain = { originalRound: 6, originalYear: 2026, keptYears: 2, isWaiver: false };
-    assert.strictEqual(K.keeperCost(chain, 2027), 5);
-    assert.strictEqual(K.eligible(chain, 2027), false);
-    // I1: drafted fresh in 2024 (R8), not picked in 2025 or 2026 -- he went back to the pool and is a free-agent
-    // pickup now. He is not in the map, so every caller prices him as a waiver keeper: R12 and his first kept year in
-    // 2027 (the old most-recent-anchor rule made him R5 and, with the cap, "already kept 2 years").
-    assert.strictEqual(o.has("old"), false);
-    assert.deepStrictEqual([...o.keys()].sort(), ["chain", "gap", "new", "waiv"]);
-    const oldBoard = new Map([["old", { name: "Old", position: "WR", adpRound: 9, overallRank: 100, vorp: 2 }]]);
-    const { candidates: [oldC] } = K.buildKeeperCandidates(["old"], o, oldBoard);
-    assert.strictEqual(oldC.isWaiver, true);
-    assert.deepStrictEqual([K.keeperCost(oldC, 2027), K.yearsKept(oldC, 2027), K.eligible(oldC, 2027)], [12, 1, true]);
+    assert.deepStrictEqual(o.get("gap"), { round: 7, season: 2026, keptYears: 1, lastDraft: 2026 });
+    // Drafted fresh 2024 R8, not picked in 2025 or 2026 (dropped, picked back up): he keeps his 2024 anchor.
+    assert.deepStrictEqual(o.get("old"), { round: 8, season: 2024, keptYears: 0, lastDraft: 2026 });
+    // Kept 2024 (R10) and 2025 (R9), not picked in 2026: anchor 2025 R9, a two-season keeper run behind it.
+    assert.deepStrictEqual(o.get("brk"), { round: 9, season: 2025, keptYears: 2, lastDraft: 2026 });
+    assert.deepStrictEqual([...o.keys()].sort(), ["brk", "chain", "gap", "new", "old", "waiv"]);
+    // As candidates for 2027, through the Sleeper path. Costs are the pre-cap ones (01a991c): anchor round minus the
+    // seasons since the anchor. The cap counts only the CURRENT run: a player not picked in the newest draft (lastDraft)
+    // was not kept in it, so his streak is broken and a 2027 keep is his first.
+    const histBoard = new Map(["chain", "new", "old", "brk"].map((id, i) =>
+      [id, { name: id, position: "WR", adpRound: 9, overallRank: 100 + i, vorp: 2 }]));
+    const byId = Object.fromEntries(K.buildKeeperCandidates(["chain", "new", "old", "brk"], o, histBoard).candidates.map(c => [c.name, c]));
+    const at27 = c => [K.keeperCost(c, 2027), K.yearsKept(c, 2027), K.eligible(c, 2027)];
+    assert.deepStrictEqual(at27(byId.chain), [5, 3, false], "third kept year: the cap");
+    assert.deepStrictEqual(at27(byId.new), [4, 1, true]);
+    assert.deepStrictEqual(at27(byId.old), [5, 1, true], "dropped and re-picked: original round, first kept year");
+    assert.deepStrictEqual(at27(byId.brk), [7, 1, true], "his keeper run ended in 2026: a 2027 keep is his first");
+    assert.strictEqual(byId.old.isWaiver, false);
+    assert.strictEqual(byId.old.lastDraft, 2026, "buildKeeperCandidates carries lastDraft");
     // A failed hop is a gap too: the 2025 picks do not load, so chain's run is 1; his anchor (and cost) do not move.
     failing = `${api}/draft/dr25/picks`;
     const partial = await K.buildOriginalByPlayerId("lg26");
-    assert.deepStrictEqual(partial.get("chain"), { round: 6, season: 2026, keptYears: 1 });
+    assert.deepStrictEqual(partial.get("chain"), { round: 6, season: 2026, keptYears: 1, lastDraft: 2026 });
     // I2: without the START league's draft the history cannot be read, even though earlier seasons load: its draft
     // list fails, its picks fail, it has no completed draft, or the completed draft has no picks -> an empty map.
     failing = `${api}/league/lg26/drafts`;
@@ -434,7 +441,7 @@ async function testKeptYears() {
     responses[`${api}/draft/dr26/picks`] = [];
     assert.strictEqual((await K.buildOriginalByPlayerId("lg26")).size, 0, "the start league's draft has no picks");
     responses[`${api}/draft/dr26/picks`] = realPicks;
-    assert.strictEqual((await K.buildOriginalByPlayerId("lg26")).size, 4, "restored: the full history again");
+    assert.strictEqual((await K.buildOriginalByPlayerId("lg26")).size, 6, "restored: the full history again");
   } finally {
     global.fetch = realFetch;
   }
@@ -565,10 +572,58 @@ async function testSleeperKeeperCandidates() {
   assert.ok(!/\/user\//.test(src) && !/leagues\/nfl/.test(src) && !/pickLeague|keeper-user|keeper-league-picker/.test(src));
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "index.html"), "utf8");
   assert.ok(!/keeper-user|keeper-league-picker/.test(html), "index.html carries no legacy keeper inputs");
-  assert.ok(/keeper-load-btn/.test(html) && /keepers\.js\?v=k2y1/.test(html));
+  assert.ok(/keeper-load-btn/.test(html) && /keepers\.js\?v=k2y2/.test(html));
 }
 
-testBuildOriginalByPlayerId().then(testKeptYears).then(testSleeperKeeperCandidates).then(() => {
+// ===========================================================================
+// The keeper panel's "Load from Sleeper": an EMPTY draft history says so, in
+// the words the pre-draft trade panel already uses -- every loaded player is
+// then priced as a first-time R12 keeper. Driven through init() and the load
+// button under a minimal DOM stub and a stub Session.
+// ===========================================================================
+async function testPanelLoadNotes() {
+  const Sleeper = require("../site/assets/sleeper.js");
+  const realGet = Sleeper.get;
+  const NO_HISTORY = "no draft history came back for the previous season(s) — every player is priced as a first-time R12 keeper, so none is ineligible";
+  const WAIVER_NOTE = 'waiver keepers assume this is their first keep (R12) — set "year first kept" manually if you kept one before';
+  assert.strictEqual(K.NO_HISTORY_NOTE, NO_HISTORY, "one constant, the trade panel's text");
+  const players = [{ name: "Alpha", position: "RB", adp_round: 3, vorp: 20, sleeper_id: "s_a" },
+                   { name: "Beta", position: "WR", adp_round: 5, vorp: 10, sleeper_id: "s_b" }];
+  const load = async routes => {
+    Sleeper.get = async path => { const r = routes[path]; if (r === undefined || r instanceof Error) throw r || new Error(`unrouted ${path}`); return r; };
+    const clicks = [];
+    const node = cls => ({ innerHTML: "", textContent: "", value: "", checked: false, disabled: false, placeholder: "",
+                           addEventListener(t, f) { if (cls === ".keeper-load-btn" && t === "click") clicks.push(f); } });
+    const nodes = Object.fromEntries([".keeper-rec", ".keeper-out", ".keeper-add", ".keeper-load-btn",
+      ".keeper-load-status", ".keeper-skip-note"].map(s => [s, node(s)]));
+    const session = { identity: () => ({ userId: "u1" }), onChange() {}, isSuperseded: () => false,
+      previousLeagueRoster: async () => ({ previousLeagueId: "PREV", roster: { roster_id: 1, owner_id: "u1", players: ["s_a", "s_b"] } }) };
+    global.window = { FC: { esc: s => String(s) }, Session: session };
+    global.document = { getElementById: () => node(""), createElement: node };
+    const panel = { querySelector: s => nodes[s] || null, appendChild() {} };
+    K.init({ players, panel, currentSeason: 2026 });
+    assert.strictEqual(clicks.length, 1);
+    await clicks[0]();
+    return { status: nodes[".keeper-load-status"].textContent, notes: nodes[".keeper-skip-note"].textContent };
+  };
+  try {
+    // Last season's draft list fails: an empty history. Both players load, as R12 waivers, and the panel says why.
+    const empty = await load({ "/league/PREV": { previous_league_id: null }, "/league/PREV/drafts": new Error("HTTP 500") });
+    assert.strictEqual(empty.status, "loaded 2 player(s)");
+    assert.strictEqual(empty.notes, ` · ${NO_HISTORY} · ${WAIVER_NOTE}`);
+    // A history came back: no such note (Beta, undrafted, is still a waiver keeper).
+    const full = await load({ "/league/PREV": { previous_league_id: null },
+      "/league/PREV/drafts": [{ draft_id: "D1", status: "complete", season: "2025" }], "/draft/D1/picks": [{ player_id: "s_a", round: 5 }] });
+    assert.strictEqual(full.status, "loaded 2 player(s)");
+    assert.strictEqual(full.notes, ` · ${WAIVER_NOTE}`);
+  } finally {
+    Sleeper.get = realGet;
+    delete global.window;
+    delete global.document;
+  }
+}
+
+testBuildOriginalByPlayerId().then(testKeptYears).then(testSleeperKeeperCandidates).then(testPanelLoadNotes).then(() => {
   console.log("keepers_fixture: OK");
 }).catch(e => {
   console.error("keepers_fixture: FAILED");

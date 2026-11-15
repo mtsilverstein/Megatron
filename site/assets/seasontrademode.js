@@ -1262,10 +1262,10 @@
       for (const l of lines) c.block.append(el("p", l.text, l.cls || undefined));
     }
     // --- the ladder keeper rule's draft history ------------------------------------------------------------------
-    // The league's draft history (Sleeper id -> {round, season, keptYears}), walked from THIS league -- its completed
-    // draft is the newest anchor -- at most once per league load: PK is replaced by every load, which discards it, and
-    // an in-flight walk is reused. {map} is null while pending and when unavailable (the walk threw or found nothing).
-    // When it settles, the result on screen for the same load is recomputed.
+    // The league's draft history (Sleeper id -> {round, season, keptYears, lastDraft}), walked from THIS league -- its
+    // completed draft is the newest -- at most once per league load: PK is replaced by every load, which discards it,
+    // and an in-flight walk is reused. {map} is null while pending and when unavailable (the walk threw or found
+    // nothing). When it settles, the result on screen for the same load is recomputed.
     function ladderHistory() {
       const pk = PK;
       if (!pk.ok) return null;
@@ -1291,7 +1291,8 @@
       const N = PK.next;
       const cand = id => {
         const o = h.map.get(String(id));
-        return o ? { originalRound: o.round, originalYear: o.season, keptYears: o.keptYears, isWaiver: false } : { isWaiver: true };
+        return o ? { originalRound: o.round, originalYear: o.season, keptYears: o.keptYears, lastDraft: o.lastDraft, isWaiver: false }
+          : { isWaiver: true };
       };
       return { eligible: id => K.eligible(cand(id), N), cost: id => K.keeperCost(cand(id), N) };
     }
