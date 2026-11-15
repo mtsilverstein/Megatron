@@ -1352,16 +1352,20 @@ function setOffer(els, { give = [], receive = [], givePicks = [], getPicks = [] 
   for (const k of getPicks) tickPick(els.theirsPicks, k);
 }
 const compareOffer = async (els, offer, what) => { setOffer(els, offer); await clickCompare(els, () => !els.result.hidden, what); };
+const dropBtnOf = (ul, id) => ul.children.find(li => li.dataset.id === id).children.find(x => x.className === "season-drop-btn");
+// Picks only: User A gives its own 2027 R3 for Bo's Bunch's 2027 R1. A Back, User A's likely keeper, costs that R3.
+const SWAP = { givePicks: ["2027|3|9"], getPicks: ["2027|1|3"] };
+const ONE = conflictLine("User A", "A Back", "2027 R3");
 
 async function picksKeeperConflict() {
   try {
     const els = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, routesOver: historyRoutes() });
-    // Picks only: User A gives its own 2027 R3 for Bo's Bunch's 2027 R1. A Back, User A's likely keeper, costs that R3.
-    const SWAP = { givePicks: ["2027|3|9"], getPicks: ["2027|1|3"] };
-    const ONE = conflictLine("User A", "A Back", "2027 R3");
+    await settle();
+    const atLoad = historyCalls().length;
     await compareOffer(els, SWAP, "the picks-only comparison, unknown rule");
     await settle();
-    await sub("the unknown rule: the page as before, no conflict line, no draft-history request", async () => {
+    await sub("the unknown rule: the page as before, no conflict line, no draft-history request (at load or after)", async () => {
+      assert.equal(atLoad, 0, "no draft-history request at load");
       assert.deepEqual(blockLines(els).slice(-2), [PICK_VALUES, PICK_AVERAGES]);
       assert.deepEqual(conflictLines(els), []);
       assert.deepEqual(historyCalls(), []);
@@ -1410,22 +1414,41 @@ async function picksKeeperConflict() {
       assert.deepEqual(conflictLines(els), [conflictLine("User A", "B Wide", "2027 R4")]);
       assertNoForbidden(els);
     });
+    // Fix round 1, M1: a player a side marks to DROP leaves its post-trade roster, as in the lineup engine. User A gets
+    // C Run (no one may keep him: cost R0) with nothing going back, so it is one over the roster limit and drops A Back;
+    // its best keepable player after the trade is then D Deep, who costs a 2027 R4.
+    for (const [what, givePicks, expected] of [
+      ["a dropped likely keeper leaves the roster: the next keepable player's pick is named", ["2027|3|9", "2027|4|9"], [conflictLine("User A", "D Deep", "2027 R4")]],
+      ["a dropped likely keeper leaves the roster: no line when the next one's pick is not in the offer", ["2027|3|9"], []],
+    ]) {
+      await sub(what, async () => {
+        setOffer(els, { receive: ["c"], givePicks });
+        dropBtnOf(els.mine, "a").dispatch("click");
+        await clickCompare(els, () => !els.result.hidden, what);
+        assert.equal(els.status.textContent, "lineups compared for weeks 4–17");
+        assert.deepEqual(analyzeCalls[analyzeCalls.length - 1].drops, { 9: ["a"] }, "the drop reaches the engine too");
+        assert.deepEqual(conflictLines(els), expected);
+        assertNoForbidden(els);
+      });
+    }
     assert.deepEqual(historyCalls(), HISTORY_CALLS, "one walk for the whole load");
-    await sub("a new league load discards the history: the next ladder result walks again", async () => {
+    await sub("a new league load discards the history; under the remembered ladder rule the new load walks again at once", async () => {
       await Session.refresh({ scope: "rosters" });
       await until(() => els.status.textContent === "2 teams loaded — you are User A", "the reload");
+      await until(() => historyCalls().length === 2 * HISTORY_CALLS.length, "the second walk, at load");
+      await settle();
       await compareOffer(els, SWAP, "the picks-only comparison after the reload");
-      await until(() => historyCalls().length === 2 * HISTORY_CALLS.length && conflictLines(els).length > 0, "the second walk");
       assert.deepEqual(conflictLines(els), [ONE]);
+      assert.equal(historyCalls().length, 2 * HISTORY_CALLS.length);
     });
     // X's holdings count as well as the offer: with Bo's Bunch's 2027 R3 already User A's, giving its own R3 leaves
     // one, so no line; giving both leaves none, and the line names the first one given.
     const traded = [...TRADED, { season: "2027", round: 3, roster_id: 3, owner_id: 9, previous_owner_id: 3, league_id: L }];
     const more = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, routesOver: { ...historyRoutes(), [`/league/${L}/traded_picks`]: traded }, storage: ladderStore() });
     await sub("a 2027 R3 User A already holds from a past trade keeps the line away; giving both brings it", async () => {
-      await compareOffer(more, SWAP, "the picks-only comparison, two R3s held");
-      await until(() => historyCalls().length === HISTORY_CALLS.length, "the walk, started by the result under a remembered ladder rule");
+      await until(() => historyCalls().length === HISTORY_CALLS.length, "the walk, started at load under the remembered ladder rule");
       await settle();
+      await compareOffer(more, SWAP, "the picks-only comparison, two R3s held");
       assert.deepEqual(conflictLines(more), []);
       await compareOffer(more, { givePicks: ["2027|3|3", "2027|3|9"], getPicks: ["2027|1|3"] }, "giving both R3s");
       assert.deepEqual(conflictLines(more), [conflictLine("User A", "A Back", "2027 R3 (from Bo's Bunch)")]);
@@ -1467,7 +1490,6 @@ async function picksKeeperCap() {
 
 // The history cannot be read: the conflict line (and the ladder-aware ranking) drop out and nothing else changes.
 async function picksKeeperHistoryFails() {
-  const SWAP = { givePicks: ["2027|3|9"], getPicks: ["2027|1|3"] };
   const BIG = { give: ["a", "d"], receive: ["b", "c"], givePicks: ["2027|3|9"] };
   const same = async (els, what) => {
     await compareOffer(els, SWAP, `${what}: picks only`);
@@ -1491,6 +1513,21 @@ async function picksKeeperHistoryFails() {
       await same(failedRead, "failed read");
       assert.deepEqual(historyCalls(), [`/league/${L}/drafts`], "tried once in this load, not retried");
     });
+    // Fix round 1, I2: the current league's own draft list (or its picks) fails while the earlier seasons would load,
+    // with picks that would re-rank the keepers (A Back's 2025 R3 alone would make him unkeepable). Without the newest
+    // draft the history cannot be read: the walk stops there and returns nothing.
+    const older = { y2025: [draftPick("a", 3), draftPick("b", 6), draftPick("d", 7)], y2024: [draftPick("a", 8)] };
+    for (const [what, route, tried] of [
+      ["the current league's draft list fails (earlier seasons would load)", `/league/${L}/drafts`, [`/league/${L}/drafts`]],
+      ["the current league's draft picks fail (earlier seasons would load)", `/draft/${DRAFT_ID}/picks`, [`/league/${L}/drafts`, `/draft/${DRAFT_ID}/picks`]],
+    ]) {
+      const noNewest = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 },
+        routesOver: { ...historyRoutes(older), [route]: new Error("HTTP 500") }, storage: ladderStore() });
+      await sub(what, async () => {
+        await same(noNewest, what);
+        assert.deepEqual(historyCalls(), tried, "the walk stops at the missing newest draft");
+      });
+    }
     // The walk itself throws.
     const real = Keepers.buildOriginalByPlayerId;
     Keepers.buildOriginalByPlayerId = async () => { throw new Error("walk failed"); };
@@ -1498,6 +1535,31 @@ async function picksKeeperHistoryFails() {
       const threw = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, routesOver: historyRoutes(), storage: ladderStore() });
       await sub("a draft-history walk that throws", async () => same(threw, "thrown walk"));
     } finally { Keepers.buildOriginalByPlayerId = real; }
+  } finally { delete window.localStorage; }
+}
+
+// Fix round 1, M2: when this league's remembered keeper rule is already the ladder, the walk starts at the end of the
+// load, so it is usually done before the first comparison. A remembered unknown rule still reads nothing.
+async function picksKeeperWalkAtLoad() {
+  try {
+    const els = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, routesOver: historyRoutes(), storage: ladderStore() });
+    await sub("a remembered ladder rule starts the draft-history walk at load, before any comparison", async () => {
+      await until(() => historyCalls().length === HISTORY_CALLS.length, "the walk at load");
+      assert.equal(els.result.hidden, true, "no result on screen yet");
+      await settle();
+      assert.deepEqual(historyCalls(), HISTORY_CALLS);
+    });
+    await sub("that walk is the only one: the first comparison has the line at once, and toggles read nothing more", async () => {
+      await compareOffer(els, SWAP, "the first comparison");
+      assert.deepEqual(conflictLines(els), [ONE], "the history was already in hand");
+      const rule = pickSelects(els)[1];
+      choose(rule, "unknown"); choose(rule, "ladder");
+      await settle();
+      assert.deepEqual(historyCalls(), HISTORY_CALLS);
+    });
+    await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, routesOver: historyRoutes() });   // remembered: unknown (default)
+    await settle();
+    await sub("a remembered unknown rule reads no draft history at load", async () => { assert.deepEqual(historyCalls(), []); });
   } finally { delete window.localStorage; }
 }
 
@@ -1694,6 +1756,7 @@ async function pageRollover() {
   await sub("keeper ladder: a traded pick a likely keeper would cost is named, under the ladder rule only, with one history walk per load", picksKeeperConflict);
   await sub("keeper ladder: a player kept the most allowed years is not a likely keeper", picksKeeperCap);
   await sub("keeper ladder: without the draft history only the conflict line and the ladder-aware ranking drop", picksKeeperHistoryFails);
+  await sub("keeper ladder: a remembered ladder rule walks the history at load; a remembered unknown rule reads nothing", picksKeeperWalkAtLoad);
   await sub("trade.html with no league: the connect prompt, nothing loaded; an old league name: the same, never a substitute", pageNoLeague);
   await sub("trade.html in season: mode first, never draft.json, in-season links by id", pageInSeason);
   await sub("trade.html pre-draft: the board's own league reaches TradeMode after the mode; archived, other leagues and no keeper rules are refused", pagePreDraft);

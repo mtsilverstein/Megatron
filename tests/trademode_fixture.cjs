@@ -503,9 +503,11 @@ acheck("keeperNote: a player kept the most allowed years says so; the cost reaso
     { eligible: false, text: "keeper cost would be R2 — back to the draft pool, worth 0 to trade" });
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 1, season: 2026, keptYears: 0 })),
     { eligible: false, text: "his keeper ladder has run out — back to the draft pool, worth 0 to trade" });
-  // A board-built history with no streak (the old {round, season} shape) counts calendar years only.
-  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 8, season: 2025 })), { eligible: true, text: "keeper cost R6" });
-  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2024 })), { eligible: false, text: CAP });
+  // Every Sleeper-derived entry is anchored in the newest draft (fix round 1, I1), so the cap comes only from a real
+  // keeper streak: a third-year keeper (kept twice, the newest time at R9) says the cap; an entry with no streak
+  // (the {round, season} shape a hand-built history has) is in his first kept year.
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2026, keptYears: 2 })), { eligible: false, text: CAP });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2026 })), { eligible: true, text: "keeper cost R8" });
 });
 
 runAll();

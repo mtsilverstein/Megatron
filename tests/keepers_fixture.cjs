@@ -322,10 +322,11 @@ assert.ok(marginalOnly[0].impact > 0 && marginalOnly[0].impact < K.MARGINAL_POIN
 assert.strictEqual(K.marginal(marginalOnly[0]), true);
 
 // ===========================================================================
-// buildOriginalByPlayerId keeps the MOST RECENT draft per player_id across
-// the previous_league_id chain (defect C regression). This must fail against
-// the old `season < prev.season` condition, which would keep the earlier
-// {round: 4, season: 2023} record instead of the later re-draft.
+// buildOriginalByPlayerId anchors a player on his pick in the START league's
+// own draft (the newest), never an earlier one (defect C regression): the
+// earlier {round: 4, season: 2023} record must not win over the re-draft. A
+// player picked only in an earlier draft is not in the map at all (fix round
+// 1, I1: the league charges him the waiver price, R12 on his first keep).
 // ===========================================================================
 async function testBuildOriginalByPlayerId() {
   const realFetch = global.fetch;
@@ -342,7 +343,7 @@ async function testBuildOriginalByPlayerId() {
       { status: "complete", draft_id: "draft_2023", season: "2023" },
     ],
     "https://api.sleeper.app/v1/draft/draft_2023/picks": [
-      { player_id: "p1", round: 4 },
+      { player_id: "p1", round: 4 }, { player_id: "p_old", round: 3 },
     ],
   };
   // sapi now delegates to Sleeper.get (see sleeper.js), which appends a
@@ -356,6 +357,8 @@ async function testBuildOriginalByPlayerId() {
   try {
     const original = await K.buildOriginalByPlayerId("league_2025");
     assert.deepStrictEqual(original.get("p1"), { round: 8, season: 2025, keptYears: 0 });
+    assert.strictEqual(original.has("p_old"), false, "picked only in an earlier draft: not anchored");
+    assert.deepStrictEqual([...original.keys()], ["p1"]);
   } finally {
     global.fetch = realFetch;
   }
@@ -382,7 +385,7 @@ async function testKeptYears() {
     [`${api}/draft/dr25/picks`]: [keeper("chain", 7)],
     [`${api}/league/lg24`]: { previous_league_id: null },
     [`${api}/league/lg24/drafts`]: [{ status: "complete", draft_id: "dr24", season: "2024" }],
-    [`${api}/draft/dr24/picks`]: [fresh("chain", 8), keeper("gap", 8)],
+    [`${api}/draft/dr24/picks`]: [fresh("chain", 8), keeper("gap", 8), fresh("old", 8)],
   };
   let failing = null;   // a base URL that answers HTTP 500
   global.fetch = async (url) => {
@@ -404,10 +407,34 @@ async function testKeptYears() {
     const chain = { originalRound: 6, originalYear: 2026, keptYears: 2, isWaiver: false };
     assert.strictEqual(K.keeperCost(chain, 2027), 5);
     assert.strictEqual(K.eligible(chain, 2027), false);
+    // I1: drafted fresh in 2024 (R8), not picked in 2025 or 2026 -- he went back to the pool and is a free-agent
+    // pickup now. He is not in the map, so every caller prices him as a waiver keeper: R12 and his first kept year in
+    // 2027 (the old most-recent-anchor rule made him R5 and, with the cap, "already kept 2 years").
+    assert.strictEqual(o.has("old"), false);
+    assert.deepStrictEqual([...o.keys()].sort(), ["chain", "gap", "new", "waiv"]);
+    const oldBoard = new Map([["old", { name: "Old", position: "WR", adpRound: 9, overallRank: 100, vorp: 2 }]]);
+    const { candidates: [oldC] } = K.buildKeeperCandidates(["old"], o, oldBoard);
+    assert.strictEqual(oldC.isWaiver, true);
+    assert.deepStrictEqual([K.keeperCost(oldC, 2027), K.yearsKept(oldC, 2027), K.eligible(oldC, 2027)], [12, 1, true]);
     // A failed hop is a gap too: the 2025 picks do not load, so chain's run is 1; his anchor (and cost) do not move.
     failing = `${api}/draft/dr25/picks`;
     const partial = await K.buildOriginalByPlayerId("lg26");
     assert.deepStrictEqual(partial.get("chain"), { round: 6, season: 2026, keptYears: 1 });
+    // I2: without the START league's draft the history cannot be read, even though earlier seasons load: its draft
+    // list fails, its picks fail, it has no completed draft, or the completed draft has no picks -> an empty map.
+    failing = `${api}/league/lg26/drafts`;
+    assert.strictEqual((await K.buildOriginalByPlayerId("lg26")).size, 0, "the start league's draft list fails");
+    failing = `${api}/draft/dr26/picks`;
+    assert.strictEqual((await K.buildOriginalByPlayerId("lg26")).size, 0, "the start league's picks fail");
+    failing = null;
+    const realDrafts = responses[`${api}/league/lg26/drafts`], realPicks = responses[`${api}/draft/dr26/picks`];
+    responses[`${api}/league/lg26/drafts`] = [{ status: "pre_draft", draft_id: "dr26", season: "2026" }];
+    assert.strictEqual((await K.buildOriginalByPlayerId("lg26")).size, 0, "no completed draft in the start league");
+    responses[`${api}/league/lg26/drafts`] = realDrafts;
+    responses[`${api}/draft/dr26/picks`] = [];
+    assert.strictEqual((await K.buildOriginalByPlayerId("lg26")).size, 0, "the start league's draft has no picks");
+    responses[`${api}/draft/dr26/picks`] = realPicks;
+    assert.strictEqual((await K.buildOriginalByPlayerId("lg26")).size, 4, "restored: the full history again");
   } finally {
     global.fetch = realFetch;
   }

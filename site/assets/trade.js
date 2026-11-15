@@ -127,8 +127,9 @@
   }
 
   // A board player + his league draft history, in the shape Keepers'
-  // cost/eligibility functions expect. No draft row in the chain means he was
-  // never drafted here, which is the waiver ladder (R12 on the first keep).
+  // cost/eligibility functions expect. No history row means he was not picked
+  // in the newest draft (a free-agent pickup), which is the waiver ladder (R12
+  // on the first keep).
   // keptYears (his run of keeper picks up to that row) feeds the two-year cap.
   function candidate(player, ctx) {
     const orig = ctx.originalByPlayerId.get(player.player_id);

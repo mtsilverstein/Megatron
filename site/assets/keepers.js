@@ -1,17 +1,19 @@
 // site/assets/keepers.js
 /* Keeper-value gauge. Pure math + a manual panel; reads the board's ADP.
    Rules (spec 2026-07-25, corrected per league restatement): keep up to 2,
-   cost drops one round per year KEPT. A waiver pickup (never drafted in this
-   league) starts the ladder at round 12 the first year he's kept, then
-   decays exactly the same way. Once a player's computed cost would be R2
-   or lower he is ineligible and returns to the draft pool -- if re-drafted,
-   that new pick anchors a fresh ladder (see buildOriginalByPlayerId).
+   cost drops one round per year KEPT. A waiver pickup (not picked in the
+   league's newest draft -- never drafted, or drafted in an earlier season
+   and back in the pool since) starts the ladder at round 12 the first year
+   he's kept, then decays exactly the same way. Once a player's computed cost
+   would be R2 or lower he is ineligible and returns to the draft pool -- if
+   re-drafted, that new pick anchors a fresh ladder (see
+   buildOriginalByPlayerId).
    A player is kept at most MAX_YEARS_KEPT (2) years in a row (owner-confirmed
    2026-11-13), then returns to the pool whatever his cost. Sleeper lists a
    kept player as a draft pick with is_keeper: true at the round he cost, so
-   his most recent pick already gives the right cost; buildOriginalByPlayerId
-   also counts the run of keeper picks behind it (keptYears), which yearsKept
-   adds to the seasons since that pick.
+   his pick in the newest draft already gives the right cost;
+   buildOriginalByPlayerId also counts the run of keeper picks behind it
+   (keptYears), which yearsKept adds to the seasons since that pick.
    Keeping is optional, so only players with POSITIVE impact are ever
    recommended -- a zero/negative-impact player is worth at least as much
    drafted fresh.
@@ -60,29 +62,37 @@
   // six-hour-old roster and price keepers against players who had moved.
   const sapi = path => Sleeper.get(path);
 
-  // Walk previous_league_id backward from `startLeagueId`, recording each
-  // player's MOST RECENT draft (round, season) as the ladder anchor. A
-  // player whose cost falls to R2 or below re-enters the draft pool (see
-  // `eligible`); if he's drafted again, that new pick starts a fresh ladder,
-  // so the latest draft -- not the earliest -- is the one that determines
-  // his current keeper cost. Partial failures skip that hop and keep walking.
+  // Walk previous_league_id backward from `startLeagueId`, whose draft is the
+  // newest. Only players picked -- drafted or kept -- in THAT league's own
+  // draft get an entry, anchored on that pick (round, season): a player
+  // drafted again starts a fresh ladder there. A player not picked in the
+  // newest draft went back to the pool and is a free-agent pickup now, and
+  // the league charges him the waiver price (live 2026 keepers: 4 of 5 such
+  // previously-drafted players were kept at R12), so he is left out and every
+  // caller prices him as a waiver keeper. Earlier hops are read only to count
+  // keptYears; one that fails is skipped (a gap). If the start league's own
+  // draft cannot be read -- its draft list or picks fail, or it has no
+  // completed draft with picks -- the map is EMPTY: without the newest draft
+  // there is no history to read.
   //
   // Each entry is { round, season, keptYears }. A KEPT player appears in
   // Sleeper's picks with is_keeper: true at the round he cost, so the anchor
-  // (his most recent pick, keeper or not) already gives the right cost.
-  // keptYears is the run of consecutive seasons, ending at the anchor season,
-  // in which his pick is a keeper pick: it stops at the first season where he
-  // has no pick or a non-keeper pick, and a skipped (failed) hop is a gap.
+  // (his pick in the newest draft, keeper or not) already gives the right
+  // cost. keptYears is the run of consecutive seasons, ending at the anchor
+  // season, in which his pick is a keeper pick: it stops at the first season
+  // where he has no pick or a non-keeper pick.
   async function buildOriginalByPlayerId(startLeagueId) {
     const original = new Map();
     const bySeason = new Map();   // season -> Map(player_id -> that season's pick)
     let lid = startLeagueId, hops = 0;
     while (lid && hops < CHAIN_CAP) {
+      const start = hops === 0;
       let league = null;
       try { league = await sapi(`/league/${lid}`); } catch (e) { break; }
       try {
         const drafts = (await sapi(`/league/${lid}/drafts`)) || [];
-        const draft = drafts.find(d => d.status === "complete") || drafts[0];
+        // The start league needs its completed draft; an earlier hop takes what it has, as before.
+        const draft = drafts.find(d => d.status === "complete") || (start ? null : drafts[0]);
         if (draft) {
           const season = parseInt(draft.season, 10);
           const picks = (await sapi(`/draft/${draft.draft_id}/picks`)) || [];
@@ -91,11 +101,14 @@
           for (const p of picks) {
             if (!p.player_id) continue;
             if (!seasonPicks.has(p.player_id)) seasonPicks.set(p.player_id, p);
-            const prev = original.get(p.player_id);
-            if (!prev || season > prev.season) original.set(p.player_id, { round: p.round, season });
+            if (start && !original.has(p.player_id)) original.set(p.player_id, { round: p.round, season });
           }
         }
-      } catch (e) { /* skip this season's draft, keep walking */ }
+      } catch (e) {
+        if (start) return new Map();   // the newest draft did not load: no history
+        /* an earlier season's draft: skip it, keep walking */
+      }
+      if (start && !original.size) return original;   // no completed draft with picks: no history
       lid = league && league.previous_league_id;
       hops++;
     }
@@ -113,8 +126,8 @@
     return original;
   }
 
-  // Cost drops one round per year KEPT, anchored to his MOST RECENT draft
-  // (see buildOriginalByPlayerId). No floor: once the computed cost is R2 or
+  // Cost drops one round per year KEPT, anchored to his pick in the newest
+  // draft (see buildOriginalByPlayerId). No floor: once the computed cost is R2 or
   // below he is ineligible (see `eligible`) and may legitimately compute to 0
   // or negative here -- that raw value is what tells the ineligible display
   // how far the ladder has run out.
@@ -270,7 +283,7 @@
       const c = { name: b.name, position: b.position,
                   adpRound: b.adpRound, overallRank: b.overallRank, vorp: b.vorp };
       if (orig) { c.originalRound = orig.round; c.originalYear = orig.season; c.keptYears = orig.keptYears || 0; c.isWaiver = false; }
-      else { c.isWaiver = true; }          // on no draft in the chain -> waiver R12
+      else { c.isWaiver = true; }          // not picked in the newest draft -> waiver R12
       candidates.push(c);
     }
     return { candidates, skipped };

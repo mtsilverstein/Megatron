@@ -18,8 +18,9 @@
    lineup engine. The weighting, draft-order and keeper-rule controls
    recompute the pick lines in place, with no new read -- except that under
    the ladder keeper rule the league's draft history
-   (Keepers.buildOriginalByPlayerId) is walked once per load, the first time
-   the rule applies to a result on screen or is chosen. That history makes
+   (Keepers.buildOriginalByPlayerId) is walked once per load: at the end of
+   the load when this league's remembered rule is the ladder, else the first
+   time the rule applies to a result on screen or is chosen. That history makes
    the likely-keeper lines ladder-aware (a player the ladder or its two-year
    cap would not let keep is skipped) and adds one line when an offer gives
    away the pick a side's likely keeper would cost. Pending or unavailable,
@@ -783,6 +784,9 @@
           els.controls.hidden = false; els.cols.hidden = false;
         }
         setStatus(`${rosters.length} teams loaded — ${who()}`);
+        // This league's remembered rule is already the ladder: start its draft-history walk now, so it is usually done
+        // before the first comparison (under the unknown rule nothing is read).
+        if (PK.ok && PK.pref.keeperRule === "ladder") ladderHistory();
       } catch (e) {
         if (stale() || SESSION.isSuperseded(e)) return;
         setStatus(e instanceof PreflightError ? e.message : `load failed: ${e.message} — refresh from the league panel to retry`);
@@ -1305,10 +1309,11 @@
       }
       return out;
     }
-    // The ladder only: per side, its likely keepers AFTER the trade (its players, minus those it gives, plus those it
-    // gets); for each, the round r he would cost next season. A side that gives a next-season round-r pick in this
-    // offer and would hold none after it (its picks, minus those it gives, plus those it gets) gets one line, naming
-    // the first such pick it gives. Picks-only offers run the same check with no players moving.
+    // The ladder only: per side, its likely keepers AFTER the trade (its players, minus those it gives and those it
+    // marks to drop, as in the lineup engine, plus those it gets); for each, the round r he would cost next season. A
+    // side that gives a next-season round-r pick in this offer and would hold none after it (its picks, minus those it
+    // gives, plus those it gets) gets one line, naming the first such pick it gives. Picks-only offers run the same
+    // check with no players moving.
     function keeperPickLines(c, ladder) {
       if (!ladder) return [];
       const K = S.league.settings && S.league.settings.max_keepers;
@@ -1317,7 +1322,8 @@
       for (const i of [0, 1]) {
         const rid = c.rosterIds[i];
         const givesPicks = i === 0 ? c.givePicks : c.receivePicks, getsPicks = i === 0 ? c.receivePicks : c.givePicks;
-        const gives = new Set((i === 0 ? c.give : c.receive).map(String)), gets = (i === 0 ? c.receive : c.give).map(String);
+        const gives = new Set([...(i === 0 ? c.give : c.receive), ...(c.drops[String(rid)] || [])].map(String));
+        const gets = (i === 0 ? c.receive : c.give).map(String);
         const roster = c.rosters.find(r => String(r.roster_id) === String(rid));
         const after = { players: [...((roster && roster.players) || []).map(String).filter(id => !gives.has(id)), ...gets] };
         const given = new Set(givesPicks.map(pickKey));
@@ -1332,11 +1338,12 @@
     // Any pick in the offer two or more seasons ahead of the current season (the copy then says "future seasons").
     const picksLater = (...lists) => lists.some(l => l.some(p => Number(p.season) - PK.current >= 2));
     // Inside the summary, after the lineup lines: the block the controls (and the ladder's history) recompute. The
-    // offer's players are kept so the keeper lines are recomputed with it.
-    function picksBlock(summary, { rosterIds, thisSeason, givePicks, receivePicks, rosters, give, receive }) {
+    // offer's players and each side's drops ({roster id: [Sleeper ids]}; none in a picks-only offer) are kept so the
+    // keeper lines are recomputed with it.
+    function picksBlock(summary, { rosterIds, thisSeason, givePicks, receivePicks, rosters, give, receive, drops = {} }) {
       const block = el("div", null, "season-picks-result");
       summary.append(block);
-      lastPicks = { block, rosterIds, thisSeason, givePicks, receivePicks, rosters, give: give.map(String), receive: receive.map(String) };
+      lastPicks = { block, rosterIds, thisSeason, givePicks, receivePicks, rosters, give: give.map(String), receive: receive.map(String), drops };
       fillPicksBlock();
     }
     function renderPicksOnly({ snapshotAt, givePicks, receivePicks, rosters }) {
@@ -1373,7 +1380,7 @@
       for (const line of lineupSummary(result, { names, ownLabel, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week, received, playerName: playerNameOf })) summary.append(el("p", line));
       // Draft picks: next season and the combined number, after this season's lines (an offer without a pick: nothing).
       if (hasPicks) picksBlock(summary, { rosterIds: result.sides.map(s => s.rosterId), thisSeason: result.sides.map(s => s.delta),
-        givePicks, receivePicks, rosters, give, receive });
+        givePicks, receivePicks, rosters, give, receive, drops });
       // Engine caveats: rostered players without a projection, counted as 0 (audit A6-3), and a starting slot a roster
       // cannot fill, taken by a free agent (result.pickups) or left at 0. The engine calls the first team "You" and the
       // second "They" and names the slot by its code; the page names both (caveatText).
