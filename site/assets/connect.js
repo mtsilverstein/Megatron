@@ -10,19 +10,8 @@
   // ID (any-league spec 5.4). No league is singled out: the site names none.
   const BAD_LEAGUE = "Enter a Sleeper league id or a sleeper.com league link.";
   const PROMPT_EMPTY = "Enter your Sleeper username or paste a sleeper.com league link.";
-  // Spec 5.1, anonymous path: bare digits, or a sleeper.com URL containing
-  // /leagues/<digits> (any trailing path or query), gives the league id;
-  // anything else is null. The host must be sleeper.com or a subdomain of it.
-  function parseLeagueInput(text) {
-    const t = String(text === null || text === undefined ? "" : text).trim();
-    if (/^\d+$/.test(t)) return t;
-    let url;
-    try { url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`); } catch (_) { return null; }
-    const host = url.hostname.toLowerCase();
-    if (host !== "sleeper.com" && !host.endsWith(".sleeper.com")) return null;
-    const m = /^\/leagues\/(\d+)(?:\/|$)/.exec(url.pathname);
-    return m ? m[1] : null;
-  }
+  // One copy of the parser lives in app.js (FC.parseLeagueInput); resolved lazily.
+  function parseLeagueInput(text) { return dep("FC", "./app.js").parseLeagueInput(text); }
   const IN_SEASON_LINKS = [["weekly", "Weekly / start-sit"], ["waivers", "Waiver research"], ["trade", "In-season trade scenarios"]];
 
   // Identity goes through the shared session (which persists it); the season

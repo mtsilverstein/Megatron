@@ -136,6 +136,33 @@
     const text = `${Number.isInteger(lg.teams) && lg.teams > 0 ? `${lg.teams}-team ` : ""}${ppr}${td === null ? "" : `, ${td}-pt pass TD`}`;
     return text.charAt(0).toUpperCase() + text.slice(1);
   }
+  // Spec 5.1, anonymous path: bare digits, or a sleeper.com URL containing
+  // /leagues/<digits> (any trailing path or query), gives the league id;
+  // anything else is null. The host must be sleeper.com or a subdomain of it.
+  function parseLeagueInput(text) {
+    const t = String(text === null || text === undefined ? "" : text).trim();
+    if (/^\d+$/.test(t)) return t;
+    let url;
+    try { url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`); } catch (_) { return null; }
+    const host = url.hostname.toLowerCase();
+    if (host !== "sleeper.com" && !host.endsWith(".sleeper.com")) return null;
+    const m = /^\/leagues\/(\d+)(?:\/|$)/.exec(url.pathname);
+    return m ? m[1] : null;
+  }
+  // Short format line for a live Sleeper league object; unknown parts are omitted.
+  function leagueFormatLabel(league) {
+    if (!league || typeof league !== "object") return "";
+    const parts = [];
+    const n = league.total_rosters;
+    if (Number.isInteger(n) && n > 0) parts.push(`${n} teams`);
+    const sc = league.scoring_settings && typeof league.scoring_settings === "object" ? league.scoring_settings : {};
+    const rec = typeof sc.rec === "number" && Number.isFinite(sc.rec) ? sc.rec : 0;
+    parts.push(rec === 1 ? "PPR" : rec === 0.5 ? "Half-PPR" : rec === 0 ? "Standard" : `${rec}-pt PPR`);
+    if (Array.isArray(league.roster_positions) && league.roster_positions.includes("SUPER_FLEX")) parts.push("Superflex");
+    const wt = league.settings && league.settings.waiver_type;
+    if (wt === 2) parts.push("FAAB"); else if (wt === 0) parts.push("Rolling waivers");
+    return parts.join(" · ");
+  }
   // The registry row a published board stands for, built from the board
   // itself. A board built before `platform` existed is a Sleeper board.
   function boardEntry(board) {
@@ -893,7 +920,7 @@
   return { POS_CLASS, REGISTRY, registryFor, loadJSON, leagueNavigation, stampHeader, staleBanner,
            fmt, makeSortable, posFilter, esc, scoringFilter, LENS_LABEL,
            setBoard, setLeague, inSeasonLeague, mountLeagueContext, mountDraftBoundary, DRAFT_ONLY, OLD_NAME, LAST_LEAGUE_KEY,
-           boardFormatLabel, boardEntry, loadBoard, boardArchived, archivedText,
+           boardFormatLabel, parseLeagueInput, leagueFormatLabel, boardEntry, loadBoard, boardArchived, archivedText,
            chip: { refresh: chipRefresh, onRefresh, render: renderChip },
            _session: stub => { sessionOverride = stub || null; }, _registry };
 });

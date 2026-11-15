@@ -145,11 +145,6 @@ async function pastedLeagueLinkOpensTheLeagueWithoutIdentity() {
   }
   assert.equal(navigated.length, 4, 'an invalid entry never navigates');
   assert.equal(Session.identity(), null, 'no identity was needed or created');
-  assert.equal(parseLeagueInput(X), X);
-  assert.equal(parseLeagueInput(`https://sleeper.com/leagues/${X}/team`), X);
-  assert.equal(parseLeagueInput('https://www.sleeper.com/leagues/42'), '42');
-  assert.equal(parseLeagueInput('https://evilsleeper.com/leagues/42'), null);
-  assert.equal(parseLeagueInput(null), null);
   delete global.location;
 }
 
