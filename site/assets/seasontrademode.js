@@ -16,7 +16,14 @@
    and the page works as it does without picks. Picks change nothing this
    season and take no roster spot: a picks-only offer never calls the
    lineup engine. The weighting, draft-order and keeper-rule controls
-   recompute the pick lines in place, with no new read.
+   recompute the pick lines in place, with no new read -- except that under
+   the ladder keeper rule the league's draft history
+   (Keepers.buildOriginalByPlayerId) is walked once per load, the first time
+   the rule applies to a result on screen or is chosen. That history makes
+   the likely-keeper lines ladder-aware (a player the ladder or its two-year
+   cap would not let keep is skipped) and adds one line when an offer gives
+   away the pick a side's likely keeper would cost. Pending or unavailable,
+   both drop out and nothing else changes.
 
    The live world comes from the committed Session bundle: the league (read
    from EACH committed bundle, never a closure copy), users, rosters, NFL
@@ -47,6 +54,7 @@
   const LW = () => dep("LiveWorld", "./liveworld.js");
   const PV = () => dep("PickValue", "./pickvalue.js");
   const LLens = () => dep("LeagueLens", "./leaguelens.js");
+  const KP = () => dep("Keepers", "./keepers.js");
   const SKILL = new Set(["QB", "RB", "WR", "TE"]);
   const HEADLINE = "Conditional lineup scenario — not a trade verdict.";
   const SUBLINE_TAIL = "Keeper value and draft picks are not valued, so no overall grade is shown.";
@@ -155,12 +163,14 @@
   }
   // The roster's top `keepers` skill players by rest-of-season value (rosValue: Map sleeper id -> ros_value). Every
   // player on the roster counts, IR and taxi included (a keeper can be injured now); one without a value is not
-  // ranked. Ties go to the lower id, so the answer is stable.
-  function likelyKeepers({ roster, catalog, rosValue, keepers }) {
+  // ranked. Ties go to the lower id, so the answer is stable. `eligible` (optional, id -> boolean) restricts the
+  // ranking to players a keeper rule lets keep; the next player takes an excluded one's place.
+  function likelyKeepers({ roster, catalog, rosValue, keepers, eligible }) {
     const K = Number(keepers);
     if (!Number.isInteger(K) || K <= 0) return new Set();
     const ranked = ((roster && roster.players) || []).map(String)
       .filter(id => SKILL.has(((catalog && catalog[id]) || {}).position) && Number.isFinite(rosValue.get(id)))
+      .filter(id => !eligible || eligible(id))
       .sort((a, b) => rosValue.get(b) - rosValue.get(a) || (a < b ? -1 : a > b ? 1 : 0));
     return new Set(ranked.slice(0, K));
   }
@@ -504,7 +514,9 @@
   // ~5 MB player catalog from Session.catalog() (once per document), and a
   // compare re-reads rosters (and, as every refresh does, the league
   // settings) through Session.refresh. Its only Sleeper calls of its own are
-  // a keeper league's traded_picks and draft, once per load (readPicks).
+  // a keeper league's traded_picks and draft, once per load (readPicks), and,
+  // under the ladder keeper rule only, one draft-history walk per load
+  // (ladderHistory, through keepers.js).
 
   // Same rule as TradeMode.teamName / Session.teamName.
   const teamNameOf = (user, rosterId) => (user && user.metadata && user.metadata.team_name) || (user && user.display_name) || `Roster ${rosterId}`;
@@ -893,6 +905,8 @@
       PK.pref = { ...PK.pref, ...change };
       savePref(S.league.league_id, PK.pref);
       syncPickControls();
+      // Choosing the ladder starts its draft-history walk even with no result on screen (once per load).
+      if (change.keeperRule === "ladder") ladderHistory();
       if (lastPicks && !els.result.hidden) fillPicksBlock();
     }
     // A pick's name in one team's view: its own pick, or the original team's.
@@ -1234,32 +1248,95 @@
         };
         lines = picksSummary({ sides: [side(0), side(1)], preset: PK.pref.preset, currentSeason: PK.current,
           keepers: S.league.settings && S.league.settings.max_keepers, keeperRule: PK.pref.keeperRule });
-        for (const t of c.keeperLines) lines.push({ text: t, cls: "season-summary-note" });
+        const ladder = ladderKeepers();
+        for (const t of keeperLines(c, ladder)) lines.push({ text: t, cls: "season-summary-note" });
+        for (const t of keeperPickLines(c, ladder)) lines.push({ text: t, cls: "season-summary-note" });
       } catch (e) {
         lines = [{ text: PICK_COPY.unavailable(reasonText(e.message)), cls: "season-summary-note" }];
       }
       c.block.replaceChildren();
       for (const l of lines) c.block.append(el("p", l.text, l.cls || undefined));
     }
-    // A traded player in his current team's top max_keepers skill players by rest-of-season value (spec §5.7).
-    function keeperLines(give, receive, rosters) {
+    // --- the ladder keeper rule's draft history ------------------------------------------------------------------
+    // The league's draft history (Sleeper id -> {round, season, keptYears}), walked from THIS league -- its completed
+    // draft is the newest anchor -- at most once per league load: PK is replaced by every load, which discards it, and
+    // an in-flight walk is reused. {map} is null while pending and when unavailable (the walk threw or found nothing).
+    // When it settles, the result on screen for the same load is recomputed.
+    function ladderHistory() {
+      const pk = PK;
+      if (!pk.ok) return null;
+      if (!pk.history) {
+        const h = pk.history = { map: null, promise: null };
+        const leagueId = S.league.league_id;
+        h.promise = (async () => {
+          const K = KP();
+          if (!K || typeof K.buildOriginalByPlayerId !== "function") throw new Error("keepers.js is not loaded");
+          return K.buildOriginalByPlayerId(leagueId);
+        })().then(map => { h.map = map instanceof Map && map.size ? map : null; }, () => { h.map = null; })
+          .then(() => { if (PK === pk && lastPicks && !els.result.hidden) fillPicksBlock(); });
+      }
+      return pk.history;
+    }
+    // Under the ladder rule with the history in hand: next season's keeper test and cost for a Sleeper id; else null
+    // (another rule, or the history pending or unavailable: today's ranking and no conflict line). Asking under the
+    // ladder rule starts the walk.
+    function ladderKeepers() {
+      if (PK.pref.keeperRule !== "ladder") return null;
+      const h = ladderHistory(), K = KP();
+      if (!h || !h.map || !K) return null;
+      const N = PK.next;
+      const cand = id => {
+        const o = h.map.get(String(id));
+        return o ? { originalRound: o.round, originalYear: o.season, keptYears: o.keptYears, isWaiver: false } : { isWaiver: true };
+      };
+      return { eligible: id => K.eligible(cand(id), N), cost: id => K.keeperCost(cand(id), N) };
+    }
+    const rosValueMap = () => new Map(((S.board && S.board.players) || []).map(p => [String(p.sleeper_id), p.ros_value]));
+    // A traded player in his current team's top max_keepers skill players by rest-of-season value (spec §5.7); under
+    // the ladder rule with its history, only among players the rule lets keep next season.
+    function keeperLines(c, ladder) {
       const K = S.league.settings && S.league.settings.max_keepers;
-      const ros = new Map(((S.board && S.board.players) || []).map(p => [String(p.sleeper_id), p.ros_value]));
+      const ros = rosValueMap();
       const out = [];
-      for (const [ids, rid] of [[give, S.me.roster_id], [receive, S.partner.roster_id]]) {
-        const roster = rosters.find(r => String(r.roster_id) === String(rid));
-        const top = likelyKeepers({ roster, catalog: S.catalog, rosValue: ros, keepers: K });
+      for (const [ids, rid] of [[c.give, c.rosterIds[0]], [c.receive, c.rosterIds[1]]]) {
+        const roster = c.rosters.find(r => String(r.roster_id) === String(rid));
+        const top = likelyKeepers({ roster, catalog: S.catalog, rosValue: ros, keepers: K, eligible: ladder && ladder.eligible });
         for (const id of ids) if (top.has(String(id))) out.push(`${playerName(id)} is likely one of ${rosterName(rid)}'s keepers; his value next season is not counted.`);
+      }
+      return out;
+    }
+    // The ladder only: per side, its likely keepers AFTER the trade (its players, minus those it gives, plus those it
+    // gets); for each, the round r he would cost next season. A side that gives a next-season round-r pick in this
+    // offer and would hold none after it (its picks, minus those it gives, plus those it gets) gets one line, naming
+    // the first such pick it gives. Picks-only offers run the same check with no players moving.
+    function keeperPickLines(c, ladder) {
+      if (!ladder) return [];
+      const K = S.league.settings && S.league.settings.max_keepers;
+      const ros = rosValueMap(), N = PK.next, out = [];
+      const inRound = r => p => Number(p.season) === N && Number(p.round) === r;
+      for (const i of [0, 1]) {
+        const rid = c.rosterIds[i];
+        const givesPicks = i === 0 ? c.givePicks : c.receivePicks, getsPicks = i === 0 ? c.receivePicks : c.givePicks;
+        const gives = new Set((i === 0 ? c.give : c.receive).map(String)), gets = (i === 0 ? c.receive : c.give).map(String);
+        const roster = c.rosters.find(r => String(r.roster_id) === String(rid));
+        const after = { players: [...((roster && roster.players) || []).map(String).filter(id => !gives.has(id)), ...gets] };
+        const given = new Set(givesPicks.map(pickKey));
+        const held = [...(PK.owned.get(Number(rid)) || []).filter(p => !given.has(pickKey(p))), ...getsPicks];
+        for (const id of likelyKeepers({ roster: after, catalog: S.catalog, rosValue: ros, keepers: K, eligible: ladder.eligible })) {
+          const r = ladder.cost(id), pick = givesPicks.find(inRound(r));
+          if (pick && !held.some(inRound(r))) out.push(`${rosterName(rid)}'s likely keeper ${playerName(id)} would cost their ${pickLabel(pick, rid)} — the pick in this offer.`);
+        }
       }
       return out;
     }
     // Any pick in the offer two or more seasons ahead of the current season (the copy then says "future seasons").
     const picksLater = (...lists) => lists.some(l => l.some(p => Number(p.season) - PK.current >= 2));
-    // Inside the summary, after the lineup lines: the block the controls recompute.
-    function picksBlock(summary, { rosterIds, thisSeason, givePicks, receivePicks, rosters, keeper }) {
+    // Inside the summary, after the lineup lines: the block the controls (and the ladder's history) recompute. The
+    // offer's players are kept so the keeper lines are recomputed with it.
+    function picksBlock(summary, { rosterIds, thisSeason, givePicks, receivePicks, rosters, give, receive }) {
       const block = el("div", null, "season-picks-result");
       summary.append(block);
-      lastPicks = { block, rosterIds, thisSeason, givePicks, receivePicks, rosters, keeperLines: keeper };
+      lastPicks = { block, rosterIds, thisSeason, givePicks, receivePicks, rosters, give: give.map(String), receive: receive.map(String) };
       fillPicksBlock();
     }
     function renderPicksOnly({ snapshotAt, givePicks, receivePicks, rosters }) {
@@ -1267,7 +1344,7 @@
       out.replaceChildren();
       const summary = el("div", null, "season-summary");
       summary.append(el("p", `This season: 0 pts for both teams over weeks ${first()}–${last()}; no players move, so neither starting lineup changes.`));
-      picksBlock(summary, { rosterIds: [S.me.roster_id, S.partner.roster_id], thisSeason: [0, 0], givePicks, receivePicks, rosters, keeper: [] });
+      picksBlock(summary, { rosterIds: [S.me.roster_id, S.partner.roster_id], thisSeason: [0, 0], givePicks, receivePicks, rosters, give: [], receive: [] });
       out.append(summary);
       out.append(el("p", picksLater(givePicks, receivePicks) ? PICKS_SUBLINE_TAIL_LATER : PICKS_SUBLINE_TAIL, "season-subline"));
       els.provenance.textContent = provenanceText(snapshotAt);
@@ -1296,7 +1373,7 @@
       for (const line of lineupSummary(result, { names, ownLabel, firstWeek: weeks[0].week, endWeek: weeks[weeks.length - 1].week, received, playerName: playerNameOf })) summary.append(el("p", line));
       // Draft picks: next season and the combined number, after this season's lines (an offer without a pick: nothing).
       if (hasPicks) picksBlock(summary, { rosterIds: result.sides.map(s => s.rosterId), thisSeason: result.sides.map(s => s.delta),
-        givePicks, receivePicks, rosters, keeper: keeperLines(give, receive, rosters) });
+        givePicks, receivePicks, rosters, give, receive });
       // Engine caveats: rostered players without a projection, counted as 0 (audit A6-3), and a starting slot a roster
       // cannot fill, taken by a free agent (result.pickups) or left at 0. The engine calls the first team "You" and the
       // second "They" and names the slot by its code; the page names both (caveatText).

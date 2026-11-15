@@ -76,6 +76,45 @@ const redraftPlayer = drafted(8, 2025, { name: "Redraft", adpRound: 6, overallRa
 assert.strictEqual(K.keeperCost(redraftPlayer, S), 7);
 assert.strictEqual(K.eligible(redraftPlayer, S), true);
 
+// ===========================================================================
+// Two-year cap (league rule, owner-confirmed 2026-11-13): a player is kept at
+// most MAX_YEARS_KEPT seasons, then goes back to the draft pool whatever his
+// cost. Years kept: drafted = keptYears (his run of Sleeper keeper picks up to
+// the anchor) + seasons since the anchor; waiver = seasons since first kept + 1.
+// The cap never moves a COST -- only who may be kept.
+// ===========================================================================
+assert.strictEqual(K.MAX_YEARS_KEPT, 2);
+// Drafted fresh in 2026 at R8: kept 2027 (R7) and 2028 (R6), not 2029 (R5 on cost alone).
+const fresh26 = drafted(8, 2026);
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.keeperCost(fresh26, s)), [7, 6, 5]);
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.yearsKept(fresh26, s)), [1, 2, 3]);
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.eligible(fresh26, s)), [true, true, false]);
+// A waiver pickup first kept in 2027: R12, then R11, then the cap.
+const waiver27 = waiver({ firstKeptYear: 2027 });
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.keeperCost(waiver27, s)), [12, 11, 10]);
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.yearsKept(waiver27, s)), [1, 2, 3]);
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.eligible(waiver27, s)), [true, true, false]);
+assert.strictEqual(K.yearsKept(waiver(), 2027), 1);           // blank firstKeptYear = this is the first keep
+// Already kept as a Sleeper keeper pick (keptYears from buildOriginalByPlayerId).
+const kept1 = drafted(8, 2026, { keptYears: 1 }), kept2 = drafted(8, 2026, { keptYears: 2 });
+assert.deepStrictEqual([K.yearsKept(kept1, 2027), K.yearsKept(kept1, 2028)], [2, 3]);
+assert.deepStrictEqual([K.eligible(kept1, 2027), K.eligible(kept1, 2028)], [true, false]);
+assert.strictEqual(K.yearsKept(kept2, 2027), 3);
+assert.strictEqual(K.keeperCost(kept2, 2027), 7, "the cap never moves the cost");
+assert.strictEqual(K.eligible(kept2, 2027), false);
+// The round-2 floor still applies on cost alone, inside the cap.
+assert.strictEqual(K.yearsKept(drafted(3, 2026), 2027), 1);
+assert.strictEqual(K.keeperCost(drafted(3, 2026), 2027), 2);
+assert.strictEqual(K.eligible(drafted(3, 2026), 2027), false);
+// buildKeeperCandidates carries the kept streak onto the candidate.
+{
+  const b1 = new Map([["s1", { name: "Streak", position: "RB", adpRound: 5, overallRank: 50, vorp: 9 }]]);
+  const { candidates: [c] } = K.buildKeeperCandidates(["s1"], new Map([["s1", { round: 8, season: 2026, keptYears: 2 }]]), b1);
+  assert.strictEqual(c.keptYears, 2);
+  assert.strictEqual(K.keeperCost(c, 2027), 7);
+  assert.strictEqual(K.eligible(c, 2027), false);
+}
+
 // value round: adp round if present, else board rank -> round
 assert.strictEqual(K.valueRound(3, 99), 3);
 assert.strictEqual(K.valueRound(null, 30), 3);   // ceil(30/12)
@@ -316,9 +355,97 @@ async function testBuildOriginalByPlayerId() {
   };
   try {
     const original = await K.buildOriginalByPlayerId("league_2025");
-    assert.deepStrictEqual(original.get("p1"), { round: 8, season: 2025 });
+    assert.deepStrictEqual(original.get("p1"), { round: 8, season: 2025, keptYears: 0 });
   } finally {
     global.fetch = realFetch;
+  }
+}
+
+// ===========================================================================
+// keptYears: Sleeper lists a KEPT player as a pick with is_keeper: true at his
+// cost round, so the anchor (his most recent pick) already gives the right
+// cost; keptYears counts the run of keeper picks ending at the anchor season,
+// stopping at the first season with no pick or a non-keeper pick (a failed
+// hop is a gap). Synthetic 3-season chain, newest first.
+// ===========================================================================
+async function testKeptYears() {
+  const realFetch = global.fetch;
+  const api = "https://api.sleeper.app/v1";
+  const keeper = (player_id, round) => ({ player_id, round, is_keeper: true });
+  const fresh = (player_id, round) => ({ player_id, round, is_keeper: null });
+  const responses = {
+    [`${api}/league/lg26`]: { previous_league_id: "lg25" },
+    [`${api}/league/lg26/drafts`]: [{ status: "complete", draft_id: "dr26", season: "2026" }],
+    [`${api}/draft/dr26/picks`]: [keeper("chain", 6), fresh("new", 5), keeper("waiv", 12), keeper("gap", 7)],
+    [`${api}/league/lg25`]: { previous_league_id: "lg24" },
+    [`${api}/league/lg25/drafts`]: [{ status: "complete", draft_id: "dr25", season: "2025" }],
+    [`${api}/draft/dr25/picks`]: [keeper("chain", 7)],
+    [`${api}/league/lg24`]: { previous_league_id: null },
+    [`${api}/league/lg24/drafts`]: [{ status: "complete", draft_id: "dr24", season: "2024" }],
+    [`${api}/draft/dr24/picks`]: [fresh("chain", 8), keeper("gap", 8)],
+  };
+  let failing = null;   // a base URL that answers HTTP 500
+  global.fetch = async (url) => {
+    const base = url.split("?")[0];
+    if (base === failing) return { ok: false, status: 500, json: async () => ({}) };
+    if (!(base in responses)) throw new Error(`unmocked url in test: ${url}`);
+    return { ok: true, json: async () => responses[base] };
+  };
+  try {
+    const o = await K.buildOriginalByPlayerId("lg26");
+    // fresh 2024 R8 -> kept 2025 R7 -> kept 2026 R6: anchor 2026 R6, kept twice.
+    assert.deepStrictEqual(o.get("chain"), { round: 6, season: 2026, keptYears: 2 });
+    assert.deepStrictEqual(o.get("new"), { round: 5, season: 2026, keptYears: 0 });
+    // a waiver keeper sits at R12 in his first kept year, with no 2025 pick
+    assert.deepStrictEqual(o.get("waiv"), { round: 12, season: 2026, keptYears: 1 });
+    // kept 2026, absent 2025, kept 2024: the gap ends the run
+    assert.deepStrictEqual(o.get("gap"), { round: 7, season: 2026, keptYears: 1 });
+    // So: chain is in his third kept year in 2027 and goes back to the pool, at an unchanged cost.
+    const chain = { originalRound: 6, originalYear: 2026, keptYears: 2, isWaiver: false };
+    assert.strictEqual(K.keeperCost(chain, 2027), 5);
+    assert.strictEqual(K.eligible(chain, 2027), false);
+    // A failed hop is a gap too: the 2025 picks do not load, so chain's run is 1; his anchor (and cost) do not move.
+    failing = `${api}/draft/dr25/picks`;
+    const partial = await K.buildOriginalByPlayerId("lg26");
+    assert.deepStrictEqual(partial.get("chain"), { round: 6, season: 2026, keptYears: 1 });
+  } finally {
+    global.fetch = realFetch;
+  }
+}
+
+// ===========================================================================
+// The keeper panel says why a capped player is ineligible; the cost reasons are
+// unchanged and the cap's reason wins whenever he is over it. Driven through
+// init() under a minimal DOM stub.
+// ===========================================================================
+{
+  const node = () => ({ innerHTML: "", textContent: "", value: "", checked: false, disabled: false,
+                        placeholder: "", addEventListener() {} });
+  const nodes = Object.fromEntries([".keeper-rec", ".keeper-out", ".keeper-add", ".keeper-load-btn",
+    ".keeper-load-status", ".keeper-skip-note"].map(s => [s, node()]));
+  const panel = { querySelector: s => nodes[s] || null, appendChild() {} };
+  global.window = { FC: { esc: s => String(s) } };
+  global.document = { getElementById: () => node(), createElement: node };
+  try {
+    K.init({ players: boardRows, panel, currentSeason: 2027 });
+    panel._keeperAdd([
+      drafted(8, 2026, { name: "Capped", keptYears: 2 }),     // cost R7, would be his third kept year
+      drafted(3, 2026, { name: "CappedFloor", keptYears: 2 }), // over the cap AND cost R2: the cap's reason wins
+      drafted(3, 2026, { name: "Floor" }),                    // cost R2, first kept year
+      drafted(1, 2026, { name: "RunOut" }),                   // cost R0
+      drafted(8, 2026, { name: "Keepable" }),                 // R7, first kept year: eligible, no projection
+    ]);
+    const out = nodes[".keeper-out"].innerHTML;
+    const CAP = "already kept the most allowed (2 years), so he goes back to the draft pool";
+    assert.ok(out.includes(`<li class="keeper-ineligible">Capped — ineligible: ${CAP}</li>`), out);
+    assert.ok(out.includes(`<li class="keeper-ineligible">CappedFloor — ineligible: ${CAP}</li>`), out);
+    assert.ok(out.includes('<li class="keeper-ineligible">Floor — ineligible: cost would be R2, so he goes back to the draft pool</li>'), out);
+    assert.ok(out.includes('<li class="keeper-ineligible">RunOut — ineligible: his keeper ladder has run out</li>'), out);
+    assert.ok(out.includes('<li class="keeper-unvalued">Keepable — no projection — value unknown</li>'), out);
+    assert.ok(!/Keepable — ineligible/.test(out), out);
+  } finally {
+    delete global.window;
+    delete global.document;
   }
 }
 
@@ -411,10 +538,10 @@ async function testSleeperKeeperCandidates() {
   assert.ok(!/\/user\//.test(src) && !/leagues\/nfl/.test(src) && !/pickLeague|keeper-user|keeper-league-picker/.test(src));
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "index.html"), "utf8");
   assert.ok(!/keeper-user|keeper-league-picker/.test(html), "index.html carries no legacy keeper inputs");
-  assert.ok(/keeper-load-btn/.test(html) && /keepers\.js\?v=session1/.test(html));
+  assert.ok(/keeper-load-btn/.test(html) && /keepers\.js\?v=k2y1/.test(html));
 }
 
-testBuildOriginalByPlayerId().then(testSleeperKeeperCandidates).then(() => {
+testBuildOriginalByPlayerId().then(testKeptYears).then(testSleeperKeeperCandidates).then(() => {
   console.log("keepers_fixture: OK");
 }).catch(e => {
   console.error("keepers_fixture: FAILED");

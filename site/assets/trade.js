@@ -129,6 +129,7 @@
   // A board player + his league draft history, in the shape Keepers'
   // cost/eligibility functions expect. No draft row in the chain means he was
   // never drafted here, which is the waiver ladder (R12 on the first keep).
+  // keptYears (his run of keeper picks up to that row) feeds the two-year cap.
   function candidate(player, ctx) {
     const orig = ctx.originalByPlayerId.get(player.player_id);
     const c = { name: player.name, position: player.position,
@@ -137,6 +138,7 @@
     if (orig) {
       c.originalRound = orig.round;
       c.originalYear = orig.season;
+      c.keptYears = orig.keptYears || 0;
       c.isWaiver = false;
     } else {
       c.isWaiver = true;

@@ -105,7 +105,7 @@ acheck("draft history is re-keyed from Sleeper ids to BOARD player ids", async (
   assert.ok(!w.ctx.originalByPlayerId.has(star.sleeper_id),
     "a Sleeper-keyed entry would never be found by Trade.candidate");
   assert.deepStrictEqual(w.ctx.originalByPlayerId.get(star.player_id),
-    { round: 1, season: 2025 });
+    { round: 1, season: 2025, keptYears: 0 });
 
   // The consequence, which is what actually breaks: a round-1 pick from last
   // season decays to R0 and returns to the draft pool, so he is worth nothing
@@ -484,7 +484,28 @@ acheck("no username input, league picker or /user/ fetch remains in the pre-draf
   assert.ok(/status !== "pre_draft"/.test(src), "leagueWorld's own pre-draft guard stays");
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
   assert.ok(!/trade-user|trade-load"|trade-league-picker/.test(html), "trade.html carries no legacy inputs");
-  assert.ok(/trademode\.js\?v=session1/.test(html) && /keepers\.js\?v=session1/.test(html), "cache keys bumped");
+  assert.ok(/trademode\.js\?v=k2y1/.test(html) && /keepers\.js\?v=k2y1/.test(html) && /trade\.js\?v=k2y1/.test(html), "cache keys bumped");
+});
+
+// --- the two-year keeper cap, in this panel's words --------------------------
+acheck("keeperNote: a player kept the most allowed years says so; the cost reasons are unchanged", async () => {
+  const p = { player_id: "b1", name: "Capped", position: "RB", vorp: 10, adp_round: 3 };
+  const ctxOf = orig => ({ season: 2027, board: [p], originalByPlayerId: new Map([["b1", orig]]),
+                           keptElsewhere: new Set(), futureDiscount: Trade.FUTURE_DISCOUNT });
+  const CAP = "already kept the most allowed (2 years) — back to the draft pool, worth 0 to trade";
+  // Trade.candidate carries the kept streak, so Keepers' cap sees it.
+  assert.strictEqual(Trade.candidate(p, ctxOf({ round: 8, season: 2026, keptYears: 2 })).keptYears, 2);
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 8, season: 2026, keptYears: 2 })), { eligible: false, text: CAP });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 8, season: 2026, keptYears: 1 })), { eligible: true, text: "keeper cost R7" });
+  // Over the cap AND past the round-2 floor: the cap's reason wins.
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 3, season: 2026, keptYears: 2 })), { eligible: false, text: CAP });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 3, season: 2026, keptYears: 0 })),
+    { eligible: false, text: "keeper cost would be R2 — back to the draft pool, worth 0 to trade" });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 1, season: 2026, keptYears: 0 })),
+    { eligible: false, text: "his keeper ladder has run out — back to the draft pool, worth 0 to trade" });
+  // A board-built history with no streak (the old {round, season} shape) counts calendar years only.
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 8, season: 2025 })), { eligible: true, text: "keeper cost R6" });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2024 })), { eligible: false, text: CAP });
 });
 
 runAll();

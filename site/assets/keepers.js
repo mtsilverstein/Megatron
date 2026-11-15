@@ -1,13 +1,17 @@
 // site/assets/keepers.js
 /* Keeper-value gauge. Pure math + a manual panel; reads the board's ADP.
    Rules (spec 2026-07-25, corrected per league restatement): keep up to 2,
-   cost drops one round per year KEPT. A drafted player's years-kept always
-   equals calendar years since his (most recent) draft, since skipping a
-   year sends him back to the pool. A waiver pickup (never drafted in this
+   cost drops one round per year KEPT. A waiver pickup (never drafted in this
    league) starts the ladder at round 12 the first year he's kept, then
    decays exactly the same way. Once a player's computed cost would be R2
    or lower he is ineligible and returns to the draft pool -- if re-drafted,
    that new pick anchors a fresh ladder (see buildOriginalByPlayerId).
+   A player is kept at most MAX_YEARS_KEPT (2) years in a row (owner-confirmed
+   2026-11-13), then returns to the pool whatever his cost. Sleeper lists a
+   kept player as a draft pick with is_keeper: true at the round he cost, so
+   his most recent pick already gives the right cost; buildOriginalByPlayerId
+   also counts the run of keeper picks behind it (keptYears), which yearsKept
+   adds to the seasons since that pick.
    Keeping is optional, so only players with POSITIVE impact are ever
    recommended -- a zero/negative-impact player is worth at least as much
    drafted fresh.
@@ -38,6 +42,7 @@
 
   const WAIVER_COST_ROUND = 12;
   const MAX_KEEPERS = 2;
+  const MAX_YEARS_KEPT = 2;   // seasons in a row one player may be kept
   const TEAMS = 12;      // league size; also the shared default for valueRound
   const DRAFT_ROUNDS = 15;  // QB/RB2/WR2/TE/2FLEX/K/DST + 5 bench
   // Season-points surplus below which a keeper edge is not worth acting on.
@@ -61,8 +66,16 @@
   // `eligible`); if he's drafted again, that new pick starts a fresh ladder,
   // so the latest draft -- not the earliest -- is the one that determines
   // his current keeper cost. Partial failures skip that hop and keep walking.
+  //
+  // Each entry is { round, season, keptYears }. A KEPT player appears in
+  // Sleeper's picks with is_keeper: true at the round he cost, so the anchor
+  // (his most recent pick, keeper or not) already gives the right cost.
+  // keptYears is the run of consecutive seasons, ending at the anchor season,
+  // in which his pick is a keeper pick: it stops at the first season where he
+  // has no pick or a non-keeper pick, and a skipped (failed) hop is a gap.
   async function buildOriginalByPlayerId(startLeagueId) {
     const original = new Map();
+    const bySeason = new Map();   // season -> Map(player_id -> that season's pick)
     let lid = startLeagueId, hops = 0;
     while (lid && hops < CHAIN_CAP) {
       let league = null;
@@ -73,8 +86,11 @@
         if (draft) {
           const season = parseInt(draft.season, 10);
           const picks = (await sapi(`/draft/${draft.draft_id}/picks`)) || [];
+          if (!bySeason.has(season)) bySeason.set(season, new Map());
+          const seasonPicks = bySeason.get(season);
           for (const p of picks) {
             if (!p.player_id) continue;
+            if (!seasonPicks.has(p.player_id)) seasonPicks.set(p.player_id, p);
             const prev = original.get(p.player_id);
             if (!prev || season > prev.season) original.set(p.player_id, { round: p.round, season });
           }
@@ -82,6 +98,17 @@
       } catch (e) { /* skip this season's draft, keep walking */ }
       lid = league && league.previous_league_id;
       hops++;
+    }
+    for (const [pid, o] of original) {
+      let kept = 0;
+      if (Number.isInteger(o.season)) {
+        for (let s = o.season; ; s--) {
+          const p = bySeason.has(s) ? bySeason.get(s).get(pid) : null;
+          if (!p || p.is_keeper !== true) break;
+          kept++;
+        }
+      }
+      o.keptYears = kept;
     }
     return original;
   }
@@ -103,11 +130,24 @@
     }
     return c.originalRound - (currentSeason - c.originalYear);
   }
-  // Keepable iff the computed cost is R3 or higher. Once cost would be R2 or
-  // lower he returns to the draft pool instead -- this applies identically to
-  // waiver-ladder cost and drafted cost, since both come out of keeperCost.
+  // How many seasons in a row he would have been kept, counting this one. A
+  // waiver pickup: seasons since his first keep, plus one (blank firstKeptYear
+  // = this IS the first keep). A drafted player: his run of Sleeper keeper
+  // picks up to the anchor (keptYears; a manual entry has none, so 0) plus the
+  // seasons since that anchor.
+  function yearsKept(c, currentSeason) {
+    if (c.isWaiver) {
+      const first = c.firstKeptYear != null ? c.firstKeptYear : currentSeason;
+      return currentSeason - first + 1;
+    }
+    return (c.keptYears || 0) + (currentSeason - c.originalYear);
+  }
+  // Keepable iff the computed cost is R3 or higher AND he has not already been
+  // kept MAX_YEARS_KEPT seasons. Once cost would be R2 or lower he returns to
+  // the draft pool instead -- this applies identically to waiver-ladder cost
+  // and drafted cost, since both come out of keeperCost.
   function eligible(c, currentSeason) {
-    return keeperCost(c, currentSeason) >= 3;
+    return keeperCost(c, currentSeason) >= 3 && yearsKept(c, currentSeason) <= MAX_YEARS_KEPT;
   }
   // A recommended-or-not candidate whose edge is too small to tell apart from
   // projection noise (see MARGINAL_POINTS). Impacts at or below 0 are already
@@ -229,7 +269,7 @@
       const orig = originalByPlayerId.get(pid);
       const c = { name: b.name, position: b.position,
                   adpRound: b.adpRound, overallRank: b.overallRank, vorp: b.vorp };
-      if (orig) { c.originalRound = orig.round; c.originalYear = orig.season; c.isWaiver = false; }
+      if (orig) { c.originalRound = orig.round; c.originalYear = orig.season; c.keptYears = orig.keptYears || 0; c.isWaiver = false; }
       else { c.isWaiver = true; }          // on no draft in the chain -> waiver R12
       candidates.push(c);
     }
@@ -305,7 +345,10 @@
           `<li class="keeper-unvalued">${esc(c.name)} — no projection — value unknown</li>`))
         .concat(ineligible.map(c => {
           const n = keeperCost(c, currentSeason);
-          const reason = n >= 1
+          // The cap's reason wins whenever he is over it, whatever his cost.
+          const reason = yearsKept(c, currentSeason) > MAX_YEARS_KEPT
+            ? `already kept the most allowed (${MAX_YEARS_KEPT} years), so he goes back to the draft pool`
+            : n >= 1
             ? `cost would be R${n}, so he goes back to the draft pool`
             : `his keeper ladder has run out`;
           return `<li class="keeper-ineligible">${esc(c.name)} — ineligible: ${reason}</li>`;
@@ -438,9 +481,9 @@
     syncLoad();
   }
 
-  return { init, keeperCost, eligible, marginal, valueRound, valueLabel, surplus,
+  return { init, keeperCost, yearsKept, eligible, marginal, valueRound, valueLabel, surplus,
            pickForRound, rankKeepers, unvaluedKeepers, recommendKeepers,
            buildKeeperCandidates, buildOriginalByPlayerId, sleeperKeeperCandidates,
-           TEAMS, MAX_KEEPERS,
+           TEAMS, MAX_KEEPERS, MAX_YEARS_KEPT,
            MARGINAL_POINTS, DRAFT_ROUNDS };
 });

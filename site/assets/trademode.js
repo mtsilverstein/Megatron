@@ -304,10 +304,14 @@
   // His keeper cost, and whether he is worth anything at all pre-draft. The
   // ineligible case is the least intuitive rule in the league, so it is said in
   // full every time rather than shown as a dimmed row with no explanation.
+  // A player over the two-year cap says so, whatever his cost.
   function keeperNote(player, ctx) {
     const c = Trade.candidate(player, ctx);
     const cost = Keepers.keeperCost(c, ctx.season);
     if (Keepers.eligible(c, ctx.season)) return { eligible: true, text: `keeper cost R${cost}` };
+    if (Keepers.yearsKept(c, ctx.season) > Keepers.MAX_YEARS_KEPT) {
+      return { eligible: false, text: `already kept the most allowed (${Keepers.MAX_YEARS_KEPT} years) — back to the draft pool, worth 0 to trade` };
+    }
     return { eligible: false, text: cost >= 1
       ? `keeper cost would be R${cost} — back to the draft pool, worth 0 to trade`
       : "his keeper ladder has run out — back to the draft pool, worth 0 to trade" };
@@ -1029,7 +1033,7 @@
     sync();
   }
 
-  return { init, leagueWorld, keptElsewhere, teamName,
+  return { init, leagueWorld, keptElsewhere, teamName, keeperNote,
            scanNext, scanProgressText,
            PICK_SEASONS_AHEAD, SUGGEST_SHOW, MARKET_EPS };
 });
