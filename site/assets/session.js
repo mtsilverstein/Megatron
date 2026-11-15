@@ -17,6 +17,8 @@
    - every Sleeper call goes through Sleeper.get (cache-busted, no-store, 4 s
      default abort; the ~11k-player catalog has its own 60 s deadline,
      Sleeper.CATALOG_TIMEOUT_MS); `Sleeper` is resolved lazily so this module loads under node;
+   - storage keys: identity, lastLeague, viewedTeams (the team chosen per league
+     with view(), [leagueId, rosterId] pairs, newest last, max 20), draft/waiver records;
    - storage that throws degrades to a memory-only identity; corrupt JSON is
      anonymous; nothing here ever throws because of storage.
 
@@ -79,6 +81,10 @@
   // The league id this browser opened last (app.js rememberedLeague): forget()
   // removes it with the identity.
   const LAST_LEAGUE_KEY = "megatron:lastLeague";
+  // The team viewed in each league on this device: JSON [[leagueId, rosterId], ...],
+  // oldest first. forget() removes it with the identity.
+  const VIEWED_TEAMS_KEY = "megatron:viewedTeams";
+  const MAX_VIEWED = 20;
   const NOT_FOUND = "Sleeper username was not found.";
   const NO_UNIQUE_ROSTER = "Could not uniquely match this account to a roster in this league.";
   const ID_MISMATCH = "live league does not match this board; refusing to load advice";
@@ -162,6 +168,27 @@
     return Object.freeze(entry);
   }
   const isIdEntry = entry => !!entry && entry.slug === null && entry.platform === "sleeper";
+  // Never throws: anything unreadable is "nothing remembered".
+  function readViewed() {
+    try {
+      const store = storage();
+      const raw = store ? store.getItem(VIEWED_TEAMS_KEY) : null;
+      if (typeof raw !== "string") return [];
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(p => Array.isArray(p) && p.length === 2 && typeof p[0] === "string" && typeof p[1] === "string");
+    } catch (_) { return []; }
+  }
+  // Best-effort; a storage that throws leaves the view memory-only.
+  function writeViewed(pairs) {
+    try { const store = storage(); if (store) store.setItem(VIEWED_TEAMS_KEY, JSON.stringify(pairs)); } catch (_) {}
+  }
+  // Replace (or, with rosterId null, remove) this league's pair; newest last.
+  function setViewed(leagueId, rosterId) {
+    const kept = readViewed().filter(p => p[0] !== String(leagueId));
+    if (rosterId !== null) kept.push([String(leagueId), String(rosterId)]);
+    writeViewed(kept.slice(-MAX_VIEWED));
+  }
   // Whose roster the in-season analysis reads (header). The owner match wins
   // and clears any viewed team; a viewed id that is no longer in the rosters
   // analyses nothing rather than guessing.
@@ -270,7 +297,7 @@
   function deleteKeys() {
     const store = storage();
     if (!store) return;
-    const doomed = new Set([IDENTITY_KEY, LEGACY_KEY, LAST_LEAGUE_KEY]);
+    const doomed = new Set([IDENTITY_KEY, LEGACY_KEY, LAST_LEAGUE_KEY, VIEWED_TEAMS_KEY]);
     try {
       for (let i = store.length - 1; i >= 0; i--) {
         const k = store.key(i);
@@ -444,7 +471,12 @@
         const parts = await fetchLeague(entry, get, "league", null);
         if (gen !== leagueGen) throw superseded();
         checkIdLeague(entry, parts);
-        bundle = buildBundle(entry, parts, gen);
+        // Seed the team this device last viewed here; a missing roster or an owned
+        // one (the owner wins) forgets the pair.
+        const pair = readViewed().find(p => p[0] === id);
+        const seed = pair && Array.isArray(parts.rosters) ? parts.rosters.find(r => r && String(r.roster_id) === pair[1]) : null;
+        bundle = buildBundle(entry, parts, gen, undefined, seed ? seed.roster_id : undefined);
+        if (pair && (!seed || bundle.myRoster)) setViewed(id, null);
       } else {
         const entry = registryFor(slug);
         if (!entry) throw new Error(`Unknown league "${slug}".`);
@@ -544,6 +576,7 @@
     }
     if (v !== null && base.myRoster) throw new Error(OWNER_VIEW);
     committed = rederive(base, v);
+    if (base.registry.slug === null) setViewed(base.registry.leagueId, v === null ? null : v);
     fire();
     return committed;
   }

@@ -980,8 +980,10 @@ const sorted = a => a.slice().sort();
     Session.forget();
     const f = Session.bundle();
     assert.equal(f.myRoster, null); assert.equal(f.viewedRosterId, null); assert.equal(f.analysisRole, null); assert.equal(f.analysisRoster, null);
-    // A new ready() starts unviewed.
+    // A new ready() on a device with nothing remembered starts unviewed; one with a
+    // remembered view resumes it (checks 29-32 cover the memory itself).
     Session.view(1);
+    Session._storage(fakeStorage());
     const fresh = await Session.ready({ leagueId: X });
     assert.equal(fresh.viewedRosterId, null);
     off();
@@ -1050,7 +1052,7 @@ const sorted = a => a.slice().sort();
     await pause(2);
     assert.equal(Session.bundle(), bNew);
     assert.deepEqual(Session.bundle().league.scoring_settings, { rec: 0.5, pass_td: 4 });
-    assert.equal(Session.bundle().viewedRosterId, null);
+    assert.equal(Session.bundle().viewedRosterId, 1, "the new ready() resumes the team remembered for this league");
     off();
   });
 
@@ -1060,6 +1062,76 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.settingsText({ leagueFetchedAt: t }), `League settings read ${clock}`);
     assert.equal(Session.settingsText({ leagueFetchedAt: null }), "");
     assert.equal(Session.settingsText(null), "");
+  });
+
+  const VT = "megatron:viewedTeams";
+  const pairs = store => JSON.parse(store.getItem(VT));
+  await check("29. viewed team: remembered per league, seeded on load, cleared by view(null) and forget", async () => {
+    const store = fakeStorage();
+    Session._storage(store); Session._get(fakeGet(routesX()).get);
+    await Session.ready({ leagueId: X });
+    Session.view(3);
+    assert.deepEqual(pairs(store), [[X, "3"]]);
+    Session._storage(store); Session._get(fakeGet(routesX()).get);   // a new page load, same device
+    const b = await Session.ready({ leagueId: X });
+    assert.equal(b.viewedRosterId, 3);
+    assert.equal(b.analysisRole, "viewer");
+    assert.equal(b.analysisRoster.roster_id, 3);
+    store.setItem(VT, JSON.stringify([["700000000000000002", "5"], [X, "3"]]));
+    Session.view(null);
+    assert.deepEqual(pairs(store), [["700000000000000002", "5"]], "view(null) clears only this league");
+    Session.view(2);
+    assert.deepEqual(pairs(store), [["700000000000000002", "5"], [X, "2"]]);
+    Session.forget();
+    assert.equal(store.getItem(VT), null, "forget deletes every league's remembered team");
+  });
+  await check("30. viewed team: missing roster dropped, other league not inherited, 20-pair cap", async () => {
+    const s1 = fakeStorage({ [VT]: JSON.stringify([[X, "99"]]) });
+    Session._storage(s1); Session._get(fakeGet(routesX()).get);
+    assert.equal((await Session.ready({ leagueId: X })).viewedRosterId, null);
+    assert.deepEqual(pairs(s1), [], "a roster id missing from the league is dropped");
+    const Y = "700000000000000002";
+    const s2 = fakeStorage({ [VT]: JSON.stringify([[Y, "2"]]) });
+    Session._storage(s2); Session._get(fakeGet(routesX()).get);
+    assert.equal((await Session.ready({ leagueId: X })).viewedRosterId, null);
+    assert.deepEqual(pairs(s2), [[Y, "2"]], "another league's pair is untouched");
+    const many = Array.from({ length: 20 }, (_, i) => [`8000000000000000${String(i).padStart(3, "0")}`, "1"]);
+    const s3 = fakeStorage({ [VT]: JSON.stringify(many) });
+    Session._storage(s3); Session._get(fakeGet(routesX()).get);
+    await Session.ready({ leagueId: X });
+    Session.view(2);
+    const kept = pairs(s3);
+    assert.equal(kept.length, 20);
+    assert.deepEqual(kept[19], [X, "2"]);
+    assert.deepEqual(kept[0], many[1], "the oldest pair is dropped");
+    Session.view(3);
+    assert.equal(pairs(s3).filter(p => p[0] === X).length, 1, "re-choosing moves the league's pair, never duplicates it");
+  });
+  await check("31. viewed team: an owned roster wins, at load and when the owner identifies", async () => {
+    const s1 = fakeStorage({ [VT]: JSON.stringify([[X, "3"]]) });
+    Session._storage(s1); Session._get(fakeGet(routesX()).get);
+    await Session.identify("gamma");                 // owns roster 3
+    const own = await Session.ready({ leagueId: X });
+    assert.equal(own.analysisRole, "owner");
+    assert.equal(own.viewedRosterId, null);
+    assert.deepEqual(pairs(s1), [], "seeding over an owned roster deletes the pair");
+    const s2 = fakeStorage({ [VT]: JSON.stringify([[X, "1"]]) });
+    Session._storage(s2); Session._get(fakeGet(routesX()).get);
+    assert.equal((await Session.ready({ leagueId: X })).analysisRole, "viewer");
+    await Session.identify("alpha");                 // owns roster 1: the remembered view gives way
+    assert.equal(Session.bundle().analysisRole, "owner");
+    assert.equal(Session.bundle().viewedRosterId, null);
+  });
+  await check("32. viewed team: corrupt or throwing storage never throws", async () => {
+    const s1 = fakeStorage({ [VT]: "{not json" });
+    Session._storage(s1); Session._get(fakeGet(routesX()).get);
+    assert.equal((await Session.ready({ leagueId: X })).viewedRosterId, null);
+    Session.view(2);
+    assert.deepEqual(pairs(s1), [[X, "2"]], "a corrupt record is replaced");
+    Session._storage(throwingStorage()); Session._get(fakeGet(routesX()).get);
+    await Session.ready({ leagueId: X });
+    assert.doesNotThrow(() => Session.view(3));
+    assert.equal(Session.bundle().viewedRosterId, 3, "memory-only: the view still applies on this page");
   });
 
   await check("registry and module hygiene", () => {
