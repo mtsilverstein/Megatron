@@ -113,9 +113,11 @@ async function realTick(panel) {
   const b1 = Session.bundle();
   assert.equal(b1.myRoster.roster_id, 9);
   assert.equal(JSON.parse(m.get(IDENTITY_KEY)).userId, "u1", "the identity is persisted");
-  assert.match(byId(panel, "session-text").textContent, /^User A · League A · your roster: 9 · rosters 0 s ago$/);
-  const refreshBtn = byId(panel, "session-refresh"), changeBtn = byId(panel, "session-change"), forgetBtn = byId(panel, "session-forget");
-  assert.ok(refreshBtn && changeBtn && forgetBtn, "ready: refresh, change, forget");
+  assert.match(byId(panel, "session-text").textContent, /^Your team: User A · rosters 0 s ago$/);
+  const refreshBtn = byId(panel, "session-refresh"), changeBtn = byId(panel, "session-change");
+  assert.ok(refreshBtn && changeBtn, "ready: Refresh and Not you?");
+  assert.equal(changeBtn.textContent, "Not you?");
+  assert.ok(!byId(panel, "session-forget"), "ready: Forget waits in the box Not you? reveals");
   assert.ok(!byId(panel, "session-user"), "ready: no username input");
 
   // 4. A real tick of the 1 s ticker: the age moves, the buttons are the SAME nodes.
@@ -123,21 +125,21 @@ async function realTick(panel) {
   assert.match(byId(panel, "session-text").textContent, /rosters [1-3] s ago$/, "the ticker moved the age");
   assert.equal(byId(panel, "session-refresh"), refreshBtn, "a tick must not rebuild the refresh button");
   assert.equal(byId(panel, "session-change"), changeBtn);
-  assert.equal(byId(panel, "session-forget"), forgetBtn);
 
   // 5. change -> type -> a tick (both the direct render and the real interval):
   //    the typed name survives in the same input node; cancel restores ready.
   changeBtn.dispatch("click");
   const input = byId(panel, "session-user");
-  assert.ok(input && input.value === "user_a", "change: input prefilled with the current username");
+  assert.ok(input && input.value === "", "Not you?: the box opens empty");
   assert.ok(byId(panel, "session-cancel"), "change from ready offers cancel");
+  assert.ok(byId(panel, "session-forget"), "the revealed box offers Forget");
   input.value = "newname-typed";
   FC.chip.render();
   assert.equal(byId(panel, "session-user"), input, "render must not rebuild the input");
   await realTick(panel);
   assert.equal(byId(panel, "session-user"), input, "a real tick must not rebuild the input");
   assert.equal(input.value, "newname-typed", "a real tick must not revert the typed name");
-  assert.match(byId(panel, "session-text").textContent, /^User A · League A · your roster: 9 · rosters [2-6] s ago$/,
+  assert.match(byId(panel, "session-text").textContent, /^Your team: User A · rosters [2-6] s ago$/,
     "the line kept the account and kept ticking behind the form");
   byId(panel, "session-cancel").dispatch("click");
   assert.ok(byId(panel, "session-refresh") && !byId(panel, "session-user"), "cancel returns to the ready controls");
@@ -147,6 +149,7 @@ async function realTick(panel) {
   //    its timestamps kept (so the ticker keeps running), no network call, and
   //    the anonymous form survives the ticks like the change form did.
   const callsBefore = calls.length;
+  byId(panel, "session-change").dispatch("click");
   byId(panel, "session-forget").dispatch("click");
   assert.equal(Session.identity(), null);
   assert.equal(Session.state(), "anonymous");
@@ -182,8 +185,8 @@ async function realTick(panel) {
     assert.deepEqual(select.children.map(o => [o.value, o.textContent]), [["leaguea", "12-team PPR, 6-pt pass TD"], [L, "League A"]]);
   }
   assert.equal(Session.bundle().rostersFetchedAt, b1.rostersFetchedAt);
-  assert.match(byId(panel, "session-text").textContent, /^User A · League A · your roster: 9 · rosters [3-9] s ago$/);
-  assert.ok(byId(panel, "session-refresh") && byId(panel, "session-forget") && !byId(panel, "session-user"));
+  assert.match(byId(panel, "session-text").textContent, /^Your team: User A · rosters [3-9] s ago$/);
+  assert.ok(byId(panel, "session-refresh") && byId(panel, "session-change") && !byId(panel, "session-user"));
 
   // 8. An in-season page by Sleeper id (any-league spec 5.1, 5.2), real
   //    Session: anonymous load at once, choose a team to VIEW, then identify
@@ -212,16 +215,19 @@ async function realTick(panel) {
   assert.equal(v0.registry.leagueId, X); assert.equal(v0.registry.slug, null); assert.equal(v0.identity, null);
   // The league opened by id is the one this browser remembers (only the id).
   await until(() => m.get("megatron:lastLeague") === X, "the opened league to be remembered");
-  assert.equal(byId(idPanel, "session-text").textContent, "Synthetic Six · choose a team to view, or enter your Sleeper username",
+  assert.equal(byId(idPanel, "session-text").textContent, "Which team do you want to see?",
     "an anonymous visitor with a league loaded is told what to do, not about storage");
-  assert.equal(byId(idPanel, "session-settings").textContent, Session.settingsText(v0));
+  assert.equal(byId(idPanel, "league-name").textContent, "Synthetic Six", "the league as plain text, not a one-option select");
+  assert.equal(byId(idPanel, "session-settings"), null, "the settings stamp lives in each tool's data line, not the bar");
   const picker = byId(idPanel, "session-team");
   assert.deepEqual(picker.children.map(o => o.textContent), ["Choose a team", "Alpha Squad", "Beta", "Gamma"]);
   picker.value = "2"; picker.dispatch("change");
   assert.equal(Session.bundle().analysisRole, "viewer");
   assert.equal(Session.bundle().myRoster, null);
   assert.match(byId(idPanel, "session-text").textContent, /^Viewing Beta · rosters [0-2] s ago$/);
-  // Identify as the owner of roster 3 through the chip's own form.
+  // Identify as the owner of roster 3 through the bar's box ("Use my username").
+  assert.equal(byId(idPanel, "session-find").textContent, "Use my username");
+  byId(idPanel, "session-find").dispatch("click");
   byId(idPanel, "session-user").value = "gamma";
   all(idPanel).find(n => n.tagName === "form").dispatch("submit");
   await until(() => Session.state() === "ready" && Session.bundle().myRoster, "identify as the owner");
@@ -229,7 +235,7 @@ async function realTick(panel) {
   assert.equal(o.analysisRoster.roster_id, 3);
   assert.equal(o.analysisRole, "owner");
   assert.equal(o.viewedRosterId, null, "the viewed choice is dropped, not merged");
-  assert.match(byId(idPanel, "session-text").textContent, /^Gamma · Synthetic Six · your roster: 3 · rosters [0-3] s ago$/);
+  assert.match(byId(idPanel, "session-text").textContent, /^Your team: Gamma · rosters [0-3] s ago$/);
   assert.ok(!byId(idPanel, "session-team"), "an owner is not offered other teams");
   assert.ok(!calls.slice(4).some(c => c.startsWith("/league/")), "identify never refetches the league");
   // The chip's refresh re-reads /league/<id>; changed settings land in a new bundle.
@@ -241,7 +247,6 @@ async function realTick(panel) {
   assert.ok(calls.includes(`/league/${X}`), "refresh always re-reads the league object");
   assert.deepEqual(Session.bundle().league.scoring_settings, { rec: 1 });
   assert.ok(Session.bundle().leagueFetchedAt > o.leagueFetchedAt);
-  assert.equal(byId(idPanel, "session-settings").textContent, Session.settingsText(Session.bundle()));
   FC.setLeague(null);
 
   FC.setBoard(null);
@@ -251,6 +256,8 @@ async function realTick(panel) {
   assert.equal(account.tagName, "details", "discovery keeps secondary account controls in a disclosure");
   assert.ok(!account.open, "the second account form is collapsed initially");
   assert.equal(account.children[0].tagName, "summary");
+  assert.equal(byId(account, "session-change").textContent, "Not you?");
+  byId(account, "session-change").dispatch("click");
   assert.ok(byId(account, "session-forget"), "saved identity can still be forgotten on discovery");
   assert.equal(m.get("megatron:lastLeague"), X);
   byId(account, "session-forget").dispatch("click");
@@ -316,6 +323,6 @@ async function realTick(panel) {
     delete global.sessionStorage;
   }
 
-  console.log("chip_session_fixture: real chip + real Session (mount, identify, tick, change, forget; by-id viewer then owner) OK");
+  console.log("chip_session_fixture: real chip + real Session (mount, identify, tick, Not you?, forget; by-id viewer then owner) OK");
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

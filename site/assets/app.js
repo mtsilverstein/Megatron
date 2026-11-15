@@ -219,14 +219,20 @@
     return `Archived: the ${board && board.season} preseason board as published on ${date}. The drafts are over; it stays as a record of what the model projected before the season.`;
   }
 
-  // ---- identity chip (design spec §6) -------------------------------------
+  // ---- the league bar's chip (league connect flow spec §5) ----------------
   // The chip lives INSIDE #league-context and is the one place a visitor
-  // identifies. It reads Session (site/assets/session.js) lazily so this file
-  // still loads under node and in a page that has not included session.js
-  // (then the panel renders without a chip, as before). Rendering is gated on
+  // connects: one box takes a Sleeper username or a league link. It reads
+  // Session (site/assets/session.js) lazily so this file still loads under
+  // node and in a page that has not included session.js (then the panel
+  // renders without a chip, as before). Rendering is gated on
   // Session.bundle()/myRosterStatus/error(), never on state() === "error"
   // alone: a stale identity error can coexist with a valid committed bundle.
   // Superseded rejections (err.superseded) are swallowed, never displayed.
+  // "Bar pages" are the in-season tools and About (the id path, or no league);
+  // "registry pages" are the board and pre-draft trade (FC.setBoard).
+  const BOX_EMPTY = "Enter your Sleeper username or paste a sleeper.com league link.";
+  const BAD_LEAGUE = "Enter a Sleeper league id or a sleeper.com league link.";
+  const NAME_ONLY = "Enter your Sleeper username.";
   let sessionOverride = null;
   const session = () => {
     if (sessionOverride) return sessionOverride;
@@ -235,12 +241,25 @@
     return null;
   };
   const swallow = () => {};   // identify/ready failures surface via Session.error(); superseded ones never
+  // `pageLeague`: the in-season page's league id from its URL, open before
+  // FC.setLeague loads it. `changing`: the box is revealed in place ("Not
+  // you?" and the anonymous find buttons). `autoOpen`: one-shot, set only by
+  // a username submitted with no league open -- the account's only league
+  // then opens; a page load never sets it.
   const chip = {
     slug: null, board: null, leagueId: null, leagueOpts: null, readyFor: null, els: null, unsub: null, ticker: null,
-    lastName: "", changing: false, notice: "", prefill: "", controlsSig: null,
+    lastName: "", changing: false, notice: "", prefill: "", controlsSig: null, pageLeague: null, autoOpen: false,
   };
   function chipEntry() { return registryFor(chip.slug); }
   function isEspn() { const e = chipEntry(); return !!e && e.platform !== "sleeper"; }
+  const registryPage = () => !!chipEntry();
+  const leagueOpen = () => !registryPage() && !!(chip.leagueId || chip.pageLeague);
+  // Where a league opens: this page when it is an in-season tool, else Weekly.
+  function leagueHref(id) {
+    const url = LEAGUE_PAGES.has(pageOf(location.href)) ? new URL(location.href) : new URL("weekly.html", location.href);
+    url.searchParams.set("league", id);
+    return url.href;
+  }
   // ready() only when a Sleeper board is set, an identity exists and no
   // bundle has been committed for THIS board yet. ESPN never calls ready
   // (Session would answer with zero calls, but the chip's UI does not rely on
@@ -301,12 +320,31 @@
     b.addEventListener("click", onClick);
     return b;
   }
+  // `lastName` is the name being identified: Retry re-runs it, and while no
+  // account is known it marks an error as the identify's own.
   function chipIdentify(name) {
     const S = session();
     name = String(name || "").trim();
     if (!S || !name) return;
     chip.lastName = name; chip.changing = false; chip.notice = "";
-    S.identify(name).then(() => maybeReady(), swallow);
+    S.identify(name).then(() => maybeReady(), e => {
+      if (!(e && e.superseded)) chip.autoOpen = false;   // a newer identify owns the flag
+    });
+  }
+  // The box's submit (spec §5.1). Bar pages take a league link or id (opens
+  // it, no Sleeper call, the account kept) or a username (identified in
+  // place); link-shaped text that is no Sleeper league is refused, never
+  // looked up as a username. Registry pages take a username only.
+  function submitBox(text) {
+    const t = String(text || "").trim();
+    const registry = registryPage();
+    const refuse = msg => { chip.notice = msg; renderChip(); };
+    if (!t) return refuse(registry ? NAME_ONLY : BOX_EMPTY);
+    const id = registry ? null : parseLeagueInput(t);
+    if (id) { location.assign(leagueHref(id)); return; }
+    if (/[/.:]/.test(t)) return refuse(registry ? NAME_ONLY : BAD_LEAGUE);
+    if (!registry && !leagueOpen()) chip.autoOpen = true;
+    chipIdentify(t);
   }
   // A failed refresh is not an error state (the committed bundle stays valid),
   // so its text is a notice beside the controls, cleared by the next action.
@@ -351,20 +389,28 @@
     if (!S.identity()) { chipIdentify(chip.lastName); return; }
     if (chip.board && !isEspn()) { chip.readyFor = null; maybeReady(); }
   }
+  // A control's caption read by assistive tech; the placeholder or the line
+  // beside it already says the same on screen.
+  function hiddenCaption(text) {
+    const s = document.createElement("span");
+    s.className = "visually-hidden"; s.textContent = text;
+    return s;
+  }
+  // The one box: the page's only username / league-link input (spec §5.1).
   function identifyForm(prefill) {
+    const text = registryPage() ? "Sleeper username" : "Sleeper username or league link";
     const form = document.createElement("form");
     form.className = "session-form";
     const label = document.createElement("label");
-    label.textContent = "Sleeper username ";
     const input = document.createElement("input");
     input.type = "text"; input.id = "session-user"; input.autocomplete = "off";   // not a login field
-    input.setAttribute("spellcheck", "false"); input.placeholder = "Sleeper username";
+    input.setAttribute("spellcheck", "false"); input.placeholder = text;
     input.value = prefill || "";
-    label.append(input);
+    label.append(hiddenCaption(text), input);
     const use = document.createElement("button");
-    use.type = "submit"; use.id = "session-use"; use.textContent = "Use this account";
+    use.type = "submit"; use.id = "session-use"; use.textContent = "Connect";
     form.append(label, use);
-    form.addEventListener("submit", e => { if (e && e.preventDefault) e.preventDefault(); chipIdentify(input.value); });
+    form.addEventListener("submit", e => { if (e && e.preventDefault) e.preventDefault(); submitBox(input.value); });
     chip.els.input = input;
     return form;
   }
@@ -381,7 +427,7 @@
   // Session.view never sets myRoster.
   function teamPicker(S, b) {
     const label = document.createElement("label");
-    label.textContent = "View team ";
+    label.append(hiddenCaption("Team"));
     const select = document.createElement("select");
     select.id = "session-team";
     const none = document.createElement("option"); none.value = ""; none.textContent = "Choose a team";
@@ -398,115 +444,152 @@
     label.append(select);
     return label;
   }
-  // Called on every Session.onChange fire, on every chip action AND by the
-  // 1 s ticker. The line (Session.chipText, whose age moves) is rewritten on
-  // every call; the controls are rebuilt only when the state they are built
-  // from changes -- `controlsSig` names that state. A tick therefore never
-  // replaces the username input the visitor is typing into after "change"
-  // or "forget", and never steals keyboard focus from a chip button.
-  function promptShown() {
-    const n = typeof document !== "undefined" && document.getElementById ? document.getElementById("connect-prompt") : null;
-    return !!n && !n.hidden;
+  const leagueName = l => l.name || `League ${l.league_id}`;
+  // The account's current-season leagues, in the bar while no league is open
+  // (spec §5.2): finding, the failure with Retry, none, or one row per league
+  // (its name links to it on this page or Weekly; its format is one short line).
+  function leaguesBox(who) {
+    const box = document.createElement("div");
+    box.id = "session-leagues"; box.className = "session-leagues";
+    const para = text => { const p = document.createElement("p"); p.textContent = text; return p; };
+    if (picker.status === "error") {
+      box.append(para(`Unable to load your leagues: ${picker.error}`),
+        chipButton("session-leagues-retry", "Retry", () => { pickerLeagues(true); renderChip(); }));
+    } else if (picker.status === "ready" && !picker.leagues.length) {
+      box.append(para(`No ${picker.season} Sleeper leagues for ${who}. Paste a league link instead.`));
+    } else if (picker.status === "ready") {
+      const list = document.createElement("ul");
+      for (const l of picker.leagues) {
+        const item = document.createElement("li"), link = document.createElement("a"), format = document.createElement("span");
+        link.href = leagueHref(String(l.league_id)); link.textContent = leagueName(l);
+        format.className = "league-format"; format.textContent = leagueFormatLabel(l);
+        item.append(link, format);
+        list.append(item);
+      }
+      box.append(para(`Your ${picker.season} leagues`), list);
+    } else {
+      box.append(para("Finding your leagues…"));
+    }
+    return box;
   }
+  const leaguesSig = () => (picker.status === "ready" ? ["ready", picker.season, picker.leagues.map(l => [String(l.league_id), leagueName(l), leagueFormatLabel(l)])]
+    : picker.status === "error" ? ["error", picker.error] : ["finding"]);
+  // Called on every Session.onChange fire, on every chip action, on every
+  // league-lookup result AND by the 1 s ticker. The line (Session.chipText,
+  // whose age moves) and the notice are rewritten on every call; the controls
+  // are rebuilt only when the state they are built from changes --
+  // `controlsSig` names that state. A tick therefore never replaces the box
+  // the visitor is typing into, and never steals keyboard focus from a button.
+  // The states, in order, are the brief's table (league connect flow, task 3).
   function renderChip() {
     const S = session(), els = chip.els;
     if (!S || !els) return;
     const st = S.state(), err = S.error(), id = S.identity(), b = S.bundle(), entry = chipEntry();
-    const now = Date.now();
-    // The line is ALWAYS Session.chipText. Without a committed bundle the
-    // identity still gets a bundle-shaped view so ESPN reads "name · label".
+    const now = Date.now(), refreshing = st === "refreshing";
+    // Without a committed bundle the identity still gets a bundle-shaped view
+    // so ESPN reads "name · label".
     const view = b || (id ? { identity: id, registry: entry } : null);
-    const changeBtn = () => chipButton("session-change", "change", () => { chip.changing = true; renderChip(); });
-    const forgetBtn = () => chipButton("session-forget", "forget", () => { chip.changing = false; chip.notice = ""; S.forget(); });
-    const refreshBtn = refreshing => {
-      const r = chipButton("session-refresh", "refresh", () => { chipRefreshClick(); });
+    const reveal = () => { chip.changing = true; chip.notice = ""; renderChip(); };
+    const textButton = (btnId, text) => { const t = chipButton(btnId, text, reveal); t.className = "session-link"; return t; };
+    const notYou = () => textButton("session-change", id ? "Not you?" : "Use my username");
+    const forgetBtn = () => chipButton("session-forget", "Forget me on this device", () => {
+      chip.changing = false; chip.notice = ""; chip.lastName = ""; chip.autoOpen = false; S.forget();
+    });
+    const refreshBtn = () => {
+      const r = chipButton("session-refresh", "Refresh", () => { chipRefreshClick(); });
       if (refreshing) r.disabled = true;
       return r;
     };
-    // In-season id path: a non-owner gets the team picker (and, anonymous,
-    // the refresh button the owner line carries). Its signature is the teams
-    // and the choice, so a tick never rebuilds an open dropdown.
-    const idPath = idPathBundle(b);
-    const viewing = idPath && b.analysisRole !== "owner";
-    const extras = () => (viewing ? [teamPicker(S, b)] : []);
-    const extrasSig = viewing ? [pickerTeams(S, b), b.viewedRosterId === undefined ? null : b.viewedRosterId] : null;
-    let line, build, sig;
+    const heading = () => {
+      const h = document.createElement("h2"); h.id = "session-heading"; h.className = "session-heading";
+      h.textContent = "Connect your Sleeper league"; return h;
+    };
+    const note = () => {
+      const p = document.createElement("p"); p.id = "session-note"; p.className = "session-note";
+      p.textContent = "No password. Read-only: nothing is changed in Sleeper."; return p;
+    };
+    // The team-to-view select's signature: the teams and the choice, so a
+    // tick never rebuilds an open dropdown.
+    const teamSig = () => [pickerTeams(S, b), b.viewedRosterId === undefined ? null : b.viewedRosterId];
+    // `revealable`: the state offers "Not you?" or a find button, so the box
+    // may open in place of its controls; a state that shows the box itself is not.
+    let line, build, sig, revealable = true;
     if (st === "identifying") {
       line = S.chipText(null, "identifying", now);
-      build = () => []; sig = ["identifying"];
-    } else if (chip.changing || (!id && !err)) {
-      // The username form: anonymous, or "change" clicked from any state
-      // (including error, where the previous attempt prefills the box).
-      // On the id path an anonymous bundle is a real state (ready /
-      // refreshing, a viewed team), so the line follows it.
-      // A league-free page whose connect prompt is showing asks for the
-      // username once: the prompt's field, not this one. Nothing is
-      // remembered yet and there is no forget control, so the line is empty
-      // (the panel's note already says no league is open).
-      const promptOnly = !id && !err && !idPath && !chip.changing && promptShown();
-      line = promptOnly ? "" : err ? S.chipText(view, "error", now, err) : S.chipText(view, id || idPath ? st : "anonymous", now);
-      const prefill = id ? id.username : (chip.changing && chip.lastName) || chip.prefill;
-      const cancel = !!(id || err);
-      const anonRefresh = idPath && !id && !err;
-      const refreshing = st === "refreshing";
-      build = () => {
-        const c = promptOnly ? [] : [identifyForm(prefill)];
-        // Anonymous with its own form: the line already reads "Remembered on
-        // this device until you choose forget." (chipText), so no second copy.
-        if (cancel) c.push(chipButton("session-cancel", "cancel", () => { chip.changing = false; renderChip(); }));
-        c.push(...extras());
-        if (anonRefresh) c.push(refreshBtn(refreshing));
-        return c;
-      };
-      sig = ["form", prefill, cancel, extrasSig, anonRefresh && refreshing, promptOnly];
+      build = () => []; sig = ["identifying"]; revealable = false;
+    } else if (err && !id && !b && chip.lastName) {
+      // The identify failed and no league is loaded: the box again, holding
+      // the name that failed.
+      line = S.chipText(null, "error", now, err);
+      build = () => [identifyForm(chip.lastName)]; sig = ["failed", chip.lastName]; revealable = false;
     } else if (err) {
       line = S.chipText(view, "error", now, err);
-      build = () => [chipButton("session-retry", "retry", chipRetry), changeBtn()]; sig = ["error"];
-    } else if (st === "loadingLeague") {
-      line = S.chipText(view, "loadingLeague", now);
-      build = () => [changeBtn()]; sig = ["loadingLeague"];
-    } else if (isEspn()) {
-      line = S.chipText(view, st, now);
-      build = () => [changeBtn(), forgetBtn()]; sig = ["espn"];
-    } else if (b && (b.myRosterStatus === "none" || b.myRosterStatus === "ambiguous")) {
-      line = S.chipText(b, st, now);
-      const refreshing = st === "refreshing";
-      build = () => [changeBtn(), ...extras(), ...(idPath ? [refreshBtn(refreshing)] : [])];
-      sig = ["noroster", extrasSig, idPath && refreshing];
-    } else if (b && b.myRoster) {
-      line = S.chipText(b, st, now);
-      const refreshing = st === "refreshing";
-      build = () => [refreshBtn(refreshing), changeBtn(), forgetBtn()];
-      sig = ["ready", refreshing];
+      build = () => [chipButton("session-retry", "Retry", chipRetry), notYou()]; sig = ["error", !!id];
+    } else if (registryPage()) {
+      // The board and pre-draft trade (spec §5.6): a username only; no team
+      // to view and no league list.
+      if (st === "loadingLeague") {
+        line = S.chipText(view, "loadingLeague", now);
+        build = () => (id ? [notYou()] : []); sig = ["loading", !!id]; revealable = !!id;
+      } else if (!id) {
+        line = S.chipText(null, "anonymous", now);
+        build = () => [identifyForm(chip.prefill)]; sig = ["registry", chip.prefill]; revealable = false;
+      } else if (b && b.myRoster && !isEspn()) {
+        line = S.chipText(b, st, now);
+        build = () => [refreshBtn(), notYou()]; sig = ["owner", refreshing];
+      } else {
+        // ESPN (identity only), no unique roster here, or the league not read yet.
+        line = S.chipText(b || { identity: id, registry: isEspn() ? entry : null }, st, now);
+        build = () => [notYou()]; sig = ["account"];
+      }
+    } else if (leagueOpen()) {
+      const idPath = idPathBundle(b);
+      if (!idPath || st === "loadingLeague") {
+        line = S.chipText(view, "loadingLeague", now);
+        build = () => (id ? [notYou()] : []); sig = ["loading", !!id]; revealable = !!id;
+      } else if (id && b.myRoster) {
+        line = S.chipText(b, st, now);
+        build = () => [refreshBtn(), notYou()]; sig = ["owner", refreshing];
+      } else if (id) {
+        line = S.chipText(b, st, now);
+        build = () => [teamPicker(S, b), refreshBtn(), notYou()]; sig = ["noteam", teamSig(), refreshing];
+      } else if (b.analysisRole === "viewer" && b.analysisRoster) {
+        line = S.chipText(b, st, now);
+        build = () => [teamPicker(S, b), refreshBtn(), textButton("session-find", "Use my username")]; sig = ["viewer", teamSig(), refreshing];
+      } else {
+        line = S.chipText(b, st, now);
+        build = () => [teamPicker(S, b), textButton("session-find", "or find your team with your username")]; sig = ["choose", teamSig()];
+      }
+    } else if (!id) {
+      line = "";
+      build = () => [heading(), identifyForm(chip.prefill), note()]; sig = ["connect", chip.prefill]; revealable = false;
     } else {
-      // Identified with no bundle on this page (no board set yet): the line is
-      // the remembered sentence, so the account is named beside the controls.
-      line = S.chipText(view, st, now);
-      const whoText = id.displayName || id.username;
+      const who = id.displayName || id.username;
+      line = S.chipText({ identity: id, registry: null }, st, now);
+      if (picker.status === "ready" && !picker.leagues.length) {
+        build = () => [leaguesBox(who), identifyForm(""), forgetBtn()]; sig = ["zero", leaguesSig(), who]; revealable = false;
+      } else {
+        build = () => [notYou(), leaguesBox(who)]; sig = ["leagues", leaguesSig(), who];
+      }
+    }
+    // The revealed box replaces the controls in place (the line stays): the
+    // empty box, Cancel, and Forget when there is an account to forget.
+    if (chip.changing && !revealable) chip.changing = false;
+    if (chip.changing) {
       build = () => {
-        const who = document.createElement("span"); who.id = "session-who";
-        who.textContent = whoText;
-        return [who, changeBtn(), forgetBtn()];
+        const c = [identifyForm(""), chipButton("session-cancel", "Cancel", () => { chip.changing = false; chip.notice = ""; renderChip(); })];
+        if (id) c.push(forgetBtn());
+        return c;
       };
-      sig = ["identified", whoText];
+      sig = ["revealed", !!id];
     }
-    sig.push(chip.notice);
     els.line.textContent = line;
-    // The live-settings stamp (spec 5.2) beside the line, from leagueFetchedAt.
-    if (els.settings) {
-      els.settings.textContent = b && b.registry && b.registry.platform === "sleeper" && typeof S.settingsText === "function"
-        ? S.settingsText(b) : "";
-    }
+    els.notice.textContent = chip.notice;
     const key = JSON.stringify(sig);
     if (key === chip.controlsSig) return;
     chip.controlsSig = key;
     els.input = null;
-    const controls = build();
-    if (chip.notice) {
-      const n = document.createElement("span"); n.className = "session-notice"; n.textContent = chip.notice;
-      controls.push(n);
-    }
-    els.controls.replaceChildren(...controls);
+    els.controls.replaceChildren(...build());
   }
   // The age in the line comes from bundle().rostersFetchedAt; re-render every
   // second while a bundle carries one (renderChip rewrites the line only --
@@ -522,18 +605,22 @@
     }, 1000);
     if (chip.ticker && typeof chip.ticker.unref === "function") chip.ticker.unref();
   }
-  function mountChip(panel, slug) {
+  // `pageLeague`: the in-season page's league id from its URL (or null).
+  // The notice (a refused box entry, a failed refresh) has its own node, so
+  // showing it never rebuilds the controls -- the typed text survives.
+  function mountChip(panel, slug, pageLeague) {
     const S = session();
     if (!S) return;
-    chip.slug = slug; chip.changing = false; chip.notice = ""; chip.lastName = "";
+    chip.slug = slug; chip.pageLeague = pageLeague || null;
+    chip.changing = false; chip.notice = ""; chip.lastName = ""; chip.autoOpen = false;
     if (chip.unsub) { try { chip.unsub(); } catch (_) {} chip.unsub = null; }
     const wrap = document.createElement("div"); wrap.id = "session-chip"; wrap.className = "session-chip";
     const line = document.createElement("span"); line.id = "session-text"; line.className = "session-text";
-    const settings = document.createElement("span"); settings.id = "session-settings"; settings.className = "session-settings";
     const controls = document.createElement("div"); controls.className = "session-controls";
-    wrap.append(line, settings, controls);
+    const notice = document.createElement("span"); notice.className = "session-notice";
+    wrap.append(line, controls, notice);
     panel.append(wrap);
-    chip.els = { wrap, line, settings, controls, input: null };
+    chip.els = { wrap, line, controls, notice, input: null };
     chip.controlsSig = null;             // fresh controls node: nothing is built yet
     // Legacy key (spec §7): migrated once into a prefill, never auto-identified.
     // Session.identity() loads storage (and migrates) first; either source wins.
@@ -545,34 +632,47 @@
       if (!had && pending) prefill = pending;
     } catch (_) {}
     chip.prefill = prefill;
-    chip.unsub = S.onChange(() => { renderChip(); pickerSync(); });
+    chip.unsub = S.onChange(barSync);
     renderChip();
     startTicker();
     maybeReady();
   }
 
-  // ---- the league picker (owner decision 2026-11-07) -------------------------
-  // It lists ONLY the leagues found for the visitor's own Sleeper identity
-  // (Session.leaguesFor, the connect page's lookup) plus the league currently
-  // open -- never a hard-coded list. Choosing one opens it on this page when
-  // this page is an in-season tool, otherwise on Weekly. Rebuilt only when
-  // its options change, so an open dropdown survives unrelated updates.
-  const picker = { select: null, label: null, current: null, currentText: "", forUser: null, rows: null, gen: 0, sig: null };
+  // ---- the league picker and the account's leagues (owner decision 2026-11-07)
+  // ONE lookup -- Session.leaguesFor for the visitor's own Sleeper identity,
+  // re-read when the identity moves -- feeds both the League select (the open
+  // league first, then the account's other current-season leagues) and, with
+  // no league open, the bar's league list (spec §5.2). Never a hard-coded
+  // list. Choosing one opens it on this page when this page is an in-season
+  // tool, otherwise on Weekly. The select is rebuilt only when its options
+  // change, so an open dropdown survives unrelated updates.
+  const picker = { panel: null, select: null, label: null, name: null, current: null, currentText: "", forUser: null,
+    leagues: null, season: "", status: "idle", error: "", gen: 0, sig: null, mode: null };
   function sleeperGet() {
     const Sl = typeof Sleeper !== "undefined" && Sleeper ? Sleeper : (typeof window !== "undefined" && window && window.Sleeper) || null;
     return Sl && typeof Sl.get === "function" ? path => Sl.get(path) : null;
   }
+  // The league control: none with no league open; the League select once an
+  // account is known; otherwise the open league's name as plain text. While
+  // an identify is in flight the control stays as it was.
   function renderPicker() {
-    const { select, label } = picker;
+    const { panel, select, label, name } = picker;
     if (!select) return;
-    const S = session(), b = S && S.bundle ? S.bundle() : null;
-    const rows = picker.rows || [];
+    const S = session(), b = S && S.bundle ? S.bundle() : null, id = S && S.identity ? S.identity() : null;
+    const rows = (picker.leagues || []).map(l => [String(l.league_id), leagueName(l)]);
     const mine = rows.find(r => r[0] === picker.current);
     const loaded = picker.current && b && b.league && String(b.league.league_id) === picker.current && b.league.name ? b.league.name : null;
+    const currentName = (mine && mine[1]) || loaded || picker.currentText;
+    const identifying = !!(S && S.state && S.state() === "identifying");
+    const mode = !picker.current ? null : identifying && picker.mode ? picker.mode : id ? "select" : "text";
+    picker.mode = mode;
+    label.hidden = mode !== "select";
+    name.hidden = mode !== "text";
+    name.textContent = mode === "text" ? currentName : "";
+    panel.className = mode ? "league-links has-league" : "league-links";
     const opts = [];
-    if (picker.current) opts.push([picker.current, (mine && mine[1]) || loaded || picker.currentText]);
+    if (picker.current) opts.push([picker.current, currentName]);
     for (const r of rows) if (r[0] !== picker.current) opts.push(r);
-    if (!picker.current && opts.length) opts.unshift(["", "Choose one of your leagues"]);
     const sig = JSON.stringify(opts);
     if (sig === picker.sig) return;
     picker.sig = sig;
@@ -580,73 +680,83 @@
       const o = document.createElement("option"); o.value = value; o.textContent = text; return o;
     }));
     select.value = picker.current || "";
-    label.hidden = opts.length === 0;
   }
-  // The visitor's current-season leagues, re-read when the identity moves.
-  // The season is the committed bundle's live state, else /state/nfl. Any
-  // failure leaves the picker with the open league only.
-  function pickerLeagues() {
+  // The visitor's current-season leagues, re-read when the identity moves
+  // (`force`: the list's Retry). The season is the committed bundle's live
+  // state, else the one this page read already, else /state/nfl. The result
+  // or the failure is recorded for the list; a superseded lookup (another
+  // account, a re-mount) records nothing. The one-shot autoOpen is spent on
+  // the first result after the submit that set it.
+  function pickerLeagues(force) {
     const S = session(), id = S && S.identity ? S.identity() : null, uid = id ? id.userId : null;
-    if (uid === picker.forUser) return;
-    picker.forUser = uid; picker.rows = null;
+    if (!force && uid === picker.forUser) return;
+    picker.forUser = uid; picker.leagues = null; picker.error = "";
+    picker.status = uid && typeof S.leaguesFor === "function" ? "finding" : "idle";
     const gen = ++picker.gen;
-    renderPicker();
-    if (!uid || typeof S.leaguesFor !== "function") return;
+    if (picker.status === "idle") return;
     const get = sleeperGet(), b = S.bundle ? S.bundle() : null;
-    const known = b && b.state && b.state.season !== undefined && b.state.season !== null ? String(b.state.season) : "";
+    const known = b && b.state && b.state.season !== undefined && b.state.season !== null ? String(b.state.season) : picker.season;
     const seasonP = known ? Promise.resolve(known) : get ? get("/state/nfl").then(s => String((s && s.season) || "")) : Promise.resolve("");
-    seasonP.then(season => season ? S.leaguesFor(get ? { season, get } : { season }) : null).then(list => {
-      if (gen !== picker.gen || !Array.isArray(list)) return;
+    seasonP.then(season => {
+      if (gen !== picker.gen) return null;
+      if (!season) throw new Error("the NFL season could not be read.");
+      picker.season = season;
+      return S.leaguesFor(get ? { season, get } : { season });
+    }).then(list => {
+      if (gen !== picker.gen) return;
+      if (!Array.isArray(list)) throw new Error("Sleeper returned a malformed league list.");
       const seen = new Set();
-      picker.rows = list.filter(l => {
+      picker.leagues = list.filter(l => {
         const lid = l && l.league_id !== undefined && l.league_id !== null ? String(l.league_id) : "";
         if (!isLeagueId(lid) || seen.has(lid)) return false;
         seen.add(lid); return true;
-      }).map(l => [String(l.league_id), l.name || `League ${l.league_id}`]);
-      renderPicker();
-    }).catch(() => {});
+      });
+      picker.status = "ready";
+      const only = chip.autoOpen && picker.leagues.length === 1 && !leagueOpen() && !registryPage();
+      chip.autoOpen = false;
+      if (only) location.assign(leagueHref(String(picker.leagues[0].league_id)));
+    }).catch(e => {
+      if (gen !== picker.gen) return;
+      picker.status = "error"; picker.error = String((e && e.message) || e);
+      chip.autoOpen = false;
+    }).then(() => { if (gen === picker.gen) { renderPicker(); renderChip(); } });
   }
-  function pickerSync() { pickerLeagues(); renderPicker(); }
+  function barSync() { pickerLeagues(); renderPicker(); renderChip(); }
 
   // `league` is the open league: a Sleeper league id, a registered board's
-  // slug (the board page), or nothing (a page with no league open).
+  // slug (the board page), or nothing (a page with no league open). An id is
+  // open only on an in-season page; About and the other pages show no league.
   function mountLeagueContext(league) {
     if (!document.createElement || document.getElementById("league-context")) return;
     const p = leagueParam(league === null || league === undefined ? "" : league);
-    const entry = p.entry, current = entry ? entry.slug : p.isId ? p.leagueId : null;
-    const panel=document.createElement("section"), label=document.createElement("label"), select=document.createElement("select");
-    panel.id="league-context"; panel.className="league-links";
-    label.textContent="League "; select.setAttribute("aria-label","Selected league");
-    Object.assign(picker, { select, label, current, currentText: entry ? entry.label : current ? `Sleeper league ${current}` : "",
-      forUser: undefined, rows: null, sig: null });
+    const entry = p.entry;
+    const pageLeague = p.isId && LEAGUE_PAGES.has(pageOf(location.href)) ? p.leagueId : null;
+    const current = entry ? entry.slug : pageLeague;
+    const panel = document.createElement("section"), label = document.createElement("label"), select = document.createElement("select");
+    const name = document.createElement("span");
+    panel.id = "league-context"; panel.className = "league-links";
+    select.setAttribute("aria-label", "Selected league");
+    name.id = "league-name"; name.className = "league-name";
+    Object.assign(picker, { panel, select, label, name, current, currentText: entry ? entry.label : current ? `Sleeper league ${current}` : "",
+      forUser: undefined, leagues: null, season: "", status: "idle", error: "", sig: null, mode: null });
     picker.gen++;
     select.addEventListener("change", () => {
       const v = select.value;
       if (!v || v === picker.current) return;
-      const url = LEAGUE_PAGES.has(pageOf(location.href)) ? new URL(location.href) : new URL("weekly.html", location.href);
-      url.searchParams.set("league", v);
-      location.assign(url.href);
+      location.assign(leagueHref(v));
     });
-    label.append(select);panel.append(label);
+    label.append(select);
+    panel.append(label, name);
     renderPicker();
-    mountChip(panel, current);
-    pickerSync();
-    const note=document.createElement("p");
-    note.textContent = entry
-      ? (entry.platform !== "sleeper"
+    mountChip(panel, current, pageLeague);
+    barSync();
+    // Registry pages keep their note (the board's; ESPN's "not connected").
+    if (entry) {
+      const note = document.createElement("p");
+      note.textContent = entry.platform !== "sleeper"
         ? `${String(entry.platform).toUpperCase()}: draft board supported; live in-season tools are not connected yet.`
-        : "This draft board's league. Live draft mode and keepers read your roster through your Sleeper username. No password needed.")
-      : p.isId ? "In-season tools read this league's live Sleeper settings. No password needed."
-      : "No league is open. Enter your Sleeper username to choose one of your leagues, or open one by its link on the connect page. No password needed.";
-    panel.append(note);
-    // The connect page already IS "Find my Sleeper leagues" -- a link back to
-    // itself from its own league panel would be a dead, redundant nav entry.
-    if (!/\/connect\.html$/.test(location.pathname)) {
-      const connect=document.createElement("a");
-      const connectUrl=new URL("connect.html", location.href);
-      if (p.isId) connectUrl.searchParams.set("league", p.leagueId);
-      connect.href=connectUrl.href; connect.textContent="Find my Sleeper leagues";
-      panel.append(connect);
+        : "This draft board's league. Live draft mode and keepers read your roster through your Sleeper username. No password needed.";
+      panel.append(note);
     }
     // Discovery already has its own username form. Keep the shared account
     // controls available (including Forget), without two competing entry forms.

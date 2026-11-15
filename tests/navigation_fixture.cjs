@@ -327,8 +327,8 @@ global.localStorage = store;
   ]);
 
   // Anonymous, on a page with no league open: the chip mounts inside the
-  // panel, offers the username input + button and the remembered sentence;
-  // the league picker has nothing to offer yet, so it is hidden.
+  // panel as the connect box (heading, the one box, the read-only note) with
+  // an empty line; the league picker has nothing to offer yet, so it is hidden.
   const AN = stubSession(); FC._session(AN);
   const anonMain = dom(`${base}about.html`);
   FC.mountLeagueContext(null);
@@ -337,24 +337,26 @@ global.localStorage = store;
   const chipEl = byId(anonPanel, "session-chip");
   assert.ok(chipEl, "chip must be mounted inside #league-context");
   assert.ok(byId(anonPanel, "session-user"), "anonymous state shows the username input");
-  assert.strictEqual(byId(anonPanel, "session-use").textContent, "Use this account");
-  assert.strictEqual(byId(anonPanel, "session-text").textContent, REMEMBERED,
-    "anonymous state carries the remembered-on-this-device sentence");
-  assert.strictEqual(all(chipEl).filter(n => n.textContent === REMEMBERED).length, 1, "the sentence appears once");
+  assert.strictEqual(byId(anonPanel, "session-use").textContent, "Connect");
+  assert.strictEqual(byId(anonPanel, "session-heading").textContent, "Connect your Sleeper league");
+  assert.strictEqual(byId(anonPanel, "session-note").textContent, "No password. Read-only: nothing is changed in Sleeper.");
+  assert.strictEqual(byId(anonPanel, "session-text").textContent, "", "the heading leads; the line is empty");
+  assert.strictEqual(all(chipEl).filter(n => n.textContent === REMEMBERED).length, 0, "no forget promise with no league open");
   assert.strictEqual(AN.calls.length, 0, "anonymous mount makes no Session calls");
   const anonSelect = all(anonPanel).find(n => n.tagName === "select");
   assert.deepStrictEqual(anonSelect.children, [], "no hard-coded leagues: an anonymous visitor's picker is empty");
   assert.strictEqual(all(anonPanel).find(n => n.tagName === "label" && n.children.includes(anonSelect)).hidden, true, "an empty picker is hidden");
-  assert.ok(anonPanel.children.some(n => /^No league is open\./.test(n.textContent)), "the panel says no league is open");
-  assert.strictEqual(all(anonPanel).find(n => n.tagName === "a").href, `${base}connect.html`, "the connect link names no league");
+  assert.ok(!anonPanel.children.some(n => n.tagName === "p"), "no panel note: the heading says what to do");
+  assert.ok(!all(anonPanel).some(n => n.tagName === "a"), "no 'Find my Sleeper leagues' link: the bar is the way in");
   // Submitting the form identifies once; the stub's superseded rejection must
   // not be rendered (checked after the microtask settles, below).
   byId(anonPanel, "session-user").value = "user_a";
   all(chipEl).find(n => n.tagName === "form").dispatch("submit");
   assert.deepStrictEqual(AN.calls, [["identify", "user_a"]]);
 
-  // A league-free page with its connect prompt showing asks for the username
-  // once: the chip's own form is not built while the prompt is visible.
+  // The league bar is the way in: its box no longer steps aside for the
+  // tool card's connect prompt (that prompt's form goes in the next task, which
+  // restores the page-wide one-input pin), and the panel itself holds one input.
   {
     const PS = stubSession(); FC._session(PS);
     const pm = dom(`${base}weekly.html`);
@@ -362,15 +364,13 @@ global.localStorage = store;
     pm.append(promptEl);
     FC.mountLeagueContext(null);
     const pPanel = pm.children[0];
-    assert.strictEqual(byId(pPanel, "session-user"), null, "the prompt is the page's one username form");
-    assert.strictEqual(byId(pPanel, "session-use"), null);
-    promptEl.hidden = true;
-    FC.chip.render();
-    assert.ok(byId(pPanel, "session-user"), "with no prompt showing, the chip offers its own form");
+    assert.ok(byId(pPanel, "session-user"), "the bar keeps its box while the prompt shows");
+    assert.strictEqual(byId(pPanel, "session-use").textContent, "Connect");
+    assert.strictEqual(all(pPanel).filter(n => n.tagName === "input").length, 1);
   }
   // Waivers and Trade mount the panel FIRST and show the prompt after; the
-  // real LeagueConnect.initPrompt re-renders the chip, so those pages also ask
-  // once, and the line does not promise a forget control that is not there.
+  // real LeagueConnect.initPrompt re-renders the chip, which keeps its box,
+  // and the line does not promise a forget control that is not there.
   {
     const { initPrompt } = require("../site/assets/connect.js");
     for (const pageName of ["waivers.html", "trade.html"]) {
@@ -386,13 +386,13 @@ global.localStorage = store;
       assert.ok(byId(pPanel, "session-user"), `${pageName}: before the prompt shows, the chip has its form`);
       promptEl.hidden = false;
       initPrompt();
-      assert.strictEqual(byId(pPanel, "session-user"), null, `${pageName}: the prompt is the page's one username form`);
-      assert.strictEqual(all(pm).filter(n => n.id === "session-user" || n.id === "connect-prompt-input").length, 1);
+      assert.ok(byId(pPanel, "session-user"), `${pageName}: the bar's box stays after the prompt shows`);
+      assert.strictEqual(all(pPanel).filter(n => n.tagName === "input").length, 1, `${pageName}: one input in the panel`);
       assert.ok(!all(pm).some(n => /until you choose forget/.test(n.textContent)), `${pageName}: no forget promise with no league open`);
       assert.strictEqual(byId(pPanel, "session-text").textContent, "");
     }
   }
-  // A ready bundle renders exactly chipText's line plus refresh/change/forget.
+  // A ready bundle renders exactly chipText's line plus Refresh and Not you?.
   const R = stubSession(); FC._session(R);
   const rostersFetchedAt = Date.now() - 14000;
   const bundle = {
@@ -407,9 +407,10 @@ global.localStorage = store;
   R.set({ st: "ready", id: bundle.identity, bundle });
   const text = byId(panel, "session-text").textContent;
   assert.strictEqual(text, Session.chipText(bundle, "ready", Date.now()));
-  assert.match(text, /^User A · League A · your roster: 9 · rosters 1[45] s ago$/);
-  assert.ok(byId(panel, "session-refresh") && byId(panel, "session-change") && byId(panel, "session-forget"),
-    "ready state offers refresh, change and forget");
+  assert.match(text, /^Your team: Roster 9 · rosters 1[45] s ago$/);
+  assert.ok(byId(panel, "session-refresh") && byId(panel, "session-change"), "ready state offers Refresh and Not you?");
+  assert.strictEqual(byId(panel, "session-change").textContent, "Not you?");
+  assert.ok(!byId(panel, "session-forget"), "Forget waits in the box Not you? reveals");
   assert.ok(!byId(panel, "session-user"), "ready state shows no username input");
   byId(panel, "session-refresh").dispatch("click");
   assert.deepStrictEqual(R.calls, [["refresh", "rosters", false]], "the refresh button refreshes rosters + state by default");
@@ -435,17 +436,19 @@ global.localStorage = store;
     changeNode.dispatch("click");
     const input = byId(panel, "session-user");
     assert.ok(input, "change shows the username input");
-    assert.strictEqual(input.value, "user_a", "the input is prefilled with the current username");
+    assert.strictEqual(input.value, "", "Not you? opens an empty box");
+    assert.ok(byId(panel, "session-forget"), "the revealed box offers Forget");
     input.value = "newname-typed";
     FC.chip.render();
     assert.strictEqual(byId(panel, "session-user"), input, "a tick must not rebuild the username input");
     assert.strictEqual(byId(panel, "session-user").value, "newname-typed", "a tick must not revert what was typed");
-    assert.match(byId(panel, "session-text").textContent, /^User A · League A · your roster: 9 · rosters 1[45] s ago$/,
+    assert.match(byId(panel, "session-text").textContent, /^Your team: Roster 9 · rosters 1[45] s ago$/,
       "the line still updates on a tick");
     byId(panel, "session-cancel").dispatch("click");
     assert.ok(byId(panel, "session-refresh") && !byId(panel, "session-user"), "cancel returns to the ready controls");
     // forget keeps the (re-derived, anonymous) bundle, so the ticker keeps
     // running; the anonymous form must survive its ticks the same way.
+    byId(panel, "session-change").dispatch("click");
     byId(panel, "session-forget").dispatch("click");
     assert.deepStrictEqual(R.calls[3], ["forget"]);
     const anonInput = byId(panel, "session-user");
@@ -460,10 +463,10 @@ global.localStorage = store;
     R.set({ st: "ready", id: bundle.identity, bundle });
     assert.ok(byId(panel, "session-refresh") && !byId(panel, "session-user"), "a state change rebuilds the controls");
   }
-  // none/ambiguous: the §4.4 message plus change only.
+  // none/ambiguous: the sentence plus Not you? only (no team picker on a board).
   R.set({ bundle: { ...bundle, myRoster: null, myRosterStatus: "none" } });
-  assert.strictEqual(byId(panel, "session-text").textContent,
-    "Could not uniquely match this account to a roster in this league.");
+  assert.strictEqual(byId(panel, "session-text").textContent, "You have no team here.");
+  assert.ok(!byId(panel, "session-team"), "a board page has no team to view");
   assert.ok(byId(panel, "session-change") && !byId(panel, "session-refresh") && !byId(panel, "session-forget"));
   // error: the reason plus retry and change. The gate is error(), not
   // state(): a bundle may still be committed beside a stale identity error.
@@ -491,14 +494,17 @@ global.localStorage = store;
   assert.strictEqual(byId(espnPanel, "session-text").textContent, "User A · 13-team PPR, 6-pt pass TD · ESPN draft board only",
     "the ESPN line names the board by its format, never by a league name");
   assert.ok(!byId(espnPanel, "session-refresh"), "ESPN has nothing to refresh");
-  assert.ok(byId(espnPanel, "session-change") && byId(espnPanel, "session-forget"));
+  assert.ok(byId(espnPanel, "session-change") && !byId(espnPanel, "session-forget"));
+  byId(espnPanel, "session-change").dispatch("click");
+  assert.ok(byId(espnPanel, "session-forget"), "ESPN: Forget in the box Not you? reveals");
+  byId(espnPanel, "session-cancel").dispatch("click");
   assert.ok(espnPanel.children.some(n => /not connected yet/.test(n.textContent)), "the ESPN note stays");
   FC.setBoard(null);
 
   // Legacy username (spec §7): prefilled, never auto-identified.
   const L = stubSession(); L.pendingUsername = () => "OldName"; FC._session(L);
-  const legacyMain = dom(`${base}weekly.html?league=${A}`);
-  FC.mountLeagueContext(A);
+  const legacyMain = dom(`${base}weekly.html`);
+  FC.mountLeagueContext(null);
   assert.strictEqual(byId(legacyMain.children[0], "session-user").value, "OldName");
   assert.strictEqual(L.calls.length, 0, "a migrated username is offered, not auto-identified");
 
@@ -529,7 +535,8 @@ global.localStorage = store;
   const leagueSelect = all(idPanel).find(n => n.tagName === "select" && n.attrs["aria-label"] === "Selected league");
   assert.strictEqual(leagueSelect.value, X, "the panel's league select names this league by id");
   assert.ok(leagueSelect.children.some(o => o.value === X && o.textContent === `Sleeper league ${X}`));
-  assert.ok(idPanel.children.some(n => n.textContent === "In-season tools read this league's live Sleeper settings. No password needed."));
+  assert.ok(!idPanel.children.some(n => n.tagName === "p"), "no plumbing note in the bar");
+  assert.strictEqual(byId(idPanel, "session-text").textContent, "Loading league…", "the league is open before it loads");
   assert.deepStrictEqual(leagueSelect.children.map(o => [o.value, o.textContent]), [[X, `Sleeper league ${X}`]],
     "anonymous: the picker offers only the league that is open");
   FC.setLeague(X);
@@ -549,15 +556,18 @@ global.localStorage = store;
   assert.deepStrictEqual(teamSel.children.map(o => [o.value, o.textContent]),
     [["", "Choose a team"], ["1", "Alpha Squad"], ["2", "Beta"], ["3", "Gamma Rays"]]);
   assert.strictEqual(teamSel.value, "");
-  assert.ok(byId(idPanel, "session-user"), "identity stays optional: the username form is still offered");
-  assert.ok(byId(idPanel, "session-refresh"), "an anonymous viewer can refresh the league");
-  assert.strictEqual(byId(idPanel, "session-settings").textContent, Session.settingsText(vb));
-  assert.match(byId(idPanel, "session-settings").textContent, /^League settings read \S/);
+  assert.strictEqual(byId(idPanel, "session-find").textContent, "or find your team with your username",
+    "identity stays optional: the username box is one click away");
+  assert.ok(!byId(idPanel, "session-user"), "one input: the box hides behind the find button");
+  assert.ok(!byId(idPanel, "session-refresh"), "no team chosen yet: nothing to refresh");
+  assert.strictEqual(byId(idPanel, "session-settings"), null, "the settings stamp lives in each tool's data line");
   teamSel.value = "2";
   teamSel.dispatch("change");
   assert.deepStrictEqual(V.calls.filter(c => c[0] === "view"), [["view", "2"]]);
   assert.match(byId(idPanel, "session-text").textContent, /^Viewing Beta · rosters [23] s ago$/);
   assert.strictEqual(byId(idPanel, "session-team").value, "2", "the picker shows the viewed team");
+  assert.ok(byId(idPanel, "session-refresh"), "an anonymous viewer can refresh the league");
+  assert.strictEqual(byId(idPanel, "session-find").textContent, "Use my username");
   // The ticker must not rebuild the picker (focus / open dropdown survive).
   const pickerNode = byId(idPanel, "session-team");
   FC.chip.render();
@@ -565,14 +575,14 @@ global.localStorage = store;
   // Identified as the owner of roster 3: the owner line, no picker.
   const gamma = { username: "gamma", userId: "s3", displayName: "Gamma" };
   V.set({ id: gamma, bundle: { ...vb, identity: gamma, myRoster: rostersX[2], myRosterStatus: "found", analysisRoster: rostersX[2], analysisRole: "owner" } });
-  assert.match(byId(idPanel, "session-text").textContent, /^Gamma · Synthetic Six · your roster: 3 · rosters [23] s ago$/);
+  assert.match(byId(idPanel, "session-text").textContent, /^Your team: Gamma Rays · rosters [23] s ago$/);
   assert.ok(!byId(idPanel, "session-team"), "an owner is not offered other teams");
-  assert.ok(byId(idPanel, "session-refresh") && byId(idPanel, "session-forget"));
+  assert.ok(byId(idPanel, "session-refresh") && byId(idPanel, "session-change"));
   // Identified but not in this league: still a viewer's picker.
   const out = { username: "outsider", userId: "s9", displayName: "Outsider" };
   V.set({ id: out, bundle: { ...vb, identity: out, myRosterStatus: "none" } });
   assert.ok(byId(idPanel, "session-team"), "a non-owner can choose a team to view");
-  assert.strictEqual(byId(idPanel, "session-text").textContent, "Could not uniquely match this account to a roster in this league.");
+  assert.strictEqual(byId(idPanel, "session-text").textContent, "You have no team here.");
   // A failed league load (no bundle): retry re-runs ready by id, identity or not.
   V.set({ st: "error", err: `Sleeper has no league with id ${X}.`, id: null, bundle: null });
   assert.strictEqual(byId(idPanel, "session-text").textContent, `Sleeper has no league with id ${X}.`);
@@ -582,8 +592,9 @@ global.localStorage = store;
 
   // The league picker lists ONLY the visitor's own current-season leagues
   // (Session.leaguesFor, as connect.js does) plus the league that is open --
-  // never a hard-coded list. Choosing one opens it on this in-season page, or
-  // on Weekly from a page that is not an in-season tool.
+  // never a hard-coded list. Choosing one opens it on this in-season page;
+  // with no league open the same lookup is the bar's list, whose rows open
+  // Weekly from a page that is not an in-season tool.
   const Y = "100000000000000002", Z = "100000000000000009";
   async function pickerOn(href, open) {
     const P = stubSession(); FC._session(P);
@@ -598,7 +609,7 @@ global.localStorage = store;
     FC.mountLeagueContext(open);
     await new Promise(r => setTimeout(r, 0));
     const sel = all(main.children[0]).find(n => n.tagName === "select" && n.attrs["aria-label"] === "Selected league");
-    return { sel, assigned, seasons, P };
+    return { sel, assigned, seasons, P, panel: main.children[0] };
   }
   pickerChecks = (async () => {
     const w = await pickerOn(`${base}waivers.html?league=${X}&week=2`, X);
@@ -608,20 +619,25 @@ global.localStorage = store;
     assert.strictEqual(w.sel.value, X);
     w.sel.value = Y; w.sel.dispatch("change");
     assert.deepStrictEqual(w.assigned, [`${base}waivers.html?league=${Y}&week=2`], "choosing a league opens it on this page");
-    // A page with no league open: the season is read from /state/nfl, then a
-    // prompt option and the account's leagues; choosing opens Weekly.
+    // A page with no league open: the season is read from /state/nfl, the
+    // select stays hidden, and the bar lists the account's leagues; each row
+    // opens Weekly.
     const stateCalls = [];
     window.Sleeper = { get: async path => { stateCalls.push(path); return { season: "2026" }; } };
     const a = await pickerOn(`${base}about.html`, null);
     delete window.Sleeper;
     assert.deepStrictEqual(stateCalls, ["/state/nfl"]);
     assert.deepStrictEqual(a.seasons, ["2026"]);
-    assert.deepStrictEqual(a.sel.children.map(o => [o.value, o.textContent]), [["", "Choose one of your leagues"], [Y, "League B"], [X, "League X"]]);
-    a.sel.value = X; a.sel.dispatch("change");
-    assert.deepStrictEqual(a.assigned, [`${base}weekly.html?league=${X}`], "from a neutral page the choice opens Weekly");
+    assert.strictEqual(all(a.panel).find(n => n.tagName === "label" && n.children.includes(a.sel)).hidden, true, "no league open: no League select");
+    const aRows = all(byId(a.panel, "session-leagues")).filter(n => n.tagName === "li");
+    assert.deepStrictEqual(aRows.map(li => [li.children[0].href, li.children[0].textContent]),
+      [[`${base}weekly.html?league=${Y}`, "League B"], [`${base}weekly.html?league=${X}`, "League X"]],
+      "deduplicated, malformed ids dropped; from a neutral page each row opens Weekly");
+    assert.deepStrictEqual(a.assigned, [], "listing opens nothing");
     // The identity going away clears the account's leagues from the picker.
     a.P.set({ st: "anonymous", id: null });
     assert.deepStrictEqual(a.sel.children, [], "forget leaves no account leagues behind");
+    assert.strictEqual(byId(a.panel, "session-leagues"), null, "and no list");
     // A failed lookup leaves the open league only.
     const f = stubSession(); FC._session(f);
     f.leaguesFor = async () => { throw new Error("HTTP 503"); };
@@ -637,7 +653,7 @@ global.localStorage = store;
     // Async settlements: the superseded identify rejection left the anonymous
     // chip untouched (no error text, input still offered) and the identified
     // board triggered exactly one ready() for its slug.
-    assert.strictEqual(byId(anonPanel, "session-text").textContent, REMEMBERED,
+    assert.strictEqual(byId(anonPanel, "session-text").textContent, "",
       "a superseded rejection must never be rendered");
     assert.ok(byId(anonPanel, "session-user"));
     assert.deepStrictEqual(R.calls, [["refresh", "rosters", false], ["refresh", "league", true], ["refresh", "rosters", false], ["forget"], ["ready", "leaguea"]], "identified + board loads the league once");

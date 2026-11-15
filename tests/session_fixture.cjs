@@ -151,13 +151,13 @@ const sorted = a => a.slice().sort();
     await Session.identify("ghost");
     const none = await Session.ready({ slug: "leaguea", board });
     assert.equal(none.myRosterStatus, "none"); assert.equal(none.myRoster, null);
-    assert.equal(Session.chipText(none, "ready", Date.now()), "Could not uniquely match this account to a roster in this league.");
+    assert.equal(Session.chipText(none, "ready", Date.now()), "You have no team here.");
     const r = routes(); r[`/league/${L}/rosters`] = rosters.concat([{ roster_id: 4, owner_id: "u1" }]);
     Session._get(fakeGet(r).get);
     await Session.identify("user_a");
     const two = await Session.ready({ slug: "leaguea", board });
     assert.equal(two.myRosterStatus, "ambiguous"); assert.equal(two.myRoster, null);
-    assert.equal(Session.chipText(two, "ready", Date.now()), "Could not uniquely match this account to a roster in this league.");
+    assert.equal(Session.chipText(two, "ready", Date.now()), "This account is on more than one team here.");
   });
 
   await check("4. live/static league id mismatch rejects and leaves no bundle", async () => {
@@ -471,13 +471,15 @@ const sorted = a => a.slice().sort();
     const t0 = 1_700_000_000_000;
     const ready = { registry: FC.registryFor("leaguea"), identity: { username: "user_a", userId: "u1", displayName: "User A" }, league, users, rosters, state, rostersRequestedAt: t0 - 100, rostersFetchedAt: t0, myRoster: rosters[0], myRosterStatus: "found", warnings: [], generation: 1 };
     assert.equal(Session.chipText(null, "anonymous"), "Remembered on this device until you choose forget.");
-    assert.equal(Session.chipText(ready, "ready", t0 + 14000), "User A · League A · your roster: 9 · rosters 14 s ago");
-    assert.equal(Session.chipText(ready, "ready", t0 + 125000), "User A · League A · your roster: 9 · rosters 2 min ago");
-    assert.equal(Session.chipText(ready, "refreshing", t0 + 14000), "User A · League A · your roster: 9 · rosters 14 s ago · refreshing…");
+    assert.equal(Session.chipText(ready, "ready", t0 + 14000), "Your team: Meat Sweats · rosters 14 s ago");
+    assert.equal(Session.chipText(ready, "ready", t0 + 125000), "Your team: Meat Sweats · rosters 2 min ago");
+    assert.equal(Session.chipText(ready, "refreshing", t0 + 14000), "Your team: Meat Sweats · rosters 14 s ago · refreshing…");
     const none = { ...ready, myRoster: null, myRosterStatus: "none" };
     const ambiguous = { ...ready, myRoster: null, myRosterStatus: "ambiguous" };
-    assert.equal(Session.chipText(none, "ready", t0), "Could not uniquely match this account to a roster in this league.");
-    assert.equal(Session.chipText(ambiguous, "ready", t0), "Could not uniquely match this account to a roster in this league.");
+    assert.equal(Session.chipText(none, "ready", t0), "You have no team here.");
+    assert.equal(Session.chipText(ambiguous, "ready", t0), "This account is on more than one team here.");
+    // An account known with no league open names the account (league connect flow §5.2).
+    assert.equal(Session.chipText({ identity: ready.identity, registry: null }, "identified", t0), "Sleeper account: User A");
     assert.equal(Session.chipText(ready, "error", t0, "Sleeper username was not found."), "Sleeper username was not found.");
     assert.equal(Session.chipText(null, "error", t0, "HTTP 503"), "HTTP 503");
     const espn = { registry: FC.registryFor("leaguec"), identity: ready.identity, league: null, users: null, rosters: null, state: null, rostersRequestedAt: null, rostersFetchedAt: null, myRoster: null, myRosterStatus: "anonymous", warnings: [], generation: 1 };
@@ -948,10 +950,10 @@ const sorted = a => a.slice().sort();
     assert.equal(v.rostersFetchedAt, b1.rostersFetchedAt);
     assert.equal(b1.viewedRosterId, null, "the old bundle is untouched");
     assert.equal(Session.chipText(v, "ready", v.rostersFetchedAt + 3000), "Viewing Beta · rosters 3 s ago");
-    // Anonymous with no team chosen: a neutral line naming the league.
-    assert.equal(Session.chipText(b1, "ready", Date.now()), "Synthetic Six · choose a team to view, or enter your Sleeper username");
-    assert.equal(Session.chipText(b1, "refreshing", Date.now()), "Synthetic Six · choose a team to view, or enter your Sleeper username · refreshing…");
-    assert.equal(Session.chipText(b1, "anonymous", Date.now()), "Synthetic Six · choose a team to view, or enter your Sleeper username");
+    // Anonymous with no team chosen: the question the team select answers.
+    assert.equal(Session.chipText(b1, "ready", Date.now()), "Which team do you want to see?");
+    assert.equal(Session.chipText(b1, "refreshing", Date.now()), "Which team do you want to see?");
+    assert.equal(Session.chipText(b1, "anonymous", Date.now()), "Which team do you want to see?");
     // An unknown roster id is refused; nothing changes.
     assert.throws(() => Session.view(99), { message: "No team with roster id 99 in this league." });
     assert.equal(Session.bundle(), v);
@@ -963,8 +965,9 @@ const sorted = a => a.slice().sort();
     await Session.identify("outsider");
     assert.equal(Session.bundle().viewedRosterId, 2);
     assert.equal(Session.bundle().analysisRole, "viewer");
-    assert.equal(Session.chipText(Session.bundle(), "ready", Session.bundle().rostersFetchedAt), "Viewing Beta · rosters 0 s ago",
-      "a viewer line, not 'could not uniquely match', once a team is chosen");
+    assert.equal(Session.chipText(Session.bundle(), "ready", Session.bundle().rostersFetchedAt), "You have no team here. Viewing Beta · rosters 0 s ago",
+      "an account with no team here: the sentence, then the viewer line once a team is chosen");
+    assert.equal(Session.chipText(Session.bundle(), "refreshing", Session.bundle().rostersFetchedAt), "You have no team here. Viewing Beta · rosters 0 s ago · refreshing…");
     // Identify as the owner of roster 3: switch to the owner's roster, drop the view.
     await Session.identify("gamma");
     const o = Session.bundle();
@@ -972,7 +975,7 @@ const sorted = a => a.slice().sort();
     assert.equal(o.analysisRole, "owner");
     assert.equal(o.viewedRosterId, null, "the viewed choice is dropped, not merged");
     assert.equal(o.myRoster.roster_id, 3);
-    assert.equal(Session.chipText(o, "ready", o.rostersFetchedAt), "Gamma · Synthetic Six · your roster: 3 · rosters 0 s ago");
+    assert.equal(Session.chipText(o, "ready", o.rostersFetchedAt), "Your team: Gamma Rays · rosters 0 s ago");
     // An owner cannot view another team.
     assert.throws(() => Session.view(1), { message: "This account owns a roster in this league; that roster is the one analysed." });
     assert.equal(Session.view(null).viewedRosterId, null, "clearing is always allowed");

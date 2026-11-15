@@ -137,6 +137,9 @@ const until = async (pred, what, ms = 4000) => {
   const cLine = () => watch().find(l => l.startsWith("C Free"));
 
   WaiverMode.init();
+  // The league bar shows "Loading league…", then the anonymous line with its find button.
+  await until(() => $("session-find"), "the league bar's find button");
+  $("session-find").dispatch("click");
   $("session-user").value = "user_a";
   all($("session-chip")).find(n => n.tagName === "form").dispatch("submit");
   await until(() => !$("waiver-results").hidden && analyzeCalls.length === 1, "the owner's desk");

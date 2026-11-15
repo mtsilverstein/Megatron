@@ -444,7 +444,7 @@ acheck("init never looks up a user or lists leagues; my team is the bundle's ros
     await Session.ready({ slug: "leaguea", board: b });
     await settle();
     assert.strictEqual(els.cols.hidden, true, "two matching rosters build no columns");
-    assert.strictEqual(els.status.textContent, "Could not uniquely match this account to a roster in this league.");
+    assert.strictEqual(els.status.textContent, "This account is on more than one team here.");
     // ready() reads league/users/rosters/state itself; traded_picks is leagueWorld's alone.
     assert.ok(!calls.some(c => /traded_picks/.test(c)), `no leagueWorld fetch while blocked: ${JSON.stringify(calls)}`);
     // 3. exactly one match, and it is the CO-OWNED roster: found, world built, "me" is roster 2.

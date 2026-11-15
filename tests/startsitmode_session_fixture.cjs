@@ -243,6 +243,7 @@ const IN_TEST = "Scored with your league's own settings (12-team 1QB PPR, 6-pt p
   //    the committed bundle; the engine is handed the PRE-request time.
   let release;
   routes["/user/user_a"] = () => new Promise(r => { release = () => r({ user_id: "u1", username: "user_a", display_name: "User A" }); });
+  $("session-find").dispatch("click");                 // the league bar's box sits behind "or find your team with your username"
   $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   assert.equal(Session.state(), "identifying");
@@ -299,10 +300,12 @@ const IN_TEST = "Scored with your league's own settings (12-team 1QB PPR, 6-pt p
   assert.equal(analyzeCalls.at(-1).roster.roster_id, 3);
   assert.match(excludeText(), /B Wide/);
   // forget clears synchronously as well, back to the anonymous gate.
+  $("session-change").dispatch("click");               // Forget is in the box "Not you?" reveals
   $("session-forget").dispatch("click");
   assert.equal($("ss-output").children.length, 0); assert.equal($("ss-exclude").children.length, 0);
   assert.equal(statusText(), GATE);
   routes["/user/user_a"] = baseRoutes()["/user/user_a"];
+  $("session-find").dispatch("click");
   $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   await until(() => /^Read-only roster 9;/.test(statusText()), "roster 9 back", 5000);
@@ -401,6 +404,7 @@ const IN_TEST = "Scored with your league's own settings (12-team 1QB PPR, 6-pt p
 
   // 7. Viewer flow (Review Focus 5). Forget -> anonymous; choose Bo's team.
   clock = b4.rostersFetchedAt + 2000;   // back inside the 60 s window
+  $("session-change").dispatch("click");
   $("session-forget").dispatch("click");
   assert.equal(statusText(), GATE);
   const picker = () => all($("session-chip")).find(n => n.id === "session-team");
@@ -425,6 +429,7 @@ const IN_TEST = "Scored with your league's own settings (12-team 1QB PPR, 6-pt p
   assert.equal(statusText(), `No safe full-lineup recommendation: ${OFF_SCHEDULE} Only the team's owner can exclude players here.`);
   engineThrows = null;
   // ...then identifies as the owner of ANOTHER roster: owner's plan, viewer label gone.
+  $("session-find").dispatch("click");                 // "Use my username"
   $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   await until(() => /^Read-only roster 9;/.test(statusText()) && analyzeCalls.at(-1).roster.roster_id === 9 && $("ss-output").children.length > 0, "the owner's own plan", 5000);

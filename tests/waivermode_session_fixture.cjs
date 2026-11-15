@@ -283,6 +283,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   // 2. Owner flow: identify through the chip's own form.
   let release;
   routes["/user/user_a"] = () => new Promise(r => { release = () => r({ user_id: "u1", username: "user_a", display_name: "User A" }); });
+  $("session-find").dispatch("click");                 // the league bar's box sits behind "or find your team with your username"
   $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   assert.equal(Session.state(), "identifying");
@@ -544,12 +545,14 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.match(text("waiver-roster"), /B Wide/); assert.doesNotMatch(text("waiver-roster"), /A Back/);
   assert.deepEqual(analyzeCalls.at(-1).protectedIds, [], "another team never inherits roster 9's protections");
   // forget: cleared synchronously, back to the gate; re-identify brings roster 9 back.
+  $("session-change").dispatch("click");               // Forget is in the box "Not you?" reveals
   $("session-forget").dispatch("click");
   assert.ok($("waiver-results").hidden, "forget hides the results synchronously");
   assert.equal(statusText(), GATE);
   routes["/user/user_a"] = baseRoutes()["/user/user_a"];
   // A saved id no longer on the roster (and junk types) is pruned on a fresh load, in storage too.
   lsStore.set(`megatron.waivers.protected.v1|${L}|9`, '["a","gone"]');
+  $("session-find").dispatch("click");
   $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   await until(() => !$("waiver-results").hidden && /roster 9/.test(statusText()), "roster 9 back after re-identify", 5000);
@@ -802,6 +805,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.match($("waiver-count-detail").textContent, /^3 independent add\/drop alternatives\. .* 1 are weak signals: the move's value averages under 1 point per week through NFL week 17 \(this week's gain plus the priced rest-of-season change; this week's gain alone where the rest of season is not priced\)/);
 
   // 8. Viewer flow: forget -> choose Bo's team -> "Viewing ...", protections and bids owner-only.
+  $("session-change").dispatch("click");
   $("session-forget").dispatch("click");
   assert.equal(statusText(), GATE);
   const picker = () => all($("session-chip")).find(n => n.id === "session-team");
@@ -832,6 +836,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal(analyzeCalls.at(-1).budgetReserve, 18, "the viewer's engine run uses the league default");
   assert.ok(!text("waiver-budget").includes("Keep in reserve"));
   // ...then identifies as the owner of ANOTHER roster: the owner's desk, the viewer label gone.
+  $("session-find").dispatch("click");                 // "Use my username"
   $("session-user").value = "user_a";
   chipForm().dispatch("submit");
   await until(() => /^Connected read-only · roster 9/.test(statusText()) && analyzeCalls.at(-1).rosterId === 9 && !$("waiver-results").hidden, "the owner's own desk", 5000);

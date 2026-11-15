@@ -203,35 +203,32 @@
     const s = Math.max(0, Math.floor(((Number.isFinite(nowMs) ? nowMs : Date.now()) - fetchedAt) / 1000));
     return s < 60 ? `rosters ${s} s ago` : `rosters ${Math.floor(s / 60)} min ago`;
   }
-  // The chip's one line for every state (spec §6). `reason` carries the error
-  // text in the error state.
+  // The league bar's one line for every state (league connect flow spec
+  // §5.2, §5.6). `reason` carries the error text in the error state.
   function chipText(bundle, stateName, nowMs, reason) {
     if (stateName === "error") return String(reason || "Something went wrong.");
     if (stateName === "identifying") return "Looking up Sleeper account…";
     if (stateName === "loadingLeague") return "Loading league…";
-    // A viewer is never "your roster": the line names the viewed team.
-    if (bundle && bundle.analysisRole === "viewer" && bundle.analysisRoster) {
-      let text = `Viewing ${teamName(bundle.users, bundle.analysisRoster)}`;
-      if (Number.isFinite(bundle.rostersFetchedAt)) text += ` · ${ageText(bundle.rostersFetchedAt, nowMs)}`;
-      if (stateName === "refreshing") text += " · refreshing…";
-      return text;
-    }
+    const stamp = () => `${Number.isFinite(bundle.rostersFetchedAt) ? ` · ${ageText(bundle.rostersFetchedAt, nowMs)}` : ""}${stateName === "refreshing" ? " · refreshing…" : ""}`;
     const identity = bundle && bundle.identity;
-    // Anonymous on the id path with no team chosen: what to do next, not
-    // the storage sentence.
-    if (!identity && isIdEntry(bundle && bundle.registry) && bundle.league) {
-      const name = bundle.league.name || `League ${bundle.league.league_id}`;
-      return `${name} · choose a team to view, or enter your Sleeper username${stateName === "refreshing" ? " · refreshing…" : ""}`;
+    // An account with no unique roster here says so first (NO_UNIQUE_ROSTER
+    // stays identifyRoster's thrown text); the two cases read differently.
+    const noTeam = !identity ? "" : bundle.myRosterStatus === "none" ? "You have no team here."
+      : bundle.myRosterStatus === "ambiguous" ? "This account is on more than one team here." : "";
+    // A viewer is never "your team": the line names the viewed team.
+    if (bundle && bundle.analysisRole === "viewer" && bundle.analysisRoster) {
+      const text = `Viewing ${teamName(bundle.users, bundle.analysisRoster)}${stamp()}`;
+      return noTeam ? `${noTeam} ${text}` : text;
     }
+    // Anonymous on the id path with no team chosen: what to do next.
+    if (!identity && isIdEntry(bundle && bundle.registry) && bundle.league) return "Which team do you want to see?";
     if (!identity) return REMEMBERED;
     const name = identity.displayName || identity.username;
-    if (!bundle.registry || bundle.registry.platform !== "sleeper") return `${name} · ${bundle.registry ? bundle.registry.label : "no league"}`;
-    if (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous") return NO_UNIQUE_ROSTER;
+    if (!bundle.registry) return `Sleeper account: ${name}`;
+    if (bundle.registry.platform !== "sleeper") return `${name} · ${bundle.registry.label}`;
+    if (noTeam) return noTeam;
     if (!bundle.league || !bundle.myRoster) return REMEMBERED;
-    let text = `${name} · ${bundle.league.name} · your roster: ${bundle.myRoster.roster_id}`;
-    if (Number.isFinite(bundle.rostersFetchedAt)) text += ` · ${ageText(bundle.rostersFetchedAt, nowMs)}`;
-    if (stateName === "refreshing") text += " · refreshing…";
-    return text;
+    return `Your team: ${teamName(bundle.users, bundle.myRoster)}${stamp()}`;
   }
 
   // The live-settings stamp shown beside the data timestamps (spec 5.2).
