@@ -599,7 +599,7 @@
     return p;
   }
 
-  // `season` may be passed by a caller with no board (connect.js fetches
+  // `season` may be passed by a caller with no board (the league bar fetches
   // /state/nfl itself); otherwise it comes from the committed bundle's state.
   async function leaguesFor(opts) {
     ensureLoaded();

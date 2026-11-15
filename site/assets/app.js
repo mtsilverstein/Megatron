@@ -758,18 +758,7 @@
         : "This draft board's league. Live draft mode and keepers read your roster through your Sleeper username. No password needed.";
       panel.append(note);
     }
-    // Discovery already has its own username form. Keep the shared account
-    // controls available (including Forget), without two competing entry forms.
-    if (/\/connect\.html$/.test(location.pathname)) {
-      const account = document.createElement("details");
-      account.className = "connection-account";
-      const summary = document.createElement("summary");
-      summary.textContent = "Current league and saved account";
-      account.append(summary, panel);
-      document.querySelector("main")?.prepend(account);
-    } else {
-      document.querySelector("main")?.prepend(panel);
-    }
+    document.querySelector("main")?.prepend(panel);
   }
 
   // An old link's league name (or any other non-id) on an in-season page
@@ -779,15 +768,10 @@
     if (!document.createElement || document.getElementById("league-recovery")) return;
     const panel = document.createElement("section");
     const note = document.createElement("p");
-    const more = document.createElement("p");
-    const link = document.createElement("a");
     panel.id = "league-recovery";
     panel.className = "league-links";
     note.textContent = p.forgotten ? FORGOTTEN : p.legacy ? OLD_NAME : NOT_AN_ID(p.raw);
-    link.href = new URL("connect.html", location.href).href;
-    link.textContent = "Go to the connect page";
-    more.append(link);
-    panel.append(note, more);
+    panel.append(note);
     const main = document.querySelector("main");
     if (main?.prepend) main.prepend(panel);
     else document.body?.append(panel);

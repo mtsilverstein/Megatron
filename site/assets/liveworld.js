@@ -23,7 +23,7 @@
   const NODE = typeof module !== "undefined" && !!module.exports;
   // Lazy: resolved at call time so script order does not matter.
   const LD = () => NODE ? require("./leaguedata.js") : root.LeagueData;
-  const NO_ANALYSIS = "Enter your Sleeper username, or choose a team to view.";
+  const NO_ANALYSIS = "Choose a team in the bar above.";
 
   function resolve({ bundle, week } = {}) {
     if (!bundle || typeof bundle !== "object") throw new Error("No league session is loaded.");

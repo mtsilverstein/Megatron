@@ -455,7 +455,6 @@
       $("waiver-status").hidden = true;
       const prompt = $("connect-prompt");
       if (prompt) prompt.hidden = false;
-      if (typeof window !== "undefined" && window.LeagueConnect && typeof window.LeagueConnect.initPrompt === "function") window.LeagueConnect.initPrompt();
       return;
     }
     $("waiver-warning-link").addEventListener("click", () => { $("waiver-method").open = true; });
@@ -975,8 +974,10 @@
       if (!bundle) return "Loading league…";
       let msg;
       try { LiveWorld.resolve({ bundle, week: 1 }); return "Loading league…"; } catch (e) { msg = e.message; }
-      if (msg === LiveWorld.NO_ANALYSIS && (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous"))
-        return `${S.chipText(bundle, "ready", Date.now())} Choose a team to view in the league panel above.`;
+      if (msg === LiveWorld.NO_ANALYSIS) {
+        const lead = (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous") ? `${S.chipText(bundle, "ready", Date.now())} ` : "";
+        return `${lead}Choose a team in the bar above to see waiver advice.`;
+      }
       return msg;
     }
 

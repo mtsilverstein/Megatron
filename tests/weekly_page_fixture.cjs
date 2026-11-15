@@ -128,6 +128,7 @@ const DEFAULT_STATUS = ids["lens-status"].textContent;
     assert.equal(ids["week-eyebrow"].textContent, "Week 3 · 2026 · transformer");
   }
   // The prompt's copy is the page's own markup.
-  assert.match(html, /<p id="connect-prompt-lead">See start\/sit advice for your team: enter your Sleeper username or paste a league link\.<\/p>/);
+  assert.match(html, /<p id="connect-prompt-lead">Connect your league in the bar above to see start\/sit advice\.<\/p>/);
+  assert.match(html, /<p class="page-intro">Set your lineup, then explore the projections behind it\.<\/p>/);
   console.log("weekly_page_fixture: cleared view drops title and league lens; replacement restores; picks survive; no league renders the neutral table OK");
 })().catch(e => { console.error(e); process.exit(1); });

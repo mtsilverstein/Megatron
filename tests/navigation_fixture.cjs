@@ -134,8 +134,7 @@ global.localStorage = store;
     const notice = all(main).find(n => n.id === "league-recovery");
     assert.ok(notice, "the old-name notice is shown");
     assert.ok(all(notice).some(n => n.textContent === "This link uses an old league name. Connect your Sleeper league to continue."));
-    const connect = all(notice).find(n => n.tagName === "a");
-    assert.strictEqual(connect.href, `${base}connect.html`, "the notice links to the connect page");
+    assert.ok(!all(notice).some(n => n.tagName === "a" && /connect\.html/.test(n.href || "")), "the notice has no link to the connect page");
     assert.strictEqual(main.children[0], notice, "the notice sits above the league panel");
     assert.ok(all(main).some(n => n.id === "league-context"), "the league panel still mounts, league-free");
     assert.deepStrictEqual(links.map(l => new URL(l.href).searchParams.get("league")), [null, null, null, null, null],
@@ -234,10 +233,10 @@ global.localStorage = store;
   await assert.rejects(FC.loadBoard("leagueb", loader({ "data/draft-leagueb.json": new Error("data/draft-leagueb.json: HTTP 500") })), /HTTP 500/);
 })().catch(e => { console.error(e); process.exit(1); });
 
-// One identity input for the whole site (spec §6/§8): the chip's #session-user
-// and the connect page's #connect-user are the only username inputs left.
-// Every retired per-page input id must be gone from the static site, or a
-// page would carry a second, unsynchronised account.
+// One identity input for the whole site (spec §6/§8): the league bar's
+// #session-user is the only username input left. Every retired per-page input
+// id must be gone from the static site, or a page would carry a second,
+// unsynchronised account.
 {
   const fs = require("node:fs"), path = require("node:path");
   const site = path.join(__dirname, "..", "site");
@@ -252,6 +251,28 @@ global.localStorage = store;
     assert.ok(!legacy.test(src), `${path.basename(file)}: retired username input id still present`);
     if (path.basename(file) !== "session.js")
       assert.ok(!legacyKey.test(src), `${path.basename(file)}: only session.js may name the legacy storage key (it migrates and deletes it)`);
+  }
+  // The bar is the only way in (connect-flow spec §5.5): no page carries the
+  // old prompt form, the connect page's inputs or the retired script.
+  const retired = /connect-prompt-form|connect-prompt-input|connect-user|connect-league|More ways to connect|Find my Sleeper leagues|connect\.js/;
+  for (const f of fs.readdirSync(site).filter(f => f.endsWith(".html")))
+    assert.ok(!retired.test(fs.readFileSync(path.join(site, f), "utf8")), `${f}: a retired way in is still present`);
+  assert.ok(!fs.existsSync(path.join(site, "assets", "connect.js")), "site/assets/connect.js is gone");
+  // connect.html only forwards: run its inline script against a stub location.
+  {
+    const vm = require("node:vm");
+    const html = fs.readFileSync(path.join(site, "connect.html"), "utf8");
+    assert.ok(!/<form/.test(html), "connect.html holds no form");
+    const code = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
+    const forward = search => {
+      let to = null;
+      const location = { href: "https://example.test/Megatron/connect.html" + search, search, replace: u => { to = u; } };
+      vm.runInNewContext(code, { location, URL, URLSearchParams });
+      return to;
+    };
+    assert.strictEqual(forward("?league=123"), "https://example.test/Megatron/weekly.html?league=123");
+    assert.strictEqual(forward("?league=abc"), "https://example.test/Megatron/weekly.html");
+    assert.strictEqual(forward(""), "https://example.test/Megatron/weekly.html");
   }
 }
 
@@ -354,9 +375,8 @@ global.localStorage = store;
   all(chipEl).find(n => n.tagName === "form").dispatch("submit");
   assert.deepStrictEqual(AN.calls, [["identify", "user_a"]]);
 
-  // The league bar is the way in: its box no longer steps aside for the
-  // tool card's connect prompt (that prompt's form goes in the next task, which
-  // restores the page-wide one-input pin), and the panel itself holds one input.
+  // The league bar is the way in: its box does not step aside for the tool
+  // card's connect prompt (a one-line pointer to it), and the panel holds one input.
   {
     const PS = stubSession(); FC._session(PS);
     const pm = dom(`${base}weekly.html`);
@@ -369,23 +389,19 @@ global.localStorage = store;
     assert.strictEqual(all(pPanel).filter(n => n.tagName === "input").length, 1);
   }
   // Waivers and Trade mount the panel FIRST and show the prompt after; the
-  // real LeagueConnect.initPrompt re-renders the chip, which keeps its box,
-  // and the line does not promise a forget control that is not there.
+  // bar keeps its box, and the line does not promise a forget control that is
+  // not there.
   {
-    const { initPrompt } = require("../site/assets/connect.js");
     for (const pageName of ["waivers.html", "trade.html"]) {
       const PS = stubSession(); FC._session(PS);
       const pm = dom(`${base}${pageName}`);
       const promptEl = element("section"); promptEl.id = "connect-prompt"; promptEl.hidden = true;
-      for (const [tag, id] of [["form", "connect-prompt-form"], ["input", "connect-prompt-input"], ["p", "connect-prompt-status"], ["ul", "connect-prompt-results"]]) {
-        const n = element(tag); n.id = id; promptEl.append(n);
-      }
+      { const n = element("p"); n.id = "connect-prompt-lead"; promptEl.append(n); }
       pm.append(promptEl);
       FC.mountLeagueContext(null);
       const pPanel = pm.children.find(n => n.id === "league-context");
       assert.ok(byId(pPanel, "session-user"), `${pageName}: before the prompt shows, the chip has its form`);
       promptEl.hidden = false;
-      initPrompt();
       assert.ok(byId(pPanel, "session-user"), `${pageName}: the bar's box stays after the prompt shows`);
       assert.strictEqual(all(pPanel).filter(n => n.tagName === "input").length, 1, `${pageName}: one input in the panel`);
       assert.ok(!all(pm).some(n => /until you choose forget/.test(n.textContent)), `${pageName}: no forget promise with no league open`);
@@ -591,7 +607,7 @@ global.localStorage = store;
   FC.setLeague(null);
 
   // The league picker lists ONLY the visitor's own current-season leagues
-  // (Session.leaguesFor, as connect.js does) plus the league that is open --
+  // (Session.leaguesFor, as the league bar does) plus the league that is open --
   // never a hard-coded list. Choosing one opens it on this in-season page;
   // with no league open the same lookup is the bar's list, whose rows open
   // Weekly from a page that is not an in-season tool.

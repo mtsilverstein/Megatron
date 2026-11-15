@@ -67,19 +67,8 @@ main #league-context > label { flex: 0 1 auto; min-width: 0; flex-direction: row
 #waiver-app .session-form button { background: var(--chalk); color: var(--board); border-color: var(--chalk); }
 .tool-card, #start-sit { background: var(--sunken); border: 1px solid var(--rule); border-radius: .75rem; padding: 1.25rem; margin: 1.5rem 0; }
 .tool-card > h2:first-child, #start-sit > h2:first-child { margin-top: 0; }
-.connect-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.connect-options .tool-card { margin: 0; }
-.connect-options form { display: flex; flex-direction: column; align-items: start; gap: .7rem; }
-.connect-options input { width: 100%; }
-.connect-options button { background: var(--chalk); color: var(--board); border: 1px solid var(--chalk); padding: .6rem 1rem; }
-/* The in-season pages' connect prompt (no league open) and the archived-board note. */
-.connect-prompt form { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
-.connect-prompt input { flex: 1 1 16rem; max-width: 28rem; }
-.connect-prompt button { background: var(--chalk); color: var(--board); border: 1px solid var(--chalk); padding: .6rem 1rem; }
-.connect-prompt ul { padding-left: 1.2rem; }
+/* The archived-board note. */
 .archived { background: var(--sunken); color: var(--chalk); border-bottom: 1px solid var(--rule); padding: .55rem 1.25rem; line-height: 1.4; }
-main > .connection-account { margin: 0 0 2rem; }
-.connection-account #league-context { padding: 1rem 0 0; margin: 0; border: 0; background: none; }
 details, #waiver-app details { border: 1px solid var(--rule); border-radius: .6rem; padding: .85rem 1rem; margin: 1rem 0; background: var(--sunken); }
 summary { cursor: pointer; font-size: .875rem; font-weight: 600; }
 details[open] > summary { margin-bottom: .85rem; }
@@ -113,7 +102,6 @@ footer { max-width: 1320px; margin: 0 auto; padding: 1.25rem; font: .8rem/1.65 s
   main, #waiver-app { padding: 1.25rem 1rem 2rem; }
   #league-context { margin-bottom: 1.5rem; padding: .85rem; }
   .session-form { flex-basis: 100%; max-width: none; }
-  .connect-options { grid-template-columns: 1fr; }
   .tool-card, #start-sit { padding: 1rem; }
   #waiver-app .waiver-controls label:first-child { width: auto; }
 }

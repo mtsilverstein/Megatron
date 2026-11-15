@@ -409,7 +409,7 @@ assert.equal(M.watchlistText({ name:"N", position:"WR", ecr:41, ros_value:null, 
 const id = "900000000000000123";
 const league = { league_id: id, name:"Synthetic", season: "2026", status: "in_season", total_rosters: 12, settings: { type: 0, waiver_type: 2 },
   scoring_settings: { rec: 1, pass_td: 4 }, roster_positions: ["QB", "RB", "WR", "TE", "FLEX", "K", "DEF", "BN"] };
-const NO_ANALYSIS = "Enter your Sleeper username, or choose a team to view.";
+const NO_ANALYSIS = "Choose a team in the bar above.";
 function bundleOf({ league: lg = league, rosters, userId = "helper", status = "found", extra = null,
   requestedAt = 1700000000000, fetchedAt = 1700000000750, state = { season: "2026", season_type: "regular", week: 1 } } = {}) {
   const mine = (rosters || []).filter(r => r.owner_id === userId || (r.co_owners || []).includes(userId));

@@ -229,7 +229,7 @@ const until = async (pred, what, ms = 3000) => {
     await new Promise(r => setImmediate(r));
   }
 };
-const GATE = "Enter your Sleeper username, or choose a team to view.";
+const GATE = "Choose a team in the bar above to see waiver advice.";
 const SIM_OFF = "Simulation is off: the 2025-season test failed (on synthetic 15-player rosters), and the per-format 2026 test reports in January 2027.";
 const IN_TEST = "Scored with your league's own settings (12-team 1QB PPR, 6-pt pass TD). This format's accuracy is being measured this season; results in January 2027.";
 const AGG = "sum of weekly medians through NFL week 17, not a season median";
@@ -245,18 +245,14 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     waiversPage(m0);
     const $0 = id => document.getElementById(id);
     assert.equal($0("connect-prompt").hidden, true, "the prompt starts hidden in the markup");
-    let prompted = 0;
-    window.LeagueConnect = { initPrompt() { prompted++; } };
     WaiverMode.init();
     assert.equal($0("connect-prompt").hidden, false, "no league: the connect prompt is shown");
-    assert.equal(prompted, 1, "the prompt's form is wired");
     for (const id of ["waiver-controls", "waiver-results", "waiver-status"]) assert.equal($0(id).hidden, true, `no league: #${id} hidden`);
     assert.equal($0("waiver-status").className, "", "not an error: no error styling");
     assert.ok($0("session-chip"), "the league panel (and its chip) still mounts, league-free");
     await new Promise(r => setTimeout(r, 5));
     assert.deepEqual(calls, [], "no league: no Sleeper call");
     assert.equal(Session.bundle(), null);
-    delete window.LeagueConnect;
   }
   routes = baseRoutes();
   const main = dom(`https://example.test/Megatron/waivers.html?league=${L}`);

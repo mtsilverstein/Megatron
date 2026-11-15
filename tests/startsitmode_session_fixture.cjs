@@ -164,7 +164,7 @@ const until = async (pred, what, ms = 3000) => {
     await new Promise(r => setImmediate(r));
   }
 };
-const GATE = "Enter your Sleeper username, or choose a team to view.";
+const GATE = "Choose a team in the bar above to see start/sit advice.";
 // Both evidence lines are prefixed ("Close calls: ...", the footer's "Band calibration: ..."), so both carry the short form.
 const NOT_MEASURED = "not measured for your league's scoring.";
 const BEST_BALL = "Best-ball scoring picks your top scorers after the games; lineup advice doesn't apply.";
@@ -179,24 +179,19 @@ const IN_TEST = "Scored with your league's own settings (12-team 1QB PPR, 6-pt p
     routes = baseRoutes();
     const m0 = dom("https://example.test/Megatron/weekly.html");
     for (const [tag, id, hidden] of [["p", "ss-status"], ["div", "ss-exclude-panel", true], ["div", "ss-output"], ["p", "ss-evidence"],
-      ["p", "ss-stale", true], ["div", "connect-prompt", true], ["form", "connect-prompt-form"], ["input", "connect-prompt-input"],
-      ["p", "connect-prompt-status"], ["ul", "connect-prompt-results"]]) {
+      ["p", "ss-stale", true], ["div", "connect-prompt", true], ["p", "connect-prompt-lead"]]) {
       const e = element(tag); e.id = id; e.hidden = !!hidden; m0.append(e);
     }
-    let prompted = 0;
-    window.LeagueConnect = { initPrompt() { prompted++; } };
     StartSitMode.init();
     const $0 = id => document.getElementById(id);
     assert.equal($0("connect-prompt").hidden, false, "no league: the connect prompt is shown");
     for (const id of ["ss-status", "ss-evidence", "ss-output", "ss-stale", "ss-exclude-panel"]) assert.equal($0(id).hidden, true, `no league: #${id} hidden`);
-    assert.equal(prompted, 1, "the prompt's form is wired");
     FC.leagueNavigation();
     assert.equal(FC.inSeasonLeague(), null);
     await new Promise(r => setTimeout(r, 5));
     assert.deepEqual(calls, [], "no league: no Sleeper call");
     assert.equal(Session.bundle(), null, "no league is loaded");
     assert.ok(!fetched.some(p => /draft|weekly\.json/.test(p) && !/neutral/.test(p)), "no league data file is read");
-    delete window.LeagueConnect;
   }
   routes = baseRoutes();
   const main = dom(`https://example.test/Megatron/weekly.html?league=${L}`);

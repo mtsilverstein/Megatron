@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const site = path.join(__dirname, '..', 'site');
-const pages = ['index.html', 'weekly.html', 'waivers.html', 'trade.html', 'about.html', 'connect.html'];
+const pages = ['index.html', 'weekly.html', 'waivers.html', 'trade.html', 'about.html'];
 const sources = pages.map(page => ({page, html:fs.readFileSync(path.join(site, page), 'utf8')}));
 for (const file of ['app.js', 'session.js', 'waivermode.js', 'ros.js']) {
   const urls = sources.flatMap(({html}) => [...html.matchAll(/<script\b[^>]*src="([^"]+)"/g)]

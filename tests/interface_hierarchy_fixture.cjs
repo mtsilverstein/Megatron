@@ -9,7 +9,6 @@ const pages = [
   ["waivers.html", "waivers.html"],
   ["trade.html", "trade.html"],
   ["about.html", "about.html"],
-  ["connect.html", null],
 ];
 // Weekly first (it is the landing page); the archived 2026 board last.
 const expectedNav = ["weekly.html", "waivers.html", "trade.html", "about.html", "index.html"];

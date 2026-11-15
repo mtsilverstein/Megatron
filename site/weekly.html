@@ -8,9 +8,9 @@
 <title>This week — Megatron</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Bruno+Ace&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=picks1">
+<link rel="stylesheet" href="assets/style.css?v=cf1">
 <link rel="stylesheet" href="assets/startsit.css">
-<link rel="stylesheet" href="assets/interface.css?v=nodefault1">
+<link rel="stylesheet" href="assets/interface.css?v=cf1">
 </head>
 <body>
 <a class="skip-link" href="#main-content">Skip to content</a>
@@ -28,7 +28,7 @@
 <main id="main-content">
   <p class="eyebrow" id="week-eyebrow">weekly projections</p>
   <h1 id="weekly-title">This week's slate</h1>
-  <p class="page-intro">Set your lineup, then explore the projections behind it. Select your league and team above to personalize the advice.</p>
+  <p class="page-intro">Set your lineup, then explore the projections behind it.</p>
   <section id="start-sit" aria-labelledby="ss-title">
     <h2 id="ss-title">Your start/sit plan</h2>
     <p class="page-intro">Read-only advice for your skill-position slots. Check injury reports and lineup locks in Sleeper before making changes.</p>
@@ -37,11 +37,7 @@
     <p><a href="about.html">Historical results and their scope</a> are on the about page; they are not claims about your league's scoring.</p>
     </details>
     <div id="connect-prompt" class="connect-prompt" hidden>
-      <p id="connect-prompt-lead">See start/sit advice for your team: enter your Sleeper username or paste a league link.</p>
-      <form id="connect-prompt-form"><label for="connect-prompt-input">Sleeper username or league link</label> <input id="connect-prompt-input" autocomplete="off" spellcheck="false" placeholder="username or https://sleeper.com/leagues/…"> <button type="submit">Connect</button></form>
-      <p id="connect-prompt-status" role="status"></p>
-      <ul id="connect-prompt-results"></ul>
-      <p><a href="connect.html">More ways to connect</a></p>
+      <p id="connect-prompt-lead">Connect your league in the bar above to see start/sit advice.</p>
     </div>
     <p id="ss-status" role="status">The plan loads from the league panel above: enter your Sleeper username, or choose a team to view. The projections below remain independent of this plan.</p>
     <details id="ss-exclude-panel" hidden><summary>Manually exclude unavailable players</summary><p>Use current injury information. Excluding someone is not a recommendation to drop them. Game-started slots cannot be changed. Exclusions are kept when you refresh this team's rosters; reload the page to clear them and refresh the cached injury catalog.</p><div id="ss-exclude"></div></details>
@@ -85,19 +81,18 @@ about page.
 <script src="assets/bands.js"></script>
 <script src="assets/liveaccuracy.js?v=2"></script>
 <script src="assets/weekly-experts.js?v=2"></script>
-<script src="assets/session.js?v=fu2"></script>
-<script src="assets/app.js?v=fu2"></script>
+<script src="assets/session.js?v=cf1"></script>
+<script src="assets/app.js?v=cf1"></script>
 <script src="assets/sleeper.js?v=2"></script>
-<script src="assets/connect.js?v=final1"></script>
 <script src="assets/ros.js?v=1"></script>
 <script src="assets/formats.js?v=1"></script>
 <script src="assets/lineup.js?v=3"></script>
 <script src="assets/leaguelens.js?v=lf1"></script>
 <script src="assets/leaguedata.js?v=lf1"></script>
-<script src="assets/liveworld.js?v=1"></script>
-<script src="assets/waivermode.js?v=lf1"></script>
+<script src="assets/liveworld.js?v=cf1"></script>
+<script src="assets/waivermode.js?v=cf1"></script>
 <script src="assets/startsit.js?v=audit1"></script>
-<script src="assets/startsitmode.js?v=lf1"></script>
+<script src="assets/startsitmode.js?v=cf1"></script>
 <script>StartSitMode.init();</script>
 <script>LiveAccuracy.loadLine(document.getElementById("live-accuracy-line"), FC.loadJSON);</script>
 <script>

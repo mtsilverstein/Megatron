@@ -250,15 +250,13 @@ async function realTick(panel) {
   FC.setLeague(null);
 
   FC.setBoard(null);
-  const connectMain = dom("https://example.test/Megatron/connect.html");
+  const connectMain = dom("https://example.test/Megatron/weekly.html");
   FC.mountLeagueContext(null);
   const account = connectMain.children[0];
-  assert.equal(account.tagName, "details", "discovery keeps secondary account controls in a disclosure");
-  assert.ok(!account.open, "the second account form is collapsed initially");
-  assert.equal(account.children[0].tagName, "summary");
+  assert.equal(account.id, "league-context", "the bar mounts directly (the connect page's disclosure is gone)");
   assert.equal(byId(account, "session-change").textContent, "Not you?");
   byId(account, "session-change").dispatch("click");
-  assert.ok(byId(account, "session-forget"), "saved identity can still be forgotten on discovery");
+  assert.ok(byId(account, "session-forget"), "saved identity can still be forgotten from the bar");
   assert.equal(m.get("megatron:lastLeague"), X);
   byId(account, "session-forget").dispatch("click");
   assert.equal(Session.identity(), null);

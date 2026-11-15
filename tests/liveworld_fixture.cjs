@@ -13,7 +13,7 @@ const LiveWorld = require("../site/assets/liveworld.js");
 assert.equal(window.LiveWorld, LiveWorld, "the browser global is set");
 const WaiverMode = require("../site/assets/waivermode.js");
 
-const NO_ANALYSIS = "Enter your Sleeper username, or choose a team to view.";
+const NO_ANALYSIS = "Choose a team in the bar above.";
 const UNSUPPORTED = "This league type isn't supported yet.";
 const ID = "900000000000000123";            // not in the registry
 const users = [{ user_id: "u1", display_name: "Owner One" }, { user_id: "u2", display_name: "Owner Two" }];

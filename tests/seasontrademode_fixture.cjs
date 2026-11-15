@@ -44,7 +44,7 @@ const NO_EVIDENCE = "Your league's scoring is applied; its accuracy has not been
 const NOT_MEASURED = "not measured for your league's scoring.";
 const AGG = "sum of weekly medians through NFL week 17, not a season median";
 const HORIZON = "through NFL week 17, regardless of your league's schedule";
-const GATE = "Enter your Sleeper username, or choose a team to view.";
+const GATE = "Choose a team in the bar above to see trade scenarios.";
 
 // ============================ Part 1: pure helpers ============================
 check("parseWeeks accepts ranges and singles inside the horizon", () => {
@@ -277,7 +277,7 @@ check("sources: no pre-draft pick code, gate file or simulation in the controlle
   assert.ok(!srcs.includes("waiverintel.js"), "the ROS market check left with the grade");
   // The ladder's draft-history walk is keepers.js's (Task 4): it loads before the controller, after sleeper.js.
   assert.ok(srcs.indexOf("sleeper.js") < srcs.indexOf("keepers.js") && srcs.indexOf("keepers.js") < srcs.indexOf("seasontrademode.js"), "keepers.js loads after sleeper.js, before the controller");
-  assert.ok(/seasontrademode\.js\?v=k2y2/.test(html) && /keepers\.js\?v=k2y2/.test(html) && /pickvalue\.js\?v=picks1/.test(html) && /style\.css\?v=picks1/.test(html)
+  assert.ok(/seasontrademode\.js\?v=cf1/.test(html) && /keepers\.js\?v=k2y2/.test(html) && /pickvalue\.js\?v=picks1/.test(html) && /style\.css\?v=cf1/.test(html)
     && /seasontrade\.js\?v=lf1/.test(html) && /lineup\.js\?v=3/.test(html), "cache keys bumped for the changed assets only");
   assert.ok(/id="season-context"/.test(html), "the context lines have a home on the page");
   // The pick groups sit in the columns under the players; the note and the controls come after the columns, before the result.
@@ -1619,7 +1619,7 @@ async function pageNoLeague() {
     else assert.ok(!notice, "no notice when there is simply no league");
   }
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
-  assert.match(html, /<p id="connect-prompt-lead">See trade scenarios for your team: enter your Sleeper username or paste a league link\.<\/p>/);
+  assert.match(html, /<p id="connect-prompt-lead">Connect your league in the bar above to see trade scenarios\.<\/p>/);
 }
 async function pageInSeason() {
   fresh(); statics = makeStatics(); routes = { ...baseRoutes(), ...leagueRoutes(B, () => ({ ...baseLeague, league_id: B })) };

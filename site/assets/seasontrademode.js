@@ -710,8 +710,10 @@
       if (!bundle) return "loading league…";
       let msg;
       try { LW().resolve({ bundle, week: 1 }); return "loading league…"; } catch (e) { msg = e.message; }
-      if (msg === LW().NO_ANALYSIS && (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous"))
-        return `${SESSION.chipText(bundle, "ready", Date.now())} Choose a team to view in the league panel above.`;
+      if (msg === LW().NO_ANALYSIS) {
+        const lead = (bundle.myRosterStatus === "none" || bundle.myRosterStatus === "ambiguous") ? `${SESSION.chipText(bundle, "ready", Date.now())} ` : "";
+        return `${lead}Choose a team in the bar above to see trade scenarios.`;
+      }
       return msg;
     }
 
