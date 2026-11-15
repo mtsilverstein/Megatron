@@ -87,11 +87,12 @@ are. B adds a hop; C leaves two doors. (Owner delegated the choice.)
 ### 5.1 The one box
 
 A single field, **"Sleeper username or league link"**, plus **Connect**. It always accepts both, using
-`LeagueConnect.parseLeagueInput` (unchanged): a league id or a `sleeper.com/leagues/<id>` link opens that league on
-this page; link-shaped text that is not a Sleeper league link is refused with today's `BAD_LEAGUE` text, never looked
-up as a username; anything else is a username, identified through the shared session and listed with
-`LeagueConnect.discover` (unchanged). On a page the box exists in exactly one place, the bar, and only in the states
-below that show it.
+`parseLeagueInput` (moved unchanged from `connect.js` into `app.js` as `FC.parseLeagueInput`): a league id or a
+`sleeper.com/leagues/<id>` link opens that league on this page; link-shaped text that is not a Sleeper league link is
+refused with today's `BAD_LEAGUE` text, never looked up as a username; anything else is a username, identified
+through the shared session (the chip's `identify`), and the account's leagues are listed from the league picker's
+existing `leaguesFor` lookup (`pickerLeagues`), so listing costs no request beyond today's. On a page the box exists
+in exactly one place, the bar, and only in the states below that show it.
 
 What a submit does:
 
@@ -202,7 +203,9 @@ connected bar.
 
 ### 5.4 Remembering the viewed team
 
-New storage key `megatron:viewedTeams`: `{ "<leagueId>": "<rosterId>", … }`, at most 20 leagues (oldest dropped).
+New storage key `megatron:viewedTeams`: a JSON array of `["<leagueId>", "<rosterId>"]` pairs, oldest first, at
+most 20 (writing a 21st drops the oldest; writing an existing league moves it to the end). An array, not an object:
+JavaScript orders integer-like object keys numerically, which would break "oldest".
 
 It lives in `session.js`, behind the same storage wrapper the identity uses, so no page ever shows a "Choose a team"
 flash before the remembered team arrives:
@@ -222,12 +225,14 @@ roster id per league id. No names or roster contents are stored.
 
 ### 5.5 What goes away
 
-- `#connect-prompt` markup on Weekly, Waivers and Trade; `LeagueConnect.initPrompt`; the page code that shows it;
-  the "More ways to connect" links. Where a tool card today says "Enter your Sleeper username, or choose a team to
+- The form inside `#connect-prompt` on Weekly, Waivers and Trade, `LeagueConnect.initPrompt`, and the "More ways to
+  connect" links. `#connect-prompt` stays as the container the pages already unhide when no league is open; it now
+  holds one sentence and no input. Where a tool card today says "Enter your Sleeper username, or choose a team to
   view" (`startsitmode.js:163`, `waivermode.js:979`, `seasontrademode.js:714`), it now points up: with a league open,
   "Choose a team in the bar above to see <this tool's advice>."; with no league open, "Connect your league in the bar
   above to see <this tool's advice>."
-- `LeagueConnect.init` and the connect page's two forms. `connect.js` keeps `parseLeagueInput` and `discover`.
+- `connect.js` as a whole (`init`, `initPrompt`, `discover`) and the connect page's two forms: nothing calls them once
+  the bar lists leagues through `pickerLeagues`. `parseLeagueInput` lives on in `app.js` (§5.1).
 - `connect.html` becomes a forwarder: `location.replace` to `weekly.html`, carrying `?league=` when present, with a
   plain link as the no-script fallback. It is not deleted, so old links and bookmarks keep working.
 - Weekly's lead drops "Select your league and team above to personalize the advice."
@@ -237,7 +242,7 @@ roster id per league id. No names or roster contents are stored.
 
 They mount the same bar through the registry path and keep today's chip states, restyled to the compact bar:
 anonymous = the board's league as text plus the one box (label "Sleeper username", since a link means nothing on a
-board); ready = "Your team: …", refresh, "Not you?"; none/ambiguous = the §5.2 sentence plus "Not you?"; error =
+board; link-shaped text there is refused with "Enter your Sleeper username." and never looked up); ready = "Your team: …", refresh, "Not you?"; none/ambiguous = the §5.2 sentence plus "Not you?"; error =
 text, Retry, "Not you?"; ESPN = identity only, no Sleeper calls, today's "not connected" note. There is no "no league
 open" state and no team-to-view picker on these pages (there is none today), and the "Connect your Sleeper league"
 heading is in-season only. "Not you?" replaces today's "change" everywhere. Pre-draft trade still needs the owner's
