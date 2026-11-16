@@ -10,9 +10,12 @@
 // anyway, so a later test added to this file cannot inherit a silent zero.
 const assert = require("assert");
 const Sleeper = require("../site/assets/sleeper.js");
+const KeeperRules = require("../site/assets/keeperrules.js");
 const Keepers = require("../site/assets/keepers.js");
 const Trade = require("../site/assets/trade.js");
 const TM = require("../site/assets/trademode.js");
+
+const LADDER = KeeperRules.normalize({ ...KeeperRules.preset("ladder"), max_keepers: 2 }, {});
 
 let n = 0;
 
@@ -43,7 +46,7 @@ function board() {
     players.push(P(`F${i}`, ["QB", "RB", "WR", "TE"][i % 4], 200 - i * 2,
                    { adp: i + 1, adp_round: Math.ceil((i + 1) / 12) }));
   }
-  return { season: 2026, players };
+  return { season: 2026, players, league: { keeper_rules: "gabagool", rounds: 15 } };
 }
 
 // A league whose endpoints all resolve. `rosters` is an array of
@@ -98,7 +101,7 @@ acheck("draft history is re-keyed from Sleeper ids to BOARD player ids", async (
   const lg = league({ prev: "L0",
     rosters: teamsOf([1, 2], [[star.sleeper_id], []]),
     drafted: [{ player_id: star.sleeper_id, round: 1 }] });
-  const w = await TM.leagueWorld(lg, b);
+  const w = await TM.leagueWorld(lg, b, { keeperRule: LADDER });
 
   assert.ok(w.ctx.originalByPlayerId.has(star.player_id),
     "ctx must be keyed on the board's player_id — Trade.candidate looks that up");
@@ -113,13 +116,13 @@ acheck("draft history is re-keyed from Sleeper ids to BOARD player ids", async (
   // cost R12, keepable, and the page reads plausible while being wrong.
   const c = Trade.candidate(star, w.ctx);
   assert.strictEqual(c.isWaiver, false);
-  assert.strictEqual(Keepers.keeperCost(c, 2026), 0);
-  assert.strictEqual(Keepers.eligible(c, 2026), false, "he must be ineligible");
+  assert.strictEqual(Keepers.keeperCost(c, 2026, LADDER), 0);
+  assert.strictEqual(Keepers.eligible(c, 2026, LADDER), false, "he must be ineligible");
 
   const wrong = Object.assign({}, w.ctx, {
     originalByPlayerId: new Map([[star.sleeper_id, { round: 1, season: 2025 }]]),
   });
-  assert.strictEqual(Keepers.eligible(Trade.candidate(star, wrong), 2026), true,
+  assert.strictEqual(Keepers.eligible(Trade.candidate(star, wrong), 2026, LADDER), true,
     "pinning the failure mode: the sleeper-keyed map makes him look keepable");
 });
 
@@ -129,7 +132,7 @@ acheck("teams carry board rows, their own picks, and unmatched ids", async () =>
   const b = board();
   const a = b.players[0], c = b.players[1];
   const lg = league({ rosters: teamsOf([1, 2], [[a.sleeper_id, "ghost"], [c.sleeper_id]]) });
-  const w = await TM.leagueWorld(lg, b);
+  const w = await TM.leagueWorld(lg, b, { keeperRule: LADDER });
 
   assert.strictEqual(w.teams.length, 2);
   const t1 = w.teams[0];
@@ -145,7 +148,8 @@ acheck("teams carry board rows, their own picks, and unmatched ids", async () =>
   Trade.stateValue(t1.state, w.ctx.board, w.ctx);
   assert.strictEqual(w.ctx.season, 2026);
   assert.strictEqual(w.ctx.teams, Keepers.TEAMS);
-  assert.strictEqual(w.ctx.maxKeepers, Keepers.MAX_KEEPERS);
+  assert.strictEqual(w.ctx.maxKeepers, 2);
+  assert.strictEqual(w.ctx.keeperRule, LADDER);
   assert.strictEqual(w.ctx.futureDiscount, Trade.FUTURE_DISCOUNT);
 });
 
@@ -156,7 +160,7 @@ acheck("Sleeper's `keepers` field is never read", async () => {
   // Pre-draft a keeper tag is meaningless -- a manager may set one BECAUSE he
   // intends to shop the player -- so this must not reach ctx in any form.
   rosters[0].keepers = [a.sleeper_id];
-  const w = await TM.leagueWorld(league({ rosters }), b);
+  const w = await TM.leagueWorld(league({ rosters }), b, { keeperRule: LADDER });
   assert.strictEqual(JSON.stringify(w.teams[0]).indexOf("keepers"), -1);
   assert.ok(!("keepers" in w.ctx));
 });
@@ -165,7 +169,7 @@ acheck("a traded pick moves; the seller no longer holds it", async () => {
   const b = board();
   const lg = league({ rosters: teamsOf([1, 2], [[], []]),
     traded: [{ season: "2027", round: 3, roster_id: 1, owner_id: 2 }] });
-  const w = await TM.leagueWorld(lg, b);
+  const w = await TM.leagueWorld(lg, b, { keeperRule: LADDER });
   const has = (t, s, r) => t.state.picks.some(p => p.season === s && p.round === r);
   assert.ok(!has(w.teams[0], 2027, 3), "team 1 sold its 2027 R3");
   assert.strictEqual(w.teams[1].state.picks.filter(
@@ -178,7 +182,7 @@ acheck("a failed traded_picks fetch warns and falls back to default ownership", 
   const b = board();
   const lg = league({ rosters: teamsOf([1, 2], [[], []]) });
   routes["/league/L1/traded_picks"] = new Error("HTTP 500");
-  const w = await TM.leagueWorld(lg, b);
+  const w = await TM.leagueWorld(lg, b, { keeperRule: LADDER });
   assert.ok(w.warnings.some(x => x.indexOf("couldn't read traded picks") === 0),
     `expected a traded-picks warning, got ${JSON.stringify(w.warnings)}`);
   // Never guess ownership: everyone holds exactly their own.
@@ -192,12 +196,12 @@ acheck("a failed rosters fetch is fatal, not a quiet empty league", async () => 
   const b = board();
   const lg = league({ rosters: teamsOf([1], [[]]) });
   routes["/league/L1/rosters"] = new Error("HTTP 500");
-  await assert.rejects(() => TM.leagueWorld(lg, b), /HTTP 500/);
+  await assert.rejects(() => TM.leagueWorld(lg, b, { keeperRule: LADDER }), /HTTP 500/);
 });
 
 acheck("no prior season is announced, not absorbed", async () => {
   const b = board();
-  const w = await TM.leagueWorld(league({ rosters: teamsOf([1], [[]]) }), b);
+  const w = await TM.leagueWorld(league({ rosters: teamsOf([1], [[]]) }), b, { keeperRule: LADDER });
   assert.strictEqual(w.ctx.originalByPlayerId.size, 0);
   assert.ok(w.warnings.some(x => x.indexOf("no prior season") === 0),
     `expected a no-prior-season warning, got ${JSON.stringify(w.warnings)}`);
@@ -208,11 +212,11 @@ acheck("an empty draft chain is announced too — an empty map is not neutral", 
   // ineligible, which is a strong claim to make silently.
   const b = board();
   const lg = league({ prev: "L0", rosters: teamsOf([1], [[]]), drafted: [] });
-  const w = await TM.leagueWorld(lg, b);
+  const w = await TM.leagueWorld(lg, b, { keeperRule: LADDER });
   assert.ok(w.warnings.some(x => x.indexOf("no draft history") === 0),
     `expected an empty-history warning, got ${JSON.stringify(w.warnings)}`);
   // One sentence for both panels: the keeper panel's load notes use the same constant.
-  assert.ok(w.warnings.includes(Keepers.NO_HISTORY_NOTE), JSON.stringify(w.warnings));
+  assert.ok(w.warnings.includes(Keepers.noHistoryNote(LADDER)), JSON.stringify(w.warnings));
 });
 
 acheck("a league that is not 12 teams says so", async () => {
@@ -220,7 +224,7 @@ acheck("a league that is not 12 teams says so", async () => {
   const rosterIds = [];
   for (let i = 1; i <= 10; i++) rosterIds.push(i);
   const w = await TM.leagueWorld(
-    league({ rosters: teamsOf(rosterIds, rosterIds.map(() => [])) }), b);
+    league({ rosters: teamsOf(rosterIds, rosterIds.map(() => [])) }), b, { keeperRule: LADDER });
   assert.ok(w.warnings.some(x => x.indexOf("this league has 10 teams") === 0),
     `expected a league-size warning, got ${JSON.stringify(w.warnings)}`);
   assert.strictEqual(w.ctx.teams, Keepers.TEAMS,
@@ -234,7 +238,7 @@ acheck("team names come from the team name, then the display name, then the id",
     { user_id: "u1", display_name: "andy", metadata: { team_name: "The Team Name" } },
     { user_id: "u2", display_name: "beth", metadata: {} },
   ];
-  const w = await TM.leagueWorld(league({ rosters, users }), b);
+  const w = await TM.leagueWorld(league({ rosters, users }), b, { keeperRule: LADDER });
   assert.deepStrictEqual(w.teams.map(t => t.name),
     ["The Team Name", "beth", "Roster 3"]);
 });
@@ -274,7 +278,7 @@ acheck("keptElsewhere holds every OTHER team's keepers and neither trader's", as
     // Team 3's 2026 R1-R8 move to team 4, leaving it R9-R15 only this season.
     traded: Array.from({ length: 8 }, (_, i) =>
       ({ season: "2026", round: i + 1, roster_id: 3, owner_id: 4 })) });
-  const w = await TM.leagueWorld(lg, b);
+  const w = await TM.leagueWorld(lg, b, { keeperRule: LADDER });
 
   const gone = TM.keptElsewhere(w.teams, w.ctx, [1, 2]);
   assert.ok(gone.has(anchor.player_id), "team 3 keeps its anchor regardless of the complement");
@@ -308,7 +312,7 @@ acheck("keptElsewhere does not depend on what ctx.keptElsewhere already held", a
     ],
     traded: Array.from({ length: 8 }, (_, i) =>
       ({ season: "2026", round: i + 1, roster_id: 2, owner_id: 3 })) });
-  const w = await TM.leagueWorld(lg, b);
+  const w = await TM.leagueWorld(lg, b, { keeperRule: LADDER });
   const clean = TM.keptElsewhere(w.teams, w.ctx, [1]);
   // Pinned, not just "unchanged" -- otherwise this measures idempotence in a
   // value nobody checked, the same defect as the one-player version.
@@ -410,7 +414,7 @@ const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r =>
 
 acheck("init never looks up a user or lists leagues; my team is the bundle's roster", async () => {
   const b = board();
-  b.league = { league_id: LID, name: "League A" };
+  b.league = { league_id: LID, name: "League A", keeper_rules: "gabagool", rounds: 15 };
   const p1 = b.players[0], p2 = b.players[1];
   // Rosters: I (u1) own 1; roster 2 lists me as CO-OWNER; roster 3 is someone else's.
   const rosters = [
@@ -486,14 +490,15 @@ acheck("no username input, league picker or /user/ fetch remains in the pre-draf
   assert.ok(/status !== "pre_draft"/.test(src), "leagueWorld's own pre-draft guard stays");
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
   assert.ok(!/trade-user|trade-load"|trade-league-picker/.test(html), "trade.html carries no legacy inputs");
-  assert.ok(/trademode\.js\?v=cf1/.test(html) && /keepers\.js\?v=cf1/.test(html) && /trade\.js\?v=k2y2/.test(html), "cache keys bumped");
+  assert.ok(/trademode\.js\?v=kr1/.test(html) && /keepers\.js\?v=kr1/.test(html) && /trade\.js\?v=kr1/.test(html), "cache keys bumped");
+  assert.ok(/keeperrules\.js\?v=kr1"><\/script>\s*<script src="assets\/app\.js/.test(html), "keeperrules.js loads immediately before app.js");
 });
 
 // --- the two-year keeper cap, in this panel's words --------------------------
 acheck("keeperNote: a player kept the most allowed years says so; the cost reasons are unchanged", async () => {
   const p = { player_id: "b1", name: "Capped", position: "RB", vorp: 10, adp_round: 3 };
   const ctxOf = orig => ({ season: 2027, board: [p], originalByPlayerId: new Map([["b1", orig]]),
-                           keptElsewhere: new Set(), futureDiscount: Trade.FUTURE_DISCOUNT });
+                           keptElsewhere: new Set(), futureDiscount: Trade.FUTURE_DISCOUNT, keeperRule: LADDER });
   const CAP = "already kept the most allowed (2 years) — back to the draft pool, worth 0 to trade";
   // Trade.candidate carries the kept streak and the newest draft's season, so Keepers' cap sees both.
   const cand = Trade.candidate(p, ctxOf({ round: 8, season: 2026, keptYears: 2, lastDraft: 2026 }));
@@ -517,6 +522,36 @@ acheck("keeperNote: a player kept the most allowed years says so; the cost reaso
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2025, keptYears: 2, lastDraft: 2026 })), { eligible: true, text: "keeper cost R8" });
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2026 })), { eligible: true, text: "keeper cost R8" });
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2024 })), { eligible: false, text: CAP });
+});
+
+// --- keeper rules: the board's rule drives the pre-draft page ---------------
+acheck("keeper rules: keeperNote follows the rule; requireCtx; legacy board string; nobody-can-be-kept warning", async () => {
+  const p = { player_id: "b1", name: "Lifer", position: "RB", vorp: 10, adp_round: 3 };
+  const same = KeeperRules.normalize({ ...KeeperRules.preset("same_round"), max_keepers: 2 }, { rounds: 15 });
+  const ctxOf = (orig, rule) => ({ season: 2027, board: [p], originalByPlayerId: new Map([["b1", orig]]),
+                                   keptElsewhere: new Set(), futureDiscount: Trade.FUTURE_DISCOUNT, keeperRule: rule });
+  // (a) same_round: kept twice already, still R9, no cap line.
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2026, keptYears: 2, lastDraft: 2026 }, same)), { eligible: true, text: "keeper cost R9" });
+  // (b) a ctx without the rule is refused by name.
+  const bare = ctxOf({ round: 9, season: 2026 }, LADDER); delete bare.keeperRule;
+  assert.throws(() => Trade.stateValue({ roster: [], picks: [] }, [], bare), /ctx\.keeperRule is required/);
+  // (c) the live board's legacy string yields the same world as the equivalent object.
+  const objBoard = board(), strBoard = board();
+  objBoard.league = { keeper_rules: { ...KeeperRules.preset("ladder"), max_keepers: 2 }, rounds: 15 };
+  const ruleOf = b => KeeperRules.fromBoard(b.league);
+  const lgA = league({ rosters: teamsOf([1], [[]]) });
+  const wStr = await TM.leagueWorld(lgA, strBoard, { keeperRule: ruleOf(strBoard) });
+  const lgB = league({ rosters: teamsOf([1], [[]]) });
+  const wObj = await TM.leagueWorld(lgB, objBoard, { keeperRule: ruleOf(objBoard) });
+  assert.deepStrictEqual(wStr.ctx.keeperRule, wObj.ctx.keeperRule);
+  assert.strictEqual(wStr.ctx.maxKeepers, wObj.ctx.maxKeepers);
+  assert.strictEqual(wStr.ctx.maxKeepers, 2);
+  // (d) a rule that cannot keep a never-drafted player says so.
+  const tough = KeeperRules.normalize({ ...KeeperRules.preset("ladder"), undrafted_round: 2, max_keepers: 2 }, {});
+  const w = await TM.leagueWorld(league({ rosters: teamsOf([1], [[]]) }), board(), { keeperRule: tough });
+  assert.ok(w.warnings.some(x => /each is treated as a first-time R2 keeper, so nobody can be kept\)$/.test(x)), JSON.stringify(w.warnings));
+  // a missing rule is refused
+  await assert.rejects(() => TM.leagueWorld(league({ rosters: teamsOf([1], [[]]) }), board()), /a keeper rule is required/);
 });
 
 runAll();

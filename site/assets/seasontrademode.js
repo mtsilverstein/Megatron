@@ -56,6 +56,7 @@
   const PV = () => dep("PickValue", "./pickvalue.js");
   const LLens = () => dep("LeagueLens", "./leaguelens.js");
   const KP = () => dep("Keepers", "./keepers.js");
+  const KR = () => dep("KeeperRules", "./keeperrules.js");
   const SKILL = new Set(["QB", "RB", "WR", "TE"]);
   const HEADLINE = "Conditional lineup scenario — not a trade verdict.";
   const SUBLINE_TAIL = "Keeper value and draft picks are not valued, so no overall grade is shown.";
@@ -1288,15 +1289,17 @@
     // ladder rule starts the walk.
     function ladderKeepers() {
       if (PK.pref.keeperRule !== "ladder") return null;
-      const h = ladderHistory(), K = KP();
-      if (!h || !h.map || !K) return null;
+      const h = ladderHistory(), K = KP(), KRules = KR();
+      if (!h || !h.map || !K || !KRules) return null;
+      // Stopgap until the user chooses the rule here: the ladder, named explicitly.
+      const rule = KRules.normalize(KRules.preset("ladder"), {});
       const N = PK.next;
       const cand = id => {
         const o = h.map.get(String(id));
         return o ? { originalRound: o.round, originalYear: o.season, keptYears: o.keptYears, lastDraft: o.lastDraft, isWaiver: false }
           : { isWaiver: true };
       };
-      return { eligible: id => K.eligible(cand(id), N), cost: id => K.keeperCost(cand(id), N) };
+      return { eligible: id => K.eligible(cand(id), N, rule), cost: id => K.keeperCost(cand(id), N, rule) };
     }
     const rosValueMap = () => new Map(((S.board && S.board.players) || []).map(p => [String(p.sleeper_id), p.ros_value]));
     // A traded player in his current team's top max_keepers skill players by rest-of-season value (spec §5.7); under

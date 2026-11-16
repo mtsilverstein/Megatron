@@ -17,7 +17,8 @@
      rules. Pre-draft a keeper tag is meaningless -- a manager may set one
      precisely because they intend to shop the player. Keeper status is DERIVED
      on both sides of every trade by Trade.chooseKeepers. League rules come
-     from Keepers.TEAMS / DRAFT_ROUNDS / MAX_KEEPERS.
+     from Keepers.TEAMS / DRAFT_ROUNDS, and the keeper rule from the board
+     (KeeperRules.fromBoard), passed to leagueWorld as opts.keeperRule.
    - Degrade LOUDLY. A quiet zero and a quiet empty list are indistinguishable
      from a broken panel. Every empty state here says what happened and why:
      an ineligible player says his cost, a replacement-level asset says so in
@@ -34,12 +35,13 @@
     : (typeof require !== "undefined" ? require(path) : null);
   const Optimizer = dep("Optimizer", "./optimizer.js");
   const Keepers = dep("Keepers", "./keepers.js");
+  const KeeperRules = dep("KeeperRules", "./keeperrules.js");
   const Trade = dep("Trade", "./trade.js");
   const Sleeper = dep("Sleeper", "./sleeper.js");
   // The browser has window.Session (session.js loads first); node requires it.
   const Session = dep("Session", "./session.js");
-  if (!Optimizer || !Keepers || !Trade || !Sleeper || !Session) {
-    throw new Error("trademode.js requires session.js, optimizer.js, keepers.js, trade.js and sleeper.js first");
+  if (!Optimizer || !Keepers || !KeeperRules || !Trade || !Sleeper || !Session) {
+    throw new Error("trademode.js requires session.js, optimizer.js, keepers.js, keeperrules.js, trade.js and sleeper.js first");
   }
 
   // Delegate so there is ONE cache-busting implementation (see sleeper.js), and
@@ -135,6 +137,8 @@
   // than silently absorb.
   async function leagueWorld(league, board, opts = {}) {
     if (league.status !== "pre_draft") throw new Error("This calculator is pre-draft only. In-season trade valuation is not available yet.");
+    const keeperRule = opts.keeperRule;
+    if (!KeeperRules.isRule(keeperRule)) throw new Error("trademode.js: a keeper rule is required");
     const season = board.season;
     const players = Optimizer.withValuePoints(board.players)
       .filter(p => Number.isFinite(Optimizer.seasonValue(p)));
@@ -175,11 +179,12 @@
     if (league.previous_league_id) {
       original = await Keepers.buildOriginalByPlayerId(league.previous_league_id);
       if (!original.size) {
-        warnings.push(Keepers.NO_HISTORY_NOTE);   // the keeper panel says the same
+        warnings.push(Keepers.noHistoryNote(keeperRule));   // the keeper panel says the same
       }
     } else {
       warnings.push("no prior season — keeper costs unknown, every player priced at "
-        + "full value (each is treated as a first-time R12 keeper, so nobody is ineligible)");
+        + `full value (each is treated as a first-time R${keeperRule.undrafted_round} keeper, so nobody `
+        + `${KeeperRules.neverDraftedKeepable(keeperRule) ? "is ineligible" : "can be kept"})`);
     }
     // THE translation. buildOriginalByPlayerId is keyed on Sleeper ids;
     // Trade.candidate looks up player.player_id, which is the board's id.
@@ -211,7 +216,7 @@
     });
 
     const ctx = { season, teams: Keepers.TEAMS, rounds: Keepers.DRAFT_ROUNDS,
-                  maxKeepers: Keepers.MAX_KEEPERS, board: players,
+                  maxKeepers: keeperRule.max_keepers, keeperRule, board: players,
                   futureDiscount: opts.futureDiscount != null
                     ? opts.futureDiscount : Trade.FUTURE_DISCOUNT,
                   originalByPlayerId, keptElsewhere: new Set() };
@@ -241,6 +246,7 @@
     if (!base || base.season !== ctx.season || base.board !== ctx.board
         || base.originalByPlayerId !== ctx.originalByPlayerId
         || base.teams !== ctx.teams || base.maxKeepers !== ctx.maxKeepers
+        || base.keeperRule !== ctx.keeperRule
         || base.rounds !== ctx.rounds) {
       base = Object.assign({}, ctx, { keptElsewhere: new Set() });
       baseCtxCache.set(ctx, base);
@@ -306,10 +312,11 @@
   // A player over the two-year cap says so, whatever his cost.
   function keeperNote(player, ctx) {
     const c = Trade.candidate(player, ctx);
-    const cost = Keepers.keeperCost(c, ctx.season);
-    if (Keepers.eligible(c, ctx.season)) return { eligible: true, text: `keeper cost R${cost}` };
-    if (Keepers.yearsKept(c, ctx.season) > Keepers.MAX_YEARS_KEPT) {
-      return { eligible: false, text: `already kept the most allowed (${Keepers.MAX_YEARS_KEPT} years) — back to the draft pool, worth 0 to trade` };
+    const rule = ctx.keeperRule;
+    const cost = Keepers.keeperCost(c, ctx.season, rule);
+    if (Keepers.eligible(c, ctx.season, rule)) return { eligible: true, text: `keeper cost R${cost}` };
+    if (rule.max_years !== null && Keepers.yearsKept(c, ctx.season) > rule.max_years) {
+      return { eligible: false, text: `already kept the most allowed (${rule.max_years} years) — back to the draft pool, worth 0 to trade` };
     }
     return { eligible: false, text: cost >= 1
       ? `keeper cost would be R${cost} — back to the draft pool, worth 0 to trade`
@@ -390,7 +397,7 @@
     try {
       setStatus("reading rosters, picks and draft history…");
       const w = await leagueWorld(bundle.league, cfg.board,
-                                  { futureDiscount: readDiscount() });
+                                  { futureDiscount: readDiscount(), keeperRule: cfg.keeperRule });
       if (stale()) return;
       const myId = String(bundle.myRoster.roster_id);
       const mine = w.teams.find(t => String(t.rosterId) === myId);
@@ -1017,6 +1024,9 @@
   function init(options) {
     cfg = options;
     els = cfg.els;
+    // The board's own rule prices every keeper; no rule, no pricing.
+    cfg.keeperRule = KeeperRules.fromBoard(cfg.board && cfg.board.league);
+    if (!cfg.keeperRule) throw new Error("trademode.js: the board carries no readable keeper rule");
     SESSION = (typeof window !== "undefined" && window.Session) || Session;
     els.partner.addEventListener("change", onPartnerChange);
     // `change`, not `input`: each re-grade is ~0.4 s of maths on the main thread

@@ -51,14 +51,15 @@
   // marketDelta: NaN} for any trade touching a future pick -- no throw, just a
   // verdict of NaN.
   //
-  // ctx.teams and ctx.maxKeepers are deliberately NOT required: Keepers
-  // defaults them to this league's own 12 and 2, so omitting them is correct
-  // rather than broken. That default is only free where ctx.teams flows into
+  // ctx.keeperRule IS required (a normalised board rule from keeperrules.js):
+  // no rule, no keeper cost. ctx.teams and ctx.maxKeepers are deliberately NOT
+  // required: Keepers defaults teams to this league's own 12 and maxKeepers to
+  // the rule's max_keepers, so omitting them is correct rather than broken. That default is only free where ctx.teams flows into
   // a function with its own `teams = TEAMS` parameter default -- marketValue's
   // no-ADP fallback divides by it directly, so it carries an explicit local
   // default of its own to keep this promise true rather than reaching NaN.
   // ctx.board throws loudly on its own.
-  const CTX_REQUIRED = ["season", "board", "originalByPlayerId", "keptElsewhere", "futureDiscount"];
+  const CTX_REQUIRED = ["season", "board", "originalByPlayerId", "keptElsewhere", "futureDiscount", "keeperRule"];
   function requireCtx(ctx) {
     for (const k of CTX_REQUIRED) {
       if (ctx == null || ctx[k] == null) throw new Error(`trade.js: ctx.${k} is required`);
@@ -256,7 +257,7 @@
   // gradeTrade / one-opponent suggestTrades, the same counts as wave 5.
   const keeperCache = new WeakMap();
   const keeperSig = ctx => [ctx.season, ctx.board, ctx.originalByPlayerId,
-                            ctx.keptElsewhere, ctx.teams, ctx.maxKeepers, ctx.rounds];
+                            ctx.keptElsewhere, ctx.teams, ctx.maxKeepers, ctx.rounds, ctx.keeperRule];
   function keeperCacheFor(ctx) {
     const sig = keeperSig(ctx);
     let e = keeperCache.get(ctx);
@@ -399,9 +400,9 @@
     const opts = { teams: ctx.teams, maxKeepers: ctx.maxKeepers };
     // rankKeepers is the single source of eligibility (Keepers.eligible), cost
     // (Keepers.keeperCost) and the panel's ordering, all three at once.
-    const ranked = Keepers.rankKeepers(cands, ctx.season, ctx.board, opts);
+    const ranked = Keepers.rankKeepers(cands, ctx.season, ctx.board, ctx.keeperRule, opts);
     if (!ranked.length) return [];
-    const maxKeepers = ctx.maxKeepers != null ? ctx.maxKeepers : Keepers.MAX_KEEPERS;
+    const maxKeepers = ctx.maxKeepers != null ? ctx.maxKeepers : ctx.keeperRule.max_keepers;
 
     // A candidate set is valued exactly the way currentDraftValue values the
     // state it produces: the set is the roster, the rest of the draft is played
@@ -449,7 +450,7 @@
     // other tie then falls to indexSubsets' fixed order. This cannot affect the
     // VALUE -- ties are equal by definition -- only which of two equal sets is
     // named.
-    const recIds = new Set(Keepers.recommendKeepers(cands, ctx.season, ctx.board, opts)
+    const recIds = new Set(Keepers.recommendKeepers(cands, ctx.season, ctx.board, ctx.keeperRule, opts)
       .map(r => r.player.player_id));
     const setKey = set => set.map(c => c.player.player_id).sort().join("|");
     let best = ranked.filter(c => recIds.has(c.player.player_id));
@@ -868,7 +869,7 @@
     const base = stateValue(me, poolMe, ctx);
     const keepable = p => {
       const c = candidate(p, ctx);
-      return Number.isFinite(c.vorp) && Keepers.eligible(c, ctx.season);
+      return Number.isFinite(c.vorp) && Keepers.eligible(c, ctx.season, ctx.keeperRule);
     };
     const mine = (me.roster || []).filter(keepable).filter(p => {
       const s = { roster: without(me.roster, [p]), picks: me.picks };
@@ -954,7 +955,7 @@
   const beforeCache = new WeakMap();
   const beforeSig = (me, them, ctx) => [me, them, ctx.season, ctx.board,
     ctx.originalByPlayerId, ctx.keptElsewhere, ctx.teams, ctx.maxKeepers,
-    ctx.rounds, ctx.futureDiscount];
+    ctx.rounds, ctx.futureDiscount, ctx.keeperRule];
   function tradeBefore(me, them, ctx) {
     const sig = beforeSig(me, them, ctx);
     let e = beforeCache.get(ctx);

@@ -1,6 +1,8 @@
 // tests/keepers_fixture.cjs  — run with: node tests/keepers_fixture.cjs
 const assert = require("assert");
+const KR = require("../site/assets/keeperrules.js");
 const K = require("../site/assets/keepers.js");
+const LADDER = KR.normalize({ ...KR.preset("ladder"), max_keepers: 2 }, {});
 const O = require("../site/assets/optimizer.js");   // cross-check K's par against the real module
 
 const S = 2026;  // currentSeason
@@ -21,21 +23,21 @@ const boardRows = Array.from({ length: 250 }, (_, i) =>
 
 // cost drops one round per calendar year kept, from the most recent draft
 // round. No floor -- a long-expired ladder computes negative (defect B fix).
-assert.strictEqual(K.keeperCost(drafted(10, 2025), S), 9);   // 1 year kept
-assert.strictEqual(K.keeperCost(drafted(10, 2024), S), 8);   // 2 years kept
-assert.strictEqual(K.keeperCost(drafted(3, 2021), S), -2);   // no Math.max(1,...) floor: 3-5 = -2
-assert.strictEqual(K.eligible(drafted(3, 2021), S), false);  // negative cost -> ineligible, no exception thrown
-assert.strictEqual(K.keeperCost(waiver(), S), 12);           // no firstKeptYear -> this IS the first keep -> 12
+assert.strictEqual(K.keeperCost(drafted(10, 2025), S, LADDER), 9);   // 1 year kept
+assert.strictEqual(K.keeperCost(drafted(10, 2024), S, LADDER), 8);   // 2 years kept
+assert.strictEqual(K.keeperCost(drafted(3, 2021), S, LADDER), -2);   // no Math.max(1,...) floor: 3-5 = -2
+assert.strictEqual(K.eligible(drafted(3, 2021), S, LADDER), false);  // negative cost -> ineligible, no exception thrown
+assert.strictEqual(K.keeperCost(waiver(), S, LADDER), 12);           // no firstKeptYear -> this IS the first keep -> 12
 
 // League rule: a drafted-then-dropped-then-reacquired player keeps his
 // ORIGINAL round -- this is exactly how the Sleeper path represents such a
 // player (isWaiver: false, original record still present).
-assert.strictEqual(K.keeperCost(drafted(6, 2025, { isWaiver: false }), S), 5);
+assert.strictEqual(K.keeperCost(drafted(6, 2025, { isWaiver: false }), S, LADDER), 5);
 
 // isWaiver is authoritative once set, even if an originalRound is also
 // supplied -- the UI now prevents this combination from arising, but the
 // pure function must still be deterministic if it does.
-assert.strictEqual(K.keeperCost(waiver({ originalRound: 3 }), S), 12);
+assert.strictEqual(K.keeperCost(waiver({ originalRound: 3 }), S, LADDER), 12);
 
 // ===========================================================================
 // Waiver ladder decay (this task's fix): a never-drafted player starts at
@@ -43,26 +45,26 @@ assert.strictEqual(K.keeperCost(waiver({ originalRound: 3 }), S), 12);
 // R11 the next year kept, R10 the year after. Must fail against the old
 // flat-12-forever code.
 // ===========================================================================
-assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S }), S), 12);      // 1. first keep, this season -> R12
-assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S - 1 }), S), 11);  // 2. kept once before -> R11
-assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S - 2 }), S), 10);  //    kept twice before -> R10
-assert.strictEqual(K.keeperCost(waiver(), S), 12);                          // 3. blank firstKeptYear -> defaults to currentSeason, no exception
-assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S - 10 }), S), 2);  // 4. far enough back, cost drops below 3
-assert.strictEqual(K.eligible(waiver({ firstKeptYear: S - 10 }), S), false); //    ...and is ineligible, same gate as drafted players
+assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S }), S, LADDER), 12);      // 1. first keep, this season -> R12
+assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S - 1 }), S, LADDER), 11);  // 2. kept once before -> R11
+assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S - 2 }), S, LADDER), 10);  //    kept twice before -> R10
+assert.strictEqual(K.keeperCost(waiver(), S, LADDER), 12);                          // 3. blank firstKeptYear -> defaults to currentSeason, no exception
+assert.strictEqual(K.keeperCost(waiver({ firstKeptYear: S - 10 }), S, LADDER), 2);  // 4. far enough back, cost drops below 3
+assert.strictEqual(K.eligible(waiver({ firstKeptYear: S - 10 }), S, LADDER), false); //    ...and is ineligible, same gate as drafted players
 
 // Defect A fix: eligibility keys off the COMPUTED cost, not the original
 // round. Same original round (R5), opposite verdicts -- driven entirely by
 // how many years have elapsed since the (most recent) draft.
-assert.strictEqual(K.keeperCost(drafted(5, 2023), S), 2);
-assert.strictEqual(K.eligible(drafted(5, 2023), S), false);   // cost R2 -> ineligible
-assert.strictEqual(K.keeperCost(drafted(5, 2025), S), 4);
-assert.strictEqual(K.eligible(drafted(5, 2025), S), true);    // cost R4 -> eligible
+assert.strictEqual(K.keeperCost(drafted(5, 2023), S, LADDER), 2);
+assert.strictEqual(K.eligible(drafted(5, 2023), S, LADDER), false);   // cost R2 -> ineligible
+assert.strictEqual(K.keeperCost(drafted(5, 2025), S, LADDER), 4);
+assert.strictEqual(K.eligible(drafted(5, 2025), S, LADDER), true);    // cost R4 -> eligible
 
 // Exact boundary: cost R3 is keepable, cost R2 is not -- asserted from both sides.
-assert.strictEqual(K.eligible(drafted(3, S), S), true);    // cost 3 - 0 = 3
-assert.strictEqual(K.eligible(drafted(2, S), S), false);   // cost 2 - 0 = 2
+assert.strictEqual(K.eligible(drafted(3, S), S, LADDER), true);    // cost 3 - 0 = 3
+assert.strictEqual(K.eligible(drafted(2, S), S, LADDER), false);   // cost 2 - 0 = 2
 
-assert.strictEqual(K.eligible(waiver(), S), true);         // no firstKeptYear -> first keep -> R12 -> eligible
+assert.strictEqual(K.eligible(waiver(), S, LADDER), true);         // no firstKeptYear -> first keep -> R12 -> eligible
 
 // ===========================================================================
 // Worked example (re-draft ladder, end to end): drafted R4 in 2023 -> R3 in
@@ -73,8 +75,8 @@ assert.strictEqual(K.eligible(waiver(), S), true);         // no firstKeptYear -
 // must cost R7 and be eligible.
 // ===========================================================================
 const redraftPlayer = drafted(8, 2025, { name: "Redraft", adpRound: 6, overallRank: 70, vorp: 20 });
-assert.strictEqual(K.keeperCost(redraftPlayer, S), 7);
-assert.strictEqual(K.eligible(redraftPlayer, S), true);
+assert.strictEqual(K.keeperCost(redraftPlayer, S, LADDER), 7);
+assert.strictEqual(K.eligible(redraftPlayer, S, LADDER), true);
 
 // ===========================================================================
 // Two-year cap (league rule, owner-confirmed 2026-11-13): a player is kept at
@@ -83,36 +85,91 @@ assert.strictEqual(K.eligible(redraftPlayer, S), true);
 // the anchor) + seasons since the anchor; waiver = seasons since first kept + 1.
 // The cap never moves a COST -- only who may be kept.
 // ===========================================================================
-assert.strictEqual(K.MAX_YEARS_KEPT, 2);
+assert.strictEqual(LADDER.max_years, 2);
 // Drafted fresh in 2026 at R8: kept 2027 (R7) and 2028 (R6), not 2029 (R5 on cost alone).
 const fresh26 = drafted(8, 2026);
-assert.deepStrictEqual([2027, 2028, 2029].map(s => K.keeperCost(fresh26, s)), [7, 6, 5]);
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.keeperCost(fresh26, s, LADDER)), [7, 6, 5]);
 assert.deepStrictEqual([2027, 2028, 2029].map(s => K.yearsKept(fresh26, s)), [1, 2, 3]);
-assert.deepStrictEqual([2027, 2028, 2029].map(s => K.eligible(fresh26, s)), [true, true, false]);
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.eligible(fresh26, s, LADDER)), [true, true, false]);
 // A waiver pickup first kept in 2027: R12, then R11, then the cap.
 const waiver27 = waiver({ firstKeptYear: 2027 });
-assert.deepStrictEqual([2027, 2028, 2029].map(s => K.keeperCost(waiver27, s)), [12, 11, 10]);
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.keeperCost(waiver27, s, LADDER)), [12, 11, 10]);
 assert.deepStrictEqual([2027, 2028, 2029].map(s => K.yearsKept(waiver27, s)), [1, 2, 3]);
-assert.deepStrictEqual([2027, 2028, 2029].map(s => K.eligible(waiver27, s)), [true, true, false]);
+assert.deepStrictEqual([2027, 2028, 2029].map(s => K.eligible(waiver27, s, LADDER)), [true, true, false]);
 assert.strictEqual(K.yearsKept(waiver(), 2027), 1);           // blank firstKeptYear = this is the first keep
 // Already kept as a Sleeper keeper pick (keptYears from buildOriginalByPlayerId).
 const kept1 = drafted(8, 2026, { keptYears: 1 }), kept2 = drafted(8, 2026, { keptYears: 2 });
 assert.deepStrictEqual([K.yearsKept(kept1, 2027), K.yearsKept(kept1, 2028)], [2, 3]);
-assert.deepStrictEqual([K.eligible(kept1, 2027), K.eligible(kept1, 2028)], [true, false]);
+assert.deepStrictEqual([K.eligible(kept1, 2027, LADDER), K.eligible(kept1, 2028, LADDER)], [true, false]);
 assert.strictEqual(K.yearsKept(kept2, 2027), 3);
-assert.strictEqual(K.keeperCost(kept2, 2027), 7, "the cap never moves the cost");
-assert.strictEqual(K.eligible(kept2, 2027), false);
+assert.strictEqual(K.keeperCost(kept2, 2027, LADDER), 7, "the cap never moves the cost");
+assert.strictEqual(K.eligible(kept2, 2027, LADDER), false);
 // The round-2 floor still applies on cost alone, inside the cap.
 assert.strictEqual(K.yearsKept(drafted(3, 2026), 2027), 1);
-assert.strictEqual(K.keeperCost(drafted(3, 2026), 2027), 2);
-assert.strictEqual(K.eligible(drafted(3, 2026), 2027), false);
+assert.strictEqual(K.keeperCost(drafted(3, 2026), 2027, LADDER), 2);
+assert.strictEqual(K.eligible(drafted(3, 2026), 2027, LADDER), false);
 // buildKeeperCandidates carries the kept streak onto the candidate.
 {
   const b1 = new Map([["s1", { name: "Streak", position: "RB", adpRound: 5, overallRank: 50, vorp: 9 }]]);
   const { candidates: [c] } = K.buildKeeperCandidates(["s1"], new Map([["s1", { round: 8, season: 2026, keptYears: 2 }]]), b1);
   assert.strictEqual(c.keptYears, 2);
-  assert.strictEqual(K.keeperCost(c, 2027), 7);
-  assert.strictEqual(K.eligible(c, 2027), false);
+  assert.strictEqual(K.keeperCost(c, 2027, LADDER), 7);
+  assert.strictEqual(K.eligible(c, 2027, LADDER), false);
+}
+
+// ===========================================================================
+// Keeper rules: costs per preset (spec section 4), the no-limit cap, the
+// earliest round, and the required rule argument.
+// ===========================================================================
+{
+  const P = k => KR.normalize({ ...KR.preset(k), max_keepers: 2 }, { rounds: 15 });
+  const custom = KR.normalize({ first_keep: 2, per_year: 1, max_years: null, undrafted_round: 12, earliest_round: 3, max_keepers: 2 }, {});
+  const cands = () => {
+    const o = new Map([
+      ["chain", { round: 6, season: 2026, keptYears: 2, lastDraft: 2026 }],
+      ["new", { round: 5, season: 2026, keptYears: 0, lastDraft: 2026 }],
+      ["old", { round: 8, season: 2024, keptYears: 0, lastDraft: 2026 }],
+      ["brk", { round: 9, season: 2025, keptYears: 2, lastDraft: 2026 }],
+    ]);
+    const b = new Map([...o.keys()].map((id, i) => [id, { name: id, position: "WR", adpRound: 9, overallRank: 100 + i, vorp: 2 }]));
+    return Object.fromEntries(K.buildKeeperCandidates([...o.keys()], o, b).candidates.map(c => [c.name, c]));
+  };
+  const rows = { ladder: [5, 4, 7, 8, 11, 6], same_round: [6, 5, 8, 9, 15, 8], one_earlier: [5, 4, 7, 8, 14, 6], after_first: [5, 5, 8, 8, 14, 7] };
+  const costs = (rule, season) => {
+    const by = cands();
+    return [by.chain, by.new, by.old, by.brk,
+      waiver({ firstKeptYear: 2026 }), drafted(8, 2025, {})].map(c => K.keeperCost(c, season, rule));
+  };
+  for (const [k, row] of Object.entries(rows)) assert.deepStrictEqual(costs(P(k), 2027), row, k);
+  assert.deepStrictEqual(costs(custom, 2027), [5, 3, 6, 8, 11, 5], "custom f2 p1 u12 e3 null");
+  // n > 1: 2028
+  const c28 = rule => { const by = cands(); return [K.keeperCost(by.new, 2028, rule), K.keeperCost(by.chain, 2028, rule)]; };
+  assert.deepStrictEqual(c28(LADDER), [3, 4]);
+  assert.deepStrictEqual(c28(custom), [2, 4]);
+  // No year limit never trips the cap (Review Focus 1).
+  const long = drafted(8, 2022, {});
+  assert.strictEqual(K.yearsKept(long, 2027), 5);
+  assert.strictEqual(K.keeperCost(long, 2027, P("same_round")), 8);
+  assert.strictEqual(K.eligible(long, 2027, P("same_round")), true);
+  assert.strictEqual(K.eligible(long, 2027, LADDER), false);
+  // Earliest round.
+  const e5 = KR.normalize({ ...KR.preset("one_earlier"), earliest_round: 5, max_keepers: 2 }, { rounds: 15 });
+  const fresh5 = drafted(5, 2026, {});
+  assert.strictEqual(K.keeperCost(fresh5, 2027, e5), 4);
+  assert.strictEqual(K.eligible(fresh5, 2027, e5), false);
+  const e1 = P("one_earlier");
+  assert.strictEqual(K.eligible(drafted(2, 2026, {}), 2027, e1), true, "cost 1 is keepable");
+  assert.strictEqual(K.eligible(drafted(1, 2026, {}), 2027, e1), false, "cost 0 is not");
+  // A missing or plain-object rule throws.
+  assert.throws(() => K.keeperCost(drafted(8, 2026, {}), 2027), /a keeper rule is required/);
+  assert.throws(() => K.keeperCost(drafted(8, 2026, {}), 2027, KR.preset("ladder")), /a keeper rule is required/);
+  assert.throws(() => K.eligible(drafted(8, 2026, {}), 2027), /a keeper rule is required/);
+  assert.throws(() => K.rankKeepers([], 2027, boardRows), /a keeper rule is required/);
+  // noHistoryNote follows the rule.
+  assert.ok(K.noHistoryNote(P("same_round")).includes("first-time R15 keeper, so none is ineligible"));
+  const r2 = KR.normalize({ ...KR.preset("ladder"), undrafted_round: 2, max_keepers: 2 }, {});
+  assert.ok(K.noHistoryNote(r2).endsWith("so none can be kept"));
+  assert.strictEqual(K.MAX_KEEPERS, undefined);
 }
 
 // value round: adp round if present, else board rank -> round
@@ -121,7 +178,7 @@ assert.strictEqual(K.valueRound(null, 30), 3);   // ceil(30/12)
 
 // surplus (ROUND currency) is kept for display/diagnostic purposes only --
 // it must never again drive ranking or recommendation (see below).
-assert.strictEqual(K.surplus(drafted(10, 2024, { adpRound: 3 }), S), 5);
+assert.strictEqual(K.surplus(drafted(10, 2024, { adpRound: 3 }), S, LADDER), 5);
 
 // pickForRound: cost round R maps to that round's mid-pick, teams=12 default
 assert.strictEqual(K.pickForRound(1), 6);     // (1-1)*12 + ceil(12/2)
@@ -140,14 +197,14 @@ assert.strictEqual(K.pickForRound(3, 10), 25);   // teams overridable
 const mcbride = drafted(3, S, { name: "McBride", position: "RB", adpRound: 2, overallRank: 20, vorp: 85 });
 const kincaid = drafted(12, S, { name: "Kincaid", position: "RB", adpRound: 8, overallRank: 90, vorp: 0 });
 
-const mcbrideRoundSurplus = K.surplus(mcbride, S);   // cost 3 - value 2 = +1
-const kincaidRoundSurplus = K.surplus(kincaid, S);   // cost 12 - value 8 = +4
+const mcbrideRoundSurplus = K.surplus(mcbride, S, LADDER);   // cost 3 - value 2 = +1
+const kincaidRoundSurplus = K.surplus(kincaid, S, LADDER);   // cost 12 - value 8 = +4
 assert.strictEqual(mcbrideRoundSurplus, 1);
 assert.strictEqual(kincaidRoundSurplus, 4);
 assert.ok(kincaidRoundSurplus > mcbrideRoundSurplus,
   "test is only meaningful if the round-surplus 'loser' really has the bigger round number");
 
-const inversion = K.rankKeepers([mcbride, kincaid], S, boardRows);
+const inversion = K.rankKeepers([mcbride, kincaid], S, boardRows, LADDER);
 assert.deepStrictEqual(inversion.map(c => c.name), ["McBride", "Kincaid"]);
 assert.ok(inversion[0].impact > inversion[1].impact);
 // pin the actual numbers so a regression can't silently reorder them back
@@ -163,8 +220,8 @@ assert.strictEqual(inversion[1].impact, 0);  // 0 - 0: a genuinely replacement-l
 // ===========================================================================
 const sameSurplusHigh = drafted(5, S, { name: "HighVorp", position: "RB", adpRound: 3, overallRank: 40, vorp: 80 });
 const sameSurplusLow = drafted(5, S, { name: "LowVorp", position: "WR", adpRound: 3, overallRank: 41, vorp: 5 });
-assert.strictEqual(K.surplus(sameSurplusHigh, S), K.surplus(sameSurplusLow, S));   // identical round surplus (2)
-const sameSurplusRanked = K.rankKeepers([sameSurplusHigh, sameSurplusLow], S, boardRows);
+assert.strictEqual(K.surplus(sameSurplusHigh, S, LADDER), K.surplus(sameSurplusLow, S, LADDER));   // identical round surplus (2)
+const sameSurplusRanked = K.rankKeepers([sameSurplusHigh, sameSurplusLow], S, boardRows, LADDER);
 const byNameSS = Object.fromEntries(sameSurplusRanked.map(c => [c.name, c]));
 assert.strictEqual(byNameSS.HighVorp.par, byNameSS.LowVorp.par);   // same cost round -> same par
 assert.ok(byNameSS.HighVorp.impact - byNameSS.LowVorp.impact > 50,
@@ -176,16 +233,16 @@ assert.deepStrictEqual(sameSurplusRanked.map(c => c.name), ["HighVorp", "LowVorp
 // once par is already floored at 0.
 // ===========================================================================
 const midCost = drafted(5, S, { name: "Mid", position: "RB", adpRound: 4, overallRank: 50, vorp: 20 });
-const withDepletion = K.rankKeepers([midCost], S, boardRows, { depletion: true })[0];
-const withoutDepletion = K.rankKeepers([midCost], S, boardRows, { depletion: false })[0];
+const withDepletion = K.rankKeepers([midCost], S, boardRows, LADDER, { depletion: true })[0];
+const withoutDepletion = K.rankKeepers([midCost], S, boardRows, LADDER, { depletion: false })[0];
 assert.strictEqual(withoutDepletion.par, 37);   // pick 54 -> row 53 -> 90-53
 assert.strictEqual(withDepletion.par, 13);      // pick 78 (54+24) -> row 77 -> 90-77
 assert.ok(withDepletion.par < withoutDepletion.par, "depletion must lower par, never raise it");
 assert.ok(withDepletion.impact > withoutDepletion.impact, "lower par raises impact");
 
 const deepCost = drafted(15, S, { name: "Deep", position: "RB", adpRound: 12, overallRank: 200, vorp: 10 });
-const deepWith = K.rankKeepers([deepCost], S, boardRows, { depletion: true })[0];
-const deepWithout = K.rankKeepers([deepCost], S, boardRows, { depletion: false })[0];
+const deepWith = K.rankKeepers([deepCost], S, boardRows, LADDER, { depletion: true })[0];
+const deepWithout = K.rankKeepers([deepCost], S, boardRows, LADDER, { depletion: false })[0];
 assert.strictEqual(deepWithout.par, 0);   // already in the dead zone before depletion
 assert.strictEqual(deepWith.par, 0);      // depletion changes nothing once floored
 assert.strictEqual(deepWith.impact, deepWithout.impact);
@@ -198,7 +255,7 @@ assert.strictEqual(deepWith.impact, deepWithout.impact);
 // pushed to flex (TE is flex-eligible) and discounted at FLEX_WEIGHT.
 const teA = drafted(6, S, { name: "TeA", position: "TE", adpRound: 5, overallRank: 55, vorp: 60 });
 const teB = drafted(6, S, { name: "TeB", position: "TE", adpRound: 5, overallRank: 56, vorp: 50 });
-const teRanked = K.rankKeepers([teA, teB], S, boardRows);
+const teRanked = K.rankKeepers([teA, teB], S, boardRows, LADDER);
 const teByName = Object.fromEntries(teRanked.map(c => [c.name, c]));
 assert.strictEqual(teByName.TeA.slot, "dedicated");
 assert.strictEqual(teByName.TeA.discounted, false);
@@ -211,7 +268,7 @@ assert.strictEqual(teByName.TeB.impact, O.FLEX_WEIGHT * teB.vorp - teByName.TeB.
 // second QB falls straight to "none" -> BENCH_WEIGHT.
 const qbA = drafted(6, S, { name: "QbA", position: "QB", adpRound: 5, overallRank: 57, vorp: 40 });
 const qbB = drafted(6, S, { name: "QbB", position: "QB", adpRound: 5, overallRank: 58, vorp: 30 });
-const qbRanked = K.rankKeepers([qbA, qbB], S, boardRows);
+const qbRanked = K.rankKeepers([qbA, qbB], S, boardRows, LADDER);
 const qbByName = Object.fromEntries(qbRanked.map(c => [c.name, c]));
 assert.strictEqual(qbByName.QbA.slot, "dedicated");
 assert.strictEqual(qbByName.QbB.slot, "none");
@@ -221,7 +278,7 @@ assert.strictEqual(qbByName.QbB.discounted, true);
 // RB + WR: two different DEDICATED pools (2 each), so neither is discounted.
 const rb = drafted(6, S, { name: "Rb", position: "RB", adpRound: 5, overallRank: 59, vorp: 45 });
 const wr = drafted(6, S, { name: "Wr", position: "WR", adpRound: 5, overallRank: 60, vorp: 35 });
-const rbWrRanked = K.rankKeepers([rb, wr], S, boardRows);
+const rbWrRanked = K.rankKeepers([rb, wr], S, boardRows, LADDER);
 assert.ok(rbWrRanked.every(c => c.slot === "dedicated" && c.discounted === false));
 
 // ===========================================================================
@@ -231,17 +288,17 @@ assert.ok(rbWrRanked.every(c => c.slot === "dedicated" && c.discounted === false
 const noProj = drafted(6, S, { name: "NoProj", position: "RB", adpRound: 5, overallRank: 61 });  // no vorp key
 const nullProj = drafted(6, S, { name: "NullProj", position: "WR", adpRound: 5, overallRank: 62, vorp: null });
 assert.strictEqual(noProj.vorp, undefined);
-const unvalued = K.unvaluedKeepers([noProj, nullProj], S);
+const unvalued = K.unvaluedKeepers([noProj, nullProj], S, LADDER);
 assert.deepStrictEqual(unvalued.map(c => c.name).sort(), ["NoProj", "NullProj"]);
-assert.deepStrictEqual(K.rankKeepers([noProj, nullProj], S, boardRows), []);
-assert.deepStrictEqual(K.recommendKeepers([noProj, nullProj], S, boardRows), []);
+assert.deepStrictEqual(K.rankKeepers([noProj, nullProj], S, boardRows, LADDER), []);
+assert.deepStrictEqual(K.recommendKeepers([noProj, nullProj], S, boardRows, LADDER), []);
 
 // ===========================================================================
 // 6. parVorp's zero floor is respected -- a keeper cost deep in the dead
 // zone yields par 0, never a negative par that would inflate impact.
 // ===========================================================================
 const zoned = drafted(20, S, { name: "DeadZone", position: "RB", adpRound: 15, overallRank: 210, vorp: 10 });
-const zonedRanked = K.rankKeepers([zoned], S, boardRows)[0];
+const zonedRanked = K.rankKeepers([zoned], S, boardRows, LADDER)[0];
 assert.strictEqual(zonedRanked.par, 0);
 assert.strictEqual(zonedRanked.par, O.parVorp(boardRows, zonedRanked.effectivePick));
 assert.strictEqual(zonedRanked.impact, zonedRanked.vorp);   // weight(1)*10 - 0, not vorp - (negative par)
@@ -256,14 +313,14 @@ const rec = K.recommendKeepers([
   drafted(10, 2025, { name: "Good", position: "WR", adpRound: 4, vorp: 8 }),      // cost 9  -> par 0 -> impact 8
   drafted(6, 2025, { name: "Neutral", position: "TE", adpRound: 5, vorp: 13 }),   // cost 5  -> par 13 -> impact 0 -> not kept
   drafted(2, 2025, { name: "Elite", adpRound: 1, vorp: 999 }),                    // cost 1 -> ineligible (< R3) regardless of vorp
-], S, boardRows);
+], S, boardRows, LADDER);
 assert.deepStrictEqual(rec.map(r => r.name), ["Best", "Good"]);
 
 // keep NONE when nothing beats its cost
 const none = K.recommendKeepers([
   drafted(6, 2025, { name: "Zero", position: "RB", adpRound: 5, vorp: 13 }),   // cost 5 -> par 13 -> impact 0
   drafted(3, 2025, { name: "Neg", position: "WR", adpRound: 6, vorp: 10 }),    // cost 2 -> ineligible (< R3), excluded before impact is ever computed
-], S, boardRows);
+], S, boardRows, LADDER);
 assert.deepStrictEqual(none, []);
 
 // buildKeeperCandidates: map roster + draft history + board -> candidates
@@ -298,7 +355,7 @@ assert.strictEqual(byName.Puka.adpRound, 1);                  // board fields ca
 assert.strictEqual(byName.Bijan.vorp, 87.1);                  // vorp carried too (Task 5)
 assert.strictEqual(byName.WaiverGuy.vorp, 3.2);
 // escalation end-to-end via Task 1: Bijan cost = 4 - (2026-2024) = 2, value R1 -> +1
-assert.strictEqual(K.surplus(byName.Bijan, 2026), 1);
+assert.strictEqual(K.surplus(byName.Bijan, 2026, LADDER), 1);
 
 // ===========================================================================
 // ===========================================================================
@@ -316,7 +373,7 @@ assert.strictEqual(K.marginal({ impact: 500 }), false);      // large impact -> 
 // the label is presentational and must not quietly become a filter.
 const marginalOnly = K.recommendKeepers([
   drafted(10, 2025, { name: "BarelyWorth", position: "RB", adpRound: 9, vorp: 5 }),  // cost 9 -> par 0 -> impact 5 (marginal)
-], S, boardRows);
+], S, boardRows, LADDER);
 assert.deepStrictEqual(marginalOnly.map(r => r.name), ["BarelyWorth"]);
 assert.ok(marginalOnly[0].impact > 0 && marginalOnly[0].impact < K.MARGINAL_POINTS);
 assert.strictEqual(K.marginal(marginalOnly[0]), true);
@@ -417,7 +474,7 @@ async function testKeptYears() {
     const histBoard = new Map(["chain", "new", "old", "brk"].map((id, i) =>
       [id, { name: id, position: "WR", adpRound: 9, overallRank: 100 + i, vorp: 2 }]));
     const byId = Object.fromEntries(K.buildKeeperCandidates(["chain", "new", "old", "brk"], o, histBoard).candidates.map(c => [c.name, c]));
-    const at27 = c => [K.keeperCost(c, 2027), K.yearsKept(c, 2027), K.eligible(c, 2027)];
+    const at27 = c => [K.keeperCost(c, 2027, LADDER), K.yearsKept(c, 2027), K.eligible(c, 2027, LADDER)];
     assert.deepStrictEqual(at27(byId.chain), [5, 3, false], "third kept year: the cap");
     assert.deepStrictEqual(at27(byId.new), [4, 1, true]);
     assert.deepStrictEqual(at27(byId.old), [7, 1, true],
@@ -459,12 +516,12 @@ async function testKeptYears() {
   const node = () => ({ innerHTML: "", textContent: "", value: "", checked: false, disabled: false,
                         placeholder: "", addEventListener() {} });
   const nodes = Object.fromEntries([".keeper-rec", ".keeper-out", ".keeper-add", ".keeper-load-btn",
-    ".keeper-load-status", ".keeper-skip-note"].map(s => [s, node()]));
+    ".keeper-load-status", ".keeper-skip-note", ".keeper-help", ".keeper-waiver-text", ".keeper-depletion-text"].map(s => [s, node()]));
   const panel = { querySelector: s => nodes[s] || null, appendChild() {} };
   global.window = { FC: { esc: s => String(s) } };
   global.document = { getElementById: () => node(), createElement: node };
   try {
-    K.init({ players: boardRows, panel, currentSeason: 2027 });
+    K.init({ players: boardRows, panel, currentSeason: 2027, rule: LADDER });
     panel._keeperAdd([
       drafted(8, 2026, { name: "Capped", keptYears: 2 }),     // cost R7, would be his third kept year
       drafted(3, 2026, { name: "CappedFloor", keptYears: 2 }), // over the cap AND cost R2: the cap's reason wins
@@ -480,6 +537,19 @@ async function testKeptYears() {
     assert.ok(out.includes('<li class="keeper-ineligible">RunOut — ineligible: his keeper ladder has run out</li>'), out);
     assert.ok(out.includes('<li class="keeper-unvalued">Keepable — no projection — value unknown</li>'), out);
     assert.ok(!/Keepable — ineligible/.test(out), out);
+    // The panel's own text comes from the rule.
+    assert.strictEqual(nodes[".keeper-help"].textContent, KR.helpText(LADDER));
+    assert.strictEqual(nodes[".keeper-waiver-text"].textContent, " never drafted in this league (R12)");
+    assert.strictEqual(nodes[".keeper-depletion-text"].textContent, " assume 12 teams keep 2 each (24 players off the board)");
+    // A no-limit rule never prints the cap reason, however long he has been kept.
+    const same = KR.normalize({ ...KR.preset("same_round"), max_keepers: 3 }, { rounds: 15 });
+    K.init({ players: boardRows, panel, currentSeason: 2027, rule: same });
+    panel._keeperAdd([drafted(8, 2022, { name: "Lifer" })]);
+    assert.ok(!/already kept the most allowed/.test(nodes[".keeper-out"].innerHTML), nodes[".keeper-out"].innerHTML);
+    assert.ok(nodes[".keeper-out"].innerHTML.includes("Lifer — no projection"), nodes[".keeper-out"].innerHTML);
+    assert.strictEqual(nodes[".keeper-waiver-text"].textContent, " never drafted in this league (R15)");
+    assert.strictEqual(nodes[".keeper-depletion-text"].textContent, " assume 12 teams keep 3 each (36 players off the board)");
+    assert.throws(() => K.init({ players: boardRows, panel, currentSeason: 2027 }), /a keeper rule is required/);
   } finally {
     delete global.window;
     delete global.document;
@@ -575,7 +645,7 @@ async function testSleeperKeeperCandidates() {
   assert.ok(!/\/user\//.test(src) && !/leagues\/nfl/.test(src) && !/pickLeague|keeper-user|keeper-league-picker/.test(src));
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "index.html"), "utf8");
   assert.ok(!/keeper-user|keeper-league-picker/.test(html), "index.html carries no legacy keeper inputs");
-  assert.ok(/keeper-load-btn/.test(html) && /keepers\.js\?v=cf1/.test(html));
+  assert.ok(/keeper-load-btn/.test(html) && /keepers\.js\?v=kr1/.test(html));
 }
 
 // ===========================================================================
@@ -589,7 +659,7 @@ async function testPanelLoadNotes() {
   const realGet = Sleeper.get;
   const NO_HISTORY = "no draft history came back for the previous season(s) — every player is priced as a first-time R12 keeper, so none is ineligible";
   const WAIVER_NOTE = 'waiver keepers assume this is their first keep (R12) — set "year first kept" manually if you kept one before';
-  assert.strictEqual(K.NO_HISTORY_NOTE, NO_HISTORY, "one constant, the trade panel's text");
+  assert.strictEqual(K.noHistoryNote(LADDER), NO_HISTORY, "one function, the trade panel's text");
   const players = [{ name: "Alpha", position: "RB", adp_round: 3, vorp: 20, sleeper_id: "s_a" },
                    { name: "Beta", position: "WR", adp_round: 5, vorp: 10, sleeper_id: "s_b" }];
   const load = async routes => {
@@ -604,7 +674,7 @@ async function testPanelLoadNotes() {
     global.window = { FC: { esc: s => String(s) }, Session: session };
     global.document = { getElementById: () => node(""), createElement: node };
     const panel = { querySelector: s => nodes[s] || null, appendChild() {} };
-    K.init({ players, panel, currentSeason: 2026 });
+    K.init({ players, panel, currentSeason: 2026, rule: LADDER });
     assert.strictEqual(clicks.length, 1);
     await clicks[0]();
     return { status: nodes[".keeper-load-status"].textContent, notes: nodes[".keeper-skip-note"].textContent };

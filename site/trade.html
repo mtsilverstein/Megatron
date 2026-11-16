@@ -91,11 +91,12 @@
 </main>
 <footer>Pre-draft: values players and draft picks before the draft. In season: conditional lineup scenarios only — no trade grades.</footer>
 <script src="assets/session.js?v=cf1"></script>
+<script src="assets/keeperrules.js?v=kr1"></script>
 <script src="assets/app.js?v=cf1"></script>
 <script src="assets/sleeper.js?v=2"></script>
 <script src="assets/optimizer.js?v=fu2"></script>
-<script src="assets/keepers.js?v=cf1"></script>
-<script src="assets/trade.js?v=k2y2"></script>
+<script src="assets/keepers.js?v=kr1"></script>
+<script src="assets/trade.js?v=kr1"></script>
 <script src="assets/ros.js?v=1"></script>
 <script src="assets/rostersim.js?v=1"></script>
 <script src="assets/formats.js?v=1"></script>
@@ -104,9 +105,9 @@
 <script src="assets/pickvalue.js?v=picks1"></script>
 <script src="assets/leaguedata.js?v=lf1"></script>
 <script src="assets/liveworld.js?v=cf1"></script>
-<script src="assets/trademode.js?v=cf1"></script>
+<script src="assets/trademode.js?v=kr1"></script>
 <script src="assets/seasontrade.js?v=lf1"></script>
-<script src="assets/seasontrademode.js?v=cf1"></script>
+<script src="assets/seasontrademode.js?v=kr1"></script>
 <script>
 (async () => {
   FC.leagueNavigation();
@@ -164,6 +165,10 @@
     const entry = FC.boardEntry(board);
     if (!entry || entry.leagueId !== leagueId) { hide(["trade-connect"]); stamp(FC.DRAFT_ONLY); return; }
     if (!entry.tools.trade) { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
+    // The board's keeper rule prices every keeper; without one there is nothing to price.
+    const keeperRule = window.KeeperRules ? KeeperRules.fromBoard(board.league) : null;
+    if (!keeperRule) { hide(["trade-connect"]); stamp(NOT_AVAILABLE); return; }
+    document.getElementById("trade-note").textContent = KeeperRules.tradeNote(keeperRule);
     FC.setBoard(board);
     FC.stampHeader(board);
     TradeMode.init({

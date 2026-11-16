@@ -146,7 +146,7 @@
   <details class="keeper-panel" id="keepers">
     <summary>Keeper value — which to keep</summary>
     <p class="keeper-help">Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (cost drops one round for each year you keep him). Once a keeper's cost would reach round 2 he goes back into the draft pool. A player keeps his original draft round even if he was dropped and later picked back up — only players never drafted in this league cost R12. A kept waiver player decays too — R12 the first year you keep him, R11 the next. Keeping is optional — the tool recommends only players worth more than their keeper cost.</p>
-    <label class="keeper-depletion"><input class="keeper-depletion-toggle" type="checkbox" checked /> assume 12 teams keep 2 each (24 players off the board)</label>
+    <label class="keeper-depletion"><input class="keeper-depletion-toggle" type="checkbox" checked /><span class="keeper-depletion-text"> assume 12 teams keep 2 each (24 players off the board)</span></label>
     <div class="keeper-load">
       <button type="button" class="keeper-load-btn" title="Reads last season's roster for the account identified in the league bar">Load from Sleeper</button>
       <span class="keeper-load-status" role="status"></span>
@@ -156,7 +156,7 @@
       <input class="keeper-name" placeholder="Player (start typing)" aria-label="Keeper player name" list="playerlist" autocomplete="off" />
       <input class="keeper-round" type="number" min="1" max="20" placeholder="Original round" aria-label="Original draft round" />
       <input class="keeper-year" type="number" min="2000" max="2100" placeholder="Year drafted" aria-label="Year drafted" />
-      <label><input class="keeper-waiver" type="checkbox" /> never drafted in this league (R12)</label>
+      <label><input class="keeper-waiver" type="checkbox" /><span class="keeper-waiver-text"> never drafted in this league (R12)</span></label>
       <button type="submit">Add</button>
       <span class="keeper-msg" role="alert"></span>
     </form>
@@ -179,12 +179,13 @@ When your tier empties, don't chase. Rookies (marked R) carry draft-capital
 cohort priors — wide bands on purpose; see the about page.</footer>
 <script src="assets/bands.js"></script>
 <script src="assets/session.js?v=cf1"></script>
+<script src="assets/keeperrules.js?v=kr1"></script>
 <script src="assets/app.js?v=cf1"></script>
 <script src="assets/sleeper.js?v=2"></script>
 <script src="assets/optimizer.js?v=fu2"></script>
 <script src="assets/draftmode.js?v=cf1"></script>
 <script src="assets/manualdraft.js?v=audit2"></script>
-<script src="assets/keepers.js?v=cf1"></script>
+<script src="assets/keepers.js?v=kr1"></script>
 <script>
 (async () => {
   // No parameter is the default board; ?league=<name> (an old link) is that
@@ -764,16 +765,17 @@ cohort priors — wide bands on purpose; see the about page.</footer>
     document.fonts.ready.then(() => render(rows)).catch(() => {});
   }
 
-  // keepers.js implements ONE keeper ladder -- original round, decaying one
-  // round per year kept, R12 for a waiver pickup -- the only `keeper_rules`
-  // any published board carries. A board without keeper rules SKIPS it, not
-  // merely hides it: none of its logic runs and none of its constants reach a
-  // board they were not written for. An archived board has no keeper panel.
+  // keepers.js prices keepers by the board's own keeper rule (keeperrules.js
+  // reads `league.keeper_rules`, the legacy "gabagool" string included). A board
+  // without a readable rule SKIPS the panel, not merely hides it: none of its
+  // logic runs for a board it was not written for. An archived board has no
+  // keeper panel.
   const keeperPanel = document.getElementById("keepers");
   const entry = FC.boardEntry(board);
-  if (!archived && window.Keepers && entry && entry.tools.keepers) {
+  const keeperRule = window.KeeperRules ? KeeperRules.fromBoard(board.league) : null;
+  if (!archived && window.Keepers && entry && entry.tools.keepers && keeperRule) {
     Keepers.init({ players: board.players, panel: keeperPanel,
-                   currentSeason: board.season });
+                   currentSeason: board.season, rule: keeperRule });
   } else if (keeperPanel) {
     keeperPanel.hidden = true;
   }

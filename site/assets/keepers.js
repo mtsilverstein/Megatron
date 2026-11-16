@@ -1,21 +1,20 @@
 // site/assets/keepers.js
 /* Keeper-value gauge. Pure math + a manual panel; reads the board's ADP.
-   Rules (spec 2026-07-25, corrected per league restatement): keep up to 2,
-   cost drops one round per year KEPT. A waiver pickup (never drafted in this
-   league) starts the ladder at round 12 the first year he's kept, then
-   decays exactly the same way. A drafted player keeps his original round
-   even if he was dropped and later picked back up (league rule, restated by
-   the owner 2026-11-15), and a drop changes nothing about the decay: only
-   seasons he is actually KEPT move him up a round, so a season in which
-   nobody drafted him costs him nothing (owner, 2026-11-16). Once a player's computed cost would be R2 or lower
-   he is ineligible and returns to the draft pool -- if re-drafted, that new
-   pick anchors a fresh ladder (see buildOriginalByPlayerId).
-   A player is kept at most MAX_YEARS_KEPT (2) years in a row (owner-confirmed
-   2026-11-13), then returns to the pool whatever his cost. Sleeper lists a
-   kept player as a draft pick with is_keeper: true at the round he cost, so
-   his most recent pick already gives the right cost; buildOriginalByPlayerId
-   also gives his current run of keeper picks (keptYears, lastDraft), which
-   yearsKept counts against the cap.
+   The keeper RULE is an argument, never a constant (keeper-rule-settings spec
+   section 4; settings and validation live in keeperrules.js). With
+   f = first_keep and p = per_year, a drafted player's cost is his round minus f
+   for his first keep and minus p more for each later year kept; a never-drafted
+   (waiver) player starts at undrafted_round and drops p a year. A drafted
+   player keeps his original round even if he was dropped and later picked back
+   up (league rule, restated by the owner 2026-11-15), and a season in which
+   nobody drafted him costs him nothing: only seasons he is actually KEPT move
+   him (owner, 2026-11-16). A cost earlier than earliest_round makes him
+   ineligible (back to the draft pool -- if re-drafted, that new pick anchors a
+   fresh run, see buildOriginalByPlayerId); max_years (null = no limit) caps
+   consecutive years kept. Sleeper lists a kept player as a draft pick with
+   is_keeper: true at the round he cost, so his most recent pick already gives
+   the right cost; buildOriginalByPlayerId also gives his current run of keeper
+   picks (keptYears, lastDraft), which yearsKept counts against the cap.
    Keeping is optional, so only players with POSITIVE impact are ever
    recommended -- a zero/negative-impact player is worth at least as much
    drafted fresh.
@@ -43,10 +42,11 @@
     ? window.Sleeper
     : (typeof require !== "undefined" ? require("./sleeper.js") : null);
   if (!Sleeper) throw new Error("keepers.js requires sleeper.js to be loaded first");
+  const KeeperRules = (typeof window !== "undefined" && window.KeeperRules)
+    ? window.KeeperRules
+    : (typeof require !== "undefined" ? require("./keeperrules.js") : null);
+  if (!KeeperRules) throw new Error("keepers.js requires keeperrules.js to be loaded first");
 
-  const WAIVER_COST_ROUND = 12;
-  const MAX_KEEPERS = 2;
-  const MAX_YEARS_KEPT = 2;   // seasons in a row one player may be kept
   const TEAMS = 12;      // league size; also the shared default for valueRound
   const DRAFT_ROUNDS = 15;  // QB/RB2/WR2/TE/2FLEX/K/DST + 5 bench
   // Season-points surplus below which a keeper edge is not worth acting on.
@@ -59,8 +59,15 @@
   const CHAIN_CAP = 8;   // safety cap on previous_league_id hops
   // Said wherever a Sleeper load gets an EMPTY draft history (the keeper panel
   // and the pre-draft trade panel): an empty map is not neutral.
-  const NO_HISTORY_NOTE = "no draft history came back for the previous season(s) — every "
-    + "player is priced as a first-time R12 keeper, so none is ineligible";
+  function noHistoryNote(rule) {
+    requireRule(rule);
+    const u = rule.undrafted_round;
+    return "no draft history came back for the previous season(s) — every player is priced as a first-time R"
+      + u + " keeper, so " + (KeeperRules.neverDraftedKeepable(rule) ? "none is ineligible" : "none can be kept");
+  }
+  function requireRule(rule) {
+    if (!KeeperRules.isRule(rule)) throw new Error("keepers.js: a keeper rule is required");
+  }
   let loadSeq = 0;       // generation token: a stale load can't overwrite a newer one
 
   // Delegates so there is ONE cache-busting implementation (see sleeper.js).
@@ -150,23 +157,31 @@
   function decaySince(c) {
     return c.lastDraft != null ? c.lastDraft : c.originalYear;
   }
-  // Cost drops one round per year KEPT, from his MOST RECENT pick (see
-  // buildOriginalByPlayerId and decaySince); a drop, or a season nobody
-  // drafted him, changes nothing (owner, 2026-11-16). No floor: once the
-  // computed cost is R2 or below he is ineligible (see `eligible`) and may
-  // legitimately compute to 0 or negative here -- that raw value is what
-  // tells the ineligible display how far the ladder has run out.
-  //
-  // Waiver pickups (never drafted in this league) start the ladder at R12
-  // the first year they're kept, then decay exactly like a drafted player:
-  // R11 the next year, R10 the year after, and so on. `firstKeptYear` blank
-  // means "this IS the first keep" (currentSeason).
-  function keeperCost(c, currentSeason) {
+  // Cost per the rule (spec section 4), from his MOST RECENT pick (see
+  // buildOriginalByPlayerId); a drop, or a season nobody drafted him, changes
+  // nothing (owner, 2026-11-16). f = first_keep, p = per_year.
+  //   waiver:  undrafted_round - p * (seasons since first kept)
+  //   Sleeper entry (lastDraft set), n = currentSeason - lastDraft: his anchor
+  //     is a KEEPER pick (keptYears >= 1) already at the round it cost, so
+  //     anchor - p*n; otherwise a fresh pick: anchor - f - p*(n-1)
+  //   manual entry, n = currentSeason - originalYear: anchor - f - p*(n-1)
+  // No floor: a cost earlier than earliest_round makes him ineligible (see
+  // `eligible`) and may legitimately compute to 0 or negative -- that raw value
+  // tells the ineligible display how far the ladder has run out. A waiver
+  // pickup's blank `firstKeptYear` means "this IS the first keep".
+  function keeperCost(c, currentSeason, rule) {
+    requireRule(rule);
+    const f = rule.first_keep, p = rule.per_year;
     if (c.isWaiver) {
       const first = c.firstKeptYear != null ? c.firstKeptYear : currentSeason;
-      return WAIVER_COST_ROUND - (currentSeason - first);
+      return rule.undrafted_round - p * (currentSeason - first);
     }
-    return c.originalRound - (currentSeason - decaySince(c));
+    if (c.lastDraft != null) {
+      const n = currentSeason - c.lastDraft;
+      return (c.keptYears || 0) >= 1 ? c.originalRound - p * n : c.originalRound - f - p * (n - 1);
+    }
+    const n = currentSeason - c.originalYear;
+    return c.originalRound - f - p * (n - 1);
   }
   // How many seasons in a row he would have been kept, counting this one: the
   // CURRENT keeper run only. A waiver pickup: seasons since his first keep,
@@ -184,12 +199,14 @@
     const streak = (c.lastDraft == null || c.originalYear === c.lastDraft) ? (c.keptYears || 0) : 0;
     return streak + (currentSeason - decaySince(c));
   }
-  // Keepable iff the computed cost is R3 or higher AND he has not already been
-  // kept MAX_YEARS_KEPT seasons. Once cost would be R2 or lower he returns to
-  // the draft pool instead -- this applies identically to waiver-ladder cost
-  // and drafted cost, since both come out of keeperCost.
-  function eligible(c, currentSeason) {
-    return keeperCost(c, currentSeason) >= 3 && yearsKept(c, currentSeason) <= MAX_YEARS_KEPT;
+  // Keepable iff the computed cost is no earlier than the rule's earliest round
+  // AND (unless the rule has no year limit) he has not already been kept
+  // max_years seasons. Both gates apply identically to waiver and drafted
+  // players. The null check is explicit: `n > null` is true in JS.
+  function eligible(c, currentSeason, rule) {
+    requireRule(rule);
+    if (keeperCost(c, currentSeason, rule) < Math.max(rule.earliest_round, 1)) return false;
+    return rule.max_years === null || yearsKept(c, currentSeason) <= rule.max_years;
   }
   // A recommended-or-not candidate whose edge is too small to tell apart from
   // projection noise (see MARGINAL_POINTS). Impacts at or below 0 are already
@@ -225,8 +242,8 @@
   }
   // Round surplus. Display/diagnostic context ONLY -- rounds are not a linear
   // value currency, so this must never again drive ranking or recommendation.
-  function surplus(c, currentSeason) {
-    return keeperCost(c, currentSeason) - valueRound(c.adpRound, c.overallRank);
+  function surplus(c, currentSeason, rule) {
+    return keeperCost(c, currentSeason, rule) - valueRound(c.adpRound, c.overallRank);
   }
 
   // The overall pick a cost round corresponds to: that round's mid-pick.
@@ -252,15 +269,21 @@
   // real roster slots via rosterSlots/openSlot, recomputing each candidate's
   // impact with the weight he actually receives. The final list is then
   // re-sorted by that weighted impact for display/recommendation.
-  function rankKeepers(candidates, currentSeason, boardPlayers, options = {}) {
+  function resolveMaxKeepers(rule, options) {
+    const m = options.maxKeepers != null ? options.maxKeepers : rule.max_keepers;
+    if (!Number.isInteger(m) || m <= 0) throw new Error("keepers.js: keepers per team must be a positive whole number");
+    return m;
+  }
+  function rankKeepers(candidates, currentSeason, boardPlayers, rule, options = {}) {
+    requireRule(rule);
     const teams = options.teams != null ? options.teams : TEAMS;
-    const maxKeepers = options.maxKeepers != null ? options.maxKeepers : MAX_KEEPERS;
+    const maxKeepers = resolveMaxKeepers(rule, options);
     const depletion = options.depletion !== false;   // default ON
 
-    const valued = candidates.filter(c => eligible(c, currentSeason)).filter(c => Number.isFinite(c.vorp));
+    const valued = candidates.filter(c => eligible(c, currentSeason, rule)).filter(c => Number.isFinite(c.vorp));
 
     const withCost = valued.map(c => {
-      const cost = keeperCost(c, currentSeason);
+      const cost = keeperCost(c, currentSeason, rule);
       const val = valueRound(c.adpRound, c.overallRank, teams);
       const pickNo = pickForRound(cost, teams);
       // Every team's keepers leave the pool before the draft, so the pick at
@@ -289,14 +312,15 @@
   // Eligible candidates with NO projection: surfaced but never valued. A
   // silent zero would be indistinguishable from a genuine replacement-level
   // player, so these are excluded from ranking/recommendation entirely.
-  function unvaluedKeepers(candidates, currentSeason) {
-    return candidates.filter(c => eligible(c, currentSeason)).filter(c => !Number.isFinite(c.vorp));
+  function unvaluedKeepers(candidates, currentSeason, rule) {
+    return candidates.filter(c => eligible(c, currentSeason, rule)).filter(c => !Number.isFinite(c.vorp));
   }
 
   // Which players to actually keep: best up-to-maxKeepers with POSITIVE impact.
-  function recommendKeepers(candidates, currentSeason, boardPlayers, options = {}) {
-    const maxKeepers = options.maxKeepers != null ? options.maxKeepers : MAX_KEEPERS;
-    return rankKeepers(candidates, currentSeason, boardPlayers, options)
+  function recommendKeepers(candidates, currentSeason, boardPlayers, rule, options = {}) {
+    requireRule(rule);
+    const maxKeepers = resolveMaxKeepers(rule, options);
+    return rankKeepers(candidates, currentSeason, boardPlayers, rule, options)
       .filter(c => c.impact > 0).slice(0, maxKeepers);
   }
 
@@ -315,7 +339,7 @@
         c.originalRound = orig.round; c.originalYear = orig.season; c.keptYears = orig.keptYears || 0; c.isWaiver = false;
         if (orig.lastDraft != null) c.lastDraft = orig.lastDraft;
       }
-      else { c.isWaiver = true; }          // on no draft in the chain -> waiver R12
+      else { c.isWaiver = true; }          // on no draft in the chain -> waiver ladder
       candidates.push(c);
     }
     return { candidates, skipped };
@@ -336,8 +360,11 @@
   }
 
   function init(options) {
-    const { players, panel, currentSeason } = options;
+    const { players, panel, currentSeason, rule } = options;
     if (!panel) return;
+    requireRule(rule);
+    if (!Number.isInteger(rule.max_keepers)) throw new Error("keepers.js: the board's keeper rule needs max_keepers");
+    const u = rule.undrafted_round, k = rule.max_keepers;
     const esc = window.FC.esc;
     const rankByName = new Map(players.map((p, i) => [p.name, {
       adpRound: p.adp_round, overallRank: i + 1, position: p.position, vorp: p.vorp,
@@ -351,12 +378,18 @@
     const recEl = panel.querySelector(".keeper-rec");
     const outEl = panel.querySelector(".keeper-out");
     const depletionEl = panel.querySelector(".keeper-depletion-toggle");
+    // The text that follows the rule lives in targetable elements; the
+    // checkboxes and inputs around them are the page's own.
+    const setText = (sel, t) => { const el = panel.querySelector(sel); if (el) el.textContent = t; };
+    setText(".keeper-help", KeeperRules.helpText(rule));
+    setText(".keeper-waiver-text", ` never drafted in this league (R${u})`);
+    setText(".keeper-depletion-text", ` assume ${TEAMS} teams keep ${k} each (${TEAMS * k} players off the board)`);
 
     function redraw() {
       const opts = { depletion: !depletionEl || depletionEl.checked };
-      const ranked = rankKeepers(candidates, currentSeason, players, opts);
-      const unvalued = unvaluedKeepers(candidates, currentSeason);
-      const rec = recommendKeepers(candidates, currentSeason, players, opts);
+      const ranked = rankKeepers(candidates, currentSeason, players, rule, opts);
+      const unvalued = unvaluedKeepers(candidates, currentSeason, rule);
+      const rec = recommendKeepers(candidates, currentSeason, players, rule, opts);
       const recNames = new Set(rec.map(r => r.name));
       if (!candidates.length) {
         recEl.innerHTML = "";
@@ -383,16 +416,16 @@
         return `keep for R${c.cost} · ${valueLabel(c)} · <strong>${pts}</strong>`
           + `${discount}${marginalNote}`;
       };
-      const ineligible = candidates.filter(c => !eligible(c, currentSeason));
+      const ineligible = candidates.filter(c => !eligible(c, currentSeason, rule));
       outEl.innerHTML = ranked.map(c =>
           `<li class="${recNames.has(c.name) ? "keep-best" : ""}">${esc(c.name)} — ${detail(c)}</li>`)
         .concat(unvalued.map(c =>
           `<li class="keeper-unvalued">${esc(c.name)} — no projection — value unknown</li>`))
         .concat(ineligible.map(c => {
-          const n = keeperCost(c, currentSeason);
+          const n = keeperCost(c, currentSeason, rule);
           // The cap's reason wins whenever he is over it, whatever his cost.
-          const reason = yearsKept(c, currentSeason) > MAX_YEARS_KEPT
-            ? `already kept the most allowed (${MAX_YEARS_KEPT} years), so he goes back to the draft pool`
+          const reason = rule.max_years !== null && yearsKept(c, currentSeason) > rule.max_years
+            ? `already kept the most allowed (${rule.max_years} years), so he goes back to the draft pool`
             : n >= 1
             ? `cost would be R${n}, so he goes back to the draft pool`
             : `his keeper ladder has run out`;
@@ -506,10 +539,10 @@
         // ones -- surface it alongside (not instead of) the off-board note.
         const notes = [];
         // An empty history prices everyone as a first-time R12 keeper: say so first.
-        if (historyEmpty) notes.push(NO_HISTORY_NOTE);
+        if (historyEmpty) notes.push(noHistoryNote(rule));
         if (skipped.length) notes.push(`${skipped.length} not on the board (K/DST/retired) — add manually if needed`);
         if (candidates.some(c => c.isWaiver)) {
-          notes.push(`waiver keepers assume this is their first keep (R12) — set "year first kept" manually if you kept one before`);
+          notes.push(`waiver keepers assume this is their first keep (R${u}) — set "year first kept" manually if you kept one before`);
         }
         loadEls.skip.textContent = notes.length ? ` · ${notes.join(" · ")}` : "";
       } catch (e) {
@@ -531,6 +564,6 @@
   return { init, keeperCost, yearsKept, eligible, marginal, valueRound, valueLabel, surplus,
            pickForRound, rankKeepers, unvaluedKeepers, recommendKeepers,
            buildKeeperCandidates, buildOriginalByPlayerId, sleeperKeeperCandidates,
-           TEAMS, MAX_KEEPERS, MAX_YEARS_KEPT, NO_HISTORY_NOTE,
+           noHistoryNote, TEAMS,
            MARGINAL_POINTS, DRAFT_ROUNDS };
 });

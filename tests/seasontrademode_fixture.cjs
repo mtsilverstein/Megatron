@@ -277,7 +277,7 @@ check("sources: no pre-draft pick code, gate file or simulation in the controlle
   assert.ok(!srcs.includes("waiverintel.js"), "the ROS market check left with the grade");
   // The ladder's draft-history walk is keepers.js's (Task 4): it loads before the controller, after sleeper.js.
   assert.ok(srcs.indexOf("sleeper.js") < srcs.indexOf("keepers.js") && srcs.indexOf("keepers.js") < srcs.indexOf("seasontrademode.js"), "keepers.js loads after sleeper.js, before the controller");
-  assert.ok(/seasontrademode\.js\?v=cf1/.test(html) && /keepers\.js\?v=cf1/.test(html) && /pickvalue\.js\?v=picks1/.test(html) && /style\.css\?v=cf1/.test(html)
+  assert.ok(/seasontrademode\.js\?v=kr1/.test(html) && /keepers\.js\?v=kr1/.test(html) && /keeperrules\.js\?v=kr1/.test(html) && /pickvalue\.js\?v=picks1/.test(html) && /style\.css\?v=cf1/.test(html)
     && /seasontrade\.js\?v=lf1/.test(html) && /lineup\.js\?v=3/.test(html), "cache keys bumped for the changed assets only");
   assert.ok(/id="season-context"/.test(html), "the context lines have a home on the page");
   // The pick groups sit in the columns under the players; the note and the controls come after the columns, before the result.
@@ -1589,7 +1589,7 @@ const boardFor = (over = {}) => ({ season: 2026, league: { slug: "leaguea", name
   teams: 12, sleeper_scoring: { rec: 1, pass_td: 6 }, ...over }, data_through: "2025-wk18", generated_at: new Date().toISOString(), model: "transformer", players: [] });
 async function runPage(href) {
   const dom = tradeDom(href);
-  global.FC = FC; global.Session = Session; global.SeasonTradeMode = M; global.TradeMode = window.TradeMode; global.Sleeper = window.Sleeper;
+  global.FC = FC; global.Session = Session; global.SeasonTradeMode = M; global.TradeMode = window.TradeMode; global.Sleeper = window.Sleeper; global.KeeperRules = window.KeeperRules;
   const run = new Function(`return ${inline.trim().replace(/;\s*$/, "")}`);
   await run();
   return dom;
@@ -1654,6 +1654,7 @@ async function pagePreDraft() {
   const dom = await runPage(`https://example.test/Megatron/trade.html?league=${A}`);
   assert.equal(window.TradeMode.calls.length, 1, "TradeMode runs for the board's own league");
   assert.deepEqual(window.TradeMode.calls[0].board, board);
+  assert.equal(dom.$("trade-note").textContent, window.KeeperRules.tradeNote(window.KeeperRules.fromBoard(board.league)), "the note comes from the board's rule");
   assert.deepEqual(draftFetches(), ["data/draft.json"]);
   assert.ok(events.indexOf(`sleeper /league/${A}`) >= 0 && events.indexOf(`sleeper /league/${A}`) < events.indexOf("fetch data/draft.json"), events.join(" | "));
   assert.equal(dom.$("season-trade").hidden, true);
@@ -1707,7 +1708,7 @@ async function pageRollover() {
   // and a bare await would let node drain silently with exit 0. `until` fails loudly.
   const startPage = href => {
     const d = tradeDom(href);
-    global.FC = FC; global.Session = Session; global.SeasonTradeMode = M; global.TradeMode = window.TradeMode; global.Sleeper = window.Sleeper;
+    global.FC = FC; global.Session = Session; global.SeasonTradeMode = M; global.TradeMode = window.TradeMode; global.Sleeper = window.Sleeper; global.KeeperRules = window.KeeperRules;
     new Function(`return ${inline.trim().replace(/;\s*$/, "")}`)();
     return d;
   };

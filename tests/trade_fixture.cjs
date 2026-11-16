@@ -1,6 +1,8 @@
 // tests/trade_fixture.cjs — run with: node tests/trade_fixture.cjs
 const assert = require("assert");
 const T = require("../site/assets/trade.js");
+const KeeperRules = require("../site/assets/keeperrules.js");
+const LADDER = KeeperRules.normalize({ ...KeeperRules.preset("ladder"), max_keepers: 2 }, {});
 
 let n = 0;
 const check = (label, fn) => { fn(); n++; };
@@ -81,7 +83,7 @@ for (let i = 0; i < 240; i++) {
 }
 
 const CTX = (over = {}) => Object.assign({
-  season: 2026, teams: 12, rounds: 15, maxKeepers: 2, futureDiscount: 0.8,
+  season: 2026, teams: 12, rounds: 15, maxKeepers: 2, keeperRule: LADDER, futureDiscount: 0.8,
   board: filler, originalByPlayerId: new Map(), keptElsewhere: new Set(),
 }, over);
 
@@ -543,6 +545,25 @@ check("a straight swap of equals grades near zero for both sides", () => {
     { toMe: { players: [b], picks: [] }, toThem: { players: [a], picks: [] } }, ctx);
   assert.ok(Math.abs(g.myGain) < 5, `expected ~0, got ${g.myGain.toFixed(1)}`);
   assert.ok(Math.abs(g.theirGain) < 5, `expected ~0, got ${g.theirGain.toFixed(1)}`);
+});
+
+check("a 3-keeper league grades a trade without throwing (wall time vs 2 keepers is reported)", () => {
+  const timeIt = rule => {
+    const ctx = CTX({ keeperRule: rule, maxKeepers: undefined });
+    const a = withHistory(ctx, P("A3", "WR", 200), 10);
+    const b = withHistory(ctx, P("B3", "WR", 180), 9);
+    const c = withHistory(ctx, P("C3", "RB", 170), 8);
+    ctx.board = filler.concat([a, b, c]);
+    const me = state([a, c], allPicks()), them = state([b], allPicks());
+    const t0 = Date.now();
+    const g = T.gradeTrade({ me, them },
+      { toMe: { players: [b], picks: [] }, toThem: { players: [c], picks: [] } }, ctx);
+    assert.ok(Number.isFinite(g.myGain) && Number.isFinite(g.theirGain));
+    return Date.now() - t0;
+  };
+  const three = KeeperRules.normalize({ ...KeeperRules.preset("ladder"), max_keepers: 3 }, {});
+  const t2 = timeIt(LADDER), t3 = timeIt(three);
+  console.log(`trade_fixture: gradeTrade wall time, 2 keepers ${t2} ms, 3 keepers ${t3} ms`);
 });
 
 check("an asymmetric trade moves both sides' value in opposite directions", () => {
@@ -1432,7 +1453,7 @@ function shapeSweep(s, extra) {
       const v = value(s.roster.filter(x => x !== p));
       if (v > base + 1e-6) {
         bad.push(`  ${s.label} [${cname}] without ${p.name} `
-          + `(cost R${KK.keeperCost(T.candidate(p, s.ctx), s.ctx.season)}): `
+          + `(cost R${KK.keeperCost(T.candidate(p, s.ctx), s.ctx.season, LADDER)}): `
           + `${v.toFixed(2)} > ${base.toFixed(2)}  (+${(v - base).toFixed(2)})`);
       }
     }
@@ -1626,7 +1647,7 @@ check("MONOTONICITY (roster): no player is worth less than nothing", () => {
       const v = monoValue(monoRoster.filter(x => x !== p), picks);
       if (v > base + 1e-6) {
         bad.push(worse(`${cname} / ${p.name} `
-          + `(cost R${K.keeperCost(T.candidate(p, monoCtx), monoCtx.season)})`, v, base));
+          + `(cost R${K.keeperCost(T.candidate(p, monoCtx), monoCtx.season, LADDER)})`, v, base));
       }
     }
   }
