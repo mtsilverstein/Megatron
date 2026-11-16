@@ -167,10 +167,10 @@ than shown" is shown when the rule's `earliest_round > 1`, which is exactly toda
   (unknown keys, wrong types or out-of-range values raise). `payload()` emits it unchanged, so the board's
   `league.keeper_rules` is that object.
 - `site/assets/app.js` `boardEntry`: keeper tools are on when `KeeperRules.fromBoard` returns a rule (the shared
-  validator; `keeperrules.js` loads before `app.js` on every page). Boards built
-  before this change carry a string: `"gabagool"` (published) or `"ladder"` (several fixtures). Both are legacy
-  aliases read as the `ladder` preset with `max_keepers: 2`, so old boards and those fixtures keep working. Any other
-  string, or an invalid object, turns the keeper tools off for that board. Today any non-empty string turns them on.
+  validator; `keeperrules.js` loads before `app.js` on every page). Boards built before this change carry a string in
+  `keeper_rules`; then the ladder was the only rule, so any non-empty string is read as the `ladder` preset with
+  `max_keepers: 2`, and the site's code never names a league to recognise it (the site privacy test forbids league
+  names in site code; ruling 2026-11-16 after Task 5). An empty string or an invalid object turns the tools off.
 - `trademode.js` / `trade.js` (pre-draft) use the board's rule and its `max_keepers`; their copy
   (e.g. `keeperNote`'s "already kept the most allowed (2 years)", the page's `#trade-note` "one of your two slots" /
   "round 2 or lower", and the no-history "so nobody is ineligible") takes numbers from the rule, and stays true for
@@ -206,8 +206,7 @@ consecutive years; FAM is not a keeper league.
 
 My calls (open to correction): the five settings, including `first_keep` as its own setting (not applied to a
 never-drafted player's `undrafted_round`); the `"last"` round option and its sources; the preset list in §6; Unknown
-stays the default; the legacy strings `"gabagool"`/`"ladder"` read as the ladder preset, and other strings switch the
-tools off; keepers per team from Sleeper (in season) and config (boards) rather than a sixth in-season setting;
+stays the default; a legacy string `keeper_rules` (any non-empty string) reads as the ladder preset, without naming a league; keepers per team from Sleeper (in season) and config (boards) rather than a sixth in-season setting;
 pick-value keepers spread evenly over the rule's whole round span, round 1 included when allowed; validation ranges
 in §3.
 
