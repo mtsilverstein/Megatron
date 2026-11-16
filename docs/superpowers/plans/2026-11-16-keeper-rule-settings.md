@@ -4,26 +4,31 @@
 
 **Goal:** Replace the hard-coded Gabagool keeper rule with five settings (presets plus Custom) used by every keeper tool, without changing any Gabagool number.
 
-**Architecture:** A new pure module `site/assets/keeperrules.js` (UMD, no dependencies) owns the rule: presets, validation, normalisation, board reading and the help text. `keepers.js` and `pickvalue.js` take a normalised rule as an explicit argument. The in-season trade page chooses a rule per league (stored on the device). Published boards carry the rule as a validated YAML mapping.
+**Architecture:** A new pure module `site/assets/keeperrules.js` (UMD, no dependencies) owns the rule: presets, validation, normalisation, board reading and the rule-dependent copy. `keepers.js` and `pickvalue.js` take a normalised rule as an explicit argument. The in-season trade page chooses a rule per league (stored on the device). Published boards carry the rule as a validated YAML mapping.
 
 **Tech Stack:** Plain browser JS (UMD modules, no build), Node fixtures `tests/*_fixture.cjs`, Python 3 + pytest for `src/ffmodel/league.py`.
 
-**Spec:** `docs/superpowers/specs/2026-11-16-keeper-rule-settings-design.md` (approved 2026-11-16). Read it before your task.
+**Spec:** `docs/superpowers/specs/2026-11-16-keeper-rule-settings-design.md` (approved 2026-11-16, amended the same day after astra's review). Read it before your task.
 
 ## Global Constraints
 
-- **Gabagool regression:** every existing fixture keeps its expected values. Fixture call sites may change only to pass Gabagool's rule explicitly. An assertion that names a removed constant (`K.MAX_YEARS_KEPT`, `Keepers.MAX_KEEPERS`, `K.NO_HISTORY_NOTE`) expects the same value from the ladder rule instead.
+- **Gabagool regression:** every existing fixture keeps its expected values.
+  - Fixture call sites may change only to pass Gabagool's rule explicitly.
+  - An assertion that names a removed constant (`K.MAX_YEARS_KEPT`, `Keepers.MAX_KEEPERS`, `K.NO_HISTORY_NOTE`) expects the same value from the ladder rule instead.
+  - Asset-version and script-order assertions (e.g. `keepers_fixture.cjs:578`, `trademode_fixture.cjs:489`, `seasontrademode_fixture.cjs:280`) change together with the URLs they pin.
+  - The one permitted wording change is the draft-page help text's new cap sentence (spec §2).
 - **Ladder preset**, key `"ladder"`: `{first_keep: 1, per_year: 1, max_years: 2, undrafted_round: 12, earliest_round: 3}`. Its in-season label stays verbatim: `Round drafted − 1 per year kept (waiver pickups: round 12; max 2 years)`.
 - **Ranges:**
   - `first_keep`, `per_year`: integers 0–5.
-  - `max_years`: integer 1–20, or `null` (no limit).
+  - `max_years`: integer 1–8, or `null` (no limit).
   - `undrafted_round`: integer 1–30, or `"last"`.
   - `earliest_round`: integer 1–30.
-  - `max_keepers`: integer 1–20 (boards only).
+  - `max_keepers`: integer 1–3 (boards only).
+  - When the draft round count is known, the resolved `undrafted_round` and `earliest_round` must not exceed it.
   - Booleans are never integers. Unknown keys are invalid.
 - **No silent rule:** every keeper cost or eligibility call gets the rule explicitly, and a missing or invalid rule throws. The in-season page starts at **Unknown**.
 - **Copy and data hygiene:** no real league name, id, team name or username in preset labels, code identifiers, fixtures or commit messages. Never hand-edit `site/data/**`.
-- **Cache keys:** `keeperrules.js` and every asset a task changes load with `?v=kr1` on every page that loads them. `shared_assets_fixture.cjs` and `navigation_fixture.cjs` check these.
+- **Cache keys:** `keeperrules.js` and every asset a task changes load with `?v=kr1` on every page that loads them. `keeperrules.js` loads immediately before `app.js` on every page that loads `app.js`.
 - **Commands (Git Bash, from the worktree root):**
   - Fixtures: `for f in tests/*_fixture.cjs; do PYTHON="$(cygpath -w "$(which python)")" node "$f" || { echo "FAIL $f"; break; }; done`
   - pytest: `PYTHONPATH=src python -m pytest -q -p no:cacheprovider`. `PYTHONPATH` is required in a worktree, or pytest tests the main checkout.
@@ -32,10 +37,10 @@
 ## Review Focus
 
 1. **`max_years: null` vs JS comparison:** `yearsKept > null` is `true` in JS (null → 0). A no-limit rule must never say "already kept the most allowed". Pinned in Task 2.
-2. **Half-typed Custom input** (a field emptied mid-edit, `"abc"`, `-1`): must keep the previous rule in force, show the inline message, and never throw or recompute. Pinned in Task 5.
-3. **A choice saved before this change** (`{keeperRule: "ladder"}` in `megatron.trade.picks.v1|<id>`): must load as the ladder preset, with identical lines. Pinned in Task 5.
-4. **The live board still says `keeper_rules: "gabagool"`** until the draft pipeline regenerates it. The keeper panel and the pre-draft page must work unchanged on it. Pinned in Tasks 2 and 3.
-5. **Two different Custom rules in one session** must not share a cached pick curve: the cache key is the rule's settings, not `"custom"`. Pinned in Task 5.
+2. **Half-typed Custom input** (a field emptied mid-edit, `"abc"`, `-1`): must keep the previous rule in force, show the inline message, and never throw or recompute. Pinned in Task 4.
+3. **A choice saved before this change** (`{keeperRule: "ladder"}` in `megatron.trade.picks.v1|<id>`): must load as the ladder preset, with identical lines. Pinned in Task 4.
+4. **The live board still says `keeper_rules: "gabagool"`** until the draft pipeline regenerates it. The keeper panel and the pre-draft page must work unchanged on it. Pinned in Tasks 2 and 5.
+5. **Two different Custom rules in one session** must not share a cached pick curve: the cache key is the rule's settings, not `"custom"`. Pinned in Task 4.
 
 ---
 
@@ -52,39 +57,48 @@
     - `same_round`: `Kept at the round drafted, every year (no limit)`
     - `one_earlier`: `One round earlier each year kept, starting with the first (no limit)`
     - `after_first`: `The round drafted the first year, one round earlier each year after (no limit)`
-  - `preset(key) -> settings | null`: a fresh copy.
-  - `validate(raw) -> string | null`: null when valid. Otherwise a message that starts with the bad setting's label, checking keys in the order first_keep, per_year, max_years, undrafted_round, earliest_round, max_keepers. Labels: `First keep`, `Each later year`, `Most years in a row`, `Never-drafted cost`, `Earliest round`, `Keepers per team`. Unknown key: `Unknown keeper setting: <key>`. `max_keepers` is optional here. A non-object fails with `Keeper rule must be an object`.
+  - `preset(key) -> settings | null`: a fresh, unfrozen copy.
+  - `validate(raw, {rounds} = {}) -> string | null`: null when valid. Otherwise a message that starts with the bad setting's label, checking keys in the order first_keep, per_year, max_years, undrafted_round, earliest_round, max_keepers. Labels: `First keep`, `Each later year`, `Most years in a row`, `Never-drafted cost`, `Earliest round`, `Keepers per team`. Unknown key: `Unknown keeper setting: <key>`. `max_keepers` is optional here. A non-object fails with `Keeper rule must be an object`.
+
+    When `rounds` is a positive integer, the resolved `undrafted_round` and `earliest_round` above it fail with their label and the words `the draft has only <rounds> rounds`.
   - `normalize(raw, {rounds}) -> rule`: throws `Error(validate message)` when invalid. Resolves `"last"` to `rounds`, and throws `Error("Never-drafted cost: the league's number of draft rounds is unknown")` when rounds is not a positive integer. Returns a frozen `{first_keep, per_year, max_years, undrafted_round, earliest_round}`, plus `max_keepers` when given.
-  - `isRule(x) -> boolean`: true only for an object `normalize` returned. Use a module-private WeakSet.
+  - `isRule(x) -> boolean`: structural check: `Object.isFrozen(x)`, `validate(x) === null`, and `Number.isInteger(x.undrafted_round)`. No identity branding: fixtures and the page may load the module more than once.
   - `fromBoard(league) -> rule | null`:
     - absent `keeper_rules` → null.
     - string `"gabagool"` or `"ladder"` → the ladder settings plus `max_keepers: 2`, normalised.
     - plain object → normalised with `{rounds: league.rounds}`; it must have `max_keepers`, or the result is null.
     - any other string, or an invalid object → null. Never throws.
-  - `key(rule) -> string`: a stable cache key from the five settings (e.g. `JSON.stringify` of them in fixed order). `key(null)` is `"unknown"`.
+  - `key(rule) -> string`: a stable cache key from the five settings, in fixed order. `key(null)` is `"unknown"`.
   - `helpText(rule) -> string`: the draft-page help paragraph (copy below).
+  - `tradeNote(rule) -> string`: the pre-draft trade page's `#trade-note` paragraph (copy below).
+  - `neverDraftedKeepable(rule) -> boolean`: `undrafted_round >= max(earliest_round, 1)`.
 
 - [ ] **Step 1: Write the failing tests** in `tests/keeperrules_fixture.cjs`. Use the existing fixtures' `check(name, fn)` style and end with a summary line like the others. Assertions:
   - `validate(preset(k)) === null` for every preset key.
   - Invalid inputs each give a message matching their label:
     - `first_keep: -1` → `/^First keep/`; `first_keep: 6`; `first_keep: 1.5`; `first_keep: true`;
-    - `max_years: 0` → `/^Most years in a row/`;
+    - `max_years: 0` and `max_years: 9` → `/^Most years in a row/`;
     - `undrafted_round: "first"` → `/^Never-drafted cost/`;
     - `earliest_round: 31` → `/^Earliest round/`;
-    - `max_keepers: 0` → `/^Keepers per team/`;
+    - `max_keepers: 0` and `max_keepers: 4` → `/^Keepers per team/`;
     - `{...ladder, extra: 1}` → `/^Unknown keeper setting: extra/`;
     - a missing `per_year` → `/^Each later year/`.
-  - `normalize({...preset("same_round")}, {rounds: 15}).undrafted_round === 15`. `normalize` of that `"last"` rule with `{rounds: null}` throws `/draft rounds is unknown/`.
-  - `isRule(normalize(preset("ladder"), {}))` is true. `isRule({...preset("ladder")})` is false.
+  - `validate({...ladder, undrafted_round: 16}, {rounds: 15})` → `/^Never-drafted cost.*only 15 rounds/`. `validate({...ladder, earliest_round: 16}, {rounds: 15})` → `/^Earliest round/`. Both are valid without `rounds`.
+  - `normalize(preset("same_round"), {rounds: 15}).undrafted_round === 15`. `normalize` of that `"last"` rule with `{rounds: null}` throws `/draft rounds is unknown/`.
+  - `isRule(normalize(preset("ladder"), {}))` is true. `isRule(preset("ladder"))` is false (not frozen). `isRule(Object.freeze(preset("same_round")))` is false ("last" is unresolved).
   - `fromBoard`:
     - `fromBoard({keeper_rules: "gabagool"})` deep-equals ladder + `max_keepers: 2`; `fromBoard({keeper_rules: "ladder"})` likewise;
-    - `fromBoard({keeper_rules: "other"}) === null`;
-    - `fromBoard({}) === null`;
-    - `fromBoard({keeper_rules: {...preset("ladder")}})` → null (no max_keepers);
+    - `fromBoard({keeper_rules: "other"})`, `fromBoard({})` and `fromBoard({keeper_rules: {}})` → null;
+    - `fromBoard({keeper_rules: preset("ladder")})` → null (no max_keepers);
     - `fromBoard({keeper_rules: {...preset("same_round"), max_keepers: 1}, rounds: 16}).undrafted_round === 16`;
     - `fromBoard({keeper_rules: {first_keep: 9}})` → null without throwing.
   - `key(a) === key(b)` for two normalisations of the same settings. `key` differs when any setting differs. `key(null) === "unknown"`.
-  - `helpText(fromBoard({keeper_rules: "gabagool"}))` equals exactly the Gabagool paragraph below. One assertion per other cost branch (f=p=0, f=0<p, f>0=p, f≠p both >0) checks the cost sentence. `max_years: null` gives the no-limit sentence.
+  - `helpText(fromBoard({keeper_rules: "gabagool"}))` equals exactly the Gabagool paragraph below.
+    - One assertion per other cost branch (f=p=0, f=0<p, f>0=p, f≠p both >0) checks the cost sentence.
+    - `{per_year: 2}` gives the "earlier than round" floor sentence.
+    - `max_years: null` gives the no-limit sentence.
+  - `tradeNote(fromBoard({keeper_rules: "gabagool"}))` equals exactly the Gabagool trade note below. `max_keepers: 1` gives `your one slot`, and `max_keepers: 3` gives `one of your three slots`.
+  - `neverDraftedKeepable`: ladder true; `{...ladder, undrafted_round: 2}` false.
 
   `helpText(rule)` is the sentences below joined by single spaces. `n(k)` is `one round` when k = 1, otherwise `<k> rounds`; `u` is `undrafted_round`; `e` is `earliest_round`.
   1. `Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (<cost>).`, where `<cost>` is:
@@ -94,7 +108,8 @@
      - f > 0 = p: `keeping him costs n(f) earlier than that round, every year`
      - otherwise: `the first year you keep him he costs n(f) earlier, then n(p) earlier each year after`
   2. Only when f + p > 0:
-     - e > 1: `Once a keeper's cost would reach round <e−1> he goes back into the draft pool.`
+     - e > 1 and f ≤ 1 and p ≤ 1: `Once a keeper's cost would reach round <e−1> he goes back into the draft pool.`
+     - e > 1 otherwise: `Once a keeper's cost would be earlier than round <e> he goes back into the draft pool.`. A multi-round step can skip round e−1.
      - e = 1: `Once a keeper's cost would fall below round 1 he goes back into the draft pool.`
   3. Years in a row:
      - max_years = m: `A player can be kept at most <m> year<s> in a row.`
@@ -108,86 +123,27 @@
   Gabagool's paragraph is therefore exactly:
   `Add each keeper-eligible player with the round and year you ORIGINALLY drafted him (cost drops one round for each year you keep him). Once a keeper's cost would reach round 2 he goes back into the draft pool. A player can be kept at most 2 years in a row. A player keeps his original draft round even if he was dropped and later picked back up — only players never drafted in this league cost R12. A kept waiver player decays too — R12 the first year you keep him, R11 the next. Keeping is optional — the tool recommends only players worth more than their keeper cost.`
 
+  `tradeNote(rule)` is today's `site/trade.html:33-38` text, with two pieces from the rule:
+  - The slots phrase: `one of your two slots` for 2, `your one slot` for 1, `one of your three slots` for 3. The surrounding words are `a player you acquire competes for <slots phrase>, he does not add one.`
+  - The floor sentence:
+    - e > 1: `A player whose keeper cost would be round <e−1> or lower goes back in the draft pool for everybody, so he is worth nothing to trade before the draft, however good he is.`
+    - e = 1 and f + p > 0: the same, with `would fall below round 1`.
+    - e = 1 and f + p = 0: the sentence is omitted.
+
+  Gabagool's note is therefore exactly, as one line with single spaces:
+  `Every number is season points in your best STARTING LINEUP, measured by playing the rest of your draft out from the post-trade roster. Keepers are worked out for both sides — a player you acquire competes for one of your two slots, he does not add one. A player whose keeper cost would be round 2 or lower goes back in the draft pool for everybody, so he is worth nothing to trade before the draft, however good he is.`
+
 - [ ] **Step 2: Run it.** `node tests/keeperrules_fixture.cjs`. Expected: FAIL, cannot find `../site/assets/keeperrules.js`.
 - [ ] **Step 3: Implement `site/assets/keeperrules.js`.** Use the same UMD wrapper shape as `site/assets/keepers.js` lines 31–35, global name `KeeperRules`.
 - [ ] **Step 4: Run it.** Expected: PASS.
-- [ ] **Step 5: Commit.** `git add site/assets/keeperrules.js tests/keeperrules_fixture.cjs && git commit -m "feat(keepers): keeper rule module — presets, validation, board reading, help text"`
+- [ ] **Step 5: Commit.** `git add site/assets/keeperrules.js tests/keeperrules_fixture.cjs && git commit -m "feat(keepers): keeper rule module — presets, validation, board reading, copy"`
 
-### Task 2: `keepers.js` takes the rule; the draft-page keeper panel reads the board's rule
+### Task 2: keeper math, the draft-page panel and the pre-draft trade page take the board's rule
 
-**Files:**
-- Modify: `site/assets/keepers.js` (math, `init`, notes)
-- Modify: `site/index.html`:
-  - `#keepers` panel copy, lines ~146–160;
-  - the keeper init near line 773;
-  - script tags: add `assets/keeperrules.js?v=kr1` before `keepers.js`; `keepers.js?v=kr1`.
-- Modify: `site/trade.html`: add `keeperrules.js?v=kr1` before `keepers.js`, and `keepers.js?v=kr1`. Both pages load keepers.js.
-- Modify: `site/assets/seasontrademode.js` `ladderKeepers` (~line 1299) as a stopgap. It passes the ladder rule (`KeeperRules.normalize(KeeperRules.preset("ladder"), {})`) to `K.eligible`/`K.keeperCost`, so the in-season page keeps working until Task 5 replaces this with the chosen rule. `seasontrademode.js?v=kr1`.
-- Test: `tests/keepers_fixture.cjs`, plus any fixture that loads keepers.js and needs `keeperrules.js` loaded first (including `seasontrademode_fixture.cjs`'s script loader).
-
-**Interfaces:**
-- Consumes (Task 1): `KeeperRules.isRule`, `normalize`, `preset`, `fromBoard`, `helpText`.
-- Produces:
-  - Rule-taking functions, all throwing `Error("keepers.js: a keeper rule is required")` unless `KeeperRules.isRule(rule)`:
-    - `keeperCost(c, currentSeason, rule)`
-    - `eligible(c, currentSeason, rule)`
-    - `surplus(c, currentSeason, rule)`
-    - `unvaluedKeepers(candidates, currentSeason, rule)`
-    - `rankKeepers(candidates, currentSeason, boardPlayers, rule, options = {})`
-    - `recommendKeepers(candidates, currentSeason, boardPlayers, rule, options = {})`
-  - `yearsKept(c, currentSeason)` is unchanged and takes no rule. Ruling: its math does not depend on the rule.
-  - `maxKeepers` in `rankKeepers`/`recommendKeepers` = `options.maxKeepers ?? rule.max_keepers`. If that is not a positive integer, they throw.
-  - `noHistoryNote(rule) -> string`: today's `NO_HISTORY_NOTE` text with `R12` replaced by `R<undrafted_round>`.
-  - `init({players, panel, currentSeason, rule})`: `rule` is a board rule with `max_keepers`.
-  - Removed exports: `MAX_KEEPERS`, `MAX_YEARS_KEPT`, `NO_HISTORY_NOTE`. Kept: `TEAMS`, `DRAFT_ROUNDS`, `MARGINAL_POINTS`.
-- Cost math, exactly spec §4 (`f = rule.first_keep`, `p = rule.per_year`):
-  - waiver: `undrafted_round − p × (currentSeason − firstKeptYear)`, with `firstKeptYear` defaulting to `currentSeason`.
-  - Sleeper entry (`lastDraft != null`), `n = currentSeason − lastDraft`:
-    - `keptYears ≥ 1`: `originalRound − p × n`
-    - otherwise: `originalRound − f − p × (n − 1)`
-  - manual entry, `n = currentSeason − originalYear`: `originalRound − f − p × (n − 1)`.
-- Eligible: `cost ≥ max(earliest_round, 1)`, and `max_years === null || yearsKept ≤ max_years`. Compare with an explicit null check.
-
-- [ ] **Step 1: Update and add tests** in `tests/keepers_fixture.cjs`.
-  - Define `const LADDER = KeeperRules.normalize({...KeeperRules.preset("ladder"), max_keepers: 2}, {})` at the top. Pass it at every existing call site, keeping every expected value.
-  - Replace `assert.strictEqual(K.MAX_YEARS_KEPT, 2)` with `assert.strictEqual(LADDER.max_years, 2)`. Line 592 now compares `K.noHistoryNote(LADDER)` with the same text.
-  - New check "keeper rules: costs per preset". The Sleeper `testKeptYears` candidates at 2027 (chain, new, old, brk), plus a waiver with `firstKeptYear` 2026 and a manual `{originalRound: 8, originalYear: 2025}`:
-
-    | rule | chain (keeper anchor R6, n=1) | new (fresh R5) | old (fresh R8, 2024) | brk (keeper R9, 2025) | waiver 2026 | manual R8/2025 |
-    |---|---|---|---|---|---|---|
-    | ladder | 5 | 4 | 7 | 8 | 11 | 6 |
-    | same_round (rounds 15) | 6 | 5 | 8 | 9 | 15 | 8 |
-    | one_earlier (rounds 15) | 5 | 4 | 7 | 8 | 14 | 6 |
-    | after_first (rounds 15) | 5 | 5 | 8 | 8 | 14 | 7 |
-
-    Cell formulas:
-    - **manual**: n = 2027 − 2025 = 2, cost = `8 − f − p`;
-    - **waiver**: `u − p×1`;
-    - **old**: fresh pick, lastDraft 2026, n = 1, cost = `8 − f`;
-    - **brk**: keeper pick, cost = `9 − p`.
-  - New check "no year limit never trips the cap" (Review Focus 1): `same_round` with a candidate whose `yearsKept` is 5 is eligible. The panel's reasons never say "already kept the most allowed".
-  - New check "earliest round": `{...one_earlier, earliest_round: 5}`, a fresh R5 anchor at n = 1 → cost 4, ineligible. Without that line (`earliest_round: 1`), a cost of 1 is eligible and a cost of 0 is not.
-  - New check "a missing or plain-object rule throws": `keeperCost(c, 2027)` and `keeperCost(c, 2027, {...preset("ladder")})` both throw `/a keeper rule is required/`.
-- [ ] **Step 2: Run** `node tests/keepers_fixture.cjs`. Expected: FAIL on the new checks and on the rule argument.
-- [ ] **Step 3: Implement.**
-  - **keepers.js math:** remove `WAIVER_COST_ROUND`, `MAX_YEARS_KEPT`, `MAX_KEEPERS` and the `>= 3` test.
-  - **Copy inside `init`, numbers from the rule:**
-    - the ineligible cap reason ``already kept the most allowed (${rule.max_years} years), so he goes back to the draft pool``, used only when `max_years !== null` and he is over it;
-    - the waiver note `waiver keepers assume this is their first keep (R<u>)`;
-    - `noHistoryNote(rule)`.
-  - **Panel text from the rule:**
-    - `.keeper-help` textContent = `KeeperRules.helpText(rule)`;
-    - the waiver checkbox label text `never drafted in this league (R<u>)`;
-    - the depletion label text ``assume ${Keepers.TEAMS} teams keep ${k} each (${Keepers.TEAMS * k} players off the board)``, with `k = rule.max_keepers`.
-
-    Keep the `<input>` elements. Put the changing text in a `<span>` you can target.
-  - **index.html:** the inline script computes `const keeperRule = window.KeeperRules ? KeeperRules.fromBoard(board.league) : null;`. The keeper panel initialises only when `keeperRule` is non-null, as well as today's conditions. Otherwise it is hidden, as today. It passes `rule: keeperRule`. The static help text in the HTML may stay as the no-JS fallback.
-- [ ] **Step 4: Run all fixtures.** Expected: all pass except `trade_fixture` and `trademode_fixture`, which fail on the missing rule argument until Task 3 threads it through. Record which checks fail in your report, and do not edit trade.js/trademode.js. `seasontrademode_fixture` must pass, thanks to the stopgap.
-- [ ] **Step 5: Commit** keepers.js, index.html, trade.html and the fixtures, as `feat(keepers): keeper math and the draft-page panel take the league's rule`.
-
-### Task 3: the pre-draft trade page uses the board's rule
+One task, so no commit leaves the pre-draft trade page broken.
 
 **Files:**
+- Modify: `site/assets/keepers.js` (math, `init`, notes).
 - Modify: `site/assets/trade.js`:
   - `CTX_REQUIRED` and `requireCtx` (~line 61);
   - `candidate` (~130);
@@ -198,38 +154,101 @@
   - `leagueWorld` ctx (~213);
   - the no-history warnings (~172–183);
   - `keeperNote` (~307);
-  - `init` reads the rule from `board.league` via `KeeperRules.fromBoard`.
-- Modify: `site/trade.html`, the pre-draft branch near line 164: when `KeeperRules.fromBoard(board.league)` is null, stamp the existing `NOT_AVAILABLE` and return, like `!entry.tools.trade`. Cache keys `trade.js?v=kr1`, `trademode.js?v=kr1`.
-- Test: `tests/trade_fixture.cjs`, `tests/trademode_fixture.cjs`
+  - `init` reads the rule via `KeeperRules.fromBoard(board.league)`.
+- Modify: `site/assets/seasontrademode.js` `ladderKeepers` (~1299) as a stopgap. It passes the ladder rule (`KeeperRules.normalize(KeeperRules.preset("ladder"), {})`) to `K.eligible`/`K.keeperCost` until Task 4 replaces it with the chosen rule.
+- Modify: `site/index.html`:
+  - the `#keepers` panel (~146–160);
+  - the keeper init near line 773.
+- Modify: `site/trade.html`:
+  - `#trade-note` filled from `KeeperRules.tradeNote(rule)` when the pre-draft page opens; the static text stays as the no-JS fallback;
+  - the pre-draft branch near line 164: when `KeeperRules.fromBoard(board.league)` is null, stamp the existing `NOT_AVAILABLE` and return.
+- Script tags on index.html and trade.html: add `assets/keeperrules.js?v=kr1` immediately before `app.js`. Bump `keepers.js`, `trade.js`, `trademode.js` and `seasontrademode.js` to `?v=kr1` where they load.
+- Test: `tests/keepers_fixture.cjs`, `tests/trade_fixture.cjs`, `tests/trademode_fixture.cjs`, and the script loaders of any fixture that loads keepers.js (including `seasontrademode_fixture.cjs`), which must load `keeperrules.js` first.
 
 **Interfaces:**
-- Consumes (Tasks 1–2): `KeeperRules.fromBoard`; Keepers' rule-taking functions; `Keepers.noHistoryNote(rule)`.
+- Consumes (Task 1): `KeeperRules.isRule`, `normalize`, `preset`, `fromBoard`, `helpText`, `tradeNote`, `neverDraftedKeepable`.
 - Produces:
-  - `ctx.keeperRule`, a normalised board rule, added to `CTX_REQUIRED`.
-  - `leagueWorld(…)` sets `ctx.keeperRule` and `ctx.maxKeepers = keeperRule.max_keepers`. Its caller passes the board's rule: add it to the existing `opts`, as `opts.keeperRule`.
-  - `keeperNote(player, ctx)` takes its numbers from `ctx.keeperRule`. The cap line appears only when `max_years !== null` and he is over it.
-  - The no-prior-season warning becomes ``no prior season — keeper costs unknown, every player priced at full value (each is treated as a first-time R${u} keeper, so nobody is ineligible)``.
+  - Rule-taking functions, all throwing `Error("keepers.js: a keeper rule is required")` unless `KeeperRules.isRule(rule)`:
+    - `keeperCost(c, currentSeason, rule)`
+    - `eligible(c, currentSeason, rule)`
+    - `surplus(c, currentSeason, rule)`
+    - `unvaluedKeepers(candidates, currentSeason, rule)`
+    - `rankKeepers(candidates, currentSeason, boardPlayers, rule, options = {})`
+    - `recommendKeepers(candidates, currentSeason, boardPlayers, rule, options = {})`
+  - `yearsKept(c, currentSeason)` is unchanged and takes no rule. Ruling: its math does not depend on the rule.
+  - `maxKeepers` = `options.maxKeepers ?? rule.max_keepers`. If that is not a positive integer, the function throws.
+  - `noHistoryNote(rule) -> string`: today's `NO_HISTORY_NOTE` with `R12` → `R<u>`. When `!neverDraftedKeepable(rule)`, the ending `so none is ineligible` becomes `so none can be kept`.
+  - `init({players, panel, currentSeason, rule})`: `rule` is a board rule with `max_keepers`.
+  - Removed exports: `MAX_KEEPERS`, `MAX_YEARS_KEPT`, `NO_HISTORY_NOTE`. Kept: `TEAMS`, `DRAFT_ROUNDS`, `MARGINAL_POINTS`.
+  - `trade.js`: `ctx.keeperRule` (a normalised board rule) joins `CTX_REQUIRED`. Line 404's fallback becomes `ctx.keeperRule.max_keepers`.
+  - `trademode.js` `leagueWorld(…, opts)`:
+    - takes `opts.keeperRule` and sets `ctx.keeperRule` and `ctx.maxKeepers = keeperRule.max_keepers`;
+    - the no-prior-season warning becomes ``no prior season — keeper costs unknown, every player priced at full value (each is treated as a first-time R${u} keeper, so nobody is ineligible)``, ending `so nobody can be kept` when `!neverDraftedKeepable(rule)`;
+    - `keeperNote` takes its numbers from `ctx.keeperRule`, and the cap line appears only when `max_years !== null` and he is over it.
+- Cost math, exactly spec §4 (`f = rule.first_keep`, `p = rule.per_year`):
+  - waiver: `undrafted_round − p × (currentSeason − firstKeptYear)`, with `firstKeptYear` defaulting to `currentSeason`.
+  - Sleeper entry (`lastDraft != null`), `n = currentSeason − lastDraft`:
+    - `keptYears ≥ 1`: `originalRound − p × n`
+    - otherwise: `originalRound − f − p × (n − 1)`
+  - manual entry, `n = currentSeason − originalYear`: `originalRound − f − p × (n − 1)`.
+- Eligible: `cost ≥ max(earliest_round, 1)`, and `max_years === null || yearsKept ≤ max_years`. Compare with an explicit null check.
+- **Panel text in `init`, numbers from the rule:**
+  - `.keeper-help` textContent = `KeeperRules.helpText(rule)`;
+  - the waiver checkbox label `never drafted in this league (R<u>)`;
+  - the depletion label ``assume ${Keepers.TEAMS} teams keep ${k} each (${Keepers.TEAMS * k} players off the board)``, with `k = rule.max_keepers`;
+  - the ineligible cap reason ``already kept the most allowed (${rule.max_years} years), so he goes back to the draft pool``, used only when `max_years !== null` and he is over it;
+  - the waiver note `waiver keepers assume this is their first keep (R<u>)`.
 
-- [ ] **Step 1: Update the tests.**
-  - Every ctx a fixture builds gets `keeperRule: LADDER` (defined as in Task 2).
-  - `assert.strictEqual(w.ctx.maxKeepers, Keepers.MAX_KEEPERS)` becomes `…, 2`. Line 215 uses `Keepers.noHistoryNote(LADDER)`.
-  - Add these checks to `trademode_fixture`:
-    - **(a)** `keeperNote` under `same_round` (normalised with rounds 15, `max_keepers: 2`) for `{round: 9, season: 2026, keptYears: 2, lastDraft: 2026}` at season 2027 gives `{eligible: true, text: "keeper cost R9"}`. A keeper pick at `per_year: 0` costs R9, and with no limit the cap never fires.
+  Keep the `<input>`s, and put the changing text in targetable `<span>`s.
+- **index.html:** the inline script computes `const keeperRule = window.KeeperRules ? KeeperRules.fromBoard(board.league) : null;`. The panel initialises only when `keeperRule` is non-null, as well as today's conditions, and passes `rule: keeperRule`.
+
+- [ ] **Step 1: Update and add tests.**
+  - **Shared `LADDER`:** define `const LADDER = KeeperRules.normalize({...KeeperRules.preset("ladder"), max_keepers: 2}, {})` in each touched fixture. Pass it at every existing call site, and in every ctx as `keeperRule: LADDER`, keeping every expected value.
+  - **Replaced constants:**
+    - `assert.strictEqual(K.MAX_YEARS_KEPT, 2)` → `LADDER.max_years`;
+    - `keepers_fixture.cjs:592` compares `K.noHistoryNote(LADDER)` with the same text;
+    - `trademode_fixture.cjs:148` expects `2`;
+    - `:215` uses `Keepers.noHistoryNote(LADDER)`.
+  - **keepers_fixture: "keeper rules: costs per preset".** The Sleeper `testKeptYears` candidates at 2027 (chain, new, old, brk), plus a waiver with `firstKeptYear` 2026 and a manual `{originalRound: 8, originalYear: 2025}`:
+
+    | rule | chain (keeper anchor R6, n=1) | new (fresh R5) | old (fresh R8, 2024) | brk (keeper R9, 2025) | waiver 2026 | manual R8/2025 |
+    |---|---|---|---|---|---|---|
+    | ladder | 5 | 4 | 7 | 8 | 11 | 6 |
+    | same_round (rounds 15) | 6 | 5 | 8 | 9 | 15 | 8 |
+    | one_earlier (rounds 15) | 5 | 4 | 7 | 8 | 14 | 6 |
+    | after_first (rounds 15) | 5 | 5 | 8 | 8 | 14 | 7 |
+    | custom f2 p1 u12 e3 null | 5 | 3 | 6 | 8 | 11 | 5 |
+
+    Cell formulas:
+    - **manual**: n = 2, cost = `8 − f − p`;
+    - **waiver**: `u − p`;
+    - **old**: fresh pick, lastDraft 2026, n = 1, cost = `8 − f`;
+    - **brk**: keeper pick, cost = `9 − p`.
+  - **keepers_fixture: "n > 1".** The same candidates at 2028 (n = 2):
+    - ladder: new `3`, chain `4`;
+    - custom f2 p1: new `5 − 2 − 1 = 2`, chain `6 − 2 = 4`.
+  - **keepers_fixture: "no year limit never trips the cap"** (Review Focus 1): under `same_round`, a manual `{originalRound: 8, originalYear: 2022}` at 2027 (`yearsKept` 5) is eligible at R8. No panel reason says "already kept the most allowed".
+  - **keepers_fixture: "earliest round".** `{...one_earlier, earliest_round: 5}`, a fresh R5 anchor at n = 1 → cost 4, ineligible. With `earliest_round: 1`, a cost of 1 is eligible and a cost of 0 is not.
+  - **keepers_fixture: "a missing or plain-object rule throws".** `keeperCost(c, 2027)` and `keeperCost(c, 2027, preset("ladder"))` throw `/a keeper rule is required/`.
+  - **trademode_fixture:**
+    - **(a)** `keeperNote` under `same_round` (rounds 15, `max_keepers: 2`) for `{round: 9, season: 2026, keptYears: 2, lastDraft: 2026}` at 2027 → `{eligible: true, text: "keeper cost R9"}`.
     - **(b)** `requireCtx` throws `/ctx.keeperRule is required/` when it is missing.
-    - **(c)** A board whose `keeper_rules` is `"gabagool"` produces the same `leagueWorld` ctx numbers as one whose `keeper_rules` is the equivalent object (Review Focus 4).
-- [ ] **Step 2: Run** `node tests/trademode_fixture.cjs` and `node tests/trade_fixture.cjs`. Expected: FAIL.
+    - **(c)** Review Focus 4: a board whose `keeper_rules` is `"gabagool"` produces the same `leagueWorld` ctx numbers as one with the equivalent object.
+    - **(d)** With `{...ladder, undrafted_round: 2, max_keepers: 2}`, the no-prior-season warning ends `so nobody can be kept`.
+  - **trade_fixture: a 3-keeper ctx** (`max_keepers: 3`) grades a trade without throwing. Report its wall time against the same trade at 2 keepers.
+- [ ] **Step 2: Run** the three fixtures. Expected: FAIL.
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run all fixtures.** Expected: all pass, except possibly `seasontrademode_fixture` checks for the in-season rule argument (Task 5). Report any.
-- [ ] **Step 5: Commit**, as `feat(trade): the pre-draft trade page prices keepers under the board's rule`.
+- [ ] **Step 4: Run all fixtures.** Expected: all pass.
+- [ ] **Step 5: Commit** everything above, as `feat(keepers): keeper math, the keeper panel and the pre-draft trade page take the league's rule`.
 
-### Task 4: pick values follow any rule
+### Task 3: pick values follow any rule
 
 **Files:**
 - Modify: `site/assets/pickvalue.js`:
   - `KEEPER_RULES` and the ladder constants (lines 25–33);
   - `buildCurve` (246–310);
   - load `KeeperRules` the way `keepers.js` loads its dependencies (window, else `require("./keeperrules.js")`).
-- Modify: `site/trade.html`: `pickvalue.js?v=kr1`.
+- Modify: `site/trade.html`: `pickvalue.js?v=kr1`, and any fixture assertion pinning `pickvalue.js?v=picks1`.
 - Test: `tests/pickvalue_fixture.cjs`
 
 **Interfaces:**
@@ -249,13 +268,13 @@
     - `close(rankAtSlot(180), 12 + 179 − 179/15 + 1)`
     - values non-increasing over slots 1..180
   - New: `{...one_earlier, earliest_round: 13, undrafted_round: 12}`, normalised (empty span): `rankAtSlot(s)` equals Unknown's for s in 1..180.
-  - New: `buildCurve` with a plain object copy of a preset throws `/Unknown keeper rule/`.
+  - New: `buildCurve` with `preset("ladder")` (a plain, unfrozen copy) throws `/Unknown keeper rule/`.
 - [ ] **Step 2: Run** `node tests/pickvalue_fixture.cjs`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run all fixtures.** Expected: all pass.
 - [ ] **Step 5: Commit**, as `feat(picks): draft-pick values spread keepers over the chosen rule's rounds`.
 
-### Task 5: the in-season trade page's rule menu, Custom settings and storage
+### Task 4: the in-season trade page's rule menu, Custom settings and storage
 
 **Files:**
 - Modify: `site/assets/seasontrademode.js`:
@@ -265,18 +284,18 @@
   - `loadPref`/`savePref` (~686–700);
   - `setPref` and the select builder (~890–920);
   - the history walk triggers (~791, 915);
-  - `ladderKeepers` (~1289–1300).
-- Modify: `site/trade.html`: `seasontrademode.js?v=kr1`. Modify the CSS the existing pick controls use, if the Custom row needs it.
-- Test: `tests/seasontrademode_fixture.cjs` (its script loader must load `keeperrules.js` before `pickvalue.js`)
+  - `ladderKeepers` (~1289–1300), replacing Task 2's stopgap.
+- Modify: the CSS the existing pick controls use, if the Custom row needs it. Bump `?v=` on any stylesheet changed.
+- Test: `tests/seasontrademode_fixture.cjs`
 
 **Interfaces:**
-- Consumes: `KeeperRules.PRESETS`, `validate`, `normalize`, `key`. `PickValue.buildCurve` with a rule (Task 4). `Keepers.keeperCost`/`eligible` with a rule (Task 2).
+- Consumes: `KeeperRules.PRESETS`, `validate`, `normalize`, `key`. `PickValue.buildCurve` with a rule (Task 3). `Keepers.keeperCost`/`eligible` with a rule (Task 2).
 - **Menu:** `PICK_RULES` = `[["unknown","Unknown"], ...PRESETS.map(p => [p.key, p.label]), ["custom","Custom…"]]`.
 - **Pref:** `{preset, order, keeperRule, keeperCustom?}`.
   - `keeperRule` ∈ `"unknown"`, a preset key, or `"custom"`.
   - `keeperCustom` holds the five raw settings and is present only when `keeperRule === "custom"`.
   - `loadPref` falls back to `"unknown"` for an unknown key, or for `"custom"` whose `keeperCustom` fails `validate`.
-- **Active rule:** `null` for Unknown; otherwise `KeeperRules.normalize(settings, {rounds: PK.rounds})`. If normalising throws, treat it as Unknown and show the message under the menu.
+- **Active rule:** `null` for Unknown; otherwise `KeeperRules.normalize(settings, {rounds: PK.rounds})`. If normalising throws (e.g. a saved custom rule beyond this league's rounds), treat it as Unknown and show the message under the menu.
 - **Curves:** build lazily on first use, cached in a `Map` keyed by `KeeperRules.key(rule)`. Do not precompute them over `KEEPER_RULES`.
 - **`picksSummary({..., keeperRule})`:** `keeperRule` is now the active rule object or null. `PICK_COPY.ladderNote` is shown iff `keeperRule && keeperRule.earliest_round > 1`.
 - **Rule-gated behaviour:** everything gated today on `=== "ladder"` (the history walk at load and on change, `ladderKeepers`, likely-keeper filtering, `keeperPickLines`) is now gated on "the active rule is not null", using that rule. Choosing a rule other than Unknown starts the history walk once per load, as the ladder does today.
@@ -288,7 +307,7 @@
     - `Never-drafted player costs round (blank = last round)`
     - `Earliest round a keeper can cost`
   - Blank maps to `null` for years and to `"last"` for the never-drafted round.
-  - On every `input`/`change`: when `validate` passes, `setPref({keeperRule: "custom", keeperCustom})` and recompute. Otherwise put the `validate` message in an inline `role="status"` element and change nothing else.
+  - On every `input`/`change`: when `validate(settings, {rounds: PK.rounds})` passes, `setPref({keeperRule: "custom", keeperCustom})` and recompute. Otherwise put the message in an inline `role="status"` element and change nothing else.
   - Choosing a preset or Unknown hides the row.
   - Layout: one compact row on desktop that wraps on phones, matching `.season-pick-select`.
 
@@ -305,7 +324,7 @@
 - [ ] **Step 4: Run all fixtures.** Expected: all pass.
 - [ ] **Step 5: Commit**, as `feat(trade): in-season keeper rule menu with presets and custom settings`.
 
-### Task 6: published boards carry the rule as settings; FAM comments; `boardEntry`
+### Task 5: published boards carry the rule as settings; FAM comments; `boardEntry`
 
 **Files:**
 - Modify: `src/ffmodel/league.py`:
@@ -314,15 +333,18 @@
   - `payload()`.
 - Modify: `configs/leagues/gabagool.yaml` (`keeper_rules` mapping).
 - Modify: `configs/leagues/fam.yaml:61-62` and `configs/formats/f10-1qb-ppr-6.yaml:64-65`. The comments become: `# keeper_rules omitted: FAM is not a keeper league (owner, 2026-11-16).`
-- Modify: `site/assets/app.js` `boardEntry` (line ~172), and `app.js?v=kr1` on every page that loads it (about, index, trade, waivers, weekly).
-- Test: `tests/test_league.py`, plus the existing fixture that covers `boardEntry` (find it with `grep -n "boardEntry" tests/*.cjs`).
+- Modify: `site/assets/app.js`:
+  - `boardEntry` (line ~172);
+  - its module header: in Node, `require("./keeperrules.js")`; in the browser, `window.KeeperRules`.
+- Modify: `site/about.html`, `waivers.html`, `weekly.html`: add `assets/keeperrules.js?v=kr1` immediately before `app.js`. index and trade already have it (Task 2). `app.js?v=kr1` on all five pages.
+- Test: `tests/test_league.py`; `tests/navigation_fixture.cjs` (it requires app.js and covers `boardEntry`), plus any fixture pinning `app.js?v=cf1`.
 
 **Interfaces:**
-- Consumes: nothing from Tasks 1–5. The site reads the payload through `KeeperRules.fromBoard`, which already accepts this object (Task 1).
+- Consumes: `KeeperRules.fromBoard` (Task 1).
 - Produces:
-  - `LeagueConfig.keeper_rules: dict | None`, validated by `_validate_keeper_rules(raw, path) -> dict` in `league.py`. Rules:
+  - `LeagueConfig.keeper_rules: dict | None`, validated by `_validate_keeper_rules(raw, rounds, path) -> dict` in `league.py`. Rules:
     - exactly the keys `first_keep, per_year, max_years, undrafted_round, earliest_round, max_keepers`, all required;
-    - ranges from Global Constraints; `bool` is rejected;
+    - ranges from Global Constraints, including `undrafted_round`/`earliest_round` ≤ the config's `rounds`; `bool` is rejected;
     - `max_years` may be `None`; `undrafted_round` may be `"last"`.
     - Error: `ValueError(f"{path}: keeper_rules.{key} …")`.
     - A plain string is invalid now: `ValueError(f"{path}: keeper_rules must be a mapping")`.
@@ -337,9 +359,7 @@
       earliest_round: 3
       max_keepers: 2
     ```
-  - `boardEntry`: `keepers` is true iff `keeper_rules` is `"gabagool"` or `"ladder"`, or a non-null, non-array object.
-
-    Ruling, a plan-level simplification of spec §5.4: `app.js` does not load `keeperrules.js`, so `boardEntry` checks shape only. The full validation is Python at build time plus `KeeperRules.fromBoard` on the two pages that use the rule (Tasks 2–3), which hide the tools when it returns null.
+  - `boardEntry`: `keepers` is true iff `KeeperRules.fromBoard(lg) !== null`, and false when `KeeperRules` is unavailable.
 
 - [ ] **Step 1: Write the tests.**
   - `tests/test_league.py`:
@@ -349,20 +369,22 @@
     - `per_year: 6`
     - `first_keep: true`
     - `max_years: 0`
+    - `max_years: 9`
     - `undrafted_round: "first"`
+    - `undrafted_round: 16` (rounds 15)
     - `earliest_round: 0`
-    - `max_keepers: 21`
+    - `max_keepers: 4`
     - an extra key
     - a missing `per_year`
     - `keeper_rules: gabagool` (string)
 
     Each raises `ValueError` matching `keeper_rules`.
   - New: `max_years: null` and `undrafted_round: last` load.
-  - **boardEntry fixture:**
-    - `keeper_rules: "other"` → `tools.keepers === false`;
-    - `keeper_rules: {…}` → `true`;
+  - **navigation_fixture `boardEntry`:**
+    - `keeper_rules: "other"` and `{}` → `tools.keepers === false`;
+    - the Gabagool object → `true`;
     - `"gabagool"` and `"ladder"` → `true`.
-- [ ] **Step 2: Run** `PYTHONPATH=src python -m pytest -q -p no:cacheprovider tests/test_league.py` and the boardEntry fixture. Expected: FAIL.
+- [ ] **Step 2: Run** `PYTHONPATH=src python -m pytest -q -p no:cacheprovider tests/test_league.py` and `node tests/navigation_fixture.cjs`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run the full pytest suite and all fixtures.** Expected: all pass. Do not regenerate or edit `site/data/**`: the live board keeps the string `"gabagool"`, which Task 1's legacy alias covers.
+- [ ] **Step 4: Run the full pytest suite and all fixtures.** Expected: all pass. Do not regenerate or edit `site/data/**`: the live board keeps the string `"gabagool"`, which the legacy alias covers.
 - [ ] **Step 5: Commit**, as `feat(config): league keeper rules are validated settings; FAM is not a keeper league`.

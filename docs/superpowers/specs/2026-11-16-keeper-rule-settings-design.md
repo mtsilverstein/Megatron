@@ -22,7 +22,8 @@ In scope:
 2. **Published boards**: a league config's `keeper_rules` becomes the five settings (plus the number of keepers per
    team). The draft page's keeper tool (`site/assets/keepers.js` panel on `index.html`) and the pre-draft trade page
    (`site/assets/trademode.js`, `site/assets/trade.js`) read the rule from the board instead of constants. Today only
-   Gabagool's board has a rule.
+   Gabagool's board has a rule. The pre-draft trade page keeps serving only the main board (`data/draft.json`), as
+   today; reaching a second published keeper board from it is out of scope (astra review 2026-11-16).
 3. The draft-pick values (`site/assets/pickvalue.js`) follow the chosen rule (§5.2).
 
 Non-goals:
@@ -39,7 +40,9 @@ Non-goals:
 Anti-goals (a failure even if it works):
 
 - **Any change to Gabagool's numbers or words under its rule**: every keeper cost, eligibility, ineligibility reason,
-  likely keeper, keeper/pick conflict line and pick value must stay identical. Every existing fixture keeps its
+  likely keeper, keeper/pick conflict line, pick value and pre-draft trade note must stay identical. One deliberate
+  exception: the draft-page keeper help text, now generated from the rule, gains the sentence "A player can be kept
+  at most 2 years in a row." (today's text never states the cap; owner shown 2026-11-16). Every existing fixture keeps its
   expected values. Call sites in fixtures may change only to pass Gabagool's rule explicitly (the rule becomes a
   required argument, §5.1), and assertions that name a replaced constant expect the same value from the rule.
 - A rule that applies itself silently: the in-season page still starts at **Unknown** for a league with no saved
@@ -69,8 +72,12 @@ rounds is unknown"), and so is every keeper feature that hangs off it. On a publ
 A rule whose `"last"` cannot be resolved is invalid.
 
 All values are integers (except `max_years: null` and `undrafted_round: "last"`). Valid ranges:
-`first_keep` and `per_year` 0–5; `max_years` 1–20 or null; `undrafted_round` 1–30 or "last"; `earliest_round`
-1–30; `max_keepers` 1–20. A rule outside these ranges is invalid: a config fails to load (Python raises), and a
+`first_keep` and `per_year` 0–5; `max_years` 1–8 or null; `undrafted_round` 1–30 or "last"; `earliest_round`
+1–30; `max_keepers` 1–3. When the league's draft round count is known, `undrafted_round` (resolved) and
+`earliest_round` must not exceed it: a keeper can never cost a pick the draft does not have. Why the two tight
+ranges (astra review 2026-11-16): the draft-history walk reads at most 8 seasons (`CHAIN_CAP`), so a cap above 8
+could never be enforced; and the pre-draft grader enumerates every keeper set up to `max_keepers` (`trade.js`
+`indexSubsets`), which grows combinatorially, so boards stay at 3 or fewer until that search is reworked. A rule outside these ranges is invalid: a config fails to load (Python raises), and a
 stored in-season choice falls back to Unknown.
 
 ## 4. Cost and eligibility math
@@ -159,12 +166,15 @@ than shown" is shown when the rule's `earliest_round > 1`, which is exactly toda
 - `src/ffmodel/league.py`: `LeagueConfig.keeper_rules` becomes an optional mapping, validated on load against §3
   (unknown keys, wrong types or out-of-range values raise). `payload()` emits it unchanged, so the board's
   `league.keeper_rules` is that object.
-- `site/assets/app.js` `boardEntry`: keeper tools are on when `keeper_rules` is a valid rule object. Boards built
+- `site/assets/app.js` `boardEntry`: keeper tools are on when `KeeperRules.fromBoard` returns a rule (the shared
+  validator; `keeperrules.js` loads before `app.js` on every page). Boards built
   before this change carry a string: `"gabagool"` (published) or `"ladder"` (several fixtures). Both are legacy
   aliases read as the `ladder` preset with `max_keepers: 2`, so old boards and those fixtures keep working. Any other
   string, or an invalid object, turns the keeper tools off for that board. Today any non-empty string turns them on.
 - `trademode.js` / `trade.js` (pre-draft) use the board's rule and its `max_keepers`; their copy
-  (e.g. `keeperNote`'s "already kept the most allowed (2 years)") takes numbers from the rule.
+  (e.g. `keeperNote`'s "already kept the most allowed (2 years)", the page's `#trade-note` "one of your two slots" /
+  "round 2 or lower", and the no-history "so nobody is ineligible") takes numbers from the rule, and stays true for
+  rules where a never-drafted player can never be kept (`undrafted_round < earliest_round`).
 
 ## 6. Presets (builder's labels may differ in wording, not in values)
 
