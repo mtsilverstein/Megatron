@@ -78,13 +78,17 @@
     return !!x && typeof x === "object" && Object.isFrozen(x) && validate(x) === null && Number.isInteger(x.undrafted_round);
   }
 
+  // A board's rule. A non-empty STRING is a board built before rules were
+  // settings, when the ladder was the only rule: it reads as the ladder preset
+  // with max_keepers 2. An object must carry max_keepers and validate; anything
+  // else (empty string, array, missing, invalid) is null. Never throws.
   function fromBoard(league) {
     try {
       const kr = league && league.keeper_rules;
       if (kr === undefined || kr === null) return null;
       const rounds = league.rounds;
       if (typeof kr === "string") {
-        if (kr !== "gabagool" && kr !== "ladder") return null;
+        if (kr === "") return null;   // any non-empty string: a board built when the ladder was the only rule
         return normalize({ ...LADDER, max_keepers: 2 }, { rounds });
       }
       if (typeof kr !== "object" || Array.isArray(kr) || !("max_keepers" in kr)) return null;

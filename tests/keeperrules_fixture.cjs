@@ -70,7 +70,8 @@ check("fromBoard", () => {
   const want = { ...ladder(), max_keepers: 2 };
   assert.deepEqual(KR.fromBoard({ keeper_rules: "gabagool" }), want);
   assert.deepEqual(KR.fromBoard({ keeper_rules: "ladder" }), want);
-  assert.equal(KR.fromBoard({ keeper_rules: "other" }), null);
+  assert.deepEqual(KR.fromBoard({ keeper_rules: "other" }), want);
+  assert.equal(KR.fromBoard({ keeper_rules: "" }), null);
   assert.equal(KR.fromBoard({}), null);
   assert.equal(KR.fromBoard({ keeper_rules: {} }), null);
   assert.equal(KR.fromBoard({ keeper_rules: KR.preset("ladder") }), null);
