@@ -11,6 +11,10 @@
 })(typeof window !== "undefined" ? window : null, function (root) {
   "use strict";
   const LeagueLens = (typeof module !== "undefined" && module.exports) ? require("./leaguelens.js") : root.LeagueLens;
+  const KeeperRules = (root && root.KeeperRules)
+    ? root.KeeperRules
+    : (typeof require !== "undefined" ? require("./keeperrules.js") : null);
+  if (!KeeperRules) throw new Error("pickvalue.js requires keeperrules.js to be loaded first");
 
   const PRESETS = Object.freeze({
     win_now: Object.freeze({ label: "Win now", w: 0.5 }),
@@ -29,8 +33,6 @@
   // Every nonempty subset of the flex positions: Hall's condition over position groups (players of one position
   // share their eligible slots, so these are the only subsets that can bind).
   const FLEX_SUBSETS = Object.freeze([1, 2, 3, 4, 5, 6, 7].map(m => FLEX_POS.filter((_, i) => m & (1 << i))));
-  // Keeper ladder (owner-confirmed 2026-11-13): no keeper can cost round 1 or 2; a waiver pickup costs round 12.
-  const LADDER_FIRST_ROUND = 3, LADDER_LAST_ROUND = 12;
 
   const num = v => (typeof v === "number" ? v : (typeof v === "string" && v.trim() !== "" ? Number(v) : NaN));
   const isPosInt = v => Number.isInteger(v) && v > 0;
@@ -247,8 +249,14 @@
     if (!isPosInt(teams)) throw new Error("Invalid team count.");
     const K = keepers == null ? 0 : keepers;
     if (!Number.isInteger(K) || K < 0) throw new Error("Invalid keeper count.");
-    const rule = keeperRule == null ? "unknown" : keeperRule;
-    if (!KEEPER_RULES.includes(rule)) throw new Error(`Unknown keeper rule: ${keeperRule}`);
+    // null / "unknown": every pick is live. "ladder": the ladder preset. Otherwise a normalized KeeperRules rule.
+    // The ladder is normalized without the draft's round count: its never-drafted round (12) is a fixed integer
+    // and a shorter draft only clips the span below.
+    let rule = null;
+    if (keeperRule == null || keeperRule === "unknown") rule = null;
+    else if (keeperRule === "ladder") rule = KeeperRules.normalize(KeeperRules.preset("ladder"));
+    else if (KeeperRules.isRule(keeperRule)) rule = keeperRule;
+    else throw new Error(`Unknown keeper rule: ${keeperRule}`);
     if (rounds != null && !isPosInt(rounds)) throw new Error("Invalid draft rounds.");
     if (!weights || typeof weights !== "object") throw new Error("Missing scoring weights.");
     const slotList = (slots || []).map(slotName);
@@ -291,16 +299,18 @@
     const maxRank = values.length;
 
     // Market rank of the player available at a live slot: the top keepers*teams never reach the draft.
-    // "unknown": every pick is live. "ladder": rounds 1-2 are all live; the keepers*teams keeper picks are an
-    // estimate, spread evenly over rounds 3-12 (3..rounds in a shorter draft).
-    const lastKeeperRound = Math.min(LADDER_LAST_ROUND, rounds || LADDER_LAST_ROUND);
-    const keeperSpan = Math.max(0, lastKeeperRound - LADDER_FIRST_ROUND + 1) * teams;
+    // Unknown: every pick is live. With a rule, the keepers*teams keeper picks are an estimate, spread evenly over
+    // the rule's rounds earliest_round..min(undrafted_round, rounds); earlier rounds stay live. An empty span
+    // behaves as Unknown.
+    const firstRound = rule ? rule.earliest_round : 1;
+    const lastKeeperRound = rule ? Math.min(rule.undrafted_round, rounds || rule.undrafted_round) : 0;
+    const keeperSpan = Math.max(0, lastKeeperRound - firstRound + 1) * teams;
     const perSlot = keeperSpan > 0 ? Math.min(1, (K * teams) / keeperSpan) : 0;
     function rankAtSlot(slot) {
       if (!isPosInt(slot)) throw new Error(`Invalid draft slot: ${slot}`);
       let live = slot - 1;
-      if (rule === "ladder") {
-        const keeperSlotsBefore = Math.min(Math.max(slot - 1 - (LADDER_FIRST_ROUND - 1) * teams, 0), keeperSpan);
+      if (keeperSpan > 0) {
+        const keeperSlotsBefore = Math.min(Math.max(slot - 1 - (firstRound - 1) * teams, 0), keeperSpan);
         live -= perSlot * keeperSlotsBefore;
       }
       return K * teams + live + 1;

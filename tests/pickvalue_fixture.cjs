@@ -255,6 +255,21 @@ check("buildCurve: ladder keeper rule keeps rounds 1-2 live and moves later roun
   assert.equal(unknown.rankAtSlot(145), 157);
 });
 
+check("buildCurve: keeper rule objects set the span; empty span = Unknown; a raw preset is rejected", () => {
+  const KR = require("../site/assets/keeperrules.js");
+  const teams = 12, keepers = 1, rounds = 15;
+  const unknown = curveOf(SYNTH, PPR, { teams, keepers, rounds, keeperRule: "unknown" });
+  const same = curveOf(SYNTH, PPR, { teams, keepers, rounds, keeperRule: KR.normalize(KR.preset("same_round"), { rounds }) });
+  assert.equal(same.rankAtSlot(1), 13);
+  close(same.rankAtSlot(180), 12 + 179 - 179 / 15 + 1, "same_round end of draft");
+  let prev = Infinity;
+  for (let s = 1; s <= 180; s++) { const v = same.valueAtSlot(s); assert.ok(v <= prev, `slot ${s} rises`); prev = v; }
+  const empty = curveOf(SYNTH, PPR, { teams, keepers, rounds,
+    keeperRule: KR.normalize({ ...KR.preset("one_earlier"), earliest_round: 13, undrafted_round: 12 }, { rounds }) });
+  for (let s = 1; s <= 180; s++) assert.equal(empty.rankAtSlot(s), unknown.rankAtSlot(s), `empty span slot ${s}`);
+  assert.throws(() => curveOf(SYNTH, PPR, { teams, keepers, rounds, keeperRule: KR.preset("ladder") }), /Unknown keeper rule/);
+});
+
 check("buildCurve: 14 teams, 16 rounds, 2 keepers: ranks beyond the artifact are 0, never NaN (Review Focus 5)", () => {
   const teams = 14, rounds = 16, keepers = 2;
   for (const keeperRule of ["unknown", "ladder"]) {

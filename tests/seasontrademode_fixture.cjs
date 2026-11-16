@@ -277,7 +277,7 @@ check("sources: no pre-draft pick code, gate file or simulation in the controlle
   assert.ok(!srcs.includes("waiverintel.js"), "the ROS market check left with the grade");
   // The ladder's draft-history walk is keepers.js's (Task 4): it loads before the controller, after sleeper.js.
   assert.ok(srcs.indexOf("sleeper.js") < srcs.indexOf("keepers.js") && srcs.indexOf("keepers.js") < srcs.indexOf("seasontrademode.js"), "keepers.js loads after sleeper.js, before the controller");
-  assert.ok(/seasontrademode\.js\?v=kr1/.test(html) && /keepers\.js\?v=kr1/.test(html) && /keeperrules\.js\?v=kr1/.test(html) && /pickvalue\.js\?v=picks1/.test(html) && /style\.css\?v=cf1/.test(html)
+  assert.ok(/seasontrademode\.js\?v=kr1/.test(html) && /keepers\.js\?v=kr1/.test(html) && /keeperrules\.js\?v=kr1/.test(html) && /pickvalue\.js\?v=kr1/.test(html) && /style\.css\?v=cf1/.test(html)
     && /seasontrade\.js\?v=lf1/.test(html) && /lineup\.js\?v=3/.test(html), "cache keys bumped for the changed assets only");
   assert.ok(/id="season-context"/.test(html), "the context lines have a home on the page");
   // The pick groups sit in the columns under the players; the note and the controls come after the columns, before the result.
