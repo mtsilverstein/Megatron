@@ -5,7 +5,9 @@
    league) starts the ladder at round 12 the first year he's kept, then
    decays exactly the same way. A drafted player keeps his original round
    even if he was dropped and later picked back up (league rule, restated by
-   the owner 2026-11-15). Once a player's computed cost would be R2 or lower
+   the owner 2026-11-15), and a drop changes nothing about the decay: only
+   seasons he is actually KEPT move him up a round, so a season in which
+   nobody drafted him costs him nothing (owner, 2026-11-16). Once a player's computed cost would be R2 or lower
    he is ineligible and returns to the draft pool -- if re-drafted, that new
    pick anchors a fresh ladder (see buildOriginalByPlayerId).
    A player is kept at most MAX_YEARS_KEPT (2) years in a row (owner-confirmed
@@ -72,7 +74,9 @@
   // `eligible`); if he's drafted again, that new pick starts a fresh ladder,
   // so the latest draft -- not the earliest -- is the one that determines
   // his current keeper cost. A player dropped and later picked back up keeps
-  // this anchor (league rule); his keeper run restarts (see lastDraft).
+  // this anchor (league rule); if he was not picked in the newest draft, his
+  // keeper run restarts and the seasons since the anchor do not decay his
+  // cost (see lastDraft, keeperCost).
   // An earlier season whose draft fails is skipped (a gap).
   //
   // Each entry is { round, season, keptYears, lastDraft }. A KEPT player
@@ -136,11 +140,22 @@
     return original;
   }
 
-  // Cost drops one round per year KEPT, anchored to his MOST RECENT draft
-  // (see buildOriginalByPlayerId). No floor: once the computed cost is R2 or
-  // below he is ineligible (see `eligible`) and may legitimately compute to 0
-  // or negative here -- that raw value is what tells the ineligible display
-  // how far the ladder has run out.
+  // The season a drafted player's decay counts from. A Sleeper entry
+  // (lastDraft set): the newest draft walked. His anchor is his most recent
+  // pick, and keeper picks sit at the round they cost, so the anchor already
+  // carries every earlier keep; a draft after the anchor in which he was not
+  // picked was not a keep and must not decay him. Only the seasons after the
+  // newest draft do. A manual entry (no lastDraft) counts from its own round's
+  // season, i.e. it assumes he has been kept every season since.
+  function decaySince(c) {
+    return c.lastDraft != null ? c.lastDraft : c.originalYear;
+  }
+  // Cost drops one round per year KEPT, from his MOST RECENT pick (see
+  // buildOriginalByPlayerId and decaySince); a drop, or a season nobody
+  // drafted him, changes nothing (owner, 2026-11-16). No floor: once the
+  // computed cost is R2 or below he is ineligible (see `eligible`) and may
+  // legitimately compute to 0 or negative here -- that raw value is what
+  // tells the ineligible display how far the ladder has run out.
   //
   // Waiver pickups (never drafted in this league) start the ladder at R12
   // the first year they're kept, then decay exactly like a drafted player:
@@ -151,7 +166,7 @@
       const first = c.firstKeptYear != null ? c.firstKeptYear : currentSeason;
       return WAIVER_COST_ROUND - (currentSeason - first);
     }
-    return c.originalRound - (currentSeason - c.originalYear);
+    return c.originalRound - (currentSeason - decaySince(c));
   }
   // How many seasons in a row he would have been kept, counting this one: the
   // CURRENT keeper run only. A waiver pickup: seasons since his first keep,
@@ -166,9 +181,8 @@
       const first = c.firstKeptYear != null ? c.firstKeptYear : currentSeason;
       return currentSeason - first + 1;
     }
-    const since = c.lastDraft != null ? c.lastDraft : c.originalYear;
     const streak = (c.lastDraft == null || c.originalYear === c.lastDraft) ? (c.keptYears || 0) : 0;
-    return streak + (currentSeason - since);
+    return streak + (currentSeason - decaySince(c));
   }
   // Keepable iff the computed cost is R3 or higher AND he has not already been
   // kept MAX_YEARS_KEPT seasons. Once cost would be R2 or lower he returns to

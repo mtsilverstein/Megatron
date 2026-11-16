@@ -410,17 +410,20 @@ async function testKeptYears() {
     // Kept 2024 (R10) and 2025 (R9), not picked in 2026: anchor 2025 R9, a two-season keeper run behind it.
     assert.deepStrictEqual(o.get("brk"), { round: 9, season: 2025, keptYears: 2, lastDraft: 2026 });
     assert.deepStrictEqual([...o.keys()].sort(), ["brk", "chain", "gap", "new", "old", "waiv"]);
-    // As candidates for 2027, through the Sleeper path. Costs are the pre-cap ones (01a991c): anchor round minus the
-    // seasons since the anchor. The cap counts only the CURRENT run: a player not picked in the newest draft (lastDraft)
-    // was not kept in it, so his streak is broken and a 2027 keep is his first.
+    // As candidates for 2027, through the Sleeper path. Cost is the anchor round minus one per season KEPT since it:
+    // a draft after the anchor in which he was not picked was not a keep, so it does not decay him -- only 2027 does
+    // (owner, 2026-11-16: same decay whether he was dropped or not). The cap counts only the CURRENT run: a player not
+    // picked in the newest draft (lastDraft) was not kept in it, so his streak is broken and a 2027 keep is his first.
     const histBoard = new Map(["chain", "new", "old", "brk"].map((id, i) =>
       [id, { name: id, position: "WR", adpRound: 9, overallRank: 100 + i, vorp: 2 }]));
     const byId = Object.fromEntries(K.buildKeeperCandidates(["chain", "new", "old", "brk"], o, histBoard).candidates.map(c => [c.name, c]));
     const at27 = c => [K.keeperCost(c, 2027), K.yearsKept(c, 2027), K.eligible(c, 2027)];
     assert.deepStrictEqual(at27(byId.chain), [5, 3, false], "third kept year: the cap");
     assert.deepStrictEqual(at27(byId.new), [4, 1, true]);
-    assert.deepStrictEqual(at27(byId.old), [5, 1, true], "dropped and re-picked: original round, first kept year");
-    assert.deepStrictEqual(at27(byId.brk), [7, 1, true], "his keeper run ended in 2026: a 2027 keep is his first");
+    assert.deepStrictEqual(at27(byId.old), [7, 1, true],
+      "drafted R8 in 2024, undrafted in 2025 and 2026, picked back up: one round for his first kept year, not three");
+    assert.deepStrictEqual(at27(byId.brk), [8, 1, true],
+      "kept at R9 in 2025, undrafted in 2026: one round for the 2027 keep; his run restarts");
     assert.strictEqual(byId.old.isWaiver, false);
     assert.strictEqual(byId.old.lastDraft, 2026, "buildKeeperCandidates carries lastDraft");
     // A failed hop is a gap too: the 2025 picks do not load, so chain's run is 1; his anchor (and cost) do not move.

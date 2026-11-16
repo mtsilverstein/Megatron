@@ -509,11 +509,12 @@ acheck("keeperNote: a player kept the most allowed years says so; the cost reaso
   // Sleeper-derived entries carry lastDraft, the newest draft walked (fix round 2). The cap counts only the current
   // keeper run: a third-year keeper (kept in the newest draft and the one before) says the cap; a player dropped and
   // picked back up keeps his original round (league rule) and a keep next season is his first; a keeper run that ended
-  // before the newest draft is broken, so again his first. An entry without lastDraft (a hand-built history) counts
-  // calendar years since its round, as a manual entry does.
+  // before the newest draft is broken, so again his first. Either way his cost drops one round for that keep only: a
+  // draft in which he was not picked was not a keep (owner, 2026-11-16). An entry without lastDraft (a hand-built
+  // history) counts calendar years since its round, as a manual entry does.
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2026, keptYears: 2, lastDraft: 2026 })), { eligible: false, text: CAP });
-  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2024, keptYears: 0, lastDraft: 2026 })), { eligible: true, text: "keeper cost R6" });
-  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2025, keptYears: 2, lastDraft: 2026 })), { eligible: true, text: "keeper cost R7" });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2024, keptYears: 0, lastDraft: 2026 })), { eligible: true, text: "keeper cost R8" });
+  assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2025, keptYears: 2, lastDraft: 2026 })), { eligible: true, text: "keeper cost R8" });
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2026 })), { eligible: true, text: "keeper cost R8" });
   assert.deepStrictEqual(TM.keeperNote(p, ctxOf({ round: 9, season: 2024 })), { eligible: false, text: CAP });
 });

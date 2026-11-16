@@ -1486,16 +1486,17 @@ async function picksKeeperCap() {
       assertNoForbidden(els);
     });
     // Fix round 2: A Back was kept in 2024 (R7) and 2025 (R6), then dropped and picked back up -- no 2026 pick. He
-    // keeps his original round (league rule: a 2027 R4), and his keeper run ended before the newest draft, so a 2027
-    // keep is his first: he is User A's likely keeper again, not skipped. (D Deep, 2026 R6, would cost a 2027 R5.)
+    // keeps his original round (league rule), and his keeper run ended before the newest draft, so a 2027 keep is his
+    // first: he is User A's likely keeper again, not skipped. Only that keep decays him -- the 2026 draft he missed was
+    // not a keep (owner, 2026-11-16) -- so he costs a 2027 R5. (D Deep, 2026 R7, would cost a 2027 R6.)
     const repicked = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, storage: ladderStore(),
-      routesOver: historyRoutes({ y2026: [draftPick("c", 1), draftPick("b", 5), draftPick("d", 6)],
+      routesOver: historyRoutes({ y2026: [draftPick("c", 1), draftPick("b", 5), draftPick("d", 7)],
         y2025: [draftPick("a", 6, true)], y2024: [draftPick("a", 7, true)] }) });
     await sub("a keeper dropped and picked back up keeps his round, and his kept run restarts", async () => {
       await until(() => historyCalls().length === HISTORY_CALLS.length, "the walk at load");
       await settle();
-      await compareOffer(repicked, { givePicks: ["2027|4|9"], getPicks: ["2027|1|3"] }, "giving the 2027 R4");
-      assert.deepEqual(conflictLines(repicked), [conflictLine("User A", "A Back", "2027 R4")]);
+      await compareOffer(repicked, { givePicks: ["2027|5|9"], getPicks: ["2027|1|3"] }, "giving the 2027 R5");
+      assert.deepEqual(conflictLines(repicked), [conflictLine("User A", "A Back", "2027 R5")]);
       await compareOffer(repicked, { give: ["a"], receive: ["c"], givePicks: ["2027|5|9"] }, "trading him");
       assert.deepEqual(keeperLinesOf(repicked), [likelyLine("A Back", "User A")]);
       assertNoForbidden(repicked);
