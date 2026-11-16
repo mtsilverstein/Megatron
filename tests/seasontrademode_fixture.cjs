@@ -395,6 +395,7 @@ function element(tagName) {
   const el = {
     tagName, children: [], listeners: {}, attrs: {}, parent: null, parentElement: null, dataset: {},
     textContent: "", className: "", id: "", value: "", href: "", type: "", placeholder: "",
+    validity: { badInput: false },
     hidden: false, checked: false, disabled: false, open: false,
     classList: { toggle() {} },
     append(...nodes) { for (const x of nodes) if (x && typeof x === "object") { x.parent = el; x.parentElement = el; el.children.push(x); } },
@@ -1752,6 +1753,20 @@ async function picksRuleCustomHalfTyped() {
       await settle();
       assert.deepEqual(historyCalls(), HISTORY_CALLS, "one walk for the load");
       assertNoForbidden(els);
+    });
+    await sub("Review: a real number input holding junk reads value \"\" with badInput -- Most years / Never-drafted name themselves; nothing applies", async () => {
+      const saved = store.map.get(PREF_KEY), shown = pickBlock(els).children.slice();
+      for (const [i, label] of [[2, "Most years in a row"], [3, "Never-drafted cost"]]) {
+        const input = customInputs(els)[i], before = input.value;
+        input.value = ""; input.validity = { badInput: true }; input.dispatch("input"); input.dispatch("change");
+        assert.match(customStatus(els).textContent, new RegExp("^" + label + ": "), label);
+        assert.equal(store.map.get(PREF_KEY), saved, `${label}: storage unchanged`);
+        const now = pickBlock(els).children;
+        assert.ok(now.length === shown.length && now.every((x, k) => x === shown[k]), `${label}: nothing recomputed`);
+        assert.deepEqual(conflictLines(els), [ONE], label);
+        input.value = before; input.validity = { badInput: false }; input.dispatch("input");
+        assert.equal(customStatus(els).textContent, "", `${label}: restored`);
+      }
     });
   } finally { delete window.localStorage; }
 }

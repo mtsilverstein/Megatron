@@ -211,7 +211,7 @@ global.localStorage = store;
   assert.strictEqual(keepersFor(""), false);
   assert.strictEqual(keepersFor({}), false);
   assert.strictEqual(keepersFor(gab), true);
-  assert.strictEqual(keepersFor("gabagool"), true);
+  assert.strictEqual(keepersFor("legacy"), true);
   assert.strictEqual(keepersFor("ladder"), true);
   assert.strictEqual(keepersFor(undefined), false);
 }

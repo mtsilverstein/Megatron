@@ -79,8 +79,8 @@ assert.strictEqual(K.keeperCost(redraftPlayer, S, LADDER), 7);
 assert.strictEqual(K.eligible(redraftPlayer, S, LADDER), true);
 
 // ===========================================================================
-// Two-year cap (league rule, owner-confirmed 2026-11-13): a player is kept at
-// most MAX_YEARS_KEPT seasons, then goes back to the draft pool whatever his
+// Year cap (the rule's max_years): a player is kept at
+// most that many seasons, then goes back to the draft pool whatever his
 // cost. Years kept: drafted = keptYears (his run of Sleeper keeper picks up to
 // the anchor) + seasons since the anchor; waiver = seasons since first kept + 1.
 // The cap never moves a COST -- only who may be kept.
@@ -304,7 +304,7 @@ assert.strictEqual(zonedRanked.par, O.parVorp(boardRows, zonedRanked.effectivePi
 assert.strictEqual(zonedRanked.impact, zonedRanked.vorp);   // weight(1)*10 - 0, not vorp - (negative par)
 
 // ===========================================================================
-// recommendKeepers: positive-impact only, best up to MAX_KEEPERS -- rebuilt
+// recommendKeepers: positive-impact only, best up to the rule's max_keepers -- rebuilt
 // on the points contract (same cost/year inputs as before Task 1, now with
 // vorp attached and impact, not round surplus, deciding the outcome).
 // ===========================================================================

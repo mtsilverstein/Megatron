@@ -1,6 +1,6 @@
 # Keeper rule settings — design
 
-Date: 2026-11-16. Status: draft for owner approval.
+Date: 2026-11-16. Status: approved by the owner 2026-11-16 (amended the same day after astra's review and the Task 5 privacy ruling).
 
 ## 1. Why
 
@@ -74,7 +74,7 @@ A rule whose `"last"` cannot be resolved is invalid.
 All values are integers (except `max_years: null` and `undrafted_round: "last"`). Valid ranges:
 `first_keep` and `per_year` 0–5; `max_years` 1–8 or null; `undrafted_round` 1–30 or "last"; `earliest_round`
 1–30; `max_keepers` 1–3. When the league's draft round count is known, `undrafted_round` (resolved) and
-`earliest_round` must not exceed it: a keeper can never cost a pick the draft does not have. Why the two tight
+`earliest_round` must not exceed it: a keeper can never cost a pick the draft does not have. Presets are fixed and are normalised with the round count only to resolve "last" (no rounds-bound check), so the ladder preset keeps working on drafts shorter than 12 rounds exactly as before; the bound applies to Custom settings and to published-board configs (ruling 2026-11-16, Tasks 3-4). Why the two tight
 ranges (astra review 2026-11-16): the draft-history walk reads at most 8 seasons (`CHAIN_CAP`), so a cap above 8
 could never be enforced; and the pre-draft grader enumerates every keeper set up to `max_keepers` (`trade.js`
 `indexSubsets`), which grows combinatorially, so boards stay at 3 or fewer until that search is reworked. A rule outside these ranges is invalid: a config fails to load (Python raises), and a
@@ -156,6 +156,7 @@ than shown" is shown when the rule's `earliest_round > 1`, which is exactly toda
   from an invalid rule.
 - The choice is saved in the existing per-league preference (`PREF_KEY`) as `keeperRule` (preset key or `"custom"`)
   plus `keeperCustom` (the five settings) when custom. Unreadable or invalid stored values fall back to Unknown.
+  Presets are fixed and are normalised with the round count only to resolve "last" (no rounds-bound check), so the ladder preset keeps working on drafts shorter than 12 rounds exactly as before; the bound applies to Custom settings and to published-board configs (ruling 2026-11-16, Tasks 3-4).
 - Everything that today runs only under `"ladder"` (the draft-history walk, `ladderKeepers`, likely-keeper
   filtering, the keeper/pick conflict lines) runs under any rule other than Unknown, with that rule's math.
 

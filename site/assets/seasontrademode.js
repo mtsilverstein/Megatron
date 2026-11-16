@@ -998,6 +998,7 @@
       const out = {};
       for (const [key, input] of PK.customInputs) {
         const t = String(input.value == null ? "" : input.value).trim(), n = Number(t);
+        if (input.validity && input.validity.badInput) { out[key] = NaN; continue; }   // junk in a number input reads as "", not as a blank
         out[key] = t === "" ? (key in CUSTOM_BLANK ? CUSTOM_BLANK[key] : "") : Number.isFinite(n) ? n : t;
       }
       return out;

@@ -129,8 +129,8 @@
 
   // A board player + his league draft history, in the shape Keepers'
   // cost/eligibility functions expect. No draft row in the chain means he was
-  // never drafted here, which is the waiver ladder (R12 on the first keep).
-  // keptYears and lastDraft (his current keeper run) feed the two-year cap.
+  // never drafted here, which is the rule's never-drafted cost on the first keep.
+  // keptYears and lastDraft (his current keeper run) feed the rule's year cap.
   function candidate(player, ctx) {
     const orig = ctx.originalByPlayerId.get(player.player_id);
     const c = { name: player.name, position: player.position,
@@ -860,7 +860,7 @@
   // gain me at least MIN_GAIN, plus their picks. A player I need is not an
   // asset I am shopping, and a player who does not help me is not one I want.
   //
-  // An INELIGIBLE player is excluded from both sides: his keeper cost is R2 or
+  // An INELIGIBLE player is excluded from both sides: his keeper cost is past the rule's earliest round or
   // lower so he returns to the draft pool for everybody, and acquiring him
   // pre-draft buys literally nothing.
   function offerable(me, them, ctx) {

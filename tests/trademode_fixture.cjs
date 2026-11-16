@@ -46,7 +46,7 @@ function board() {
     players.push(P(`F${i}`, ["QB", "RB", "WR", "TE"][i % 4], 200 - i * 2,
                    { adp: i + 1, adp_round: Math.ceil((i + 1) / 12) }));
   }
-  return { season: 2026, players, league: { keeper_rules: "gabagool", rounds: 15 } };
+  return { season: 2026, players, league: { keeper_rules: "legacy", rounds: 15 } };
 }
 
 // A league whose endpoints all resolve. `rosters` is an array of
@@ -414,7 +414,7 @@ const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r =>
 
 acheck("init never looks up a user or lists leagues; my team is the bundle's roster", async () => {
   const b = board();
-  b.league = { league_id: LID, name: "League A", keeper_rules: "gabagool", rounds: 15 };
+  b.league = { league_id: LID, name: "League A", keeper_rules: "legacy", rounds: 15 };
   const p1 = b.players[0], p2 = b.players[1];
   // Rosters: I (u1) own 1; roster 2 lists me as CO-OWNER; roster 3 is someone else's.
   const rosters = [

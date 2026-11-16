@@ -309,7 +309,7 @@
   // His keeper cost, and whether he is worth anything at all pre-draft. The
   // ineligible case is the least intuitive rule in the league, so it is said in
   // full every time rather than shown as a dimmed row with no explanation.
-  // A player over the two-year cap says so, whatever his cost.
+  // A player over the rule's year cap says so, whatever his cost.
   function keeperNote(player, ctx) {
     const c = Trade.candidate(player, ctx);
     const rule = ctx.keeperRule;

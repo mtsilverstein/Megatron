@@ -68,7 +68,7 @@ check("isRule", () => {
 });
 check("fromBoard", () => {
   const want = { ...ladder(), max_keepers: 2 };
-  assert.deepEqual(KR.fromBoard({ keeper_rules: "gabagool" }), want);
+  assert.deepEqual(KR.fromBoard({ keeper_rules: "legacy" }), want);
   assert.deepEqual(KR.fromBoard({ keeper_rules: "ladder" }), want);
   assert.deepEqual(KR.fromBoard({ keeper_rules: "other" }), want);
   assert.equal(KR.fromBoard({ keeper_rules: "" }), null);
@@ -77,7 +77,7 @@ check("fromBoard", () => {
   assert.equal(KR.fromBoard({ keeper_rules: KR.preset("ladder") }), null);
   assert.equal(KR.fromBoard({ keeper_rules: { ...KR.preset("same_round"), max_keepers: 1 }, rounds: 16 }).undrafted_round, 16);
   assert.equal(KR.fromBoard({ keeper_rules: { first_keep: 9 } }), null);
-  assert.ok(KR.isRule(KR.fromBoard({ keeper_rules: "gabagool" })));
+  assert.ok(KR.isRule(KR.fromBoard({ keeper_rules: "legacy" })));
 });
 check("key", () => {
   const a = KR.normalize(ladder(), {}), b = KR.normalize(ladder(), {});
@@ -87,7 +87,7 @@ check("key", () => {
   assert.equal(KR.key(null), "unknown");
 });
 check("helpText", () => {
-  assert.equal(KR.helpText(KR.fromBoard({ keeper_rules: "gabagool" })), GAB_HELP);
+  assert.equal(KR.helpText(KR.fromBoard({ keeper_rules: "legacy" })), GAB_HELP);
   const h = o => KR.helpText(rule(o));
   assert.ok(h({ first_keep: 0, per_year: 0 }).includes("(he is kept at that round every year)"));
   assert.ok(h({ first_keep: 0, per_year: 1 }).includes("(the first year you keep him he costs that round, then one round earlier each year after)"));
@@ -101,7 +101,7 @@ check("helpText", () => {
   assert.ok(h({ max_years: 1 }).includes("at most 1 year in a row"));
 });
 check("tradeNote", () => {
-  assert.equal(KR.tradeNote(KR.fromBoard({ keeper_rules: "gabagool" })), GAB_NOTE);
+  assert.equal(KR.tradeNote(KR.fromBoard({ keeper_rules: "legacy" })), GAB_NOTE);
   assert.ok(KR.tradeNote(rule({ max_keepers: 1 })).includes("competes for your one slot, he"));
   assert.ok(KR.tradeNote(rule({ max_keepers: 3 })).includes("competes for one of your three slots, he"));
   assert.ok(KR.tradeNote(rule({ earliest_round: 1 })).includes("would fall below round 1 goes back"));

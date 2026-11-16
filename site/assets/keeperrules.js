@@ -8,7 +8,7 @@
      earliest_round   the earliest round a keeper may cost; earlier means back in the pool (1-30)
      max_keepers      keepers per team (1-3)
 
-   Pure and dependency-free. Nothing else consumes it until later tasks. */
+   Pure and dependency-free. The keeper and trade modules read their cost and cap math from it. */
 (function (root, factory) {
   const K = factory();
   if (typeof window !== "undefined") window.KeeperRules = K;

@@ -77,7 +77,7 @@
 
   // Walk previous_league_id backward from `startLeagueId`, recording each
   // player's MOST RECENT draft (round, season) as the ladder anchor. A
-  // player whose cost falls to R2 or below re-enters the draft pool (see
+  // player whose cost falls past the rule's earliest round re-enters the draft pool (see
   // `eligible`); if he's drafted again, that new pick starts a fresh ladder,
   // so the latest draft -- not the earliest -- is the one that determines
   // his current keeper cost. A player dropped and later picked back up keeps
@@ -439,10 +439,10 @@
     if (depletionEl) depletionEl.addEventListener("change", redraw);
 
     // Checked = "never drafted in this league" -- mutually exclusive with
-    // supplying an original round (fixed at R12), so disable+clear that input
+    // supplying an original round (fixed at the rule's never-drafted round), so disable+clear that input
     // rather than silently letting the waiver flag override it. The year
     // input stays enabled: a waiver player still needs the year he was FIRST
-    // KEPT, since he decays down the ladder from R12 just like anyone else.
+    // KEPT, since he decays down the rule's cost steps from that round just like anyone else.
     const waiverEl = panel.querySelector(".keeper-waiver");
     const roundEl = panel.querySelector(".keeper-round");
     const yearEl = panel.querySelector(".keeper-year");
@@ -463,7 +463,7 @@
       const originalRound = parseInt(panel.querySelector(".keeper-round").value, 10) || 0;
       const yearInput = parseInt(panel.querySelector(".keeper-year").value, 10);
       // Blank year: for a waiver pickup this IS the first keep (currentSeason,
-      // cost R12); for a drafted player it defaults to last season (a
+      // the never-drafted cost); for a drafted player it defaults to last season (a
       // single-year keeper), as before.
       const originalYear = Number.isFinite(yearInput) ? yearInput : (currentSeason - 1);
       const meta = rankByName.get(name);
@@ -538,7 +538,7 @@
         // That default is an assumption, and this project doesn't ship silent
         // ones -- surface it alongside (not instead of) the off-board note.
         const notes = [];
-        // An empty history prices everyone as a first-time R12 keeper: say so first.
+        // An empty history prices everyone as a first-time never-drafted keeper under the rule: say so first.
         if (historyEmpty) notes.push(noHistoryNote(rule));
         if (skipped.length) notes.push(`${skipped.length} not on the board (K/DST/retired) — add manually if needed`);
         if (candidates.some(c => c.isWaiver)) {

@@ -29,7 +29,7 @@ def test_fam_derives_a_ten_team_contract():
     assert cfg.rules.pass_td == 6.0
     assert cfg.rules.interception == -2.0
     assert cfg.rules.pass_int_td == -3.0
-    assert cfg.keeper_rules is None   # this league's keeper rule is not implemented
+    assert cfg.keeper_rules is None   # not a keeper league: no keeper rule
 
 
 def test_espnfam_matches_september_8_live_settings_refresh():
@@ -160,7 +160,7 @@ _MISSING = object()
     _yaml(per_year=6), _yaml(first_keep="true"), _yaml(max_years=0),
     _yaml(max_years=9), _yaml(undrafted_round='"first"'),
     _yaml(undrafted_round=16), _yaml(earliest_round=0), _yaml(max_keepers=4),
-    _yaml(extra=1), _yaml(per_year=_MISSING), "keeper_rules: gabagool",
+    _yaml(extra=1), _yaml(per_year=_MISSING), "keeper_rules: legacy",
 ])
 def test_keeper_rules_rejects(tmp_path, rule):
     with pytest.raises(ValueError, match="keeper_rules"):
