@@ -124,7 +124,7 @@ window.DraftMode = (() => {
     // The session already resolved the username to a user id, so discovery is
     // one round trip instead of two.
     const identity = currentIdentity();
-    if (!identity) { setStatus("identify yourself in the league panel first"); return; }
+    if (!identity) { setStatus("identify yourself in the league bar first"); return; }
     const { username, userId } = identity;
     try {
       setStatus("looking up drafts…");
@@ -1061,7 +1061,7 @@ window.DraftMode = (() => {
   // a panel with no opinion.
   function shortlistBlocker(seat, picks) {
     if (!seat.userId) {
-      return "Enter your Sleeper username in the league panel — without it the "
+      return "Enter your Sleeper username in the league bar — without it the "
         + "board can't tell which seat is yours, and the shortlist is entirely "
         + "about what falls to YOUR next pick. Picks still strike either way.";
     }

@@ -62,7 +62,8 @@ main #league-context > label { flex: 0 1 auto; min-width: 0; flex-direction: row
 #league-context .session-leagues p { margin: 0 0 .4rem; font-size: .85rem; }
 .session-leagues ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
 .session-leagues li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .9rem; }
-#league-context .session-leagues a { padding: 0; border: 0; color: var(--chalk); font: 600 .9rem/1.4 system-ui, sans-serif; text-decoration: underline; text-underline-offset: .2em; }
+#league-context .session-leagues a { display: inline-flex; align-items: center; min-height: 2.5rem; padding: .6rem 0; box-sizing: border-box; border: 0; color: var(--chalk); font: 600 .9rem/1.4 system-ui, sans-serif; text-decoration: underline; text-underline-offset: .2em; }
+#league-context > p.visually-hidden { flex-basis: auto; border: 0; padding: 0; margin: -1px; }
 .league-format { font-size: .8rem; color: var(--chalk-dim); }
 #waiver-app .session-form button { background: var(--chalk); color: var(--board); border-color: var(--chalk); }
 .tool-card, #start-sit { background: var(--sunken); border: 1px solid var(--rule); border-radius: .75rem; padding: 1.25rem; margin: 1.5rem 0; }

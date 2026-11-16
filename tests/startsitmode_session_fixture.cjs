@@ -318,7 +318,7 @@ const IN_TEST = "Scored with your league's own settings (12-team 1QB PPR, 6-pt p
   await until(() => Session.state() === "ready", "the failed refresh to settle");
   assert.equal(Session.bundle(), b3, "a failed refresh leaves the committed bundle untouched");
   assert.equal(b3.rostersRequestedAt, b1.rostersRequestedAt); assert.equal(b3.rostersFetchedAt, b1.rostersFetchedAt);
-  assert.equal(statusText(), `Refresh did not complete; the roster snapshot received ${new Date(b1.rostersFetchedAt).toISOString()} is still shown. See the league panel for the reason.`);
+  assert.equal(statusText(), `Refresh did not complete; the roster snapshot received ${new Date(b1.rostersFetchedAt).toISOString()} is still shown. See the league bar for the reason.`);
   assert.equal($("ss-output").children, outputBefore, "the previous plan is still shown");
   assert.equal(analyzeCalls.length, an3, "nothing committed: the engine did not re-run");
   // The retained snapshot still drives a re-render (an exclusion toggle) with

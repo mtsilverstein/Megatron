@@ -89,7 +89,7 @@
   const NO_UNIQUE_ROSTER = "Could not uniquely match this account to a roster in this league.";
   const ID_MISMATCH = "live league does not match this board; refusing to load advice";
   const NO_BOARD = "No static board is loaded for this page.";
-  const REMEMBERED = "Remembered on this device until you choose forget.";
+  const REMEMBERED = "Remembered on this device; use “Not you?” to forget it.";
   const NO_LEAGUE = id => `Sleeper has no league with id ${id}.`;
   const WRONG_SEASON = (season, current) => `This league is from the ${season} season; projections are for ${current}.`;
   const NOT_LOADED = "No Sleeper league is loaded.";
@@ -429,6 +429,9 @@
     };
     persistIdentity(identityRec);
     committed = rederive(committed);
+    // An owner has no viewed team (header): the remembered pair gives way too,
+    // or a later non-member identify would resurrect it on the next load.
+    if (committed && committed.myRoster && isIdEntry(committed.registry)) setViewed(committed.registry.leagueId, null);
     flow = restingFlow();
     fire();
     return { ...identityRec };

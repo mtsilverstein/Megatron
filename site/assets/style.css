@@ -163,7 +163,6 @@ td.num, th.num { text-align: right; font: var(--t-num);
 main #league-context > label { display: flex; flex-direction: row; align-items: center; gap: .6rem; min-width: 0; }
 #league-context select { padding: .5rem; font: inherit; max-width: 100%; }
 #league-context p { flex-basis: 100%; order: 2; margin: 0; font-size: .85rem; color: var(--chalk-dim); }
-#league-context > a { margin-left: auto; }
 /* Identity chip (session design spec §6). The line (name · league · roster ·
    age) sits beside the league select; its controls -- the username form or
    the refresh/change/forget buttons -- sit below it and reuse the filter-chip
@@ -191,8 +190,6 @@ main #league-context > label { display: flex; flex-direction: row; align-items: 
   /* One compact row: league select · the chip line; details wrap below. */
   #league-context > label { flex: 0 1 auto; }
   #league-context select { min-width: 0; flex: 1; }
-  #league-context > a { margin-left: 0; }
-  .session-chip { flex: 1 1 8rem; }
   .session-text { font-size: .85rem; }
   .session-form input[type="text"] { min-width: 0; flex: 1; }
 }

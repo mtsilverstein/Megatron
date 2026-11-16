@@ -572,7 +572,7 @@ async function testSleeperKeeperCandidates() {
   assert.ok(!/\/user\//.test(src) && !/leagues\/nfl/.test(src) && !/pickLeague|keeper-user|keeper-league-picker/.test(src));
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "index.html"), "utf8");
   assert.ok(!/keeper-user|keeper-league-picker/.test(html), "index.html carries no legacy keeper inputs");
-  assert.ok(/keeper-load-btn/.test(html) && /keepers\.js\?v=k2y2/.test(html));
+  assert.ok(/keeper-load-btn/.test(html) && /keepers\.js\?v=cf1/.test(html));
 }
 
 // ===========================================================================

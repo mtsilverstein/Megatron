@@ -445,6 +445,13 @@
     return label;
   }
   const leagueName = l => l.name || `League ${l.league_id}`;
+  // The leagues box's own sentence (also what the live region announces).
+  function leaguesSentence(who) {
+    if (picker.status === "error") return `Unable to load your leagues: ${picker.error}`;
+    if (picker.status === "ready" && !picker.leagues.length) return `No ${picker.season} Sleeper leagues for ${who}. Paste a league link instead.`;
+    if (picker.status === "ready") return `Your ${picker.season} leagues: ${picker.leagues.length} found.`;
+    return "Finding your leagues…";
+  }
   // The account's current-season leagues, in the bar while no league is open
   // (spec §5.2): finding, the failure with Retry, none, or one row per league
   // (its name links to it on this page or Weekly; its format is one short line).
@@ -453,10 +460,10 @@
     box.id = "session-leagues"; box.className = "session-leagues";
     const para = text => { const p = document.createElement("p"); p.textContent = text; return p; };
     if (picker.status === "error") {
-      box.append(para(`Unable to load your leagues: ${picker.error}`),
+      box.append(para(leaguesSentence(who)),
         chipButton("session-leagues-retry", "Retry", () => { pickerLeagues(true); renderChip(); }));
     } else if (picker.status === "ready" && !picker.leagues.length) {
-      box.append(para(`No ${picker.season} Sleeper leagues for ${who}. Paste a league link instead.`));
+      box.append(para(leaguesSentence(who)));
     } else if (picker.status === "ready") {
       const list = document.createElement("ul");
       for (const l of picker.leagues) {
@@ -501,7 +508,7 @@
       return r;
     };
     const heading = () => {
-      const h = document.createElement("h2"); h.id = "session-heading"; h.className = "session-heading";
+      const h = document.createElement("p"); h.id = "session-heading"; h.className = "session-heading";
       h.textContent = "Connect your Sleeper league"; return h;
     };
     const note = () => {
@@ -513,7 +520,7 @@
     const teamSig = () => [pickerTeams(S, b), b.viewedRosterId === undefined ? null : b.viewedRosterId];
     // `revealable`: the state offers "Not you?" or a find button, so the box
     // may open in place of its controls; a state that shows the box itself is not.
-    let line, build, sig, revealable = true;
+    let line, build, sig, revealable = true, leaguesLine = "";
     if (st === "identifying") {
       line = S.chipText(null, "identifying", now);
       build = () => []; sig = ["identifying"]; revealable = false;
@@ -571,6 +578,7 @@
       } else {
         build = () => [notYou(), leaguesBox(who)]; sig = ["leagues", leaguesSig(), who];
       }
+      leaguesLine = leaguesSentence(who);
     }
     // The revealed box replaces the controls in place (the line stays): the
     // empty box, Cancel, and Forget when there is an account to forget.
@@ -582,14 +590,45 @@
         return c;
       };
       sig = ["revealed", !!id];
+      leaguesLine = "";
     }
     els.line.textContent = line;
     els.notice.textContent = chip.notice;
     const key = JSON.stringify(sig);
-    if (key === chip.controlsSig) return;
-    chip.controlsSig = key;
-    els.input = null;
-    els.controls.replaceChildren(...build());
+    const rebuilt = key !== chip.controlsSig;
+    if (rebuilt) {
+      // Focus: a rebuild that removes the control the visitor was on must not
+      // drop them to <body>. Only when focus was inside the controls; a rebuild
+      // the tools trigger while the visitor works elsewhere never moves it.
+      const prior = typeof document !== "undefined" ? document.activeElement : null;
+      const hadFocus = !!(prior && els.controls.contains && els.controls.contains(prior));
+      chip.controlsSig = key;
+      els.input = null;
+      els.controls.replaceChildren(...build());
+      if (els.panel && els.panel.setAttribute) {
+        if (sig[0] === "connect") els.panel.setAttribute("aria-labelledby", "session-heading");
+        else if (els.panel.removeAttribute) els.panel.removeAttribute("aria-labelledby");
+      }
+      if (hadFocus && !els.controls.contains(prior)) {
+        const target = els.input || firstFocusable(els.controls) || els.line;
+        if (target && typeof target.focus === "function") target.focus();
+      }
+    }
+    // The one live region: written when the controls change or the notice
+    // changes -- never by the 1 s ticker (the age in the line moves every second).
+    if (rebuilt || chip.notice !== chip.statusNotice) {
+      chip.statusNotice = chip.notice;
+      if (els.status) els.status.textContent = chip.notice || [line, leaguesLine].filter(Boolean).join(" ");
+    }
+  }
+  function firstFocusable(node) {
+    for (const c of Array.from(node.children || [])) {
+      const tag = String(c.tagName || "").toLowerCase();
+      if ((tag === "button" || tag === "select" || tag === "a") && !c.disabled) return c;
+      const inner = firstFocusable(c);
+      if (inner) return inner;
+    }
+    return null;
   }
   // The age in the line comes from bundle().rostersFetchedAt; re-render every
   // second while a bundle carries one (renderChip rewrites the line only --
@@ -616,11 +655,15 @@
     if (chip.unsub) { try { chip.unsub(); } catch (_) {} chip.unsub = null; }
     const wrap = document.createElement("div"); wrap.id = "session-chip"; wrap.className = "session-chip";
     const line = document.createElement("span"); line.id = "session-text"; line.className = "session-text";
+    line.setAttribute("tabindex", "-1");   // the last-resort focus target when a rebuild leaves no control
     const controls = document.createElement("div"); controls.className = "session-controls";
     const notice = document.createElement("span"); notice.className = "session-notice";
     wrap.append(line, controls, notice);
-    panel.append(wrap);
-    chip.els = { wrap, line, controls, notice, input: null };
+    const status = document.createElement("p"); status.id = "session-status"; status.className = "visually-hidden";
+    status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
+    panel.append(wrap, status);
+    chip.statusNotice = "";
+    chip.els = { panel, wrap, line, controls, notice, status, input: null };
     chip.controlsSig = null;             // fresh controls node: nothing is built yet
     // Legacy key (spec §7): migrated once into a prefill, never auto-identified.
     // Session.identity() loads storage (and migrates) first; either source wins.

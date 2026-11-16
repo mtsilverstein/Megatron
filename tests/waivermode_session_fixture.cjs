@@ -569,7 +569,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.equal(Session.bundle(), b3, "a failed refresh must leave the committed bundle object untouched");
   assert.equal(Session.bundle().rostersRequestedAt, b1.rostersRequestedAt);
   assert.equal(Session.bundle().rostersFetchedAt, b1.rostersFetchedAt);
-  assert.match(statusText(), /^Refresh did not complete; see the league panel for the reason\. The roster snapshot received .* is still shown\.$/);
+  assert.match(statusText(), /^Refresh did not complete; see the league bar for the reason\. The roster snapshot received .* is still shown\.$/);
   assert.equal(analyzeCalls.length, an3, "nothing committed: the engine did not re-run");
   // 4b. The `also` hook failing (transactions 502) commits nothing and names the reason.
   routes[`/league/${L}/rosters`] = baseRoutes()[`/league/${L}/rosters`];
@@ -689,7 +689,7 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
     assert.equal($("waiver-stale").hidden, true, "fresh rosters again: the notice clears");
     assert.equal($("waiver-backup-wrap").hidden, true, "a same-team refresh clears the old snapshot's copied shortlist");
     assert.equal($("waiver-backup").value, ""); assert.equal($("waiver-copy-status").textContent, "");
-    assert.match(statusText(), /Refresh from the league panel before placing a claim\.$/, "fresh again: the status drops the stale wording");
+    assert.match(statusText(), /Refresh from the league bar before placing a claim\.$/, "fresh again: the status drops the stale wording");
     assert.deepEqual(analyzeCalls.at(-1).protectedIds, ["a"], "the same-team refresh kept the in-memory protection");
   }
   // A week change (same team) clears a copied shortlist too.
@@ -1041,6 +1041,8 @@ const transactionsCalls = () => calls.filter(p => p === `/league/${L}/transactio
   assert.ok(html.includes('id="reserve-hint"'));
   assert.ok(html.includes("Defaults to 20% of your league budget in week 1, falling to $0 by the final week"));
   assert.ok(html.includes('id="waiver-context"'));
+  assert.match(html, /<p id="connect-prompt-lead">Connect your league in the bar above to see waiver advice\.<\/p>/);
+  assert.ok(html.includes('The desk loads from the league bar above. Refresh it there before placing a claim.</p>'));
 
   Date.now = realNow;
   console.log("waivermode_session_fixture: real WaiverMode.init + Session + chip + LeagueData + LiveWorld (anonymous gate, owner flow, identity change, failed/successful refresh, timestamps, statics, rendered labels, reserve default, viewer -> owner, live settings, reverse standings, best ball, unsupported type, page wiring; grouped claim table with every drop option, best move (add only) FAAB/rolling/viewer/empty, data stamp, warnings signpost, protections, position filter, fold state, boilerplate once, worth watching, clipboard copy + fallback) OK");

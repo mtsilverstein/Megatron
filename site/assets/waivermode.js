@@ -901,7 +901,7 @@
         const stale = staleText(age);
         status(`${who} · rosters received ${new Date(s.world.fetchedAt).toLocaleTimeString()}. ${stale
           ? "Rosters are over a minute old and claims may have processed since; use Refresh rosters above the recommendations before placing a claim."
-          : "Refresh from the league panel before placing a claim."}`, true);
+          : "Refresh from the league bar before placing a claim."}`, true);
         $("waiver-stale").hidden = !stale;
         if (stale) $("waiver-stale-text").textContent = stale;
         renderRows();
@@ -1047,7 +1047,7 @@
       if (flow === "refreshing") { refreshing = true; refreshError = null; status("Refreshing rosters and this week's transactions…"); return; }
       if (refreshing && flow === "ready") {
         refreshing = false;
-        if (snap) status(`Refresh did not complete${refreshError ? ` (${refreshError})` : "; see the league panel for the reason"}. The roster snapshot received ${new Date(snap.world.fetchedAt).toLocaleTimeString()} is still shown.`);
+        if (snap) status(`Refresh did not complete${refreshError ? ` (${refreshError})` : "; see the league bar for the reason"}. The roster snapshot received ${new Date(snap.world.fetchedAt).toLocaleTimeString()} is still shown.`);
       }
     }
 

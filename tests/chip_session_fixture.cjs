@@ -68,7 +68,7 @@ const store = {
 };
 Session._storage(store);
 const IDENTITY_KEY = "megatron:session:identity";
-const REMEMBERED = "Remembered on this device until you choose forget.";
+const REMEMBERED = "Remembered on this device; use “Not you?” to forget it.";
 const pause = ms => new Promise(r => setTimeout(r, ms));
 const until = async (pred, what, ms = 2000) => {
   const t0 = Date.now();

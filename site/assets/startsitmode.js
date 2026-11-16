@@ -222,7 +222,7 @@
       }
       if(!bundle||!bundle.analysisRoster){status(gateMessage(bundle));return;}
       if(flow==="refreshing"){refreshing=true;status("Refreshing rosters…");return;}
-      if(refreshing&&flow==="ready"){refreshing=false;if(snapshot)status(`Refresh did not complete; the roster snapshot received ${snapshot.world.fetchedAt} is still shown. See the league panel for the reason.`);}
+      if(refreshing&&flow==="ready"){refreshing=false;if(snapshot)status(`Refresh did not complete; the roster snapshot received ${snapshot.world.fetchedAt} is still shown. See the league bar for the reason.`);}
     }
     S.onChange(sync);
     sync({state:S.state()});

@@ -22,6 +22,9 @@ function element(tagName) {
     replaceChildren(...nodes) { this.children = nodes; },
     addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); },
     setAttribute(k, v) { this.attrs[k] = v; },
+    removeAttribute(k) { delete this.attrs[k]; },
+    focus() { global.document.activeElement = this; },
+    contains(node) { return all(this).includes(node); },
     dispatch(type) { for (const fn of this.listeners[type] || []) fn({ preventDefault() {} }); },
   };
 }
@@ -35,6 +38,7 @@ function dom(href) {
   assigned = [];
   global.location.assign = url => { assigned.push(String(url)); };
   global.document = {
+    activeElement: null,
     createElement: element,
     querySelector(selector) { return selector === "main" ? main : null; },
     querySelectorAll() { return []; },
@@ -134,6 +138,8 @@ async function page(href, identity) {
   return { main, panel: byId(main, "league-context") };
 }
 const line = panel => byId(panel, "session-text").textContent;
+const status = panel => byId(panel, "session-status").textContent;
+const active = () => global.document.activeElement;
 const notice = panel => (all(panel).find(n => n.className === "session-notice") || { textContent: "" }).textContent;
 const controls = panel => all(panel).find(n => n.className === "session-controls");
 const form = panel => all(panel).find(n => n.tagName === "form") || null;
@@ -166,6 +172,15 @@ async function check(name, fn) {
     const { main, panel } = await page(`${base}weekly.html`);
     await pause(10);
     assert.equal(byId(panel, "session-heading").textContent, "Connect your Sleeper league");
+    assert.equal(byId(panel, "session-heading").tagName, "p", "not a heading element: it must not precede the page's h1");
+    assert.equal(panel.attrs["aria-labelledby"], "session-heading", "the panel is named by it while it shows");
+    const live = byId(panel, "session-status");
+    assert.equal(live.tagName, "p");
+    assert.equal(live.attrs.role, "status");
+    assert.equal(live.attrs["aria-live"], "polite");
+    assert.match(live.className, /visually-hidden/);
+    assert.equal(all(panel).filter(x => x.attrs && x.attrs["aria-live"]).length, 1, "one live region, never on #session-text");
+    assert.equal(byId(panel, "session-text").attrs.tabindex, "-1");
     assert.equal(textOf(all(form(panel)).find(x => x.tagName === "label")).trim(), "Sleeper username or league link");
     const input = byId(panel, "session-user");
     assert.equal(input.placeholder, "Sleeper username or league link");
@@ -195,10 +210,12 @@ async function check(name, fn) {
     const input = byId(w.panel, "session-user");
     submit(w.panel, "evil.example/leagues/1");
     assert.equal(notice(w.panel), "Enter a Sleeper league id or a sleeper.com league link.");
+    assert.equal(status(w.panel), "Enter a Sleeper league id or a sleeper.com league link.", "a refusal is announced");
     assert.equal(byId(w.panel, "session-user"), input, "the refusal keeps the input (and what was typed)");
     assert.equal(input.value, "evil.example/leagues/1");
     submit(w.panel, "");
     assert.equal(notice(w.panel), "Enter your Sleeper username or paste a sleeper.com league link.");
+    assert.equal(status(w.panel), "Enter your Sleeper username or paste a sleeper.com league link.");
     await pause(10);
     assert.deepEqual(assigned, []);
     assert.deepEqual(calls, [], "no Sleeper call");
@@ -210,14 +227,17 @@ async function check(name, fn) {
     const held = deferred();
     gates["/user/ua/leagues/nfl/2026"] = held.promise;
     submit(panel, "user_a");
+    assert.equal(status(panel), "Looking up Sleeper account…", "the lookup is announced");
     await until(() => byId(panel, "session-leagues"), "the account's leagues box");
     assert.equal(line(panel), "Sleeper account: User A");
+    assert.equal(status(panel), "Sleeper account: User A Finding your leagues…");
     assert.equal(textOf(byId(panel, "session-leagues")), "Finding your leagues…");
     assert.equal(byId(panel, "session-change").textContent, "Not you?");
     oneInput(panel, "B3");
     held.resolve();
     await until(() => rows(panel).length === 2, "two league rows");
     assert.ok(all(byId(panel, "session-leagues")).some(x => x.textContent === "Your 2026 leagues"));
+    assert.equal(status(panel), "Sleeper account: User A Your 2026 leagues: 2 found.", "the result is announced");
     assert.deepEqual(rows(panel).map(rowParts), [
       [`${base}weekly.html?league=${X}`, "Synthetic Six", "12 teams · PPR · FAAB"],
       [`${base}weekly.html?league=${Y}`, "Synthetic Ten", "10 teams · Half-PPR · Superflex · Rolling waivers"],
@@ -245,6 +265,7 @@ async function check(name, fn) {
     assert.deepEqual(rows(panel).map(rowParts), [[`${base}weekly.html?league=${X}`, "Synthetic Six", "12 teams · PPR · FAAB"]]);
     await pause(20);
     assert.deepEqual(assigned, [], "a page load never opens a league by itself");
+    assert.deepEqual(calls.slice().sort(), ["/state/nfl", "/user/so/leagues/nfl/2026"], "the leagues lookup and the season it needs, nothing else");
     oneInput(panel, "B5");
   });
 
@@ -256,6 +277,7 @@ async function check(name, fn) {
     assert.equal(textOf(byId(panel, "session-leagues")), "No 2026 Sleeper leagues for User A. Paste a league link instead.");
     assert.ok(form(panel) && byId(panel, "session-user"), "the box is there");
     assert.equal(byId(panel, "session-user").value, "");
+    assert.equal(status(panel), "Sleeper account: User A No 2026 Sleeper leagues for User A. Paste a league link instead.");
     assert.equal(byId(panel, "session-forget").textContent, "Forget me on this device");
     assert.equal(byId(panel, "session-change"), null, "the box is already showing");
     await pause(10);
@@ -269,6 +291,7 @@ async function check(name, fn) {
     submit(panel, "user_a");
     await until(() => byId(panel, "session-leagues-retry"), "the leagues Retry");
     assert.match(textOf(byId(panel, "session-leagues")), /HTTP 503/);
+    assert.match(status(panel), /^Sleeper account: User A Unable to load your leagues: .*HTTP 503/, "the lookup error is announced");
     assert.equal(byId(panel, "session-leagues-retry").textContent, "Retry");
     const before = calls.filter(c => c === "/user/ua/leagues/nfl/2026").length;
     assert.equal(before, 1);
@@ -298,28 +321,41 @@ async function check(name, fn) {
     assert.equal(byId(panel, "session-refresh"), null);
     assert.equal(byId(panel, "session-user"), null, "the box hides behind the find button");
     oneInput(panel, "B8");
+    const outside = element("input"); outside.focus();   // the visitor is working elsewhere on the page
+    const statusBefore = status(panel);
     team.value = "3"; team.dispatch("change");
+    assert.equal(active(), outside, "a rebuild while focus is outside the bar never moves it");
     assert.match(line(panel), /^Viewing Gamma Rays · rosters \d+ s ago$/);
     assert.equal(byId(panel, "session-find").textContent, "Use my username");
     assert.ok(byId(panel, "session-refresh"));
     assert.equal(byId(panel, "session-team").value, "3");
     assert.ok(!/your team/i.test(textOf(panel)), "a viewer is never 'your team'");
+    assert.notEqual(status(panel), statusBefore, "the state change is announced");
+    assert.match(status(panel), /^Viewing Gamma Rays/);
+    const ticked = status(panel), lineThen = line(panel);
+    await pause(2300);
+    assert.notEqual(line(panel), lineThen, "the ticker moved the line");
+    assert.equal(status(panel), ticked, "the ticker never writes the live region");
     oneInput(panel, "B8");
   });
 
   await check("B9 the find button reveals the box in place; Cancel puts the line back", async () => {
     const { panel } = viewer;
     const lineBefore = line(panel);
+    byId(panel, "session-find").focus();
     byId(panel, "session-find").dispatch("click");
     assert.ok(byId(panel, "session-user"));
+    assert.equal(active(), byId(panel, "session-user"), "the removed button's focus moves to the box");
     assert.equal(byId(panel, "session-user").value, "");
     assert.equal(byId(panel, "session-team"), null, "one input: the team select hides");
     assert.equal(byId(panel, "session-cancel").textContent, "Cancel");
     assert.equal(byId(panel, "session-forget"), null, "nothing to forget without an account");
     assert.equal(line(panel).replace(/\d+ s ago/, ""), lineBefore.replace(/\d+ s ago/, ""), "the line is unchanged");
     oneInput(panel, "B9");
+    byId(panel, "session-cancel").focus();
     byId(panel, "session-cancel").dispatch("click");
     assert.equal(byId(panel, "session-user"), null);
+    assert.equal(active(), byId(panel, "session-team"), "Cancel's focus moves to the first control");
     assert.equal(byId(panel, "session-team").value, "3");
     assert.ok(byId(panel, "session-refresh"));
     assert.equal(byId(panel, "session-find").textContent, "Use my username");
@@ -399,7 +435,7 @@ async function check(name, fn) {
     assert.equal(textOf(all(form(panel)).find(x => x.tagName === "label")).trim(), "Sleeper username");
     assert.equal(byId(panel, "session-user").placeholder, "Sleeper username");
     assert.equal(byId(panel, "session-use").textContent, "Connect");
-    assert.equal(line(panel), "Remembered on this device until you choose forget.");
+    assert.equal(line(panel), "Remembered on this device; use “Not you?” to forget it.");
     assert.equal(byId(panel, "session-heading"), null);
     assert.equal(byId(panel, "session-leagues"), null);
     assert.equal(byId(panel, "session-team"), null);
@@ -427,8 +463,21 @@ async function check(name, fn) {
     oneInput(panel, "B15");
   });
 
+  await check("B16 first visit, unknown username: the failure line, the box holds the name, no Retry", async () => {
+    const { panel } = await page(`${base}weekly.html`);
+    routes["/user/nobody"] = {};
+    byId(panel, "session-user").focus();
+    submit(panel, "nobody");
+    assert.equal(active(), byId(panel, "session-text"), "the focused box was removed while identifying: focus lands on the line, not <body>");
+    await until(() => line(panel) === "Sleeper username was not found.", "the not-found line");
+    assert.equal(byId(panel, "session-user").value, "nobody");
+    assert.equal(byId(panel, "session-retry"), null);
+    assert.equal(status(panel), "Sleeper username was not found.");
+    oneInput(panel, "B16");
+  });
+
   await check("B14 every case above: at most one input in the panel", () => {
-    assert.deepEqual([...casesChecked].sort(), ["B1", "B10", "B11", "B12", "B13", "B15", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9"]);
+    assert.deepEqual([...casesChecked].sort(), ["B1", "B10", "B11", "B12", "B13", "B15", "B16", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9"]);
     assert.ok(inputChecks >= 20, `only ${inputChecks} input checks ran`);
   });
 

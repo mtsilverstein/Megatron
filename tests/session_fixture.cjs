@@ -470,7 +470,7 @@ const sorted = a => a.slice().sort();
   await check("14. chipText: the exact strings for every chip state", () => {
     const t0 = 1_700_000_000_000;
     const ready = { registry: FC.registryFor("leaguea"), identity: { username: "user_a", userId: "u1", displayName: "User A" }, league, users, rosters, state, rostersRequestedAt: t0 - 100, rostersFetchedAt: t0, myRoster: rosters[0], myRosterStatus: "found", warnings: [], generation: 1 };
-    assert.equal(Session.chipText(null, "anonymous"), "Remembered on this device until you choose forget.");
+    assert.equal(Session.chipText(null, "anonymous"), "Remembered on this device; use “Not you?” to forget it.");
     assert.equal(Session.chipText(ready, "ready", t0 + 14000), "Your team: Meat Sweats · rosters 14 s ago");
     assert.equal(Session.chipText(ready, "ready", t0 + 125000), "Your team: Meat Sweats · rosters 2 min ago");
     assert.equal(Session.chipText(ready, "refreshing", t0 + 14000), "Your team: Meat Sweats · rosters 14 s ago · refreshing…");
@@ -484,9 +484,9 @@ const sorted = a => a.slice().sort();
     assert.equal(Session.chipText(null, "error", t0, "HTTP 503"), "HTTP 503");
     const espn = { registry: FC.registryFor("leaguec"), identity: ready.identity, league: null, users: null, rosters: null, state: null, rostersRequestedAt: null, rostersFetchedAt: null, myRoster: null, myRosterStatus: "anonymous", warnings: [], generation: 1 };
     assert.equal(Session.chipText(espn, "ready", t0), "User A · League C · draft board only");
-    assert.equal(Session.chipText({ ...espn, identity: null }, "ready", t0), "Remembered on this device until you choose forget.");
+    assert.equal(Session.chipText({ ...espn, identity: null }, "ready", t0), "Remembered on this device; use “Not you?” to forget it.");
     // An anonymous bundle (no identity) in the ready state still asks for a name.
-    assert.equal(Session.chipText({ ...ready, identity: null, myRoster: null, myRosterStatus: "anonymous" }, "ready", t0), "Remembered on this device until you choose forget.");
+    assert.equal(Session.chipText({ ...ready, identity: null, myRoster: null, myRosterStatus: "anonymous" }, "ready", t0), "Remembered on this device; use “Not you?” to forget it.");
     assert.equal(Session.chipText(null, "identifying", t0), "Looking up Sleeper account…");
     assert.equal(Session.chipText(null, "loadingLeague", t0), "Loading league…");
   });
@@ -1135,6 +1135,22 @@ const sorted = a => a.slice().sort();
     await Session.ready({ leagueId: X });
     assert.doesNotThrow(() => Session.view(3));
     assert.equal(Session.bundle().viewedRosterId, 3, "memory-only: the view still applies on this page");
+  });
+  await check("33. viewed team: identifying as the viewed team's owner forgets the remembered pair, so a later non-member does not resurrect it", async () => {
+    const store = fakeStorage();
+    Session._storage(store); Session._get(fakeGet(routesX()).get);
+    await Session.ready({ leagueId: X });
+    Session.view(3);
+    assert.deepEqual(pairs(store), [[X, "3"]]);
+    await Session.identify("gamma");                 // owns roster 3
+    assert.equal(Session.bundle().analysisRole, "owner");
+    assert.deepEqual(pairs(store), [], "the owner's identify deletes this league's viewed pair");
+    await Session.identify("outsider");              // on no team here
+    assert.equal(Session.bundle().myRoster, null);
+    assert.equal(Session.bundle().viewedRosterId, null, "nothing is viewed on this page");
+    assert.deepEqual(pairs(store), [], "and nothing stale is stored for the next load");
+    Session._storage(store); Session._get(fakeGet(routesX()).get);   // the next page load
+    assert.equal((await Session.ready({ leagueId: X })).viewedRosterId, null);
   });
 
   await check("registry and module hygiene", () => {

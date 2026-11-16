@@ -446,7 +446,7 @@
     // No username input and no league picker: both belong to the chip in the
     // league panel. The button needs an identity to mean anything, so it is
     // disabled -- and says why -- until the session has one.
-    const NO_IDENTITY = "identify yourself in the league panel first";
+    const NO_IDENTITY = "identify yourself in the league bar first";
     const S = typeof window !== "undefined" ? window.Session : null;
     let loading = false;
     let loadedUserId = null;   // whose previous-season roster the list came from

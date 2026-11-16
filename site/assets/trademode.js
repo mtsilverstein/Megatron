@@ -346,7 +346,7 @@
   // input and no "pick a league" list here. leagueWorld is unchanged -- it
   // still reads users/rosters/traded picks and the draft chain itself, and
   // still refuses a league that is not pre-draft.
-  const NO_IDENTITY = "Enter your Sleeper username in the league panel above; the trade columns read your roster from there.";
+  const NO_IDENTITY = "Enter your Sleeper username in the league bar above; the trade columns read your roster from there.";
   let SESSION = null;               // window.Session in the browser; scriptable under node
   let currentBundle = null;         // the committed bundle the columns were built from
 
@@ -395,7 +395,7 @@
       const myId = String(bundle.myRoster.roster_id);
       const mine = w.teams.find(t => String(t.rosterId) === myId);
       if (!mine) {
-        setStatus(`your roster (${myId}) is not in the league's roster list — refresh from the league panel`);
+        setStatus(`your roster (${myId}) is not in the league's roster list — refresh from the league bar`);
         return;
       }
       world = w; me = mine;
@@ -407,7 +407,7 @@
       renderWarn();
     } catch (e) {
       if (stale() || SESSION.isSuperseded(e)) return;
-      setStatus(`load failed: ${e.message} — refresh from the league panel to retry`);
+      setStatus(`load failed: ${e.message} — refresh from the league bar to retry`);
     }
   }
 

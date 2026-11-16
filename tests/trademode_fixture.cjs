@@ -436,7 +436,7 @@ acheck("init never looks up a user or lists leagues; my team is the bundle's ros
     calls.length = 0;
     TM.init({ board: b, els });
     assert.strictEqual(els.controls.hidden, true); assert.strictEqual(els.cols.hidden, true);
-    assert.ok(/league panel/.test(els.status.textContent), els.status.textContent);
+    assert.ok(/league bar/.test(els.status.textContent), els.status.textContent);
     assert.deepStrictEqual(calls, [], "init() itself fetches nothing");
     // 2. identify + ready: the bundle is ambiguous (two matching rosters) -> blocked, no world.
     await Session.identify("max");
@@ -470,7 +470,7 @@ acheck("init never looks up a user or lists leagues; my team is the bundle's ros
     Session.forget();
     assert.strictEqual(els.cols.hidden, true); assert.strictEqual(els.controls.hidden, true);
     assert.strictEqual(els.grade.hidden, true); assert.strictEqual(els.suggestions.hidden, true);
-    assert.ok(/league panel/.test(els.status.textContent), els.status.textContent);
+    assert.ok(/league bar/.test(els.status.textContent), els.status.textContent);
   } finally {
     delete global.window; delete global.document;
     Session._storage(undefined); Session._get(null);
@@ -486,7 +486,7 @@ acheck("no username input, league picker or /user/ fetch remains in the pre-draf
   assert.ok(/status !== "pre_draft"/.test(src), "leagueWorld's own pre-draft guard stays");
   const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
   assert.ok(!/trade-user|trade-load"|trade-league-picker/.test(html), "trade.html carries no legacy inputs");
-  assert.ok(/trademode\.js\?v=k2y2/.test(html) && /keepers\.js\?v=k2y2/.test(html) && /trade\.js\?v=k2y2/.test(html), "cache keys bumped");
+  assert.ok(/trademode\.js\?v=cf1/.test(html) && /keepers\.js\?v=cf1/.test(html) && /trade\.js\?v=k2y2/.test(html), "cache keys bumped");
 });
 
 // --- the two-year keeper cap, in this panel's words --------------------------

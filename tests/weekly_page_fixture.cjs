@@ -129,6 +129,7 @@ const DEFAULT_STATUS = ids["lens-status"].textContent;
   }
   // The prompt's copy is the page's own markup.
   assert.match(html, /<p id="connect-prompt-lead">Connect your league in the bar above to see start\/sit advice\.<\/p>/);
+  assert.ok(html.includes('The plan loads from the league bar above. The projections below remain independent of this plan.</p>'));
   assert.match(html, /<p class="page-intro">Set your lineup, then explore the projections behind it\.<\/p>/);
   console.log("weekly_page_fixture: cleared view drops title and league lens; replacement restores; picks survive; no league renders the neutral table OK");
 })().catch(e => { console.error(e); process.exit(1); });

@@ -791,7 +791,7 @@
         if (PK.ok && PK.pref.keeperRule === "ladder") ladderHistory();
       } catch (e) {
         if (stale() || SESSION.isSuperseded(e)) return;
-        setStatus(e instanceof PreflightError ? e.message : `load failed: ${e.message} — refresh from the league panel to retry`);
+        setStatus(e instanceof PreflightError ? e.message : `load failed: ${e.message} — refresh from the league bar to retry`);
       } finally {
         if (!stale()) loading = false;
       }

@@ -338,7 +338,7 @@ global.localStorage = store;
     return S;
   }
   const Session = require("../site/assets/session.js");
-  const REMEMBERED = "Remembered on this device until you choose forget.";
+  const REMEMBERED = "Remembered on this device; use “Not you?” to forget it.";
   const A = "100000000000000001", C = "100000000000000003";
   // A board page registers its board's own league block (FC.setBoard); the
   // hook stands in for that here with synthetic rows.
@@ -367,7 +367,7 @@ global.localStorage = store;
   const anonSelect = all(anonPanel).find(n => n.tagName === "select");
   assert.deepStrictEqual(anonSelect.children, [], "no hard-coded leagues: an anonymous visitor's picker is empty");
   assert.strictEqual(all(anonPanel).find(n => n.tagName === "label" && n.children.includes(anonSelect)).hidden, true, "an empty picker is hidden");
-  assert.ok(!anonPanel.children.some(n => n.tagName === "p"), "no panel note: the heading says what to do");
+  assert.ok(!anonPanel.children.some(n => n.tagName === "p" && n.id !== "session-status"), "no panel note: the heading says what to do");
   assert.ok(!all(anonPanel).some(n => n.tagName === "a"), "no 'Find my Sleeper leagues' link: the bar is the way in");
   // Submitting the form identifies once; the stub's superseded rejection must
   // not be rendered (checked after the microtask settles, below).
@@ -404,7 +404,7 @@ global.localStorage = store;
       promptEl.hidden = false;
       assert.ok(byId(pPanel, "session-user"), `${pageName}: the bar's box stays after the prompt shows`);
       assert.strictEqual(all(pPanel).filter(n => n.tagName === "input").length, 1, `${pageName}: one input in the panel`);
-      assert.ok(!all(pm).some(n => /until you choose forget/.test(n.textContent)), `${pageName}: no forget promise with no league open`);
+      assert.ok(!all(pm).some(n => /to forget it/.test(n.textContent)), `${pageName}: no forget promise with no league open`);
       assert.strictEqual(byId(pPanel, "session-text").textContent, "");
     }
   }
@@ -551,7 +551,7 @@ global.localStorage = store;
   const leagueSelect = all(idPanel).find(n => n.tagName === "select" && n.attrs["aria-label"] === "Selected league");
   assert.strictEqual(leagueSelect.value, X, "the panel's league select names this league by id");
   assert.ok(leagueSelect.children.some(o => o.value === X && o.textContent === `Sleeper league ${X}`));
-  assert.ok(!idPanel.children.some(n => n.tagName === "p"), "no plumbing note in the bar");
+  assert.ok(!idPanel.children.some(n => n.tagName === "p" && n.id !== "session-status"), "no plumbing note in the bar");
   assert.strictEqual(byId(idPanel, "session-text").textContent, "Loading league…", "the league is open before it loads");
   assert.deepStrictEqual(leagueSelect.children.map(o => [o.value, o.textContent]), [[X, `Sleeper league ${X}`]],
     "anonymous: the picker offers only the league that is open");
