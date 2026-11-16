@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 10,
   "data_through": "2026-wk9",
-  "generated_at": "2026-11-15T12:50:49+00:00",
-  "batch_id": "2026-11-15T12:50:49+00:00|2026-wk9|w10",
+  "generated_at": "2026-11-16T13:47:42+00:00",
+  "batch_id": "2026-11-16T13:47:42+00:00|2026-wk9|w10",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,7 +13,7 @@
   },
   "crosswalk": {
     "matched_gsis": 134,
-    "matched_crosswalk": 515,
+    "matched_crosswalk": 512,
     "matched_name": 7,
     "unmatched": 1
   },
@@ -2570,18 +2570,6 @@
       "position": "RB",
       "bye": 10,
       "ecr": 92,
-      "identity_only": false,
-      "reason": null,
-      "match": "crosswalk"
-    },
-    {
-      "player_id": "00-0036924",
-      "sleeper_id": "7607",
-      "name": "Michael Carter",
-      "team": "TEN",
-      "position": "RB",
-      "bye": 9,
-      "ecr": 391,
       "identity_only": false,
       "reason": null,
       "match": "crosswalk"
@@ -5443,18 +5431,6 @@
       "match": "crosswalk"
     },
     {
-      "player_id": "00-0039489",
-      "sleeper_id": "12389",
-      "name": "Hayden Rucci",
-      "team": "LAC",
-      "position": "TE",
-      "bye": 7,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "crosswalk"
-    },
-    {
       "player_id": "00-0039491",
       "sleeper_id": "11646",
       "name": "Jalen Coker",
@@ -6940,18 +6916,6 @@
       "ecr": null,
       "identity_only": true,
       "reason": "no_projection",
-      "match": "crosswalk"
-    },
-    {
-      "player_id": "00-0040352",
-      "sleeper_id": "12829",
-      "name": "Coleman Owen",
-      "team": "GB",
-      "position": "WR",
-      "bye": 11,
-      "ecr": null,
-      "identity_only": false,
-      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -9164,18 +9128,6 @@
     },
     {
       "player_id": "00-0041307",
-      "sleeper_id": null,
-      "name": null,
-      "team": "HOU",
-      "position": null,
-      "bye": 8,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
-    },
-    {
-      "player_id": "00-0041309",
       "sleeper_id": null,
       "name": null,
       "team": "HOU",
