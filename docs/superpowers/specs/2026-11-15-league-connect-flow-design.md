@@ -115,7 +115,7 @@ Sketches use invented names. `▾` is a select; `[ ]` a button.
 ```
 Connect your Sleeper league
 [ Sleeper username or league link            ] [Connect]
-No password. Read-only: nothing is changed in Sleeper.
+No password. Read-only: nothing is changed in Sleeper. A username you enter is remembered on this device.
 ```
 
 **Username entered, leagues found** — the rows appear in the bar under the box:
@@ -162,14 +162,20 @@ select hides while the box shows, so there is still one input). The league is pl
 **League open, team chosen without an account:**
 
 ```
-[Sunday Scaries]   Viewing: [Taco Corp ▾]   ↻ 2 min ago   Use my username
+[Sunday Scaries]   rosters 2 min ago   Viewing [Taco Corp ▾]   Refresh   Use my username
 ```
+
+The select's label reads "Viewing" on screen once a team is chosen, so the line drops the team name (the select shows
+it); the live region still announces "Viewing Taco Corp · rosters 2 min ago". With no team chosen the label is
+visually hidden and the line asks "Which team do you want to see?".
 
 **League open, account known but no unique roster here** (none / ambiguous):
 
 ```
-[Sunday Scaries ▾]   You have no team here. Viewing: [Choose a team ▾]   Not you?
+[Sunday Scaries ▾]   You have no team here · rosters 2 min ago   Viewing [Taco Corp ▾]   Refresh   Not you?
 ```
+
+Before a team is chosen the line is "You have no team here." and the select (label hidden) reads "Choose a team".
 
 For `ambiguous` the first sentence is "This account is on more than one team here." instead; the rest is the same.
 
@@ -292,3 +298,5 @@ username. Acceptance there is only that the board loads and the username path st
    keeps the account.
 7. `connect.html` forwards to Weekly rather than being deleted.
 8. The archived board keeps its states in the new compact look; "Not you?" replaces "change" everywhere.
+
+Owner decisions 2026-11-15: viewer line drops the team name (the select shows it, labelled Viewing); the first-visit note says a username is remembered on this device.

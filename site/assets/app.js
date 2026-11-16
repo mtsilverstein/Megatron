@@ -425,9 +425,15 @@
   // A visitor who is not this league's owner (anonymous, or an account with
   // no unique roster here) chooses a team to VIEW, by the league's own names.
   // Session.view never sets myRoster.
+  // Once a team is chosen the label reads "Viewing" on screen and the line
+  // beside it drops the team name (the select shows it); until then the
+  // caption is hidden and the line asks which team.
   function teamPicker(S, b) {
     const label = document.createElement("label");
-    label.append(hiddenCaption("Team"));
+    if (viewedTeamName(S, b) !== null) {
+      const cap = document.createElement("span"); cap.className = "session-viewing"; cap.textContent = "Viewing";
+      label.append(cap);
+    } else label.append(hiddenCaption("Team"));
     const select = document.createElement("select");
     select.id = "session-team";
     const none = document.createElement("option"); none.value = ""; none.textContent = "Choose a team";
@@ -443,6 +449,20 @@
     });
     label.append(select);
     return label;
+  }
+  // The chosen team's name while the bar shows the team select, else null.
+  function viewedTeamName(S, b) {
+    return b && b.analysisRole === "viewer" && b.analysisRoster ? S.teamName(b.users, b.analysisRoster) : null;
+  }
+  // The line without the team name: Session.chipText keeps "Viewing <team> ·
+  // rosters ..." (the live region announces it whole); the bar's visible line
+  // leaves the name to the select beside it.
+  function withoutTeam(text, name) {
+    const at = text.indexOf(`Viewing ${name}`);
+    if (name === null || at < 0) return text;
+    const head = text.slice(0, at).trim().replace(/\.$/, "");
+    const tail = text.slice(at + `Viewing ${name}`.length).replace(/^ · /, "");
+    return head && tail ? `${head} · ${tail}` : head || tail;
   }
   const leagueName = l => l.name || `League ${l.league_id}`;
   // The leagues box's own sentence (also what the live region announces).
@@ -513,7 +533,7 @@
     };
     const note = () => {
       const p = document.createElement("p"); p.id = "session-note"; p.className = "session-note";
-      p.textContent = "No password. Read-only: nothing is changed in Sleeper."; return p;
+      p.textContent = "No password. Read-only: nothing is changed in Sleeper. A username you enter is remembered on this device."; return p;
     };
     // The team-to-view select's signature: the teams and the choice, so a
     // tick never rebuilds an open dropdown.
@@ -592,7 +612,7 @@
       sig = ["revealed", !!id];
       leaguesLine = "";
     }
-    els.line.textContent = line;
+    els.line.textContent = sig[0] === "viewer" || sig[0] === "noteam" ? withoutTeam(line, viewedTeamName(S, b)) : line;
     els.notice.textContent = chip.notice;
     const key = JSON.stringify(sig);
     const rebuilt = key !== chip.controlsSig;

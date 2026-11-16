@@ -224,7 +224,7 @@ async function realTick(panel) {
   picker.value = "2"; picker.dispatch("change");
   assert.equal(Session.bundle().analysisRole, "viewer");
   assert.equal(Session.bundle().myRoster, null);
-  assert.match(byId(idPanel, "session-text").textContent, /^Viewing Beta · rosters [0-2] s ago$/);
+  assert.match(byId(idPanel, "session-text").textContent, /^rosters [0-2] s ago$/);
   // Identify as the owner of roster 3 through the bar's box ("Use my username").
   assert.equal(byId(idPanel, "session-find").textContent, "Use my username");
   byId(idPanel, "session-find").dispatch("click");

@@ -54,6 +54,8 @@ main #league-context > label { flex: 0 1 auto; min-width: 0; flex-direction: row
 .session-form button { flex: 0 0 auto; background: var(--chalk); color: var(--board); border-color: var(--chalk); padding-inline: 1rem; }
 .session-controls label, #waiver-app .session-controls label { flex-direction: row; flex-wrap: wrap; align-items: center; }
 #league-context #session-team { max-width: 14rem; }
+#league-context #session-team { min-width: 0; }
+.session-viewing { font-size: .85rem; color: var(--chalk-dim); }
 /* "Not you?", "Use my username", "or find your team with your username": text buttons. */
 #league-context .session-link { min-height: 2.5rem; padding: .35rem .1rem; border: 0; background: none; color: var(--chalk-dim); font: 500 .85rem/1.4 system-ui, sans-serif; letter-spacing: 0; text-transform: none; text-decoration: underline; text-underline-offset: .2em; }
 #league-context .session-link:hover { color: var(--chalk); }
@@ -107,7 +109,7 @@ footer { max-width: 1320px; margin: 0 auto; padding: 1.25rem; font: .8rem/1.65 s
   #waiver-app .waiver-controls label:first-child { width: auto; }
 }
 /* Phones: a connected bar is at most two rows -- the league and the line on
-   the first, the team select, Refresh and the account link on the second.
+   the first, the "Viewing" label, the team select, Refresh and the account link on the second.
    The chip's box steps aside (display: contents) so the line can share the
    league's row (its text wraps inside it; the age stays visible); its 50%
    basis pushes the controls onto the next one. Row 2's text button has a
@@ -120,6 +122,8 @@ footer { max-width: 1320px; margin: 0 auto; padding: 1.25rem; font: .8rem/1.65 s
   #league-context.has-league .session-text { flex: 1 1 50%; min-width: 0; font-size: .8rem; line-height: 1.35; }
   #league-context.has-league .session-notice { flex-basis: 100%; }
   #league-context #session-team { max-width: 9.5rem; }
+  #league-context.has-league .session-controls label { flex-wrap: nowrap; min-width: 0; gap: .35rem; }
+  .session-viewing { font-size: .8rem; }
   #league-context .session-link { font-size: .8rem; }
   #league-context.has-league .session-link { flex: 1 1 0; min-width: 0; padding: .2rem 0; line-height: 1.3; text-align: left; }
 }
