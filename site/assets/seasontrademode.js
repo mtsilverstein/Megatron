@@ -17,12 +17,13 @@
    season and take no roster spot: a picks-only offer never calls the
    lineup engine. The weighting, draft-order and keeper-rule controls
    recompute the pick lines in place, with no new read -- except that under
-   the ladder keeper rule the league's draft history
+   any keeper rule but Unknown (a preset of keeperrules.js, or the Custom…
+   settings; keeper-rule-settings spec §5.3) the league's draft history
    (Keepers.buildOriginalByPlayerId) is walked once per load: at the end of
-   the load when this league's remembered rule is the ladder, else the first
-   time the rule applies to a result on screen or is chosen. That history makes
-   the likely-keeper lines ladder-aware (a player the ladder or its two-year
-   cap would not let keep is skipped) and adds one line when an offer gives
+   the load when this league's remembered rule is not Unknown, else the first
+   time a rule applies to a result on screen or is chosen. That history makes
+   the likely-keeper lines rule-aware (a player the rule's cost floor or year
+   limit would not let keep is skipped) and adds one line when an offer gives
    away the pick a side's likely keeper would cost. Pending or unavailable,
    both drop out and nothing else changes.
 
@@ -98,13 +99,29 @@
   // about 2 points wide, which must not read as precision (controller ruling 2026-11-13).
   const PICK_CURVE_PATH = "assets/pick_curve.json?v=picks1";
   const PICK_ORDERS = Object.freeze([["unset", "Not set yet"], ["standings", "By this season's standings"]]);
-  const PICK_RULES = Object.freeze([["unknown", "Unknown"], ["ladder", "Round drafted − 1 per year kept (waiver pickups: round 12; max 2 years)"]]);
+  // The keeper-rule menu (keeper-rule-settings §5.3): Unknown, keeperrules.js's presets (the ladder's key and label
+  // unchanged, so saved choices still load), Custom…. Read at first use, like every other dependency here.
+  const pickRules = () => Object.freeze([["unknown", "Unknown"], ...KR().PRESETS.map(p => [p.key, p.label]), ["custom", "Custom…"]]);
+  // The Custom… settings, in keeperrules.js's order: [setting, label, lowest, highest]. A blank "most years" is no
+  // limit (null); a blank never-drafted round is the draft's last round ("last"). The two round settings go no higher
+  // than this league's draft.
+  const CUSTOM_FIELDS = Object.freeze([
+    ["first_keep", "First keep: rounds earlier than drafted", 0, 5],
+    ["per_year", "Each later year: rounds earlier", 0, 5],
+    ["max_years", "Most years in a row (blank = no limit)", 1, 8],
+    ["undrafted_round", "Never-drafted player costs round (blank = last round)", 1, 30],
+    ["earliest_round", "Earliest round a keeper can cost", 1, 30],
+  ].map(f => Object.freeze(f)));
+  const CUSTOM_BLANK = Object.freeze({ max_years: null, undrafted_round: "last" });
   const ENGINE_PICK_NOTE = "No keeper or future-pick value, bench insurance, or the other side's willingness to deal";
   const PICK_COPY = Object.freeze({
     weighting: "Weighting:",
     help: () => `How much a point next season counts: ${Object.values(PV().PRESETS).map(p => `${p.label} ×${p.w}`).join(", ")}.`,
     order: next => `${next} draft order:`,
     keeperRule: "Keeper rule:",
+    customGroup: "Custom keeper rule",
+    // A remembered custom rule this league's draft cannot have (e.g. a round past its last): shown under Custom….
+    customUnfit: msg => `${msg}. Until this is changed, the keeper rule counts as Unknown.`,
     valuesNote: K => `Pick values: what the player ranked at each draft spot by the preseason consensus actually scored in 2021–2025, above a waiver-level starter, in your league's scoring. This estimate assumes each team keeps its ${K} best-ranked player${K === 1 ? "" : "s"}. A player's value next season, as a keeper, is not counted.`,
     ladderNote: "Under this keeper rule the best players often can't be kept, so early picks are likely worth more than shown.",
     averagesNote: "Pick values are 2021–2025 averages; any single pick can land far from them.",
@@ -135,9 +152,12 @@
   // sides: [{you, name, thisSeason, gets: [{season, label, v}], gives: [...]}], side 0 first. Returns [{text, cls}]:
   // per side who gets and gives which pick, the picks' total, one line per pick, the combined number; then the
   // two notes, once. "Future seasons" replaces "Next season" when any pick in the offer is two or more seasons ahead.
+  // keeperRule: the active rule (a KeeperRules rule) or null for Unknown; the early-picks note follows its earliest
+  // round, never its name.
   function picksSummary({ sides, preset, currentSeason, keepers, keeperRule }) {
     const P = PV().PRESETS[preset];
     if (!P) throw new Error(`Unknown weighting preset: ${preset}`);
+    if (keeperRule != null && !KR().isRule(keeperRule)) throw new Error("picksSummary: keeperRule must be a keeper rule or null");
     const now = Number(currentSeason);
     const later = sides.some(s => [...s.gets, ...s.gives].some(p => Number(p.season) - now >= 2));
     // The factors actually applied, one per distinct number of seasons ahead among the picks in the offer.
@@ -160,7 +180,7 @@
     }
     lines.push({ text: PICK_COPY.valuesNote(Number(keepers)), cls: "season-summary-note" });
     lines.push({ text: PICK_COPY.averagesNote, cls: "season-summary-note" });
-    if (keeperRule === "ladder") lines.push({ text: PICK_COPY.ladderNote, cls: "season-summary-note" });
+    if (keeperRule && keeperRule.earliest_round > 1) lines.push({ text: PICK_COPY.ladderNote, cls: "season-summary-note" });
     return lines;
   }
   // The roster's top `keepers` skill players by rest-of-season value (rosValue: Map sleeper id -> ros_value). Every
@@ -175,6 +195,23 @@
       .filter(id => !eligible || eligible(id))
       .sort((a, b) => rosValue.get(b) - rosValue.get(a) || (a < b ? -1 : a > b ? 1 : 0));
     return new Set(ranked.slice(0, K));
+  }
+  // The five Custom… settings of a raw object, in a fresh object (anything else it carries is dropped).
+  const customOf = raw => Object.fromEntries(CUSTOM_FIELDS.map(([k]) => [k, raw[k]]));
+  // The rule in force for a remembered choice (keeper-rule-settings §5.3): {rule, error}. Unknown is {rule: null}. A
+  // preset is a fixed definition: the draft's round count only resolves its "last" never-drafted round, so the ladder's
+  // round 12 stands in a shorter draft as it always has (the pick curve clips its span to the draft). Custom settings
+  // must fit this draft; when they do not, {rule: null, error}: the page counts them as Unknown and says why.
+  function ruleOf(pref, rounds) {
+    if (!pref || pref.keeperRule === "unknown") return { rule: null, error: null };
+    try {
+      const R = KR();
+      if (pref.keeperRule === "custom") return { rule: R.normalize(pref.keeperCustom, { rounds }), error: null };
+      const s = R.preset(pref.keeperRule);
+      return s ? { rule: R.normalize(s, s.undrafted_round === "last" ? { rounds } : {}), error: null } : { rule: null, error: null };
+    } catch (e) {
+      return { rule: null, error: String((e && e.message) || e) };
+    }
   }
   // A reason as the second half of "Draft picks unavailable: ...": lower-case start (Sleeper stays capitalized), a
   // closing period.
@@ -517,8 +554,8 @@
   // compare re-reads rosters (and, as every refresh does, the league
   // settings) through Session.refresh. Its only Sleeper calls of its own are
   // a keeper league's traded_picks and draft, once per load (readPicks), and,
-  // under the ladder keeper rule only, one draft-history walk per load
-  // (ladderHistory, through keepers.js).
+  // under a keeper rule other than Unknown only, one draft-history walk per
+  // load (keeperHistory, through keepers.js).
 
   // Same rule as TradeMode.teamName / Session.teamName.
   const teamNameOf = (user, rosterId) => (user && user.metadata && user.metadata.team_name) || (user && user.display_name) || `Roster ${rosterId}`;
@@ -585,8 +622,9 @@
     const sides = { mine: newSide(els.mine, els.mineDrops, els.minePicks), theirs: newSide(els.theirs, els.theirsDrops, els.theirsPicks) };
     const sideName = s => s.roster ? rosterName(s.roster.roster_id) : "";
     // Draft picks for the current load: off (not a keeper league, or the page lacks the pick elements), a reason line
-    // (dynasty, two QBs, or a failed read), or ok with the owned picks, the two curves (one per keeper rule) and the
-    // user's choices. `lastPicks` is the result on screen whose pick lines the controls recompute in place.
+    // (dynasty, two QBs, or a failed read), or ok with the owned picks, the pick curves (one per keeper rule used,
+    // built on first use), the user's choices and the rule in force. `lastPicks` is the result on screen whose pick
+    // lines the controls recompute in place.
     const picksUI = Boolean(els.minePicks && els.theirsPicks && els.pickControls && els.picksNote);
     const PICKS_OFF = Object.freeze({ ok: false, line: null });
     let PK = PICKS_OFF, lastPicks = null;
@@ -656,8 +694,10 @@
         return { ok: false, line: PICK_COPY.unavailable(reasonText(e.message)) };
       }
     }
-    // The reads, made usable for this league: ownership, rounds, both curves (so changing the keeper rule never
-    // fails later), the remembered choices. Any error becomes the unavailable line.
+    // The reads, made usable for this league: ownership, rounds, the remembered choices and the rule they put in
+    // force, and the pick curves. Curves are built on first use and cached by the rule's settings
+    // (KeeperRules.key), so two custom rules never share one; the remembered rule's curve is built here, so a table
+    // or a league the curve cannot use fails now, as the unavailable line. Any error becomes that line.
     function preparePicks(read, { league, rosters, batch: b }) {
       if (!read.ok) return read;
       try {
@@ -674,16 +714,25 @@
         const rate = prior && Number.isFinite(prior.rate) ? prior.rate : undefined;
         const base = { artifact, weights: LLens().effectiveWeights(league.scoring_settings), slots: league.roster_positions,
           teams: league.total_rosters, keepers: league.settings && league.settings.max_keepers, rounds, pickSixRate: rate };
-        const curves = {};
-        for (const rule of P.KEEPER_RULES) curves[rule] = P.buildCurve({ ...base, keeperRule: rule });
+        const curves = new Map();
+        const curve = rule => {
+          const k = KR().key(rule);
+          if (!curves.has(k)) curves.set(k, P.buildCurve({ ...base, keeperRule: rule }));
+          return curves.get(k);
+        };
+        const pref = loadPref(league.league_id), active = ruleOf(pref, rounds);
+        curve(active.rule);
         const current = Number(league.season);
-        return { ok: true, line: null, owned, rounds, curves, teams: league.total_rosters, current, next: current + 1,
-          snake: draft.type === "snake", reversalRound: draft.settings && draft.settings.reversal_round, pref: loadPref(league.league_id), presetBtns: new Map() };
+        return { ok: true, line: null, owned, rounds, curve, teams: league.total_rosters, current, next: current + 1,
+          snake: draft.type === "snake", reversalRound: draft.settings && draft.settings.reversal_round, pref, active, presetBtns: new Map() };
       } catch (e) {
         return { ok: false, line: PICK_COPY.unavailable(reasonText(e.message)) };
       }
     }
-    // The user's choices, per league, in this browser; unreadable or unknown values fall back to the defaults.
+    // The user's choices, per league, in this browser: {preset, order, keeperRule, keeperCustom?}. keeperRule is
+    // "unknown", a preset key or "custom"; keeperCustom (the five Custom… settings) is there only with "custom".
+    // Unreadable or unknown values fall back to the defaults: an unknown rule key, or "custom" whose settings fail
+    // KeeperRules.validate, is Unknown. (Whether valid settings fit THIS draft is ruleOf's question.)
     function storage() { try { return W.localStorage || null; } catch (_) { return null; } }
     function loadPref(leagueId) {
       const P = PV(), out = { preset: P.DEFAULT_PRESET, order: "unset", keeperRule: "unknown" };
@@ -692,7 +741,10 @@
         if (v && typeof v === "object") {
           if (Object.prototype.hasOwnProperty.call(P.PRESETS, v.preset)) out.preset = v.preset;
           if (PICK_ORDERS.some(([k]) => k === v.order)) out.order = v.order;
-          if (P.KEEPER_RULES.includes(v.keeperRule)) out.keeperRule = v.keeperRule;
+          const R = KR();
+          if (v.keeperRule === "custom") {
+            if (R.validate(v.keeperCustom) === null) { out.keeperRule = "custom"; out.keeperCustom = customOf(v.keeperCustom); }
+          } else if (R.PRESETS.some(p => p.key === v.keeperRule)) out.keeperRule = v.keeperRule;
         }
       } catch (_) { /* defaults */ }
       return out;
@@ -787,9 +839,9 @@
           els.controls.hidden = false; els.cols.hidden = false;
         }
         setStatus(`${rosters.length} teams loaded — ${who()}`);
-        // This league's remembered rule is already the ladder: start its draft-history walk now, so it is usually done
-        // before the first comparison (under the unknown rule nothing is read).
-        if (PK.ok && PK.pref.keeperRule === "ladder") ladderHistory();
+        // This league's remembered rule is not Unknown: start the draft-history walk now, so it is usually done before
+        // the first comparison (under Unknown, or a remembered custom rule that does not fit, nothing is read).
+        if (activeRule()) keeperHistory();
       } catch (e) {
         if (stale() || SESSION.isSuperseded(e)) return;
         setStatus(e instanceof PreflightError ? e.message : `load failed: ${e.message} — refresh from the league bar to retry`);
@@ -890,32 +942,118 @@
         group.append(btn);
       }
       box.append(group, el("p", PICK_COPY.help(), "season-pick-help"));
-      const select = (text, options, prop) => {
+      const select = (text, options, onChoose) => {
         const wrap = el("label", null, "season-pick-select"), s = el("select");
         for (const [value, t] of options) { const o = el("option", t); o.value = value; s.append(o); }
-        s.addEventListener("change", () => { if (options.some(([v]) => v === s.value)) setPref({ [prop]: s.value }); });
+        s.addEventListener("change", () => { if (options.some(([v]) => v === s.value)) onChoose(s.value); });
         wrap.append(el("span", text), s);
         box.append(wrap);
         return s;
       };
-      PK.orderSel = select(PICK_COPY.order(PK.next), PICK_ORDERS, "order");
-      PK.ruleSel = select(PICK_COPY.keeperRule, PICK_RULES, "keeperRule");
+      PK.orderSel = select(PICK_COPY.order(PK.next), PICK_ORDERS, v => setPref({ order: v }));
+      PK.ruleSel = select(PICK_COPY.keeperRule, pickRules(), chooseRule);
+      drawCustomRow(box);
       syncPickControls();
+    }
+    // The Custom… settings under the menu: five number inputs and one inline message (role="status"), shown while
+    // Custom… is chosen. A remembered custom rule fills them in; one that does not fit this draft says so here.
+    function drawCustomRow(box) {
+      const row = el("div", null, "season-pick-custom");
+      row.setAttribute("role", "group");
+      row.setAttribute("aria-label", PICK_COPY.customGroup);
+      PK.customInputs = new Map();
+      for (const [key, text, lo, hi] of CUSTOM_FIELDS) {
+        const wrap = el("label", null, "season-pick-select"), input = el("input");
+        input.type = "number";
+        input.setAttribute("min", String(lo));
+        input.setAttribute("max", String(key === "undrafted_round" || key === "earliest_round" ? Math.min(hi, PK.rounds) : hi));
+        input.setAttribute("step", "1");
+        input.setAttribute("inputmode", "numeric");
+        for (const type of ["input", "change"]) input.addEventListener(type, applyCustom);
+        wrap.append(el("span", text), input);
+        row.append(wrap);
+        PK.customInputs.set(key, input);
+      }
+      PK.customStatus = el("p", "", "season-pick-status");
+      PK.customStatus.setAttribute("role", "status");
+      row.append(PK.customStatus);
+      PK.customRow = row;
+      box.append(row);
+      PK.customOpen = PK.pref.keeperRule === "custom";
+      if (PK.customOpen) {
+        fillCustom(PK.pref.keeperCustom);
+        PK.customStatus.textContent = PK.active.error ? PICK_COPY.customUnfit(PK.active.error) : "";
+      }
+    }
+    // Settings into the inputs: no limit and the last round show as blanks.
+    function fillCustom(settings) {
+      for (const [key, input] of PK.customInputs) {
+        const v = settings[key];
+        input.value = v === null || v === undefined || v === "last" ? "" : String(v);
+      }
+    }
+    // The inputs as raw settings for KeeperRules.validate: a blank is null (most years), "last" (never-drafted round)
+    // or "" (the rest, which validate names); a number reads as one; anything else stays text, which validate refuses.
+    function readCustom() {
+      const out = {};
+      for (const [key, input] of PK.customInputs) {
+        const t = String(input.value == null ? "" : input.value).trim(), n = Number(t);
+        out[key] = t === "" ? (key in CUSTOM_BLANK ? CUSTOM_BLANK[key] : "") : Number.isFinite(n) ? n : t;
+      }
+      return out;
+    }
+    // Every input and change event: valid settings become the rule in force (saved, recomputed); anything else only
+    // shows the message, and the rule in force, the storage and the result on screen stay as they are. (While a
+    // remembered custom rule that does not fit is what is stored, the message still says the rule counts as Unknown.)
+    function applyCustom() {
+      if (!PK.ok || !PK.customOpen) return;
+      const settings = readCustom(), msg = KR().validate(settings, { rounds: PK.rounds });
+      PK.customStatus.textContent = !msg ? "" : PK.active.error ? PICK_COPY.customUnfit(msg) : msg;
+      if (msg) return;
+      const same = PK.pref.keeperRule === "custom" && CUSTOM_FIELDS.every(([k]) => PK.pref.keeperCustom[k] === settings[k]);
+      if (!same) setPref({ keeperRule: "custom", keeperCustom: settings });
+    }
+    // The keeper-rule menu. Custom… opens the settings prefilled from the rule that was showing (the ladder's under
+    // Unknown) and applies them at once when they are valid for this draft; otherwise the message shows and the
+    // previous rule stays in force. Unknown or a preset closes the settings.
+    function chooseRule(value) {
+      if (!PK.ok) return;
+      if (value === "custom") {
+        if (!PK.customOpen) {
+          const showing = PK.pref.keeperRule;
+          fillCustom(showing === "custom" ? PK.pref.keeperCustom : KR().preset(showing === "unknown" ? "ladder" : showing));
+          PK.customOpen = true;
+          syncPickControls();
+        }
+        applyCustom();
+        return;
+      }
+      PK.customOpen = false;
+      PK.customStatus.textContent = "";
+      setPref({ keeperRule: value });
     }
     function syncPickControls() {
       for (const [key, btn] of PK.presetBtns) btn.setAttribute("aria-pressed", key === PK.pref.preset ? "true" : "false");
       if (PK.orderSel) PK.orderSel.value = PK.pref.order;
-      if (PK.ruleSel) PK.ruleSel.value = PK.pref.keeperRule;
+      // While the Custom… settings are open the menu says so, even before they are valid (the previous rule in force).
+      if (PK.ruleSel) PK.ruleSel.value = PK.customOpen ? "custom" : PK.pref.keeperRule;
+      if (PK.customRow) PK.customRow.hidden = !PK.customOpen;
     }
     function setPref(change) {
       if (!PK.ok) return;
-      PK.pref = { ...PK.pref, ...change };
-      savePref(S.league.league_id, PK.pref);
+      const pref = { ...PK.pref, ...change };
+      if (pref.keeperRule !== "custom") delete pref.keeperCustom;
+      PK.pref = pref;
+      PK.active = ruleOf(pref, PK.rounds);
+      savePref(S.league.league_id, pref);
       syncPickControls();
-      // Choosing the ladder starts its draft-history walk even with no result on screen (once per load).
-      if (change.keeperRule === "ladder") ladderHistory();
+      // Choosing a rule other than Unknown starts the draft-history walk even with no result on screen (once per load).
+      if ("keeperRule" in change && PK.active.rule) keeperHistory();
       if (lastPicks && !els.result.hidden) fillPicksBlock();
     }
+    // The rule in force for this load's choices (ruleOf, kept current by preparePicks and setPref): null for Unknown,
+    // for a remembered custom rule that does not fit this draft, and when picks are off.
+    function activeRule() { return PK.ok && PK.active ? PK.active.rule : null; }
     // A pick's name in one team's view: its own pick, or the original team's.
     const pickLabel = (p, rosterId) => `${p.season} R${p.round}${String(p.originalRosterId) === String(rosterId) ? "" : ` (from ${rosterName(p.originalRosterId)})`}`;
     // The column's collapsed "Draft picks (N)" group, one checkbox per pick the team owns now. A ticked pick joins the
@@ -1238,14 +1376,15 @@
     }
 
     // --- draft picks in the result ----------------------------------------------
-    // The pick lines of the result on screen, recomputed in place under the current choices. A failure here (it
-    // should not happen: the curves were built at load) says so in one line and leaves the rest of the result.
+    // The pick lines of the result on screen, recomputed in place under the current choices and the rule in force. A
+    // failure here (it should not happen: the curve's inputs were checked at load) says so in one line and leaves the
+    // rest of the result.
     function fillPicksBlock() {
       const c = lastPicks;
       if (!c || !PK.ok) return;
       let lines;
       try {
-        const curve = PK.curves[PK.pref.keeperRule];
+        const rule = activeRule(), curve = PK.curve(rule);
         const value = p => PV().pickValue({ pick: p, curve, order: p.season === PK.next ? PK.pref.order : "unset", rosters: c.rosters, teams: PK.teams, rounds: PK.rounds,
           snake: PK.snake, reversalRound: PK.reversalRound });
         const side = i => {
@@ -1254,22 +1393,23 @@
             gets: (i === 0 ? c.receivePicks : c.givePicks).map(mk), gives: (i === 0 ? c.givePicks : c.receivePicks).map(mk) };
         };
         lines = picksSummary({ sides: [side(0), side(1)], preset: PK.pref.preset, currentSeason: PK.current,
-          keepers: S.league.settings && S.league.settings.max_keepers, keeperRule: PK.pref.keeperRule });
-        const ladder = ladderKeepers();
-        for (const t of keeperLines(c, ladder)) lines.push({ text: t, cls: "season-summary-note" });
-        for (const t of keeperPickLines(c, ladder)) lines.push({ text: t, cls: "season-summary-note" });
+          keepers: S.league.settings && S.league.settings.max_keepers, keeperRule: rule });
+        const rk = ruleKeepers(rule);
+        for (const t of keeperLines(c, rk)) lines.push({ text: t, cls: "season-summary-note" });
+        for (const t of keeperPickLines(c, rk)) lines.push({ text: t, cls: "season-summary-note" });
       } catch (e) {
         lines = [{ text: PICK_COPY.unavailable(reasonText(e.message)), cls: "season-summary-note" }];
       }
       c.block.replaceChildren();
       for (const l of lines) c.block.append(el("p", l.text, l.cls || undefined));
     }
-    // --- the ladder keeper rule's draft history ------------------------------------------------------------------
+    // --- the keeper rule's draft history ---------------------------------------------------------------------------
     // The league's draft history (Sleeper id -> {round, season, keptYears, lastDraft}), walked from THIS league -- its
-    // completed draft is the newest -- at most once per league load: PK is replaced by every load, which discards it,
-    // and an in-flight walk is reused. {map} is null while pending and when unavailable (the walk threw or found
-    // nothing). When it settles, the result on screen for the same load is recomputed.
-    function ladderHistory() {
+    // completed draft is the newest -- at most once per league load, whatever rules are chosen in it (the history does
+    // not depend on the rule): PK is replaced by every load, which discards it, and an in-flight walk is reused. {map}
+    // is null while pending and when unavailable (the walk threw or found nothing). When it settles, the result on
+    // screen for the same load is recomputed.
+    function keeperHistory() {
       const pk = PK;
       if (!pk.ok) return null;
       if (!pk.history) {
@@ -1284,15 +1424,13 @@
       }
       return pk.history;
     }
-    // Under the ladder rule with the history in hand: next season's keeper test and cost for a Sleeper id; else null
-    // (another rule, or the history pending or unavailable: today's ranking and no conflict line). Asking under the
-    // ladder rule starts the walk.
-    function ladderKeepers() {
-      if (PK.pref.keeperRule !== "ladder") return null;
-      const h = ladderHistory(), K = KP(), KRules = KR();
-      if (!h || !h.map || !K || !KRules) return null;
-      // Stopgap until the user chooses the rule here: the ladder, named explicitly.
-      const rule = KRules.normalize(KRules.preset("ladder"), {});
+    // Under a rule (the one in force, passed in) with the history in hand: next season's keeper test and cost for a
+    // Sleeper id, with that rule's math; else null (Unknown, or the history pending or unavailable: today's ranking
+    // and no conflict line). Asking under a rule starts the walk.
+    function ruleKeepers(rule) {
+      if (!rule) return null;
+      const h = keeperHistory(), K = KP();
+      if (!h || !h.map || !K) return null;
       const N = PK.next;
       const cand = id => {
         const o = h.map.get(String(id));
@@ -1303,25 +1441,25 @@
     }
     const rosValueMap = () => new Map(((S.board && S.board.players) || []).map(p => [String(p.sleeper_id), p.ros_value]));
     // A traded player in his current team's top max_keepers skill players by rest-of-season value (spec §5.7); under
-    // the ladder rule with its history, only among players the rule lets keep next season.
-    function keeperLines(c, ladder) {
+    // a keeper rule with the history (rk = ruleKeepers), only among players the rule lets keep next season.
+    function keeperLines(c, rk) {
       const K = S.league.settings && S.league.settings.max_keepers;
       const ros = rosValueMap();
       const out = [];
       for (const [ids, rid] of [[c.give, c.rosterIds[0]], [c.receive, c.rosterIds[1]]]) {
         const roster = c.rosters.find(r => String(r.roster_id) === String(rid));
-        const top = likelyKeepers({ roster, catalog: S.catalog, rosValue: ros, keepers: K, eligible: ladder && ladder.eligible });
+        const top = likelyKeepers({ roster, catalog: S.catalog, rosValue: ros, keepers: K, eligible: rk && rk.eligible });
         for (const id of ids) if (top.has(String(id))) out.push(`${playerName(id)} is likely one of ${rosterName(rid)}'s keepers; his value next season is not counted.`);
       }
       return out;
     }
-    // The ladder only: per side, its likely keepers AFTER the trade (its players, minus those it gives and those it
-    // marks to drop, as in the lineup engine, plus those it gets); for each, the round r he would cost next season. A
-    // side that gives a next-season round-r pick in this offer and would hold none after it (its picks, minus those it
-    // gives, plus those it gets) gets one line, naming the first such pick it gives. Picks-only offers run the same
-    // check with no players moving.
-    function keeperPickLines(c, ladder) {
-      if (!ladder) return [];
+    // Under a keeper rule with the history only (rk = ruleKeepers): per side, its likely keepers AFTER the trade (its
+    // players, minus those it gives and those it marks to drop, as in the lineup engine, plus those it gets); for each,
+    // the round r he would cost next season under that rule. A side that gives a next-season round-r pick in this
+    // offer and would hold none after it (its picks, minus those it gives, plus those it gets) gets one line, naming
+    // the first such pick it gives. Picks-only offers run the same check with no players moving.
+    function keeperPickLines(c, rk) {
+      if (!rk) return [];
       const K = S.league.settings && S.league.settings.max_keepers;
       const ros = rosValueMap(), N = PK.next, out = [];
       const inRound = r => p => Number(p.season) === N && Number(p.round) === r;
@@ -1334,8 +1472,8 @@
         const after = { players: [...((roster && roster.players) || []).map(String).filter(id => !gives.has(id)), ...gets] };
         const given = new Set(givesPicks.map(pickKey));
         const held = [...(PK.owned.get(Number(rid)) || []).filter(p => !given.has(pickKey(p))), ...getsPicks];
-        for (const id of likelyKeepers({ roster: after, catalog: S.catalog, rosValue: ros, keepers: K, eligible: ladder.eligible })) {
-          const r = ladder.cost(id), pick = givesPicks.find(inRound(r));
+        for (const id of likelyKeepers({ roster: after, catalog: S.catalog, rosValue: ros, keepers: K, eligible: rk.eligible })) {
+          const r = rk.cost(id), pick = givesPicks.find(inRound(r));
           if (pick && !held.some(inRound(r))) out.push(`${rosterName(rid)}'s likely keeper ${playerName(id)} would cost their ${pickLabel(pick, rid)} — the pick in this offer.`);
         }
       }
@@ -1343,7 +1481,7 @@
     }
     // Any pick in the offer two or more seasons ahead of the current season (the copy then says "future seasons").
     const picksLater = (...lists) => lists.some(l => l.some(p => Number(p.season) - PK.current >= 2));
-    // Inside the summary, after the lineup lines: the block the controls (and the ladder's history) recompute. The
+    // Inside the summary, after the lineup lines: the block the controls (and the keeper rule's draft history) recompute. The
     // offer's players and each side's drops ({roster id: [Sleeper ids]}; none in a picks-only offer) are kept so the
     // keeper lines are recomputed with it.
     function picksBlock(summary, { rosterIds, thisSeason, givePicks, receivePicks, rosters, give, receive, drops = {} }) {

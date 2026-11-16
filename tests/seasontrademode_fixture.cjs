@@ -30,7 +30,10 @@ const LD = require("../site/assets/leaguedata.js");
 require("../site/assets/liveworld.js");
 const LL = require("../site/assets/leaguelens.js");
 const RealSeasonTrade = require("../site/assets/seasontrade.js");
+const KR = require("../site/assets/keeperrules.js");
 const M = require("../site/assets/seasontrademode.js");
+// The ladder preset as the page's active rule (keeper-rule-settings §5.3): its never-drafted round 12 is a fixed integer.
+const LADDER_RULE = KR.normalize(KR.preset("ladder"));
 assert.equal(window.Session, Session); assert.equal(window.LeagueData, LD);
 
 let n = 0; const failed = [];
@@ -277,7 +280,7 @@ check("sources: no pre-draft pick code, gate file or simulation in the controlle
   assert.ok(!srcs.includes("waiverintel.js"), "the ROS market check left with the grade");
   // The ladder's draft-history walk is keepers.js's (Task 4): it loads before the controller, after sleeper.js.
   assert.ok(srcs.indexOf("sleeper.js") < srcs.indexOf("keepers.js") && srcs.indexOf("keepers.js") < srcs.indexOf("seasontrademode.js"), "keepers.js loads after sleeper.js, before the controller");
-  assert.ok(/seasontrademode\.js\?v=kr1/.test(html) && /keepers\.js\?v=kr1/.test(html) && /keeperrules\.js\?v=kr1/.test(html) && /pickvalue\.js\?v=kr1/.test(html) && /style\.css\?v=cf1/.test(html)
+  assert.ok(/seasontrademode\.js\?v=kr1/.test(html) && /keepers\.js\?v=kr1/.test(html) && /keeperrules\.js\?v=kr1/.test(html) && /pickvalue\.js\?v=kr1/.test(html) && /style\.css\?v=kr1/.test(html)
     && /seasontrade\.js\?v=lf1/.test(html) && /lineup\.js\?v=3/.test(html), "cache keys bumped for the changed assets only");
   assert.ok(/id="season-context"/.test(html), "the context lines have a home on the page");
   // The pick groups sit in the columns under the players; the note and the controls come after the columns, before the result.
@@ -348,13 +351,28 @@ check("picksSummary: per side who gets and gives what, the next-season total, on
     { you: true, name: "Team 1", thisSeason: 0, gets: [pk(2027, "2027 R1", 63), pk(2028, "2028 R1", 40)], gives: [] },
     { you: false, name: "Team 7", thisSeason: 0, gets: [], gives: [pk(2027, "2027 R1", 63), pk(2028, "2028 R1", 40)] },
   ] }).map(l => l.text);
-  const m = mixed("ladder");
+  const m = mixed(LADDER_RULE);
   assert.ok(m.includes("Combined at Balanced (next season ×0.8, the season after ×0.64): +76"), m.join("\n"));
   assert.deepEqual(m.slice(-3), [pickValues(2), PICK_AVERAGES, PICK_LADDER]);
-  assert.deepEqual(mixed("unknown").slice(-2), [pickValues(2), PICK_AVERAGES]);
-  assert.ok(!mixed("unknown").includes(PICK_LADDER));
+  assert.deepEqual(mixed(null).slice(-2), [pickValues(2), PICK_AVERAGES]);
+  assert.ok(!mixed(null).includes(PICK_LADDER));
   assert.equal(two[0], "You get 2027 R1 (from Team 7), and give 2027 R3 and 2027 R5.");
   assert.equal(two[6], "Team 7 gets 2027 R3 (from Team 1) and 2027 R5 (from Team 1), and gives 2027 R1.");
+});
+// keeper-rule-settings Task 4 (g): picksSummary takes the active rule OBJECT, or null for Unknown. The early-picks note
+// follows the rule's earliest round, not its name.
+check("picksSummary: the early-picks note iff the active rule's earliest round is after round 1; null (Unknown) has none", () => {
+  const pk = (season, label, value) => ({ season, label, v: { value, low: value - 2, high: value + 2, slot: null, first: 1, last: 12 } });
+  const run = keeperRule => M.picksSummary({ currentSeason: 2026, preset: "balanced", keepers: 1, keeperRule, sides: [
+    { you: true, name: "Team 1", thisSeason: 0, gets: [pk(2027, "2027 R1 (from Team 7)", 63)], gives: [] },
+    { you: false, name: "Team 7", thisSeason: 0, gets: [], gives: [pk(2027, "2027 R1", 63)] },
+  ] }).map(l => l.text);
+  assert.deepEqual(run(null).slice(-2), [PICK_VALUES, PICK_AVERAGES]);
+  assert.ok(!run(null).includes(PICK_LADDER), "Unknown: no note");
+  assert.deepEqual(run(LADDER_RULE).slice(-3), [PICK_VALUES, PICK_AVERAGES, PICK_LADDER], "the ladder rule object: the note");
+  assert.ok(!run(KR.normalize(KR.preset("same_round"), { rounds: 15 })).includes(PICK_LADDER), "earliest round 1: no note");
+  assert.ok(run(KR.normalize({ ...KR.preset("same_round"), earliest_round: 2 }, { rounds: 15 })).includes(PICK_LADDER), "any rule whose earliest round is after 1");
+  assert.throws(() => run("ladder"), /keeper rule/, "a rule's name is not a rule");
 });
 check("likelyKeepers: the top max_keepers skill players of a roster by rest-of-season value (IR and taxi count; unknown values do not)", () => {
   const roster = { players: ["a", "b", "c", "k", "r", "t"], reserve: ["r"], taxi: ["t"] };
@@ -987,6 +1005,26 @@ const curveOf = (lg, rule) => PV.buildCurve({ artifact: PICK_CURVE, weights: LL.
   teams: lg.total_rosters, keepers: lg.settings.max_keepers, rounds: 3, pickSixRate: METHOD.prior.rate, keeperRule: rule });
 const valueOf = (lg, pick, rule, order) => PV.pickValue({ pick, curve: curveOf(lg, rule), order, rosters: standingsRosters(), teams: lg.total_rosters, rounds: 3, snake: true });
 const detailsNamed = (els, title) => els.result.children.find(x => x.tagName === "details" && x.children[0].textContent === title);
+// The keeper-rule menu and its Custom… settings (keeper-rule-settings Task 4).
+const RULE_MENU = [["unknown", "Unknown"],
+  ["ladder", "Round drafted − 1 per year kept (waiver pickups: round 12; max 2 years)"],
+  ["same_round", "Kept at the round drafted, every year (no limit)"],
+  ["one_earlier", "One round earlier each year kept, starting with the first (no limit)"],
+  ["after_first", "The round drafted the first year, one round earlier each year after (no limit)"],
+  ["custom", "Custom…"]];
+const CUSTOM_LABELS = ["First keep: rounds earlier than drafted", "Each later year: rounds earlier", "Most years in a row (blank = no limit)",
+  "Never-drafted player costs round (blank = last round)", "Earliest round a keeper can cost"];
+const customRow = els => all(els.pickControls).find(x => x.className === "season-pick-custom");
+const customInputs = els => all(customRow(els)).filter(x => x.tagName === "input");
+const customLabels = els => customInputs(els).map(i => i.parent.children[0].textContent);
+const customValues = els => customInputs(els).map(i => i.value);
+const customStatus = els => all(customRow(els)).find(x => x.attrs.role === "status");
+// Types into the Custom settings in their order (first keep, each later year, most years, never-drafted round, earliest
+// round), one input event per field; undefined leaves a field as it is.
+function typeCustom(els, values) {
+  customInputs(els).forEach((input, i) => { if (values[i] === undefined) return; input.value = values[i]; input.dispatch("input"); });
+}
+const storedPref = store => JSON.parse(store.map.get(PREF_KEY));
 // Lets every pending promise chain (a draft-history walk, a re-fill) run to the end.
 const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
 // Every string the picks surfaces render, scrubbed of the allowed sentences, must avoid the page's forbidden words.
@@ -1035,8 +1073,10 @@ async function picksFlow() {
       assert.deepEqual(order.children.map(o => [o.value, o.textContent]), [["unset", "Not set yet"], ["standings", "By this season's standings"]]);
       assert.equal(order.value, "unset");
       assert.equal(rule.parent.children[0].textContent.trim(), "Keeper rule:");
-      assert.deepEqual(rule.children.map(o => [o.value, o.textContent]), [["unknown", "Unknown"], ["ladder", "Round drafted − 1 per year kept (waiver pickups: round 12; max 2 years)"]]);
+      // keeper-rule-settings §5.3: Unknown, the presets (the ladder's key and label unchanged), Custom….
+      assert.deepEqual(rule.children.map(o => [o.value, o.textContent]), RULE_MENU);
       assert.equal(rule.value, "unknown");
+      assert.equal(customRow(els).hidden, true, "the Custom settings stay hidden until Custom… is chosen");
     });
 
     // Picks only (Review Focus 3): User A gets Bo's Bunch's 2027 R1 and gives its own 2027 R3. Its roster is full.
@@ -1579,6 +1619,223 @@ async function picksKeeperWalkAtLoad() {
   } finally { delete window.localStorage; }
 }
 
+// ---- the keeper rule menu: presets, Custom… and storage (keeper-rule-settings Task 4) ----
+// (b) The picksKeeperCap world: A Back was kept in 2025 and 2026 (a 2026 keeper pick at R4). The ladder's two-year cap
+// skips him; under same_round (per_year 0, no year limit, earliest round 1) neither the cap nor the cost floor excludes
+// him, and every cost is the round drafted.
+async function picksRuleSameRound() {
+  const store = memStorage();
+  try {
+    const routesOver = historyRoutes({ y2026: [draftPick("c", 1), draftPick("a", 4, true), draftPick("b", 5), draftPick("d", 5)],
+      y2025: [draftPick("a", 5, true)], y2024: [draftPick("a", 6)] });
+    const els = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, routesOver, storage: store });
+    const rule = pickSelects(els)[1];
+    await sub("choosing same_round with no result on screen starts the draft-history walk; it is saved without custom settings", async () => {
+      choose(rule, "same_round");
+      await until(() => historyCalls().length === HISTORY_CALLS.length, "the draft-history walk");
+      await settle();
+      assert.deepEqual(historyCalls(), HISTORY_CALLS);
+      assert.deepEqual(storedPref(store), { preset: "balanced", order: "unset", keeperRule: "same_round" });
+      assert.equal(customRow(els).hidden, true);
+    });
+    await sub("same_round: A Back is a likely keeper again, and the conflict check uses the round drafted", async () => {
+      await compareOffer(els, { give: ["a", "d"], receive: ["b", "c"], givePicks: ["2027|5|9"] }, "the player comparison");
+      assert.deepEqual(keeperLinesOf(els), [likelyLine("A Back", "User A"), likelyLine("B Wide", "Bo's Bunch")]);
+      // B Wide, drafted 2026 R5, costs a 2027 R5 under same_round (R4 under the ladder): the R5 User A gives.
+      assert.deepEqual(conflictLines(els), [conflictLine("User A", "B Wide", "2027 R5")]);
+      assert.ok(!blockLines(els).includes(PICK_LADDER), "earliest round 1: no early-picks note");
+      assertNoForbidden(els);
+    });
+    await sub("switching rules re-runs the keeper lines in place, with the one walk's history and no Sleeper call", async () => {
+      const n0 = calls.length;
+      choose(rule, "ladder");
+      assert.deepEqual(keeperLinesOf(els), [likelyLine("D Deep", "User A"), likelyLine("B Wide", "Bo's Bunch")], "the ladder's cap skips him");
+      assert.deepEqual(conflictLines(els), []);
+      choose(rule, "same_round");
+      assert.deepEqual(keeperLinesOf(els), [likelyLine("A Back", "User A"), likelyLine("B Wide", "Bo's Bunch")]);
+      assert.deepEqual(conflictLines(els), [conflictLine("User A", "B Wide", "2027 R5")]);
+      await settle();
+      assert.equal(calls.length, n0);
+    });
+    await sub("same_round, picks only: A Back's cost is his round, R4 -- the pick in this offer", async () => {
+      await compareOffer(els, { givePicks: ["2027|3|9", "2027|4|9"], getPicks: ["2027|1|3"] }, "the picks-only comparison");
+      assert.deepEqual(conflictLines(els), [conflictLine("User A", "A Back", "2027 R4")]);
+      assert.deepEqual(historyCalls(), HISTORY_CALLS, "walked once in this load");
+      assertNoForbidden(els);
+    });
+  } finally { delete window.localStorage; }
+}
+
+// (c) Custom round-trip in the three-round league: the settings are prefilled from the rule that was showing, saved once
+// all five are valid, and restored with the menu on the next visit.
+async function picksRuleCustomRoundTrip() {
+  const store = memStorage();
+  try {
+    const els = await openKeeperPage({ storage: store });
+    const rule = pickSelects(els)[1];
+    await sub("Custom…: five labelled settings under the menu, prefilled from the ladder when Unknown was showing; a round past this draft is named and nothing is saved", async () => {
+      choose(rule, "custom");
+      assert.equal(rule.value, "custom");
+      assert.equal(customRow(els).hidden, false);
+      assert.deepEqual(customLabels(els), CUSTOM_LABELS);
+      assert.ok(customInputs(els).every(i => i.type === "number"));
+      assert.deepEqual(customValues(els), ["1", "1", "2", "12", "3"]);
+      assert.equal(customStatus(els).textContent, "Never-drafted cost: the draft has only 3 rounds");
+      assert.equal(store.map.has(PREF_KEY), false, "the rule in force (Unknown) is unchanged and nothing is saved");
+      assertNoForbidden(els);
+    });
+    await sub("every setting valid: saved as custom with its five settings (blanks: no limit, the last round)", async () => {
+      typeCustom(els, ["0", "1", "3", "", "2"]);
+      assert.equal(customStatus(els).textContent, "");
+      assert.deepEqual(storedPref(store), { preset: "balanced", order: "unset", keeperRule: "custom",
+        keeperCustom: { first_keep: 0, per_year: 1, max_years: 3, undrafted_round: "last", earliest_round: 2 } });
+    });
+    await sub("reopened with that storage: the menu shows Custom… and the inputs are filled", async () => {
+      const again = await openKeeperPage({ storage: store });
+      const r = pickSelects(again)[1];
+      assert.equal(r.value, "custom");
+      assert.equal(customRow(again).hidden, false);
+      assert.deepEqual(customValues(again), ["0", "1", "3", "", "2"]);
+      assert.equal(customStatus(again).textContent, "");
+      // A preset hides the settings and drops them from storage; Custom… again is prefilled from that preset.
+      choose(r, "one_earlier");
+      assert.equal(customRow(again).hidden, true);
+      assert.deepEqual(storedPref(store), { preset: "balanced", order: "unset", keeperRule: "one_earlier" });
+      choose(r, "custom");
+      assert.deepEqual(customValues(again), ["1", "1", "", "", "1"]);
+      assert.equal(customStatus(again).textContent, "");
+      choose(r, "unknown");
+      assert.equal(customRow(again).hidden, true);
+      assert.deepEqual(storedPref(store), { preset: "balanced", order: "unset", keeperRule: "unknown" });
+    });
+  } finally { delete window.localStorage; }
+}
+
+// (d) Review Focus 2: a half-typed Custom setting keeps the rule in force -- nothing saved, nothing recomputed, no throw.
+async function picksRuleCustomHalfTyped() {
+  const store = ladderStore();
+  try {
+    const els = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, routesOver: historyRoutes(), storage: store });
+    await until(() => historyCalls().length === HISTORY_CALLS.length, "the walk at load");
+    await settle();
+    await compareOffer(els, SWAP, "the picks-only comparison");
+    const rule = pickSelects(els)[1];
+    await sub("Custom… from the ladder in a five-round draft: its round-12 never-drafted cost is named, the ladder stays in force", async () => {
+      choose(rule, "custom");
+      assert.equal(customStatus(els).textContent, "Never-drafted cost: the draft has only 5 rounds");
+      assert.deepEqual(storedPref(store), { preset: "balanced", order: "unset", keeperRule: "ladder" });
+      assert.deepEqual(conflictLines(els), [ONE]);
+      typeCustom(els, [undefined, undefined, undefined, "5"]);
+      assert.equal(customStatus(els).textContent, "");
+      assert.deepEqual(storedPref(store).keeperCustom, { first_keep: 1, per_year: 1, max_years: 2, undrafted_round: 5, earliest_round: 3 });
+      assert.deepEqual(conflictLines(els), [ONE], "the same costs as the ladder");
+    });
+    await sub("Review Focus 2: First keep emptied, 9, abc, -1 or 2.5 -- the message names First keep; storage, lines and the rendered block stay", async () => {
+      const saved = store.map.get(PREF_KEY), shown = pickBlock(els).children.slice();
+      const first = customInputs(els)[0];
+      for (const v of ["", "9", "abc", "-1", "2.5"]) {
+        first.value = v; first.dispatch("input"); first.dispatch("change");
+        assert.match(customStatus(els).textContent, /^First keep: /, v);
+        assert.equal(store.map.get(PREF_KEY), saved, `${JSON.stringify(v)}: storage unchanged`);
+        const now = pickBlock(els).children;
+        assert.ok(now.length === shown.length && now.every((x, i) => x === shown[i]), `${JSON.stringify(v)}: nothing recomputed`);
+        assert.deepEqual(conflictLines(els), [ONE], JSON.stringify(v));
+      }
+      // Another control while the half-typed value stands: recomputed under the rule in force; the menu and input stay.
+      presetBtn(els, "rebuild").dispatch("click");
+      assert.equal(rule.value, "custom"); assert.equal(customRow(els).hidden, false); assert.equal(first.value, "2.5");
+      assert.match(customStatus(els).textContent, /^First keep: /);
+      assert.deepEqual(conflictLines(els), [ONE]);
+      assert.deepEqual(storedPref(store).keeperCustom, { first_keep: 1, per_year: 1, max_years: 2, undrafted_round: 5, earliest_round: 3 });
+      typeCustom(els, ["1"]);
+      assert.equal(customStatus(els).textContent, "");
+      await settle();
+      assert.deepEqual(historyCalls(), HISTORY_CALLS, "one walk for the load");
+      assertNoForbidden(els);
+    });
+  } finally { delete window.localStorage; }
+}
+
+// (e) Stored values that cannot be used: an invalid custom rule loads as Unknown; a valid one that does not fit this
+// league's draft is shown under Custom… with the message and counts as Unknown until it is fixed.
+async function picksRuleStoredCustom() {
+  const LADDER5 = { first_keep: 1, per_year: 1, max_years: 2, undrafted_round: 12, earliest_round: 3 };
+  const storeOf = v => memStorage(new Map([[PREF_KEY, JSON.stringify({ preset: "balanced", order: "unset", ...v })]]));
+  try {
+    for (const [what, v] of [
+      ["first_keep 9", { keeperRule: "custom", keeperCustom: { ...LADDER5, first_keep: 9 } }],
+      ["no settings", { keeperRule: "custom" }],
+      ["settings that are not an object", { keeperRule: "custom", keeperCustom: "ladder" }],
+      ["an unknown setting", { keeperRule: "custom", keeperCustom: { ...LADDER5, extra: 1 } }],
+      ["an unknown rule key", { keeperRule: "house_rules" }],
+    ]) {
+      const els = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, routesOver: historyRoutes(), storage: storeOf(v) });
+      await settle();
+      await sub(`a stored custom rule with ${what} loads as Unknown: the menu, the hidden settings, no draft-history walk`, async () => {
+        assert.equal(pickSelects(els)[1].value, "unknown");
+        assert.equal(customRow(els).hidden, true);
+        assert.deepEqual(historyCalls(), []);
+        await compareOffer(els, SWAP, `${what}: the picks-only comparison`);
+        assert.deepEqual(blockLines(els).slice(-2), [PICK_VALUES, PICK_AVERAGES]);
+        assert.deepEqual(conflictLines(els), []);
+      });
+    }
+    const wide = storeOf({ keeperRule: "custom", keeperCustom: LADDER5 });
+    const els = await openKeeperPage({ lg: ladderLeague(), staticsOpts: { lastWeek: 17 }, routesOver: historyRoutes(), storage: wide });
+    await settle();
+    await sub("a stored custom rule past this league's rounds: shown under Custom… with the message, counted as Unknown until fixed", async () => {
+      assert.equal(pickSelects(els)[1].value, "custom");
+      assert.equal(customRow(els).hidden, false);
+      assert.deepEqual(customValues(els), ["1", "1", "2", "12", "3"]);
+      assert.match(customStatus(els).textContent, /^Never-drafted cost: the draft has only 5 rounds/);
+      assert.deepEqual(historyCalls(), [], "counted as Unknown: no draft-history walk");
+      await compareOffer(els, SWAP, "the picks-only comparison");
+      assert.deepEqual(blockLines(els).slice(-2), [PICK_VALUES, PICK_AVERAGES]);
+      assertNoForbidden(els);
+      typeCustom(els, [undefined, undefined, undefined, "6"]);   // still past the draft: still Unknown, and said so
+      assert.equal(customStatus(els).textContent, "Never-drafted cost: the draft has only 5 rounds. Until this is changed, the keeper rule counts as Unknown.");
+      assert.deepEqual(historyCalls(), []);
+      typeCustom(els, [undefined, undefined, undefined, "5"]);
+      assert.equal(customStatus(els).textContent, "");
+      await until(() => conflictLines(els).length > 0, "the conflict line once the walk the fix started arrives");
+      assert.deepEqual(conflictLines(els), [ONE]);
+      assert.deepEqual(historyCalls(), HISTORY_CALLS);
+      assert.deepEqual(JSON.parse(wide.map.get(PREF_KEY)).keeperCustom, { ...LADDER5, undrafted_round: 5 });
+    });
+  } finally { delete window.localStorage; }
+}
+
+// (f) Review Focus 5: two custom rules in one session never share a pick curve. They differ only in earliest_round.
+async function picksRuleCustomCurves() {
+  try {
+    const els = await openKeeperPage({ lg: ladderLeague(), routesOver: historyRoutes() });   // a five-round draft
+    await compareOffer(els, SWAP, "the picks-only comparison");
+    const R3 = { season: 2027, round: 3, originalRosterId: 9 };
+    const lineR3 = () => blockLines(els).find(t => t.startsWith("2027 R3: "));
+    const expected = earliest => {
+      const lg = league, keeperRule = KR.normalize({ first_keep: 1, per_year: 1, max_years: null, undrafted_round: "last", earliest_round: earliest }, { rounds: 5 });
+      const curve = PV.buildCurve({ artifact: PICK_CURVE, weights: LL.effectiveWeights(lg.scoring_settings), slots: lg.roster_positions,
+        teams: lg.total_rosters, keepers: lg.settings.max_keepers, rounds: 5, pickSixRate: METHOD.prior.rate, keeperRule });
+      return M.pickLine("2027 R3", PV.pickValue({ pick: R3, curve, order: "unset", rosters: standingsRosters(), teams: lg.total_rosters, rounds: 5, snake: true }));
+    };
+    await sub("earliest round 1 vs 5: different values for a round-3 pick; back to 1 gives the first value again", async () => {
+      choose(pickSelects(els)[1], "custom");
+      typeCustom(els, ["1", "1", "", "", "1"]);
+      const one = lineR3();
+      assert.equal(one, expected(1));
+      typeCustom(els, [undefined, undefined, undefined, undefined, "5"]);
+      const five = lineR3();
+      assert.equal(five, expected(5));
+      assert.notEqual(five, one, "a different rule, a different curve");
+      typeCustom(els, [undefined, undefined, undefined, undefined, "1"]);
+      assert.equal(lineR3(), one);
+      await settle();
+      assert.deepEqual(historyCalls(), HISTORY_CALLS, "the first valid custom rule started the one walk of this load");
+      assert.equal(lineR3(), one, "the walk's recompute keeps the value");
+    });
+  } finally { delete window.localStorage; }
+}
+
 // ============================ Part 3: trade.html's mode resolution ============================
 const html = fs.readFileSync(path.join(__dirname, "..", "site", "trade.html"), "utf8");
 const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x => x[1]).find(s => /leagueNavigation/.test(s));
@@ -1774,6 +2031,11 @@ async function pageRollover() {
   await sub("keeper ladder: a player kept the most allowed years is not a likely keeper", picksKeeperCap);
   await sub("keeper ladder: without the draft history only the conflict line and the ladder-aware ranking drop", picksKeeperHistoryFails);
   await sub("keeper ladder: a remembered ladder rule walks the history at load; a remembered unknown rule reads nothing", picksKeeperWalkAtLoad);
+  await sub("keeper rule menu (b): same_round re-runs the keeper lines with its own costs; one walk per load", picksRuleSameRound);
+  await sub("keeper rule menu (c): Custom… settings round-trip through storage", picksRuleCustomRoundTrip);
+  await sub("keeper rule menu (d): a half-typed Custom setting keeps the rule in force (Review Focus 2)", picksRuleCustomHalfTyped);
+  await sub("keeper rule menu (e): stored custom rules that cannot be used count as Unknown", picksRuleStoredCustom);
+  await sub("keeper rule menu (f): two custom rules never share a pick curve (Review Focus 5)", picksRuleCustomCurves);
   await sub("trade.html with no league: the connect prompt, nothing loaded; an old league name: the same, never a substitute", pageNoLeague);
   await sub("trade.html in season: mode first, never draft.json, in-season links by id", pageInSeason);
   await sub("trade.html pre-draft: the board's own league reaches TradeMode after the mode; archived, other leagues and no keeper rules are refused", pagePreDraft);

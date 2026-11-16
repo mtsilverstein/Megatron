@@ -574,6 +574,12 @@ tr.mine td:nth-child(3) { text-decoration: none; }
 #season-pick-controls .season-pick-select { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; min-width: 0; max-width: 100%; }
 #season-pick-controls select { max-width: 100%; min-width: 0; background: var(--board-raised); border: 1px solid var(--rule);
   color: var(--chalk); padding: .35rem .4rem; border-radius: 4px; font: 400 .9rem/1.3 "Source Sans 3", sans-serif; }
+/* The keeper rule's Custom… settings: five labelled number fields on one row under the menu (wrapping when the row is
+   full), styled as the selects, and the inline message for a setting the rule cannot take. */
+#season-pick-controls .season-pick-custom { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.2rem; }
+#season-pick-controls input[type="number"] { width: 4.5rem; min-width: 0; background: var(--board-raised); border: 1px solid var(--rule);
+  color: var(--chalk); padding: .35rem .4rem; border-radius: 4px; font: 400 .9rem/1.3 "Source Sans 3", sans-serif; }
+#season-pick-controls .season-pick-status { flex: 1 1 100%; margin: 0; color: var(--te); font: 400 .86rem/1.4 "Source Sans 3", sans-serif; }
 .season-summary p.season-picks-side { margin-top: .7rem; font-weight: 600; }
 .season-summary p.season-pick-line { padding-left: .9rem; font-size: .9rem; color: var(--chalk-dim); }
 .season-summary p.season-picks-combined { font-weight: 600; }
@@ -611,6 +617,9 @@ tr.mine td:nth-child(3) { text-decoration: none; }
   #season-pick-controls .season-preset { flex: 1 1 0; min-width: 0; min-height: 44px; padding: .3rem .4rem; font-size: 1rem; }
   #season-pick-controls .season-pick-select { flex-direction: column; align-items: stretch; }
   #season-pick-controls select { width: 100%; min-height: 44px; font-size: 1rem; }
+  /* The Custom… settings stack like the selects, each field full width. */
+  #season-pick-controls .season-pick-custom { flex-direction: column; align-items: stretch; gap: .6rem; }
+  #season-pick-controls input[type="number"] { width: 100%; min-height: 44px; font-size: 1rem; }
 }
 
 /* -- keeper panel ------------------------------------------------------ */
