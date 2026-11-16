@@ -163,13 +163,23 @@
     if (wt === 2) parts.push("FAAB"); else if (wt === 0) parts.push("Rolling waivers");
     return parts.join(" · ");
   }
+  // Resolved lazily so load order never matters: window.KeeperRules in the
+  // browser, require() under node. Unavailable -> keeper tools are off.
+  function keeperRules() {
+    try {
+      if (typeof window !== "undefined" && window.KeeperRules) return window.KeeperRules;
+      if (typeof module !== "undefined" && typeof require === "function") return require("./keeperrules.js");
+    } catch (e) { /* fall through */ }
+    return null;
+  }
   // The registry row a published board stands for, built from the board
   // itself. A board built before `platform` existed is a Sleeper board.
   function boardEntry(board) {
     const lg = board && board.league;
     if (!lg || !isName(lg.slug)) return null;
     const platform = lg.platform || "sleeper", sleeper = platform === "sleeper";
-    const keepers = typeof lg.keeper_rules === "string" && lg.keeper_rules !== "";
+    const KR = keeperRules();
+    const keepers = !!KR && KR.fromBoard(lg) !== null;
     const label = sleeper ? boardFormatLabel(lg) : `${boardFormatLabel(lg)} · ${String(platform).toUpperCase()} draft board only`;
     return Object.freeze({
       slug: lg.slug, platform, leagueId: lg.league_id === undefined || lg.league_id === null ? null : String(lg.league_id), label,

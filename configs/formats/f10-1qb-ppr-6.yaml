@@ -61,5 +61,4 @@ sleeper_scoring:
   fgmiss: -1.0
   xpm: 1.0
   xpmiss: -1.0
-# keeper_rules deliberately omitted: FAM allows 1 keeper but its cost rule is
-# not known to this project, and keepers.js implements Gabagool's ladder only.
+# keeper_rules omitted: FAM is not a keeper league (owner, 2026-11-16).

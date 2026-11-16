@@ -46,7 +46,7 @@ class LeagueConfig:
     rounds: int
     scoring: dict[str, float]
     depth_cap: dict[str, int]
-    keeper_rules: str | None = None
+    keeper_rules: dict | None = None
     sleeper_scoring: dict[str, float] | None = None
     # Which site hosts this league. Live draft mode, the keeper panel and the
     # trade panel all speak Sleeper's API and NOTHING else, so a non-Sleeper
@@ -118,8 +118,48 @@ class LeagueConfig:
                 if self.sleeper_scoring.get(k, 0) != 0
             }
         if self.keeper_rules is not None:
-            out["keeper_rules"] = self.keeper_rules
+            out["keeper_rules"] = dict(self.keeper_rules)
         return out
+
+
+_KEEPER_KEYS = ("first_keep", "per_year", "max_years", "undrafted_round",
+                "earliest_round", "max_keepers")
+
+
+def _is_int(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)   # bool is an int subclass
+
+
+def _validate_keeper_rules(raw, rounds: int, path) -> dict:
+    """A league's keeper rule as settings; ranges mirror site/assets/keeperrules.js."""
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path}: keeper_rules must be a mapping")
+    extra = sorted(str(k) for k in raw if k not in _KEEPER_KEYS)
+    if extra:
+        raise ValueError(f"{path}: keeper_rules has unknown key(s) {extra}")
+    for key in _KEEPER_KEYS:
+        if key not in raw:
+            raise ValueError(f"{path}: keeper_rules.{key} is required")
+
+    def check(key, lo, hi, *, allow_none=False, allow_last=False):
+        v = raw[key]
+        if v is None and allow_none:
+            return
+        if allow_last and v == "last":
+            return
+        if not _is_int(v) or not lo <= v <= hi:
+            extra_ok = (", null" if allow_none else "") + (', "last"' if allow_last else "")
+            raise ValueError(f"{path}: keeper_rules.{key} must be an integer {lo}-{hi}{extra_ok}, got {v!r}")
+        if key in ("undrafted_round", "earliest_round") and v > rounds:
+            raise ValueError(f"{path}: keeper_rules.{key} {v} exceeds the league's {rounds} rounds")
+
+    check("first_keep", 0, 5)
+    check("per_year", 0, 5)
+    check("max_years", 1, 8, allow_none=True)
+    check("undrafted_round", 1, 30, allow_last=True)
+    check("earliest_round", 1, 30)
+    check("max_keepers", 1, 3)
+    return {k: raw[k] for k in _KEEPER_KEYS}
 
 
 def load_league(slug: str, root: Path | None = None) -> LeagueConfig:
@@ -144,7 +184,8 @@ def load_league(slug: str, root: Path | None = None) -> LeagueConfig:
         teams=int(data["teams"]), roster=dict(data["roster"]),
         flex=int(data["flex"]), flex_positions=tuple(data["flex_positions"]),
         rounds=int(data["rounds"]), scoring=dict(data["scoring"]),
-        depth_cap=dict(data["depth_cap"]), keeper_rules=data.get("keeper_rules"),
+        depth_cap=dict(data["depth_cap"]), keeper_rules=(_validate_keeper_rules(data["keeper_rules"], int(data["rounds"]), path)
+                      if data.get("keeper_rules") is not None else None),
         platform=str(data.get("platform", "sleeper")),
         roster_size=(int(data["roster_size"]) if "roster_size" in data else None),
         sleeper_scoring=(dict(data["sleeper_scoring"])

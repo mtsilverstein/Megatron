@@ -1,6 +1,9 @@
 import pytest
 
-from ffmodel.league import load_league
+from ffmodel.league import LEAGUE_DIR, load_league
+
+GAB_RULE = {"first_keep": 1, "per_year": 1, "max_years": 2, "undrafted_round": 12,
+            "earliest_round": 3, "max_keepers": 2}
 
 
 def test_gabagool_matches_todays_hardcoded_constants():
@@ -14,7 +17,7 @@ def test_gabagool_matches_todays_hardcoded_constants():
     assert cfg.total_picks == 180
     assert cfg.rules.pass_td == 6.0
     assert cfg.rules.interception == -2.0
-    assert cfg.keeper_rules == "gabagool"
+    assert cfg.keeper_rules == GAB_RULE
 
 
 def test_fam_derives_a_ten_team_contract():
@@ -86,7 +89,7 @@ def test_unknown_slug_raises_rather_than_falling_back():
 
 def test_payload_omits_keeper_rules_when_absent():
     assert "keeper_rules" not in load_league("fam").payload()
-    assert load_league("gabagool").payload()["keeper_rules"] == "gabagool"
+    assert load_league("gabagool").payload()["keeper_rules"] == GAB_RULE
 
 
 def test_board_file_keeps_gabagool_at_the_existing_name():
@@ -128,3 +131,43 @@ def test_mismatched_model_and_sleeper_scoring_refuses_generation(tmp_path):
 def test_weekly_files_are_isolated():
     assert load_league("fam").weekly_file == "weekly-fam.json"
     assert load_league("gabagool").weekly_file == "weekly.json"
+
+
+def _with_rule(tmp_path, rule_yaml):
+    text = (LEAGUE_DIR / "gabagool.yaml").read_text(encoding="utf-8")
+    head = text[:text.index("keeper_rules:")]
+    (tmp_path / "t.yaml").write_text(head + rule_yaml, encoding="utf-8")
+    return load_league("t", root=tmp_path)
+
+
+_BASE = dict(GAB_RULE)
+
+
+def _yaml(**over):
+    d = dict(_BASE)
+    d.update(over)
+    lines = ["keeper_rules:"]
+    for k, v in d.items():
+        if v is not _MISSING:
+            lines.append(f"  {k}: {v}")
+    return chr(10).join(lines) + chr(10)
+
+
+_MISSING = object()
+
+
+@pytest.mark.parametrize("rule", [
+    _yaml(per_year=6), _yaml(first_keep="true"), _yaml(max_years=0),
+    _yaml(max_years=9), _yaml(undrafted_round='"first"'),
+    _yaml(undrafted_round=16), _yaml(earliest_round=0), _yaml(max_keepers=4),
+    _yaml(extra=1), _yaml(per_year=_MISSING), "keeper_rules: gabagool",
+])
+def test_keeper_rules_rejects(tmp_path, rule):
+    with pytest.raises(ValueError, match="keeper_rules"):
+        _with_rule(tmp_path, rule)
+
+
+def test_keeper_rules_accepts_null_years_and_last(tmp_path):
+    cfg = _with_rule(tmp_path, _yaml(max_years="null", undrafted_round="last"))
+    assert cfg.keeper_rules["max_years"] is None
+    assert cfg.keeper_rules["undrafted_round"] == "last"

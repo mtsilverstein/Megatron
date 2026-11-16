@@ -205,6 +205,14 @@ global.localStorage = store;
   assert.strictEqual(espn.label, "13-team PPR, 6-pt pass TD · ESPN draft board only");
   assert.strictEqual(espn.tools.startsit, false);
   assert.strictEqual(FC.boardEntry({ league: { name: "no slug" } }), null);
+  const gab = { first_keep: 1, per_year: 1, max_years: 2, undrafted_round: 12, earliest_round: 3, max_keepers: 2 };
+  const keepersFor = kr => FC.boardEntry({ league: { slug: "leaguea", rounds: 15, keeper_rules: kr } }).tools.keepers;
+  assert.strictEqual(keepersFor("other"), false);
+  assert.strictEqual(keepersFor({}), false);
+  assert.strictEqual(keepersFor(gab), true);
+  assert.strictEqual(keepersFor("gabagool"), true);
+  assert.strictEqual(keepersFor("ladder"), true);
+  assert.strictEqual(keepersFor(undefined), false);
 }
 
 (async () => {

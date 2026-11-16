@@ -56,4 +56,10 @@ sleeper_scoring:
 # start one QB and one TE so a second is bye cover, while RB and WR also fill
 # the two flex slots and keep their depth value longer. Ties only.
 depth_cap: {QB: 2, RB: 6, WR: 6, TE: 2}
-keeper_rules: gabagool
+keeper_rules:
+  first_keep: 1
+  per_year: 1
+  max_years: 2
+  undrafted_round: 12
+  earliest_round: 3
+  max_keepers: 2
