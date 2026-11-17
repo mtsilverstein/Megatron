@@ -1,25 +1,25 @@
 {
- "as_of_date": "2026-11-10",
+ "as_of_date": "2026-11-17",
  "caveats": [
   "Projections = the bot pipeline's latest publication on main before K_N 00:00 UTC, proven by GitHub push records; Vercel deployment is not verified.",
-  "Players who recorded a stat line only; DNPs are outside the estimand.",
+  "Players who recorded no stat line (including on-field weeks with no recorded stat) are outside the estimand.",
   "Both expert sources are FantasyPros mirrors; small samples are descriptive, not tests.",
   "Reference values are context: the historical population and fallback history differ."
  ],
  "kind": "live_accuracy",
  "overall": {
-  "above_p90": 0.10882054748225752,
-  "below_p10": 0.09090909090909091,
-  "coverage_p10_p90": 0.8002703616086516,
-  "mae": 4.279232848935451,
-  "n": 2959,
-  "naive_mae": 4.595557620817844
+  "above_p90": 0.1122667482410523,
+  "below_p10": 0.09085347200978892,
+  "coverage_p10_p90": 0.7968797797491588,
+  "mae": 4.32045579687978,
+  "n": 3269,
+  "naive_mae": 4.622280513918629
  },
  "protocol_version": "live-accuracy-v1",
  "provisional_weeks": [
-  9
+  10
  ],
- "run_at": "2026-11-10T22:00:42Z",
+ "run_at": "2026-11-17T23:42:03Z",
  "schema_version": 1,
  "scoring": "ppr",
  "season": 2026,
@@ -118,11 +118,22 @@
    "below_p10": 0.08484848484848485,
    "coverage_p10_p90": 0.8272727272727273,
    "last_game": "2026-11-09",
-   "mae": 3.868575757575758,
+   "mae": 3.868757575757576,
    "n": 330,
-   "naive_mae": 4.3255202020202015,
-   "provisional": true,
+   "naive_mae": 4.32570202020202,
+   "provisional": false,
    "week": 9
+  },
+  {
+   "above_p90": 0.14516129032258066,
+   "below_p10": 0.09032258064516129,
+   "coverage_p10_p90": 0.7645161290322581,
+   "last_game": "2026-11-16",
+   "mae": 4.713741935483871,
+   "n": 310,
+   "naive_mae": 4.87716129032258,
+   "provisional": true,
+   "week": 10
   }
  ],
  "weeks_skipped": []
