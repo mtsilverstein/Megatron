@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-16T13:47:42+00:00",
+  "generated_at": "2026-11-17T00:52:54+00:00",
   "data_through": "2026-wk9",
   "season": 2026,
   "week": 10,
@@ -49881,6 +49881,13 @@
       "fum_rec_td": 6.0,
       "st_td": 6.0
     },
-    "keeper_rules": "gabagool"
+    "keeper_rules": {
+      "first_keep": 1,
+      "per_year": 1,
+      "max_years": 2,
+      "undrafted_round": 12,
+      "earliest_round": 3,
+      "max_keepers": 2
+    }
   }
 }
