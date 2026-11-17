@@ -1,9 +1,9 @@
 {
   "season": 2026,
-  "week": 10,
-  "data_through": "2026-wk9",
-  "generated_at": "2026-11-17T00:52:54+00:00",
-  "batch_id": "2026-11-17T00:52:54+00:00|2026-wk9|w10",
+  "week": 11,
+  "data_through": "2026-wk10",
+  "generated_at": "2026-11-17T14:39:19+00:00",
+  "batch_id": "2026-11-17T14:39:19+00:00|2026-wk10|w11",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,8 +13,8 @@
   },
   "crosswalk": {
     "matched_gsis": 134,
-    "matched_crosswalk": 512,
-    "matched_name": 7,
+    "matched_crosswalk": 520,
+    "matched_name": 9,
     "unmatched": 1
   },
   "players": [
@@ -2015,11 +2015,11 @@
       "sleeper_id": "6798",
       "name": "Jalen Reagor",
       "team": "MIA",
-      "position": null,
+      "position": "WR",
       "bye": 6,
       "ecr": 480,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -3827,11 +3827,11 @@
       "sleeper_id": "9227",
       "name": "Israel Abanikanda",
       "team": "DAL",
-      "position": null,
+      "position": "RB",
       "bye": 14,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -6155,11 +6155,11 @@
       "sleeper_id": "12494",
       "name": "Kyle McCord",
       "team": "MIA",
-      "position": null,
+      "position": "QB",
       "bye": 6,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -7382,8 +7382,8 @@
       "position": "RB",
       "bye": 10,
       "ecr": 305,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -7415,11 +7415,11 @@
       "sleeper_id": "13011",
       "name": "Brennan Presley",
       "team": "LA",
-      "position": null,
+      "position": "WR",
       "bye": 11,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -8228,15 +8228,15 @@
     },
     {
       "player_id": "00-0040967",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13904",
+      "name": "Jacob De Jesus",
       "team": "KC",
-      "position": null,
+      "position": "WR",
       "bye": 5,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0040970",
@@ -8507,11 +8507,11 @@
       "sleeper_id": "13303",
       "name": "Cade Klubnik",
       "team": "NYJ",
-      "position": null,
+      "position": "QB",
       "bye": 13,
       "ecr": 408,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -8843,11 +8843,11 @@
       "sleeper_id": "13418",
       "name": "Robert Henry Jr.",
       "team": "WAS",
-      "position": null,
+      "position": "RB",
       "bye": 7,
       "ecr": 542,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -9275,11 +9275,11 @@
       "sleeper_id": "13670",
       "name": "Harrison Wallace III",
       "team": "ARI",
-      "position": null,
+      "position": "WR",
       "bye": 14,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -9344,15 +9344,15 @@
     },
     {
       "player_id": "00-0041399",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13270",
+      "name": "CJ Daniels",
       "team": "LA",
-      "position": null,
+      "position": "WR",
       "bye": 11,
       "ecr": 407,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0041414",
@@ -9683,11 +9683,11 @@
       "sleeper_id": "13272",
       "name": "Carson Beck",
       "team": "ARI",
-      "position": null,
+      "position": "QB",
       "bye": 14,
       "ecr": 333,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
