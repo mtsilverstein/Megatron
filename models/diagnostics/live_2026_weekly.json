@@ -1,22 +1,22 @@
 {
  "caveats": [
   "Projections = the bot pipeline's latest publication on main before K_N 00:00 UTC, proven by GitHub push records; Vercel deployment is not verified.",
-  "Players who recorded a stat line only; DNPs are outside the estimand.",
+  "Players who recorded no stat line (including on-field weeks with no recorded stat) are outside the estimand.",
   "Both expert sources are FantasyPros mirrors; small samples are descriptive, not tests.",
   "Reference values are context: the historical population and fallback history differ."
  ],
  "evaluator_version": {
   "dirty": false,
-  "id": "live-accuracy-v1+5735fca823fb843590ba6a3ece3b625ac41f2b21",
+  "id": "live-accuracy-v1+00275c265730d741197f8c39bb7bde881dab5217",
   "protocol_version": "live-accuracy-v1",
-  "src_ffmodel_tree": "5735fca823fb843590ba6a3ece3b625ac41f2b21"
+  "src_ffmodel_tree": "00275c265730d741197f8c39bb7bde881dab5217"
  },
  "inputs": {
   "actuals_by_season": {
    "2023": "c149053c931edfe3c7c8868d08afd1a7b59740f0e239ac1c9bb354fd8b729381",
    "2024": "c8c194e514591c602def6706467a7ee7afec131e45747a5b1cf4a8197ecd310f",
    "2025": "f49532b98cb865894d88d3db6a5ff9a7aebc31dd27279a36d7c336cbd68fba69",
-   "2026": "f674d727cf300ea618526c250ed7125ea52e03f7fc3ceb9fbd5b9053fa92b677"
+   "2026": "1c048c304c97ae8e0c0ffb789f6180795051c2f9ffae967360409b953c30f1c4"
   },
   "archive_blobs": {
    "2026-w04-2026-09-30-220d00155877a0a7.json": "220d00155877a0a71cf83e2cbdb7553065bf4d364753ffad271d9d3bafcb7b8e",
@@ -37,13 +37,16 @@
    "2026-w09-2026-11-03-2a395971bc09c7ef.json": "2a395971bc09c7ef361090c2875936ea8f0ac2c12b06413fa923687693c98738",
    "2026-w09-2026-11-03-5dff6d2b73760d45.json": "5dff6d2b73760d45cfb4f0edf52783d0973dffdf0ded97289f6ee4e071b92f61",
    "2026-w09-2026-11-04-0aaab302c107d206.json": "0aaab302c107d206a6af5306aa09f47f97c22a298221e3f3cf06b1d2c6763304",
-   "2026-w09-2026-11-04-a76e29753c256291.json": "a76e29753c25629188547c5ea4e58e01dc92db14cc1343654aa3609f3fa6f5c5"
+   "2026-w09-2026-11-04-a76e29753c256291.json": "a76e29753c25629188547c5ea4e58e01dc92db14cc1343654aa3609f3fa6f5c5",
+   "2026-w10-2026-11-10-0813a2f7362a0e4d.json": "0813a2f7362a0e4d0251ccf6addf81d3590d80d6829f73e4fb4e68083aa13a1a",
+   "2026-w10-2026-11-11-2dcd908e43c74eca.json": "2dcd908e43c74ecaa415c562d91f658a3afe3ad34b12911acc67db238048c534",
+   "2026-w10-2026-11-11-822bf23c7dfe9ac8.json": "822bf23c7dfe9ac89af6e2c0aea3095db372dcff3f7de1ca7b0d91670d2cd73c"
   },
   "bakeoff": {
    "path": "models/backtests/bakeoff.json",
    "sha256": "25253e1a7ef3034b0eb24573efd73460c66f507812a583d9dff58fcb49a1cfc2"
   },
-  "crosswalk": "9bbb3b2103e4fbac04e30b804645e70c6b1dadaed6337ad87c3843f5fa4fe5fd",
+  "crosswalk": "d9b458ed543b949b63f36463ff4bcfbe0dafd7d940b32836b99bb41929107c67",
   "ledger": {
    "coverage": [
     [
@@ -89,71 +92,75 @@
     [
      "-inf",
      "2026-11-10T22:00:42Z"
+    ],
+    [
+     "-inf",
+     "2026-11-17T23:42:03Z"
     ]
    ],
-   "events": 340,
-   "sha256": "fec9207158393e8082b8ed8852bb965449f8b27dfb09e6074f3f551d39bbdf86"
+   "events": 363,
+   "sha256": "3e09ed0ad49a0e7419d6f581da8aef0005ca0c025257a38432c82015c95b6a5d"
   },
-  "rankings_raw": "919cad5dae48a440fe5a95e3693219f2ac871ac317cf221217e16eb1300cb565",
-  "schedules": "0de64705b40a3888d3005961453ced09ddbf2c8f5ac6b8fc63b23ad73c05472b"
+  "rankings_raw": "33e9d8a73c7d0e64d660e6ee21fb0b6ded4b7d4f041da7f42235d5ba28d31fb5",
+  "schedules": "5b9fdc4129aa5072d27e178e60b4bf17155129ebf74fd723367492f47bbc6fd5"
  },
  "points": {
   "by_position": {
    "QB": {
-    "above_p90": 0.09508196721311475,
-    "below_p10": 0.06885245901639345,
-    "coverage_p10_p90": 0.8360655737704918,
-    "mae": 6.179245901639344,
-    "mean_resid": 1.5126885245901642,
-    "median_resid": 0.8300000000000001,
-    "n": 305,
-    "naive_mae": 6.556939890710383,
-    "pinball_p10": 1.2752295081967215,
-    "pinball_p50": 3.089622950819672,
-    "pinball_p90": 1.5221999999999998,
-    "share_above_p50": 0.5344262295081967
+    "above_p90": 0.10059171597633136,
+    "below_p10": 0.0650887573964497,
+    "coverage_p10_p90": 0.834319526627219,
+    "mae": 6.21147928994083,
+    "mean_resid": 1.6518343195266276,
+    "median_resid": 0.8550000000000013,
+    "n": 338,
+    "naive_mae": 6.560892504930967,
+    "pinball_p10": 1.2701893491124263,
+    "pinball_p50": 3.105739644970415,
+    "pinball_p90": 1.5279644970414197,
+    "share_above_p50": 0.5355029585798816
    },
    "RB": {
-    "above_p90": 0.10064516129032258,
-    "below_p10": 0.07612903225806451,
-    "coverage_p10_p90": 0.8232258064516129,
-    "mae": 4.330735483870968,
-    "mean_resid": 3.0248000000000004,
-    "median_resid": 0.9200000000000002,
-    "n": 775,
-    "naive_mae": 4.53385376344086,
-    "pinball_p10": 0.6526916129032259,
-    "pinball_p50": 2.165367741935484,
-    "pinball_p90": 1.1564967741935481,
-    "share_above_p50": 0.5754838709677419
+    "above_p90": 0.10514018691588785,
+    "below_p10": 0.07710280373831775,
+    "coverage_p10_p90": 0.8177570093457944,
+    "mae": 4.414369158878505,
+    "mean_resid": 3.1079906542056075,
+    "median_resid": 0.9400000000000002,
+    "n": 856,
+    "naive_mae": 4.5706678348909655,
+    "pinball_p10": 0.6638773364485981,
+    "pinball_p50": 2.2071845794392524,
+    "pinball_p90": 1.1783749999999997,
+    "share_above_p50": 0.5771028037383178
    },
    "TE": {
-    "above_p90": 0.11666666666666667,
-    "below_p10": 0.1303030303030303,
-    "coverage_p10_p90": 0.753030303030303,
-    "mae": 3.6229696969696974,
-    "mean_resid": 1.9816060606060608,
-    "median_resid": 0.27,
-    "n": 660,
-    "naive_mae": 4.1016035353535365,
-    "pinball_p10": 0.5304151515151515,
-    "pinball_p50": 1.8114848484848487,
-    "pinball_p90": 1.0789469696969696,
-    "share_above_p50": 0.5212121212121212
+    "above_p90": 0.11354309165526676,
+    "below_p10": 0.12995896032831739,
+    "coverage_p10_p90": 0.7564979480164159,
+    "mae": 3.557359781121751,
+    "mean_resid": 1.867948016415869,
+    "median_resid": 0.17000000000000015,
+    "n": 731,
+    "naive_mae": 4.046922024623803,
+    "pinball_p10": 0.5208481532147743,
+    "pinball_p50": 1.7786798905608756,
+    "pinball_p90": 1.074782489740082,
+    "share_above_p50": 0.5143638850889193
    },
    "WR": {
-    "above_p90": 0.11320754716981132,
-    "below_p10": 0.0844954881050041,
-    "coverage_p10_p90": 0.8022969647251845,
-    "mae": 4.126415094339623,
-    "mean_resid": 2.242887612797375,
-    "median_resid": 0.029999999999999805,
-    "n": 1219,
-    "naive_mae": 4.4114793546622915,
-    "pinball_p10": 0.6348892534864644,
-    "pinball_p50": 2.0632075471698115,
-    "pinball_p90": 1.2236210008203445,
-    "share_above_p50": 0.5110746513535686
+    "above_p90": 0.11904761904761904,
+    "below_p10": 0.08482142857142858,
+    "coverage_p10_p90": 0.7961309523809523,
+    "mae": 4.200119047619047,
+    "mean_resid": 2.3135714285714286,
+    "median_resid": 0.07000000000000028,
+    "n": 1344,
+    "naive_mae": 4.480551835317461,
+    "pinball_p10": 0.6391912202380953,
+    "pinball_p50": 2.1000595238095237,
+    "pinball_p90": 1.2444620535714284,
+    "share_above_p50": 0.5163690476190477
    }
   },
   "by_week": {
@@ -171,6 +178,21 @@
     "pinball_p50": 2.4049352750809065,
     "pinball_p90": 1.361576051779935,
     "share_above_p50": 0.540453074433657
+   },
+   "10": {
+    "above_p90": 0.14516129032258066,
+    "below_p10": 0.09032258064516129,
+    "coverage_p10_p90": 0.7645161290322581,
+    "last_game": "2026-11-16",
+    "mae": 4.713741935483871,
+    "mean_resid": 2.729032258064516,
+    "median_resid": 0.5899999999999999,
+    "n": 310,
+    "naive_mae": 4.87716129032258,
+    "pinball_p10": 0.7052161290322582,
+    "pinball_p50": 2.3568709677419357,
+    "pinball_p90": 1.3520096774193548,
+    "share_above_p50": 0.5451612903225806
    },
    "2": {
     "above_p90": 0.10285714285714286,
@@ -282,82 +304,82 @@
     "below_p10": 0.08484848484848485,
     "coverage_p10_p90": 0.8272727272727273,
     "last_game": "2026-11-09",
-    "mae": 3.868575757575758,
-    "mean_resid": 2.0323939393939394,
+    "mae": 3.868757575757576,
+    "mean_resid": 2.032818181818182,
     "median_resid": 0.3849999999999999,
     "n": 330,
-    "naive_mae": 4.3255202020202015,
-    "pinball_p10": 0.6529181818181818,
-    "pinball_p50": 1.934287878787879,
-    "pinball_p90": 1.210481818181818,
+    "naive_mae": 4.32570202020202,
+    "pinball_p10": 0.652960606060606,
+    "pinball_p50": 1.934378787878788,
+    "pinball_p90": 1.2104393939393938,
     "share_above_p50": 0.5242424242424243
    }
   },
   "overall": {
-   "above_p90": 0.10882054748225752,
-   "below_p10": 0.09090909090909091,
+   "above_p90": 0.1122667482410523,
+   "below_p10": 0.09085347200978892,
    "ci95_player": [
-    -0.4287612037000786,
-    -0.20416426057240294
+    -0.41076453138633967,
+    -0.1866228524087538
    ],
    "ci95_week_team": [
-    -0.4493452158158121,
-    -0.18366624538118276
+    -0.42818291416573023,
+    -0.1748104296902958
    ],
-   "coverage_p10_p90": 0.8002703616086516,
-   "delta_mae_model_minus_naive": -0.3163247718823926,
-   "mae": 4.279232848935451,
-   "mean_resid": 2.3141365326123693,
-   "median_resid": 0.3899999999999997,
-   "n": 2959,
-   "naive_mae": 4.595557620817844,
+   "coverage_p10_p90": 0.7968797797491588,
+   "delta_mae_model_minus_naive": -0.3018247170388497,
+   "mae": 4.32045579687978,
+   "mean_resid": 2.3535240134597735,
+   "median_resid": 0.40000000000000036,
+   "n": 3269,
+   "naive_mae": 4.622280513918629,
    "note": "conditional on the observed weeks",
-   "pinball_p10": 0.6822524501520785,
-   "pinball_p50": 2.1396164244677256,
-   "pinball_p90": 1.2045471443055082,
-   "share_above_p50": 0.5326123690435958
+   "pinball_p10": 0.6844343836035486,
+   "pinball_p50": 2.16022789843989,
+   "pinball_p90": 1.218526766595289,
+   "share_above_p50": 0.53380238605078
   }
  },
  "protocol_version": "live-accuracy-v1",
  "ranking": {
   "primary": {
-   "D": -0.011119526378241401,
-   "cells": 24,
+   "D": -0.013741613522179777,
+   "cells": 28,
    "ci_week": [
-    -0.020533160829691692,
-    -0.00115649563268917
+    -0.022829669778762305,
+    -0.003150591356542762
    ],
    "per_position_D": {
-    "QB": -0.06318564443219295,
-    "RB": 0.01463903359592448,
-    "TE": -0.009815933293556373,
-    "WR": 0.01388443861685923
+    "QB": -0.05602123227877807,
+    "RB": 0.007031324213729999,
+    "TE": -0.01198810912464788,
+    "WR": 0.0060115631009768355
    },
-   "sp_con": 0.6004898847431773,
-   "sp_ours": 0.5893703583649358
+   "sp_con": 0.5986367958623965,
+   "sp_ours": 0.5848951823402168
   },
   "secondary": {
-   "D": -0.027431755341007603,
-   "cells": 36,
+   "D": -0.02757431140474272,
+   "cells": 40,
    "ci_week": [
-    -0.040019418068167105,
-    -0.01676023137030429
+    -0.03890327073418004,
+    -0.017805805913795606
    ],
    "per_position_D": {
-    "QB": -0.0744512496629492,
-    "RB": -0.010188025276685017,
-    "TE": -0.014778407151935716,
-    "WR": -0.010309339272460472
+    "QB": -0.0710947946473932,
+    "RB": -0.01155029940247213,
+    "TE": -0.014393443845750864,
+    "WR": -0.013258707723354668
    },
-   "sp_con": 0.6391490692800752,
-   "sp_ours": 0.6117173139390677
+   "sp_con": 0.6414063262295091,
+   "sp_ours": 0.6138320148247665
   }
  },
  "ranking_coverage": {
   "2026": {
-   "accepted_rows": 4407,
+   "accepted_rows": 4859,
    "excluded_legacy_schema": 0,
-   "raw_rows": 4417,
+   "raw_rows": 4871,
    "scrape_dates": [
     {
      "date": "2026-09-11",
@@ -394,6 +416,10 @@
     {
      "date": "2026-11-06",
      "weekday": "Friday"
+    },
+    {
+     "date": "2026-11-13",
+     "weekday": "Friday"
     }
    ]
   }
@@ -413,12 +439,12 @@
   "transformer_mae_2023_25": 4.324723397524363
  },
  "run": {
-  "as_of_date": "2026-11-10",
-  "main_sha": "da71642588c2fe5910f0efe03e528528e175b486",
+  "as_of_date": "2026-11-17",
+  "main_sha": "66a70e67e56ad7b04eba6b4e757ebfe2979d8c11",
   "provisional_weeks": [
-   9
+   10
   ],
-  "run_at": "2026-11-10T22:00:42Z"
+  "run_at": "2026-11-17T23:42:03Z"
  },
  "season": 2026,
  "weeks": {
@@ -498,10 +524,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9703125,
-     "matched_by_id": 613,
-     "matched_by_name": 8,
+     "matched_by_id": 614,
+     "matched_by_name": 7,
      "matched_by_name_only": 2,
-     "matched_by_name_position": 6,
+     "matched_by_name_position": 5,
      "ranked": 640,
      "unmatched": 19
     },
@@ -622,6 +648,265 @@
     "source": "legacy"
    }
   },
+  "10": {
+   "cutoff": "2026-11-12T00:00:00Z",
+   "expert_snapshot": {
+    "alternatives": [
+     {
+      "available_by": "2026-11-11T12:52:01Z",
+      "blob_sha256": "822bf23c7dfe9ac89af6e2c0aea3095db372dcff3f7de1ca7b0d91670d2cd73c",
+      "name": "2026-w10-2026-11-11-822bf23c7dfe9ac8.json",
+      "status": "qualifies"
+     },
+     {
+      "available_by": "2026-11-10T22:28:48Z",
+      "blob_sha256": "0813a2f7362a0e4d0251ccf6addf81d3590d80d6829f73e4fb4e68083aa13a1a",
+      "name": "2026-w10-2026-11-10-0813a2f7362a0e4d.json",
+      "status": "qualifies"
+     }
+    ],
+    "available_by": "2026-11-11T23:34:28Z",
+    "blob_sha256": "2dcd908e43c74ecaa415c562d91f658a3afe3ad34b12911acc67db238048c534",
+    "commit": "9e8d3e4c94920cb16dc3d03c2f91425ea32a0baa",
+    "event_id": 49930744296,
+    "name": "2026-w10-2026-11-11-2dcd908e43c74eca.json",
+    "path": "data_snapshots/weekly_ecr/2026-w10-2026-11-11-2dcd908e43c74eca.json",
+    "status": "selected",
+    "tie_break": null,
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 335
+    }
+   },
+   "last_game": "2026-11-16",
+   "points": {
+    "above_p90": 0.14516129032258066,
+    "below_p10": 0.09032258064516129,
+    "coverage_p10_p90": 0.7645161290322581,
+    "mae": 4.713741935483871,
+    "mean_resid": 2.729032258064516,
+    "median_resid": 0.5899999999999999,
+    "n": 310,
+    "naive_mae": 4.87716129032258,
+    "pinball_p10": 0.7052161290322582,
+    "pinball_p50": 2.3568709677419357,
+    "pinball_p90": 1.3520096774193548,
+    "share_above_p50": 0.5451612903225806
+   },
+   "primary": {
+    "cells": [
+     {
+      "delta": -0.013034759358288794,
+      "n": 33,
+      "position": "QB",
+      "sp_con": 0.6774732620320856,
+      "sp_ours": 0.6644385026737968
+     },
+     {
+      "delta": -0.03861493207943689,
+      "n": 73,
+      "position": "RB",
+      "sp_con": 0.7357170737682461,
+      "sp_ours": 0.6971021416888092
+     },
+     {
+      "delta": -0.04122568999431753,
+      "n": 100,
+      "position": "WR",
+      "sp_con": 0.5825947829778703,
+      "sp_ours": 0.5413690929835527
+     },
+     {
+      "delta": -0.025021164111196925,
+      "n": 49,
+      "position": "TE",
+      "sp_con": 0.3542879315326477,
+      "sp_ours": 0.3292667674214508
+     }
+    ],
+    "degenerate": 0,
+    "pool": 255,
+    "pool_by_position": {
+     "QB": 33,
+     "RB": 73,
+     "TE": 49,
+     "WR": 100
+    },
+    "reason": null,
+    "status": "scored"
+   },
+   "publication": {
+    "available_by": "2026-11-11T23:34:28Z",
+    "commit": "9e8d3e4c94920cb16dc3d03c2f91425ea32a0baa",
+    "detail": null,
+    "event_id": 49930744296,
+    "status": "selected"
+   },
+   "secondary": {
+    "cells": [
+     {
+      "delta": -0.0408866995073891,
+      "n": 29,
+      "position": "QB",
+      "sp_con": 0.6546798029556649,
+      "sp_ours": 0.6137931034482758
+     },
+     {
+      "delta": -0.02381076653455616,
+      "n": 73,
+      "position": "RB",
+      "sp_con": 0.753461321037532,
+      "sp_ours": 0.7296505545029759
+     },
+     {
+      "delta": -0.039803023781402436,
+      "n": 112,
+      "position": "WR",
+      "sp_con": 0.6213811225903254,
+      "sp_ours": 0.581578098808923
+     },
+     {
+      "delta": -0.01092877409008719,
+      "n": 64,
+      "position": "TE",
+      "sp_con": 0.6173643085141345,
+      "sp_ours": 0.6064355344240473
+     }
+    ],
+    "degenerate": 0,
+    "match": {
+     "gsis_collisions": 0,
+     "match_rate": 0.9933628318584071,
+     "matched_by_id": 448,
+     "matched_by_name": 1,
+     "matched_by_name_only": 1,
+     "matched_by_name_position": 0,
+     "ranked": 452,
+     "unmatched": 3
+    },
+    "reason": null,
+    "retention": {
+     "excluded_early_by_position": {
+      "QB": 3,
+      "RB": 5,
+      "TE": 6,
+      "WR": 8
+     },
+     "excluded_early_game": 22,
+     "match_rate": 0.9933628318584071,
+     "played": 310,
+     "pool": 278,
+     "pool_by_position": {
+      "QB": 29,
+      "RB": 73,
+      "TE": 64,
+      "WR": 112
+     }
+    },
+    "selection": {
+     "candidates": [
+      {
+       "date": "2026-11-13",
+       "has_later_game": true,
+       "pages": {
+        "QB": "bye_consistent",
+        "RB": "bye_consistent",
+        "TE": "bye_consistent",
+        "WR": "bye_consistent"
+       },
+       "state": "bye_consistent",
+       "unknown_team_codes": 0
+      }
+     ],
+     "label": null,
+     "pages": {
+      "QB": "bye_consistent",
+      "RB": "bye_consistent",
+      "TE": "bye_consistent",
+      "WR": "bye_consistent"
+     },
+     "scrape_date": "2026-11-13",
+     "state": "bye_consistent"
+    },
+    "status": "scored",
+    "validation": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 452
+    }
+   },
+   "status": "scored",
+   "unprojected": {
+    "by_position": {
+     "QB": {
+      "count": 3,
+      "mean_actual": 6.420000000000001,
+      "share": 0.08333333333333333
+     },
+     "RB": {
+      "count": 2,
+      "mean_actual": 1.2,
+      "share": 0.024096385542168676
+     },
+     "TE": {
+      "count": 1,
+      "mean_actual": 0.0,
+      "share": 0.013888888888888888
+     },
+     "WR": {
+      "count": 5,
+      "mean_actual": 1.02,
+      "share": 0.038461538461538464
+     }
+    },
+    "count": 11,
+    "mean_actual": 2.432727272727273,
+    "share": 0.03426791277258567
+   },
+   "validation": {
+    "actuals": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 321
+    },
+    "projections": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 571
+    },
+    "schedule": {
+     "exact_duplicates": 0,
+     "excluded_fraction": 0.0,
+     "failed": false,
+     "invalid_by_reason": {},
+     "invalid_by_reason_position": {},
+     "invalid_keys": 0,
+     "n_keys": 28
+    }
+   },
+   "values": {
+    "equivalence_checked": true,
+    "max_abs_diff": 0.00499898395966758,
+    "source": "legacy"
+   }
+  },
   "2": {
    "cutoff": "2026-09-17T00:00:00Z",
    "expert_snapshot": {
@@ -698,10 +983,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9927272727272727,
-     "matched_by_id": 541,
-     "matched_by_name": 5,
+     "matched_by_id": 542,
+     "matched_by_name": 4,
      "matched_by_name_only": 2,
-     "matched_by_name_position": 3,
+     "matched_by_name_position": 2,
      "ranked": 550,
      "unmatched": 4
     },
@@ -898,10 +1183,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9957894736842106,
-     "matched_by_id": 469,
-     "matched_by_name": 4,
+     "matched_by_id": 470,
+     "matched_by_name": 3,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 3,
+     "matched_by_name_position": 2,
      "ranked": 475,
      "unmatched": 2
     },
@@ -1150,10 +1435,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9959266802443992,
-     "matched_by_id": 485,
-     "matched_by_name": 4,
+     "matched_by_id": 486,
+     "matched_by_name": 3,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 3,
+     "matched_by_name_position": 2,
      "ranked": 491,
      "unmatched": 2
     },
@@ -1408,10 +1693,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9956616052060737,
-     "matched_by_id": 455,
-     "matched_by_name": 4,
+     "matched_by_id": 456,
+     "matched_by_name": 3,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 3,
+     "matched_by_name_position": 2,
      "ranked": 461,
      "unmatched": 2
     },
@@ -1667,10 +1952,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9954441913439636,
-     "matched_by_id": 435,
-     "matched_by_name": 2,
+     "matched_by_id": 436,
+     "matched_by_name": 1,
      "matched_by_name_only": 0,
-     "matched_by_name_position": 2,
+     "matched_by_name_position": 1,
      "ranked": 439,
      "unmatched": 2
     },
@@ -1926,10 +2211,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9977876106194691,
-     "matched_by_id": 448,
-     "matched_by_name": 3,
+     "matched_by_id": 449,
+     "matched_by_name": 2,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 2,
+     "matched_by_name_position": 1,
      "ranked": 452,
      "unmatched": 1
     },
@@ -2191,10 +2476,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9976689976689976,
-     "matched_by_id": 426,
-     "matched_by_name": 2,
+     "matched_by_id": 427,
+     "matched_by_name": 1,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 1,
+     "matched_by_name_position": 0,
      "ranked": 429,
      "unmatched": 1
     },
@@ -2362,14 +2647,14 @@
     "above_p90": 0.08787878787878788,
     "below_p10": 0.08484848484848485,
     "coverage_p10_p90": 0.8272727272727273,
-    "mae": 3.868575757575758,
-    "mean_resid": 2.0323939393939394,
+    "mae": 3.868757575757576,
+    "mean_resid": 2.032818181818182,
     "median_resid": 0.3849999999999999,
     "n": 330,
-    "naive_mae": 4.3255202020202015,
-    "pinball_p10": 0.6529181818181818,
-    "pinball_p50": 1.934287878787879,
-    "pinball_p90": 1.210481818181818,
+    "naive_mae": 4.32570202020202,
+    "pinball_p10": 0.652960606060606,
+    "pinball_p50": 1.934378787878788,
+    "pinball_p90": 1.2104393939393938,
     "share_above_p50": 0.5242424242424243
    },
    "primary": {
@@ -2456,10 +2741,10 @@
     "match": {
      "gsis_collisions": 0,
      "match_rate": 0.9936170212765958,
-     "matched_by_id": 465,
-     "matched_by_name": 2,
+     "matched_by_id": 466,
+     "matched_by_name": 1,
      "matched_by_name_only": 1,
-     "matched_by_name_position": 1,
+     "matched_by_name_position": 0,
      "ranked": 470,
      "unmatched": 3
     },
@@ -2591,7 +2876,8 @@
   6,
   7,
   8,
-  9
+  9,
+  10
  ],
  "weeks_skipped": []
 }
