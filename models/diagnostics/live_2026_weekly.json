@@ -16,7 +16,7 @@
    "2023": "c149053c931edfe3c7c8868d08afd1a7b59740f0e239ac1c9bb354fd8b729381",
    "2024": "c8c194e514591c602def6706467a7ee7afec131e45747a5b1cf4a8197ecd310f",
    "2025": "f49532b98cb865894d88d3db6a5ff9a7aebc31dd27279a36d7c336cbd68fba69",
-   "2026": "1c048c304c97ae8e0c0ffb789f6180795051c2f9ffae967360409b953c30f1c4"
+   "2026": "67b2997e1477bd953cab00c74480af29846bdfd388fea8157f035d147d4b6866"
   },
   "archive_blobs": {
    "2026-w04-2026-09-30-220d00155877a0a7.json": "220d00155877a0a71cf83e2cbdb7553065bf4d364753ffad271d9d3bafcb7b8e",
@@ -96,10 +96,14 @@
     [
      "-inf",
      "2026-11-17T23:42:03Z"
+    ],
+    [
+     "-inf",
+     "2026-11-18T21:38:21Z"
     ]
    ],
-   "events": 363,
-   "sha256": "3e09ed0ad49a0e7419d6f581da8aef0005ca0c025257a38432c82015c95b6a5d"
+   "events": 366,
+   "sha256": "49b7b6f659fc3aa5c84bf99f083b2ff3465db2273647f984ea2ef83c9b73cb49"
   },
   "rankings_raw": "33e9d8a73c7d0e64d660e6ee21fb0b6ded4b7d4f041da7f42235d5ba28d31fb5",
   "schedules": "5b9fdc4129aa5072d27e178e60b4bf17155129ebf74fd723367492f47bbc6fd5"
@@ -439,12 +443,12 @@
   "transformer_mae_2023_25": 4.324723397524363
  },
  "run": {
-  "as_of_date": "2026-11-17",
-  "main_sha": "66a70e67e56ad7b04eba6b4e757ebfe2979d8c11",
+  "as_of_date": "2026-11-18",
+  "main_sha": "a6ad56d505f84cb1ee8376d9c4313bf5a00235a5",
   "provisional_weeks": [
    10
   ],
-  "run_at": "2026-11-17T23:42:03Z"
+  "run_at": "2026-11-18T21:38:21Z"
  },
  "season": 2026,
  "weeks": {
