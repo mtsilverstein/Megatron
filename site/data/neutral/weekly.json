@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 11,
   "data_through": "2026-wk10",
-  "generated_at": "2026-11-17T23:53:51+00:00",
-  "batch_id": "2026-11-17T23:53:51+00:00|2026-wk10|w11",
+  "generated_at": "2026-11-18T14:15:48+00:00",
+  "batch_id": "2026-11-18T14:15:48+00:00|2026-wk10|w11",
   "schema_version": 1,
   "kind": "neutral_weekly",
   "model": "transformer",
@@ -2915,6 +2915,75 @@
       }
     },
     {
+      "player_id": "00-0040735",
+      "name": "Luther Burden III",
+      "team": "CHI",
+      "opponent": "NO",
+      "position": "WR",
+      "is_home": true,
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.22857814140215016,
+          "passing_tds": -0.03374459996274504,
+          "passing_interceptions": -0.007490402265811602,
+          "carries": -0.0767965574524867,
+          "rushing_yards": -0.31114431206401605,
+          "rushing_tds": -0.0230831077776944,
+          "targets": 4.439929065510469,
+          "receptions": 2.405051328268911,
+          "receiving_yards": 23.689882042538784,
+          "receiving_tds": -0.021103294258039362,
+          "fumbles_lost": -0.03338295455157014,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": 0.05263000354170799,
+          "passing_tds": -0.006933975964784622,
+          "passing_interceptions": 0.00494022062048316,
+          "carries": 0.08642405271530151,
+          "rushing_yards": 0.10768672078847885,
+          "rushing_tds": -0.0009759019012562931,
+          "targets": 7.91010046005249,
+          "receptions": 4.891897201538086,
+          "receiving_yards": 60.03801345825195,
+          "receiving_tds": 0.020456330850720406,
+          "fumbles_lost": -0.0031873800326138735,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.33441005709764265,
+          "passing_tds": 0.02091317656985591,
+          "passing_interceptions": 0.01885492761342559,
+          "carries": 1.275756729063871,
+          "rushing_yards": 5.215072533371036,
+          "rushing_tds": 0.04779025423726297,
+          "targets": 11.850842114125008,
+          "receptions": 8.144969822907727,
+          "receiving_yards": 109.79096765009317,
+          "receiving_tds": 0.9549191910635274,
+          "fumbles_lost": 0.04397090489351793,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "points": {
+        "ppr": {
+          "p10": 4.21,
+          "p50": 10.99,
+          "p90": 25.84
+        },
+        "half_ppr": {
+          "p10": 3.01,
+          "p50": 8.55,
+          "p90": 21.77
+        },
+        "standard": {
+          "p10": 1.8,
+          "p50": 6.1,
+          "p90": 17.7
+        }
+      }
+    },
+    {
       "player_id": "00-0041496",
       "name": "Jonah Coleman",
       "team": "DEN",
@@ -3049,75 +3118,6 @@
           "p10": 1.9,
           "p50": 6.2,
           "p90": 17.35
-        }
-      }
-    },
-    {
-      "player_id": "00-0040735",
-      "name": "Luther Burden III",
-      "team": "CHI",
-      "opponent": "NO",
-      "position": "WR",
-      "is_home": true,
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.22850651098519492,
-          "passing_tds": -0.033645867284369246,
-          "passing_interceptions": -0.0073686484863937085,
-          "carries": -0.07718512682326928,
-          "rushing_yards": -0.31576973039498135,
-          "rushing_tds": -0.023000742281224174,
-          "targets": 4.4160234559562355,
-          "receptions": 2.388260637853847,
-          "receiving_yards": 23.519849363614185,
-          "receiving_tds": -0.020963727852239766,
-          "fumbles_lost": -0.033409548636244235,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": 0.05285835638642311,
-          "passing_tds": -0.006943743675947189,
-          "passing_interceptions": 0.004957891069352627,
-          "carries": 0.09148500114679337,
-          "rushing_yards": 0.11762052029371262,
-          "rushing_tds": -0.0010628551244735718,
-          "targets": 7.880723476409912,
-          "receptions": 4.87431001663208,
-          "receiving_yards": 59.75727462768555,
-          "receiving_tds": 0.020393839105963707,
-          "fumbles_lost": -0.003199288621544838,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.3313167314249279,
-          "passing_tds": 0.0207749595122756,
-          "passing_interceptions": 0.01868640902133209,
-          "carries": 1.305312391041071,
-          "rushing_yards": 5.352246633505244,
-          "rushing_tds": 0.048302593741806524,
-          "targets": 11.820773366819221,
-          "receptions": 8.123799787399907,
-          "receiving_yards": 109.45158228561775,
-          "receiving_tds": 0.9550820702859701,
-          "fumbles_lost": 0.04392046547448784,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "points": {
-        "ppr": {
-          "p10": 4.18,
-          "p50": 10.95,
-          "p90": 25.8
-        },
-        "half_ppr": {
-          "p10": 2.98,
-          "p50": 8.51,
-          "p90": 21.74
-        },
-        "standard": {
-          "p10": 1.79,
-          "p50": 6.07,
-          "p90": 17.68
         }
       }
     },
@@ -4372,45 +4372,45 @@
       "is_home": true,
       "stat_quantiles": {
         "p10": {
-          "passing_yards": -0.2520667365591098,
-          "passing_tds": -0.05479020857598947,
-          "passing_interceptions": -0.03681837928199116,
-          "carries": 10.317733120024526,
-          "rushing_yards": 34.37439864433274,
-          "rushing_tds": -0.007826446344657394,
-          "targets": 1.174032335695264,
-          "receptions": 0.6788317447793808,
-          "receiving_yards": 3.690250295877587,
-          "receiving_tds": -0.012410993126865475,
-          "fumbles_lost": -0.018326340418462112,
+          "passing_yards": -0.2519444322719365,
+          "passing_tds": -0.05478943068322262,
+          "passing_interceptions": -0.03681909923671553,
+          "carries": 10.317633063078418,
+          "rushing_yards": 34.37408285048484,
+          "rushing_tds": -0.007825339233391512,
+          "targets": 1.1737802810003086,
+          "receptions": 0.6787234112068776,
+          "receiving_yards": 3.6892546032904088,
+          "receiving_tds": -0.01241155742210546,
+          "fumbles_lost": -0.01832551074326501,
           "passing_pick_sixes": 0.0
         },
         "p50": {
-          "passing_yards": 0.04355210065841675,
-          "passing_tds": -0.004649236798286438,
-          "passing_interceptions": 0.003965435549616814,
-          "carries": 15.712447166442871,
-          "rushing_yards": 64.54705047607422,
-          "rushing_tds": 0.0036435697693377733,
-          "targets": 2.7330989837646484,
-          "receptions": 1.985291600227356,
-          "receiving_yards": 11.392756462097168,
-          "receiving_tds": -0.00036869291216135025,
-          "fumbles_lost": 0.004949360620230436,
+          "passing_yards": 0.04381652548909187,
+          "passing_tds": -0.004650546237826347,
+          "passing_interceptions": 0.003967593889683485,
+          "carries": 15.712379455566406,
+          "rushing_yards": 64.54676055908203,
+          "rushing_tds": 0.003643779782578349,
+          "targets": 2.73260498046875,
+          "receptions": 1.9849716424942017,
+          "receiving_yards": 11.389640808105469,
+          "receiving_tds": -0.0003701997920870781,
+          "fumbles_lost": 0.004950991366058588,
           "passing_pick_sixes": 0.0
         },
         "p90": {
-          "passing_yards": 0.5245787372326589,
-          "passing_tds": 0.02711968593437397,
-          "passing_interceptions": 0.020046895559253264,
-          "carries": 21.02351502761016,
-          "rushing_yards": 101.52454187883745,
-          "rushing_tds": 1.1285858072267878,
-          "targets": 4.598057299506408,
-          "receptions": 3.6763588933486204,
-          "receiving_yards": 31.09175879433633,
-          "receiving_tds": 0.2753807804731201,
-          "fumbles_lost": 0.048093872062111576,
+          "passing_yards": 0.5249374857062126,
+          "passing_tds": 0.02712355965124935,
+          "passing_interceptions": 0.020048563705333422,
+          "carries": 21.02363423028072,
+          "rushing_yards": 101.52559404074123,
+          "rushing_tds": 1.128590310307363,
+          "targets": 4.5973526056751695,
+          "receptions": 3.675897594629376,
+          "receiving_yards": 31.086025029742473,
+          "receiving_tds": 0.27530519754192717,
+          "fumbles_lost": 0.04809861940970661,
           "passing_pick_sixes": 0.0
         }
       },
@@ -4428,7 +4428,7 @@
         "standard": {
           "p10": 3.32,
           "p50": 7.58,
-          "p90": 21.93
+          "p90": 21.92
         }
       }
     },
@@ -6166,63 +6166,63 @@
       "is_home": true,
       "stat_quantiles": {
         "p10": {
-          "passing_yards": -0.13415284826457263,
-          "passing_tds": -0.02411283058837471,
-          "passing_interceptions": -0.006589249821882327,
-          "carries": -0.017492325000702753,
-          "rushing_yards": -0.05369365235636593,
-          "rushing_tds": -0.01534781483739425,
-          "targets": 3.12897948456053,
-          "receptions": 1.586252053842275,
-          "receiving_yards": 15.405446852487902,
-          "receiving_tds": -0.011446698529642377,
-          "fumbles_lost": -0.02595965628821453,
+          "passing_yards": -0.13392793182179422,
+          "passing_tds": -0.02411340580476956,
+          "passing_interceptions": -0.006601650862789369,
+          "carries": -0.01745533542873156,
+          "rushing_yards": -0.05364894723312708,
+          "rushing_tds": -0.015340302251405957,
+          "targets": 3.126294562490153,
+          "receptions": 1.58454094999935,
+          "receiving_yards": 15.387784377331563,
+          "receiving_tds": -0.011438975490075862,
+          "fumbles_lost": -0.025959485013274813,
           "passing_pick_sixes": 0.0
         },
         "p50": {
-          "passing_yards": 0.012518326751887798,
-          "passing_tds": -0.006326040718704462,
-          "passing_interceptions": -0.0016486368840560317,
-          "carries": 0.0007188885356299579,
-          "rushing_yards": -0.008312190882861614,
-          "rushing_tds": -0.00030632069683633745,
-          "targets": 5.8292083740234375,
-          "receptions": 3.727783203125,
-          "receiving_yards": 40.41383743286133,
-          "receiving_tds": 0.012995675206184387,
-          "fumbles_lost": -0.00304107996635139,
+          "passing_yards": 0.012863248586654663,
+          "passing_tds": -0.006327040959149599,
+          "passing_interceptions": -0.0016653320053592324,
+          "carries": 0.0007461129571311176,
+          "rushing_yards": -0.00821672659367323,
+          "rushing_tds": -0.00030049929046072066,
+          "targets": 5.825449466705322,
+          "receptions": 3.7254116535186768,
+          "receiving_yards": 40.381343841552734,
+          "receiving_tds": 0.012987260706722736,
+          "fumbles_lost": -0.0030438348185271025,
           "passing_pick_sixes": 0.0
         },
         "p90": {
-          "passing_yards": 0.2722206611568172,
-          "passing_tds": 0.011131734069137367,
-          "passing_interceptions": 0.0076347246111180544,
-          "carries": 0.1320432491147101,
-          "rushing_yards": 0.30051059472921615,
-          "rushing_tds": 0.02531429850341005,
-          "targets": 9.003060072368157,
-          "receptions": 6.344674709545757,
-          "receiving_yards": 77.79059083468212,
-          "receiving_tds": 0.8674209940165838,
-          "fumbles_lost": 0.02718716947412425,
+          "passing_yards": 0.2727716345050766,
+          "passing_tds": 0.011114162525667048,
+          "passing_interceptions": 0.0076304166156739295,
+          "carries": 0.1320621944716489,
+          "rushing_yards": 0.3003473821638325,
+          "rushing_tds": 0.025297247091035424,
+          "targets": 8.99861204709903,
+          "receptions": 6.341517175762029,
+          "receiving_yards": 77.74647779289774,
+          "receiving_tds": 0.8672513543956306,
+          "fumbles_lost": 0.02717376718283493,
           "passing_pick_sixes": 0.0
         }
       },
       "points": {
         "ppr": {
           "p10": 2.79,
-          "p50": 7.83,
-          "p90": 19.63
+          "p50": 7.82,
+          "p90": 19.62
         },
         "half_ppr": {
-          "p10": 2.0,
-          "p50": 5.97,
-          "p90": 16.46
+          "p10": 1.99,
+          "p50": 5.96,
+          "p90": 16.45
         },
         "standard": {
           "p10": 1.2,
           "p50": 4.1,
-          "p90": 13.29
+          "p90": 13.28
         }
       }
     },
@@ -6235,63 +6235,63 @@
       "is_home": true,
       "stat_quantiles": {
         "p10": {
-          "passing_yards": -0.16147721742215282,
-          "passing_tds": -0.02607330122514484,
-          "passing_interceptions": -0.005398055605857294,
-          "carries": -0.02473113326822385,
-          "rushing_yards": -0.05033077095437055,
-          "rushing_tds": -0.015646209353524176,
-          "targets": 2.928370729834306,
-          "receptions": 1.3143054483274312,
-          "receiving_yards": 13.126953030015557,
-          "receiving_tds": -0.015801897718521474,
-          "fumbles_lost": -0.027978415653457267,
+          "passing_yards": -0.1610159645739362,
+          "passing_tds": -0.026036110661264433,
+          "passing_interceptions": -0.005403423989334202,
+          "carries": -0.024592921413546298,
+          "rushing_yards": -0.05028995129692926,
+          "rushing_tds": -0.015608702354780901,
+          "targets": 2.9196171645293347,
+          "receptions": 1.308359133436234,
+          "receiving_yards": 13.06846390770113,
+          "receiving_tds": -0.015769725162288917,
+          "fumbles_lost": -0.027966397314084956,
           "passing_pick_sixes": 0.0
         },
         "p50": {
-          "passing_yards": 0.00722677493467927,
-          "passing_tds": -0.005428361240774393,
-          "passing_interceptions": 1.7688609659671783e-05,
-          "carries": -0.008593023754656315,
-          "rushing_yards": 0.0009883865714073181,
-          "rushing_tds": -0.0006584009970538318,
-          "targets": 5.845157623291016,
-          "receptions": 3.4948806762695312,
-          "receiving_yards": 41.99424362182617,
-          "receiving_tds": 0.01448474358767271,
-          "fumbles_lost": -0.0029302954208105803,
+          "passing_yards": 0.007650434970855713,
+          "passing_tds": -0.005420956294983625,
+          "passing_interceptions": -5.517154932022095e-06,
+          "carries": -0.008526449091732502,
+          "rushing_yards": 0.0010635977378115058,
+          "rushing_tds": -0.0006581011111848056,
+          "targets": 5.833199977874756,
+          "receptions": 3.4870758056640625,
+          "receiving_yards": 41.888916015625,
+          "receiving_tds": 0.014453683979809284,
+          "fumbles_lost": -0.0029284257907420397,
           "passing_pick_sixes": 0.0
         },
         "p90": {
-          "passing_yards": 0.2587731518423307,
-          "passing_tds": 0.013279993683066083,
-          "passing_interceptions": 0.008391405464039116,
-          "carries": 0.1707593121317654,
-          "rushing_yards": 0.40867918410313997,
-          "rushing_tds": 0.028056647404708177,
-          "targets": 9.430661029198708,
-          "receptions": 6.1966516984678055,
-          "receiving_yards": 86.75819201429672,
-          "receiving_tds": 0.9446596863880863,
-          "fumbles_lost": 0.03206351146285009,
+          "passing_yards": 0.25921828276709236,
+          "passing_tds": 0.01324555729586225,
+          "passing_interceptions": 0.00838082041858838,
+          "carries": 0.17046227558469698,
+          "rushing_yards": 0.40694191480340697,
+          "rushing_tds": 0.028007855253179975,
+          "targets": 9.417302249349216,
+          "receptions": 6.186424089964943,
+          "receiving_yards": 86.62635514807872,
+          "receiving_tds": 0.9443664765232375,
+          "fumbles_lost": 0.03200336495003475,
           "passing_pick_sixes": 0.0
         }
       },
       "points": {
         "ppr": {
-          "p10": 2.24,
-          "p50": 7.76,
-          "p90": 20.88
+          "p10": 2.23,
+          "p50": 7.74,
+          "p90": 20.85
         },
         "half_ppr": {
           "p10": 1.58,
-          "p50": 6.01,
-          "p90": 17.78
+          "p50": 6.0,
+          "p90": 17.76
         },
         "standard": {
-          "p10": 0.93,
-          "p50": 4.27,
-          "p90": 14.68
+          "p10": 0.92,
+          "p50": 4.26,
+          "p90": 14.67
         }
       }
     },
@@ -12445,63 +12445,63 @@
       "is_home": true,
       "stat_quantiles": {
         "p10": {
-          "passing_yards": -0.1749682194648967,
-          "passing_tds": -0.020831550032860302,
-          "passing_interceptions": -0.0036690354666632577,
-          "carries": -0.08335200114225216,
-          "rushing_yards": -0.3865184441659597,
-          "rushing_tds": -0.010487056554675772,
-          "targets": 1.3934577634663015,
-          "receptions": 0.441824590465977,
-          "receiving_yards": 3.9454136837152873,
-          "receiving_tds": -0.01140589931825331,
-          "fumbles_lost": -0.02204721230102108,
+          "passing_yards": -0.17489365354653996,
+          "passing_tds": -0.020794236037896874,
+          "passing_interceptions": -0.0036819513284688174,
+          "carries": -0.08355804013351875,
+          "rushing_yards": -0.3867817030447931,
+          "rushing_tds": -0.010478973510748196,
+          "targets": 1.389180271677759,
+          "receptions": 0.43964252696088124,
+          "receiving_yards": 3.9252877966908386,
+          "receiving_tds": -0.011402517299601955,
+          "fumbles_lost": -0.022039767530890153,
           "passing_pick_sixes": 0.0
         },
         "p50": {
-          "passing_yards": -0.017784932628273964,
-          "passing_tds": -0.0027615216095000505,
-          "passing_interceptions": -0.0019825769122689962,
-          "carries": 0.1552456170320511,
-          "rushing_yards": 0.18699754774570465,
-          "rushing_tds": -0.001932627521455288,
-          "targets": 3.6210899353027344,
-          "receptions": 2.2642412185668945,
-          "receiving_yards": 21.81913185119629,
-          "receiving_tds": 0.008442739024758339,
-          "fumbles_lost": -0.0012451143702492118,
+          "passing_yards": -0.018006056547164917,
+          "passing_tds": -0.0027711407747119665,
+          "passing_interceptions": -0.0019885136280208826,
+          "carries": 0.15452945232391357,
+          "rushing_yards": 0.18431317806243896,
+          "rushing_tds": -0.0019426996586844325,
+          "targets": 3.613145112991333,
+          "receptions": 2.258880376815796,
+          "receiving_yards": 21.760292053222656,
+          "receiving_tds": 0.008419880643486977,
+          "fumbles_lost": -0.001242680475115776,
           "passing_pick_sixes": 0.0
         },
         "p90": {
-          "passing_yards": 0.1933824793228122,
-          "passing_tds": 0.006182422490847475,
-          "passing_interceptions": 0.006971031991891773,
-          "carries": 1.3962062432451439,
-          "rushing_yards": 6.111245126171095,
-          "rushing_tds": 0.04016614216091039,
-          "targets": 6.703751195215421,
-          "receptions": 4.61099623341522,
-          "receiving_yards": 55.64271896422235,
-          "receiving_tds": 0.7464530822618389,
-          "fumbles_lost": 0.025495196128446435,
+          "passing_yards": 0.19228833635780362,
+          "passing_tds": 0.006163448021746754,
+          "passing_interceptions": 0.006955451105654939,
+          "carries": 1.3936719491241,
+          "rushing_yards": 6.098738338500721,
+          "rushing_tds": 0.0400323189625362,
+          "targets": 6.693060251144837,
+          "receptions": 4.6034096577285055,
+          "receiving_yards": 55.55092179244812,
+          "receiving_tds": 0.7453462619131107,
+          "fumbles_lost": 0.025445927488054545,
           "passing_pick_sixes": 0.0
         }
       },
       "points": {
         "ppr": {
           "p10": 0.51,
-          "p50": 4.5,
-          "p90": 15.59
+          "p50": 4.49,
+          "p90": 15.56
         },
         "half_ppr": {
           "p10": 0.29,
-          "p50": 3.37,
-          "p90": 13.28
+          "p50": 3.36,
+          "p90": 13.26
         },
         "standard": {
           "p10": 0.07,
           "p50": 2.23,
-          "p90": 10.98
+          "p90": 10.96
         }
       }
     },
@@ -18302,6 +18302,75 @@
       }
     },
     {
+      "player_id": "00-0036924",
+      "name": "Michael Carter",
+      "team": "TEN",
+      "opponent": "DAL",
+      "position": "RB",
+      "is_home": false,
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.09996423850961533,
+          "passing_tds": -0.02337774811350837,
+          "passing_interceptions": -0.011977128700396876,
+          "carries": 1.5882655425532453,
+          "rushing_yards": 4.726585280468913,
+          "rushing_tds": -0.010884669728123407,
+          "targets": 0.545281590369496,
+          "receptions": 0.32584707382127565,
+          "receiving_yards": 1.4484174148293847,
+          "receiving_tds": -0.008787651166965537,
+          "fumbles_lost": -0.015227451389765584,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": 0.06585224717855453,
+          "passing_tds": 0.0014803378144279122,
+          "passing_interceptions": 0.003193323267623782,
+          "carries": 3.451136827468872,
+          "rushing_yards": 12.244590759277344,
+          "rushing_tds": -0.002681504935026169,
+          "targets": 1.466313362121582,
+          "receptions": 1.022717833518982,
+          "receiving_yards": 4.5179572105407715,
+          "receiving_tds": 0.0009772494668141007,
+          "fumbles_lost": 0.0023221487645059824,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.4298086299997994,
+          "passing_tds": 0.010952466509468989,
+          "passing_interceptions": 0.010036531293121292,
+          "carries": 7.837822090640202,
+          "rushing_yards": 35.99159629125222,
+          "rushing_tds": 0.3299360023379263,
+          "targets": 3.2336829921589327,
+          "receptions": 2.631153817765238,
+          "receiving_yards": 20.17327715019843,
+          "receiving_tds": 0.17413615962854667,
+          "fumbles_lost": 0.024267313110765576,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "points": {
+        "ppr": {
+          "p10": 0.66,
+          "p50": 2.69,
+          "p90": 11.39
+        },
+        "half_ppr": {
+          "p10": 0.5,
+          "p50": 2.17,
+          "p90": 10.07
+        },
+        "standard": {
+          "p10": 0.33,
+          "p50": 1.66,
+          "p90": 8.76
+        }
+      }
+    },
+    {
       "player_id": "00-0039356",
       "name": "Ja'Tavion Sanders",
       "team": "CAR",
@@ -22097,75 +22166,6 @@
       }
     },
     {
-      "player_id": "00-0038647",
-      "name": "Ronnie Bell",
-      "team": "LV",
-      "opponent": "DEN",
-      "position": "WR",
-      "is_home": false,
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.22455733391940624,
-          "passing_tds": -0.017242263208663566,
-          "passing_interceptions": -0.007274420858239067,
-          "carries": -0.030882714899002073,
-          "rushing_yards": -0.07289480673226811,
-          "rushing_tds": -0.010397857250796144,
-          "targets": 0.49429589548253716,
-          "receptions": 0.10950761315275948,
-          "receiving_yards": 1.1716294538909438,
-          "receiving_tds": -0.01123172382942067,
-          "fumbles_lost": -0.01760494596113793,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": -0.048066962510347366,
-          "passing_tds": -0.003346208482980728,
-          "passing_interceptions": -0.0013713232474401593,
-          "carries": -0.0048162974417209625,
-          "rushing_yards": -0.014214233495295048,
-          "rushing_tds": -0.0014822209486737847,
-          "targets": 1.6826130151748657,
-          "receptions": 0.9124237895011902,
-          "receiving_yards": 8.557175636291504,
-          "receiving_tds": 0.0038289495278149843,
-          "fumbles_lost": -0.0007703441078774631,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.19506282607190992,
-          "passing_tds": 0.007219673410270612,
-          "passing_interceptions": 0.005918680003619351,
-          "carries": 0.04349784208122916,
-          "rushing_yards": 0.10136244708744485,
-          "rushing_tds": 0.017271690835649233,
-          "targets": 4.008957089268112,
-          "receptions": 2.6450679599496345,
-          "receiving_yards": 34.07565479887908,
-          "receiving_tds": 0.3562109826072506,
-          "fumbles_lost": 0.01615450871312131,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "points": {
-        "ppr": {
-          "p10": -0.03,
-          "p50": 1.77,
-          "p90": 8.39
-        },
-        "half_ppr": {
-          "p10": -0.09,
-          "p50": 1.31,
-          "p90": 7.07
-        },
-        "standard": {
-          "p10": -0.14,
-          "p50": 0.86,
-          "p90": 5.75
-        }
-      }
-    },
-    {
       "player_id": "00-0041550",
       "name": "Brenen Thompson",
       "team": "LAC",
@@ -22507,6 +22507,75 @@
           "p10": -0.14,
           "p50": 0.81,
           "p90": 5.56
+        }
+      }
+    },
+    {
+      "player_id": "00-0038647",
+      "name": "Ronnie Bell",
+      "team": "ARI",
+      "opponent": "KC",
+      "position": "WR",
+      "is_home": false,
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.22905502003965061,
+          "passing_tds": -0.01721252404479834,
+          "passing_interceptions": -0.007416473690093961,
+          "carries": -0.030598808199870986,
+          "rushing_yards": -0.0719571083759103,
+          "rushing_tds": -0.010491782558504248,
+          "targets": 0.4718744420223757,
+          "receptions": 0.10449050839737772,
+          "receiving_yards": 1.117838386209371,
+          "receiving_tds": -0.011295362635177497,
+          "fumbles_lost": -0.017495610508574733,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": -0.05257147550582886,
+          "passing_tds": -0.003339828224852681,
+          "passing_interceptions": -0.0011980115668848157,
+          "carries": -0.004317393992096186,
+          "rushing_yards": -0.013759166933596134,
+          "rushing_tds": -0.0016151219606399536,
+          "targets": 1.627567172050476,
+          "receptions": 0.8811108469963074,
+          "receiving_yards": 8.176054954528809,
+          "receiving_tds": 0.003680358873680234,
+          "fumbles_lost": -0.0008208295330405235,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.19305935369050775,
+          "passing_tds": 0.0072109584782568854,
+          "passing_interceptions": 0.005883886227574818,
+          "carries": 0.044276551803281876,
+          "rushing_yards": 0.1040101364422249,
+          "rushing_tds": 0.017267521923118194,
+          "targets": 3.916219125686737,
+          "receptions": 2.591098974936564,
+          "receiving_yards": 33.2079425481712,
+          "receiving_tds": 0.3436349780587893,
+          "fumbles_lost": 0.016070126550554894,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "points": {
+        "ppr": {
+          "p10": -0.04,
+          "p50": 1.7,
+          "p90": 8.17
+        },
+        "half_ppr": {
+          "p10": -0.1,
+          "p50": 1.26,
+          "p90": 6.88
+        },
+        "standard": {
+          "p10": -0.15,
+          "p50": 0.82,
+          "p90": 5.58
         }
       }
     },
@@ -24857,6 +24926,75 @@
       }
     },
     {
+      "player_id": "00-0039379",
+      "name": "Jamari Thrash",
+      "team": "TEN",
+      "opponent": "DAL",
+      "position": "WR",
+      "is_home": false,
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.24151014108114222,
+          "passing_tds": -0.01736487817965776,
+          "passing_interceptions": -0.008268547395037407,
+          "carries": -0.030105058727773526,
+          "rushing_yards": -0.06818119847079762,
+          "rushing_tds": -0.010682404926355749,
+          "targets": 0.32561178729304885,
+          "receptions": 0.08081429962949294,
+          "receiving_yards": 0.785539777064912,
+          "receiving_tds": -0.011423805201959847,
+          "fumbles_lost": -0.017379629884245462,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": -0.06576896458864212,
+          "passing_tds": -0.0026819489430636168,
+          "passing_interceptions": -0.0010096007026731968,
+          "carries": -0.0032087918370962143,
+          "rushing_yards": -0.021756762638688087,
+          "rushing_tds": -0.0013887746026739478,
+          "targets": 1.3240272998809814,
+          "receptions": 0.7194042205810547,
+          "receiving_yards": 5.689353942871094,
+          "receiving_tds": 0.0025533379521220922,
+          "fumbles_lost": -0.0026538607198745012,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.22638969589515467,
+          "passing_tds": 0.007178768322348868,
+          "passing_interceptions": 0.00575914812502975,
+          "carries": 0.06662096932678845,
+          "rushing_yards": 0.10719518108844889,
+          "rushing_tds": 0.0175268764927788,
+          "targets": 3.46176326326112,
+          "receptions": 2.371701293608659,
+          "receiving_yards": 28.394245608199135,
+          "receiving_tds": 0.25787817552741155,
+          "fumbles_lost": 0.015769207108184777,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "points": {
+        "ppr": {
+          "p10": -0.1,
+          "p50": 1.29,
+          "p90": 6.96
+        },
+        "half_ppr": {
+          "p10": -0.14,
+          "p50": 0.93,
+          "p90": 5.78
+        },
+        "standard": {
+          "p10": -0.18,
+          "p50": 0.57,
+          "p90": 4.59
+        }
+      }
+    },
+    {
       "player_id": "00-0041084",
       "name": "Tanner Koziol",
       "team": "JAX",
@@ -26314,45 +26452,45 @@
       "is_home": true,
       "stat_quantiles": {
         "p10": {
-          "passing_yards": -0.2036376807418866,
-          "passing_tds": -0.016105692292658395,
-          "passing_interceptions": -0.008435099716576114,
-          "carries": -0.02729102601133955,
-          "rushing_yards": -0.057816457313310844,
-          "rushing_tds": -0.010864845202195767,
-          "targets": 0.34125752122945874,
-          "receptions": 0.12453566656701143,
-          "receiving_yards": 0.9470001018749676,
-          "receiving_tds": -0.009851714785708678,
-          "fumbles_lost": -0.01699611329956084,
+          "passing_yards": -0.20363840140212494,
+          "passing_tds": -0.016107237027616066,
+          "passing_interceptions": -0.00843483667487877,
+          "carries": -0.027307895909542104,
+          "rushing_yards": -0.05784329687944219,
+          "rushing_tds": -0.010864687604906519,
+          "targets": 0.34071724448387397,
+          "receptions": 0.1244107073639441,
+          "receiving_yards": 0.9455087640128306,
+          "receiving_tds": -0.009848810574686121,
+          "fumbles_lost": -0.016997646625088264,
           "passing_pick_sixes": 0.0
         },
         "p50": {
-          "passing_yards": -0.04763663932681084,
-          "passing_tds": -0.0029441211372613907,
-          "passing_interceptions": 0.00048068477190099657,
-          "carries": -0.004978865385055542,
-          "rushing_yards": -0.014641893096268177,
-          "rushing_tds": -0.001848757266998291,
-          "targets": 1.1383914947509766,
-          "receptions": 0.6828507781028748,
-          "receiving_yards": 4.5664544105529785,
-          "receiving_tds": 0.0019629544112831354,
-          "fumbles_lost": -0.0024323759134858847,
+          "passing_yards": -0.04758204147219658,
+          "passing_tds": -0.0029453374445438385,
+          "passing_interceptions": 0.00048771253204904497,
+          "carries": -0.004949135705828667,
+          "rushing_yards": -0.014689594507217407,
+          "rushing_tds": -0.0018481798470020294,
+          "targets": 1.1372352838516235,
+          "receptions": 0.682195246219635,
+          "receiving_yards": 4.558126926422119,
+          "receiving_tds": 0.0019594423938542604,
+          "fumbles_lost": -0.0024316860362887383,
           "passing_pick_sixes": 0.0
         },
         "p90": {
-          "passing_yards": 0.25484700590046305,
-          "passing_tds": 0.007455507394013766,
-          "passing_interceptions": 0.005297410428514809,
-          "carries": 0.053746934278083414,
-          "rushing_yards": 0.13885826394175904,
-          "rushing_tds": 0.017384815391266573,
-          "targets": 2.884254211598737,
-          "receptions": 2.106958740231356,
-          "receiving_yards": 22.65164043566108,
-          "receiving_tds": 0.2371645741123638,
-          "fumbles_lost": 0.01563967589679499,
+          "passing_yards": 0.25497017829832647,
+          "passing_tds": 0.007452613610071407,
+          "passing_interceptions": 0.005300027127655316,
+          "carries": 0.053721368705735406,
+          "rushing_yards": 0.13881360716558522,
+          "rushing_tds": 0.017382684842832785,
+          "targets": 2.882490760003563,
+          "receptions": 2.105929233516626,
+          "receiving_yards": 22.634715277648752,
+          "receiving_tds": 0.23688955093377118,
+          "fumbles_lost": 0.01564080636777454,
           "passing_pick_sixes": 0.0
         }
       },
@@ -26370,7 +26508,7 @@
         "standard": {
           "p10": -0.15,
           "p50": 0.45,
-          "p90": 3.9
+          "p90": 3.89
         }
       }
     },
@@ -26440,6 +26578,75 @@
           "p10": -0.2,
           "p50": 0.45,
           "p90": 3.98
+        }
+      }
+    },
+    {
+      "player_id": "00-0037306",
+      "name": "John FitzPatrick",
+      "team": "KC",
+      "opponent": "ARI",
+      "position": "TE",
+      "is_home": true,
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.21868646855968032,
+          "passing_tds": -0.015625768669002088,
+          "passing_interceptions": -0.008611003242316687,
+          "carries": -0.023482165955563537,
+          "rushing_yards": -0.047132911399515705,
+          "rushing_tds": -0.01133672367079364,
+          "targets": 0.3267520335032147,
+          "receptions": 0.12274105944305536,
+          "receiving_yards": 0.8560334002930512,
+          "receiving_tds": -0.009856390712482928,
+          "fumbles_lost": -0.01729087789651457,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": -0.05438655614852905,
+          "passing_tds": -0.003153206082060933,
+          "passing_interceptions": -0.00010439505422255024,
+          "carries": -0.0025714077055454254,
+          "rushing_yards": -0.010685262270271778,
+          "rushing_tds": -0.0019451180705800653,
+          "targets": 1.061742901802063,
+          "receptions": 0.6706660389900208,
+          "receiving_yards": 4.189394474029541,
+          "receiving_tds": 0.0014896077336743474,
+          "fumbles_lost": -0.0023176090326160192,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.24179888732153643,
+          "passing_tds": 0.008075395259504514,
+          "passing_interceptions": 0.0048638410701108276,
+          "carries": 0.05549051519988302,
+          "rushing_yards": 0.13632674293096292,
+          "rushing_tds": 0.01776667010229771,
+          "targets": 2.674201713968472,
+          "receptions": 2.018754623235452,
+          "receiving_yards": 20.26538235546826,
+          "receiving_tds": 0.2339199306013775,
+          "fumbles_lost": 0.016102592372932434,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "points": {
+        "ppr": {
+          "p10": -0.04,
+          "p50": 1.08,
+          "p90": 5.66
+        },
+        "half_ppr": {
+          "p10": -0.1,
+          "p50": 0.74,
+          "p90": 4.65
+        },
+        "standard": {
+          "p10": -0.16,
+          "p50": 0.41,
+          "p90": 3.64
         }
       }
     },
@@ -31627,45 +31834,45 @@
       "is_home": true,
       "stat_quantiles": {
         "p10": {
-          "passing_yards": -0.2177780065734094,
-          "passing_tds": -0.01829243538033337,
-          "passing_interceptions": -0.010098821842843081,
-          "carries": -0.03417432833380729,
-          "rushing_yards": -0.10038351582576688,
-          "rushing_tds": -0.011646693491904697,
-          "targets": 0.03952058935551683,
-          "receptions": 0.008416836710247289,
-          "receiving_yards": 0.14872341153592572,
-          "receiving_tds": -0.01238137709215184,
-          "fumbles_lost": -0.017092105855999462,
+          "passing_yards": -0.21803319281336053,
+          "passing_tds": -0.018296305657514833,
+          "passing_interceptions": -0.010105861121518706,
+          "carries": -0.03415103019518384,
+          "rushing_yards": -0.10018169098709873,
+          "rushing_tds": -0.011651212778286957,
+          "targets": 0.03886336714475469,
+          "receptions": 0.008232047316302449,
+          "receiving_yards": 0.14723008313838548,
+          "receiving_tds": -0.012382790009179412,
+          "fumbles_lost": -0.017101550060761916,
           "passing_pick_sixes": 0.0
         },
         "p50": {
-          "passing_yards": -0.0437752790749073,
-          "passing_tds": -0.001886976882815361,
-          "passing_interceptions": 0.0027222242206335068,
-          "carries": 0.012655332684516907,
-          "rushing_yards": -0.01916581392288208,
-          "rushing_tds": -0.0023929066956043243,
-          "targets": 0.6097633838653564,
-          "receptions": 0.26793351769447327,
-          "receiving_yards": 1.1604026556015015,
-          "receiving_tds": 0.0008973106741905212,
-          "fumbles_lost": -0.0025852129328995943,
+          "passing_yards": -0.044224947690963745,
+          "passing_tds": -0.0018909741193056107,
+          "passing_interceptions": 0.0027295618783682585,
+          "carries": 0.012578509747982025,
+          "rushing_yards": -0.01917296089231968,
+          "rushing_tds": -0.002388599095866084,
+          "targets": 0.6075794100761414,
+          "receptions": 0.2666005790233612,
+          "receiving_yards": 1.1487818956375122,
+          "receiving_tds": 0.0008906321600079536,
+          "fumbles_lost": -0.002585548209026456,
           "passing_pick_sixes": 0.0
         },
         "p90": {
-          "passing_yards": 0.29262106609497956,
-          "passing_tds": 0.00705203432367477,
-          "passing_interceptions": 0.0065133724746800886,
-          "carries": 0.3213287012746317,
-          "rushing_yards": 0.9817629941516048,
-          "rushing_tds": 0.016952949294816826,
-          "targets": 2.3755276960351512,
-          "receptions": 1.6544555195302404,
-          "receiving_yards": 19.042214766007152,
-          "receiving_tds": 0.09103379441612952,
-          "fumbles_lost": 0.015289129105670565,
+          "passing_yards": 0.2920951489246992,
+          "passing_tds": 0.007054056669665496,
+          "passing_interceptions": 0.006509310982728729,
+          "carries": 0.32083561698787233,
+          "rushing_yards": 0.9789450682140789,
+          "rushing_tds": 0.016948995921263286,
+          "targets": 2.371747735830647,
+          "receptions": 1.6519117988139917,
+          "receiving_yards": 19.009493649239115,
+          "receiving_tds": 0.09063763814024517,
+          "fumbles_lost": 0.015295112213186295,
           "passing_pick_sixes": 0.0
         }
       },
@@ -31673,16 +31880,16 @@
         "ppr": {
           "p10": -0.26,
           "p50": 0.36,
-          "p90": 4.4
+          "p90": 4.39
         },
         "half_ppr": {
           "p10": -0.26,
           "p50": 0.23,
-          "p90": 3.57
+          "p90": 3.56
         },
         "standard": {
-          "p10": -0.26,
-          "p50": 0.1,
+          "p10": -0.27,
+          "p50": 0.09,
           "p90": 2.74
         }
       }
