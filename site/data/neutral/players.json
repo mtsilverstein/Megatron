@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 11,
   "data_through": "2026-wk10",
-  "generated_at": "2026-11-18T14:15:48+00:00",
-  "batch_id": "2026-11-18T14:15:48+00:00|2026-wk10|w11",
+  "generated_at": "2026-11-18T23:26:49+00:00",
+  "batch_id": "2026-11-18T23:26:49+00:00|2026-wk10|w11",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,8 +13,8 @@
   },
   "crosswalk": {
     "matched_gsis": 135,
-    "matched_crosswalk": 525,
-    "matched_name": 9,
+    "matched_crosswalk": 524,
+    "matched_name": 8,
     "unmatched": 1
   },
   "players": [
@@ -1754,8 +1754,8 @@
       "position": "WR",
       "bye": 14,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "crosswalk"
     },
     {
@@ -3931,18 +3931,6 @@
       "match": "crosswalk"
     },
     {
-      "player_id": "00-0038396",
-      "sleeper_id": "10223",
-      "name": "Eric Gray",
-      "team": "NYG",
-      "position": "RB",
-      "bye": 8,
-      "ecr": null,
-      "identity_only": false,
-      "reason": null,
-      "match": "crosswalk"
-    },
-    {
       "player_id": "00-0038397",
       "sleeper_id": "9220",
       "name": "Evan Hull",
@@ -4430,8 +4418,8 @@
       "position": "QB",
       "bye": 11,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "crosswalk"
     },
     {
@@ -5332,18 +5320,6 @@
       "ecr": 168,
       "identity_only": false,
       "reason": null,
-      "match": "crosswalk"
-    },
-    {
-      "player_id": "00-0039386",
-      "sleeper_id": "11748",
-      "name": "Bub Means",
-      "team": "KC",
-      "position": null,
-      "bye": 5,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
       "match": "crosswalk"
     },
     {
@@ -7094,8 +7070,8 @@
       "position": "WR",
       "bye": 10,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "name"
     },
     {
@@ -8299,18 +8275,6 @@
       "match": "crosswalk"
     },
     {
-      "player_id": "00-0040967",
-      "sleeper_id": "13904",
-      "name": "Jacob De Jesus",
-      "team": "KC",
-      "position": "WR",
-      "bye": 5,
-      "ecr": null,
-      "identity_only": false,
-      "reason": null,
-      "match": "name"
-    },
-    {
       "player_id": "00-0040970",
       "sleeper_id": null,
       "name": null,
@@ -8822,8 +8786,8 @@
       "position": "TE",
       "bye": 11,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "crosswalk"
     },
     {
