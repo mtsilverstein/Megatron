@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 11,
   "data_through": "2026-wk10",
-  "generated_at": "2026-11-18T23:26:49+00:00",
-  "batch_id": "2026-11-18T23:26:49+00:00|2026-wk10|w11",
+  "generated_at": "2026-11-19T14:31:25+00:00",
+  "batch_id": "2026-11-19T14:31:25+00:00|2026-wk10|w11",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,7 +13,7 @@
   },
   "crosswalk": {
     "matched_gsis": 135,
-    "matched_crosswalk": 524,
+    "matched_crosswalk": 526,
     "matched_name": 8,
     "unmatched": 1
   },
@@ -2275,6 +2275,18 @@
       "match": "crosswalk"
     },
     {
+      "player_id": "00-0036620",
+      "sleeper_id": "7612",
+      "name": "Dee Eskridge",
+      "team": "MIN",
+      "position": "WR",
+      "bye": 6,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "crosswalk"
+    },
+    {
       "player_id": "00-0036626",
       "sleeper_id": "7587",
       "name": "Dyami Brown",
@@ -4243,6 +4255,18 @@
       "match": "crosswalk"
     },
     {
+      "player_id": "00-0038576",
+      "sleeper_id": "10228",
+      "name": "Charlie Jones",
+      "team": "NYG",
+      "position": "WR",
+      "bye": 8,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "crosswalk"
+    },
+    {
       "player_id": "00-0038579",
       "sleeper_id": "10866",
       "name": "Aidan O'Connell",
@@ -5320,6 +5344,18 @@
       "ecr": 168,
       "identity_only": false,
       "reason": null,
+      "match": "crosswalk"
+    },
+    {
+      "player_id": "00-0039386",
+      "sleeper_id": "11748",
+      "name": "Bub Means",
+      "team": "ARI",
+      "position": null,
+      "bye": 14,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "no_projection",
       "match": "crosswalk"
     },
     {
