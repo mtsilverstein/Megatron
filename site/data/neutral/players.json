@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 11,
   "data_through": "2026-wk10",
-  "generated_at": "2026-11-19T14:31:25+00:00",
-  "batch_id": "2026-11-19T14:31:25+00:00|2026-wk10|w11",
+  "generated_at": "2026-11-19T23:39:03+00:00",
+  "batch_id": "2026-11-19T23:39:03+00:00|2026-wk10|w11",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,7 +13,7 @@
   },
   "crosswalk": {
     "matched_gsis": 135,
-    "matched_crosswalk": 526,
+    "matched_crosswalk": 524,
     "matched_name": 8,
     "unmatched": 1
   },
@@ -1747,18 +1747,6 @@
       "match": "crosswalk"
     },
     {
-      "player_id": "00-0036133",
-      "sleeper_id": "6957",
-      "name": "James Proche II",
-      "team": "ARI",
-      "position": "WR",
-      "bye": 14,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "crosswalk"
-    },
-    {
       "player_id": "00-0036139",
       "sleeper_id": "7021",
       "name": "Rico Dowdle",
@@ -1778,18 +1766,6 @@
       "position": "RB",
       "bye": 10,
       "ecr": 102,
-      "identity_only": false,
-      "reason": null,
-      "match": "crosswalk"
-    },
-    {
-      "player_id": "00-0036165",
-      "sleeper_id": "6920",
-      "name": "Isaiah Hodgins",
-      "team": "PIT",
-      "position": "WR",
-      "bye": 9,
-      "ecr": null,
       "identity_only": false,
       "reason": null,
       "match": "crosswalk"
@@ -8822,8 +8798,8 @@
       "position": "TE",
       "bye": 11,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
