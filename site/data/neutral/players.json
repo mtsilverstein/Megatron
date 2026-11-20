@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 11,
   "data_through": "2026-wk10",
-  "generated_at": "2026-11-20T14:09:18+00:00",
-  "batch_id": "2026-11-20T14:09:18+00:00|2026-wk10|w11",
+  "generated_at": "2026-11-20T23:11:09+00:00",
+  "batch_id": "2026-11-20T23:11:09+00:00|2026-wk10|w11",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,7 +13,7 @@
   },
   "crosswalk": {
     "matched_gsis": 135,
-    "matched_crosswalk": 524,
+    "matched_crosswalk": 525,
     "matched_name": 8,
     "unmatched": 1
   },
@@ -1975,6 +1975,18 @@
       "match": "crosswalk"
     },
     {
+      "player_id": "00-0036332",
+      "sleeper_id": "7050",
+      "name": "Josiah Deguara",
+      "team": "LAC",
+      "position": "TE",
+      "bye": 7,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "crosswalk"
+    },
+    {
       "player_id": "00-0036345",
       "sleeper_id": "7066",
       "name": "K.J. Osborn",
@@ -2389,18 +2401,6 @@
       "team": "DEN",
       "position": "RB",
       "bye": 10,
-      "ecr": null,
-      "identity_only": false,
-      "reason": null,
-      "match": "crosswalk"
-    },
-    {
-      "player_id": "00-0036775",
-      "sleeper_id": "7865",
-      "name": "Brandon Smith",
-      "team": "PIT",
-      "position": "WR",
-      "bye": 9,
       "ecr": null,
       "identity_only": false,
       "reason": null,
@@ -3722,8 +3722,8 @@
       "position": "RB",
       "bye": 11,
       "ecr": 512,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "crosswalk"
     },
     {
@@ -3997,6 +3997,18 @@
       "team": "LV",
       "position": "RB",
       "bye": 13,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "crosswalk"
+    },
+    {
+      "player_id": "00-0038465",
+      "sleeper_id": "11210",
+      "name": "Malik Heath",
+      "team": "WAS",
+      "position": "WR",
+      "bye": 7,
       "ecr": null,
       "identity_only": false,
       "reason": null,
@@ -9357,7 +9369,7 @@
     {
       "player_id": "00-0041376",
       "sleeper_id": "13603",
-      "name": "Gregory Desrosiers",
+      "name": "Gregory Desrosiers Jr.",
       "team": "NYG",
       "position": "RB",
       "bye": 8,
