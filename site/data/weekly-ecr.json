@@ -4,9 +4,9 @@
   "rank_scope": "position",
   "season": 2026,
   "week": 11,
-  "snapshot_at": "2026-11-23",
+  "snapshot_at": "2026-11-24",
   "snapshot_precision": "date",
-  "retrieved_at": "2026-11-23T16:13:39.046068+00:00",
+  "retrieved_at": "2026-11-24T03:25:51.189302+00:00",
   "source": "FantasyPros via DynastyProcess/nflverse free weekly mirror",
   "source_url": "https://github.com/dynastyprocess/data/blob/master/files/fp_latest_weekly.csv",
   "period_attribution": "inferred_from_schedule_opponents",
@@ -228,13 +228,6 @@
       "position": "QB",
       "team": "MIN",
       "ecr": 34.1
-    },
-    {
-      "player_id": "00-0041117",
-      "name": "Athan Kaliakmanis",
-      "position": "QB",
-      "team": "WAS",
-      "ecr": 33.33
     },
     {
       "player_id": "00-0040981",
@@ -949,13 +942,6 @@
       "position": "RB",
       "team": "PIT",
       "ecr": 76.55
-    },
-    {
-      "player_id": "00-0041178",
-      "name": "Robert Henry",
-      "position": "RB",
-      "team": "WAS",
-      "ecr": 76.72
     },
     {
       "player_id": "00-0037594",
@@ -2617,13 +2603,6 @@
       "ecr": 67.75
     },
     {
-      "player_id": "00-0039631",
-      "name": "Cam Grandy",
-      "position": "TE",
-      "team": "CIN",
-      "ecr": 75.22
-    },
-    {
       "player_id": "00-0041579",
       "name": "Seydou Traore",
       "position": "TE",
@@ -2772,7 +2751,7 @@
     }
   ],
   "coverage": {
-    "matched": 394,
+    "matched": 391,
     "unmatched": [
       {
         "name": "Nate Carter",
