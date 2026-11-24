@@ -1,9 +1,9 @@
 {
   "season": 2026,
-  "week": 11,
-  "data_through": "2026-wk10",
-  "generated_at": "2026-11-24T03:23:20+00:00",
-  "batch_id": "2026-11-24T03:23:20+00:00|2026-wk10|w11",
+  "week": 12,
+  "data_through": "2026-wk11",
+  "generated_at": "2026-11-24T15:59:54+00:00",
+  "batch_id": "2026-11-24T15:59:54+00:00|2026-wk11|w12",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,8 +13,8 @@
   },
   "crosswalk": {
     "matched_gsis": 133,
-    "matched_crosswalk": 526,
-    "matched_name": 8,
+    "matched_crosswalk": 528,
+    "matched_name": 9,
     "unmatched": 1
   },
   "players": [
@@ -1883,11 +1883,11 @@
       "sleeper_id": "6927",
       "name": "Quez Watkins",
       "team": "IND",
-      "position": null,
+      "position": "WR",
       "bye": 13,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -3275,11 +3275,11 @@
       "sleeper_id": "8194",
       "name": "Jashaun Corbin",
       "team": "DAL",
-      "position": null,
+      "position": "RB",
       "bye": 14,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -7508,15 +7508,15 @@
     },
     {
       "player_id": "00-0040618",
-      "sleeper_id": null,
-      "name": null,
+      "sleeper_id": "13200",
+      "name": "Max Hurleman",
       "team": "PIT",
-      "position": null,
+      "position": "WR",
       "bye": 9,
       "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
+      "identity_only": false,
+      "reason": null,
+      "match": "name"
     },
     {
       "player_id": "00-0040621",
