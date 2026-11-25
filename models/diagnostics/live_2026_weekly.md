@@ -1,8 +1,8 @@
 # Live weekly accuracy — 2026
 
-Through weeks 1, 2, 3, 4, 5, 6, 7, 8, 9, 10: MAE 4.32 vs naive 4.62; p10–p90 coverage 79.7% (below 9.1%, above 11.2%).
+Through weeks 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11: MAE 4.29 vs naive 4.61; p10–p90 coverage 80.1% (below 8.9%, above 11.0%).
 
-Provisional: weeks 10
+Provisional: weeks 11
 
 | week | last game | n | MAE | naive MAE | coverage | below | above | ours / consensus (archive) | ours / consensus (nflverse) |
 |---|---|---|---|---|---|---|---|---|---|
@@ -16,6 +16,7 @@ Provisional: weeks 10
 | 8 | 2026-11-02 | 303 | 4.51 | 4.65 | 78.9% | 11.6% | 9.6% | 0.518 / 0.542 | 0.624 / 0.645 |
 | 9 | 2026-11-09 | 330 | 3.87 | 4.33 | 82.7% | 8.5% | 8.8% | 0.627 / 0.623 | 0.675 / 0.676 |
 | 10 | 2026-11-16 | 310 | 4.71 | 4.88 | 76.5% | 9.0% | 14.5% | 0.558 / 0.588 | 0.633 / 0.662 |
+| 11 | 2026-11-23 | 296 | 3.96 | 4.44 | 84.1% | 7.1% | 8.8% | 0.560 / 0.566 | 0.640 / 0.641 |
 
 - Projections = the bot pipeline's latest publication on main before K_N 00:00 UTC, proven by GitHub push records; Vercel deployment is not verified.
 - Players who recorded no stat line (including on-field weeks with no recorded stat) are outside the estimand.
