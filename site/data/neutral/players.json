@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 12,
   "data_through": "2026-wk11",
-  "generated_at": "2026-11-25T01:29:23+00:00",
-  "batch_id": "2026-11-25T01:29:23+00:00|2026-wk11|w12",
+  "generated_at": "2026-11-25T15:47:17+00:00",
+  "batch_id": "2026-11-25T15:47:17+00:00|2026-wk11|w12",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,7 +13,7 @@
   },
   "crosswalk": {
     "matched_gsis": 133,
-    "matched_crosswalk": 529,
+    "matched_crosswalk": 528,
     "matched_name": 9,
     "unmatched": 1
   },
@@ -1711,6 +1711,18 @@
       "match": "crosswalk"
     },
     {
+      "player_id": "00-0036032",
+      "sleeper_id": "6964",
+      "name": "Sean McKeon",
+      "team": "IND",
+      "position": null,
+      "bye": 13,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "no_projection",
+      "match": "crosswalk"
+    },
+    {
       "player_id": "00-0036040",
       "sleeper_id": "7002",
       "name": "Juwan Johnson",
@@ -1840,6 +1852,18 @@
       "ecr": 172,
       "identity_only": false,
       "reason": null,
+      "match": "crosswalk"
+    },
+    {
+      "player_id": "00-0036261",
+      "sleeper_id": "6803",
+      "name": "Brandon Aiyuk",
+      "team": "SF",
+      "position": null,
+      "bye": 8,
+      "ecr": 317,
+      "identity_only": true,
+      "reason": "no_projection",
       "match": "crosswalk"
     },
     {
@@ -2314,12 +2338,12 @@
       "player_id": "00-0036679",
       "sleeper_id": "8002",
       "name": "Shane Buechele",
-      "team": "BUF",
+      "team": "IND",
       "position": "QB",
-      "bye": 7,
+      "bye": 13,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -2365,6 +2389,18 @@
       "team": "DEN",
       "position": "RB",
       "bye": 10,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "crosswalk"
+    },
+    {
+      "player_id": "00-0036775",
+      "sleeper_id": "7865",
+      "name": "Brandon Smith",
+      "team": "PIT",
+      "position": "WR",
+      "bye": 9,
       "ecr": null,
       "identity_only": false,
       "reason": null,
@@ -2937,13 +2973,13 @@
     {
       "player_id": "00-0037231",
       "sleeper_id": "8200",
-      "name": "Kevin Austin",
+      "name": "Kevin Austin Jr.",
       "team": "NO",
       "position": "WR",
       "bye": 8,
       "ecr": 534,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -4406,8 +4442,8 @@
       "position": "QB",
       "bye": 11,
       "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
+      "identity_only": false,
+      "reason": null,
       "match": "crosswalk"
     },
     {
@@ -5071,6 +5107,18 @@
       "match": "crosswalk"
     },
     {
+      "player_id": "00-0039231",
+      "sleeper_id": null,
+      "name": null,
+      "team": "NO",
+      "position": null,
+      "bye": 8,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "no_projection",
+      "match": null
+    },
+    {
       "player_id": "00-0039236",
       "sleeper_id": "11636",
       "name": "Johnny Wilson",
@@ -5455,6 +5503,18 @@
       "match": "crosswalk"
     },
     {
+      "player_id": "00-0039466",
+      "sleeper_id": "12036",
+      "name": "Ian Wheeler",
+      "team": "LAC",
+      "position": null,
+      "bye": 7,
+      "ecr": null,
+      "identity_only": true,
+      "reason": "no_projection",
+      "match": "crosswalk"
+    },
+    {
       "player_id": "00-0039471",
       "sleeper_id": "11573",
       "name": "Frank Gore Jr.",
@@ -5537,18 +5597,6 @@
       "identity_only": true,
       "reason": "no_projection",
       "match": null
-    },
-    {
-      "player_id": "00-0039577",
-      "sleeper_id": "11648",
-      "name": "Kedon Slovis",
-      "team": "BAL",
-      "position": "QB",
-      "bye": 13,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "team_disagrees",
-      "match": "crosswalk"
     },
     {
       "player_id": "00-0039589",
@@ -6283,18 +6331,6 @@
       "match": "crosswalk"
     },
     {
-      "player_id": "00-0040075",
-      "sleeper_id": "12699",
-      "name": "LaJohntay Wester",
-      "team": "BAL",
-      "position": "WR",
-      "bye": 13,
-      "ecr": null,
-      "identity_only": false,
-      "reason": null,
-      "match": "crosswalk"
-    },
-    {
       "player_id": "00-0040078",
       "sleeper_id": "12455",
       "name": "Brashard Smith",
@@ -6917,18 +6953,6 @@
       "identity_only": true,
       "reason": "no_projection",
       "match": null
-    },
-    {
-      "player_id": "00-0040311",
-      "sleeper_id": "12860",
-      "name": "Theo Wease Jr.",
-      "team": "LAC",
-      "position": "WR",
-      "bye": 7,
-      "ecr": 495,
-      "identity_only": false,
-      "reason": null,
-      "match": "crosswalk"
     },
     {
       "player_id": "00-0040323",
@@ -8270,6 +8294,18 @@
       "position": "RB",
       "bye": 5,
       "ecr": 490,
+      "identity_only": false,
+      "reason": null,
+      "match": "crosswalk"
+    },
+    {
+      "player_id": "00-0040967",
+      "sleeper_id": "13904",
+      "name": "Jacob De Jesus",
+      "team": "SEA",
+      "position": "WR",
+      "bye": 11,
+      "ecr": null,
       "identity_only": false,
       "reason": null,
       "match": "crosswalk"
