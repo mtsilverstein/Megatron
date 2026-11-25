@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 12,
   "data_through": "2026-wk11",
-  "generated_at": "2026-11-24T15:59:54+00:00",
-  "batch_id": "2026-11-24T15:59:54+00:00|2026-wk11|w12",
+  "generated_at": "2026-11-25T01:29:23+00:00",
+  "batch_id": "2026-11-25T01:29:23+00:00|2026-wk11|w12",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -13,7 +13,7 @@
   },
   "crosswalk": {
     "matched_gsis": 133,
-    "matched_crosswalk": 528,
+    "matched_crosswalk": 529,
     "matched_name": 9,
     "unmatched": 1
   },
@@ -1843,18 +1843,6 @@
       "match": "crosswalk"
     },
     {
-      "player_id": "00-0036261",
-      "sleeper_id": "6803",
-      "name": "Brandon Aiyuk",
-      "team": "SF",
-      "position": null,
-      "bye": 8,
-      "ecr": 317,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": "crosswalk"
-    },
-    {
       "player_id": "00-0036264",
       "sleeper_id": "6804",
       "name": "Jordan Love",
@@ -2330,8 +2318,8 @@
       "position": "QB",
       "bye": 7,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "crosswalk"
     },
     {
@@ -3888,6 +3876,18 @@
       "name": "Will Mallory",
       "team": "IND",
       "position": "TE",
+      "bye": 13,
+      "ecr": null,
+      "identity_only": false,
+      "reason": null,
+      "match": "crosswalk"
+    },
+    {
+      "player_id": "00-0038396",
+      "sleeper_id": "10223",
+      "name": "Eric Gray",
+      "team": "IND",
+      "position": "RB",
       "bye": 13,
       "ecr": null,
       "identity_only": false,
@@ -5546,8 +5546,8 @@
       "position": "QB",
       "bye": 13,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "crosswalk"
     },
     {
@@ -8275,18 +8275,6 @@
       "match": "crosswalk"
     },
     {
-      "player_id": "00-0040964",
-      "sleeper_id": "13778",
-      "name": "EJ Smith",
-      "team": "KC",
-      "position": null,
-      "bye": 5,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": "crosswalk"
-    },
-    {
       "player_id": "00-0040970",
       "sleeper_id": null,
       "name": null,
@@ -8863,18 +8851,6 @@
       "match": null
     },
     {
-      "player_id": "00-0041172",
-      "sleeper_id": null,
-      "name": null,
-      "team": "CHI",
-      "position": null,
-      "bye": 10,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
-    },
-    {
       "player_id": "00-0041176",
       "sleeper_id": "13760",
       "name": "Jaden Bradley",
@@ -9020,18 +8996,6 @@
     },
     {
       "player_id": "00-0041241",
-      "sleeper_id": null,
-      "name": null,
-      "team": "CIN",
-      "position": null,
-      "bye": 6,
-      "ecr": null,
-      "identity_only": true,
-      "reason": "no_projection",
-      "match": null
-    },
-    {
-      "player_id": "00-0041246",
       "sleeper_id": null,
       "name": null,
       "team": "CIN",

@@ -1,5 +1,5 @@
 {
- "as_of_date": "2026-11-18",
+ "as_of_date": "2026-11-25",
  "caveats": [
   "Projections = the bot pipeline's latest publication on main before K_N 00:00 UTC, proven by GitHub push records; Vercel deployment is not verified.",
   "Players who recorded no stat line (including on-field weeks with no recorded stat) are outside the estimand.",
@@ -8,18 +8,18 @@
  ],
  "kind": "live_accuracy",
  "overall": {
-  "above_p90": 0.1122667482410523,
-  "below_p10": 0.09085347200978892,
-  "coverage_p10_p90": 0.7968797797491588,
-  "mae": 4.32045579687978,
-  "n": 3269,
-  "naive_mae": 4.622280513918629
+  "above_p90": 0.11023842917251052,
+  "below_p10": 0.08920056100981767,
+  "coverage_p10_p90": 0.8005610098176719,
+  "mae": 4.290737727910238,
+  "n": 3565,
+  "naive_mae": 4.607329593267881
  },
  "protocol_version": "live-accuracy-v1",
  "provisional_weeks": [
-  10
+  11
  ],
- "run_at": "2026-11-18T21:38:21Z",
+ "run_at": "2026-11-25T01:09:38Z",
  "schema_version": 1,
  "scoring": "ppr",
  "season": 2026,
@@ -132,8 +132,19 @@
    "mae": 4.713741935483871,
    "n": 310,
    "naive_mae": 4.87716129032258,
-   "provisional": true,
+   "provisional": false,
    "week": 10
+  },
+  {
+   "above_p90": 0.08783783783783784,
+   "below_p10": 0.07094594594594594,
+   "coverage_p10_p90": 0.8412162162162162,
+   "last_game": "2026-11-23",
+   "mae": 3.9625337837837833,
+   "n": 296,
+   "naive_mae": 4.442212837837838,
+   "provisional": true,
+   "week": 11
   }
  ],
  "weeks_skipped": []
