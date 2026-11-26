@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-26T01:03:08+00:00",
+  "generated_at": "2026-11-26T15:28:43+00:00",
   "data_through": "2026-wk11",
   "season": 2026,
   "week": 12,
@@ -1411,93 +1411,6 @@
         "receiving_yards": -0.26,
         "receiving_tds": -0.01,
         "fumbles_lost": 0.0
-      }
-    },
-    {
-      "player_id": "00-0023459",
-      "name": "Aaron Rodgers",
-      "team": "PIT",
-      "opponent": "DEN",
-      "position": "QB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": 4.81,
-          "p50": 14.5,
-          "p90": 25.15
-        },
-        "half_ppr": {
-          "p10": 4.84,
-          "p50": 14.51,
-          "p90": 25.11
-        },
-        "standard": {
-          "p10": 4.87,
-          "p50": 14.52,
-          "p90": 25.06
-        },
-        "league": {
-          "p10": 5.66,
-          "p50": 17.16,
-          "p90": 29.88
-        }
-      },
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": 186.05936662236536,
-          "passing_tds": 0.545379038564004,
-          "passing_interceptions": 0.30111036738205676,
-          "carries": 0.9105478041675816,
-          "rushing_yards": 1.1271855817698224,
-          "rushing_tds": -0.0509358481123805,
-          "targets": -0.09430677929757225,
-          "receptions": -0.0555643716541665,
-          "receiving_yards": -0.40154718483830365,
-          "receiving_tds": -0.016381255717539622,
-          "fumbles_lost": -0.032516754805555825,
-          "passing_pick_sixes": 0.08073137284872188
-        },
-        "p50": {
-          "passing_yards": 251.7470703125,
-          "passing_tds": 1.449652075767517,
-          "passing_interceptions": 0.8690781593322754,
-          "carries": 1.9576889276504517,
-          "rushing_yards": 4.87895393371582,
-          "rushing_tds": -0.0031315896194428205,
-          "targets": -0.07388439029455185,
-          "receptions": -0.019177384674549103,
-          "receiving_yards": -0.18840652704238892,
-          "receiving_tds": -0.007883546873927116,
-          "fumbles_lost": 0.005099755246192217,
-          "passing_pick_sixes": 0.08073137284872188
-        },
-        "p90": {
-          "passing_yards": 313.12560532537736,
-          "passing_tds": 2.483158909559787,
-          "passing_interceptions": 1.5694342903062335,
-          "carries": 3.6135210505891706,
-          "rushing_yards": 14.938365712718394,
-          "rushing_tds": 0.2145961173629125,
-          "targets": 0.030109699916808452,
-          "receptions": 0.08865525389599505,
-          "receiving_yards": 0.1522862779032863,
-          "receiving_tds": 0.05790917050503985,
-          "fumbles_lost": 0.6432203848788483,
-          "passing_pick_sixes": 0.08073137284872188
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 251.75,
-        "passing_tds": 1.45,
-        "passing_interceptions": 0.87,
-        "carries": 1.96,
-        "rushing_yards": 4.88,
-        "rushing_tds": -0.0,
-        "targets": -0.07,
-        "receptions": -0.02,
-        "receiving_yards": -0.19,
-        "receiving_tds": -0.01,
-        "fumbles_lost": 0.01
       }
     },
     {
@@ -11850,93 +11763,6 @@
         "receptions": 1.56,
         "receiving_yards": 7.64,
         "receiving_tds": -0.0,
-        "fumbles_lost": 0.0
-      }
-    },
-    {
-      "player_id": "00-0033662",
-      "name": "Cooper Rush",
-      "team": "TB",
-      "opponent": "CAR",
-      "position": "QB",
-      "is_home": true,
-      "points": {
-        "ppr": {
-          "p10": -0.46,
-          "p50": 6.8,
-          "p90": 18.06
-        },
-        "half_ppr": {
-          "p10": -0.44,
-          "p50": 6.81,
-          "p90": 18.0
-        },
-        "standard": {
-          "p10": -0.41,
-          "p50": 6.83,
-          "p90": 17.94
-        },
-        "league": {
-          "p10": -0.27,
-          "p50": 7.63,
-          "p90": 20.99
-        }
-      },
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": 77.09863730514098,
-          "passing_tds": 0.17535108342667094,
-          "passing_interceptions": 0.11774734035801693,
-          "carries": 0.8166560191836894,
-          "rushing_yards": -0.1633039072555107,
-          "rushing_tds": -0.03093502663197345,
-          "targets": -0.09091424931521797,
-          "receptions": -0.043222190566656604,
-          "receiving_yards": -0.4982331520512542,
-          "receiving_tds": -0.0018148583975087645,
-          "fumbles_lost": -0.03120773249530928,
-          "passing_pick_sixes": 0.05465483904425677
-        },
-        "p50": {
-          "passing_yards": 131.80499267578125,
-          "passing_tds": 0.49906405806541443,
-          "passing_interceptions": 0.34748801589012146,
-          "carries": 1.9878215789794922,
-          "rushing_yards": 2.972520112991333,
-          "rushing_tds": -0.004347711801528931,
-          "targets": -0.001762889325618744,
-          "receptions": -0.028623880818486214,
-          "receiving_yards": -0.21005527675151825,
-          "receiving_tds": 0.0017291217809543014,
-          "fumbles_lost": 0.004442987963557243,
-          "passing_pick_sixes": 0.05465483904425677
-        },
-        "p90": {
-          "passing_yards": 223.72609837747314,
-          "passing_tds": 1.545669185667709,
-          "passing_interceptions": 1.3593954156328714,
-          "carries": 3.7028180201600094,
-          "rushing_yards": 14.50942889761177,
-          "rushing_tds": 0.2085365307640652,
-          "targets": 0.10405106349117599,
-          "receptions": 0.12552907627924048,
-          "receiving_yards": 0.7808154284569575,
-          "receiving_tds": 0.03286890125904962,
-          "fumbles_lost": 0.609110602758383,
-          "passing_pick_sixes": 0.05465483904425677
-        }
-      },
-      "stats_p50": {
-        "passing_yards": 131.8,
-        "passing_tds": 0.5,
-        "passing_interceptions": 0.35,
-        "carries": 1.99,
-        "rushing_yards": 2.97,
-        "rushing_tds": -0.0,
-        "targets": -0.0,
-        "receptions": -0.03,
-        "receiving_yards": -0.21,
-        "receiving_tds": 0.0,
         "fumbles_lost": 0.0
       }
     },
@@ -31429,6 +31255,93 @@
       }
     },
     {
+      "player_id": "00-0031236",
+      "name": "Brandin Cooks",
+      "team": "SF",
+      "opponent": "SEA",
+      "position": "WR",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": 0.04,
+          "p50": 2.13,
+          "p90": 8.77
+        },
+        "half_ppr": {
+          "p10": -0.04,
+          "p50": 1.56,
+          "p90": 7.36
+        },
+        "standard": {
+          "p10": -0.12,
+          "p50": 0.99,
+          "p90": 5.95
+        },
+        "league": {
+          "p10": 0.0,
+          "p50": 2.13,
+          "p90": 8.79
+        }
+      },
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": -0.21823463454958159,
+          "passing_tds": -0.017098344312245828,
+          "passing_interceptions": -0.006820594006891834,
+          "carries": -0.02258523424673048,
+          "rushing_yards": -0.06036896793762736,
+          "rushing_tds": -0.011190257759908506,
+          "targets": 0.6067251183076046,
+          "receptions": 0.15876870426545153,
+          "receiving_yards": 1.3790400681863275,
+          "receiving_tds": -0.010605893507915853,
+          "fumbles_lost": -0.01741565163012243,
+          "passing_pick_sixes": 0.0
+        },
+        "p50": {
+          "passing_yards": -0.061448026448488235,
+          "passing_tds": -0.0023586787283420563,
+          "passing_interceptions": -0.0015841139247640967,
+          "carries": 0.0007968696882016957,
+          "rushing_yards": -0.02577391266822815,
+          "rushing_tds": -0.0011031205067411065,
+          "targets": 1.8621869087219238,
+          "receptions": 1.147956132888794,
+          "receiving_yards": 9.802189826965332,
+          "receiving_tds": 0.003695760853588581,
+          "fumbles_lost": -0.0009513000841252506,
+          "passing_pick_sixes": 0.0
+        },
+        "p90": {
+          "passing_yards": 0.21878040081959876,
+          "passing_tds": 0.007652030606623726,
+          "passing_interceptions": 0.005111067917196025,
+          "carries": 0.09920086825118939,
+          "rushing_yards": 0.11751028936719288,
+          "rushing_tds": 0.018013338724870886,
+          "targets": 4.041159107525874,
+          "receptions": 2.828875123116206,
+          "receiving_yards": 32.67080723965911,
+          "receiving_tds": 0.4117936982760443,
+          "fumbles_lost": 0.016880370703134407,
+          "passing_pick_sixes": 0.0
+        }
+      },
+      "stats_p50": {
+        "passing_yards": -0.06,
+        "passing_tds": -0.0,
+        "passing_interceptions": -0.0,
+        "carries": 0.0,
+        "rushing_yards": -0.03,
+        "rushing_tds": -0.0,
+        "targets": 1.86,
+        "receptions": 1.15,
+        "receiving_yards": 9.8,
+        "receiving_tds": 0.0,
+        "fumbles_lost": -0.0
+      }
+    },
+    {
       "player_id": "00-0036020",
       "name": "Salvon Ahmed",
       "team": "CHI",
@@ -36907,6 +36820,93 @@
         "receiving_yards": 6.87,
         "receiving_tds": 0.0,
         "fumbles_lost": -0.0
+      }
+    },
+    {
+      "player_id": "00-0039577",
+      "name": "Kedon Slovis",
+      "team": "ARI",
+      "opponent": "WAS",
+      "position": "QB",
+      "is_home": true,
+      "points": {
+        "ppr": {
+          "p10": -2.92,
+          "p50": 1.48,
+          "p90": 10.02
+        },
+        "half_ppr": {
+          "p10": -2.89,
+          "p50": 1.48,
+          "p90": 9.94
+        },
+        "standard": {
+          "p10": -2.87,
+          "p50": 1.48,
+          "p90": 9.86
+        },
+        "league": {
+          "p10": -3.09,
+          "p50": 1.39,
+          "p90": 11.35
+        }
+      },
+      "stat_quantiles": {
+        "p10": {
+          "passing_yards": 4.798137007255605,
+          "passing_tds": -0.04224262179983429,
+          "passing_interceptions": -0.010758975444673302,
+          "carries": 0.5451849638855037,
+          "rushing_yards": -1.5822440692939566,
+          "rushing_tds": -0.01564311899934384,
+          "targets": -0.09136758977801374,
+          "receptions": -0.05455895617627404,
+          "receiving_yards": -0.5622221685224371,
+          "receiving_tds": -0.002992694993772721,
+          "fumbles_lost": -0.02969118842869556,
+          "passing_pick_sixes": 0.02708617120671136
+        },
+        "p50": {
+          "passing_yards": 38.228912353515625,
+          "passing_tds": -0.0034378133714199066,
+          "passing_interceptions": 0.0178114864975214,
+          "carries": 1.5963140726089478,
+          "rushing_yards": 0.19694571197032928,
+          "rushing_tds": -0.001948689459823072,
+          "targets": -0.017209121957421303,
+          "receptions": -0.0032664339523762465,
+          "receiving_yards": -0.12804366648197174,
+          "receiving_tds": 0.0032025694381445646,
+          "fumbles_lost": 0.007684356067329645,
+          "passing_pick_sixes": 0.02708617120671136
+        },
+        "p90": {
+          "passing_yards": 120.3662593910035,
+          "passing_tds": 0.708569256759926,
+          "passing_interceptions": 0.869546418877821,
+          "carries": 3.3603512110446445,
+          "rushing_yards": 9.75852918516523,
+          "rushing_tds": 0.12469321417537227,
+          "targets": 0.11080416911637991,
+          "receptions": 0.16130003996227682,
+          "receiving_yards": 0.6381695345337199,
+          "receiving_tds": 0.05623682392061036,
+          "fumbles_lost": 0.41146991169967784,
+          "passing_pick_sixes": 0.02708617120671136
+        }
+      },
+      "stats_p50": {
+        "passing_yards": 38.23,
+        "passing_tds": -0.0,
+        "passing_interceptions": 0.02,
+        "carries": 1.6,
+        "rushing_yards": 0.2,
+        "rushing_tds": -0.0,
+        "targets": -0.02,
+        "receptions": -0.0,
+        "receiving_yards": -0.13,
+        "receiving_tds": 0.0,
+        "fumbles_lost": 0.01
       }
     },
     {
