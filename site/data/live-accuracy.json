@@ -13,13 +13,13 @@
   "coverage_p10_p90": 0.8005610098176719,
   "mae": 4.290737727910238,
   "n": 3565,
-  "naive_mae": 4.607329593267881
+  "naive_mae": 4.608037868162692
  },
  "protocol_version": "live-accuracy-v1",
  "provisional_weeks": [
   11
  ],
- "run_at": "2026-11-25T01:09:38Z",
+ "run_at": "2026-11-25T22:49:11Z",
  "schema_version": 1,
  "scoring": "ppr",
  "season": 2026,
@@ -120,7 +120,7 @@
    "last_game": "2026-11-09",
    "mae": 3.868757575757576,
    "n": 330,
-   "naive_mae": 4.32570202020202,
+   "naive_mae": 4.3333535353535355,
    "provisional": false,
    "week": 9
   },

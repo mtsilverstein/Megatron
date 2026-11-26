@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 12,
   "data_through": "2026-wk11",
-  "generated_at": "2026-11-25T15:47:17+00:00",
-  "batch_id": "2026-11-25T15:47:17+00:00|2026-wk11|w12",
+  "generated_at": "2026-11-26T01:03:08+00:00",
+  "batch_id": "2026-11-26T01:03:08+00:00|2026-wk11|w12",
   "schema_version": 1,
   "kind": "neutral_players",
   "ecr_source": {
@@ -12,8 +12,8 @@
     "scoring": "PPR"
   },
   "crosswalk": {
-    "matched_gsis": 133,
-    "matched_crosswalk": 528,
+    "matched_gsis": 132,
+    "matched_crosswalk": 527,
     "matched_name": 9,
     "unmatched": 1
   },
@@ -686,8 +686,8 @@
       "position": "QB",
       "bye": 10,
       "ecr": null,
-      "identity_only": false,
-      "reason": null,
+      "identity_only": true,
+      "reason": "team_disagrees",
       "match": "gsis"
     },
     {
@@ -1495,18 +1495,6 @@
       "match": "gsis"
     },
     {
-      "player_id": "00-0035567",
-      "sleeper_id": "6659",
-      "name": "Craig Reynolds",
-      "team": "WAS",
-      "position": "RB",
-      "bye": 7,
-      "ecr": null,
-      "identity_only": false,
-      "reason": null,
-      "match": "gsis"
-    },
-    {
       "player_id": "00-0035594",
       "sleeper_id": "6012",
       "name": "Travis Homer",
@@ -1957,18 +1945,6 @@
       "team": "ARI",
       "position": "WR",
       "bye": 14,
-      "ecr": null,
-      "identity_only": false,
-      "reason": null,
-      "match": "crosswalk"
-    },
-    {
-      "player_id": "00-0036332",
-      "sleeper_id": "7050",
-      "name": "Josiah Deguara",
-      "team": "LAC",
-      "position": "TE",
-      "bye": 7,
       "ecr": null,
       "identity_only": false,
       "reason": null,

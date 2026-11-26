@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 12,
   "data_through": "2026-wk11",
-  "generated_at": "2026-11-25T15:47:17+00:00",
-  "batch_id": "2026-11-25T15:47:17+00:00|2026-wk11|w12",
+  "generated_at": "2026-11-26T01:03:08+00:00",
+  "batch_id": "2026-11-26T01:03:08+00:00|2026-wk11|w12",
   "schema_version": 1,
   "kind": "neutral_weekly",
   "model": "transformer",
@@ -36928,144 +36928,6 @@
           "p10": -0.24,
           "p50": 0.19,
           "p90": 3.05
-        }
-      }
-    },
-    {
-      "player_id": "00-0035567",
-      "name": "Craig Reynolds",
-      "team": "WAS",
-      "opponent": "ARI",
-      "position": "RB",
-      "is_home": false,
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.2115069667289291,
-          "passing_tds": -0.020436418071414414,
-          "passing_interceptions": -0.013043675382231442,
-          "carries": 0.35019659542681925,
-          "rushing_yards": 0.704713511255008,
-          "rushing_tds": -0.014002163770133226,
-          "targets": 0.09468561090988595,
-          "receptions": 0.018462206292573266,
-          "receiving_yards": 0.06133569888145873,
-          "receiving_tds": -0.012399570337791698,
-          "fumbles_lost": -0.015600291677520736,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": -0.04080208018422127,
-          "passing_tds": -0.0008789027924649417,
-          "passing_interceptions": 0.004305001348257065,
-          "carries": 1.3021069765090942,
-          "rushing_yards": 3.7493410110473633,
-          "rushing_tds": -0.0014738651225343347,
-          "targets": 0.2789347469806671,
-          "receptions": 0.13274316489696503,
-          "receiving_yards": 0.3575568199157715,
-          "receiving_tds": 6.511900573968887e-05,
-          "fumbles_lost": 0.002516039414331317,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.3667170888676914,
-          "passing_tds": 0.01160630063448459,
-          "passing_interceptions": 0.00873667748237994,
-          "carries": 4.8296896933371585,
-          "rushing_yards": 20.624604062413027,
-          "rushing_tds": 0.14657827911809296,
-          "targets": 1.302874649730871,
-          "receptions": 1.0982798493924726,
-          "receiving_yards": 7.7573294104010415,
-          "receiving_tds": 0.07525991162869805,
-          "fumbles_lost": 0.0193641563689535,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "points": {
-        "ppr": {
-          "p10": -0.21,
-          "p50": 0.52,
-          "p90": 5.39
-        },
-        "half_ppr": {
-          "p10": -0.22,
-          "p50": 0.45,
-          "p90": 4.84
-        },
-        "standard": {
-          "p10": -0.23,
-          "p50": 0.38,
-          "p90": 4.29
-        }
-      }
-    },
-    {
-      "player_id": "00-0036332",
-      "name": "Josiah Deguara",
-      "team": "LAC",
-      "opponent": "NE",
-      "position": "TE",
-      "is_home": true,
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.2523481431725707,
-          "passing_tds": -0.01584472849029022,
-          "passing_interceptions": -0.009740731101725308,
-          "carries": -0.030271129630683243,
-          "rushing_yards": -0.0676576568423719,
-          "rushing_tds": -0.011890680795886599,
-          "targets": 0.13795620336565684,
-          "receptions": 0.05347176614450461,
-          "receiving_yards": 0.2959539352771585,
-          "receiving_tds": -0.01094140661089009,
-          "fumbles_lost": -0.017047437757832063,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": -0.0946609154343605,
-          "passing_tds": -0.002840952714905143,
-          "passing_interceptions": 0.0009885752806439996,
-          "carries": -0.005522771272808313,
-          "rushing_yards": -0.023830050602555275,
-          "rushing_tds": -0.0011237189173698425,
-          "targets": 0.5783924460411072,
-          "receptions": 0.36986979842185974,
-          "receiving_yards": 1.5442982912063599,
-          "receiving_tds": 0.0004261462017893791,
-          "fumbles_lost": -0.0014744257787242532,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.2478359991990633,
-          "passing_tds": 0.009256185587596971,
-          "passing_interceptions": 0.004973511473858591,
-          "carries": 0.0772406892752413,
-          "rushing_yards": 0.14366411441313787,
-          "rushing_tds": 0.018274985655759413,
-          "targets": 1.898832561369467,
-          "receptions": 1.4880270960232416,
-          "receiving_yards": 13.799679852596569,
-          "receiving_tds": 0.14558106471163113,
-          "fumbles_lost": 0.017091263792320344,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "points": {
-        "ppr": {
-          "p10": -0.18,
-          "p50": 0.5,
-          "p90": 3.97
-        },
-        "half_ppr": {
-          "p10": -0.21,
-          "p50": 0.32,
-          "p90": 3.22
-        },
-        "standard": {
-          "p10": -0.23,
-          "p50": 0.13,
-          "p90": 2.48
         }
       }
     },
