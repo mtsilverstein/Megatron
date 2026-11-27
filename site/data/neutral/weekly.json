@@ -2,8 +2,8 @@
   "season": 2026,
   "week": 12,
   "data_through": "2026-wk11",
-  "generated_at": "2026-11-26T15:28:43+00:00",
-  "batch_id": "2026-11-26T15:28:43+00:00|2026-wk11|w12",
+  "generated_at": "2026-11-27T01:03:44+00:00",
+  "batch_id": "2026-11-27T01:03:44+00:00|2026-wk11|w12",
   "schema_version": 1,
   "kind": "neutral_weekly",
   "model": "transformer",
@@ -38929,75 +38929,6 @@
           "p10": -0.26,
           "p50": 0.04,
           "p90": 2.11
-        }
-      }
-    },
-    {
-      "player_id": "00-0033854",
-      "name": "Dare Ogunbowale",
-      "team": "HOU",
-      "opponent": "BAL",
-      "position": "RB",
-      "is_home": true,
-      "stat_quantiles": {
-        "p10": {
-          "passing_yards": -0.17812710619931799,
-          "passing_tds": -0.015757161820122673,
-          "passing_interceptions": -0.009330312751739086,
-          "carries": -0.03530991137524944,
-          "rushing_yards": -0.22938753433151599,
-          "rushing_tds": -0.01130318244800483,
-          "targets": 0.12304665219594652,
-          "receptions": 0.06625072109098343,
-          "receiving_yards": 0.13772233290935798,
-          "receiving_tds": -0.010187441834064118,
-          "fumbles_lost": -0.014212403747963677,
-          "passing_pick_sixes": 0.0
-        },
-        "p50": {
-          "passing_yards": -0.024576017633080482,
-          "passing_tds": -0.0020043521653860807,
-          "passing_interceptions": 0.0018967477371916175,
-          "carries": 0.10916277766227722,
-          "rushing_yards": 0.05611680820584297,
-          "rushing_tds": -0.0002810545265674591,
-          "targets": 0.42941784858703613,
-          "receptions": 0.27275457978248596,
-          "receiving_yards": 0.5549003481864929,
-          "receiving_tds": 0.0005353825981728733,
-          "fumbles_lost": -0.001936684944666922,
-          "passing_pick_sixes": 0.0
-        },
-        "p90": {
-          "passing_yards": 0.2701290611330709,
-          "passing_tds": 0.009081330660274056,
-          "passing_interceptions": 0.006404137879987934,
-          "carries": 1.349358517079846,
-          "rushing_yards": 4.870645199103592,
-          "rushing_tds": 0.02582054461035621,
-          "targets": 1.5345512954501217,
-          "receptions": 1.2954521348932708,
-          "receiving_yards": 9.309356280325176,
-          "receiving_tds": 0.07137674694709761,
-          "fumbles_lost": 0.015486807521498502,
-          "passing_pick_sixes": 0.0
-        }
-      },
-      "points": {
-        "ppr": {
-          "p10": -0.19,
-          "p50": 0.33,
-          "p90": 3.39
-        },
-        "half_ppr": {
-          "p10": -0.22,
-          "p50": 0.19,
-          "p90": 2.74
-        },
-        "standard": {
-          "p10": -0.25,
-          "p50": 0.05,
-          "p90": 2.1
         }
       }
     },
